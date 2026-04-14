@@ -172,6 +172,169 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
+    void verifySupportsActionOnlyPublishedVersionWithoutKnowledgeOrShellArtifacts() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+            );
+
+            registerRuntimeHandlers(runtimeServer, artifacts);
+            runtimeServer.removeContext("/api/admin/overview");
+            runtimeServer.createContext(
+                "/api/admin/overview",
+                privateRuntimeJsonHandler(
+                    """
+                        {
+                          "success": true,
+                          "entityConfigLocation": "%s",
+                          "promptConfigLocation": "%s",
+                          "knowledgeSourceConfigLocation": "",
+                          "shellConfigLocation": "",
+                          "actionCatalogSources": [
+                            {
+                              "type": "FILE",
+                              "path": "%s",
+                              "optional": false
+                            }
+                          ],
+                          "actionsCount": 2,
+                          "confirmationInterceptorsCount": 1,
+                          "confirmationInterceptorRuleNames": ["offer_cart_retention"],
+                          "confirmationInterceptorSources": ["%s"],
+                          "knowledgeSourcesCount": 0,
+                          "knowledgeSourceIds": [],
+                          "knowledgeSourceTypes": [],
+                          "knowledgeSourceAdapterTypes": [],
+                          "shellModulesCount": 0,
+                          "shellModuleIds": [],
+                          "shellCardsCount": 0,
+                          "shellCardIds": [],
+                          "shellStarterPromptsCount": 0,
+                          "shellGreetingConfigured": false,
+                          "supportedEntityTypes": ["product", "policy"],
+                          "marketplaceSupport": {
+                            "knowledgeSourceConfigContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                            "shellConfigContractVersion": "SHELL_CONFIG_V1"
+                          },
+                          "auth": {
+                            "ingressMode": "VERIFIED_CONTEXT_REQUIRED",
+                            "verifiedContextRequired": true,
+                            "rejectConflictingRequestIdentity": true,
+                            "rejectRequestIdentityWhenVerifiedContextPresent": true,
+                            "trustedBackendConfigured": true,
+                            "privateAssertionValidationConfigured": true,
+                            "privateAssertionAcceptedIssuers": ["platform-runtime:SESSION", "platform-runtime:API_KEY", "platform-poc:SESSION", "platform-poc:API_KEY", "platform-poc:SYSTEM", "platform-release-verification", "platform-vectorization-verification", "platform-runtime-coverage"],
+                            "privateAssertionAcceptedAudiences": ["dep-123"],
+                            "publicTokenValidationConfigured": false,
+                            "publicAuthorizationHeader": "Authorization",
+                            "publicTokenScheme": "Bearer",
+                            "publicTokenIssuer": "runtime-public-bootstrap",
+                            "publicAcceptedIssuers": [],
+                            "publicAcceptedAudiences": [],
+                            "publicDefaultAudience": "",
+                            "publicBootstrap": {
+                              "enabled": false,
+                              "allowMissingOrigin": false,
+                              "allowedOrigins": []
+                            }
+                          }
+                        }
+                        """.formatted(
+                        artifacts.entityArtifactUrl(),
+                        artifacts.promptArtifactUrl(),
+                        artifacts.actionsArtifactUrl(),
+                        artifacts.actionsArtifactUrl()
+                    )
+                )
+            );
+            registerConnectorHandlers(connectorServer, artifacts);
+            runtimeServer.start();
+            connectorServer.start();
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
+            when(platformSecretService.isSecretPresent(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredManagedVectorizationSummary());
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "lucene",
+                    "LOCAL_MANAGED",
+                    false,
+                    "NONE",
+                    java.util.List.of(),
+                    "Platform-managed external vector provisioning is not enabled for this draft.",
+                    java.util.List.of(
+                        new DeploymentProviderConnectivityProbeSummary(
+                            "local_vector_backend",
+                            "Local vector backend",
+                            "SKIPPED",
+                            "lucene",
+                            "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
+                        )
+                    ),
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    java.util.List.of()
+                )
+            );
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                verificationProperties(Duration.ofSeconds(2)),
+                platformSecretService,
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentEntity deployment = deployment(
+                "http://127.0.0.1:" + runtimeServer.getAddress().getPort(),
+                "http://127.0.0.1:" + connectorServer.getAddress().getPort()
+            );
+            DeploymentVersionEntity version = version();
+            version.setKnowledgeSourceConfigJson(null);
+            version.setShellConfigJson(null);
+            DeploymentReleaseEntity release = releaseWithVectorizationRunner();
+
+            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
+
+            assertThat(run.getStatus()).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_knowledge_sources_match_expected")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_shell_config_matches_expected")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_actions_match_expected")).isEqualTo("PASSED");
+        } finally {
+            runtimeServer.stop(0);
+            connectorServer.stop(0);
+        }
+    }
+
+    @Test
     void verifyUsesLongerTimeoutForRuntimeIndexingOverviewProbe() throws Exception {
         HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
         HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);

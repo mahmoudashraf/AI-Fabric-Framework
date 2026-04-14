@@ -163,6 +163,56 @@ class RuntimeDeploymentSearchSourceRegistryTest {
     }
 
     @Test
+    void registrySupportsPrivateAndPlatformAuthModesWhenConfigured() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("shared-catalog")
+                .type("shared-vector")
+                .adapterType("shared-index")
+                .attributionLabel("Shared catalog")
+                .entityType("product")
+                .handleRef("marketplace/catalog")
+                .authModes(List.of("PRIVATE_RUNTIME_BACKEND_MEDIATED", "PLATFORM_PROXY_SESSION"))
+                .enabled(true)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", true));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        RAGRequest privateRequest = RAGRequest.builder()
+            .query("tell me about Alienware")
+            .entityType("product")
+            .authContext(AIAccessSubjectContext.builder().authMode("PRIVATE_RUNTIME_BACKEND_MEDIATED").build())
+            .build();
+        RAGRequest platformRequest = RAGRequest.builder()
+            .query("tell me about Alienware")
+            .entityType("product")
+            .authContext(AIAccessSubjectContext.builder().authMode("PLATFORM_PROXY_SESSION").build())
+            .build();
+        RAGRequest anonymousRequest = RAGRequest.builder()
+            .query("tell me about Alienware")
+            .entityType("product")
+            .authContext(AIAccessSubjectContext.builder().authMode("PUBLIC_RUNTIME_ANONYMOUS").build())
+            .build();
+
+        assertThat(registry.resolveSearchSources(privateRequest))
+            .extracting(source -> source.isEligible(privateRequest))
+            .containsExactly(true, true);
+        assertThat(registry.resolveSearchSources(platformRequest))
+            .extracting(source -> source.isEligible(platformRequest))
+            .containsExactly(true, true);
+        assertThat(registry.resolveSearchSources(anonymousRequest))
+            .extracting(source -> source.isEligible(anonymousRequest))
+            .containsExactly(true, false);
+    }
+
+    @Test
     void registryKeepsDisabledSourcesVisibleAndFailSafe() {
         when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
             ResolvedKnowledgeSource.builder()

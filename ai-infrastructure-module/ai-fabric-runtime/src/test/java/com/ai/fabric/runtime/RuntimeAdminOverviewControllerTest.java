@@ -297,6 +297,84 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(auth).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
     }
 
+    @Test
+    void overviewKeepsActionOnlyDeploymentsDefaultSafeWithoutMarketplaceArtifacts() {
+        AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
+        RuntimeActionCatalogGateway actionCatalogGateway = mock(RuntimeActionCatalogGateway.class);
+        AIEntityConfigurationLoader entityConfigurationLoader = mock(AIEntityConfigurationLoader.class);
+        VectorDatabaseService vectorDatabaseService = new TestVectorDatabaseService();
+        RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
+        authProperties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        authProperties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        authProperties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-secret");
+        authProperties.getIngress().setAcceptedIssuers(List.of("platform-poc:SESSION"));
+        authProperties.getIngress().setAcceptedAudiences(List.of("dep-auth"));
+
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(
+            AIActionMetaData.builder()
+                .name("list_products")
+                .displayName("List Products")
+                .category("commerce")
+                .description("List products")
+                .accessMode(ActionAccessMode.READ)
+                .confirmationRequired(false)
+                .build()
+        ));
+        when(actionCatalogGateway.getSources()).thenReturn(List.of());
+        when(entityConfigurationLoader.getSupportedEntityTypes()).thenReturn(Set.of("product"));
+
+        RuntimeAdminOverviewController controller = instantiateController(
+            actionRegistry,
+            actionCatalogGateway,
+            entityConfigurationLoader,
+            vectorDatabaseService,
+            authProperties,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
+            emptyProvider(ConfirmationInterceptorCatalogProvider.class),
+            emptyProvider(RuntimeDeploymentKnowledgeSourceConfigService.class),
+            emptyProvider(RuntimeDeploymentShellConfigService.class),
+            emptyProvider(SearchSourceRegistry.class)
+        );
+
+        ResponseEntity<?> response = controller.overview(
+            authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW)
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isInstanceOf(Map.class);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertThat(body).containsEntry("success", true);
+        assertThat(body).containsEntry("actionsCount", 1L);
+        assertThat(body).containsEntry("confirmationInterceptorsCount", 0);
+        assertThat(body).containsEntry("knowledgeSourcesCount", 0);
+        assertThat(body).containsEntry("knowledgeSourceIds", List.of());
+        assertThat(body).containsEntry("knowledgeSourceTypes", List.of());
+        assertThat(body).containsEntry("knowledgeSourceAdapterTypes", List.of());
+        assertThat(body).containsEntry("shellModulesCount", 0);
+        assertThat(body).containsEntry("shellModuleIds", List.of());
+        assertThat(body).containsEntry("shellCardsCount", 0);
+        assertThat(body).containsEntry("shellCardIds", List.of());
+        assertThat(body).containsEntry("shellStarterPromptsCount", 0);
+        assertThat(body).containsEntry("shellGreetingConfigured", false);
+        assertThat(body).containsEntry("searchSourceDiagnostics", Map.of());
+        assertThat(body.get("marketplaceSupport")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> marketplaceSupport = (Map<String, Object>) body.get("marketplaceSupport");
+        assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        assertThat(marketplaceSupport).containsEntry("resolvedActionMetadataSupported", true);
+        assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", false);
+        assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", false);
+        assertThat(marketplaceSupport).containsEntry("resolvedSearchSourcesSupported", false);
+        assertThat(marketplaceSupport).containsEntry("degradedSearchSupported", false);
+        assertThat(marketplaceSupport).containsEntry("knowledgeSourceContractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        assertThat(marketplaceSupport).containsEntry("shellConfigContractVersion", "SHELL_CONFIG_V1");
+        assertThat(marketplaceSupport).containsEntry("searchSourceContractVersion", "SEARCH_SOURCE_REGISTRY_V1");
+        assertThat(marketplaceSupport).containsEntry("searchSourceDiagnosticsContractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1");
+        assertThat(marketplaceSupport).containsEntry("supportedKnowledgeSourceAdapterTypes", List.of());
+    }
+
     private RuntimeAdminOverviewController instantiateController(AIActionRegistry actionRegistry,
                                                                  RuntimeActionCatalogGateway actionCatalogGateway,
                                                                  AIEntityConfigurationLoader entityConfigurationLoader,
@@ -347,6 +425,10 @@ class RuntimeAdminOverviewControllerTest {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("confirmationInterceptorCatalogProvider", provider);
         return beanFactory.getBeanProvider(ConfirmationInterceptorCatalogProvider.class);
+    }
+
+    private <T> ObjectProvider<T> emptyProvider(Class<T> type) {
+        return new StaticListableBeanFactory().getBeanProvider(type);
     }
 
     private ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigProvider() {
