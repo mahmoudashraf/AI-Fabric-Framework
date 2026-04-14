@@ -223,6 +223,7 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
         private volatile String lastReason;
         private volatile String lastFailureMessage;
         private volatile Long lastProcessingTimeMs;
+        private volatile Long lastResultsCount;
         private volatile Instant lastAttemptAt;
         private volatile Instant lastSuccessAt;
         private volatile Instant lastFailureAt;
@@ -260,6 +261,10 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             if (processingTimeMs != null) {
                 this.lastProcessingTimeMs = processingTimeMs;
             }
+            Long resultsCount = longValue(diagnostic.get("resultsCount"));
+            if (resultsCount != null) {
+                this.lastResultsCount = resultsCount;
+            }
             if ("SUCCEEDED".equals(this.lastStatus)) {
                 successCount++;
                 lastSuccessAt = recordedAt;
@@ -287,6 +292,7 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             diagnostics.put("lastReason", lastReason);
             diagnostics.put("lastFailureMessage", lastFailureMessage);
             diagnostics.put("lastProcessingTimeMs", lastProcessingTimeMs);
+            diagnostics.put("lastResultsCount", lastResultsCount);
             diagnostics.put("lastAttemptAt", lastAttemptAt != null ? lastAttemptAt.toString() : null);
             diagnostics.put("lastSuccessAt", lastSuccessAt != null ? lastSuccessAt.toString() : null);
             diagnostics.put("lastFailureAt", lastFailureAt != null ? lastFailureAt.toString() : null);

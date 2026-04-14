@@ -106,8 +106,10 @@ EXPECT_TENANT_SCOPED_TENANT_ID="${EXPECT_TENANT_SCOPED_TENANT_ID:-}"
 EXPECT_TENANT_SCOPED_SCOPE_TYPE="${EXPECT_TENANT_SCOPED_SCOPE_TYPE:-}"
 EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE="${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE:-}"
 EXPECT_TENANT_SCOPED_SCOPE_PREFIX="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME:-}"
 EXPECT_TENANT_SCOPED_TENANT_HANDLE="${EXPECT_TENANT_SCOPED_TENANT_HANDLE:-}"
 EXPECT_TENANT_SCOPED_SCOPE_PATTERN="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME:-}"
 EXPECT_TENANT_SCOPED_REGISTRY_STATUS="${EXPECT_TENANT_SCOPED_REGISTRY_STATUS:-}"
 EXPECT_TENANT_SCOPED_READINESS_STATUS="${EXPECT_TENANT_SCOPED_READINESS_STATUS:-}"
 EXPECT_TENANT_SCOPED_MIGRATION_LOCKED="${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED:-}"
@@ -220,6 +222,43 @@ trim_slash() {
   fi
 }
 
+normalize_weaviate_runtime_scope_prefix() {
+  local raw="${1:-}"
+  RAW_SCOPE_PREFIX="${raw}" python3 - <<'PY'
+import os
+import re
+import uuid
+
+value = (os.environ.get("RAW_SCOPE_PREFIX") or "").strip()
+if not value:
+    print("")
+    raise SystemExit(0)
+
+if re.fullmatch(r"[A-Z][A-Za-z0-9]*_[0-9a-f]{8}", value):
+    print(value)
+    raise SystemExit(0)
+
+base = []
+upper_next = True
+for current in value:
+    if current.isalnum():
+        base.append(current.upper() if upper_next else current)
+        upper_next = False
+    else:
+        upper_next = True
+
+if not base:
+    base = list("Entity")
+if not base[0].isalpha():
+    base = list("Entity") + base
+if not base[0].isupper():
+    base[0] = base[0].upper()
+
+compact = uuid.uuid5(uuid.NAMESPACE_DNS, value).hex[:8]
+print("".join(base) + "_" + compact)
+PY
+}
+
 RUNTIME_BASE_URL="$(trim_slash "${RUNTIME_BASE_URL}")"
 if [[ -z "${RUNTIME_CONNECTOR_HEALTH_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
   RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_BASE_URL}/api/admin/connector/health"
@@ -241,6 +280,21 @@ if [[ -z "${RUNTIME_AUTH_OVERVIEW_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
 fi
 if [[ -n "${PLATFORM_BASE_URL}" ]]; then
   PLATFORM_BASE_URL="$(trim_slash "${PLATFORM_BASE_URL}")"
+fi
+
+if [[ -z "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}" ]]; then
+  EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"
+  if [[ "${EXPECT_TENANT_SCOPED_SCOPE_TYPE}" == "CLASS_AND_TENANT" && -n "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}" ]]; then
+    EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="$(normalize_weaviate_runtime_scope_prefix "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}")"
+  fi
+fi
+if [[ -z "${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}" ]]; then
+  EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"
+  if [[ "${EXPECT_TENANT_SCOPED_SCOPE_TYPE}" == "CLASS_AND_TENANT" \
+    && -n "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}" \
+    && -n "${EXPECT_TENANT_SCOPED_TENANT_HANDLE}" ]]; then
+    EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}<EntityType> @ tenant ${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"
+  fi
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -731,7 +785,7 @@ pass "runtime GET /api/admin/auth/overview"
 
 if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
   HTTP_BODY="${RUNTIME_ADMIN_OVERVIEW_BODY}"
-  json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nif expected_shared:\n  assert bool(scope.get("sharedStorage")) is True, scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n    assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n    assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n    assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n    assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n    assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", scope\nelse:\n  assert not scope or bool(scope.get("sharedStorage")) is False, scope\nprint("ok")'
+  json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nif expected_shared:\n  assert bool(scope.get("sharedStorage")) is True, scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n    assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n    assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}"'":\n    assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n    assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}"'":\n    assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}"'", scope\nelse:\n  assert not scope or bool(scope.get("sharedStorage")) is False, scope\nprint("ok")'
   pass "runtime admin tenant-scoped vector scope alignment"
 fi
 

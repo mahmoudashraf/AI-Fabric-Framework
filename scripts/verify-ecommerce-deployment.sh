@@ -83,8 +83,10 @@ EXPECT_TENANT_SCOPED_TENANT_ID="${EXPECT_TENANT_SCOPED_TENANT_ID:-}"
 EXPECT_TENANT_SCOPED_SCOPE_TYPE="${EXPECT_TENANT_SCOPED_SCOPE_TYPE:-}"
 EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE="${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE:-}"
 EXPECT_TENANT_SCOPED_SCOPE_PREFIX="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME:-}"
 EXPECT_TENANT_SCOPED_TENANT_HANDLE="${EXPECT_TENANT_SCOPED_TENANT_HANDLE:-}"
 EXPECT_TENANT_SCOPED_SCOPE_PATTERN="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME:-}"
 EXPECT_TENANT_SCOPED_REGISTRY_STATUS="${EXPECT_TENANT_SCOPED_REGISTRY_STATUS:-}"
 EXPECT_TENANT_SCOPED_READINESS_STATUS="${EXPECT_TENANT_SCOPED_READINESS_STATUS:-}"
 EXPECT_TENANT_SCOPED_MIGRATION_LOCKED="${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED:-}"
@@ -127,6 +129,7 @@ EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT="${EXPECT_MARKETPLACE_SHELL_START
 EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED:-false}"
 RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN:-}"
 MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
+MARKETPLACE_SHARED_SENTINEL_ID="${MARKETPLACE_SHARED_SENTINEL_ID:-}"
 RETENTION_TEST_SKU="${RETENTION_TEST_SKU:-SKU-0001}"
 RETENTION_TEST_QUANTITY="${RETENTION_TEST_QUANTITY:-1}"
 RETENTION_TEST_SHIPPING_ADDRESS="${RETENTION_TEST_SHIPPING_ADDRESS:-10 Verification Lane, London}"
@@ -231,6 +234,43 @@ trim_slash() {
   fi
 }
 
+normalize_weaviate_runtime_scope_prefix() {
+  local raw="${1:-}"
+  RAW_SCOPE_PREFIX="${raw}" python3 - <<'PY'
+import os
+import re
+import uuid
+
+value = (os.environ.get("RAW_SCOPE_PREFIX") or "").strip()
+if not value:
+    print("")
+    raise SystemExit(0)
+
+if re.fullmatch(r"[A-Z][A-Za-z0-9]*_[0-9a-f]{8}", value):
+    print(value)
+    raise SystemExit(0)
+
+base = []
+upper_next = True
+for current in value:
+    if current.isalnum():
+        base.append(current.upper() if upper_next else current)
+        upper_next = False
+    else:
+        upper_next = True
+
+if not base:
+    base = list("Entity")
+if not base[0].isalpha():
+    base = list("Entity") + base
+if not base[0].isupper():
+    base[0] = base[0].upper()
+
+compact = uuid.uuid5(uuid.NAMESPACE_DNS, value).hex[:8]
+print("".join(base) + "_" + compact)
+PY
+}
+
 STORE_BASE_URL="$(trim_slash "${STORE_BASE_URL}")"
 if [[ -n "${RUNTIME_BASE_URL}" ]]; then
   RUNTIME_BASE_URL="$(trim_slash "${RUNTIME_BASE_URL}")"
@@ -255,6 +295,21 @@ if [[ -z "${RUNTIME_AUTH_OVERVIEW_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
 fi
 if [[ -n "${PLATFORM_BASE_URL}" ]]; then
   PLATFORM_BASE_URL="$(trim_slash "${PLATFORM_BASE_URL}")"
+fi
+
+if [[ -z "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}" ]]; then
+  EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"
+  if [[ "${EXPECT_TENANT_SCOPED_SCOPE_TYPE}" == "CLASS_AND_TENANT" && -n "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}" ]]; then
+    EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="$(normalize_weaviate_runtime_scope_prefix "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}")"
+  fi
+fi
+if [[ -z "${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}" ]]; then
+  EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"
+  if [[ "${EXPECT_TENANT_SCOPED_SCOPE_TYPE}" == "CLASS_AND_TENANT" \
+    && -n "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}" \
+    && -n "${EXPECT_TENANT_SCOPED_TENANT_HANDLE}" ]]; then
+    EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}<EntityType> @ tenant ${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"
+  fi
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -582,6 +637,92 @@ assert_marketplace_shell_config() {
   json_assert "${label}" $'expected_module_ids = set('"${expected_module_ids_json}"')\nexpected_card_ids = set('"${expected_card_ids_json}"')\nassert (data or {}).get("contractVersion") == "'"${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION}"'", data\nassert set((data or {}).get("moduleIds") or []) == expected_module_ids, data\nassert set((data or {}).get("cardIds") or []) == expected_card_ids, data\nassert len((data or {}).get("starterPrompts") or []) == int("'"${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT}"'"), data\nassert bool((data or {}).get("greetingTitle") or (data or {}).get("greetingMessage")) == ("'"${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED}"'".lower() == "true"), data\nprint("ok")'
 }
 
+marketplace_shared_sentinel_payload() {
+  local sentinel_id="$1"
+  local operation="${2:-upsert}"
+  SENTINEL_ID="${sentinel_id}" \
+  SENTINEL_OPERATION="${operation}" \
+  python3 - <<'PY'
+import json
+import os
+
+sentinel_id = os.environ["SENTINEL_ID"]
+operation = os.environ.get("SENTINEL_OPERATION", "upsert").strip().lower()
+
+trace = {
+    "requestId": f"marketplace-shared-sentinel-{sentinel_id}",
+    "metadata": {
+        "deploymentId": os.environ.get("PLATFORM_DEPLOYMENT_ID", ""),
+        "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
+    },
+    "authContext": {
+        "subjectId": "system:platform-hosted-verification",
+        "subjectType": "SYSTEM_PROCESS",
+        "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+        "callerType": "SYSTEM_PROCESS",
+        "sessionId": f"marketplace-shared-sentinel-{sentinel_id}",
+        "deploymentId": os.environ.get("PLATFORM_DEPLOYMENT_ID", ""),
+        "customerId": os.environ.get("EXPECT_TENANT_SCOPED_CUSTOMER_ID", ""),
+        "tenantId": os.environ.get("EXPECT_TENANT_SCOPED_TENANT_ID", ""),
+        "issuer": "platform-hosted-verification",
+        "grantedScopes": ["data-sync:upsert", "data-sync:delete", "vectorization:verification"],
+    },
+}
+
+if operation == "delete":
+    print(json.dumps({
+        "vectorSpace": "policy",
+        "id": sentinel_id,
+        "trace": trace,
+    }))
+    raise SystemExit(0)
+
+print(json.dumps({
+    "vectorSpace": "policy",
+    "id": sentinel_id,
+    "content": (
+        "title: Shared Refund Policy\\n"
+        "text: Customers may request a refund within 30 days of delivery. "
+        "Refunds require the product to be returned in good condition, and approved refunds "
+        "are issued to the original payment method within 5 business days.\\n"
+        "classification: refund"
+    ),
+    "metadata": {
+        "title": "Shared Refund Policy",
+        "classification": "refund",
+        "knowledgeSourceHandleRef": "commerce-catalog/refund-policy",
+        "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
+    },
+    "trace": trace,
+}))
+PY
+}
+
+cleanup_marketplace_shared_sentinel() {
+  if [[ -z "${MARKETPLACE_SHARED_SENTINEL_ID:-}" || -z "${RUNTIME_BASE_URL:-}" ]]; then
+    return 0
+  fi
+  local payload
+  payload="$(marketplace_shared_sentinel_payload "${MARKETPLACE_SHARED_SENTINEL_ID}" "delete")"
+  runtime_operational_http POST "${RUNTIME_BASE_URL}/api/ai/data-sync/delete" "${payload}"
+  MARKETPLACE_SHARED_SENTINEL_ID=""
+}
+
+seed_marketplace_shared_sentinel() {
+  if [[ -z "${RUNTIME_BASE_URL}" ]]; then
+    fail "Marketplace shared sentinel seeding requires RUNTIME_BASE_URL."
+  fi
+  if [[ -z "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+    fail "Marketplace shared sentinel seeding requires RUNTIME_TRUSTED_BACKEND_API_KEY."
+  fi
+  MARKETPLACE_SHARED_SENTINEL_ID="policy-shared-refund-$(date +%s)"
+  local payload
+  payload="$(marketplace_shared_sentinel_payload "${MARKETPLACE_SHARED_SENTINEL_ID}" "upsert")"
+  runtime_operational_http POST "${RUNTIME_BASE_URL}/api/ai/data-sync/upsert" "${payload}"
+  assert_status 200 "marketplace shared sentinel upsert"
+  json_assert "marketplace shared sentinel upsert" $'assert (data or {}).get("success") is True, data\nprint("ok")'
+}
+
 run_marketplace_runtime_verification() {
   if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
     return 0
@@ -660,17 +801,23 @@ PY
   json_assert "marketplace authenticated shell config" $'assert (data or {}).get("success") is True\nprint("ok")'
   assert_marketplace_shell_config "marketplace authenticated shell config payload" "${HTTP_BODY}"
 
+  trap cleanup_marketplace_shared_sentinel EXIT
+  seed_marketplace_shared_sentinel
+
   local conversation_id="marketplace-runtime-verify-$(date +%s)"
   runtime_public_http POST "${RUNTIME_BASE_URL}/api/chat/me/query" "$(build_chat_query_payload "${MARKETPLACE_SMOKE_QUERY}" "${conversation_id}")"
   assert_status 200 "marketplace runtime smoke query"
-  local expected_source_ids_json
+  local expected_source_ids_json expected_adapter_types_json
   expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
-  json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\nmetadata = result.get("metadata") or {}\nrag_metadata = (((result.get("data") or {}).get("ragResponse") or {}).get("metadata") or {})\nsource_ids = set(metadata.get("searchSourceIds") or rag_metadata.get("searchSourceIds") or [])\nsource_diagnostics = metadata.get("searchSourceDiagnostics") or rag_metadata.get("searchSourceDiagnostics") or []\nassert isinstance(source_diagnostics, list) and len(source_diagnostics) >= len(expected_source_ids), {"metadata": metadata, "ragMetadata": rag_metadata}\ndiag_ids = {entry.get("sourceId") for entry in source_diagnostics if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(diag_ids), {"expected": sorted(expected_source_ids), "actualDiagnostics": sorted(diag_ids)}\nassert source_ids & expected_source_ids, {"expectedAnyOf": sorted(expected_source_ids), "actual": sorted(source_ids)}\nshared_hits = [entry for entry in source_diagnostics if isinstance(entry, dict) and entry.get("adapterType") == "shared-index"]\nassert shared_hits, source_diagnostics\nassert any(int(entry.get("resultsCount") or 0) >= 1 for entry in shared_hits), shared_hits\nassert all((entry.get("status") == "SUCCEEDED") for entry in source_diagnostics if isinstance(entry, dict) and entry.get("sourceId") in expected_source_ids), source_diagnostics\nprint("ok")'
+  expected_adapter_types_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}")"
+  json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nassert adapter_types & expected_adapter_types, {"expectedAnyOf": sorted(expected_adapter_types), "actual": sorted([v for v in adapter_types if v])}\nprint("ok")'
 
   runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
   assert_status 200 "marketplace runtime admin overview (post-query)"
   assert_marketplace_runtime_overview "marketplace runtime admin overview (post-query)" "${HTTP_BODY}"
-  json_assert "marketplace runtime search-source diagnostics post-query" $'search_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nprint("ok")'
+  json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") == "SUCCEEDED", entry\nshared_hits = [entry for entry in sources if isinstance(entry, dict) and entry.get("adapterType") == "shared-index"]\nassert shared_hits, sources\nassert any(int(entry.get("lastResultsCount") or 0) >= 1 for entry in shared_hits), shared_hits\nprint(\"ok\")'
+  cleanup_marketplace_shared_sentinel
+  trap - EXIT
   pass "marketplace runtime live verification"
 }
 
@@ -1225,7 +1372,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
 
     if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
       HTTP_BODY="${RUNTIME_ADMIN_OVERVIEW_BODY}"
-      json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nif expected_shared:\n  assert bool(scope.get("sharedStorage")) is True, scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n    assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n    assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n    assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n    assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n    assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", scope\nelse:\n  assert not scope or bool(scope.get("sharedStorage")) is False, scope\nprint("ok")'
+      json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nif expected_shared:\n  assert bool(scope.get("sharedStorage")) is True, scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n    assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n    assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}"'":\n    assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n    assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}"'":\n    assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}"'", scope\nelse:\n  assert not scope or bool(scope.get("sharedStorage")) is False, scope\nprint("ok")'
         pass "runtime admin tenant-scoped vector scope alignment"
     fi
     assert_expected_confirmation_interceptors "runtime admin confirmation interceptor alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"

@@ -121,7 +121,8 @@ class RuntimeDeploymentSearchSourceRegistryTest {
                 "sourceType", "deployment-private-vector",
                 "adapterType", "deployment-private-vector",
                 "status", "SUCCEEDED",
-                "processingTimeMs", 18L
+                "processingTimeMs", 18L,
+                "resultsCount", 2L
             ),
             Map.of(
                 "sourceId", "shared-catalog",
@@ -130,7 +131,8 @@ class RuntimeDeploymentSearchSourceRegistryTest {
                 "status", "FAILED",
                 "reason", "search_error",
                 "errorMessage", "catalog unavailable",
-                "processingTimeMs", 42L
+                "processingTimeMs", 42L,
+                "resultsCount", 0L
             )
         ), true);
 
@@ -153,13 +155,15 @@ class RuntimeDeploymentSearchSourceRegistryTest {
                 .containsEntry("sourceId", "deployment-private-vector")
                 .containsEntry("healthStatus", "READY")
                 .containsEntry("successCount", 1L)
-                .containsEntry("failureCount", 0L))
+                .containsEntry("failureCount", 0L)
+                .containsEntry("lastResultsCount", 2L))
             .anySatisfy(entry -> assertThat(entry)
                 .containsEntry("sourceId", "shared-catalog")
                 .containsEntry("healthStatus", "DEGRADED")
                 .containsEntry("failureCount", 1L)
                 .containsEntry("lastReason", "search_error")
-                .containsEntry("lastFailureMessage", "catalog unavailable"));
+                .containsEntry("lastFailureMessage", "catalog unavailable")
+                .containsEntry("lastResultsCount", 0L));
     }
 
     @Test
