@@ -1,6 +1,8 @@
 package com.ai.fabric.platform.backend.marketplace.web;
 
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplacePublisherRequest;
+import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplacePublisherSubmissionRequest;
 import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplaceTemplateBootstrapRequest;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceImpactSummary;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallResolutionSummary;
@@ -9,12 +11,19 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplaceCategorySumma
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginDetailSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginVersionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherDetailSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSubmissionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSummary;
+import com.ai.fabric.platform.backend.marketplace.model.ReviewMarketplacePublisherSubmissionRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceEntitlementRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.model.UpdateMarketplacePublisherVerificationRequest;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublisherService;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublishingService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -38,13 +47,19 @@ public class MarketplaceController {
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final DeploymentMarketplaceInstallService deploymentMarketplaceInstallService;
     private final MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService;
+    private final MarketplacePublisherService marketplacePublisherService;
+    private final MarketplacePublishingService marketplacePublishingService;
 
     public MarketplaceController(MarketplaceCatalogService marketplaceCatalogService,
                                  DeploymentMarketplaceInstallService deploymentMarketplaceInstallService,
-                                 MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService) {
+                                 MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService,
+                                 MarketplacePublisherService marketplacePublisherService,
+                                 MarketplacePublishingService marketplacePublishingService) {
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
         this.marketplaceTemplateBootstrapService = marketplaceTemplateBootstrapService;
+        this.marketplacePublisherService = marketplacePublisherService;
+        this.marketplacePublishingService = marketplacePublishingService;
     }
 
     @GetMapping("/marketplace/plugins")
@@ -66,6 +81,62 @@ public class MarketplaceController {
     @GetMapping("/marketplace/categories")
     public List<MarketplaceCategorySummary> listCategories() {
         return marketplaceCatalogService.listCategories();
+    }
+
+    @GetMapping("/marketplace/publishers")
+    public List<MarketplacePublisherSummary> listPublishers() {
+        return marketplacePublisherService.listPublishers();
+    }
+
+    @GetMapping("/marketplace/publishers/{publisherId}")
+    public MarketplacePublisherDetailSummary getPublisher(@PathVariable String publisherId) {
+        return marketplacePublishingService.getPublisherDetail(publisherId);
+    }
+
+    @PostMapping("/marketplace/publishers")
+    @ResponseStatus(HttpStatus.CREATED)
+    public MarketplacePublisherSummary createPublisher(@Valid @RequestBody CreateMarketplacePublisherRequest request) {
+        return marketplacePublisherService.createPublisher(request);
+    }
+
+    @PutMapping("/marketplace/publishers/{publisherId}/verification")
+    public MarketplacePublisherSummary updatePublisherVerification(@PathVariable String publisherId,
+                                                                  @RequestBody UpdateMarketplacePublisherVerificationRequest request) {
+        return marketplacePublisherService.updatePublisherVerification(publisherId, request);
+    }
+
+    @PostMapping("/marketplace/publishers/{publisherId}/submissions")
+    @ResponseStatus(HttpStatus.CREATED)
+    public MarketplacePublisherSubmissionSummary createPublisherSubmission(@PathVariable String publisherId,
+                                                                           @RequestBody CreateMarketplacePublisherSubmissionRequest request) {
+        return marketplacePublishingService.submitPublisherVersion(publisherId, request);
+    }
+
+    @PostMapping("/marketplace/submissions/{pluginVersionId}/validate")
+    public MarketplacePublisherSubmissionSummary validateSubmission(@PathVariable String pluginVersionId,
+                                                                    @RequestBody(required = false) ReviewMarketplacePublisherSubmissionRequest request) {
+        return marketplacePublishingService.validateSubmission(
+            pluginVersionId,
+            request == null ? new ReviewMarketplacePublisherSubmissionRequest(null) : request
+        );
+    }
+
+    @PostMapping("/marketplace/submissions/{pluginVersionId}/publish")
+    public MarketplacePublisherSubmissionSummary publishSubmission(@PathVariable String pluginVersionId,
+                                                                   @RequestBody(required = false) ReviewMarketplacePublisherSubmissionRequest request) {
+        return marketplacePublishingService.publishSubmission(
+            pluginVersionId,
+            request == null ? new ReviewMarketplacePublisherSubmissionRequest(null) : request
+        );
+    }
+
+    @PostMapping("/marketplace/submissions/{pluginVersionId}/reject")
+    public MarketplacePublisherSubmissionSummary rejectSubmission(@PathVariable String pluginVersionId,
+                                                                  @RequestBody(required = false) ReviewMarketplacePublisherSubmissionRequest request) {
+        return marketplacePublishingService.rejectSubmission(
+            pluginVersionId,
+            request == null ? new ReviewMarketplacePublisherSubmissionRequest(null) : request
+        );
     }
 
     @PostMapping("/marketplace/templates/{pluginId}/bootstrap")

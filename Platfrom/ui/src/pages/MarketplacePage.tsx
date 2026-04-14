@@ -1,7 +1,11 @@
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
+import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded'
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded'
 import ExtensionRoundedIcon from '@mui/icons-material/ExtensionRounded'
+import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded'
+import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
+import PublishRoundedIcon from '@mui/icons-material/PublishRounded'
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
@@ -27,6 +31,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   bootstrapMarketplaceTemplatePlugin,
+  createMarketplacePublisher,
+  createMarketplacePublisherSubmission,
   createDeploymentMarketplaceInstall,
   deleteDeploymentMarketplaceInstall,
   fetchDeploymentMarketplaceImpact,
@@ -35,13 +41,22 @@ import {
   fetchMarketplaceCategories,
   fetchMarketplacePlugin,
   fetchMarketplacePlugins,
+  fetchMarketplacePublisher,
+  fetchMarketplacePublishers,
+  publishMarketplaceSubmission,
+  rejectMarketplaceSubmission,
   resolveDeploymentMarketplaceInstall,
   updateDeploymentMarketplaceInstall,
   updateDeploymentMarketplaceInstallEntitlement,
+  updateMarketplacePublisherVerification,
+  validateMarketplaceSubmission,
+  type CreateMarketplacePublisherRequest,
+  type CreateMarketplacePublisherSubmissionRequest,
   type CreateMarketplaceTemplateBootstrapRequest,
   type DeploymentMarketplaceInstallSummary,
   type MarketplacePluginDetailSummary,
   type MarketplacePluginSummary,
+  type MarketplacePublisherSummary,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
@@ -129,6 +144,43 @@ function entitlementColor(value: string): 'success' | 'warning' | 'error' | 'def
   }
 }
 
+function publisherVerificationColor(value: string): 'success' | 'warning' | 'error' | 'default' {
+  switch (value) {
+    case 'VERIFIED':
+      return 'success'
+    case 'PENDING':
+      return 'warning'
+    case 'REJECTED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+function publisherStatusColor(value: string): 'success' | 'warning' | 'error' | 'default' {
+  switch (value) {
+    case 'ACTIVE':
+      return 'success'
+    case 'SUSPENDED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+function submissionStatusColor(value: string): 'success' | 'warning' | 'error' | 'default' {
+  switch (value) {
+    case 'PUBLISHED':
+      return 'success'
+    case 'VALIDATED':
+      return 'warning'
+    case 'REJECTED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
 function pricingLabel(
   pricing: { pricingModel: string; amount: number | null; currency: string | null; billingInterval: string | null } | null | undefined,
 ): string {
@@ -186,6 +238,16 @@ export function MarketplacePage() {
   const [entitlementGraceEndsAt, setEntitlementGraceEndsAt] = useState('')
   const [entitlementAccessEndsAt, setEntitlementAccessEndsAt] = useState('')
   const [entitlementNote, setEntitlementNote] = useState('')
+  const [selectedPublisherId, setSelectedPublisherId] = useState('')
+  const [publisherSlug, setPublisherSlug] = useState('')
+  const [publisherDisplayName, setPublisherDisplayName] = useState('')
+  const [publisherContactEmail, setPublisherContactEmail] = useState('')
+  const [publisherVerificationStatus, setPublisherVerificationStatus] = useState('PENDING')
+  const [publisherStatus, setPublisherStatus] = useState('ACTIVE')
+  const [submissionPluginSlug, setSubmissionPluginSlug] = useState('')
+  const [submissionReleaseChannel, setSubmissionReleaseChannel] = useState('DRAFT')
+  const [submissionManifestJson, setSubmissionManifestJson] = useState('{\n  "schemaVersion": 1,\n  "pluginId": "",\n  "version": "1.0.0",\n  "pluginType": "TEMPLATE",\n  "displayName": "",\n  "description": "",\n  "compatibility": {\n    "requiredCapabilities": ["templates", "shellConfig"]\n  },\n  "pricing": {\n    "pricingModel": "FREE"\n  },\n  "permissions": {\n    "contributesTemplate": true,\n    "contributesShellPresentation": true\n  },\n  "contributions": {\n    "template": {\n      "curatedModuleId": "commerce",\n      "shell": {\n        "enabledModuleIds": ["docs", "actions"]\n      }\n    }\n  }\n}')
+  const [submissionReviewNotes, setSubmissionReviewNotes] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -196,6 +258,10 @@ export function MarketplacePage() {
   const categoriesQuery = useQuery({
     queryKey: ['marketplace-categories'],
     queryFn: fetchMarketplaceCategories,
+  })
+  const publishersQuery = useQuery({
+    queryKey: ['marketplace-publishers'],
+    queryFn: fetchMarketplacePublishers,
   })
   const deploymentTemplatesQuery = useQuery({
     queryKey: ['deployment-templates'],
@@ -210,6 +276,11 @@ export function MarketplacePage() {
     queryKey: ['deployment-marketplace-impact', selectedDeploymentId],
     queryFn: () => fetchDeploymentMarketplaceImpact(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
+  })
+  const publisherDetailQuery = useQuery({
+    queryKey: ['marketplace-publisher', selectedPublisherId],
+    queryFn: () => fetchMarketplacePublisher(selectedPublisherId),
+    enabled: selectedPublisherId.length > 0,
   })
 
   const filteredPlugins = useMemo(() => {
@@ -241,6 +312,17 @@ export function MarketplacePage() {
     }
   }, [filteredPlugins, selectedPluginId])
 
+  useEffect(() => {
+    const publishers = publishersQuery.data ?? []
+    if (publishers.length === 0) {
+      setSelectedPublisherId('')
+      return
+    }
+    if (!publishers.some((publisher) => publisher.id === selectedPublisherId)) {
+      setSelectedPublisherId(publishers[0].id)
+    }
+  }, [publishersQuery.data, selectedPublisherId])
+
   const pluginDetailQuery = useQuery({
     queryKey: ['marketplace-plugin', selectedPluginId],
     queryFn: () => fetchMarketplacePlugin(selectedPluginId),
@@ -254,6 +336,7 @@ export function MarketplacePage() {
     }
     return (installsQuery.data ?? []).find((install) => install.pluginId === selectedPlugin.id) ?? null
   }, [installsQuery.data, selectedPlugin])
+  const selectedPublisher = publisherDetailQuery.data?.publisher ?? null
 
   const selectedVersionSummary = pluginDetailQuery.data?.versions.find((version) => version.version === selectedVersion)
     ?? pluginDetailQuery.data?.versions[0]
@@ -273,6 +356,15 @@ export function MarketplacePage() {
     })
     setTemplateName((current) => (current.trim().length > 0 ? current : defaultBootstrapName(detail)))
   }, [pluginDetailQuery.data, selectedInstall?.pluginVersion])
+
+  useEffect(() => {
+    const publisher = publisherDetailQuery.data?.publisher
+    if (!publisher) {
+      return
+    }
+    setPublisherVerificationStatus(publisher.verificationStatus)
+    setPublisherStatus(publisher.status)
+  }, [publisherDetailQuery.data?.publisher])
 
   useEffect(() => {
     if (!selectedInstall) {
@@ -320,6 +412,15 @@ export function MarketplacePage() {
       queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
       queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
       queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+    ])
+  }
+
+  const invalidatePublisherState = async (publisherId?: string) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['marketplace-publishers'] }),
+      queryClient.invalidateQueries({ queryKey: ['marketplace-plugins'] }),
+      queryClient.invalidateQueries({ queryKey: ['marketplace-plugin'] }),
+      ...(publisherId ? [queryClient.invalidateQueries({ queryKey: ['marketplace-publisher', publisherId] })] : []),
     ])
   }
 
@@ -461,6 +562,98 @@ export function MarketplacePage() {
       setSuccessMessage(`Template bootstrapped deployment ${deployment.name}.`)
       await queryClient.invalidateQueries({ queryKey: ['deployments'] })
       navigate(`/overview?deploymentId=${encodeURIComponent(deployment.id)}`)
+    },
+    onError: (error: Error) => {
+      setSuccessMessage(null)
+      setFormError(error.message)
+    },
+  })
+
+  const createPublisherMutation = useMutation({
+    mutationFn: async () => {
+      const payload: CreateMarketplacePublisherRequest = {
+        slug: publisherSlug.trim(),
+        displayName: publisherDisplayName.trim(),
+        contactEmail: publisherContactEmail.trim(),
+      }
+      if (!payload.slug || !payload.displayName || !payload.contactEmail) {
+        throw new Error('Publisher slug, display name, and contact email are required.')
+      }
+      return createMarketplacePublisher(payload)
+    },
+    onSuccess: async (publisher) => {
+      setFormError(null)
+      setSuccessMessage(`Publisher ${publisher.displayName} created.`)
+      setSelectedPublisherId(publisher.id)
+      await invalidatePublisherState(publisher.id)
+    },
+    onError: (error: Error) => {
+      setSuccessMessage(null)
+      setFormError(error.message)
+    },
+  })
+
+  const updatePublisherVerificationMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPublisherId) {
+        throw new Error('Select a publisher first.')
+      }
+      return updateMarketplacePublisherVerification(selectedPublisherId, {
+        verificationStatus: publisherVerificationStatus,
+        status: publisherStatus,
+      })
+    },
+    onSuccess: async (publisher) => {
+      setFormError(null)
+      setSuccessMessage(`Publisher ${publisher.displayName} is now ${publisher.verificationStatus} / ${publisher.status}.`)
+      await invalidatePublisherState(publisher.id)
+    },
+    onError: (error: Error) => {
+      setSuccessMessage(null)
+      setFormError(error.message)
+    },
+  })
+
+  const createSubmissionMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPublisherId) {
+        throw new Error('Select a publisher first.')
+      }
+      const payload: CreateMarketplacePublisherSubmissionRequest = {
+        pluginSlug: submissionPluginSlug.trim() || undefined,
+        releaseChannel: submissionReleaseChannel.trim() || undefined,
+        manifest: parseJsonObject(submissionManifestJson, 'Submission manifest'),
+      }
+      return createMarketplacePublisherSubmission(selectedPublisherId, payload)
+    },
+    onSuccess: async (submission) => {
+      setFormError(null)
+      setSuccessMessage(`Submission ${submission.pluginId}@${submission.version} created.`)
+      await invalidatePublisherState(selectedPublisherId)
+    },
+    onError: (error: Error) => {
+      setSuccessMessage(null)
+      setFormError(error.message)
+    },
+  })
+
+  const reviewSubmissionMutation = useMutation({
+    mutationFn: async ({ pluginVersionId, action }: { pluginVersionId: string; action: 'validate' | 'publish' | 'reject' }) => {
+      const payload = {
+        reviewNotes: submissionReviewNotes.trim().length > 0 ? submissionReviewNotes.trim() : null,
+      }
+      if (action === 'validate') {
+        return validateMarketplaceSubmission(pluginVersionId, payload)
+      }
+      if (action === 'publish') {
+        return publishMarketplaceSubmission(pluginVersionId, payload)
+      }
+      return rejectMarketplaceSubmission(pluginVersionId, payload)
+    },
+    onSuccess: async (submission) => {
+      setFormError(null)
+      setSuccessMessage(`Submission ${submission.pluginId}@${submission.version} is now ${submission.status}.`)
+      await invalidatePublisherState(submission.publisherId)
     },
     onError: (error: Error) => {
       setSuccessMessage(null)
@@ -1137,6 +1330,357 @@ export function MarketplacePage() {
                   </CardContent>
                 </Card>
               </>
+            ) : null}
+          </Stack>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <ManageAccountsRoundedIcon color="primary" />
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Publisher workspace
+                  </Typography>
+                </Stack>
+                <Typography color="text.secondary">
+                  Manage publisher identities, review posture, and external plugin submissions. Backend governance still enforces owner and admin boundaries.
+                </Typography>
+                {publishersQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading publishers…</Typography>
+                ) : (publishersQuery.data ?? []).length === 0 ? (
+                  <Alert severity="info">No publisher accounts exist yet. Create one to start submitting external plugins.</Alert>
+                ) : (
+                  <List disablePadding>
+                    {(publishersQuery.data ?? []).map((publisher: MarketplacePublisherSummary) => (
+                      <ListItemButton
+                        key={publisher.id}
+                        selected={publisher.id === selectedPublisherId}
+                        onClick={() => setSelectedPublisherId(publisher.id)}
+                        sx={{ borderRadius: 2, mb: 1 }}
+                      >
+                        <ListItemText
+                          primary={
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Typography sx={{ fontWeight: 700 }}>{publisher.displayName}</Typography>
+                              <Chip size="small" label={publisher.verificationStatus} color={publisherVerificationColor(publisher.verificationStatus)} />
+                            </Stack>
+                          }
+                          secondary={
+                            <Typography variant="body2" color="text.secondary">
+                              {publisher.slug} · {publisher.submissionCount} submissions
+                            </Typography>
+                          }
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                )}
+                <Divider />
+                <Typography variant="subtitle2" color="text.secondary">
+                  Create publisher
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="Slug"
+                  value={publisherSlug}
+                  onChange={(event) => setPublisherSlug(event.target.value)}
+                  placeholder="acme-marketplace"
+                />
+                <TextField
+                  fullWidth
+                  label="Display name"
+                  value={publisherDisplayName}
+                  onChange={(event) => setPublisherDisplayName(event.target.value)}
+                  placeholder="Acme Marketplace"
+                />
+                <TextField
+                  fullWidth
+                  label="Contact email"
+                  value={publisherContactEmail}
+                  onChange={(event) => setPublisherContactEmail(event.target.value)}
+                  placeholder="support@acme.example"
+                />
+                <Button
+                  variant="contained"
+                  startIcon={<CloudUploadRoundedIcon />}
+                  onClick={() => {
+                    setFormError(null)
+                    setSuccessMessage(null)
+                    createPublisherMutation.mutate()
+                  }}
+                  disabled={createPublisherMutation.isPending}
+                >
+                  Create publisher
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={8}>
+          <Stack spacing={3}>
+            <Card>
+              <CardContent>
+                {!selectedPublisher ? (
+                  <Alert severity="info">Select a publisher to review submissions or create a new one.</Alert>
+                ) : publisherDetailQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading publisher detail…</Typography>
+                ) : (
+                  <Stack spacing={2}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
+                      <Box>
+                        <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                          {selectedPublisher.displayName}
+                        </Typography>
+                        <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+                          {selectedPublisher.slug} · {selectedPublisher.contactEmail}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                          Owner: {selectedPublisher.ownerUserId} · Created {formatTimestamp(selectedPublisher.createdAt)}
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={selectedPublisher.verificationStatus} color={publisherVerificationColor(selectedPublisher.verificationStatus)} />
+                        <Chip label={selectedPublisher.status} color={publisherStatusColor(selectedPublisher.status)} variant="outlined" />
+                        <Chip label={`${publisherDetailQuery.data?.submissions.length ?? 0} submissions`} variant="outlined" />
+                      </Stack>
+                    </Stack>
+                    <Alert severity="info">
+                      Admin review is required for verification changes and submission state transitions. Non-admin users can still create publishers and submit versions they own.
+                    </Alert>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="Verification"
+                          value={publisherVerificationStatus}
+                          onChange={(event) => setPublisherVerificationStatus(event.target.value)}
+                        >
+                          {['PENDING', 'VERIFIED', 'REJECTED'].map((value) => (
+                            <MenuItem key={value} value={value}>
+                              {value}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="Publisher status"
+                          value={publisherStatus}
+                          onChange={(event) => setPublisherStatus(event.target.value)}
+                        >
+                          {['ACTIVE', 'SUSPENDED'].map((value) => (
+                            <MenuItem key={value} value={value}>
+                              {value}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          startIcon={<FactCheckRoundedIcon />}
+                          onClick={() => {
+                            setFormError(null)
+                            setSuccessMessage(null)
+                            updatePublisherVerificationMutation.mutate()
+                          }}
+                          disabled={updatePublisherVerificationMutation.isPending}
+                          sx={{ height: '100%' }}
+                        >
+                          Save review posture
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Stack>
+                )}
+              </CardContent>
+            </Card>
+
+            {selectedPublisher ? (
+              <Card>
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CloudUploadRoundedIcon color="primary" />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Submit plugin version
+                      </Typography>
+                    </Stack>
+                    <Typography color="text.secondary">
+                      Submit an external plugin manifest for review. The catalog only exposes versions after admin validation and publication.
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          fullWidth
+                          label="Plugin slug override"
+                          value={submissionPluginSlug}
+                          onChange={(event) => setSubmissionPluginSlug(event.target.value)}
+                          placeholder="Optional"
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="Release channel"
+                          value={submissionReleaseChannel}
+                          onChange={(event) => setSubmissionReleaseChannel(event.target.value)}
+                        >
+                          {['DRAFT', 'BETA', 'GA'].map((value) => (
+                            <MenuItem key={value} value={value}>
+                              {value}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          fullWidth
+                          label="Review notes"
+                          value={submissionReviewNotes}
+                          onChange={(event) => setSubmissionReviewNotes(event.target.value)}
+                          placeholder="Optional admin notes for validate/publish/reject"
+                        />
+                      </Grid>
+                    </Grid>
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={16}
+                      label="Manifest JSON"
+                      value={submissionManifestJson}
+                      onChange={(event) => setSubmissionManifestJson(event.target.value)}
+                    />
+                    <Button
+                      variant="contained"
+                      startIcon={<CloudUploadRoundedIcon />}
+                      onClick={() => {
+                        setFormError(null)
+                        setSuccessMessage(null)
+                        createSubmissionMutation.mutate()
+                      }}
+                      disabled={createSubmissionMutation.isPending}
+                    >
+                      Submit version
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {selectedPublisher ? (
+              <Card>
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <PublishRoundedIcon color="primary" />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Submission review queue
+                      </Typography>
+                    </Stack>
+                    {(publisherDetailQuery.data?.submissions ?? []).length === 0 ? (
+                      <Alert severity="info">No submissions exist for this publisher yet.</Alert>
+                    ) : (
+                      <Stack spacing={2}>
+                        {(publisherDetailQuery.data?.submissions ?? []).map((submission) => (
+                          <Card key={submission.pluginVersionId} variant="outlined">
+                            <CardContent>
+                              <Stack spacing={2}>
+                                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 700 }}>
+                                      {submission.pluginDisplayName} · {submission.version}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                                      {submission.pluginType} · {submission.pluginSlug} · {submission.releaseChannel}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                                      Submitted {formatTimestamp(submission.submittedAt)} by {submission.submittedByActorId ?? '—'}
+                                      {submission.reviewedAt ? ` · reviewed ${formatTimestamp(submission.reviewedAt)} by ${submission.reviewedByActorId ?? '—'}` : ''}
+                                    </Typography>
+                                  </Box>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    <Chip label={submission.status} color={submissionStatusColor(submission.status)} />
+                                    {submission.bundleSha256 ? <Chip label={submission.bundleSha256.slice(0, 12)} variant="outlined" /> : null}
+                                  </Stack>
+                                </Stack>
+                                {submission.reviewNotes ? (
+                                  <Alert severity="info">{submission.reviewNotes}</Alert>
+                                ) : null}
+                                <TextField
+                                  fullWidth
+                                  multiline
+                                  minRows={8}
+                                  label="Submission manifest"
+                                  value={prettifyJson(submission.manifest)}
+                                  InputProps={{ readOnly: true }}
+                                />
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Button
+                                    variant="outlined"
+                                    startIcon={<FactCheckRoundedIcon />}
+                                    onClick={() => {
+                                      setFormError(null)
+                                      setSuccessMessage(null)
+                                      reviewSubmissionMutation.mutate({
+                                        pluginVersionId: submission.pluginVersionId,
+                                        action: 'validate',
+                                      })
+                                    }}
+                                    disabled={reviewSubmissionMutation.isPending || !['SUBMITTED', 'REJECTED'].includes(submission.status)}
+                                  >
+                                    Validate
+                                  </Button>
+                                  <Button
+                                    variant="contained"
+                                    startIcon={<PublishRoundedIcon />}
+                                    onClick={() => {
+                                      setFormError(null)
+                                      setSuccessMessage(null)
+                                      reviewSubmissionMutation.mutate({
+                                        pluginVersionId: submission.pluginVersionId,
+                                        action: 'publish',
+                                      })
+                                    }}
+                                    disabled={reviewSubmissionMutation.isPending || submission.status !== 'VALIDATED'}
+                                  >
+                                    Publish
+                                  </Button>
+                                  <Button
+                                    variant="outlined"
+                                    color="error"
+                                    onClick={() => {
+                                      setFormError(null)
+                                      setSuccessMessage(null)
+                                      reviewSubmissionMutation.mutate({
+                                        pluginVersionId: submission.pluginVersionId,
+                                        action: 'reject',
+                                      })
+                                    }}
+                                    disabled={reviewSubmissionMutation.isPending || !['SUBMITTED', 'VALIDATED'].includes(submission.status)}
+                                  >
+                                    Reject
+                                  </Button>
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Stack>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
             ) : null}
           </Stack>
         </Grid>

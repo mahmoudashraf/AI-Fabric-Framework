@@ -11,4 +11,6 @@ public interface MarketplacePluginVersionRepository extends JpaRepository<Market
     List<MarketplacePluginVersionEntity> findByPluginIdOrderByPublishedAtDesc(String pluginId);
 
     Optional<MarketplacePluginVersionEntity> findByPluginIdAndVersion(String pluginId, String version);
+
+    List<MarketplacePluginVersionEntity> findBySubmittedByPublisherIdOrderByCreatedAtDesc(String submittedByPublisherId);
 }

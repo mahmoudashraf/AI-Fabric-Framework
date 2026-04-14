@@ -1,6 +1,6 @@
 # Marketplace Control-Plane Composition Plan
 
-Status: implementation-baseline document with phases 0-3 landed (2026-04-14)
+Status: implementation-baseline document with phases 0-5 first slice landed (2026-04-14)
 
 This document turns the marketplace high-level design into an implementation shape that can be built as a separate feature stream.
 
@@ -483,9 +483,7 @@ The remaining work is control-plane resolution, compatibility enforcement, and p
 
 ### 10.3 Should remain later
 
-- billing and recurring subscription enforcement
-- third-party publisher onboarding and review
-- revenue sharing and payouts
+- payout and revenue-share settlement
 - broad open ecosystem support
 
 Those are marketplace-business layers, not the first architectural milestone.
@@ -586,7 +584,7 @@ Acceptance criteria:
 
 Status:
 
-- pending
+- implemented
 
 ### Phase 5: Third-party publishing
 
@@ -595,11 +593,16 @@ Scope:
 - publisher accounts
 - review workflow
 - policy checks
-- revenue share and payout support
+- first external publisher submission and publication flow
 
 Acceptance criteria:
 
 - third-party plugin definitions are reviewed and published without weakening platform governance
+
+Status:
+
+- implemented for the first practical external slice
+- payout and revenue-share business workflow remains later
 
 ---
 

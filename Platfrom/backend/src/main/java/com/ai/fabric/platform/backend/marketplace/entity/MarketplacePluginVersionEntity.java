@@ -29,6 +29,23 @@ public class MarketplacePluginVersionEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String manifestJson;
 
+    @Column(length = 64)
+    private String submittedByPublisherId;
+
+    @Column(length = 64)
+    private String submittedByActorId;
+
+    @Column(length = 64)
+    private String reviewedByActorId;
+
+    private Instant reviewedAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String reviewNotes;
+
+    @Column(length = 128)
+    private String bundleSha256;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -97,5 +114,53 @@ public class MarketplacePluginVersionEntity {
 
     public void setPublishedAt(Instant publishedAt) {
         this.publishedAt = publishedAt;
+    }
+
+    public String getSubmittedByPublisherId() {
+        return submittedByPublisherId;
+    }
+
+    public void setSubmittedByPublisherId(String submittedByPublisherId) {
+        this.submittedByPublisherId = submittedByPublisherId;
+    }
+
+    public String getSubmittedByActorId() {
+        return submittedByActorId;
+    }
+
+    public void setSubmittedByActorId(String submittedByActorId) {
+        this.submittedByActorId = submittedByActorId;
+    }
+
+    public String getReviewedByActorId() {
+        return reviewedByActorId;
+    }
+
+    public void setReviewedByActorId(String reviewedByActorId) {
+        this.reviewedByActorId = reviewedByActorId;
+    }
+
+    public Instant getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(Instant reviewedAt) {
+        this.reviewedAt = reviewedAt;
+    }
+
+    public String getReviewNotes() {
+        return reviewNotes;
+    }
+
+    public void setReviewNotes(String reviewNotes) {
+        this.reviewNotes = reviewNotes;
+    }
+
+    public String getBundleSha256() {
+        return bundleSha256;
+    }
+
+    public void setBundleSha256(String bundleSha256) {
+        this.bundleSha256 = bundleSha256;
     }
 }

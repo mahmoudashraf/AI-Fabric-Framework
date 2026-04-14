@@ -38,22 +38,30 @@ public class MarketplaceCatalogService {
 
     public List<MarketplacePluginSummary> listPlugins() {
         List<MarketplacePluginEntity> plugins = pluginRepository.findAll().stream()
+            .filter(plugin -> "ACTIVE".equalsIgnoreCase(plugin.getStatus()))
             .sorted(Comparator.comparing(MarketplacePluginEntity::getDisplayName, String.CASE_INSENSITIVE_ORDER))
             .toList();
         Map<String, MarketplacePluginVersionEntity> latestVersions = versionRepository.findAll().stream()
+            .filter(version -> "PUBLISHED".equalsIgnoreCase(version.getStatus()))
             .collect(Collectors.toMap(
                 MarketplacePluginVersionEntity::getPluginId,
                 Function.identity(),
                 (left, right) -> left.getPublishedAt().isAfter(right.getPublishedAt()) ? left : right
             ));
         return plugins.stream()
+            .filter(plugin -> latestVersions.containsKey(plugin.getId()))
             .map(plugin -> toSummary(plugin, latestVersions.get(plugin.getId())))
             .toList();
     }
 
     public MarketplacePluginDetailSummary getPlugin(String pluginIdOrSlug) {
         MarketplacePluginEntity plugin = requirePlugin(pluginIdOrSlug);
-        List<MarketplacePluginVersionEntity> versionEntities = versionRepository.findByPluginIdOrderByPublishedAtDesc(plugin.getId());
+        List<MarketplacePluginVersionEntity> versionEntities = versionRepository.findByPluginIdOrderByPublishedAtDesc(plugin.getId()).stream()
+            .filter(version -> "PUBLISHED".equalsIgnoreCase(version.getStatus()))
+            .toList();
+        if (versionEntities.isEmpty()) {
+            throw new ResponseStatusException(NOT_FOUND, "Marketplace plugin not found: " + pluginIdOrSlug);
+        }
         List<MarketplacePluginVersionSummary> versions = versionEntities.stream()
             .map(version -> toVersionSummary(plugin, version))
             .toList();
@@ -68,6 +76,12 @@ public class MarketplaceCatalogService {
                 NOT_FOUND,
                 "Marketplace plugin version not found: " + plugin.getId() + "@" + versionLabel
             ));
+        if (!"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
+            throw new ResponseStatusException(
+                NOT_FOUND,
+                "Marketplace plugin version not found: " + plugin.getId() + "@" + versionLabel
+            );
+        }
         return toVersionSummary(plugin, version);
     }
 
@@ -106,6 +120,7 @@ public class MarketplaceCatalogService {
 
     MarketplacePluginVersionEntity requireLatestPublishedVersionEntity(String pluginId) {
         return versionRepository.findByPluginIdOrderByPublishedAtDesc(pluginId).stream()
+            .filter(version -> "PUBLISHED".equalsIgnoreCase(version.getStatus()))
             .findFirst()
             .orElseThrow(() -> new ResponseStatusException(
                 NOT_FOUND,

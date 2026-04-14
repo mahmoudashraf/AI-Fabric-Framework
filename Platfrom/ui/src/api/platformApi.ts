@@ -320,6 +320,64 @@ export type MarketplaceCategorySummary = {
   pluginCount: number
 }
 
+export type MarketplacePublisherSummary = {
+  id: string
+  slug: string
+  displayName: string
+  contactEmail: string
+  ownerUserId: string
+  verificationStatus: string
+  status: string
+  submissionCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type MarketplacePublisherSubmissionSummary = {
+  pluginVersionId: string
+  publisherId: string
+  pluginId: string
+  pluginSlug: string
+  pluginDisplayName: string
+  pluginType: string
+  version: string
+  releaseChannel: string
+  status: string
+  bundleSha256: string | null
+  reviewNotes: string | null
+  manifest: unknown
+  submittedAt: string
+  submittedByActorId: string | null
+  reviewedAt: string | null
+  reviewedByActorId: string | null
+}
+
+export type MarketplacePublisherDetailSummary = {
+  publisher: MarketplacePublisherSummary
+  submissions: MarketplacePublisherSubmissionSummary[]
+}
+
+export type CreateMarketplacePublisherRequest = {
+  slug: string
+  displayName: string
+  contactEmail: string
+}
+
+export type UpdateMarketplacePublisherVerificationRequest = {
+  verificationStatus?: string
+  status?: string
+}
+
+export type CreateMarketplacePublisherSubmissionRequest = {
+  pluginSlug?: string
+  releaseChannel?: string
+  manifest: unknown
+}
+
+export type ReviewMarketplacePublisherSubmissionRequest = {
+  reviewNotes?: string | null
+}
+
 export type DeploymentMarketplaceInstallSummary = {
   id: string
   deploymentId: string
@@ -2206,6 +2264,83 @@ export function fetchMarketplacePluginVersion(pluginId: string, version: string)
 
 export function fetchMarketplaceCategories() {
   return request<MarketplaceCategorySummary[]>('/api/marketplace/categories')
+}
+
+export function fetchMarketplacePublishers() {
+  return request<MarketplacePublisherSummary[]>('/api/marketplace/publishers')
+}
+
+export function fetchMarketplacePublisher(publisherId: string) {
+  return request<MarketplacePublisherDetailSummary>(`/api/marketplace/publishers/${encodeURIComponent(publisherId)}`)
+}
+
+export function createMarketplacePublisher(payload: CreateMarketplacePublisherRequest) {
+  return request<MarketplacePublisherSummary>('/api/marketplace/publishers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateMarketplacePublisherVerification(
+  publisherId: string,
+  payload: UpdateMarketplacePublisherVerificationRequest,
+) {
+  return request<MarketplacePublisherSummary>(`/api/marketplace/publishers/${encodeURIComponent(publisherId)}/verification`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createMarketplacePublisherSubmission(
+  publisherId: string,
+  payload: CreateMarketplacePublisherSubmissionRequest,
+) {
+  return request<MarketplacePublisherSubmissionSummary>(
+    `/api/marketplace/publishers/${encodeURIComponent(publisherId)}/submissions`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function validateMarketplaceSubmission(
+  pluginVersionId: string,
+  payload: ReviewMarketplacePublisherSubmissionRequest,
+) {
+  return request<MarketplacePublisherSubmissionSummary>(
+    `/api/marketplace/submissions/${encodeURIComponent(pluginVersionId)}/validate`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function publishMarketplaceSubmission(
+  pluginVersionId: string,
+  payload: ReviewMarketplacePublisherSubmissionRequest,
+) {
+  return request<MarketplacePublisherSubmissionSummary>(
+    `/api/marketplace/submissions/${encodeURIComponent(pluginVersionId)}/publish`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function rejectMarketplaceSubmission(
+  pluginVersionId: string,
+  payload: ReviewMarketplacePublisherSubmissionRequest,
+) {
+  return request<MarketplacePublisherSubmissionSummary>(
+    `/api/marketplace/submissions/${encodeURIComponent(pluginVersionId)}/reject`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function bootstrapMarketplaceTemplatePlugin(

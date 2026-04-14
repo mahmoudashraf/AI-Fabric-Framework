@@ -10,9 +10,11 @@ Current state:
   - Phase 1 template plugins
   - Phase 2 action plugins
   - Phase 3 data plugins
-- remaining marketplace work is now:
   - Phase 4 billing and entitlements
-  - Phase 5 third-party publishing and broader business workflow
+  - Phase 5 first external publisher workflow
+- remaining marketplace work is now:
+  - payout and revenue-share business workflow
+  - broader public data-plugin and open-ecosystem expansion
 
 This folder contains both marketplace vision documents and marketplace implementation-baseline documents.
 

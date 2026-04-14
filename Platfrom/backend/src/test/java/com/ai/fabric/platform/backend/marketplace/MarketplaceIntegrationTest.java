@@ -3,6 +3,9 @@ package com.ai.fabric.platform.backend.marketplace;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplacePublisherRequest;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSummary;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublisherService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
@@ -21,17 +24,21 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.web.server.ResponseStatusException;
 
 @SpringBootTest(properties = {
     "platform.auth.enabled=true",
@@ -59,6 +66,9 @@ class MarketplaceIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private MarketplacePublisherService marketplacePublisherService;
 
     @Test
     void catalogEndpointsExposeSeededMarketplacePluginsAndVersions() throws Exception {
@@ -418,12 +428,176 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-cancel')]").isEmpty());
     }
 
+    @Test
+    void publisherWorkflowCanSubmitValidatePublishAndBootstrapTemplatePlugin() throws Exception {
+        String publisherResponse = mockMvc.perform(asAdmin(
+                post("/api/marketplace/publishers")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "slug", "acme-marketplace",
+                        "displayName", "Acme Marketplace",
+                        "contactEmail", "plugins@acme.test"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.verificationStatus", is("PENDING")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String publisherId = objectMapper.readTree(publisherResponse).path("id").asText();
+        String manifestJson = objectMapper.writeValueAsString(java.util.Map.of(
+            "schemaVersion", 1,
+            "pluginId", "mkp-template-acme-support",
+            "version", "1.0.0",
+            "pluginType", "TEMPLATE",
+            "displayName", "Acme Support Shell",
+            "description", "External publisher template for support-oriented assistant experiences.",
+            "compatibility", java.util.Map.of(
+                "minPlatformVersion", "0.1.0",
+                "requiredCapabilities", java.util.List.of("templates", "shellConfig"),
+                "supportedDeploymentTargets", java.util.List.of("dev-openai-lucene", "custom-start-from-scratch"),
+                "supportedProviderModes", java.util.List.of("llm:openai")
+            ),
+            "pricing", java.util.Map.of("pricingModel", "FREE"),
+            "permissions", java.util.Map.of(
+                "contributesTemplate", true,
+                "contributesShellPresentation", true
+            ),
+            "contributions", java.util.Map.of(
+                "template", java.util.Map.of(
+                    "curatedModuleId", "commerce",
+                    "shell", java.util.Map.of(
+                        "enabledModuleIds", java.util.List.of("docs", "actions"),
+                        "defaultConversationMode", "support"
+                    )
+                )
+            )
+        ));
+
+        mockMvc.perform(asAdmin(
+                post("/api/marketplace/publishers/{publisherId}/submissions", publisherId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginSlug", "acme-support-shell",
+                        "releaseChannel", "beta",
+                        "manifest", objectMapper.readTree(manifestJson)
+                    )))
+            ))
+            .andExpect(status().isConflict());
+
+        mockMvc.perform(asAdmin(
+                put("/api/marketplace/publishers/{publisherId}/verification", publisherId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "verificationStatus", "VERIFIED",
+                        "status", "ACTIVE"
+                    )))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.verificationStatus", is("VERIFIED")));
+
+        String submissionResponse = mockMvc.perform(asAdmin(
+                post("/api/marketplace/publishers/{publisherId}/submissions", publisherId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginSlug", "acme-support-shell",
+                        "releaseChannel", "beta",
+                        "manifest", objectMapper.readTree(manifestJson)
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.status", is("SUBMITTED")))
+            .andExpect(jsonPath("$.bundleSha256", notNullValue()))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String pluginVersionId = objectMapper.readTree(submissionResponse).path("pluginVersionId").asText();
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.id=='mkp-template-acme-support')]").isEmpty());
+
+        mockMvc.perform(asAdmin(
+                post("/api/marketplace/submissions/{pluginVersionId}/validate", pluginVersionId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("reviewNotes", "Contract checks passed.")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("VALIDATED")))
+            .andExpect(jsonPath("$.reviewNotes", containsString("Contract checks passed")));
+
+        mockMvc.perform(asAdmin(
+                post("/api/marketplace/submissions/{pluginVersionId}/publish", pluginVersionId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("reviewNotes", "Approved for catalog release.")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("PUBLISHED")))
+            .andExpect(jsonPath("$.reviewNotes", containsString("Approved")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/publishers/{publisherId}", publisherId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.publisher.slug", is("acme-marketplace")))
+            .andExpect(jsonPath("$.submissions[0].status", is("PUBLISHED")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.id=='mkp-template-acme-support')].latestVersion", is(List.of("1.0.0"))));
+
+        mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-acme-support")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.0",
+                        "name", "Acme Publisher Template Deployment",
+                        "environment", "dev",
+                        "templateId", "dev-openai-lucene"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.name", is("Acme Publisher Template Deployment")));
+    }
+
+    @Test
+    void publisherVisibilityIsScopedToOwnerForNonAdmins() {
+        String ownerOnePublisherId = runAsPrincipal(
+            principal("publisher-owner-one", PlatformRole.PLATFORM_OPERATOR, "Publisher Owner One"),
+            () -> marketplacePublisherService.createPublisher(
+                new CreateMarketplacePublisherRequest("owner-one", "Owner One", "owner-one@example.com")
+            ).id()
+        );
+        runAsPrincipal(
+            principal("publisher-owner-two", PlatformRole.PLATFORM_OPERATOR, "Publisher Owner Two"),
+            () -> marketplacePublisherService.createPublisher(
+                new CreateMarketplacePublisherRequest("owner-two", "Owner Two", "owner-two@example.com")
+            ).id()
+        );
+
+        List<MarketplacePublisherSummary> visibleToOwnerOne = runAsPrincipal(
+            principal("publisher-owner-one", PlatformRole.PLATFORM_OPERATOR, "Publisher Owner One"),
+            marketplacePublisherService::listPublishers
+        );
+        assertEquals(1, visibleToOwnerOne.size());
+        assertEquals(ownerOnePublisherId, visibleToOwnerOne.getFirst().id());
+
+        ResponseStatusException forbidden = assertThrows(
+            ResponseStatusException.class,
+            () -> runAsPrincipal(
+                principal("publisher-owner-one", PlatformRole.PLATFORM_OPERATOR, "Publisher Owner One"),
+                () -> marketplacePublisherService.getPublisher("owner-two")
+            )
+        );
+        assertEquals(FORBIDDEN, forbidden.getStatusCode());
+    }
+
     private MockHttpServletRequestBuilder asAdmin(MockHttpServletRequestBuilder builder) {
         return builder.header(PLATFORM_API_KEY_HEADER, ADMIN_API_KEY);
     }
 
     private <T> T runAsAdmin(Supplier<T> supplier) {
-        authenticateAdmin();
+        authenticate(principal("admin@example.com", PlatformRole.PLATFORM_ADMIN, "Platform Admin"));
         try {
             return supplier.get();
         } finally {
@@ -431,13 +605,20 @@ class MarketplaceIntegrationTest {
         }
     }
 
-    private void authenticateAdmin() {
-        PlatformPrincipal principal = new PlatformPrincipal(
-            "admin@example.com",
-            PlatformRole.PLATFORM_ADMIN,
-            "Platform Admin",
-            "SESSION"
-        );
+    private <T> T runAsPrincipal(PlatformPrincipal principal, Supplier<T> supplier) {
+        authenticate(principal);
+        try {
+            return supplier.get();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private PlatformPrincipal principal(String actorId, PlatformRole role, String displayName) {
+        return new PlatformPrincipal(actorId, role, displayName, "SESSION");
+    }
+
+    private void authenticate(PlatformPrincipal principal) {
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
             principal,
             null,
