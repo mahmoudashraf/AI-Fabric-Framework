@@ -38,6 +38,7 @@ public final class ManagedDeploymentProfileCatalog {
     public static final String CONNECTOR_PROFILE_HOSTED = "connector-hosted";
     public static final String CONNECTOR_PROFILE_PASSIVE = "connector-passive";
     public static final String AUTHZ_MODE_REMOTE_HTTP = "REMOTE_HTTP";
+    public static final String AUTHZ_MODE_ALLOW_VERIFIED = "ALLOW_VERIFIED";
     public static final String AUTHZ_MODE_DENY_ALL = "DENY_ALL";
     public static final String CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
     public static final int DEFAULT_QDRANT_PORT = 6333;
@@ -114,6 +115,7 @@ public final class ManagedDeploymentProfileCatalog {
     );
     public static final Set<String> SUPPORTED_AUTHZ_MODES = Set.of(
         AUTHZ_MODE_REMOTE_HTTP,
+        AUTHZ_MODE_ALLOW_VERIFIED,
         AUTHZ_MODE_DENY_ALL
     );
     public static final String DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS = String.join(",",

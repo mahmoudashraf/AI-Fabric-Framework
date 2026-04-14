@@ -22,6 +22,14 @@ public class RuntimeAuthzProperties {
         REMOTE_HTTP,
 
         /**
+         * Allow requests that arrived through the verified runtime auth contract with a non-anonymous subject.
+         *
+         * <p>This is intended for platform-managed deployments that do not have a separate customer authz service,
+         * but still require verified private/public runtime identity before serving chat traffic.</p>
+         */
+        ALLOW_VERIFIED,
+
+        /**
          * Deny all access (fail-closed). Useful during rollout or when explicitly disabling runtime access.
          */
         DENY_ALL

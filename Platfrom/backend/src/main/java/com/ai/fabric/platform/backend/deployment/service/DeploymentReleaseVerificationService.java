@@ -1268,11 +1268,14 @@ public class DeploymentReleaseVerificationService {
         details.put("configuredAuthzBaseUrl", configuredBaseUrl);
 
         boolean passed = ManagedDeploymentProfileCatalog.AUTHZ_MODE_DENY_ALL.equals(authzMode)
+            || ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED.equals(authzMode)
             || hasText(configuredBaseUrl)
             || ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED.equals(connectorProfile);
         String message;
         if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_DENY_ALL.equals(authzMode)) {
             message = "Runtime authz mode is DENY_ALL, so no upstream authz target is required.";
+        } else if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED.equals(authzMode)) {
+            message = "Runtime authz mode is ALLOW_VERIFIED, so verified caller identity is sufficient without an upstream authz target.";
         } else if (hasText(configuredBaseUrl)) {
             message = "Runtime authz mode has an explicit upstream base URL.";
         } else if (ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED.equals(connectorProfile)) {

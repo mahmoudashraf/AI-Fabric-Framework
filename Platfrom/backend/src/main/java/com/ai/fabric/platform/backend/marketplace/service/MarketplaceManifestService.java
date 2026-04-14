@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.marketplace.service;
 
+import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginCompatibilitySummary;
@@ -144,6 +145,7 @@ public class MarketplaceManifestService {
         }
         String curatedModuleId = template.path("curatedModuleId").asText("").trim();
         JsonNode shell = template.path("shell");
+        validateTemplateSecurityContribution(plugin, version, template.path("security"));
         return new MarketplacePluginContributionSummary(
             StringUtils.hasText(curatedModuleId) ? curatedModuleId : null,
             List.of(),
@@ -152,6 +154,26 @@ public class MarketplaceManifestService {
             readStringList(shell, "enabledModuleIds", "moduleRefs"),
             readStringList(shell, "enabledCardIds", "cardRefs")
         );
+    }
+
+    private void validateTemplateSecurityContribution(MarketplacePluginEntity plugin,
+                                                      MarketplacePluginVersionEntity version,
+                                                      JsonNode security) {
+        if (security.isMissingNode() || security.isNull()) {
+            return;
+        }
+        if (!security.isObject()) {
+            throw invalid(plugin, version, "template security contribution must be an object when provided.");
+        }
+        String authzMode = security.path("authzMode").asText("").trim();
+        if (StringUtils.hasText(authzMode)
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_AUTHZ_MODES.contains(authzMode.toUpperCase(Locale.ROOT))) {
+            throw invalid(
+                plugin,
+                version,
+                "template security contribution declares unsupported authzMode: " + authzMode
+            );
+        }
     }
 
     private MarketplacePluginContributionSummary parseActionContribution(MarketplacePluginEntity plugin,

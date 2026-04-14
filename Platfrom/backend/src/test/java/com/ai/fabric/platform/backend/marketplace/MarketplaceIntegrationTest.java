@@ -218,6 +218,7 @@ class MarketplaceIntegrationTest {
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deploymentId)))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.securityConfig.authzMode", is("ALLOW_VERIFIED")))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='send-email')].marketplaceInstallId", is(List.of(notificationInstallId))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='send-sms')].marketplaceInstallId", is(List.of(notificationInstallId))))
             .andExpect(jsonPath("$.entityConfig['ai-entities']['faq-article'].marketplaceInstallId", is(helpCenterInstallId)))

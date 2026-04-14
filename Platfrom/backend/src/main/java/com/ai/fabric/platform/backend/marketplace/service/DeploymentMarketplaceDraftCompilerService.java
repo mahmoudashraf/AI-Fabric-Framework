@@ -164,6 +164,20 @@ public class DeploymentMarketplaceDraftCompilerService {
         return shellRoot;
     }
 
+    public ObjectNode compileTemplateSecurityBaseline(MarketplacePluginEntity plugin,
+                                                      MarketplacePluginVersionEntity version,
+                                                      JsonNode existingSecurityConfig) {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            marketplaceManifestService.parseAndValidate(plugin, version);
+        if (!"TEMPLATE".equals(parsed.pluginType())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin is not a template plugin: " + plugin.getId());
+        }
+        ObjectNode securityRoot = ensureObject(existingSecurityConfig);
+        JsonNode templateSecurity = parsed.manifest().path("contributions").path("template").path("security");
+        applyTemplateSecurity(securityRoot, templateSecurity);
+        return securityRoot;
+    }
+
     private void applyActionPlugin(ObjectNode actionsRoot,
                                    ObjectNode shellRoot,
                                    DeploymentMarketplacePluginInstallEntity install,
@@ -356,6 +370,16 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (templateShell.path("defaultConversationMode").isTextual()
             && !StringUtils.hasText(shellRoot.path("defaultConversationMode").asText(""))) {
             shellRoot.put("defaultConversationMode", templateShell.path("defaultConversationMode").asText("").trim());
+        }
+    }
+
+    private void applyTemplateSecurity(ObjectNode securityRoot, JsonNode templateSecurity) {
+        if (!templateSecurity.isObject()) {
+            return;
+        }
+        String authzMode = text(templateSecurity, "authzMode");
+        if (StringUtils.hasText(authzMode)) {
+            securityRoot.put("authzMode", authzMode);
         }
     }
 

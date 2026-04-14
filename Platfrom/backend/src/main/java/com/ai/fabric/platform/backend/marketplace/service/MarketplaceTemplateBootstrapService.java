@@ -101,6 +101,11 @@ public class MarketplaceTemplateBootstrapService {
             version,
             draft.shellConfig()
         );
+        JsonNode securityConfig = deploymentMarketplaceDraftCompilerService.compileTemplateSecurityBaseline(
+            plugin,
+            version,
+            draft.securityConfig()
+        );
         deploymentService.updateDraft(
             draft.id(),
             new UpdateDeploymentDraftRequest(
@@ -108,7 +113,7 @@ public class MarketplaceTemplateBootstrapService {
                 null,
                 null,
                 null,
-                null,
+                securityConfig,
                 null,
                 null,
                 shellConfig
