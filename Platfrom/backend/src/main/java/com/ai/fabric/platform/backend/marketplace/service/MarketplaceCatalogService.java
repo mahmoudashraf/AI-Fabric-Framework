@@ -96,6 +96,23 @@ public class MarketplaceCatalogService {
             ));
     }
 
+    MarketplacePluginVersionEntity requirePluginVersionEntityById(String pluginVersionId) {
+        return versionRepository.findById(pluginVersionId)
+            .orElseThrow(() -> new ResponseStatusException(
+                NOT_FOUND,
+                "Marketplace plugin version not found: " + pluginVersionId
+            ));
+    }
+
+    MarketplacePluginVersionEntity requireLatestPublishedVersionEntity(String pluginId) {
+        return versionRepository.findByPluginIdOrderByPublishedAtDesc(pluginId).stream()
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(
+                NOT_FOUND,
+                "Marketplace plugin has no published versions: " + pluginId
+            ));
+    }
+
     MarketplacePluginSummary toSummary(MarketplacePluginEntity plugin, MarketplacePluginVersionEntity latestVersion) {
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = latestVersion == null
             ? null

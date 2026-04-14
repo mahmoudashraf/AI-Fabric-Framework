@@ -7,12 +7,16 @@ public final class BuiltInShellCatalog {
 
     public static final List<String> MODULE_IDS = List.of(
         "search",
+        "ai-search",
         "product-catalog",
+        "products",
         "cart",
         "orders",
         "purchase-orders",
         "policies",
+        "docs",
         "reviews",
+        "actions",
         "customer-account",
         "addresses",
         "support"

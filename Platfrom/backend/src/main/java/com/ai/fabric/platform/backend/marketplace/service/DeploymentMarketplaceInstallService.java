@@ -15,7 +15,6 @@ import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceIns
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginContributionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
-import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -46,26 +45,26 @@ public class DeploymentMarketplaceInstallService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
-    private final MarketplacePluginVersionRepository pluginVersionRepository;
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final MarketplaceManifestService marketplaceManifestService;
+    private final DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
     public DeploymentMarketplaceInstallService(DeploymentRepository deploymentRepository,
                                                DeploymentAccessService deploymentAccessService,
                                                DeploymentMarketplacePluginInstallRepository installRepository,
-                                               MarketplacePluginVersionRepository pluginVersionRepository,
                                                MarketplaceCatalogService marketplaceCatalogService,
                                                MarketplaceManifestService marketplaceManifestService,
+                                               DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService,
                                                PlatformAuditService platformAuditService,
                                                ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.installRepository = installRepository;
-        this.pluginVersionRepository = pluginVersionRepository;
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.marketplaceManifestService = marketplaceManifestService;
+        this.deploymentMarketplaceDraftCompilerService = deploymentMarketplaceDraftCompilerService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
@@ -124,6 +123,7 @@ public class DeploymentMarketplaceInstallService {
                 "status", install.getStatus()
             )
         );
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
 
         return toSummary(install);
     }
@@ -164,6 +164,7 @@ public class DeploymentMarketplaceInstallService {
                 "status", install.getStatus()
             )
         );
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
 
         return toSummary(install);
     }
@@ -183,11 +184,13 @@ public class DeploymentMarketplaceInstallService {
                 "pluginVersionId", install.getPluginVersionId()
             )
         );
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
     }
 
     public DeploymentMarketplaceInstallResolutionSummary resolveInstall(String deploymentId, String installId) {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
         DeploymentMarketplaceInstallSummary summary = toSummary(install);
         return new DeploymentMarketplaceInstallResolutionSummary(
             summary,
@@ -223,7 +226,9 @@ public class DeploymentMarketplaceInstallService {
                 case "DATA" -> dataPluginCount++;
                 case "TEMPLATE" -> {
                     templatePluginCount++;
-                    warnings.add("Template plugin installs are intent-only and must resolve through bootstrap flow: " + plugin.getId());
+                    if (!"BOOTSTRAPPED".equalsIgnoreCase(install.getStatus())) {
+                        warnings.add("Template plugin installs are intent-only and must resolve through bootstrap flow: " + plugin.getId());
+                    }
                 }
                 default -> warnings.add("Unknown plugin type encountered during impact preview: " + parsed.pluginType());
             }
@@ -328,8 +333,7 @@ public class DeploymentMarketplaceInstallService {
     }
 
     private MarketplacePluginVersionEntity requirePluginVersionById(String pluginVersionId) {
-        return pluginVersionRepository.findById(pluginVersionId)
-            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Marketplace plugin version not found: " + pluginVersionId));
+        return marketplaceCatalogService.requirePluginVersionEntityById(pluginVersionId);
     }
 
     private DeploymentEntity requireDeploymentViewer(String deploymentId) {

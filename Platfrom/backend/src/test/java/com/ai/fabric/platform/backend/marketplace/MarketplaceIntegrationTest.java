@@ -137,6 +137,14 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$[?(@.id=='" + actionInstall + "')].pluginDisplayName", is(List.of("Shopify Admin Actions"))))
             .andExpect(jsonPath("$[?(@.id=='" + dataInstall + "')].pluginDisplayName", is(List.of("Commerce Catalog Data"))));
 
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-read')].marketplaceInstallId", is(List.of(actionInstall))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-cancel')].requiresConfirmation", is(List.of(true))))
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].handleRef", is(List.of("commerce-catalog"))))
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')].marketplaceInstallId", is(List.of(actionInstall))))
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='docs')].marketplaceInstallId", is(List.of(dataInstall))));
+
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-impact", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
@@ -169,6 +177,11 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.status", is("DISABLED")))
             .andExpect(jsonPath("$.config.scope", is("refund-only")));
 
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')]").isEmpty())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='docs')]").isEmpty());
+
         mockMvc.perform(asAdmin(delete("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deployment.id(), actionInstall)))
             .andExpect(status().isNoContent());
 
@@ -176,6 +189,11 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalInstalls", is(1)))
             .andExpect(jsonPath("$.installedPluginIds", is(List.of("mkp-data-commerce-catalog"))));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-read')]").isEmpty())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')]").isEmpty());
     }
 
     @Test
@@ -198,6 +216,42 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.message", is(
                 "Template plugins must be used through marketplace bootstrap flow, not deployment install APIs: mkp-template-commerce-shell"
             )));
+    }
+
+    @Test
+    void templatePluginsCanBootstrapDeploymentAndRecordTemplateInstall() throws Exception {
+        String response = mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-commerce-shell")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.0",
+                        "name", "Marketplace Template Bootstrap",
+                        "environment", "dev",
+                        "templateId", "dev-openai-lucene"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id", notNullValue()))
+            .andExpect(jsonPath("$.templateId", is("dev-openai-lucene")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String deploymentId = objectMapper.readTree(response).path("id").asText();
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='docs')]").exists())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='products')]").exists())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='ai-search')]").exists())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')]").exists())
+            .andExpect(jsonPath("$.shellConfig.defaultConversationMode", is("guided-commerce")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].pluginId", is("mkp-template-commerce-shell")))
+            .andExpect(jsonPath("$[0].status", is("BOOTSTRAPPED")));
     }
 
     private MockHttpServletRequestBuilder asAdmin(MockHttpServletRequestBuilder builder) {

@@ -33,6 +33,7 @@ import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorS
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.rag.source.SearchSourceRegistry;
+import com.ai.infrastructure.shell.BuiltInShellCatalog;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -187,11 +188,11 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(marketplaceSupport.get("supportedKnowledgeSourceAdapterTypes"))
             .isEqualTo(List.of("deployment-private-vector", "shared-index"));
         assertThat(marketplaceSupport.get("supportedShellModuleIds"))
-            .isEqualTo(List.of("search", "product-catalog", "cart", "orders", "purchase-orders", "policies", "reviews", "customer-account", "addresses", "support"));
+            .isEqualTo(BuiltInShellCatalog.MODULE_IDS);
         assertThat(marketplaceSupport.get("supportedShellCardIds"))
-            .isEqualTo(List.of("product-list", "product-detail", "cart-summary", "order-status", "purchase-order-status", "policy-summary", "review-summary", "support-ticket-status", "address-summary", "pricing-summary"));
+            .isEqualTo(BuiltInShellCatalog.CARD_IDS);
         assertThat(marketplaceSupport.get("supportedEvidenceBlockIds"))
-            .isEqualTo(List.of("default-document", "product-evidence", "policy-evidence", "review-evidence"));
+            .isEqualTo(BuiltInShellCatalog.EVIDENCE_BLOCK_IDS);
         assertThat(body.get("auth")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> auth = (Map<String, Object>) body.get("auth");

@@ -29,12 +29,16 @@ public class DeploymentDraftValidationService {
     private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
     private static final Set<String> SUPPORTED_SHELL_MODULE_IDS = Set.of(
         "search",
+        "ai-search",
         "product-catalog",
+        "products",
         "cart",
         "orders",
         "purchase-orders",
         "policies",
+        "docs",
         "reviews",
+        "actions",
         "customer-account",
         "addresses",
         "support"

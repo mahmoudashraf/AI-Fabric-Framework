@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.marketplace.web;
 
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplaceTemplateBootstrapRequest;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceImpactSummary;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallResolutionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallSummary;
@@ -9,6 +10,8 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginDetailS
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginVersionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
 import jakarta.validation.Valid;
@@ -33,11 +36,14 @@ public class MarketplaceController {
 
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final DeploymentMarketplaceInstallService deploymentMarketplaceInstallService;
+    private final MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService;
 
     public MarketplaceController(MarketplaceCatalogService marketplaceCatalogService,
-                                 DeploymentMarketplaceInstallService deploymentMarketplaceInstallService) {
+                                 DeploymentMarketplaceInstallService deploymentMarketplaceInstallService,
+                                 MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService) {
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
+        this.marketplaceTemplateBootstrapService = marketplaceTemplateBootstrapService;
     }
 
     @GetMapping("/marketplace/plugins")
@@ -59,6 +65,13 @@ public class MarketplaceController {
     @GetMapping("/marketplace/categories")
     public List<MarketplaceCategorySummary> listCategories() {
         return marketplaceCatalogService.listCategories();
+    }
+
+    @PostMapping("/marketplace/templates/{pluginId}/bootstrap")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentSummary bootstrapTemplatePlugin(@PathVariable String pluginId,
+                                                     @Valid @RequestBody CreateMarketplaceTemplateBootstrapRequest request) {
+        return marketplaceTemplateBootstrapService.bootstrap(pluginId, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/marketplace-installs")
