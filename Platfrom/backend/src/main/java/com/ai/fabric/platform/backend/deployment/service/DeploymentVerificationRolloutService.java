@@ -719,27 +719,21 @@ public class DeploymentVerificationRolloutService {
             new VerificationRolloutDefinition(
                 "marketplace",
                 "Marketplace Runtime Verification",
-                "Canonical marketplace-runtime verification deployment with resolved shell config and two-source retrieval enabled.",
-                "dev-openai-weaviate",
-                "EXTERNAL_EXISTING",
+                "Canonical marketplace-runtime verification deployment with resolved shell config, two-source retrieval, and rollout-owned shared vector backing.",
+                "dev-openai-qdrant",
+                "PLATFORM_MANAGED",
                 "marketplace-runtime",
                 false
             ) {
                 @Override
-                List<String> requiredSecrets() {
-                    return List.of("WEAVIATE_API_KEY");
-                }
-
-                @Override
                 UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft) {
                     ObjectNode provider = ensureObject(draft.providerConfig());
-                    provider.put("vectorStrategy", "weaviate");
-                    provider.put("vectorProvisioningMode", "EXTERNAL_EXISTING");
+                    provider.put("vectorStrategy", "qdrant");
+                    provider.put("vectorProvisioningMode", "PLATFORM_MANAGED");
                     provider.put("vectorStoragePosture", "SHARED");
-                    provider.put("weaviateScheme", "https");
-                    provider.put("weaviateHost", WEAVIATE_HOST);
-                    provider.put("weaviatePort", 443);
-                    provider.put("weaviateNativeMultiTenancyEnabled", true);
+                    provider.put("qdrantManagedCollectionsEnabled", true);
+                    provider.put("qdrantCloudProviderId", QDRANT_PROVIDER);
+                    provider.put("qdrantCloudRegionId", QDRANT_REGION);
                     return new UpdateDeploymentDraftRequest(
                         ensureObject(readYaml(ECOMMERCE_ACTIONS_RESOURCE)),
                         ecommerceEntityConfig(OPENAI_VECTOR_DIMENSIONS),

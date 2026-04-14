@@ -322,11 +322,47 @@ Recommended release rule:
 
 ---
 
-## 7) Suggested Manifest Shapes
+## 7) Real Backing And Rollout Dependencies
+
+Default starter plugins should not be demo-only metadata.
+
+Recommended rollout rule:
+
+- every default starter plugin that depends on underlying infrastructure must have that infrastructure represented in the canonical rollout path
+
+For starter data plugins, this means:
+
+- the plugin remains a business-facing `DATA` plugin
+- the backing shared corpus lives on a real shared vector backend
+- the canonical marketplace rollout provisions that shared-storage-capable backend as part of rollout instead of assuming an operator created it manually beforehand
+
+Recommended platform stance:
+
+- use a rollout-owned shared-storage-capable vector backend for the canonical marketplace deployment
+- use hosted verification to seed or refresh a small verification corpus when the platform is fresh
+- keep the catalog business-facing; do not expose the vector provider itself as the marketplace product
+
+Concrete implication for the default data plugins:
+
+- `mkp-data-commerce-catalog`
+  - should resolve into a real shared index or shared vector handle
+  - should be validated against a rollout-owned shared backend
+- `mkp-data-help-center`
+  - should follow the same model once seeded
+
+This makes a new platform installation reproducible:
+
+- platform admin can recreate the canonical marketplace rollout
+- the rollout provisions the backing vector installation needed for the plugin proof
+- hosted verification then proves the shared data plugin end to end
+
+---
+
+## 8) Suggested Manifest Shapes
 
 These are intentionally compact examples, not final migration payloads.
 
-### 7.1 `mkp-template-support-desk-shell`
+### 8.1 `mkp-template-support-desk-shell`
 
 ```yaml
 schemaVersion: 1
@@ -356,7 +392,7 @@ contributions:
       defaultConversationMode: guided-support
 ```
 
-### 7.2 `mkp-data-help-center`
+### 8.2 `mkp-data-help-center`
 
 ```yaml
 schemaVersion: 1
@@ -390,7 +426,7 @@ contributions:
       - ai-search
 ```
 
-### 7.3 `mkp-action-notifications`
+### 8.3 `mkp-action-notifications`
 
 ```yaml
 schemaVersion: 1
@@ -444,7 +480,7 @@ contributions:
 
 ---
 
-## 8) What Should Wait
+## 9) What Should Wait
 
 Do not make these part of the default visible starter catalog yet:
 
@@ -458,7 +494,7 @@ Those are valid later categories, but they should not dilute the first starter c
 
 ---
 
-## 9) Acceptance Criteria
+## 10) Acceptance Criteria
 
 The starter catalog is ready when:
 

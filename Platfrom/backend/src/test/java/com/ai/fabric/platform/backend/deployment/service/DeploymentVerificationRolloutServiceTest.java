@@ -228,7 +228,7 @@ class DeploymentVerificationRolloutServiceTest {
             .extracting(CreateDeploymentRequest::templateId)
             .containsExactly(
                 "dev-openai-lucene",
-                "dev-openai-weaviate",
+                "dev-openai-qdrant",
                 "dev-openai-qdrant",
                 "dev-openai-pinecone",
                 "dev-openai-milvus",
@@ -295,11 +295,12 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("adapterType").asText()).isEqualTo("shared-index");
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("handleRef").asText()).isEqualTo("commerce-catalog/refund-policy");
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("filters").path("classification").asText()).isEqualTo("refund");
-        assertThat(marketplace.providerConfig().path("vectorStrategy").asText()).isEqualTo("weaviate");
-        assertThat(marketplace.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
+        assertThat(marketplace.providerConfig().path("vectorStrategy").asText()).isEqualTo("qdrant");
+        assertThat(marketplace.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
         assertThat(marketplace.providerConfig().path("vectorStoragePosture").asText()).isEqualTo("SHARED");
-        assertThat(marketplace.providerConfig().path("weaviateHost").asText()).isEqualTo("l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud");
-        assertThat(marketplace.providerConfig().path("weaviateNativeMultiTenancyEnabled").asBoolean()).isTrue();
+        assertThat(marketplace.providerConfig().path("qdrantManagedCollectionsEnabled").asBoolean()).isTrue();
+        assertThat(marketplace.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
+        assertThat(marketplace.providerConfig().path("qdrantCloudRegionId").asText()).isEqualTo("eu-west-1");
         assertThat(marketplace.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
         assertThat(marketplace.shellConfig().path("contractVersion").asText()).isEqualTo("SHELL_CONFIG_V1");
         assertThat(marketplace.shellConfig().path("modules").isArray()).isTrue();
