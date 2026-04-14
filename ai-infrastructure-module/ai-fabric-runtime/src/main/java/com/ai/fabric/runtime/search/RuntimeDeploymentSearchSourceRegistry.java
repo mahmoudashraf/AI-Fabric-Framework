@@ -91,7 +91,6 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
         configuredSources.stream()
             .filter(source -> KnowledgeSourceAdapterType.SHARED_INDEX.wireValue().equals(source.getAdapterType()))
             .map(source -> new SharedIndexSearchSource(source, searchService, vectorDatabaseService))
-            .filter(source -> source.isEligible(request))
             .forEach(resolved::add);
         return List.copyOf(resolved);
     }

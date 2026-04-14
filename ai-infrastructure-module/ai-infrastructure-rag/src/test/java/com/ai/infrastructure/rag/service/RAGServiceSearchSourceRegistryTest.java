@@ -69,6 +69,13 @@ class RAGServiceSearchSourceRegistryTest {
             searchService,
             searchSourceRegistry
         );
+
+        when(privateSource.sourceId()).thenReturn("deployment-private-vector");
+        when(privateSource.sourceType()).thenReturn("deployment-private-vector");
+        when(privateSource.adapterType()).thenReturn("deployment-private-vector");
+        when(sharedSource.sourceId()).thenReturn("shared-catalog");
+        when(sharedSource.sourceType()).thenReturn("shared-vector");
+        when(sharedSource.adapterType()).thenReturn("shared-index");
     }
 
     @Test
@@ -128,7 +135,119 @@ class RAGServiceSearchSourceRegistryTest {
             .containsEntry("knowledgeSourceAdapterType", "shared-index");
         assertThat(response.getMetadata())
             .containsEntry("searchSourceCount", 2)
+            .containsEntry("searchSourceEligibleCount", 2)
+            .containsEntry("searchSourceAttemptedCount", 2)
+            .containsEntry("searchSourceSucceededCount", 2)
+            .containsEntry("searchSourceFailedCount", 0)
+            .containsEntry("searchSourceSkippedCount", 0)
+            .containsEntry("searchSourcesDegraded", false)
             .containsEntry("searchSourceIds", List.of("shared-catalog", "deployment-private-vector"))
             .containsEntry("searchSourceAdapterTypes", List.of("shared-index", "deployment-private-vector"));
+        assertThat(response.getMetadata().get("searchSourceDiagnostics")).isInstanceOf(List.class);
+    }
+
+    @Test
+    void performRagContinuesWhenOneSearchSourceFailsAndMarksDegraded() {
+        when(privateSource.isEligible(any())).thenReturn(true);
+        when(sharedSource.isEligible(any())).thenReturn(true);
+        when(searchSourceRegistry.resolveSearchSources(any())).thenReturn(List.of(privateSource, sharedSource));
+        when(privateSource.search(any(), any(), any())).thenThrow(new IllegalStateException("private source unavailable"));
+        when(sharedSource.search(any(), any(), any())).thenReturn(
+            AISearchResponse.builder()
+                .results(List.of(Map.of(
+                    "id", "product-2",
+                    "content", "Shared catalog lists Alienware m18 R2 deals.",
+                    "score", 0.92,
+                    "similarity", 0.92,
+                    "metadata", Map.of(
+                        "knowledgeSourceId", "shared-catalog",
+                        "knowledgeSourceType", "shared-vector",
+                        "knowledgeSourceAdapterType", "shared-index",
+                        "knowledgeSourceAttributionLabel", "Shared catalog"
+                    )
+                )))
+                .totalResults(1)
+                .maxScore(0.92)
+                .build()
+        );
+
+        RAGResponse response = ragService.performRag(RAGRequest.builder()
+            .query("tell me about Alienware m18 R2")
+            .entityType("product")
+            .limit(5)
+            .threshold(0.1)
+            .build());
+
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getDocuments()).hasSize(1);
+        assertThat(response.getDocuments().get(0).getSource()).isEqualTo("Shared catalog");
+        assertThat(response.getMetadata())
+            .containsEntry("searchSourceCount", 2)
+            .containsEntry("searchSourceEligibleCount", 2)
+            .containsEntry("searchSourceAttemptedCount", 2)
+            .containsEntry("searchSourceSucceededCount", 1)
+            .containsEntry("searchSourceFailedCount", 1)
+            .containsEntry("searchSourceSkippedCount", 0)
+            .containsEntry("searchSourcesDegraded", true);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> diagnostics = (List<Map<String, Object>>) response.getMetadata().get("searchSourceDiagnostics");
+        assertThat(diagnostics)
+            .anySatisfy(entry -> assertThat(entry)
+                .containsEntry("sourceId", "deployment-private-vector")
+                .containsEntry("status", "FAILED")
+                .containsEntry("errorType", "IllegalStateException"))
+            .anySatisfy(entry -> assertThat(entry)
+                .containsEntry("sourceId", "shared-catalog")
+                .containsEntry("status", "SUCCEEDED"));
+    }
+
+    @Test
+    void performRagTracksSkippedIneligibleSourcesWithoutMarkingDegraded() {
+        when(privateSource.isEligible(any())).thenReturn(true);
+        when(sharedSource.isEligible(any())).thenReturn(false);
+        when(searchSourceRegistry.resolveSearchSources(any())).thenReturn(List.of(privateSource, sharedSource));
+        when(privateSource.search(any(), any(), any())).thenReturn(
+            AISearchResponse.builder()
+                .results(List.of(Map.of(
+                    "id", "product-1",
+                    "content", "Alienware m18 R2 is available.",
+                    "score", 0.74,
+                    "similarity", 0.74,
+                    "metadata", Map.of(
+                        "knowledgeSourceId", "deployment-private-vector",
+                        "knowledgeSourceType", "deployment-private-vector",
+                        "knowledgeSourceAdapterType", "deployment-private-vector",
+                        "knowledgeSourceAttributionLabel", "Deployment knowledge"
+                    )
+                )))
+                .totalResults(1)
+                .maxScore(0.74)
+                .build()
+        );
+
+        RAGResponse response = ragService.performRag(RAGRequest.builder()
+            .query("tell me about Alienware m18 R2")
+            .entityType("product")
+            .limit(5)
+            .threshold(0.1)
+            .build());
+
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getDocuments()).hasSize(1);
+        assertThat(response.getMetadata())
+            .containsEntry("searchSourceCount", 2)
+            .containsEntry("searchSourceEligibleCount", 1)
+            .containsEntry("searchSourceAttemptedCount", 1)
+            .containsEntry("searchSourceSucceededCount", 1)
+            .containsEntry("searchSourceFailedCount", 0)
+            .containsEntry("searchSourceSkippedCount", 1)
+            .containsEntry("searchSourcesDegraded", false);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> diagnostics = (List<Map<String, Object>>) response.getMetadata().get("searchSourceDiagnostics");
+        assertThat(diagnostics)
+            .anySatisfy(entry -> assertThat(entry)
+                .containsEntry("sourceId", "shared-catalog")
+                .containsEntry("status", "SKIPPED")
+                .containsEntry("reason", "ineligible"));
     }
 }

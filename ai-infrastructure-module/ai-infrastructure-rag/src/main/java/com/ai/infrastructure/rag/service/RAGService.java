@@ -87,6 +87,13 @@ public class RAGService implements RAGProvider {
     private static final String METADATA_KEY_SEARCH_SOURCE_IDS = "searchSourceIds";
     private static final String METADATA_KEY_SEARCH_SOURCE_TYPES = "searchSourceTypes";
     private static final String METADATA_KEY_SEARCH_SOURCE_ADAPTER_TYPES = "searchSourceAdapterTypes";
+    private static final String METADATA_KEY_SEARCH_SOURCE_DIAGNOSTICS = "searchSourceDiagnostics";
+    private static final String METADATA_KEY_SEARCH_SOURCE_ELIGIBLE_COUNT = "searchSourceEligibleCount";
+    private static final String METADATA_KEY_SEARCH_SOURCE_ATTEMPTED_COUNT = "searchSourceAttemptedCount";
+    private static final String METADATA_KEY_SEARCH_SOURCE_SUCCEEDED_COUNT = "searchSourceSucceededCount";
+    private static final String METADATA_KEY_SEARCH_SOURCE_FAILED_COUNT = "searchSourceFailedCount";
+    private static final String METADATA_KEY_SEARCH_SOURCE_SKIPPED_COUNT = "searchSourceSkippedCount";
+    private static final String METADATA_KEY_SEARCH_SOURCES_DEGRADED = "searchSourcesDegraded";
     
     // Result keys
     private static final String RESULT_KEY_CONTENT = "content";
@@ -101,6 +108,9 @@ public class RAGService implements RAGProvider {
     
     // Default values
     private static final double DEFAULT_SEARCH_THRESHOLD = 0.7;
+    private static final int DEFAULT_RESULT_LIMIT = 10;
+    private static final int MAX_MERGED_RESULTS_MULTIPLIER = 20;
+    private static final int MAX_MERGED_RESULTS_CAP = 250;
     
     // Messages
     private static final String NO_CONTEXT_MESSAGE = "No relevant context found.";
@@ -231,7 +241,8 @@ public class RAGService implements RAGProvider {
                 .metadata(request.getMetadata())
                 .build();
             
-            AISearchResponse searchResponse = performSearch(queryVector, request, searchRequest, false);
+            SearchExecutionAggregate searchExecution = performSearch(queryVector, request, searchRequest, false);
+            AISearchResponse searchResponse = searchExecution.response();
             long totalProcessingTimeMs = System.currentTimeMillis() - startTime;
             
             Map<String, Object> filters = request.getFilters();
@@ -280,6 +291,7 @@ public class RAGService implements RAGProvider {
                 aggregatedMetadata.put(METADATA_KEY_SEARCH_MAX_SCORE, searchResponse.getMaxScore());
             }
             appendSearchSourceMetadata(aggregatedMetadata, searchResponse);
+            appendSearchExecutionMetadata(aggregatedMetadata, searchExecution);
 
             String originalUserQuery = extractUserQuery(request.getMetadata());
             
@@ -352,7 +364,8 @@ public class RAGService implements RAGProvider {
                 .threshold(request.getThreshold())
                 .build();
             
-            AISearchResponse searchResponse = performSearch(queryVector, request, searchRequest, true);
+            SearchExecutionAggregate searchExecution = performSearch(queryVector, request, searchRequest, true);
+            AISearchResponse searchResponse = searchExecution.response();
             
             String context = buildContext(searchResponse);
             
@@ -374,6 +387,7 @@ public class RAGService implements RAGProvider {
                 aggregatedMetadata.put(METADATA_KEY_SEARCH_MAX_SCORE, searchResponse.getMaxScore());
             }
             appendSearchSourceMetadata(aggregatedMetadata, searchResponse);
+            appendSearchExecutionMetadata(aggregatedMetadata, searchExecution);
 
             String originalUserQuery = extractUserQuery(request.getMetadata());
             
@@ -458,33 +472,29 @@ public class RAGService implements RAGProvider {
         return vectorDatabaseService.search(queryVector, contextualRequest);
     }
 
-    private AISearchResponse performSearch(List<Double> queryVector,
-                                           RAGRequest ragRequest,
-                                           AISearchRequest baseSearchRequest,
-                                           boolean honorSearchMode) {
+    private SearchExecutionAggregate performSearch(List<Double> queryVector,
+                                                   RAGRequest ragRequest,
+                                                   AISearchRequest baseSearchRequest,
+                                                   boolean honorSearchMode) {
         if (searchSourceRegistry == null) {
             if (honorSearchMode && Boolean.TRUE.equals(ragRequest.getEnableHybridSearch())) {
-                return performHybridSearch(queryVector, ragRequest.getQuery(), baseSearchRequest);
+                AISearchResponse response = performHybridSearch(queryVector, ragRequest.getQuery(), baseSearchRequest);
+                return SearchExecutionAggregate.singleResponse(response);
             }
             if (honorSearchMode && Boolean.TRUE.equals(ragRequest.getEnableContextualSearch())) {
-                return performContextualSearch(
+                AISearchResponse response = performContextualSearch(
                     queryVector,
                     ragRequest.getContext() != null ? ragRequest.getContext().toString() : "",
                     baseSearchRequest
                 );
+                return SearchExecutionAggregate.singleResponse(response);
             }
-            return searchService.search(queryVector, baseSearchRequest);
+            return SearchExecutionAggregate.singleResponse(searchService.search(queryVector, baseSearchRequest));
         }
 
         List<SearchSource> sources = searchSourceRegistry.resolveSearchSources(ragRequest);
         if (sources.isEmpty()) {
-            return AISearchResponse.builder()
-                .results(List.of())
-                .totalResults(0)
-                .processingTimeMs(0L)
-                .query(baseSearchRequest.getQuery())
-                .model(baseSearchRequest.getEntityType())
-                .build();
+            return SearchExecutionAggregate.empty(baseSearchRequest);
         }
 
         long startTime = System.currentTimeMillis();
@@ -492,28 +502,72 @@ public class RAGService implements RAGProvider {
         List<String> sourceIds = new ArrayList<>();
         List<String> sourceTypes = new ArrayList<>();
         List<String> sourceAdapterTypes = new ArrayList<>();
+        List<Map<String, Object>> sourceDiagnostics = new ArrayList<>();
         Double maxScore = null;
+        int eligibleCount = 0;
+        int attemptedCount = 0;
+        int succeededCount = 0;
+        int failedCount = 0;
+        int skippedCount = 0;
 
         for (SearchSource source : sources) {
+            Map<String, Object> diagnostic = baseSearchSourceDiagnostic(source);
             if (!source.isEligible(ragRequest)) {
+                diagnostic.put("eligible", false);
+                diagnostic.put("status", "SKIPPED");
+                diagnostic.put("reason", "ineligible");
+                sourceDiagnostics.add(immutableDiagnostic(diagnostic));
+                skippedCount++;
                 continue;
             }
-            AISearchResponse response = source.search(queryVector, ragRequest, baseSearchRequest);
-            mergedResults.addAll(response.getResults() != null ? response.getResults() : List.of());
-            sourceIds.add(source.sourceId());
-            sourceTypes.add(source.sourceType());
-            sourceAdapterTypes.add(source.adapterType());
-            if (response.getMaxScore() != null) {
-                maxScore = maxScore == null ? response.getMaxScore() : Math.max(maxScore, response.getMaxScore());
+            eligibleCount++;
+            attemptedCount++;
+            long sourceStartTime = System.currentTimeMillis();
+            try {
+                AISearchResponse response = source.search(queryVector, ragRequest, baseSearchRequest);
+                long sourceProcessingTimeMs = response.getProcessingTimeMs() != null
+                    ? response.getProcessingTimeMs()
+                    : (System.currentTimeMillis() - sourceStartTime);
+                List<Map<String, Object>> sourceResults = response.getResults() != null ? response.getResults() : List.of();
+                mergedResults.addAll(sourceResults);
+                sourceIds.add(source.sourceId());
+                sourceTypes.add(source.sourceType());
+                sourceAdapterTypes.add(source.adapterType());
+                if (response.getMaxScore() != null) {
+                    maxScore = maxScore == null ? response.getMaxScore() : Math.max(maxScore, response.getMaxScore());
+                }
+                diagnostic.put("eligible", true);
+                diagnostic.put("status", "SUCCEEDED");
+                diagnostic.put("processingTimeMs", sourceProcessingTimeMs);
+                diagnostic.put("resultsCount", sourceResults.size());
+                if (response.getMaxScore() != null) {
+                    diagnostic.put("maxScore", response.getMaxScore());
+                }
+                sourceDiagnostics.add(immutableDiagnostic(diagnostic));
+                succeededCount++;
+            } catch (Exception ex) {
+                long sourceProcessingTimeMs = System.currentTimeMillis() - sourceStartTime;
+                log.warn(
+                    "Search source {} ({}) failed; continuing degraded retrieval",
+                    source.sourceId(),
+                    source.adapterType(),
+                    ex
+                );
+                diagnostic.put("eligible", true);
+                diagnostic.put("status", "FAILED");
+                diagnostic.put("reason", "search_error");
+                diagnostic.put("processingTimeMs", sourceProcessingTimeMs);
+                diagnostic.put("errorType", ex.getClass().getSimpleName());
+                if (StringUtils.hasText(ex.getMessage())) {
+                    diagnostic.put("errorMessage", truncate(ex.getMessage(), 240));
+                }
+                sourceDiagnostics.add(immutableDiagnostic(diagnostic));
+                failedCount++;
             }
         }
 
-        List<Map<String, Object>> rankedResults = mergedResults.stream()
-            .sorted((left, right) -> Double.compare(extractScore(right), extractScore(left)))
-            .limit(Optional.ofNullable(baseSearchRequest.getLimit()).orElse(10))
-            .collect(Collectors.toList());
-
-        return AISearchResponse.builder()
+        List<Map<String, Object>> rankedResults = rankAndLimitMergedResults(mergedResults, baseSearchRequest.getLimit());
+        AISearchResponse response = AISearchResponse.builder()
             .results(rankedResults)
             .totalResults(rankedResults.size())
             .maxScore(maxScore)
@@ -522,6 +576,39 @@ public class RAGService implements RAGProvider {
             .query(baseSearchRequest.getQuery())
             .model(String.join(",", new LinkedHashSet<>(sourceAdapterTypes)))
             .build();
+        return new SearchExecutionAggregate(
+            response,
+            List.copyOf(sourceDiagnostics),
+            sources.size(),
+            eligibleCount,
+            attemptedCount,
+            succeededCount,
+            failedCount,
+            skippedCount,
+            failedCount > 0
+        );
+    }
+
+    private List<Map<String, Object>> rankAndLimitMergedResults(List<Map<String, Object>> mergedResults, Integer requestedLimit) {
+        int effectiveLimit = requestedLimit != null ? requestedLimit : DEFAULT_RESULT_LIMIT;
+        int maxMergedResults = Math.max(
+            effectiveLimit,
+            Math.min(MAX_MERGED_RESULTS_CAP, effectiveLimit * MAX_MERGED_RESULTS_MULTIPLIER)
+        );
+        List<Map<String, Object>> rankedResults = mergedResults.stream()
+            .filter(Objects::nonNull)
+            .sorted((left, right) -> Double.compare(extractScore(right), extractScore(left)))
+            .collect(Collectors.toList());
+        if (rankedResults.size() > maxMergedResults) {
+            rankedResults = new ArrayList<>(rankedResults.subList(0, maxMergedResults));
+        }
+        LinkedHashMap<String, Map<String, Object>> deduplicated = new LinkedHashMap<>();
+        for (Map<String, Object> result : rankedResults) {
+            deduplicated.putIfAbsent(resultDedupKey(result), result);
+        }
+        return deduplicated.values().stream()
+            .limit(effectiveLimit)
+            .collect(Collectors.toList());
     }
     
     private double calculateConfidence(AISearchResponse searchResponse) {
@@ -789,10 +876,65 @@ public class RAGService implements RAGProvider {
         }
     }
 
+    private void appendSearchExecutionMetadata(Map<String, Object> aggregatedMetadata, SearchExecutionAggregate searchExecution) {
+        if (aggregatedMetadata == null || searchExecution == null) {
+            return;
+        }
+        if (!searchExecution.sourceDiagnostics().isEmpty()) {
+            aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_DIAGNOSTICS, searchExecution.sourceDiagnostics());
+        }
+        aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_COUNT, searchExecution.resolvedSourceCount());
+        aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_ELIGIBLE_COUNT, searchExecution.eligibleSourceCount());
+        aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_ATTEMPTED_COUNT, searchExecution.attemptedSourceCount());
+        aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_SUCCEEDED_COUNT, searchExecution.succeededSourceCount());
+        aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_FAILED_COUNT, searchExecution.failedSourceCount());
+        aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_SKIPPED_COUNT, searchExecution.skippedSourceCount());
+        aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCES_DEGRADED, searchExecution.degraded());
+    }
+
     private void addIfPresent(LinkedHashSet<String> target, Object value) {
         if (value instanceof String text && StringUtils.hasText(text)) {
             target.add(text.trim());
         }
+    }
+
+    private Map<String, Object> baseSearchSourceDiagnostic(SearchSource source) {
+        Map<String, Object> diagnostic = new LinkedHashMap<>();
+        putIfText(diagnostic, "sourceId", source.sourceId());
+        putIfText(diagnostic, "sourceType", source.sourceType());
+        putIfText(diagnostic, "adapterType", source.adapterType());
+        return diagnostic;
+    }
+
+    private Map<String, Object> immutableDiagnostic(Map<String, Object> diagnostic) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(diagnostic));
+    }
+
+    private void putIfText(Map<String, Object> target, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            target.put(key, value.trim());
+        }
+    }
+
+    private String resultDedupKey(Map<String, Object> result) {
+        Map<String, Object> metadata = normalizeMetadata(result != null ? result.get(RESULT_KEY_METADATA) : null);
+        String sourceId = metadata.get("knowledgeSourceId") instanceof String text && StringUtils.hasText(text)
+            ? text.trim()
+            : "";
+        String id = result != null && result.get(RESULT_KEY_ID) instanceof String text && StringUtils.hasText(text)
+            ? text.trim()
+            : "";
+        String content = result != null && result.get(RESULT_KEY_CONTENT) instanceof String text && StringUtils.hasText(text)
+            ? truncate(text.trim(), 160)
+            : "";
+        return sourceId + "|" + id + "|" + content;
+    }
+
+    private String truncate(String value, int maxChars) {
+        if (!StringUtils.hasText(value) || value.length() <= maxChars) {
+            return value;
+        }
+        return value.substring(0, maxChars);
     }
 
     private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents) {
@@ -837,5 +979,50 @@ public class RAGService implements RAGProvider {
         }
 
         return context.toString();
+    }
+
+    private record SearchExecutionAggregate(AISearchResponse response,
+                                            List<Map<String, Object>> sourceDiagnostics,
+                                            int resolvedSourceCount,
+                                            int eligibleSourceCount,
+                                            int attemptedSourceCount,
+                                            int succeededSourceCount,
+                                            int failedSourceCount,
+                                            int skippedSourceCount,
+                                            boolean degraded) {
+
+        private static SearchExecutionAggregate singleResponse(AISearchResponse response) {
+            return new SearchExecutionAggregate(
+                response,
+                List.of(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                false
+            );
+        }
+
+        private static SearchExecutionAggregate empty(AISearchRequest request) {
+            return new SearchExecutionAggregate(
+                AISearchResponse.builder()
+                    .results(List.of())
+                    .totalResults(0)
+                    .processingTimeMs(0L)
+                    .query(request.getQuery())
+                    .model(request.getEntityType())
+                    .build(),
+                List.of(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                false
+            );
+        }
     }
 }

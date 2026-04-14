@@ -62,6 +62,38 @@ class RuntimeDeploymentSearchSourceRegistryTest {
     }
 
     @Test
+    void registryReturnsConfiguredSharedSourceEvenWhenCurrentRequestIsNotEligible() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("shared-catalog")
+                .type("shared-vector")
+                .adapterType("shared-index")
+                .attributionLabel("Shared catalog")
+                .entityType("product")
+                .handleRef("marketplace/catalog")
+                .authModes(List.of("PUBLIC_RUNTIME_AUTHENTICATED"))
+                .enabled(true)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", true));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        assertThat(registry.resolveSearchSources(RAGRequest.builder()
+                .query("tell me about Alienware")
+                .entityType("product")
+                .authContext(AIAccessSubjectContext.builder().authMode("PUBLIC_RUNTIME_ANONYMOUS").build())
+                .build()))
+            .extracting(source -> source.source().getId())
+            .containsExactly("deployment-private-vector", "shared-catalog");
+    }
+
+    @Test
     void registryFailsClosedForSharedIndexWithoutHandleRef() {
         when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
             ResolvedKnowledgeSource.builder()
