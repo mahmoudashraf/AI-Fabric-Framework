@@ -51,6 +51,30 @@ class RuntimeDeploymentShellConfigServiceTest {
     }
 
     @Test
+    void loadLegacyFileWithoutContractVersionKeepsCompatibility() {
+        RuntimeDeploymentShellConfigProperties properties = new RuntimeDeploymentShellConfigProperties();
+        properties.setConfigFile("classpath:test-runtime-shell-config-legacy.json");
+        RuntimeDeploymentShellConfigService service = new RuntimeDeploymentShellConfigService(
+            properties,
+            new DefaultResourceLoader(),
+            new ObjectMapper()
+        );
+
+        service.load();
+
+        assertThat(service.currentContractVersion()).isEqualTo(RuntimeDeploymentShellConfigService.CONTRACT_VERSION);
+        assertThat(service.currentModuleIds()).containsExactly("product-catalog", "orders");
+        assertThat(service.currentCardIds()).containsExactly("product-list");
+        assertThat(service.currentGreetingTitle()).isNull();
+        assertThat(service.currentGreetingMessage()).isEqualTo("Ask about products.");
+        assertThat(service.currentStarterPromptCount()).isEqualTo(1);
+        assertThat(service.currentStarterPrompts()).extracting(prompt -> prompt.path("label").asText())
+            .containsExactly("Browse featured products");
+        assertThat(service.currentStarterPrompts()).extracting(prompt -> prompt.path("moduleId").asText())
+            .containsExactly("product-catalog");
+    }
+
+    @Test
     void loadRejectsUnsupportedModuleId() {
         RuntimeDeploymentShellConfigProperties properties = new RuntimeDeploymentShellConfigProperties();
         properties.setConfigFile("classpath:test-runtime-shell-config-invalid-module.json");

@@ -47,6 +47,30 @@ class RuntimeDeploymentKnowledgeSourceConfigServiceTest {
     }
 
     @Test
+    void loadLegacyFileWithoutContractVersionKeepsCompatibility() {
+        RuntimeDeploymentKnowledgeSourceConfigProperties properties = new RuntimeDeploymentKnowledgeSourceConfigProperties();
+        properties.setConfigFile("classpath:test-runtime-knowledge-source-config-legacy.json");
+        RuntimeDeploymentKnowledgeSourceConfigService service = new RuntimeDeploymentKnowledgeSourceConfigService(
+            properties,
+            new DefaultResourceLoader(),
+            new ObjectMapper()
+        );
+
+        service.load();
+
+        assertThat(service.currentContractVersion()).isEqualTo(RuntimeDeploymentKnowledgeSourceConfigService.CONTRACT_VERSION);
+        assertThat(service.currentSourceIds()).containsExactly("shared-catalog", "private-policy");
+        assertThat(service.currentSourceTypes()).containsExactly("shared-vector", "private-vector");
+        assertThat(service.currentSourceAdapterTypes()).containsExactly("shared-index", "deployment-private-vector");
+        assertThat(service.currentSources())
+            .extracting(source -> source.getAttributionLabel())
+            .containsExactly("shared-catalog", "private-policy");
+        assertThat(service.currentSources())
+            .extracting(source -> source.isEnabled())
+            .containsExactly(true, false);
+    }
+
+    @Test
     void loadRejectsUnsupportedContractVersion() {
         RuntimeDeploymentKnowledgeSourceConfigProperties properties = new RuntimeDeploymentKnowledgeSourceConfigProperties();
         properties.setConfigFile("classpath:test-runtime-knowledge-source-config-invalid-contract.json");

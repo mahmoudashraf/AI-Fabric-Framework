@@ -163,6 +163,61 @@ class RuntimeDeploymentSearchSourceRegistryTest {
     }
 
     @Test
+    void registryKeepsDisabledSourcesVisibleAndFailSafe() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("shared-catalog")
+                .type("shared-vector")
+                .adapterType("shared-index")
+                .attributionLabel("Shared catalog")
+                .entityType("product")
+                .handleRef("marketplace/catalog")
+                .enabled(false)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", true));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        RAGRequest request = RAGRequest.builder()
+            .query("show catalog")
+            .entityType("product")
+            .build();
+
+        assertThat(registry.resolveSearchSources(request))
+            .extracting(source -> source.source().getId())
+            .containsExactly("deployment-private-vector", "shared-catalog");
+        assertThat(registry.resolveSearchSources(request))
+            .extracting(source -> source.isEligible(request))
+            .containsExactly(true, false);
+
+        registry.recordSearchExecution(List.of(
+            Map.of(
+                "sourceId", "shared-catalog",
+                "sourceType", "shared-vector",
+                "adapterType", "shared-index",
+                "status", "SKIPPED",
+                "reason", "disabled"
+            )
+        ), false);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> sources = (List<Map<String, Object>>) registry.adminDiagnostics().get("sources");
+        assertThat(sources)
+            .anySatisfy(entry -> assertThat(entry)
+                .containsEntry("sourceId", "shared-catalog")
+                .containsEntry("enabled", false)
+                .containsEntry("healthStatus", "DISABLED")
+                .containsEntry("lastStatus", "SKIPPED")
+                .containsEntry("skippedCount", 1L));
+    }
+
+    @Test
     void registryFailsClosedForSharedIndexWithoutHandleRef() {
         when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
             ResolvedKnowledgeSource.builder()
