@@ -9,6 +9,7 @@ import org.springframework.util.ResourceUtils;
 import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
+import java.util.Map;
 
 final class RuntimeDeploymentResolvedConfigSupport {
 
@@ -36,5 +37,12 @@ final class RuntimeDeploymentResolvedConfigSupport {
             return YAML_MAPPER.readTree(inputStream);
         }
         return jsonMapper.readTree(inputStream);
+    }
+
+    static Map<String, Object> convertToMap(ObjectMapper objectMapper, JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) {
+            return Map.of();
+        }
+        return objectMapper.convertValue(node, Map.class);
     }
 }

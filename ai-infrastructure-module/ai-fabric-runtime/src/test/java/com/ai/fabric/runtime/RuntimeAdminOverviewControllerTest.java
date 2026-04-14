@@ -32,6 +32,7 @@ import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorR
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.rag.source.SearchSourceRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -113,7 +114,8 @@ class RuntimeAdminOverviewControllerTest {
             new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
             confirmationProvider(),
             knowledgeSourceConfigProvider(),
-            shellConfigProvider()
+            shellConfigProvider(),
+            searchSourceRegistryProvider()
         );
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigLocation", "https://platform.example/entities");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
@@ -141,6 +143,7 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("knowledgeSourcesCount", 2);
         assertThat(body.get("knowledgeSourceIds")).isEqualTo(List.of("shared-catalog", "shared-policy"));
         assertThat(body.get("knowledgeSourceTypes")).isEqualTo(List.of("shared-vector", "shared-vector"));
+        assertThat(body.get("knowledgeSourceAdapterTypes")).isEqualTo(List.of("shared-index"));
         assertThat(body).containsEntry("shellModulesCount", 2);
         assertThat(body.get("shellModuleIds")).isEqualTo(List.of("catalog-grid", "policy-panel"));
         assertThat(body).containsEntry("shellCardsCount", 1);
@@ -155,8 +158,12 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(marketplaceSupport).containsEntry("actionMetadataContractVersion", "ACTION_METADATA_V2");
         assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", true);
         assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", true);
+        assertThat(marketplaceSupport).containsEntry("resolvedSearchSourcesSupported", true);
         assertThat(marketplaceSupport).containsEntry("knowledgeSourceContractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
         assertThat(marketplaceSupport).containsEntry("shellConfigContractVersion", "SHELL_CONFIG_V1");
+        assertThat(marketplaceSupport).containsEntry("searchSourceContractVersion", "SEARCH_SOURCE_REGISTRY_V1");
+        assertThat(marketplaceSupport.get("supportedKnowledgeSourceAdapterTypes"))
+            .isEqualTo(List.of("deployment-private-vector", "shared-index"));
         assertThat(body.get("auth")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> auth = (Map<String, Object>) body.get("auth");
@@ -224,7 +231,8 @@ class RuntimeAdminOverviewControllerTest {
             ),
             confirmationProvider(),
             knowledgeSourceConfigProvider(),
-            shellConfigProvider()
+            shellConfigProvider(),
+            searchSourceRegistryProvider()
         );
 
         ResponseEntity<?> response = controller.authOverview(
@@ -268,7 +276,8 @@ class RuntimeAdminOverviewControllerTest {
                                                                  RuntimeRequestAuthResolver runtimeRequestAuthResolver,
                                                                  ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider,
                                                                  ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceProvider,
-                                                                 ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider) {
+                                                                 ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider,
+                                                                 ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider) {
         try {
             Constructor<?> constructor = RuntimeAdminOverviewController.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
@@ -281,7 +290,8 @@ class RuntimeAdminOverviewControllerTest {
                 runtimeRequestAuthResolver,
                 confirmationProvider,
                 knowledgeSourceProvider,
-                shellConfigProvider
+                shellConfigProvider,
+                searchSourceRegistryProvider
             );
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
@@ -315,10 +325,20 @@ class RuntimeAdminOverviewControllerTest {
         when(service.currentSourceCount()).thenReturn(2);
         when(service.currentSourceIds()).thenReturn(List.of("shared-catalog", "shared-policy"));
         when(service.currentSourceTypes()).thenReturn(List.of("shared-vector", "shared-vector"));
+        when(service.currentSourceAdapterTypes()).thenReturn(List.of("shared-index"));
         when(service.currentContractVersion()).thenReturn("KNOWLEDGE_SOURCE_CONFIG_V1");
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("runtimeDeploymentKnowledgeSourceConfigService", service);
         return beanFactory.getBeanProvider(RuntimeDeploymentKnowledgeSourceConfigService.class);
+    }
+
+    private ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider() {
+        SearchSourceRegistry registry = mock(SearchSourceRegistry.class);
+        when(registry.contractVersion()).thenReturn("SEARCH_SOURCE_REGISTRY_V1");
+        when(registry.supportedAdapterTypes()).thenReturn(List.of("deployment-private-vector", "shared-index"));
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("runtimeDeploymentSearchSourceRegistry", registry);
+        return beanFactory.getBeanProvider(SearchSourceRegistry.class);
     }
 
     private ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider() {

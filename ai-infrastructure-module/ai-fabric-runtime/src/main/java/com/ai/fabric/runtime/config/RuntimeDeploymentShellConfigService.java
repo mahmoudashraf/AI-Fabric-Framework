@@ -25,10 +25,10 @@ public class RuntimeDeploymentShellConfigService {
     private final ResourceLoader resourceLoader;
     private final ObjectMapper objectMapper;
 
-    private volatile JsonNode root = defaultConfig(null);
-    private volatile String contractVersion = CONTRACT_VERSION;
-    private volatile List<String> moduleIds = List.of();
-    private volatile List<String> cardIds = List.of();
+    private volatile JsonNode root;
+    private volatile String contractVersion;
+    private volatile List<String> moduleIds;
+    private volatile List<String> cardIds;
 
     public RuntimeDeploymentShellConfigService(RuntimeDeploymentShellConfigProperties properties,
                                                ResourceLoader resourceLoader,
@@ -36,6 +36,10 @@ public class RuntimeDeploymentShellConfigService {
         this.properties = properties;
         this.resourceLoader = resourceLoader;
         this.objectMapper = objectMapper;
+        this.root = defaultConfig(null);
+        this.contractVersion = CONTRACT_VERSION;
+        this.moduleIds = List.of();
+        this.cardIds = List.of();
     }
 
     @PostConstruct

@@ -11,6 +11,7 @@ import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.rag.source.SearchSourceRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -40,6 +41,7 @@ public class RuntimeAdminOverviewController {
     private final ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
     private final ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigServiceProvider;
     private final ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigServiceProvider;
+    private final ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider;
 
     @Value("${ai.config.default-file:ai-entity-config.yml}")
     private String entityConfigLocation;
@@ -99,6 +101,7 @@ public class RuntimeAdminOverviewController {
         ConfirmationInterceptorCatalogProvider confirmationProvider = confirmationInterceptorCatalogProvider.getIfAvailable();
         RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService = knowledgeSourceConfigServiceProvider.getIfAvailable();
         RuntimeDeploymentShellConfigService shellConfigService = shellConfigServiceProvider.getIfAvailable();
+        SearchSourceRegistry searchSourceRegistry = searchSourceRegistryProvider.getIfAvailable();
         body.put("success", true);
         body.put("entityConfigLocation", entityConfigLocation);
         body.put("promptConfigLocation", promptConfigLocation);
@@ -123,11 +126,12 @@ public class RuntimeAdminOverviewController {
         body.put("knowledgeSourcesCount", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceCount() : 0);
         body.put("knowledgeSourceIds", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceIds() : List.of());
         body.put("knowledgeSourceTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceTypes() : List.of());
+        body.put("knowledgeSourceAdapterTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceAdapterTypes() : List.of());
         body.put("shellModulesCount", shellConfigService != null ? shellConfigService.currentModuleCount() : 0);
         body.put("shellModuleIds", shellConfigService != null ? shellConfigService.currentModuleIds() : List.of());
         body.put("shellCardsCount", shellConfigService != null ? shellConfigService.currentCardCount() : 0);
         body.put("shellCardIds", shellConfigService != null ? shellConfigService.currentCardIds() : List.of());
-        body.put("marketplaceSupport", marketplaceSupport(knowledgeSourceConfigService, shellConfigService));
+        body.put("marketplaceSupport", marketplaceSupport(knowledgeSourceConfigService, shellConfigService, searchSourceRegistry));
         body.put("auth", authDiagnostics(runtimeAuthProperties));
         body.put("authWarnings", authWarnings(runtimeAuthProperties));
         return ResponseEntity.ok(body);
@@ -227,12 +231,14 @@ public class RuntimeAdminOverviewController {
     }
 
     private Map<String, Object> marketplaceSupport(RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService,
-                                                   RuntimeDeploymentShellConfigService shellConfigService) {
+                                                   RuntimeDeploymentShellConfigService shellConfigService,
+                                                   SearchSourceRegistry searchSourceRegistry) {
         Map<String, Object> support = new LinkedHashMap<>();
         support.put("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
         support.put("resolvedKnowledgeSourcesSupported", knowledgeSourceConfigService != null);
         support.put("resolvedShellConfigSupported", shellConfigService != null);
         support.put("resolvedActionMetadataSupported", true);
+        support.put("resolvedSearchSourcesSupported", searchSourceRegistry != null);
         support.put("actionMetadataContractVersion", "ACTION_METADATA_V2");
         support.put(
             "knowledgeSourceContractVersion",
@@ -245,6 +251,18 @@ public class RuntimeAdminOverviewController {
             shellConfigService != null
                 ? shellConfigService.currentContractVersion()
                 : RuntimeDeploymentShellConfigService.CONTRACT_VERSION
+        );
+        support.put(
+            "searchSourceContractVersion",
+            searchSourceRegistry != null
+                ? searchSourceRegistry.contractVersion()
+                : "SEARCH_SOURCE_REGISTRY_V1"
+        );
+        support.put(
+            "supportedKnowledgeSourceAdapterTypes",
+            searchSourceRegistry != null
+                ? searchSourceRegistry.supportedAdapterTypes()
+                : List.of()
         );
         return support;
     }

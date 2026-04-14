@@ -11,6 +11,8 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.rag.source.SearchSource;
+import com.ai.infrastructure.rag.source.SearchSourceRegistry;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.vector.VectorDatabase;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -21,11 +23,14 @@ import org.springframework.util.StringUtils;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 
 /**
@@ -78,6 +83,10 @@ public class RAGService implements RAGProvider {
     private static final String METADATA_KEY_SEARCH_PROCESSING_TIME_MS = "searchProcessingTimeMs";
     private static final String METADATA_KEY_SEARCH_REQUEST_ID = "searchRequestId";
     private static final String METADATA_KEY_SEARCH_MAX_SCORE = "searchMaxScore";
+    private static final String METADATA_KEY_SEARCH_SOURCE_COUNT = "searchSourceCount";
+    private static final String METADATA_KEY_SEARCH_SOURCE_IDS = "searchSourceIds";
+    private static final String METADATA_KEY_SEARCH_SOURCE_TYPES = "searchSourceTypes";
+    private static final String METADATA_KEY_SEARCH_SOURCE_ADAPTER_TYPES = "searchSourceAdapterTypes";
     
     // Result keys
     private static final String RESULT_KEY_CONTENT = "content";
@@ -106,6 +115,7 @@ public class RAGService implements RAGProvider {
     private final VectorDatabaseService vectorDatabaseService;
     private final VectorDatabase vectorDatabase;
     private final AISearchService searchService;
+    private final SearchSourceRegistry searchSourceRegistry;
     
     // =========================================================================
     // JSON Processing
@@ -221,7 +231,7 @@ public class RAGService implements RAGProvider {
                 .metadata(request.getMetadata())
                 .build();
             
-            AISearchResponse searchResponse = searchService.search(queryVector, searchRequest);
+            AISearchResponse searchResponse = performSearch(queryVector, request, searchRequest, false);
             long totalProcessingTimeMs = System.currentTimeMillis() - startTime;
             
             Map<String, Object> filters = request.getFilters();
@@ -246,6 +256,7 @@ public class RAGService implements RAGProvider {
                         .score((Double) result.get(RESULT_KEY_SCORE))
                         .similarity((Double) result.get(RESULT_KEY_SIMILARITY))
                         .metadata(normalizedMetadata)
+                        .source(resolveAttributionLabel(normalizedMetadata))
                         .build();
                 })
                 .filter(Objects::nonNull)
@@ -268,6 +279,7 @@ public class RAGService implements RAGProvider {
             if (searchResponse.getMaxScore() != null) {
                 aggregatedMetadata.put(METADATA_KEY_SEARCH_MAX_SCORE, searchResponse.getMaxScore());
             }
+            appendSearchSourceMetadata(aggregatedMetadata, searchResponse);
 
             String originalUserQuery = extractUserQuery(request.getMetadata());
             
@@ -340,15 +352,7 @@ public class RAGService implements RAGProvider {
                 .threshold(request.getThreshold())
                 .build();
             
-            AISearchResponse searchResponse;
-            if (Boolean.TRUE.equals(request.getEnableHybridSearch())) {
-                searchResponse = performHybridSearch(queryVector, processedQuery, searchRequest);
-            } else if (Boolean.TRUE.equals(request.getEnableContextualSearch())) {
-                searchResponse = performContextualSearch(queryVector, 
-                    request.getContext() != null ? request.getContext().toString() : "", searchRequest);
-            } else {
-                searchResponse = vectorDatabase.search(queryVector, searchRequest);
-            }
+            AISearchResponse searchResponse = performSearch(queryVector, request, searchRequest, true);
             
             String context = buildContext(searchResponse);
             
@@ -369,6 +373,7 @@ public class RAGService implements RAGProvider {
             if (searchResponse.getMaxScore() != null) {
                 aggregatedMetadata.put(METADATA_KEY_SEARCH_MAX_SCORE, searchResponse.getMaxScore());
             }
+            appendSearchSourceMetadata(aggregatedMetadata, searchResponse);
 
             String originalUserQuery = extractUserQuery(request.getMetadata());
             
@@ -452,6 +457,72 @@ public class RAGService implements RAGProvider {
 
         return vectorDatabaseService.search(queryVector, contextualRequest);
     }
+
+    private AISearchResponse performSearch(List<Double> queryVector,
+                                           RAGRequest ragRequest,
+                                           AISearchRequest baseSearchRequest,
+                                           boolean honorSearchMode) {
+        if (searchSourceRegistry == null) {
+            if (honorSearchMode && Boolean.TRUE.equals(ragRequest.getEnableHybridSearch())) {
+                return performHybridSearch(queryVector, ragRequest.getQuery(), baseSearchRequest);
+            }
+            if (honorSearchMode && Boolean.TRUE.equals(ragRequest.getEnableContextualSearch())) {
+                return performContextualSearch(
+                    queryVector,
+                    ragRequest.getContext() != null ? ragRequest.getContext().toString() : "",
+                    baseSearchRequest
+                );
+            }
+            return searchService.search(queryVector, baseSearchRequest);
+        }
+
+        List<SearchSource> sources = searchSourceRegistry.resolveSearchSources(ragRequest);
+        if (sources.isEmpty()) {
+            return AISearchResponse.builder()
+                .results(List.of())
+                .totalResults(0)
+                .processingTimeMs(0L)
+                .query(baseSearchRequest.getQuery())
+                .model(baseSearchRequest.getEntityType())
+                .build();
+        }
+
+        long startTime = System.currentTimeMillis();
+        List<Map<String, Object>> mergedResults = new ArrayList<>();
+        List<String> sourceIds = new ArrayList<>();
+        List<String> sourceTypes = new ArrayList<>();
+        List<String> sourceAdapterTypes = new ArrayList<>();
+        Double maxScore = null;
+
+        for (SearchSource source : sources) {
+            if (!source.isEligible(ragRequest)) {
+                continue;
+            }
+            AISearchResponse response = source.search(queryVector, ragRequest, baseSearchRequest);
+            mergedResults.addAll(response.getResults() != null ? response.getResults() : List.of());
+            sourceIds.add(source.sourceId());
+            sourceTypes.add(source.sourceType());
+            sourceAdapterTypes.add(source.adapterType());
+            if (response.getMaxScore() != null) {
+                maxScore = maxScore == null ? response.getMaxScore() : Math.max(maxScore, response.getMaxScore());
+            }
+        }
+
+        List<Map<String, Object>> rankedResults = mergedResults.stream()
+            .sorted((left, right) -> Double.compare(extractScore(right), extractScore(left)))
+            .limit(Optional.ofNullable(baseSearchRequest.getLimit()).orElse(10))
+            .collect(Collectors.toList());
+
+        return AISearchResponse.builder()
+            .results(rankedResults)
+            .totalResults(rankedResults.size())
+            .maxScore(maxScore)
+            .processingTimeMs(System.currentTimeMillis() - startTime)
+            .requestId(ragRequest.getRequestId())
+            .query(baseSearchRequest.getQuery())
+            .model(String.join(",", new LinkedHashSet<>(sourceAdapterTypes)))
+            .build();
+    }
     
     private double calculateConfidence(AISearchResponse searchResponse) {
         if (searchResponse.getResults().isEmpty()) {
@@ -496,6 +567,7 @@ public class RAGService implements RAGProvider {
             .score(score)
             .similarity(similarity)
             .metadata(metadata)
+            .source(resolveAttributionLabel(metadata))
             .build();
     }
 
@@ -514,6 +586,21 @@ public class RAGService implements RAGProvider {
             return et.trim();
         }
 
+        return null;
+    }
+
+    private String resolveAttributionLabel(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        Object attributionLabel = metadata.get("knowledgeSourceAttributionLabel");
+        if (attributionLabel instanceof String label && StringUtils.hasText(label)) {
+            return label.trim();
+        }
+        Object sourceId = metadata.get("knowledgeSourceId");
+        if (sourceId instanceof String source && StringUtils.hasText(source)) {
+            return source.trim();
+        }
         return null;
     }
     
@@ -651,6 +738,18 @@ public class RAGService implements RAGProvider {
         }
     }
     
+    private double extractScore(Map<String, Object> result) {
+        if (result == null || result.isEmpty()) {
+            return 0.0;
+        }
+        Object score = result.get(RESULT_KEY_SCORE);
+        if (score instanceof Number number) {
+            return number.doubleValue();
+        }
+        Double parsed = parseDouble(score);
+        return parsed != null ? parsed : 0.0;
+    }
+
     private Map<String, Object> buildAggregatedMetadata(Map<String, Object> requestMetadata,
             String embeddingQuery) {
         Map<String, Object> aggregatedMetadata = new HashMap<>();
@@ -661,6 +760,39 @@ public class RAGService implements RAGProvider {
             extractOptimizedQuery(requestMetadata) != null);
         aggregatedMetadata.put(METADATA_KEY_EMBEDDING_QUERY, embeddingQuery);
         return aggregatedMetadata;
+    }
+
+    private void appendSearchSourceMetadata(Map<String, Object> aggregatedMetadata, AISearchResponse searchResponse) {
+        if (searchResponse == null || searchResponse.getResults() == null || searchResponse.getResults().isEmpty()) {
+            return;
+        }
+        LinkedHashSet<String> sourceIds = new LinkedHashSet<>();
+        LinkedHashSet<String> sourceTypes = new LinkedHashSet<>();
+        LinkedHashSet<String> adapterTypes = new LinkedHashSet<>();
+
+        for (Map<String, Object> result : searchResponse.getResults()) {
+            Map<String, Object> metadata = normalizeMetadata(result.get(RESULT_KEY_METADATA));
+            addIfPresent(sourceIds, metadata.get("knowledgeSourceId"));
+            addIfPresent(sourceTypes, metadata.get("knowledgeSourceType"));
+            addIfPresent(adapterTypes, metadata.get("knowledgeSourceAdapterType"));
+        }
+
+        if (!sourceIds.isEmpty()) {
+            aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_COUNT, sourceIds.size());
+            aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_IDS, List.copyOf(sourceIds));
+        }
+        if (!sourceTypes.isEmpty()) {
+            aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_TYPES, List.copyOf(sourceTypes));
+        }
+        if (!adapterTypes.isEmpty()) {
+            aggregatedMetadata.put(METADATA_KEY_SEARCH_SOURCE_ADAPTER_TYPES, List.copyOf(adapterTypes));
+        }
+    }
+
+    private void addIfPresent(LinkedHashSet<String> target, Object value) {
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            target.add(text.trim());
+        }
     }
 
     private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents) {
