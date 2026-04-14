@@ -233,7 +233,11 @@ Publishers should be allowed to define:
 - read-only vs write metadata
 - confirmation posture
 - adapter type
-- endpoint metadata
+- route contribution metadata
+  - absolute `url`
+  - relative `path`
+  - HTTP method
+  - non-secret request and response shaping defaults
 - fixed non-secret defaults
 - required operator-provided config and secret references
 - optional shell-facing presentation hints that target fixed platform-owned module or card registries
@@ -301,7 +305,9 @@ contributions:
       readOnly: false
       confirmationRequired: true
       adapterType: connector-http
-      endpointPath: /actions/execute
+      route:
+        method: POST
+        path: /actions/execute
       inputSchemaRef: ./schemas/create-booking-input.json
       outputSchemaRef: ./schemas/create-booking-output.json
       fixedConfig:
@@ -309,6 +315,12 @@ contributions:
         authSecretField: api_key
         eventTypeField: event_type
 ```
+
+Recommended route resolution rule:
+
+- publisher-defined routes should resolve into inline `actionsConfig.actions[].route`
+- the deployment compiler should materialize the effective routing artifact from that resolved route contribution
+- explicit deployment routing overrides should still win over plugin-provided inline route defaults
 
 ---
 

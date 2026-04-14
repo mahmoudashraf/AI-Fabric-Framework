@@ -14,6 +14,7 @@ Execution status snapshot:
 Implemented outcome:
 
 - runtime now supports resolved `knowledgeSourceConfig`, `shellConfig`, enriched action metadata, evidence attribution, search-source diagnostics, degraded retrieval behavior, and platform verification alignment without introducing marketplace awareness into runtime
+- runtime prerequisites for marketplace control-plane work are now satisfied; remaining marketplace work is catalog, install, compiler, entitlement, publisher, and product UX work
 
 This document defines the runtime and framework capabilities that must exist for marketplace plugins to be usable after control-plane resolution.
 
@@ -57,10 +58,9 @@ They need to become capable of consuming a richer set of resolved deployment-sco
 - fixed shell registries and typed UI contracts
 - diagnostics and verification hooks for those resolved capabilities
 
-The most important missing capability is not action execution.
-It is the ability to model and query deployment-scoped knowledge sources through one narrow retrieval abstraction.
+The most important capability that had to be delivered was the ability to model and query deployment-scoped knowledge sources through one narrow retrieval abstraction.
 
-The second major missing capability is shell composition:
+The second major capability that had to be delivered was shell composition:
 
 - resolved `shellConfig`
 - fixed built-in module and card registries
@@ -173,25 +173,23 @@ Marketplace support should extend this pattern instead of inventing a second dia
 
 ---
 
-## 4) What Is Missing
+## 4) Capability Coverage Delivered
+
+The capabilities that originally blocked marketplace support in runtime/framework are now implemented.
 
 ### 4.1 Deployment-scoped knowledge source model
 
-This is the largest missing runtime/framework capability.
+`knowledgeSourceConfig` now exists as a deployment-scoped runtime contract.
 
-The marketplace plans require a deployment-scoped `knowledgeSourceConfig`, but that model does not yet exist as a first-class runtime contract.
+Delivered outcome:
 
-Without it:
-
-- data plugins cannot resolve into a runtime-consumable deployment model
-- runtime cannot distinguish deployment-private retrieval from resolved shared/plugin-provided retrieval
-- attribution and per-source policy remain ad hoc
+- data plugins can resolve into a runtime-consumable deployment model
+- runtime can distinguish deployment-private retrieval from resolved shared/plugin-provided retrieval
+- attribution and per-source policy are explicit instead of ad hoc
 
 ### 4.2 Retrieval-source abstraction above vector-only search
 
-Current retrieval is still centered around vector search services.
-
-Marketplace data plugins need one abstraction that can support:
+The retrieval abstraction is now in place and supports:
 
 - deployment-private vector search
 - shared-index search
@@ -202,9 +200,9 @@ without making the orchestrator know per-plugin logic.
 
 ### 4.3 Source attribution contract
 
-The answer pipeline needs first-class source attribution metadata for every evidence item.
+The answer pipeline now has first-class source attribution metadata for evidence items.
 
-That must include:
+Delivered fields include:
 
 - source type
 - source id
@@ -212,25 +210,21 @@ That must include:
 - trust or freshness hints
 - resolved contribution id or plugin-derived source handle
 
-Without this, data plugins are not product-safe.
-
 ### 4.4 Resolved shell configuration
 
-The plans call for deployment-scoped `shellConfig`.
+Deployment-scoped `shellConfig` now exists as a first-class runtime/framework capability.
 
-That does not yet appear to exist as a first-class runtime/framework capability.
+Delivered outcome:
 
-Without it:
-
-- template plugins cannot safely seed shell defaults
-- action plugins cannot safely influence presentation through platform-owned registries
-- data plugins cannot safely influence evidence presentation
+- template plugins can safely seed shell defaults
+- action plugins can influence presentation only through platform-owned registries
+- data plugins can influence evidence presentation only through platform-owned registries
 
 ### 4.5 Fixed module and card registries
 
-The shell needs trusted extension surfaces, not free-form rendering.
+The shell now has trusted extension surfaces instead of free-form rendering.
 
-That means the framework/runtime/shell contract must define:
+The framework/runtime/shell contract now defines:
 
 - built-in module ids
 - built-in card or UI block ids
@@ -238,7 +232,7 @@ That means the framework/runtime/shell contract must define:
 
 ### 4.6 Capability and compatibility introspection
 
-Marketplace resolution needs stable runtime/framework-declared capability surfaces such as:
+Marketplace resolution now has stable runtime/framework-declared capability surfaces such as:
 
 - supported action adapter types
 - supported knowledge-source adapter types
@@ -246,18 +240,16 @@ Marketplace resolution needs stable runtime/framework-declared capability surfac
 - supported shell module ids
 - supported evidence or card types
 
-Without this, plugin compatibility becomes implicit and brittle.
-
 ### 4.7 Runtime-loaded contribution diagnostics
 
-After control-plane resolution, verification must be able to prove:
+After control-plane resolution, verification can now prove:
 
 - which knowledge sources loaded
 - which action metadata loaded
 - which shell config resolved
 - which source attribution rules are active
 
-This is required for live verification and supportability.
+This is now available for live verification and supportability.
 
 ---
 
@@ -681,20 +673,22 @@ This runtime/framework support plan is complete when all of the following are tr
 
 ## 12) Recommendation
 
-The correct runtime/framework sequence is:
+The runtime/framework sequence is complete.
 
-- Wave 0 first
-- then Wave 1 and Wave 2
-- then Wave 3
-- then Wave 4
-- then Wave 5 hardening
+Marketplace implementation should now proceed in the control plane with this practical order:
+
+1. Phase 0 catalog, schema, and install-record foundation
+2. Phase 1 template plugins
+3. Phase 2 action plugins
+4. Phase 3 data plugins
+5. later business-layer phases such as entitlements, external publishing, and billing
 
 If prioritization is required:
 
-- prioritize Wave 2 over Wave 3
+- prioritize action plugins before broader external data plugins
+- keep data plugins constrained to first-party and partner-only flows until control-plane compatibility, entitlement, and operational review are mature
 
 Reason:
 
-- action plugins are already close
-- templates do not need much runtime support
-- data plugins are the real architectural differentiator and the biggest current blocker
+- runtime support is no longer the blocker
+- the remaining implementation risk is now in control-plane compilation, governance, and product workflow

@@ -263,7 +263,11 @@ Action plugins should be the first meaningful third-party execution-oriented plu
 - read-only vs write metadata
 - confirmation posture
 - approved adapter type
-- endpoint metadata
+- route contribution metadata
+  - absolute `url`
+  - relative `path`
+  - HTTP method
+  - non-secret request and response shaping defaults
 - fixed non-secret defaults
 - required operator-provided config and secret references
 
@@ -296,6 +300,12 @@ This is the critical constraint:
 ### 8.4 Action resolution target
 
 Resolved action plugins should compile into the existing deployment `actionsConfig` behavior model plus any platform-owned action metadata needed for runtime and shell presentation.
+
+Recommended route resolution rule:
+
+- plugin-defined routes should resolve into inline `actionsConfig.actions[].route`
+- the deployment compiler should materialize the effective routing artifact from that resolved route contribution
+- explicit deployment routing overrides should still win over plugin-provided inline route defaults
 
 ---
 

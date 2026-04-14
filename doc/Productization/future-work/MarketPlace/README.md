@@ -1,11 +1,16 @@
 # Marketplace Planning Docs
 
-Status: documentation index (2026-04-08)
+Status: documentation index (2026-04-14)
 
 Current state:
 
 - marketplace runtime/framework support baseline is implemented
 - remaining marketplace work is now control-plane, catalog, install, publisher, and product UX work
+- implementation should now follow the control-plane sequence:
+  - Phase 0 catalog and install-record foundation
+  - Phase 1 template plugins
+  - Phase 2 action plugins
+  - Phase 3 data plugins
 
 This folder contains both marketplace vision documents and marketplace implementation-baseline documents.
 

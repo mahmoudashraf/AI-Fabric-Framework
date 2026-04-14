@@ -1,6 +1,6 @@
 # Marketplace Control-Plane Composition Plan
 
-Status: planning document (2026-04-08)
+Status: planning document with runtime prerequisites satisfied (2026-04-14)
 
 This document turns the marketplace high-level design into an implementation shape that can be built as a separate feature stream.
 
@@ -23,6 +23,15 @@ Related docs:
 
 The marketplace should be built as a separate feature by treating plugins as declarative packaging that compiles into the platform's existing deployment model.
 
+Runtime/framework prerequisites for this plan are now in place:
+
+- deployment-scoped `knowledgeSourceConfig`
+- deployment-scoped `shellConfig`
+- runtime search-source abstraction
+- evidence attribution
+- action presentation metadata
+- runtime diagnostics and release verification for resolved marketplace capabilities
+
 That means:
 
 - plugin definitions live in the marketplace catalog
@@ -40,8 +49,8 @@ This keeps the marketplace separate from the current platform core in the right 
 Recommended product rule:
 
 - `template plugins` bootstrap new deployment drafts
-- `action plugins` compile into the existing `actionsConfig` model
-- `data plugins` compile into a new deployment-scoped `knowledgeSourceConfig` model that the orchestrator reads through one narrow search-source abstraction
+- `action plugins` compile into the existing `actionsConfig` model, including inline route contributions that the compiler resolves into the effective routing artifact
+- `data plugins` compile into the existing deployment-scoped `knowledgeSourceConfig` model that runtime already reads through one narrow search-source abstraction
 - template, action, and data plugins may also emit internal `ShellContribution` fragments that compile into deployment-scoped `shellConfig`
 
 ---
@@ -114,6 +123,13 @@ They should resolve into the same existing action model already used by custom a
 - read-only vs write metadata
 - confirmation policy
 - auth and connector references
+
+Recommended route rule:
+
+- action plugins may contribute an inline action `route`
+- that route may use an absolute `url` or a relative `path`
+- the deployment compiler remains the source of truth for generating the effective routing artifact
+- explicit deployment routing overrides must still win over plugin-provided inline route defaults
 
 The install record stores the marketplace-specific information.
 The deployment draft stores the resolved action behavior.
@@ -445,13 +461,14 @@ Marketplace can be split into safe parallel tracks.
 
 These mostly depend on existing draft, version, secret, and apply primitives that already exist.
 
-### 10.2 Needs a narrow shared retrieval contract
+### 10.2 Depends on already-implemented runtime retrieval support
 
 - data plugin compilation into `knowledgeSourceConfig`
 - search-source resolution in runtime
 - attribution for shared plugin evidence
 
-This is still separate enough to build in parallel, but it requires a thin orchestrator contract change.
+The runtime-side retrieval support is already implemented.
+The remaining work is control-plane resolution, compatibility enforcement, and product workflow.
 
 ### 10.3 Should remain later
 
@@ -479,6 +496,7 @@ Acceptance criteria:
 
 - platform can store and validate versioned marketplace plugin definitions
 - catalog can list templates, action plugins, and data plugins
+- no additional runtime/framework prerequisite is required before entering Phase 1
 
 ### Phase 1: Template plugins
 
@@ -500,11 +518,14 @@ Scope:
 - deployment plugin install records
 - user-config fields and secret references
 - compiler into `actionsConfig`
+- inline route contribution support for absolute `url` and relative `path`
+- explicit deployment routing override support over plugin-provided route defaults
 - impact preview and uninstall path
 
 Acceptance criteria:
 
 - installed marketplace actions compile into normal deployment action config
+- installed marketplace actions can express inline route contributions without requiring raw routing-table mutation by operators
 - publish and apply are unchanged
 - runtime does not know what a marketplace action plugin is
 
@@ -562,6 +583,8 @@ The first practical slice should be:
 - no billing
 - no third-party publishing
 - no arbitrary runtime plugin system
+
+This slice is now implementation-ready because the runtime/framework support baseline is already complete.
 
 This slice proves the core architectural decision:
 
