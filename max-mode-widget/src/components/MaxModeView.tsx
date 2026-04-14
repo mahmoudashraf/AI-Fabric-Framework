@@ -21,7 +21,7 @@ export function MaxModeView({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-50 via-blue-50/50 to-white dark:from-gray-900 dark:via-blue-900/20 dark:to-gray-900/90"
+      className="fixed inset-0 z-[100] bg-white dark:bg-gray-950"
     >
       <MaxModeHeader onClose={onClose} onShowSampleDocuments={controller.showSampleDocuments} />
       <MaxModeQuickActions controller={controller} />
@@ -32,4 +32,3 @@ export function MaxModeView({
     </motion.div>
   );
 }
-

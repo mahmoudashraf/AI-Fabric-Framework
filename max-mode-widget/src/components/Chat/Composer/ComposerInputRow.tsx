@@ -108,7 +108,7 @@ export function ComposerInputRow({
         size="icon"
         variant="outline"
         onClick={onOpenHistory}
-        className="h-12 w-12 md:h-14 md:w-14 rounded-2xl border-2 border-purple-400/50 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/30 shadow-lg flex-shrink-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm transition-all hover:scale-105"
+        className="h-12 w-12 md:h-14 md:w-14 rounded-2xl border-2 border-purple-400/50 bg-white shadow-lg transition-all hover:scale-105 hover:border-purple-500 hover:bg-purple-50 dark:bg-gray-900 dark:hover:bg-purple-900/30 flex-shrink-0"
         title="Chat History"
       >
         <History className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
@@ -162,7 +162,7 @@ export function ComposerInputRow({
           disabled={oldConversationLocked}
           className={`${
             isInputFocused ? "min-h-[80px] sm:min-h-[100px] md:min-h-[80px]" : "min-h-[56px] sm:min-h-[60px] md:min-h-[80px]"
-          } ${searchCategory || hasAiSearch ? "pt-9 sm:pt-10" : "pt-4"} pb-4 pr-14 pl-4 text-sm sm:text-base resize-none border-0 rounded-2xl shadow-lg focus:shadow-xl leading-relaxed transition-all bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm ${
+          } ${searchCategory || hasAiSearch ? "pt-9 sm:pt-10" : "pt-4"} pb-4 pr-14 pl-4 text-sm sm:text-base resize-none border border-gray-200 rounded-2xl shadow-lg focus:shadow-xl leading-relaxed transition-all bg-white dark:bg-gray-900 dark:border-gray-700 ${
             oldConversationLocked ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-60" : ""
           }`}
           style={{
@@ -238,4 +238,3 @@ export function ComposerInputRow({
     </div>
   );
 }
-

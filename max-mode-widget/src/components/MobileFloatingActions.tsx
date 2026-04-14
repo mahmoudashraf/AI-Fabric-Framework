@@ -68,7 +68,7 @@ export function MobileFloatingActions({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ type: "spring", damping: 20 }}
-            className="md:hidden fixed bottom-32 left-3 right-20 z-40 flex items-center gap-2 overflow-x-auto scrollbar-hide px-2 py-2 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-full"
+            className="md:hidden fixed bottom-32 left-3 right-20 z-40 flex items-center gap-2 overflow-x-auto scrollbar-hide rounded-full bg-white px-2 py-2 shadow-lg dark:bg-gray-900"
           >
             {aiSearchCategories.map((category, idx) => (
               <motion.button
