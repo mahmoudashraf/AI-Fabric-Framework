@@ -246,10 +246,6 @@ if not value:
     print("")
     raise SystemExit(0)
 
-if re.fullmatch(r"[A-Z][A-Za-z0-9]*_[0-9a-f]{8}", value):
-    print(value)
-    raise SystemExit(0)
-
 base = []
 upper_next = True
 for current in value:
