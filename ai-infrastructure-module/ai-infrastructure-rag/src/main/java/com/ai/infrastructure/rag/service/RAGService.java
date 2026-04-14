@@ -576,7 +576,7 @@ public class RAGService implements RAGProvider {
             .query(baseSearchRequest.getQuery())
             .model(String.join(",", new LinkedHashSet<>(sourceAdapterTypes)))
             .build();
-        return new SearchExecutionAggregate(
+        SearchExecutionAggregate aggregate = new SearchExecutionAggregate(
             response,
             List.copyOf(sourceDiagnostics),
             sources.size(),
@@ -587,6 +587,8 @@ public class RAGService implements RAGProvider {
             skippedCount,
             failedCount > 0
         );
+        searchSourceRegistry.recordSearchExecution(aggregate.sourceDiagnostics(), aggregate.degraded());
+        return aggregate;
     }
 
     private List<Map<String, Object>> rankAndLimitMergedResults(List<Map<String, Object>> mergedResults, Integer requestedLimit) {

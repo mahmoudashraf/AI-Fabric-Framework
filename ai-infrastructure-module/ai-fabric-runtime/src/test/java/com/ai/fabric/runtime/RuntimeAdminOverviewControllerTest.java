@@ -152,6 +152,24 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("shellGreetingConfigured", true);
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
+        assertThat(body.get("searchSourceDiagnostics")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> searchSourceDiagnostics = (Map<String, Object>) body.get("searchSourceDiagnostics");
+        assertThat(searchSourceDiagnostics).containsEntry("contractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1");
+        assertThat(searchSourceDiagnostics).containsEntry("degradedSearchSupported", true);
+        assertThat(searchSourceDiagnostics).containsEntry("configuredSourcesCount", 2);
+        assertThat(searchSourceDiagnostics).containsEntry("degradedSourcesCount", 1L);
+        assertThat(searchSourceDiagnostics).containsEntry("disabledSourcesCount", 0L);
+        assertThat(searchSourceDiagnostics.get("sources")).isEqualTo(List.of(
+            Map.of(
+                "sourceId", "deployment-private-vector",
+                "healthStatus", "READY"
+            ),
+            Map.of(
+                "sourceId", "shared-catalog",
+                "healthStatus", "DEGRADED"
+            )
+        ));
         assertThat(body.get("marketplaceSupport")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> marketplaceSupport = (Map<String, Object>) body.get("marketplaceSupport");
@@ -161,9 +179,11 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", true);
         assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", true);
         assertThat(marketplaceSupport).containsEntry("resolvedSearchSourcesSupported", true);
+        assertThat(marketplaceSupport).containsEntry("degradedSearchSupported", true);
         assertThat(marketplaceSupport).containsEntry("knowledgeSourceContractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
         assertThat(marketplaceSupport).containsEntry("shellConfigContractVersion", "SHELL_CONFIG_V1");
         assertThat(marketplaceSupport).containsEntry("searchSourceContractVersion", "SEARCH_SOURCE_REGISTRY_V1");
+        assertThat(marketplaceSupport).containsEntry("searchSourceDiagnosticsContractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1");
         assertThat(marketplaceSupport.get("supportedKnowledgeSourceAdapterTypes"))
             .isEqualTo(List.of("deployment-private-vector", "shared-index"));
         assertThat(marketplaceSupport.get("supportedShellModuleIds"))
@@ -345,6 +365,17 @@ class RuntimeAdminOverviewControllerTest {
         SearchSourceRegistry registry = mock(SearchSourceRegistry.class);
         when(registry.contractVersion()).thenReturn("SEARCH_SOURCE_REGISTRY_V1");
         when(registry.supportedAdapterTypes()).thenReturn(List.of("deployment-private-vector", "shared-index"));
+        when(registry.adminDiagnostics()).thenReturn(Map.of(
+            "contractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1",
+            "degradedSearchSupported", true,
+            "configuredSourcesCount", 2,
+            "degradedSourcesCount", 1L,
+            "disabledSourcesCount", 0L,
+            "sources", List.of(
+                Map.of("sourceId", "deployment-private-vector", "healthStatus", "READY"),
+                Map.of("sourceId", "shared-catalog", "healthStatus", "DEGRADED")
+            )
+        ));
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("runtimeDeploymentSearchSourceRegistry", registry);
         return beanFactory.getBeanProvider(SearchSourceRegistry.class);

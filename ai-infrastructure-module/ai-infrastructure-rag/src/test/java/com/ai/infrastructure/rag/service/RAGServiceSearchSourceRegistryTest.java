@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -144,6 +146,7 @@ class RAGServiceSearchSourceRegistryTest {
             .containsEntry("searchSourceIds", List.of("shared-catalog", "deployment-private-vector"))
             .containsEntry("searchSourceAdapterTypes", List.of("shared-index", "deployment-private-vector"));
         assertThat(response.getMetadata().get("searchSourceDiagnostics")).isInstanceOf(List.class);
+        verify(searchSourceRegistry).recordSearchExecution(any(), eq(false));
     }
 
     @Test
@@ -199,6 +202,7 @@ class RAGServiceSearchSourceRegistryTest {
             .anySatisfy(entry -> assertThat(entry)
                 .containsEntry("sourceId", "shared-catalog")
                 .containsEntry("status", "SUCCEEDED"));
+        verify(searchSourceRegistry).recordSearchExecution(any(), eq(true));
     }
 
     @Test
@@ -249,5 +253,6 @@ class RAGServiceSearchSourceRegistryTest {
                 .containsEntry("sourceId", "shared-catalog")
                 .containsEntry("status", "SKIPPED")
                 .containsEntry("reason", "ineligible"));
+        verify(searchSourceRegistry).recordSearchExecution(any(), eq(false));
     }
 }

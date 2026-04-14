@@ -103,6 +103,9 @@ public class RuntimeAdminOverviewController {
         RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService = knowledgeSourceConfigServiceProvider.getIfAvailable();
         RuntimeDeploymentShellConfigService shellConfigService = shellConfigServiceProvider.getIfAvailable();
         SearchSourceRegistry searchSourceRegistry = searchSourceRegistryProvider.getIfAvailable();
+        Map<String, Object> searchSourceDiagnostics = searchSourceRegistry != null
+            ? searchSourceRegistry.adminDiagnostics()
+            : Map.of();
         body.put("success", true);
         body.put("entityConfigLocation", entityConfigLocation);
         body.put("promptConfigLocation", promptConfigLocation);
@@ -134,7 +137,8 @@ public class RuntimeAdminOverviewController {
         body.put("shellCardIds", shellConfigService != null ? shellConfigService.currentCardIds() : List.of());
         body.put("shellStarterPromptsCount", shellConfigService != null ? shellConfigService.currentStarterPromptCount() : 0);
         body.put("shellGreetingConfigured", shellConfigService != null && StringUtils.hasText(shellConfigService.currentGreetingMessage()));
-        body.put("marketplaceSupport", marketplaceSupport(knowledgeSourceConfigService, shellConfigService, searchSourceRegistry));
+        body.put("searchSourceDiagnostics", searchSourceDiagnostics);
+        body.put("marketplaceSupport", marketplaceSupport(knowledgeSourceConfigService, shellConfigService, searchSourceRegistry, searchSourceDiagnostics));
         body.put("auth", authDiagnostics(runtimeAuthProperties));
         body.put("authWarnings", authWarnings(runtimeAuthProperties));
         return ResponseEntity.ok(body);
@@ -236,13 +240,15 @@ public class RuntimeAdminOverviewController {
 
     private Map<String, Object> marketplaceSupport(RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService,
                                                    RuntimeDeploymentShellConfigService shellConfigService,
-                                                   SearchSourceRegistry searchSourceRegistry) {
+                                                   SearchSourceRegistry searchSourceRegistry,
+                                                   Map<String, Object> searchSourceDiagnostics) {
         Map<String, Object> support = new LinkedHashMap<>();
         support.put("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
         support.put("resolvedKnowledgeSourcesSupported", knowledgeSourceConfigService != null);
         support.put("resolvedShellConfigSupported", shellConfigService != null);
         support.put("resolvedActionMetadataSupported", true);
         support.put("resolvedSearchSourcesSupported", searchSourceRegistry != null);
+        support.put("degradedSearchSupported", searchSourceRegistry != null);
         support.put("actionMetadataContractVersion", "ACTION_METADATA_V2");
         support.put(
             "knowledgeSourceContractVersion",
@@ -261,6 +267,10 @@ public class RuntimeAdminOverviewController {
             searchSourceRegistry != null
                 ? searchSourceRegistry.contractVersion()
                 : "SEARCH_SOURCE_REGISTRY_V1"
+        );
+        support.put(
+            "searchSourceDiagnosticsContractVersion",
+            searchSourceDiagnostics.getOrDefault("contractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1")
         );
         support.put(
             "supportedKnowledgeSourceAdapterTypes",
