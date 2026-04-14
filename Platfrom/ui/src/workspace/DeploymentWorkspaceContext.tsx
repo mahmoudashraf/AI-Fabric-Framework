@@ -19,7 +19,6 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/approvals',
   '/access',
   '/knowledge',
-  '/marketplace',
   '/poc',
   '/prompts',
   '/providers',

@@ -28,16 +28,18 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   bootstrapMarketplaceTemplatePlugin,
   createMarketplacePublisher,
   createMarketplacePublisherSubmission,
   createDeploymentMarketplaceInstall,
   deleteDeploymentMarketplaceInstall,
+  fetchDeployments,
   fetchDeploymentMarketplaceImpact,
   fetchDeploymentMarketplaceInstalls,
   fetchDeploymentTemplates,
+  fetchDeploymentWorkspace,
   fetchMarketplaceCategories,
   fetchMarketplacePlugin,
   fetchMarketplacePlugins,
@@ -53,12 +55,12 @@ import {
   type CreateMarketplacePublisherRequest,
   type CreateMarketplacePublisherSubmissionRequest,
   type CreateMarketplaceTemplateBootstrapRequest,
+  type DeploymentSummary,
   type DeploymentMarketplaceInstallSummary,
   type MarketplacePluginDetailSummary,
   type MarketplacePluginSummary,
   type MarketplacePublisherSummary,
 } from '../api/platformApi'
-import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
@@ -218,10 +220,9 @@ function defaultBootstrapName(detail: MarketplacePluginDetailSummary | null): st
 }
 
 export function MarketplacePage() {
+  const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
-  const canEdit = workspace?.access.canEdit ?? false
   const [selectedType, setSelectedType] = useState<'ALL' | 'TEMPLATE' | 'ACTION' | 'DATA'>('ALL')
   const [searchText, setSearchText] = useState('')
   const [selectedPluginId, setSelectedPluginId] = useState('')
@@ -251,6 +252,11 @@ export function MarketplacePage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
+  const requestedTargetDeploymentId = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('targetDeploymentId') ?? searchParams.get('deploymentId') ?? ''
+  }, [location.search])
+
   const pluginsQuery = useQuery({
     queryKey: ['marketplace-plugins'],
     queryFn: fetchMarketplacePlugins,
@@ -267,15 +273,31 @@ export function MarketplacePage() {
     queryKey: ['deployment-templates'],
     queryFn: fetchDeploymentTemplates,
   })
+  const deploymentsQuery = useQuery({
+    queryKey: ['deployments'],
+    queryFn: fetchDeployments,
+  })
+  const targetDeploymentSummary = useMemo<DeploymentSummary | null>(
+    () => (deploymentsQuery.data ?? []).find((deployment) => deployment.id === requestedTargetDeploymentId) ?? null,
+    [deploymentsQuery.data, requestedTargetDeploymentId],
+  )
+  const targetDeploymentId = targetDeploymentSummary?.id ?? ''
+  const targetWorkspaceQuery = useQuery({
+    queryKey: ['deployment-workspace', targetDeploymentId],
+    queryFn: () => fetchDeploymentWorkspace(targetDeploymentId),
+    enabled: targetDeploymentId.length > 0,
+  })
+  const targetWorkspace = targetWorkspaceQuery.data ?? null
+  const canEdit = targetWorkspace?.access.canEdit ?? false
   const installsQuery = useQuery({
-    queryKey: ['deployment-marketplace-installs', selectedDeploymentId],
-    queryFn: () => fetchDeploymentMarketplaceInstalls(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0,
+    queryKey: ['deployment-marketplace-installs', targetDeploymentId],
+    queryFn: () => fetchDeploymentMarketplaceInstalls(targetDeploymentId),
+    enabled: targetDeploymentId.length > 0,
   })
   const impactQuery = useQuery({
-    queryKey: ['deployment-marketplace-impact', selectedDeploymentId],
-    queryFn: () => fetchDeploymentMarketplaceImpact(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0,
+    queryKey: ['deployment-marketplace-impact', targetDeploymentId],
+    queryFn: () => fetchDeploymentMarketplaceImpact(targetDeploymentId),
+    enabled: targetDeploymentId.length > 0,
   })
   const publisherDetailQuery = useQuery({
     queryKey: ['marketplace-publisher', selectedPublisherId],
@@ -391,11 +413,11 @@ export function MarketplacePage() {
   }, [selectedInstall?.id, selectedInstall?.entitlement.status, selectedVersionSummary?.pricing.requiresEntitlement])
 
   useEffect(() => {
-    if (workspace?.deployment.binding) {
-      setTemplateCustomerId((current) => current || workspace.deployment.binding?.customerId || '')
-      setTemplateTenantId((current) => current || workspace.deployment.binding?.tenantId || '')
+    if (targetWorkspace?.deployment.binding) {
+      setTemplateCustomerId((current) => current || targetWorkspace.deployment.binding?.customerId || '')
+      setTemplateTenantId((current) => current || targetWorkspace.deployment.binding?.tenantId || '')
     }
-  }, [workspace?.deployment.binding])
+  }, [targetWorkspace?.deployment.binding])
 
   useEffect(() => {
     const templates = deploymentTemplatesQuery.data ?? []
@@ -405,12 +427,34 @@ export function MarketplacePage() {
     setTemplateId((current) => current || templates[0].id)
   }, [deploymentTemplatesQuery.data])
 
+  const setTargetDeploymentId = (deploymentId: string) => {
+    const nextParams = new URLSearchParams(location.search)
+    nextParams.delete('deploymentId')
+    if (deploymentId.trim().length === 0) {
+      nextParams.delete('targetDeploymentId')
+    } else {
+      nextParams.set('targetDeploymentId', deploymentId)
+    }
+    const nextSearch = nextParams.toString()
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch.length > 0 ? `?${nextSearch}` : '',
+      },
+      { replace: false },
+    )
+  }
+
   const invalidateDeploymentState = async () => {
+    if (!targetDeploymentId) {
+      await queryClient.invalidateQueries({ queryKey: ['deployments'] })
+      return
+    }
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['deployment-marketplace-installs', selectedDeploymentId] }),
-      queryClient.invalidateQueries({ queryKey: ['deployment-marketplace-impact', selectedDeploymentId] }),
-      queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
-      queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+      queryClient.invalidateQueries({ queryKey: ['deployment-marketplace-installs', targetDeploymentId] }),
+      queryClient.invalidateQueries({ queryKey: ['deployment-marketplace-impact', targetDeploymentId] }),
+      queryClient.invalidateQueries({ queryKey: ['deployment-draft', targetDeploymentId] }),
+      queryClient.invalidateQueries({ queryKey: ['deployment-workspace', targetDeploymentId] }),
       queryClient.invalidateQueries({ queryKey: ['deployments'] }),
     ])
   }
@@ -426,8 +470,8 @@ export function MarketplacePage() {
 
   const installMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedPlugin || selectedDeploymentId.length === 0) {
-        throw new Error('Select a deployment and a marketplace plugin first.')
+      if (!selectedPlugin || targetDeploymentId.length === 0) {
+        throw new Error('Select a target deployment and a marketplace plugin first.')
       }
       const payload = {
         pluginId: selectedPlugin.id,
@@ -436,18 +480,18 @@ export function MarketplacePage() {
         secretRefs: parseJsonObject(secretRefsJson, 'Secret refs JSON'),
       }
       if (selectedInstall) {
-        return updateDeploymentMarketplaceInstall(selectedDeploymentId, selectedInstall.id, {
+        return updateDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id, {
           pluginVersion: payload.pluginVersion,
           status: selectedInstall.status,
           config: payload.config,
           secretRefs: payload.secretRefs,
         })
       }
-      return createDeploymentMarketplaceInstall(selectedDeploymentId, payload)
+      return createDeploymentMarketplaceInstall(targetDeploymentId, payload)
     },
     onSuccess: async (install) => {
       setFormError(null)
-      setSuccessMessage(`${install.pluginDisplayName} is now ${selectedInstall ? 'updated' : 'installed'} for ${selectedDeploymentId}.`)
+      setSuccessMessage(`${install.pluginDisplayName} is now ${selectedInstall ? 'updated' : 'installed'} for ${targetDeploymentId}.`)
       await invalidateDeploymentState()
     },
     onError: (error: Error) => {
@@ -458,10 +502,10 @@ export function MarketplacePage() {
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
-      if (!selectedInstall || selectedDeploymentId.length === 0) {
+      if (!selectedInstall || targetDeploymentId.length === 0) {
         throw new Error('No marketplace install selected.')
       }
-      return updateDeploymentMarketplaceInstall(selectedDeploymentId, selectedInstall.id, {
+      return updateDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id, {
         status,
       })
     },
@@ -478,10 +522,10 @@ export function MarketplacePage() {
 
   const resolveMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedInstall || selectedDeploymentId.length === 0) {
+      if (!selectedInstall || targetDeploymentId.length === 0) {
         throw new Error('No marketplace install selected.')
       }
-      return resolveDeploymentMarketplaceInstall(selectedDeploymentId, selectedInstall.id)
+      return resolveDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id)
     },
     onSuccess: async () => {
       setFormError(null)
@@ -496,10 +540,10 @@ export function MarketplacePage() {
 
   const entitlementMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedInstall || selectedDeploymentId.length === 0) {
+      if (!selectedInstall || targetDeploymentId.length === 0) {
         throw new Error('No marketplace install selected.')
       }
-      return updateDeploymentMarketplaceInstallEntitlement(selectedDeploymentId, selectedInstall.id, {
+      return updateDeploymentMarketplaceInstallEntitlement(targetDeploymentId, selectedInstall.id, {
         status: entitlementStatus,
         graceEndsAt: toIsoOrNull(entitlementGraceEndsAt),
         accessEndsAt: toIsoOrNull(entitlementAccessEndsAt),
@@ -519,10 +563,10 @@ export function MarketplacePage() {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedInstall || selectedDeploymentId.length === 0) {
+      if (!selectedInstall || targetDeploymentId.length === 0) {
         throw new Error('No marketplace install selected.')
       }
-      await deleteDeploymentMarketplaceInstall(selectedDeploymentId, selectedInstall.id)
+      await deleteDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id)
     },
     onSuccess: async () => {
       setFormError(null)
@@ -669,12 +713,17 @@ export function MarketplacePage() {
             Marketplace
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 900 }}>
-            Browse first-party marketplace plugins, bootstrap deployment templates, and compile action or data plugins into the selected deployment draft through the normal publish and apply lifecycle.
+            Browse first-party marketplace plugins, bootstrap template-based deployments, and assign action or data plugins into an explicitly selected deployment draft through the normal publish and apply lifecycle.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Chip icon={<StorefrontRoundedIcon />} label={`${pluginsQuery.data?.length ?? 0} plugins`} variant="outlined" />
-          <Chip icon={<ExtensionRoundedIcon />} label={selectedDeploymentId ? `Deployment: ${selectedDeploymentId}` : 'No deployment selected'} color={selectedDeploymentId ? 'primary' : 'default'} />
+          <Chip
+            icon={<ExtensionRoundedIcon />}
+            label={targetDeploymentId ? `Target: ${targetDeploymentId}` : 'No target deployment selected'}
+            color={targetDeploymentId ? 'primary' : 'default'}
+          />
+          <Chip label={`${deploymentsQuery.data?.length ?? 0} accessible deployments`} variant="outlined" />
           {impactQuery.data ? (
             <Chip icon={<SyncRoundedIcon />} label={`${impactQuery.data.totalInstalls} active install records`} variant="outlined" />
           ) : null}
@@ -683,11 +732,71 @@ export function MarketplacePage() {
 
       {formError ? <Alert severity="error">{formError}</Alert> : null}
       {successMessage ? <Alert severity="success">{successMessage}</Alert> : null}
-      {!selectedDeploymentId ? (
+      {!targetDeploymentId ? (
         <Alert severity="info">
-          No deployment is selected. You can still bootstrap template plugins into a new deployment. Installing action or data plugins requires a selected deployment.
+          Marketplace is global. Template plugins can create new deployments directly, and action or data plugins install into the target deployment you choose below.
         </Alert>
       ) : null}
+
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Target deployment
+                </Typography>
+                <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+                  Marketplace installs and entitlement changes are assigned to a deployment you select here. This page no longer inherits the deployment workspace selection.
+                </Typography>
+              </Box>
+              {targetDeploymentId ? (
+                <Button
+                  variant="outlined"
+                  onClick={() => navigate(`/overview?deploymentId=${encodeURIComponent(targetDeploymentId)}`)}
+                >
+                  Open target workspace
+                </Button>
+              ) : null}
+            </Stack>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Target deployment"
+                  value={targetDeploymentId}
+                  onChange={(event) => setTargetDeploymentId(event.target.value)}
+                  disabled={deploymentsQuery.isLoading || (deploymentsQuery.data ?? []).length === 0}
+                  helperText={targetWorkspace
+                    ? `${targetWorkspace.deployment.name} · ${targetWorkspace.access.assignmentRole}`
+                    : 'Select the deployment that should receive installs and subscriptions.'}
+                >
+                  <MenuItem value="">No target deployment</MenuItem>
+                  {(deploymentsQuery.data ?? []).map((deployment) => (
+                    <MenuItem key={deployment.id} value={deployment.id}>
+                      {deployment.name} · {deployment.environment} · {deployment.id}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                {targetDeploymentId ? (
+                  targetWorkspaceQuery.isLoading ? (
+                    <Alert severity="info">Loading target deployment access…</Alert>
+                  ) : !canEdit ? (
+                    <Alert severity="warning">Your current assignment role is read-only for marketplace changes on this deployment.</Alert>
+                  ) : (
+                    <Alert severity="success">Marketplace changes will compile into the active draft for this deployment.</Alert>
+                  )
+                ) : (
+                  <Alert severity="info">Choose a target deployment when you want to install or subscribe to a plugin.</Alert>
+                )}
+              </Grid>
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
@@ -1026,14 +1135,14 @@ export function MarketplacePage() {
                     <Stack direction="row" spacing={1} alignItems="center">
                       <ExtensionRoundedIcon color="primary" />
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Install into selected deployment
+                        Install into target deployment
                       </Typography>
                     </Stack>
                     <Typography color="text.secondary">
-                      Action and data plugins compile into the selected deployment draft. Save, publish, and apply are still required before they affect the live runtime.
+                      Action and data plugins compile into the target deployment draft. Save, publish, and apply are still required before they affect the live runtime.
                     </Typography>
-                    {!selectedDeploymentId ? (
-                      <Alert severity="info">Choose a deployment in the workspace header to install or update this plugin.</Alert>
+                    {!targetDeploymentId ? (
+                      <Alert severity="info">Choose a target deployment above to install or update this plugin.</Alert>
                     ) : !canEdit ? (
                       <Alert severity="warning">Your current assignment role is read-only for marketplace install changes on this deployment.</Alert>
                     ) : null}
@@ -1058,7 +1167,7 @@ export function MarketplacePage() {
                           label="Config JSON"
                           value={configJson}
                           onChange={(event) => setConfigJson(event.target.value)}
-                          disabled={!canEdit || !selectedDeploymentId}
+                          disabled={!canEdit || !targetDeploymentId}
                         />
                       </Grid>
                       <Grid item xs={12} md={6}>
@@ -1069,7 +1178,7 @@ export function MarketplacePage() {
                           label="Secret refs JSON"
                           value={secretRefsJson}
                           onChange={(event) => setSecretRefsJson(event.target.value)}
-                          disabled={!canEdit || !selectedDeploymentId}
+                          disabled={!canEdit || !targetDeploymentId}
                         />
                       </Grid>
                     </Grid>
@@ -1094,7 +1203,7 @@ export function MarketplacePage() {
                           setSuccessMessage(null)
                           installMutation.mutate()
                         }}
-                        disabled={!canEdit || !selectedDeploymentId || installMutation.isPending}
+                        disabled={!canEdit || !targetDeploymentId || installMutation.isPending}
                       >
                         {selectedInstall ? 'Save install' : 'Install plugin'}
                       </Button>
@@ -1118,7 +1227,7 @@ export function MarketplacePage() {
                               setSuccessMessage(null)
                               resolveMutation.mutate()
                             }}
-                            disabled={!selectedDeploymentId || resolveMutation.isPending}
+                            disabled={!targetDeploymentId || resolveMutation.isPending}
                           >
                             Recompile draft
                           </Button>
@@ -1226,7 +1335,7 @@ export function MarketplacePage() {
               </Card>
             )}
 
-            {selectedDeploymentId ? (
+            {targetDeploymentId ? (
               <>
                 <Card>
                   <CardContent>
@@ -1237,7 +1346,7 @@ export function MarketplacePage() {
                       {installsQuery.isLoading ? (
                         <Typography color="text.secondary">Loading install records…</Typography>
                       ) : (installsQuery.data ?? []).length === 0 ? (
-                        <Alert severity="info">No marketplace installs are recorded for this deployment yet.</Alert>
+                        <Alert severity="info">No marketplace installs are recorded for the selected target deployment yet.</Alert>
                       ) : (
                         <List disablePadding>
                           {(installsQuery.data ?? []).map((install) => (
@@ -1324,7 +1433,7 @@ export function MarketplacePage() {
                           ) : null}
                         </>
                       ) : (
-                        <Alert severity="info">Impact preview will appear once a deployment is selected.</Alert>
+                        <Alert severity="info">Impact preview will appear once a target deployment is selected.</Alert>
                       )}
                     </Stack>
                   </CardContent>
