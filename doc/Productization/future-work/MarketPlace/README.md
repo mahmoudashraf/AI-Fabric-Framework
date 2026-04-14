@@ -2,6 +2,11 @@
 
 Status: documentation index (2026-04-08)
 
+Current state:
+
+- marketplace runtime/framework support baseline is implemented
+- remaining marketplace work is now control-plane, catalog, install, publisher, and product UX work
+
 This folder contains both marketplace vision documents and marketplace implementation-baseline documents.
 
 They are not all at the same level of specificity.

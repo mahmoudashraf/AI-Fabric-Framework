@@ -1,6 +1,19 @@
 # Marketplace Runtime and Framework Support Implementation Plan
 
-Status: planning document (2026-04-14)
+Status: implementation baseline completed (2026-04-14)
+
+Execution status snapshot:
+
+- Wave 0 complete
+- Wave 1 complete
+- Wave 2 complete
+- Wave 3 complete
+- Wave 4 complete
+- Wave 5 complete
+
+Implemented outcome:
+
+- runtime now supports resolved `knowledgeSourceConfig`, `shellConfig`, enriched action metadata, evidence attribution, search-source diagnostics, degraded retrieval behavior, and platform verification alignment without introducing marketplace awareness into runtime
 
 This document defines the runtime and framework capabilities that must exist for marketplace plugins to be usable after control-plane resolution.
 
@@ -685,4 +698,3 @@ Reason:
 - action plugins are already close
 - templates do not need much runtime support
 - data plugins are the real architectural differentiator and the biggest current blocker
-

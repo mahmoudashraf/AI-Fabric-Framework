@@ -1,6 +1,15 @@
 # Marketplace Runtime and Framework Support Checklist
 
-Status: execution checklist (2026-04-14)
+Status: execution checklist completed (2026-04-14)
+
+Execution status:
+
+- Wave 0 complete
+- Wave 1 complete
+- Wave 2 complete
+- Wave 3 complete
+- Wave 4 complete
+- Wave 5 complete
 
 This checklist is the execution companion to:
 
@@ -29,6 +38,8 @@ Every task below must preserve this boundary:
 ---
 
 ## 2) Wave 0: Resolved Contract Foundation
+
+Status: complete
 
 Goal:
 
@@ -71,6 +82,8 @@ Goal:
 
 ## 3) Wave 1: Action Capability Hardening
 
+Status: complete
+
 Goal:
 
 - make resolved action contributions rich enough for marketplace action plugins without inventing a new runtime action engine
@@ -106,6 +119,8 @@ Goal:
 ---
 
 ## 4) Wave 2: Knowledge Source And Retrieval Abstraction
+
+Status: complete
 
 Goal:
 
@@ -154,6 +169,8 @@ Goal:
 
 ## 5) Wave 3: Shell Config And Trusted Extension Surfaces
 
+Status: complete
+
 Goal:
 
 - make shell-aware marketplace composition possible without arbitrary publisher UI code
@@ -188,6 +205,8 @@ Goal:
 ---
 
 ## 6) Wave 4: Diagnostics, Verification, And Fail-Closed Compatibility
+
+Status: complete
 
 Goal:
 
@@ -228,6 +247,8 @@ Goal:
 ---
 
 ## 7) Wave 5: Maturity And Performance Hardening
+
+Status: complete
 
 Goal:
 
@@ -345,4 +366,3 @@ This runtime/framework support effort is done when:
 - runtime admin and platform verification can prove what is actually loaded
 - unsupported resolved artifacts fail closed
 - runtime still has no marketplace catalog or install awareness
-
