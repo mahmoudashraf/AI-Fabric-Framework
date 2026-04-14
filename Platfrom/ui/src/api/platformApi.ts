@@ -238,6 +238,124 @@ export type DeploymentWorkspaceSummary = {
   verificationRunCount: number
 }
 
+export type MarketplacePluginContributionSummary = {
+  templateCuratedModuleId: string | null
+  actionIds: string[]
+  knowledgeSourceIds: string[]
+  shellModuleIds: string[]
+  shellCardIds: string[]
+}
+
+export type MarketplacePluginSummary = {
+  id: string
+  slug: string
+  displayName: string
+  pluginType: string
+  publisherSlug: string
+  publisherDisplayName: string
+  shortDescription: string
+  status: string
+  latestVersion: string | null
+  categories: string[]
+  contributions: MarketplacePluginContributionSummary | null
+  updatedAt: string
+}
+
+export type MarketplacePluginVersionSummary = {
+  id: string
+  pluginId: string
+  version: string
+  releaseChannel: string
+  status: string
+  manifest: unknown
+  contributions: MarketplacePluginContributionSummary
+  publishedAt: string
+}
+
+export type MarketplacePluginDetailSummary = {
+  plugin: MarketplacePluginSummary
+  versions: MarketplacePluginVersionSummary[]
+}
+
+export type MarketplaceCategorySummary = {
+  id: string
+  label: string
+  pluginCount: number
+}
+
+export type DeploymentMarketplaceInstallSummary = {
+  id: string
+  deploymentId: string
+  pluginId: string
+  pluginSlug: string
+  pluginDisplayName: string
+  pluginType: string
+  pluginVersionId: string
+  pluginVersion: string
+  status: string
+  config: unknown
+  secretRefs: unknown
+  contributions: MarketplacePluginContributionSummary
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeploymentMarketplaceInstallImpactSummary = {
+  installId: string
+  pluginId: string
+  pluginDisplayName: string
+  pluginType: string
+  pluginVersion: string
+  actionIds: string[]
+  knowledgeSourceIds: string[]
+  shellModuleIds: string[]
+  shellCardIds: string[]
+}
+
+export type DeploymentMarketplaceImpactSummary = {
+  deploymentId: string
+  totalInstalls: number
+  actionPluginCount: number
+  dataPluginCount: number
+  templatePluginCount: number
+  installedPluginIds: string[]
+  actionIds: string[]
+  knowledgeSourceIds: string[]
+  shellModuleIds: string[]
+  shellCardIds: string[]
+  installs: DeploymentMarketplaceInstallImpactSummary[]
+  warnings: string[]
+}
+
+export type DeploymentMarketplaceInstallResolutionSummary = {
+  install: DeploymentMarketplaceInstallSummary
+  impact: DeploymentMarketplaceImpactSummary
+}
+
+export type CreateDeploymentMarketplaceInstallRequest = {
+  pluginId: string
+  pluginVersion: string
+  config?: unknown
+  secretRefs?: unknown
+}
+
+export type UpdateDeploymentMarketplaceInstallRequest = {
+  pluginVersion?: string
+  status?: string
+  config?: unknown
+  secretRefs?: unknown
+}
+
+export type CreateMarketplaceTemplateBootstrapRequest = {
+  pluginVersion?: string
+  name: string
+  environment: string
+  templateId?: string
+  vectorProvisioningMode?: string
+  customerId?: string
+  tenantId?: string
+}
+
 export type DeploymentConfigReferenceSummary = {
   stage: string
   referenceId: string | null
@@ -2009,6 +2127,91 @@ export function fetchDeploymentDraft(deploymentId: string) {
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
   return request<DeploymentWorkspaceSummary>(`/api/deployments/${deploymentId}/workspace`)
+}
+
+export function fetchMarketplacePlugins() {
+  return request<MarketplacePluginSummary[]>('/api/marketplace/plugins')
+}
+
+export function fetchMarketplacePlugin(pluginId: string) {
+  return request<MarketplacePluginDetailSummary>(`/api/marketplace/plugins/${encodeURIComponent(pluginId)}`)
+}
+
+export function fetchMarketplacePluginVersion(pluginId: string, version: string) {
+  return request<MarketplacePluginVersionSummary>(
+    `/api/marketplace/plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}`,
+  )
+}
+
+export function fetchMarketplaceCategories() {
+  return request<MarketplaceCategorySummary[]>('/api/marketplace/categories')
+}
+
+export function bootstrapMarketplaceTemplatePlugin(
+  pluginId: string,
+  payload: CreateMarketplaceTemplateBootstrapRequest,
+) {
+  return request<DeploymentSummary>(`/api/marketplace/templates/${encodeURIComponent(pluginId)}/bootstrap`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchDeploymentMarketplaceInstalls(deploymentId: string) {
+  return request<DeploymentMarketplaceInstallSummary[]>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs`,
+  )
+}
+
+export function fetchDeploymentMarketplaceImpact(deploymentId: string) {
+  return request<DeploymentMarketplaceImpactSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-impact`,
+  )
+}
+
+export function createDeploymentMarketplaceInstall(
+  deploymentId: string,
+  payload: CreateDeploymentMarketplaceInstallRequest,
+) {
+  return request<DeploymentMarketplaceInstallSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function updateDeploymentMarketplaceInstall(
+  deploymentId: string,
+  installId: string,
+  payload: UpdateDeploymentMarketplaceInstallRequest,
+) {
+  return request<DeploymentMarketplaceInstallSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function deleteDeploymentMarketplaceInstall(deploymentId: string, installId: string) {
+  return request<void>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}`,
+    {
+      method: 'DELETE',
+    },
+  )
+}
+
+export function resolveDeploymentMarketplaceInstall(deploymentId: string, installId: string) {
+  return request<DeploymentMarketplaceInstallResolutionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}/resolve`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function fetchDeploymentConfigDiffCenter(deploymentId: string) {
