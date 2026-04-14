@@ -114,6 +114,18 @@ VECTORIZATION_COUNTERPART_DEPLOYMENT_ID="${VECTORIZATION_COUNTERPART_DEPLOYMENT_
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
 EXPECT_CONFIRMATION_INTERCEPTOR_RULES="${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-cancel_to_retention_offer,accept_retention_offer,reject_retention_offer}"
 VERIFY_CONFIRMATION_RETENTION_FLOW="${VERIFY_CONFIRMATION_RETENTION_FLOW:-false}"
+VERIFY_MARKETPLACE_RUNTIME="${VERIFY_MARKETPLACE_RUNTIME:-false}"
+EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION:-MARKETPLACE_RUNTIME_SUPPORT_V1}"
+EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION:-SEARCH_SOURCE_DIAGNOSTICS_V1}"
+EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}"
+EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}"
+EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION:-KNOWLEDGE_SOURCE_CONFIG_V1}"
+EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION:-SHELL_CONFIG_V1}"
+EXPECT_MARKETPLACE_SHELL_MODULE_IDS="${EXPECT_MARKETPLACE_SHELL_MODULE_IDS:-}"
+EXPECT_MARKETPLACE_SHELL_CARD_IDS="${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}"
+EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT="${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT:-0}"
+EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED:-false}"
+MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
 RETENTION_TEST_SKU="${RETENTION_TEST_SKU:-SKU-0001}"
 RETENTION_TEST_QUANTITY="${RETENTION_TEST_QUANTITY:-1}"
 RETENTION_TEST_SHIPPING_ADDRESS="${RETENTION_TEST_SHIPPING_ADDRESS:-10 Verification Lane, London}"
@@ -507,8 +519,8 @@ pass() { echo "PASS: $*"; }
 warn() { echo "WARN: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
-expected_confirmation_interceptor_rules_json() {
-  CSV_TEXT="${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-}" python3 - <<'PY'
+csv_text_json() {
+  CSV_TEXT="${1:-}" python3 - <<'PY'
 import json
 import os
 
@@ -522,6 +534,10 @@ print(json.dumps(items))
 PY
 }
 
+expected_confirmation_interceptor_rules_json() {
+  csv_text_json "${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-}"
+}
+
 assert_expected_confirmation_interceptors() {
   local label="$1"
   local body="$2"
@@ -532,6 +548,88 @@ assert_expected_confirmation_interceptors() {
   local expected_json
   expected_json="$(expected_confirmation_interceptor_rules_json)"
   json_assert "${label}" $'expected = set('"${expected_json}"')\nassert expected, expected\nactual = set((data or {}).get("confirmationInterceptorRuleNames") or [])\nassert actual == expected, {"expected": sorted(expected), "actual": sorted(actual)}\nassert int((data or {}).get("confirmationInterceptorsCount") or 0) == len(expected), data\nsources = (data or {}).get("confirmationInterceptorSources") or []\nassert len(sources) >= 1, sources\nprint("ok")'
+}
+
+assert_marketplace_runtime_overview() {
+  local label="$1"
+  local body="$2"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  local expected_source_ids_json expected_adapter_types_json expected_module_ids_json expected_card_ids_json
+  expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
+  expected_adapter_types_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}")"
+  expected_module_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_SHELL_MODULE_IDS:-}")"
+  expected_card_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}")"
+  HTTP_BODY="${body}"
+  json_assert "${label}" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nexpected_module_ids = set('"${expected_module_ids_json}"')\nexpected_card_ids = set('"${expected_card_ids_json}"')\nmarketplace = (data or {}).get("marketplaceSupport") or {}\nassert marketplace.get("contractVersion") == "'"${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("knowledgeSourceContractVersion") == "'"${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("shellConfigContractVersion") == "'"${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("searchSourceDiagnosticsContractVersion") == "'"${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION}"'", marketplace\nassert bool((data or {}).get("knowledgeSourceConfigLocation")), data\nassert bool((data or {}).get("shellConfigLocation")), data\nactual_source_ids = set((data or {}).get("knowledgeSourceIds") or [])\nactual_adapter_types = set((data or {}).get("knowledgeSourceAdapterTypes") or [])\nactual_module_ids = set((data or {}).get("shellModuleIds") or [])\nactual_card_ids = set((data or {}).get("shellCardIds") or [])\nassert actual_source_ids == expected_source_ids, {"expected": sorted(expected_source_ids), "actual": sorted(actual_source_ids)}\nassert actual_adapter_types == expected_adapter_types, {"expected": sorted(expected_adapter_types), "actual": sorted(actual_adapter_types)}\nassert actual_module_ids == expected_module_ids, {"expected": sorted(expected_module_ids), "actual": sorted(actual_module_ids)}\nassert actual_card_ids == expected_card_ids, {"expected": sorted(expected_card_ids), "actual": sorted(actual_card_ids)}\nassert int((data or {}).get("shellStarterPromptsCount") or 0) == int("'"${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT}"'"), data\nassert bool((data or {}).get("shellGreetingConfigured")) == ("'"${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED}"'".lower() == "true"), data\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert search_diag.get("contractVersion") == "'"${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION}"'", search_diag\nassert int(search_diag.get("configuredSourcesCount") or 0) >= len(expected_source_ids), search_diag\nprint("ok")'
+}
+
+assert_marketplace_shell_config() {
+  local label="$1"
+  local body="$2"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  local expected_module_ids_json expected_card_ids_json
+  expected_module_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_SHELL_MODULE_IDS:-}")"
+  expected_card_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}")"
+  HTTP_BODY="${body}"
+  json_assert "${label}" $'expected_module_ids = set('"${expected_module_ids_json}"')\nexpected_card_ids = set('"${expected_card_ids_json}"')\nassert (data or {}).get("contractVersion") == "'"${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION}"'", data\nassert set((data or {}).get("moduleIds") or []) == expected_module_ids, data\nassert set((data or {}).get("cardIds") or []) == expected_card_ids, data\nassert len((data or {}).get("starterPrompts") or []) == int("'"${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT}"'"), data\nassert bool((data or {}).get("greetingTitle") or (data or {}).get("greetingMessage")) == ("'"${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED}"'".lower() == "true"), data\nprint("ok")'
+}
+
+run_marketplace_runtime_verification() {
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  if [[ -z "${RUNTIME_BASE_URL}" ]]; then
+    fail "VERIFY_MARKETPLACE_RUNTIME requires RUNTIME_BASE_URL."
+  fi
+
+  echo ""
+  echo "== Marketplace Runtime Verification =="
+
+  runtime_public_http POST "${RUNTIME_BASE_URL}/api/public/chat/session" "{}"
+  assert_status 200 "marketplace public bootstrap session"
+  json_assert "marketplace public bootstrap session" $'assert (data or {}).get("success") is True\nassert bool((data or {}).get("accessToken"))\nassert bool((data or {}).get("tokenScheme"))\nassert isinstance((data or {}).get("shellConfig"), dict)\nprint("ok")'
+  assert_marketplace_shell_config "marketplace public bootstrap shell config" "$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+print(json.dumps((json.loads(os.environ.get("PARSE_BODY", "") or "{}") or {}).get("shellConfig") or {}))
+PY
+)"
+
+  local bootstrap_json="${HTTP_BODY}"
+  RUNTIME_PUBLIC_AUTHORIZATION="$(BOOTSTRAP_JSON="${bootstrap_json}" python3 - <<'PY'
+import json
+import os
+payload = json.loads(os.environ.get("BOOTSTRAP_JSON", "") or "{}")
+scheme = (payload.get("tokenScheme") or "Bearer").strip() or "Bearer"
+token = (payload.get("accessToken") or "").strip()
+print(f"{scheme} {token}" if token else "")
+PY
+)"
+  if [[ -z "${RUNTIME_PUBLIC_AUTHORIZATION}" ]]; then
+    fail "marketplace public bootstrap did not return a usable access token."
+  fi
+
+  runtime_public_http GET "${RUNTIME_BASE_URL}/api/chat/me/shell-config"
+  assert_status 200 "marketplace authenticated shell config"
+  json_assert "marketplace authenticated shell config" $'assert (data or {}).get("success") is True\nprint("ok")'
+  assert_marketplace_shell_config "marketplace authenticated shell config payload" "${HTTP_BODY}"
+
+  local conversation_id="marketplace-runtime-verify-$(date +%s)"
+  runtime_public_http POST "${RUNTIME_BASE_URL}/api/chat/me/query" "$(build_chat_query_payload "${MARKETPLACE_SMOKE_QUERY}" "${conversation_id}")"
+  assert_status 200 "marketplace runtime smoke query"
+  local expected_source_ids_json
+  expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
+  json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\nmetadata = result.get("metadata") or {}\nsource_ids = set(metadata.get("searchSourceIds") or [])\nassert source_ids & expected_source_ids, {"expectedAnyOf": sorted(expected_source_ids), "actual": sorted(source_ids)}\nsource_diagnostics = metadata.get("searchSourceDiagnostics") or []\nassert isinstance(source_diagnostics, list) and len(source_diagnostics) >= 1, metadata\nprint("ok")'
+
+  runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
+  assert_status 200 "marketplace runtime admin overview (post-query)"
+  assert_marketplace_runtime_overview "marketplace runtime admin overview (post-query)" "${HTTP_BODY}"
+  json_assert "marketplace runtime search-source diagnostics post-query" $'search_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nprint("ok")'
+  pass "marketplace runtime live verification"
 }
 
 mint_authenticated_runtime_public_token() {
@@ -1070,6 +1168,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     assert_status 200 "runtime admin overview"
     json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nprint("ok")'
     RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
+    assert_marketplace_runtime_overview "runtime admin marketplace alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
     pass "runtime GET /api/admin/overview"
 
     runtime_http GET "${RUNTIME_AUTH_OVERVIEW_URL}"
@@ -1093,6 +1192,8 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
     assert_expected_confirmation_interceptors "runtime actions confirmation interceptor alignment" "${HTTP_BODY}"
     pass "runtime GET /api/admin/actions/overview"
+
+    run_marketplace_runtime_verification
   fi
 
   if [[ "${VERIFY_WRITE}" == "true" ]]; then
@@ -1211,6 +1312,12 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   json_assert "platform source of truth" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nlive = (data or {}).get("live") or {}\nassert live.get("available") is True\nartifacts = (data or {}).get("liveArtifacts") or {}\nassert bool(artifacts.get("actionsArtifactUrl"))\nassert bool(artifacts.get("entityArtifactUrl"))\nassert bool(artifacts.get("routingArtifactUrl"))\nassert bool(artifacts.get("promptArtifactUrl"))\nreadback = (data or {}).get("liveRailwayReadback") or {}\nassert "available" in readback\nassert "status" in readback\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
   PLATFORM_SOURCE_OF_TRUTH_BODY="${HTTP_BODY}"
+
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" == "true" ]]; then
+    HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
+    json_assert "platform marketplace source of truth artifacts" $'artifacts = (data or {}).get("liveArtifacts") or {}\nassert bool(artifacts.get("knowledgeSourceArtifactUrl")), artifacts\nassert bool(artifacts.get("shellArtifactUrl")), artifacts\nprint("ok")'
+    pass "platform marketplace artifact alignment"
+  fi
 
   if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
     HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"

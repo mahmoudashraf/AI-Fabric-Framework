@@ -22,12 +22,14 @@ APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY:-}"
 
 RUN_PLATFORM_CODE_CHECKS="${RUN_PLATFORM_CODE_CHECKS:-true}"
 RUN_ECOMMERCE_DEPLOYMENT_CHECKS="${RUN_ECOMMERCE_DEPLOYMENT_CHECKS:-true}"
+RUN_MARKETPLACE_RUNTIME_CHECKS="${RUN_MARKETPLACE_RUNTIME_CHECKS:-true}"
 RUN_VECTOR_DEPLOYMENT_CHECKS="${RUN_VECTOR_DEPLOYMENT_CHECKS:-true}"
 RUN_MANAGED_PROVIDER_CHECKS="${RUN_MANAGED_PROVIDER_CHECKS:-true}"
 ENSURE_CANONICAL_ROLLOUTS="${ENSURE_CANONICAL_ROLLOUTS:-true}"
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
 
 ECOMMERCE_DEPLOYMENT_ID="${ECOMMERCE_DEPLOYMENT_ID:-}"
+MARKETPLACE_DEPLOYMENT_ID="${MARKETPLACE_DEPLOYMENT_ID:-}"
 QDRANT_DEPLOYMENT_ID="${QDRANT_DEPLOYMENT_ID:-}"
 PINECONE_DEPLOYMENT_ID="${PINECONE_DEPLOYMENT_ID:-}"
 MILVUS_DEPLOYMENT_ID="${MILVUS_DEPLOYMENT_ID:-}"
@@ -91,7 +93,7 @@ if [[ "${RUN_PLATFORM_CODE_CHECKS}" == "true" ]]; then
   require_cmd mvn
   require_cmd npm
 fi
-if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
+if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
   if [[ -z "${PLATFORM_BASE_URL}" ]]; then
     echo "Set PLATFORM_BASE_URL when deployment checks are enabled." >&2
     exit 2
@@ -101,16 +103,23 @@ if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT
     exit 2
   fi
 fi
-if [[ ("${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true") && -z "${PLATFORM_API_KEY}" && ( -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ) ]]; then
+if [[ ("${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true") && -z "${PLATFORM_API_KEY}" && ( -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ) ]]; then
   echo "Set PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD." >&2
   exit 2
 fi
 
 resolved_json='{}'
-if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
+if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
   required_rollout_keys=""
   if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" && -z "${ECOMMERCE_DEPLOYMENT_ID}" ]]; then
     required_rollout_keys="ecommerce"
+  fi
+  if [[ "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" && -z "${MARKETPLACE_DEPLOYMENT_ID}" ]]; then
+    if [[ -n "${required_rollout_keys}" ]]; then
+      required_rollout_keys="${required_rollout_keys},marketplace"
+    else
+      required_rollout_keys="marketplace"
+    fi
   fi
   if [[ "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
     for vector_key in qdrant pinecone milvus weaviate; do
@@ -147,6 +156,7 @@ fi
 resolved_ids="$(
 RESOLVED_JSON="${resolved_json}" \
 ECOMMERCE_DEPLOYMENT_ID="${ECOMMERCE_DEPLOYMENT_ID}" \
+MARKETPLACE_DEPLOYMENT_ID="${MARKETPLACE_DEPLOYMENT_ID}" \
 QDRANT_DEPLOYMENT_ID="${QDRANT_DEPLOYMENT_ID}" \
 PINECONE_DEPLOYMENT_ID="${PINECONE_DEPLOYMENT_ID}" \
 MILVUS_DEPLOYMENT_ID="${MILVUS_DEPLOYMENT_ID}" \
@@ -162,6 +172,7 @@ def choose(name, resolved):
 
 values = {
     "ECOMMERCE_DEPLOYMENT_ID": choose("ECOMMERCE_DEPLOYMENT_ID", payload.get("ecommerceDeploymentId")),
+    "MARKETPLACE_DEPLOYMENT_ID": choose("MARKETPLACE_DEPLOYMENT_ID", payload.get("marketplaceDeploymentId")),
     "QDRANT_DEPLOYMENT_ID": choose("QDRANT_DEPLOYMENT_ID", payload.get("qdrantDeploymentId")),
     "PINECONE_DEPLOYMENT_ID": choose("PINECONE_DEPLOYMENT_ID", payload.get("pineconeDeploymentId")),
     "MILVUS_DEPLOYMENT_ID": choose("MILVUS_DEPLOYMENT_ID", payload.get("milvusDeploymentId")),
@@ -175,6 +186,7 @@ PY
 while IFS='=' read -r key value; do
   case "${key}" in
     ECOMMERCE_DEPLOYMENT_ID) ECOMMERCE_DEPLOYMENT_ID="${value}" ;;
+    MARKETPLACE_DEPLOYMENT_ID) MARKETPLACE_DEPLOYMENT_ID="${value}" ;;
     QDRANT_DEPLOYMENT_ID) QDRANT_DEPLOYMENT_ID="${value}" ;;
     PINECONE_DEPLOYMENT_ID) PINECONE_DEPLOYMENT_ID="${value}" ;;
     MILVUS_DEPLOYMENT_ID) MILVUS_DEPLOYMENT_ID="${value}" ;;
@@ -205,6 +217,23 @@ if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" ]]; then
     PLATFORM_DEPLOYMENT_ID="${ECOMMERCE_DEPLOYMENT_ID}" \
     VERIFICATION_PROFILE="ecommerce" \
     VERIFY_WRITE="${VERIFY_WRITE}" \
+    APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+    bash scripts/run-platform-deployment-verification.sh
+fi
+
+if [[ "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" ]]; then
+  if [[ -z "${MARKETPLACE_DEPLOYMENT_ID}" ]]; then
+    echo "Missing marketplace deployment id after rollout resolution." >&2
+    exit 1
+  fi
+  run_step "Verify marketplace runtime deployment ${MARKETPLACE_DEPLOYMENT_ID}" env \
+    PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+    PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+    PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+    PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+    PLATFORM_DEPLOYMENT_ID="${MARKETPLACE_DEPLOYMENT_ID}" \
+    VERIFICATION_PROFILE="marketplace-runtime" \
+    VERIFY_WRITE="false" \
     APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
     bash scripts/run-platform-deployment-verification.sh
 fi

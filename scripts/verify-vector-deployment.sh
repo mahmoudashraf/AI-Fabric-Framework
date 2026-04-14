@@ -134,6 +134,7 @@ VERIFY_VECTORIZATION_SAMPLE="${VERIFY_VECTORIZATION_SAMPLE:-false}"
 VERIFY_TENANT_SHARED_ISOLATION="${VERIFY_TENANT_SHARED_ISOLATION:-false}"
 VECTORIZATION_COUNTERPART_DEPLOYMENT_ID="${VECTORIZATION_COUNTERPART_DEPLOYMENT_ID:-}"
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
+EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION:-MARKETPLACE_RUNTIME_SUPPORT_V1}"
 
 if [[ -z "${VERIFY_VECTORIZATION_CONTROL_PLANE}" ]]; then
   if [[ "${EXPECT_VECTORIZATION_PLAN_PRESENT}" == "true" || "${EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT}" == "true" || "${EXPECT_VECTORIZATION_RUNNER_PRESENT}" == "true" || "${VERIFY_VECTORIZATION_RUNNER_ACTIVE}" == "true" || "${VERIFY_VECTORIZATION_SAMPLE}" == "true" ]]; then
@@ -719,7 +720,7 @@ pass "$(operational_surface_name) GET /api/ai/data-sync/vector-spaces"
 
 runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
 assert_status 200 "runtime admin overview"
-json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in [item.strip() for item in "'"${EXPECTED_VECTOR_SPACES}"'".split(",") if item.strip()]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nprint("ok")'
+json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in [item.strip() for item in "'"${EXPECTED_VECTOR_SPACES}"'".split(",") if item.strip()]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nmarketplace = (data or {}).get("marketplaceSupport") or {}\nassert marketplace.get("contractVersion") == "'"${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION}"'", marketplace\nprint("ok")'
 RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
 pass "runtime GET /api/admin/overview"
 

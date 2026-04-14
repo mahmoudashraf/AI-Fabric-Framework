@@ -98,14 +98,7 @@ class DeploymentVerificationRolloutServiceTest {
 
         when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
             CreateDeploymentRequest request = invocation.getArgument(0);
-            String deploymentId = switch (request.templateId()) {
-                case "dev-openai-lucene" -> "dep-ecommerce";
-                case "dev-openai-qdrant" -> "dep-qdrant";
-                case "dev-openai-pinecone" -> "dep-pinecone";
-                case "dev-openai-milvus" -> "dep-milvus";
-                case "dev-openai-weaviate" -> "dep-weaviate";
-                default -> throw new IllegalArgumentException("Unexpected template: " + request.templateId());
-            };
+            String deploymentId = rolloutDeploymentId(request);
             DeploymentEntity entity = new DeploymentEntity();
             entity.setId(deploymentId);
             entity.setName(request.name());
@@ -224,15 +217,17 @@ class DeploymentVerificationRolloutServiceTest {
 
         DeploymentVerificationRolloutSummary summary = service.recreateRollouts();
 
-        assertThat(summary.items()).hasSize(5);
-        assertThat(summary.items()).extracting(item -> item.verificationProfile()).containsOnly("ecommerce");
+        assertThat(summary.items()).hasSize(6);
+        assertThat(summary.items()).extracting(item -> item.verificationProfile())
+            .contains("ecommerce", "marketplace-runtime");
         assertThat(summary.items()).allMatch(item -> item.exists() || !item.verificationReady());
 
         ArgumentCaptor<CreateDeploymentRequest> createCaptor = ArgumentCaptor.forClass(CreateDeploymentRequest.class);
-        verify(deploymentService, times(5)).createDeployment(createCaptor.capture());
+        verify(deploymentService, times(6)).createDeployment(createCaptor.capture());
         assertThat(createCaptor.getAllValues())
             .extracting(CreateDeploymentRequest::templateId)
             .containsExactly(
+                "dev-openai-lucene",
                 "dev-openai-lucene",
                 "dev-openai-qdrant",
                 "dev-openai-pinecone",
@@ -241,7 +236,7 @@ class DeploymentVerificationRolloutServiceTest {
             );
 
         ArgumentCaptor<UpdateDeploymentDraftRequest> updateCaptor = ArgumentCaptor.forClass(UpdateDeploymentDraftRequest.class);
-        verify(deploymentService, times(5)).updateDraftInternal(anyString(), updateCaptor.capture());
+        verify(deploymentService, times(6)).updateDraftInternal(anyString(), updateCaptor.capture());
         List<UpdateDeploymentDraftRequest> updates = updateCaptor.getAllValues();
         assertThat(updates)
             .allSatisfy(update -> {
@@ -290,7 +285,22 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(ecommerce.securityConfig().path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("ecommerce-demo-chat");
         assertThat(ecommerce.securityConfig().path("publicRuntimeDefaultAudience").asText()).isEqualTo("ecommerce-demo-chat");
 
-        UpdateDeploymentDraftRequest qdrant = updates.get(1);
+        UpdateDeploymentDraftRequest marketplace = updates.get(1);
+        assertThat(marketplace.knowledgeSourceConfig().path("contractVersion").asText()).isEqualTo("KNOWLEDGE_SOURCE_CONFIG_V1");
+        assertThat(marketplace.knowledgeSourceConfig().path("sources").isArray()).isTrue();
+        assertThat(marketplace.knowledgeSourceConfig().path("sources")).hasSize(1);
+        assertThat(marketplace.knowledgeSourceConfig().path("sources").get(0).path("id").asText()).isEqualTo("deployment-marketplace-knowledge");
+        assertThat(marketplace.knowledgeSourceConfig().path("sources").get(0).path("adapterType").asText()).isEqualTo("deployment-private-vector");
+        assertThat(marketplace.shellConfig().path("contractVersion").asText()).isEqualTo("SHELL_CONFIG_V1");
+        assertThat(marketplace.shellConfig().path("modules").isArray()).isTrue();
+        assertThat(marketplace.shellConfig().path("cards").isArray()).isTrue();
+        assertThat(marketplace.shellConfig().path("starterPrompts")).hasSize(2);
+        assertThat(marketplace.shellConfig().path("modules")).extracting(node -> node.path("id").asText())
+            .containsExactly("product-catalog", "policies", "orders");
+        assertThat(marketplace.shellConfig().path("cards")).extracting(node -> node.path("id").asText())
+            .containsExactly("product-list", "policy-summary", "order-status");
+
+        UpdateDeploymentDraftRequest qdrant = updates.get(2);
         assertThat(qdrant.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
         assertThat(qdrant.providerConfig().path("qdrantCloudRegionId").asText()).isEqualTo("eu-west-1");
         assertThat(qdrant.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
@@ -310,7 +320,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
         assertThat(qdrant.securityConfig().path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("ecommerce-demo-chat");
 
-        UpdateDeploymentDraftRequest pinecone = updates.get(2);
+        UpdateDeploymentDraftRequest pinecone = updates.get(3);
         assertThat(pinecone.providerConfig().path("pineconeManagedIndexEnabled").asBoolean()).isTrue();
         assertThat(pinecone.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
         assertThat(pinecone.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
@@ -318,7 +328,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(pinecone.entityConfig().path("ai-entities").has("policy")).isTrue();
         assertThat(pinecone.entityConfig().path("ai-entities").has("review")).isTrue();
 
-        UpdateDeploymentDraftRequest milvus = updates.get(3);
+        UpdateDeploymentDraftRequest milvus = updates.get(4);
         assertThat(milvus.providerConfig().path("zillizCloudProjectId").asText()).isEqualTo("proj-a58a34b87ccfe2c80d6ec2");
         assertThat(milvus.providerConfig().path("zillizCloudRegionId").asText()).isEqualTo("aws-eu-central-1");
         assertThat(milvus.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
@@ -332,7 +342,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(milvus.routingConfig().path("actions")).isNotEmpty();
         assertThat(milvus.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
 
-        UpdateDeploymentDraftRequest weaviate = updates.get(4);
+        UpdateDeploymentDraftRequest weaviate = updates.get(5);
         assertThat(weaviate.providerConfig().path("weaviateHost").asText()).isEqualTo("l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud");
         assertThat(weaviate.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
         assertThat(weaviate.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
@@ -341,7 +351,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(weaviate.entityConfig().path("ai-entities").has("review")).isTrue();
 
         ArgumentCaptor<VectorizationSourceConnectionEntity> connectionCaptor = ArgumentCaptor.forClass(VectorizationSourceConnectionEntity.class);
-        verify(sourceConnectionRepository, times(5)).save(connectionCaptor.capture());
+        verify(sourceConnectionRepository, times(6)).save(connectionCaptor.capture());
         assertThat(connectionCaptor.getAllValues())
             .extracting(VectorizationSourceConnectionEntity::getAdapterType)
             .containsOnly("REST_API");
@@ -361,13 +371,13 @@ class DeploymentVerificationRolloutServiceTest {
             });
 
         ArgumentCaptor<VectorizationPlanEntity> planCaptor = ArgumentCaptor.forClass(VectorizationPlanEntity.class);
-        verify(planRepository, times(10)).save(planCaptor.capture());
+        verify(planRepository, times(12)).save(planCaptor.capture());
         assertThat(planCaptor.getAllValues())
             .extracting(VectorizationPlanEntity::getRunnerMode)
             .containsOnly("PLATFORM_MANAGED_AUTO");
 
         ArgumentCaptor<VectorizationPlanRevisionEntity> revisionCaptor = ArgumentCaptor.forClass(VectorizationPlanRevisionEntity.class);
-        verify(revisionRepository, times(5)).save(revisionCaptor.capture());
+        verify(revisionRepository, times(6)).save(revisionCaptor.capture());
         assertThat(revisionCaptor.getAllValues())
             .allSatisfy(revision -> {
                 JsonNode entityScope = objectMapper.readTree(revision.getEntityScopeJson());
@@ -381,13 +391,13 @@ class DeploymentVerificationRolloutServiceTest {
                 assertThat(mappingConfig.path("entityMappings").path("policy").path("dataset").asText()).isEqualTo("policy");
             });
 
-        verify(deploymentAssignmentService, times(5)).upsertAssignmentInternal(anyString(), argThat(request ->
+        verify(deploymentAssignmentService, times(6)).upsertAssignmentInternal(anyString(), argThat(request ->
             request.userId().equals("usr-admin") && request.assignmentRole().equals("DEPLOYMENT_ADMIN")
         ));
-        verify(deploymentAssignmentService, times(5)).upsertAssignmentInternal(anyString(), argThat(request ->
+        verify(deploymentAssignmentService, times(6)).upsertAssignmentInternal(anyString(), argThat(request ->
             request.userId().equals("usr-operator") && request.assignmentRole().equals("DEPLOYMENT_OPERATOR")
         ));
-        verify(deploymentService, times(5)).applyVersionInternal(anyString(), anyString(), eq(null), eq(true));
+        verify(deploymentService, times(6)).applyVersionInternal(anyString(), anyString(), eq(null), eq(true));
     }
 
     @Test
@@ -409,7 +419,13 @@ class DeploymentVerificationRolloutServiceTest {
         deployment.setName("OpenAI Pinecone Verification");
         deployment.setEnvironmentName("dev");
 
+        DeploymentEntity marketplace = new DeploymentEntity();
+        marketplace.setId("dep-marketplace");
+        marketplace.setName("Marketplace Runtime Verification");
+        marketplace.setEnvironmentName("dev");
+
         when(deploymentRepository.findById(eq("dep-pinecone"))).thenReturn(java.util.Optional.of(deployment));
+        when(deploymentRepository.findById(eq("dep-marketplace"))).thenReturn(java.util.Optional.of(marketplace));
 
         DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
             deploymentRepository,
@@ -428,7 +444,9 @@ class DeploymentVerificationRolloutServiceTest {
         );
 
         assertThat(service.canonicalVerificationProfile("dep-pinecone")).isEqualTo("ecommerce");
+        assertThat(service.canonicalVerificationProfile("dep-marketplace")).isEqualTo("marketplace-runtime");
         assertThat(service.isCanonicalRolloutDeployment("dep-pinecone")).isTrue();
+        assertThat(service.isCanonicalRolloutDeployment("dep-marketplace")).isTrue();
     }
 
     @Test
@@ -465,7 +483,7 @@ class DeploymentVerificationRolloutServiceTest {
 
         when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
             CreateDeploymentRequest request = invocation.getArgument(0);
-            String deploymentId = "dep-" + request.templateId();
+            String deploymentId = rolloutDeploymentId(request);
             DeploymentEntity entity = new DeploymentEntity();
             entity.setId(deploymentId);
             entity.setName(request.name());
@@ -590,7 +608,7 @@ class DeploymentVerificationRolloutServiceTest {
             createStarted.await(2, TimeUnit.SECONDS);
             activeCreates.decrementAndGet();
 
-            String deploymentId = "dep-" + request.templateId();
+            String deploymentId = rolloutDeploymentId(request);
             DeploymentEntity entity = new DeploymentEntity();
             entity.setId(deploymentId);
             entity.setName(request.name());
@@ -746,7 +764,7 @@ class DeploymentVerificationRolloutServiceTest {
         );
 
         DeploymentVerificationRolloutSummary summary = service.listRollouts();
-        assertThat(summary.items()).hasSize(5);
+        assertThat(summary.items()).hasSize(6);
         assertThat(summary.items())
             .filteredOn(item -> "weaviate".equals(item.key()))
             .singleElement()
@@ -794,7 +812,7 @@ class DeploymentVerificationRolloutServiceTest {
 
         when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
             CreateDeploymentRequest request = invocation.getArgument(0);
-            String deploymentId = "dep-" + request.templateId();
+            String deploymentId = rolloutDeploymentId(request);
             DeploymentEntity entity = new DeploymentEntity();
             entity.setId(deploymentId);
             entity.setName(request.name());
@@ -870,7 +888,7 @@ class DeploymentVerificationRolloutServiceTest {
         verify(deploymentAssignmentService, never()).upsertAssignmentInternal(anyString(), argThat(request ->
             request.userId().equals("usr-admin") && request.assignmentRole().equals("DEPLOYMENT_OPERATOR")
         ));
-        verify(deploymentAssignmentService, times(5)).upsertAssignmentInternal(anyString(), argThat(request ->
+        verify(deploymentAssignmentService, times(6)).upsertAssignmentInternal(anyString(), argThat(request ->
             request.userId().equals("usr-operator") && request.assignmentRole().equals("DEPLOYMENT_OPERATOR")
         ));
     }
@@ -1132,6 +1150,20 @@ class DeploymentVerificationRolloutServiceTest {
         assignment.setCreatedAt(Instant.now());
         assignment.setUpdatedAt(Instant.now());
         return assignment;
+    }
+
+    private String rolloutDeploymentId(CreateDeploymentRequest request) {
+        if ("Marketplace Runtime Verification".equals(request.name())) {
+            return "dep-marketplace";
+        }
+        return switch (request.templateId()) {
+            case "dev-openai-lucene" -> "dep-ecommerce";
+            case "dev-openai-qdrant" -> "dep-qdrant";
+            case "dev-openai-pinecone" -> "dep-pinecone";
+            case "dev-openai-milvus" -> "dep-milvus";
+            case "dev-openai-weaviate" -> "dep-weaviate";
+            default -> "dep-" + request.templateId();
+        };
     }
 
     private DeploymentDraftResponse draftResponse(String deploymentId, ObjectMapper objectMapper) {

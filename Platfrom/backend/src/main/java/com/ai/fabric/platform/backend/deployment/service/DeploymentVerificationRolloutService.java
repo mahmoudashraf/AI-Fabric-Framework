@@ -77,6 +77,7 @@ public class DeploymentVerificationRolloutService {
     private static final String PUBLIC_RUNTIME_DEFAULT_AUDIENCE = "ecommerce-demo-chat";
     private static final double DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.1d;
     private static final boolean DEFAULT_SMART_SUGGESTIONS_ENABLED = false;
+    private static final String MARKETPLACE_KNOWLEDGE_SOURCE_ID = "deployment-marketplace-knowledge";
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
     private static final int DEFAULT_PAGE_SIZE = 500;
@@ -714,6 +715,29 @@ public class DeploymentVerificationRolloutService {
                 }
             },
             new VerificationRolloutDefinition(
+                "marketplace",
+                "Marketplace Runtime Verification",
+                "Canonical marketplace-runtime verification deployment with resolved knowledge-source and shell artifacts enabled.",
+                "dev-openai-lucene",
+                "LOCAL_MANAGED",
+                "marketplace-runtime",
+                false
+            ) {
+                @Override
+                UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft) {
+                    return new UpdateDeploymentDraftRequest(
+                        ensureObject(readYaml(ECOMMERCE_ACTIONS_RESOURCE)),
+                        ecommerceEntityConfig(),
+                        ecommerceRoutingConfig(),
+                        normalizeProviderConfig(draft.providerConfig(), ECOMMERCE_VECTOR_DIMENSIONS),
+                        ecommerceSecurityConfig(draft.securityConfig()),
+                        withDefaultPromptLatencyTuning(ensureObject(draft.promptConfig())),
+                        marketplaceKnowledgeSourceConfig(),
+                        marketplaceShellConfig()
+                    );
+                }
+            },
+            new VerificationRolloutDefinition(
                 "qdrant",
                 "OpenAI Qdrant Verification",
                 "Canonical OpenAI plus platform-managed Qdrant Cloud verification deployment.",
@@ -1123,6 +1147,68 @@ public class DeploymentVerificationRolloutService {
         if (!root.path("smartSuggestionsEnabled").isBoolean()) {
             root.put("smartSuggestionsEnabled", DEFAULT_SMART_SUGGESTIONS_ENABLED);
         }
+        return root;
+    }
+
+    private ObjectNode marketplaceKnowledgeSourceConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        root.putArray("sources")
+            .addObject()
+            .put("id", MARKETPLACE_KNOWLEDGE_SOURCE_ID)
+            .put("type", "deployment-private-vector")
+            .put("adapterType", "deployment-private-vector")
+            .put("attributionLabel", "Deployment marketplace knowledge");
+        return root;
+    }
+
+    private ObjectNode marketplaceShellConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "SHELL_CONFIG_V1");
+        root.putObject("greeting")
+            .put("title", "Marketplace Assistant")
+            .put("message", "Browse products, policy, and order flows through the resolved shell config.");
+
+        root.putArray("starterPrompts")
+            .addObject()
+            .put("id", "marketplace-featured-products")
+            .put("label", "Browse featured products")
+            .put("query", "Show me featured products")
+            .put("moduleId", "product-catalog")
+            .put("cardId", "product-list");
+        root.withArray("starterPrompts")
+            .addObject()
+            .put("id", "marketplace-return-policy")
+            .put("label", "Summarize return policy")
+            .put("query", "Summarize return policy")
+            .put("moduleId", "policies")
+            .put("cardId", "policy-summary");
+
+        root.putArray("modules")
+            .addObject()
+            .put("id", "product-catalog")
+            .put("enabled", true);
+        root.withArray("modules")
+            .addObject()
+            .put("id", "policies")
+            .put("enabled", true);
+        root.withArray("modules")
+            .addObject()
+            .put("id", "orders")
+            .put("enabled", true);
+
+        root.putArray("cards")
+            .addObject()
+            .put("id", "product-list")
+            .put("enabled", true);
+        root.withArray("cards")
+            .addObject()
+            .put("id", "policy-summary")
+            .put("enabled", true);
+        root.withArray("cards")
+            .addObject()
+            .put("id", "order-status")
+            .put("enabled", true);
         return root;
     }
 

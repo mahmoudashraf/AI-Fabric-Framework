@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: true
+      run_marketplace_runtime_checks:
+        description: Verify the marketplace runtime canonical deployment in read-only mode.
+        required: false
+        type: boolean
+        default: true
       run_vector_deployment_checks:
         description: Verify the current vector deployments in read-only mode.
         required: false
@@ -37,6 +42,11 @@ on:
         default: true
       ecommerce_deployment_id:
         description: Ecommerce deployment id override. Leave empty to resolve from canonical rollout inventory.
+        required: false
+        type: string
+        default: ''
+      marketplace_deployment_id:
+        description: Marketplace runtime deployment id override. Leave empty to resolve from canonical rollout inventory.
         required: false
         type: string
         default: ''
@@ -77,10 +87,12 @@ jobs:
       RUNTIME_TRUSTED_BACKEND_API_KEY: ${{ secrets.AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY }}
       RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
       RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
+      RUN_MARKETPLACE_RUNTIME_CHECKS: ${{ inputs.run_marketplace_runtime_checks }}
       RUN_VECTOR_DEPLOYMENT_CHECKS: ${{ inputs.run_vector_deployment_checks }}
       RUN_MANAGED_PROVIDER_CHECKS: ${{ inputs.run_managed_provider_checks }}
       ENSURE_CANONICAL_ROLLOUTS: ${{ inputs.ensure_canonical_rollouts }}
       ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
+      MARKETPLACE_DEPLOYMENT_ID: ${{ inputs.marketplace_deployment_id }}
       QDRANT_DEPLOYMENT_ID: ${{ inputs.qdrant_deployment_id }}
       PINECONE_DEPLOYMENT_ID: ${{ inputs.pinecone_deployment_id }}
       MILVUS_DEPLOYMENT_ID: ${{ inputs.milvus_deployment_id }}
@@ -112,13 +124,16 @@ jobs:
 
       - name: Resolve rollout inventory
         id: resolve_rollouts
-        if: ${{ inputs.run_ecommerce_deployment_checks || inputs.run_vector_deployment_checks }}
+        if: ${{ inputs.run_ecommerce_deployment_checks || inputs.run_marketplace_runtime_checks || inputs.run_vector_deployment_checks }}
         run: |
           set -euo pipefail
 
           required_rollout_keys=()
           if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" && -z "${ECOMMERCE_DEPLOYMENT_ID}" ]]; then
             required_rollout_keys+=("ecommerce")
+          fi
+          if [[ "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" && -z "${MARKETPLACE_DEPLOYMENT_ID}" ]]; then
+            required_rollout_keys+=("marketplace")
           fi
           if [[ "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
             for vector_key in qdrant pinecone milvus weaviate; do
@@ -133,6 +148,9 @@ jobs:
             {
               echo "ecommerce_deployment_id<<__OUTPUT__"
               echo "${ECOMMERCE_DEPLOYMENT_ID}"
+              echo "__OUTPUT__"
+              echo "marketplace_deployment_id<<__OUTPUT__"
+              echo "${MARKETPLACE_DEPLOYMENT_ID}"
               echo "__OUTPUT__"
               echo "qdrant_deployment_id<<__OUTPUT__"
               echo "${QDRANT_DEPLOYMENT_ID}"
@@ -166,6 +184,7 @@ jobs:
           printf '%s' "${resolved_json}" > "${resolved_file}"
           RESOLVED_FILE="${resolved_file}" \
           ECOMMERCE_DEPLOYMENT_ID="${ECOMMERCE_DEPLOYMENT_ID}" \
+          MARKETPLACE_DEPLOYMENT_ID="${MARKETPLACE_DEPLOYMENT_ID}" \
           QDRANT_DEPLOYMENT_ID="${QDRANT_DEPLOYMENT_ID}" \
           PINECONE_DEPLOYMENT_ID="${PINECONE_DEPLOYMENT_ID}" \
           MILVUS_DEPLOYMENT_ID="${MILVUS_DEPLOYMENT_ID}" \
@@ -182,6 +201,7 @@ jobs:
 
           outputs = {
               "ecommerce_deployment_id": choose("ECOMMERCE_DEPLOYMENT_ID", "ecommerceDeploymentId"),
+              "marketplace_deployment_id": choose("MARKETPLACE_DEPLOYMENT_ID", "marketplaceDeploymentId"),
               "qdrant_deployment_id": choose("QDRANT_DEPLOYMENT_ID", "qdrantDeploymentId"),
               "pinecone_deployment_id": choose("PINECONE_DEPLOYMENT_ID", "pineconeDeploymentId"),
               "milvus_deployment_id": choose("MILVUS_DEPLOYMENT_ID", "milvusDeploymentId"),
@@ -246,6 +266,29 @@ jobs:
             PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
             PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
             VERIFICATION_PROFILE="ecommerce" \
+            VERIFY_WRITE="false" \
+            APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
+            bash scripts/run-platform-deployment-verification.sh
+
+      - name: Verify marketplace runtime deployment
+        if: ${{ inputs.run_marketplace_runtime_checks }}
+        env:
+          RESOLVED_DEPLOYMENT_ID: ${{ steps.resolve_rollouts.outputs.marketplace_deployment_id }}
+        run: |
+          set -euo pipefail
+          deployment_id="${RESOLVED_DEPLOYMENT_ID:-${MARKETPLACE_DEPLOYMENT_ID}}"
+          if [[ -z "${deployment_id}" ]]; then
+            echo "Missing marketplace runtime deployment id after rollout resolution." >&2
+            exit 1
+          fi
+          env \
+            PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+            PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+            PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+            PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+            PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
+            VERIFICATION_PROFILE="marketplace-runtime" \
             VERIFY_WRITE="false" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
             RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
