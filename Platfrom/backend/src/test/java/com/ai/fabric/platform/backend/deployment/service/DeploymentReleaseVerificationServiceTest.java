@@ -223,7 +223,7 @@ class DeploymentReleaseVerificationServiceTest {
                           "shellGreetingConfigured": false,
                           "supportedEntityTypes": ["product", "policy"],
                           "marketplaceSupport": {
-                            "knowledgeSourceConfigContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                            "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
                             "shellConfigContractVersion": "SHELL_CONFIG_V1"
                           },
                           "auth": {
@@ -509,7 +509,7 @@ class DeploymentReleaseVerificationServiceTest {
                           "shellGreetingConfigured": true,
                           "supportedEntityTypes": ["product", "policy"],
                           "marketplaceSupport": {
-                            "knowledgeSourceConfigContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                            "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
                             "shellConfigContractVersion": "SHELL_CONFIG_V1"
                           },
                           "auth": {
@@ -553,7 +553,7 @@ class DeploymentReleaseVerificationServiceTest {
                           "shellGreetingConfigured": true,
                           "supportedEntityTypes": ["product", "policy"],
                           "marketplaceSupport": {
-                            "knowledgeSourceConfigContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                            "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
                             "shellConfigContractVersion": "SHELL_CONFIG_V1"
                           },
                           "auth": {
@@ -1544,7 +1544,7 @@ class DeploymentReleaseVerificationServiceTest {
                       "shellGreetingConfigured": true,
                       "supportedEntityTypes": ["product", "policy"],
                       "marketplaceSupport": {
-                        "knowledgeSourceConfigContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                        "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
                         "shellConfigContractVersion": "SHELL_CONFIG_V1"
                       },
                       "auth": {
@@ -1625,7 +1625,7 @@ class DeploymentReleaseVerificationServiceTest {
                       "withPresentationHintsCount": 1,
                       "withBuiltInModuleMappingsCount": 1,
                       "withBuiltInCardMappingsCount": 1,
-                      "withProvenanceCount": 1,
+                      "withProvenanceCount": 2,
                       "confirmationInterceptorsCount": 1,
                       "confirmationInterceptorRuleNames": ["offer_cart_retention"],
                       "confirmationInterceptorSources": ["%s"],
@@ -1641,7 +1641,10 @@ class DeploymentReleaseVerificationServiceTest {
                         },
                         {
                           "name": "view_cart",
-                          "resultPresentationHint": "DEFAULT"
+                          "resultPresentationHint": "DEFAULT",
+                          "provenance": {
+                            "sourceType": "ACTION_CATALOG"
+                          }
                         }
                       ]
                     }

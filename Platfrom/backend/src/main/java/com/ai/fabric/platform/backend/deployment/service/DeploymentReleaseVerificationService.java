@@ -673,7 +673,7 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNamesWithPresentationHints = expectedActionNamesWithPresentationHints(actionsConfig.path("actions"));
         Set<String> expectedActionNamesWithBuiltInModuleMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInModuleId");
         Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInCardId");
-        Set<String> expectedActionNamesWithProvenance = expectedActionNamesWithObjectField(actionsConfig.path("actions"), "provenance");
+        Set<String> expectedActionNamesWithProvenance = Set.copyOf(expectedActionNames);
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
@@ -1768,7 +1768,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode marketplaceSupport = probe.body().path("marketplaceSupport");
         return probe.body().path("success").asBoolean(false)
             && blankToFallback(expectations.artifacts().knowledgeSourceArtifactUrl(), "").equals(probe.body().path("knowledgeSourceConfigLocation").asText(""))
-            && expectations.expectedKnowledgeSourceContractVersion().equals(marketplaceSupport.path("knowledgeSourceConfigContractVersion").asText(""))
+            && expectations.expectedKnowledgeSourceContractVersion().equals(marketplaceSupport.path("knowledgeSourceContractVersion").asText(""))
             && probe.body().path("knowledgeSourcesCount").asInt(-1) == expectations.expectedKnowledgeSourceIds().size()
             && textSet(probe.body().path("knowledgeSourceIds")).equals(expectations.expectedKnowledgeSourceIds())
             && textSet(probe.body().path("knowledgeSourceTypes")).equals(expectations.expectedKnowledgeSourceTypes())

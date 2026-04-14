@@ -125,6 +125,7 @@ EXPECT_MARKETPLACE_SHELL_MODULE_IDS="${EXPECT_MARKETPLACE_SHELL_MODULE_IDS:-}"
 EXPECT_MARKETPLACE_SHELL_CARD_IDS="${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}"
 EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT="${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT:-0}"
 EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED:-false}"
+RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN:-}"
 MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
 RETENTION_TEST_SKU="${RETENTION_TEST_SKU:-SKU-0001}"
 RETENTION_TEST_QUANTITY="${RETENTION_TEST_QUANTITY:-1}"
@@ -502,6 +503,9 @@ runtime_public_http() {
   if [[ -n "${RUNTIME_PUBLIC_AUTHORIZATION}" ]]; then
     headers+=("-H" "${RUNTIME_PUBLIC_AUTHORIZATION_HEADER}: ${RUNTIME_PUBLIC_AUTHORIZATION}")
   fi
+  if [[ -n "${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN}" ]]; then
+    headers+=("-H" "Origin: ${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN}")
+  fi
 
   local status
   if [[ -n "${body}" ]]; then
@@ -588,6 +592,44 @@ run_marketplace_runtime_verification() {
 
   echo ""
   echo "== Marketplace Runtime Verification =="
+
+  runtime_http GET "${RUNTIME_BASE_URL}/api/admin/auth/overview"
+  assert_status 200 "marketplace runtime auth overview"
+  local auth_overview_json="${HTTP_BODY}"
+  RUNTIME_AUTH_OVERVIEW_BODY="${auth_overview_json}"
+  if [[ -z "${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN}" ]]; then
+    RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="$(
+      AUTH_OVERVIEW_BODY="${auth_overview_json}" python3 - <<'PY'
+import json
+import os
+
+body = json.loads(os.environ.get("AUTH_OVERVIEW_BODY", "") or "{}")
+auth = (body or {}).get("auth") or {}
+bootstrap = auth.get("publicBootstrap") or {}
+if bootstrap.get("allowMissingOrigin") is True:
+    print("")
+else:
+    allowed = [value.strip() for value in (bootstrap.get("allowedOrigins") or []) if isinstance(value, str) and value.strip()]
+    print(allowed[0] if allowed else "")
+PY
+    )"
+  fi
+  if [[ -z "${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN}" ]]; then
+    AUTH_OVERVIEW_BODY="${auth_overview_json}" python3 - <<'PY'
+import json
+import os
+import sys
+
+body = json.loads(os.environ.get("AUTH_OVERVIEW_BODY", "") or "{}")
+auth = (body or {}).get("auth") or {}
+bootstrap = auth.get("publicBootstrap") or {}
+if bootstrap.get("allowMissingOrigin") is not True:
+    sys.exit(1)
+PY
+    if [[ $? -ne 0 ]]; then
+      fail "marketplace public bootstrap requires an allowed Origin, but runtime auth overview did not expose one. Set RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN explicitly."
+    fi
+  fi
 
   runtime_public_http POST "${RUNTIME_BASE_URL}/api/public/chat/session" "{}"
   assert_status 200 "marketplace public bootstrap session"
