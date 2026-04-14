@@ -91,6 +91,7 @@ public class PlatformSecurityConfiguration {
                 "/api/deployments/*/versions/*/artifacts/ai-prompt-config.json",
                 "/api/deployments/*/versions/*/artifacts/ai-knowledge-source-config.json",
                 "/api/deployments/*/versions/*/artifacts/ai-shell-config.json",
+                "/api/deployments/*/versions/*/artifacts/ai-automation-config.json",
                 "/api/deployments/*/versions/*/artifacts/deployment-manifest.json"
             ).permitAll();
             authorize.anyRequest().authenticated();

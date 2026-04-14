@@ -156,6 +156,10 @@ class PlatformSecurityIntegrationTest {
             bundleResult.getResponse().getContentAsString(),
             "$.promptArtifactUrl"
         );
+        String signedAutomationArtifactUrl = com.jayway.jsonpath.JsonPath.read(
+            bundleResult.getResponse().getContentAsString(),
+            "$.automationArtifactUrl"
+        );
 
         mockMvc.perform(get(
                 "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml",
@@ -171,6 +175,13 @@ class PlatformSecurityIntegrationTest {
             ))
             .andExpect(status().isUnauthorized());
 
+        mockMvc.perform(get(
+                "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-automation-config.json",
+                deploymentId,
+                versionId
+            ))
+            .andExpect(status().isUnauthorized());
+
         mockMvc.perform(get(URI.create(signedActionsArtifactUrl)))
             .andExpect(status().isOk())
             .andExpect(content().string(org.hamcrest.Matchers.containsString("actions:")));
@@ -180,10 +191,18 @@ class PlatformSecurityIntegrationTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("systemPrompt")));
 
+        mockMvc.perform(get(URI.create(signedAutomationArtifactUrl)))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("contractVersion")));
+
         mockMvc.perform(get(URI.create(signedActionsArtifactUrl.replace("sig=", "sig=broken-"))))
             .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get(URI.create(signedPromptArtifactUrl.replace("sig=", "sig=broken-"))))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get(URI.create(signedAutomationArtifactUrl.replace("sig=", "sig=broken-"))))
             .andExpect(status().isUnauthorized());
     }
 
