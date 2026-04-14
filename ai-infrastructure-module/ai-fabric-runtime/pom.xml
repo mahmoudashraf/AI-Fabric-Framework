@@ -60,6 +60,11 @@
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-curated-support</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-fabric-provider-openai</artifactId>
             <version>${project.version}</version>
         </dependency>

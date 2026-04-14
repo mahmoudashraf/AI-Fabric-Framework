@@ -41,4 +41,10 @@ class RuntimePackagingCoverageTest {
             .contains(PineconeVectorAutoConfiguration.class.getName())
             .contains(WeaviateVectorAutoConfiguration.class.getName());
     }
+
+    @Test
+    void runtimeClasspathIncludesSupportCuratedPack() {
+        assertThat(RuntimePackagingCoverageTest.class.getClassLoader().getResource("ai-curated/packs/support.yml"))
+            .isNotNull();
+    }
 }
