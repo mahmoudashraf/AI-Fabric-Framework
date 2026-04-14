@@ -167,6 +167,8 @@ public class RailwayProvisioningPlanService {
             artifacts.entityArtifactUrl(),
             artifacts.routingArtifactUrl(),
             artifacts.promptArtifactUrl(),
+            artifacts.knowledgeSourceArtifactUrl(),
+            artifacts.shellArtifactUrl(),
             artifacts.manifestUrl()
         );
 
@@ -174,6 +176,8 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CATALOG_PATH", artifactUrls.actions()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", artifactUrls.prompts()));
+        addOptionalEnv(runtimeEnv, "AI_KNOWLEDGE_SOURCES_DEPLOYMENT_CONFIG_FILE", artifactUrls.knowledgeSources());
+        addOptionalEnv(runtimeEnv, "AI_SHELL_DEPLOYMENT_CONFIG_FILE", artifactUrls.shell());
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);

@@ -75,6 +75,28 @@ public class DeploymentArtifactsController {
             .body(deploymentArtifactService.readPromptArtifact(deploymentId, versionId, expires, signature));
     }
 
+    @GetMapping("/ai-knowledge-source-config.json")
+    public ResponseEntity<String> getKnowledgeSourceArtifact(@PathVariable String deploymentId,
+                                                             @PathVariable String versionId,
+                                                             @RequestParam(name = "expires", required = false) Long expires,
+                                                             @RequestParam(name = "sig", required = false) String signature) {
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"ai-knowledge-source-config.json\"")
+            .body(deploymentArtifactService.readKnowledgeSourceArtifact(deploymentId, versionId, expires, signature));
+    }
+
+    @GetMapping("/ai-shell-config.json")
+    public ResponseEntity<String> getShellArtifact(@PathVariable String deploymentId,
+                                                   @PathVariable String versionId,
+                                                   @RequestParam(name = "expires", required = false) Long expires,
+                                                   @RequestParam(name = "sig", required = false) String signature) {
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"ai-shell-config.json\"")
+            .body(deploymentArtifactService.readShellArtifact(deploymentId, versionId, expires, signature));
+    }
+
     @GetMapping("/deployment-manifest.json")
     public ResponseEntity<String> getManifestArtifact(@PathVariable String deploymentId,
                                                       @PathVariable String versionId,

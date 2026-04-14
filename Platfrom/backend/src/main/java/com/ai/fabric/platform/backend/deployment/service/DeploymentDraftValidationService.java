@@ -41,6 +41,8 @@ public class DeploymentDraftValidationService {
             JsonNode providerNode = objectMapper.readTree(draft.getProviderConfigJson());
             JsonNode securityNode = objectMapper.readTree(draft.getSecurityConfigJson());
             JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
+            JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
+            JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
 
             List<DraftValidationIssue> issues = new ArrayList<>();
             Set<String> actionNames = validateActions(actionsNode, issues);
@@ -50,6 +52,8 @@ public class DeploymentDraftValidationService {
             validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
             validatePrompts(promptNode, issues);
+            validateKnowledgeSources(knowledgeSourceNode, issues);
+            validateShellConfig(shellNode, issues);
 
             int errorCount = countBySeverity(issues, "ERROR");
             int warningCount = countBySeverity(issues, "WARNING");
@@ -137,6 +141,117 @@ public class DeploymentDraftValidationService {
         validateConfirmationInterceptors(actionsNode.path("confirmationInterceptors"), actionNames, confirmableActionNames, issues);
 
         return actionNames;
+    }
+
+    private void validateKnowledgeSources(JsonNode knowledgeSourceNode, List<DraftValidationIssue> issues) {
+        if (knowledgeSourceNode == null || !knowledgeSourceNode.isObject()) {
+            issues.add(error(
+                "knowledgeSources",
+                "KNOWLEDGE_SOURCE_CONFIG_OBJECT_REQUIRED",
+                "$.knowledgeSourceConfig",
+                "knowledgeSourceConfig must be an object."
+            ));
+            return;
+        }
+
+        JsonNode contractVersion = knowledgeSourceNode.path("contractVersion");
+        if (!contractVersion.isMissingNode() && !contractVersion.isNull() && !contractVersion.isTextual()) {
+            issues.add(error(
+                "knowledgeSources",
+                "KNOWLEDGE_SOURCE_CONTRACT_VERSION_INVALID",
+                "$.knowledgeSourceConfig.contractVersion",
+                "knowledgeSourceConfig.contractVersion must be a string when provided."
+            ));
+        }
+
+        JsonNode sources = knowledgeSourceNode.path("sources");
+        if (!sources.isMissingNode() && !sources.isArray()) {
+            issues.add(error(
+                "knowledgeSources",
+                "KNOWLEDGE_SOURCE_SOURCES_ARRAY_REQUIRED",
+                "$.knowledgeSourceConfig.sources",
+                "knowledgeSourceConfig.sources must be an array when provided."
+            ));
+            return;
+        }
+
+        if (!sources.isArray()) {
+            return;
+        }
+
+        Set<String> ids = new HashSet<>();
+        for (int index = 0; index < sources.size(); index++) {
+            JsonNode source = sources.get(index);
+            String basePath = "$.knowledgeSourceConfig.sources[" + index + "]";
+            if (!source.isObject()) {
+                issues.add(error("knowledgeSources", "KNOWLEDGE_SOURCE_OBJECT_REQUIRED", basePath, "Each knowledge source entry must be an object."));
+                continue;
+            }
+            String id = source.path("id").asText("").trim();
+            if (id.isEmpty()) {
+                issues.add(warning("knowledgeSources", "KNOWLEDGE_SOURCE_ID_RECOMMENDED", basePath + ".id", "Knowledge source id should be provided."));
+            } else if (!ids.add(id.toLowerCase(Locale.ROOT))) {
+                issues.add(error("knowledgeSources", "DUPLICATE_KNOWLEDGE_SOURCE_ID", basePath + ".id", "Duplicate knowledge source id: " + id));
+            }
+            JsonNode enabled = source.path("enabled");
+            if (!enabled.isMissingNode() && !enabled.isBoolean()) {
+                issues.add(error("knowledgeSources", "KNOWLEDGE_SOURCE_ENABLED_BOOLEAN", basePath + ".enabled", "enabled must be a boolean when provided."));
+            }
+        }
+    }
+
+    private void validateShellConfig(JsonNode shellNode, List<DraftValidationIssue> issues) {
+        if (shellNode == null || !shellNode.isObject()) {
+            issues.add(error(
+                "shell",
+                "SHELL_CONFIG_OBJECT_REQUIRED",
+                "$.shellConfig",
+                "shellConfig must be an object."
+            ));
+            return;
+        }
+
+        JsonNode contractVersion = shellNode.path("contractVersion");
+        if (!contractVersion.isMissingNode() && !contractVersion.isNull() && !contractVersion.isTextual()) {
+            issues.add(error(
+                "shell",
+                "SHELL_CONTRACT_VERSION_INVALID",
+                "$.shellConfig.contractVersion",
+                "shellConfig.contractVersion must be a string when provided."
+            ));
+        }
+
+        JsonNode modules = shellNode.path("modules");
+        if (!modules.isMissingNode() && !modules.isArray()) {
+            issues.add(error(
+                "shell",
+                "SHELL_MODULES_ARRAY_REQUIRED",
+                "$.shellConfig.modules",
+                "shellConfig.modules must be an array when provided."
+            ));
+        } else if (modules.isArray()) {
+            for (int index = 0; index < modules.size(); index++) {
+                if (!modules.get(index).isObject()) {
+                    issues.add(error("shell", "SHELL_MODULE_OBJECT_REQUIRED", "$.shellConfig.modules[" + index + "]", "Each shell module entry must be an object."));
+                }
+            }
+        }
+
+        JsonNode cards = shellNode.path("cards");
+        if (!cards.isMissingNode() && !cards.isArray()) {
+            issues.add(error(
+                "shell",
+                "SHELL_CARDS_ARRAY_REQUIRED",
+                "$.shellConfig.cards",
+                "shellConfig.cards must be an array when provided."
+            ));
+        } else if (cards.isArray()) {
+            for (int index = 0; index < cards.size(); index++) {
+                if (!cards.get(index).isObject()) {
+                    issues.add(error("shell", "SHELL_CARD_OBJECT_REQUIRED", "$.shellConfig.cards[" + index + "]", "Each shell card entry must be an object."));
+                }
+            }
+        }
     }
 
     private void validateConfirmationInterceptors(JsonNode confirmationInterceptorsNode,

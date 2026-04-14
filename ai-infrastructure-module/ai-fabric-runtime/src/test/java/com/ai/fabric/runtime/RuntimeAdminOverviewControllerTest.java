@@ -9,6 +9,8 @@ import com.ai.fabric.runtime.auth.RuntimePrivateAssertionService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
+import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
+import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminOverviewController;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
@@ -84,10 +86,14 @@ class RuntimeAdminOverviewControllerTest {
             vectorDatabaseService,
             authProperties,
             new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
-            confirmationProvider()
+            confirmationProvider(),
+            knowledgeSourceConfigProvider(),
+            shellConfigProvider()
         );
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigLocation", "https://platform.example/entities");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "knowledgeSourceConfigLocation", "https://platform.example/knowledge-sources");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "shellConfigLocation", "https://platform.example/shell");
 
         ResponseEntity<?> response = controller.overview(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW));
 
@@ -101,8 +107,23 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("confirmationInterceptorsCount", 1);
         assertThat(body.get("confirmationInterceptorRuleNames")).isEqualTo(List.of("cancel_to_retention_offer"));
         assertThat(body.get("confirmationInterceptorSources")).isEqualTo(List.of("classpath:test-actions.yml"));
+        assertThat(body).containsEntry("knowledgeSourcesCount", 2);
+        assertThat(body.get("knowledgeSourceIds")).isEqualTo(List.of("shared-catalog", "shared-policy"));
+        assertThat(body.get("knowledgeSourceTypes")).isEqualTo(List.of("shared-vector", "shared-vector"));
+        assertThat(body).containsEntry("shellModulesCount", 2);
+        assertThat(body.get("shellModuleIds")).isEqualTo(List.of("catalog-grid", "policy-panel"));
+        assertThat(body).containsEntry("shellCardsCount", 1);
+        assertThat(body.get("shellCardIds")).isEqualTo(List.of("featured-policy"));
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
+        assertThat(body.get("marketplaceSupport")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> marketplaceSupport = (Map<String, Object>) body.get("marketplaceSupport");
+        assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", true);
+        assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", true);
+        assertThat(marketplaceSupport).containsEntry("knowledgeSourceContractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        assertThat(marketplaceSupport).containsEntry("shellConfigContractVersion", "SHELL_CONFIG_V1");
         assertThat(body.get("auth")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> auth = (Map<String, Object>) body.get("auth");
@@ -168,7 +189,9 @@ class RuntimeAdminOverviewControllerTest {
                 new RuntimePrivateAssertionService(requestAuthProperties),
                 null
             ),
-            confirmationProvider()
+            confirmationProvider(),
+            knowledgeSourceConfigProvider(),
+            shellConfigProvider()
         );
 
         ResponseEntity<?> response = controller.authOverview(
@@ -210,7 +233,9 @@ class RuntimeAdminOverviewControllerTest {
                                                                  VectorDatabaseService vectorDatabaseService,
                                                                  RuntimeAuthProperties authProperties,
                                                                  RuntimeRequestAuthResolver runtimeRequestAuthResolver,
-                                                                 ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider) {
+                                                                 ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider,
+                                                                 ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceProvider,
+                                                                 ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider) {
         try {
             Constructor<?> constructor = RuntimeAdminOverviewController.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
@@ -221,7 +246,9 @@ class RuntimeAdminOverviewControllerTest {
                 vectorDatabaseService,
                 authProperties,
                 runtimeRequestAuthResolver,
-                confirmationProvider
+                confirmationProvider,
+                knowledgeSourceProvider,
+                shellConfigProvider
             );
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
@@ -248,6 +275,29 @@ class RuntimeAdminOverviewControllerTest {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("confirmationInterceptorCatalogProvider", provider);
         return beanFactory.getBeanProvider(ConfirmationInterceptorCatalogProvider.class);
+    }
+
+    private ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigProvider() {
+        RuntimeDeploymentKnowledgeSourceConfigService service = mock(RuntimeDeploymentKnowledgeSourceConfigService.class);
+        when(service.currentSourceCount()).thenReturn(2);
+        when(service.currentSourceIds()).thenReturn(List.of("shared-catalog", "shared-policy"));
+        when(service.currentSourceTypes()).thenReturn(List.of("shared-vector", "shared-vector"));
+        when(service.currentContractVersion()).thenReturn("KNOWLEDGE_SOURCE_CONFIG_V1");
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("runtimeDeploymentKnowledgeSourceConfigService", service);
+        return beanFactory.getBeanProvider(RuntimeDeploymentKnowledgeSourceConfigService.class);
+    }
+
+    private ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider() {
+        RuntimeDeploymentShellConfigService service = mock(RuntimeDeploymentShellConfigService.class);
+        when(service.currentModuleCount()).thenReturn(2);
+        when(service.currentModuleIds()).thenReturn(List.of("catalog-grid", "policy-panel"));
+        when(service.currentCardCount()).thenReturn(1);
+        when(service.currentCardIds()).thenReturn(List.of("featured-policy"));
+        when(service.currentContractVersion()).thenReturn("SHELL_CONFIG_V1");
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("runtimeDeploymentShellConfigService", service);
+        return beanFactory.getBeanProvider(RuntimeDeploymentShellConfigService.class);
     }
 
     private HttpServletRequest authorizedRequest(RuntimeAuthProperties authProperties, String scope) {

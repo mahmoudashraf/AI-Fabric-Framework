@@ -11,6 +11,11 @@ import java.time.Instant;
 @Table(name = "platform_deployment_versions")
 public class DeploymentVersionEntity {
 
+    public static final String DEFAULT_KNOWLEDGE_SOURCE_CONFIG_JSON =
+        "{\"contractVersion\":\"KNOWLEDGE_SOURCE_CONFIG_V1\",\"sources\":[]}";
+    public static final String DEFAULT_SHELL_CONFIG_JSON =
+        "{\"contractVersion\":\"SHELL_CONFIG_V1\",\"modules\":[],\"cards\":[]}";
+
     @Id
     private String id;
 
@@ -49,6 +54,12 @@ public class DeploymentVersionEntity {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String promptConfigJson;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String knowledgeSourceConfigJson = DEFAULT_KNOWLEDGE_SOURCE_CONFIG_JSON;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String shellConfigJson = DEFAULT_SHELL_CONFIG_JSON;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String actionsArtifactYaml;
@@ -167,6 +178,26 @@ public class DeploymentVersionEntity {
 
     public void setPromptConfigJson(String promptConfigJson) {
         this.promptConfigJson = promptConfigJson;
+    }
+
+    public String getKnowledgeSourceConfigJson() {
+        return knowledgeSourceConfigJson == null
+            ? DEFAULT_KNOWLEDGE_SOURCE_CONFIG_JSON
+            : knowledgeSourceConfigJson;
+    }
+
+    public void setKnowledgeSourceConfigJson(String knowledgeSourceConfigJson) {
+        this.knowledgeSourceConfigJson = knowledgeSourceConfigJson;
+    }
+
+    public String getShellConfigJson() {
+        return shellConfigJson == null
+            ? DEFAULT_SHELL_CONFIG_JSON
+            : shellConfigJson;
+    }
+
+    public void setShellConfigJson(String shellConfigJson) {
+        this.shellConfigJson = shellConfigJson;
     }
 
     public String getActionsArtifactYaml() {

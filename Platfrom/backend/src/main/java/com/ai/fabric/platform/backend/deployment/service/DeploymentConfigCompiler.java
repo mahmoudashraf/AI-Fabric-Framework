@@ -45,6 +45,8 @@ public class DeploymentConfigCompiler {
             JsonNode providerNode = objectMapper.readTree(draft.getProviderConfigJson());
             JsonNode securityNode = objectMapper.readTree(draft.getSecurityConfigJson());
             JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
+            JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
+            JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
             JsonNode effectiveRoutingNode = compileRoutingConfig(routingNode, securityNode);
 
             String actionsArtifactYaml = yamlMapper.writeValueAsString(actionsNode);
@@ -66,6 +68,8 @@ public class DeploymentConfigCompiler {
             manifest.put("providerConfig", providerNode);
             manifest.put("securityConfig", securityNode);
             manifest.put("promptConfig", promptNode);
+            manifest.put("knowledgeSourceConfig", knowledgeSourceNode);
+            manifest.put("shellConfig", shellNode);
 
             String manifestJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(manifest);
             String configHash = sha256(manifestJson);
@@ -74,6 +78,8 @@ public class DeploymentConfigCompiler {
                 actionsArtifactYaml,
                 entityArtifactYaml,
                 routingArtifactYaml,
+                objectMapper.writeValueAsString(knowledgeSourceNode),
+                objectMapper.writeValueAsString(shellNode),
                 manifestJson,
                 configHash
             );
@@ -140,8 +146,17 @@ public class DeploymentConfigCompiler {
         String actionsArtifactYaml,
         String entityArtifactYaml,
         String routingArtifactYaml,
+        String knowledgeSourceArtifactJson,
+        String shellArtifactJson,
         String manifestJson,
         String configHash
     ) {
+        public CompiledDeploymentVersion(String actionsArtifactYaml,
+                                         String entityArtifactYaml,
+                                         String routingArtifactYaml,
+                                         String manifestJson,
+                                         String configHash) {
+            this(actionsArtifactYaml, entityArtifactYaml, routingArtifactYaml, "{}", "{}", manifestJson, configHash);
+        }
     }
 }

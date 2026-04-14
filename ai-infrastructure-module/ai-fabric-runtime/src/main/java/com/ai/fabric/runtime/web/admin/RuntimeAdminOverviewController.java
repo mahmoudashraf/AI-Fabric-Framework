@@ -4,6 +4,8 @@ import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
+import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
+import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
@@ -36,12 +38,20 @@ public class RuntimeAdminOverviewController {
     private final RuntimeAuthProperties runtimeAuthProperties;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
     private final ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
+    private final ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigServiceProvider;
+    private final ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigServiceProvider;
 
     @Value("${ai.config.default-file:ai-entity-config.yml}")
     private String entityConfigLocation;
 
     @Value("${ai.prompts.deployment.config-file:}")
     private String promptConfigLocation;
+
+    @Value("${ai.knowledge-sources.deployment.config-file:}")
+    private String knowledgeSourceConfigLocation;
+
+    @Value("${ai.shell.deployment.config-file:}")
+    private String shellConfigLocation;
 
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
@@ -70,9 +80,13 @@ public class RuntimeAdminOverviewController {
 
         Map<String, Object> body = new LinkedHashMap<>();
         ConfirmationInterceptorCatalogProvider confirmationProvider = confirmationInterceptorCatalogProvider.getIfAvailable();
+        RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService = knowledgeSourceConfigServiceProvider.getIfAvailable();
+        RuntimeDeploymentShellConfigService shellConfigService = shellConfigServiceProvider.getIfAvailable();
         body.put("success", true);
         body.put("entityConfigLocation", entityConfigLocation);
         body.put("promptConfigLocation", promptConfigLocation);
+        body.put("knowledgeSourceConfigLocation", knowledgeSourceConfigLocation);
+        body.put("shellConfigLocation", shellConfigLocation);
         body.put("actionCatalogSources", sources);
         body.put("actionsCount", actionCount);
         body.put("confirmationInterceptorsCount", confirmationProvider != null ? confirmationProvider.getRules().size() : 0);
@@ -84,6 +98,14 @@ public class RuntimeAdminOverviewController {
         body.put("vectorDb", vectorDatabaseService.getClass().getSimpleName());
         body.put("supportsVectorScan", vectorDatabaseService.supportsVectorScan());
         body.put("vectorScope", vectorDatabaseService.adminDiagnostics());
+        body.put("knowledgeSourcesCount", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceCount() : 0);
+        body.put("knowledgeSourceIds", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceIds() : List.of());
+        body.put("knowledgeSourceTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceTypes() : List.of());
+        body.put("shellModulesCount", shellConfigService != null ? shellConfigService.currentModuleCount() : 0);
+        body.put("shellModuleIds", shellConfigService != null ? shellConfigService.currentModuleIds() : List.of());
+        body.put("shellCardsCount", shellConfigService != null ? shellConfigService.currentCardCount() : 0);
+        body.put("shellCardIds", shellConfigService != null ? shellConfigService.currentCardIds() : List.of());
+        body.put("marketplaceSupport", marketplaceSupport(knowledgeSourceConfigService, shellConfigService));
         body.put("auth", authDiagnostics(runtimeAuthProperties));
         body.put("authWarnings", authWarnings(runtimeAuthProperties));
         return ResponseEntity.ok(body);
@@ -180,5 +202,26 @@ public class RuntimeAdminOverviewController {
 
     private static List<String> authErrors(RuntimeAuthProperties properties) {
         return new RuntimeAuthStartupValidator(properties).validationErrors();
+    }
+
+    private Map<String, Object> marketplaceSupport(RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService,
+                                                   RuntimeDeploymentShellConfigService shellConfigService) {
+        Map<String, Object> support = new LinkedHashMap<>();
+        support.put("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        support.put("resolvedKnowledgeSourcesSupported", knowledgeSourceConfigService != null);
+        support.put("resolvedShellConfigSupported", shellConfigService != null);
+        support.put(
+            "knowledgeSourceContractVersion",
+            knowledgeSourceConfigService != null
+                ? knowledgeSourceConfigService.currentContractVersion()
+                : RuntimeDeploymentKnowledgeSourceConfigService.CONTRACT_VERSION
+        );
+        support.put(
+            "shellConfigContractVersion",
+            shellConfigService != null
+                ? shellConfigService.currentContractVersion()
+                : RuntimeDeploymentShellConfigService.CONTRACT_VERSION
+        );
+        return support;
     }
 }

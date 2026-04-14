@@ -1009,6 +1009,12 @@ public class DeploymentService {
         if (request.promptConfig() != null) {
             draft.setPromptConfigJson(writeJson(request.promptConfig()));
         }
+        if (request.knowledgeSourceConfig() != null) {
+            draft.setKnowledgeSourceConfigJson(writeJson(request.knowledgeSourceConfig()));
+        }
+        if (request.shellConfig() != null) {
+            draft.setShellConfigJson(writeJson(request.shellConfig()));
+        }
 
         draft.setStatus("MODIFIED");
         draft.setUpdatedAt(Instant.now());
@@ -1149,6 +1155,8 @@ public class DeploymentService {
         version.setProviderConfigJson(draft.getProviderConfigJson());
         version.setSecurityConfigJson(draft.getSecurityConfigJson());
         version.setPromptConfigJson(draft.getPromptConfigJson());
+        version.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
+        version.setShellConfigJson(draft.getShellConfigJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setRoutingArtifactYaml(compiled.routingArtifactYaml());
@@ -1171,6 +1179,8 @@ public class DeploymentService {
         nextDraft.setProviderConfigJson(draft.getProviderConfigJson());
         nextDraft.setSecurityConfigJson(draft.getSecurityConfigJson());
         nextDraft.setPromptConfigJson(draft.getPromptConfigJson());
+        nextDraft.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
+        nextDraft.setShellConfigJson(draft.getShellConfigJson());
         nextDraft.setCreatedAt(now);
         nextDraft.setUpdatedAt(now);
         draftRepository.save(nextDraft);
@@ -1553,6 +1563,8 @@ public class DeploymentService {
         )));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
         draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
+        draft.setKnowledgeSourceConfigJson(writeJson(defaultKnowledgeSourceConfig()));
+        draft.setShellConfigJson(writeJson(defaultShellConfig()));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -1588,6 +1600,21 @@ public class DeploymentService {
         ObjectNode upstream = connector.putObject("upstream");
         upstream.put("base-url", "https://customer-api.example");
         root.putObject("actions");
+        return root;
+    }
+
+    private JsonNode defaultKnowledgeSourceConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        root.set("sources", objectMapper.createArrayNode());
+        return root;
+    }
+
+    private JsonNode defaultShellConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "SHELL_CONFIG_V1");
+        root.set("modules", objectMapper.createArrayNode());
+        root.set("cards", objectMapper.createArrayNode());
         return root;
     }
 
@@ -2162,6 +2189,8 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getProviderConfigJson()),
                 objectMapper.readTree(draft.getSecurityConfigJson()),
                 objectMapper.readTree(draft.getPromptConfigJson()),
+                objectMapper.readTree(draft.getKnowledgeSourceConfigJson()),
+                objectMapper.readTree(draft.getShellConfigJson()),
                 draft.getCreatedAt(),
                 draft.getUpdatedAt()
             );
@@ -2287,7 +2316,9 @@ public class DeploymentService {
             && safeEquals(draft.getRoutingConfigJson(), version.getRoutingConfigJson())
             && safeEquals(draft.getProviderConfigJson(), version.getProviderConfigJson())
             && safeEquals(draft.getSecurityConfigJson(), version.getSecurityConfigJson())
-            && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson());
+            && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson())
+            && safeEquals(draft.getKnowledgeSourceConfigJson(), version.getKnowledgeSourceConfigJson())
+            && safeEquals(draft.getShellConfigJson(), version.getShellConfigJson());
     }
 
     private boolean safeEquals(String left, String right) {
