@@ -68,11 +68,13 @@ public class DeploymentMarketplaceDraftCompilerService {
     public DeploymentDraftResponse syncDeploymentDraft(String deploymentId) {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode actionsRoot = ensureObject(draft.actionsConfig());
+        ObjectNode entityRoot = normalizeEntityRoot(draft.entityConfig());
         ObjectNode knowledgeSourceRoot = normalizeKnowledgeSourceRoot(draft.knowledgeSourceConfig());
         ObjectNode shellRoot = normalizeShellRoot(draft.shellConfig());
         ObjectNode automationRoot = normalizeAutomationRoot(draft.automationConfig());
 
         stripMarketplaceManagedActions(actionsRoot);
+        stripMarketplaceManagedEntities(entityRoot);
         stripMarketplaceManagedKnowledgeSources(knowledgeSourceRoot);
         stripMarketplaceManagedShell(shellRoot);
         stripMarketplaceManagedAutomation(automationRoot);
@@ -80,6 +82,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         List<DeploymentMarketplacePluginInstallEntity> installs =
             installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
         Set<String> existingActionNames = actionNames(actionsRoot.path("actions"));
+        Set<String> existingEntityTypes = entityTypes(entityRoot.path("ai-entities"));
         Set<String> existingKnowledgeSourceIds = knowledgeSourceIds(knowledgeSourceRoot.path("sources"));
         Set<String> existingAutomationIds = automationIds(automationRoot);
 
@@ -101,7 +104,17 @@ public class DeploymentMarketplaceDraftCompilerService {
 
             switch (parsed.pluginType()) {
                 case "ACTION" -> applyActionPlugin(actionsRoot, shellRoot, install, plugin, version, parsed, existingActionNames);
-                case "DATA" -> applyDataPlugin(knowledgeSourceRoot, shellRoot, install, plugin, version, parsed, existingKnowledgeSourceIds);
+                case "DATA" -> applyDataPlugin(
+                    entityRoot,
+                    knowledgeSourceRoot,
+                    shellRoot,
+                    install,
+                    plugin,
+                    version,
+                    parsed,
+                    existingEntityTypes,
+                    existingKnowledgeSourceIds
+                );
                 case "AUTOMATION" -> applyAutomationPlugin(automationRoot, shellRoot, install, plugin, version, parsed, existingAutomationIds);
                 case "TEMPLATE" -> {
                     // Template plugins compile through bootstrap flow; their install record is informational afterward.
@@ -117,7 +130,7 @@ public class DeploymentMarketplaceDraftCompilerService {
             draft.id(),
             new UpdateDeploymentDraftRequest(
                 actionsRoot,
-                null,
+                entityRoot,
                 null,
                 null,
                 null,
@@ -222,14 +235,24 @@ public class DeploymentMarketplaceDraftCompilerService {
         );
     }
 
-    private void applyDataPlugin(ObjectNode knowledgeSourceRoot,
+    private void applyDataPlugin(ObjectNode entityRoot,
+                                 ObjectNode knowledgeSourceRoot,
                                  ObjectNode shellRoot,
                                  DeploymentMarketplacePluginInstallEntity install,
                                  MarketplacePluginEntity plugin,
                                  MarketplacePluginVersionEntity version,
                                  MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                                 Set<String> existingEntityTypes,
                                  Set<String> existingKnowledgeSourceIds) {
         ArrayNode sources = ensureArray(knowledgeSourceRoot, "sources");
+        applyEntityContribution(
+            entityRoot,
+            parsed.manifest().path("contributions").path("entityConfig"),
+            install,
+            plugin,
+            version,
+            existingEntityTypes
+        );
         JsonNode sourceEntries = parsed.manifest().path("contributions").path("knowledgeSources");
         for (JsonNode sourceEntry : iterable(sourceEntries)) {
             if (!sourceEntry.isObject()) {
@@ -435,6 +458,20 @@ public class DeploymentMarketplaceDraftCompilerService {
         removeMarketplaceManagedEntries(actions);
     }
 
+    private void stripMarketplaceManagedEntities(ObjectNode entityRoot) {
+        JsonNode entitiesNode = entityRoot.path("ai-entities");
+        if (!(entitiesNode instanceof ObjectNode entities)) {
+            return;
+        }
+        List<String> toRemove = new ArrayList<>();
+        entities.fields().forEachRemaining(entry -> {
+            if (isMarketplaceManaged(entry.getValue())) {
+                toRemove.add(entry.getKey());
+            }
+        });
+        toRemove.forEach(entities::remove);
+    }
+
     private void stripMarketplaceManagedKnowledgeSources(ObjectNode knowledgeSourceRoot) {
         ArrayNode sources = ensureArray(knowledgeSourceRoot, "sources");
         removeMarketplaceManagedEntries(sources);
@@ -544,6 +581,21 @@ public class DeploymentMarketplaceDraftCompilerService {
         return ids;
     }
 
+    private Set<String> entityTypes(JsonNode entitiesNode) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        if (!entitiesNode.isObject()) {
+            return ids;
+        }
+        Iterator<String> names = entitiesNode.fieldNames();
+        while (names.hasNext()) {
+            String id = names.next();
+            if (StringUtils.hasText(id)) {
+                ids.add(id.toLowerCase());
+            }
+        }
+        return ids;
+    }
+
     private Set<String> automationIds(ObjectNode automationRoot) {
         LinkedHashSet<String> ids = new LinkedHashSet<>();
         collectAutomationIds(automationRoot.path("triggers"), ids);
@@ -565,12 +617,52 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
     }
 
+    private void applyEntityContribution(ObjectNode entityRoot,
+                                         JsonNode entityContribution,
+                                         DeploymentMarketplacePluginInstallEntity install,
+                                         MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         Set<String> existingEntityTypes) {
+        if (!entityContribution.isObject()) {
+            return;
+        }
+        JsonNode entitiesNode = entityContribution.path("ai-entities");
+        if (!(entitiesNode instanceof ObjectNode contributedEntities)) {
+            return;
+        }
+        ObjectNode targetEntities = ensureObjectNode(entityRoot, "ai-entities");
+        Iterator<Map.Entry<String, JsonNode>> fields = contributedEntities.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String entityType = entry.getKey() == null ? "" : entry.getKey().trim();
+            if (!StringUtils.hasText(entityType)) {
+                continue;
+            }
+            if (!existingEntityTypes.add(entityType.toLowerCase())) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Marketplace entity type conflicts with an existing deployment entity type: " + entityType
+                );
+            }
+            ObjectNode compiled = ensureObject(entry.getValue());
+            applyMarketplaceProvenance(compiled, install, plugin, version);
+            targetEntities.set(entityType, compiled);
+        }
+    }
+
     private ObjectNode normalizeKnowledgeSourceRoot(JsonNode candidate) {
         ObjectNode root = ensureObject(candidate);
         if (!StringUtils.hasText(root.path("contractVersion").asText(""))) {
             root.put("contractVersion", DEFAULT_KNOWLEDGE_SOURCE_CONTRACT_VERSION);
         }
         ensureArray(root, "sources");
+        return root;
+    }
+
+    private ObjectNode normalizeEntityRoot(JsonNode candidate) {
+        ObjectNode root = ensureObject(candidate);
+        ensureObjectNode(root, "ai-config");
+        ensureObjectNode(root, "ai-entities");
         return root;
     }
 
@@ -609,6 +701,16 @@ public class DeploymentMarketplaceDraftCompilerService {
             return arrayNode;
         }
         ArrayNode created = objectMapper.createArrayNode();
+        parent.set(fieldName, created);
+        return created;
+    }
+
+    private ObjectNode ensureObjectNode(ObjectNode parent, String fieldName) {
+        JsonNode existing = parent.path(fieldName);
+        if (existing instanceof ObjectNode objectNode) {
+            return objectNode;
+        }
+        ObjectNode created = objectMapper.createObjectNode();
         parent.set(fieldName, created);
         return created;
     }

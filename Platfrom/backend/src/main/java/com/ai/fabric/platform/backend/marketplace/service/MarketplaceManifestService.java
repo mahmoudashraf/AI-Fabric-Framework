@@ -216,6 +216,7 @@ public class MarketplaceManifestService {
             }
             knowledgeSourceIds.add(sourceId.trim());
         }
+        validateEntityContribution(plugin, version, contributions.path("entityConfig"));
         JsonNode shell = contributions.path("shell");
         return new MarketplacePluginContributionSummary(
             null,
@@ -225,6 +226,36 @@ public class MarketplaceManifestService {
             readStringList(shell, "moduleRefs", "enabledModuleIds"),
             readStringList(shell, "cardRefs", "enabledCardIds")
         );
+    }
+
+    private void validateEntityContribution(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode entityContribution) {
+        if (entityContribution.isMissingNode() || entityContribution.isNull()) {
+            return;
+        }
+        if (!entityContribution.isObject()) {
+            throw invalid(plugin, version, "contributions.entityConfig must be an object when provided.");
+        }
+        JsonNode entities = entityContribution.path("ai-entities");
+        if (entities.isMissingNode() || entities.isNull()) {
+            return;
+        }
+        if (!entities.isObject()) {
+            throw invalid(plugin, version, "contributions.entityConfig.ai-entities must be an object when provided.");
+        }
+        if (entities.isEmpty()) {
+            throw invalid(plugin, version, "contributions.entityConfig.ai-entities must not be empty when provided.");
+        }
+        entities.fields().forEachRemaining(entry -> {
+            String entityType = entry.getKey() == null ? "" : entry.getKey().trim();
+            if (!StringUtils.hasText(entityType)) {
+                throw invalid(plugin, version, "entity contribution keys must be non-blank entity types.");
+            }
+            if (!entry.getValue().isObject()) {
+                throw invalid(plugin, version, "each contributions.entityConfig.ai-entities entry must be an object.");
+            }
+        });
     }
 
     private MarketplacePluginContributionSummary parseAutomationContribution(MarketplacePluginEntity plugin,

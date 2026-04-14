@@ -220,6 +220,7 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='send-email')].marketplaceInstallId", is(List.of(notificationInstallId))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='send-sms')].marketplaceInstallId", is(List.of(notificationInstallId))))
+            .andExpect(jsonPath("$.entityConfig['ai-entities']['faq-article'].marketplaceInstallId", is(helpCenterInstallId)))
             .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='help-center')].marketplaceInstallId", is(List.of(helpCenterInstallId))))
             .andExpect(jsonPath("$.automationConfig.workflows[?(@.id=='order-cancel-retention')].marketplaceInstallId", is(List.of(automationInstallId))))
             .andExpect(jsonPath("$.automationConfig.triggers[?(@.id=='order-cancel-requested')].eventType", is(List.of("order.cancel.requested"))))
@@ -341,6 +342,7 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-read')].marketplaceInstallId", is(List.of(actionInstall))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-cancel')].requiresConfirmation", is(List.of(true))))
+            .andExpect(jsonPath("$.entityConfig['ai-entities']['product'].marketplaceInstallId", is(dataInstall)))
             .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].handleRef", is(List.of("commerce-catalog"))))
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')].marketplaceInstallId", is(List.of(actionInstall))))
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='docs')].marketplaceInstallId", is(List.of(dataInstall))));
