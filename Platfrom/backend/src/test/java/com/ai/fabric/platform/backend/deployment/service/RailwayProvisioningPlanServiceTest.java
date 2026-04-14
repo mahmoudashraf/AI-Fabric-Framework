@@ -411,6 +411,7 @@ class RailwayProvisioningPlanServiceTest {
                 "${secret:AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}"
             )
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER", "shopify-app")
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS", "shopify-app,runtime-public-bootstrap")
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES", "storefront-chat")

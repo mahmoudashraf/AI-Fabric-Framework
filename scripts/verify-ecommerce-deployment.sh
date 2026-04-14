@@ -1135,10 +1135,12 @@ PLATFORM_LATEST_VERIFICATION_RUN_ID=""
 if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
   echo ""
   echo "== Health =="
-  http GET "${STORE_BASE_URL}/actuator/health"
-  assert_status 200 "store health"
-  json_assert "store health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
-  pass "store /actuator/health"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    http GET "${STORE_BASE_URL}/actuator/health"
+    assert_status 200 "store health"
+    json_assert "store health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
+    pass "store /actuator/health"
+  fi
 
   if [[ -n "${RUNTIME_BASE_URL}" ]]; then
     runtime_http GET "${RUNTIME_CONNECTOR_HEALTH_URL}"
@@ -1152,24 +1154,26 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     pass "runtime /actuator/health"
   fi
 
-  echo ""
-  echo "== Store Admin Endpoints (non-destructive) =="
-  http POST "${STORE_BASE_URL}/api/admin/demo/reset" '{"confirm": true, "clearConnectorData": false, "clearRuntimeVectors": false}'
-  if [[ "${HTTP_STATUS}" == "401" ]]; then
-    echo "WARN: store reset endpoint requires admin auth (set API_KEY / API_KEY_HEADER)."
-  else
-    assert_status 200 "store reset (skip)"
-    json_assert "store reset (skip)" $'assert (data or {}).get("success") is True\nprint("ok")'
-    pass "store POST /api/admin/demo/reset (skip mode)"
-  fi
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    echo ""
+    echo "== Store Admin Endpoints (non-destructive) =="
+    http POST "${STORE_BASE_URL}/api/admin/demo/reset" '{"confirm": true, "clearConnectorData": false, "clearRuntimeVectors": false}'
+    if [[ "${HTTP_STATUS}" == "401" ]]; then
+      echo "WARN: store reset endpoint requires admin auth (set API_KEY / API_KEY_HEADER)."
+    else
+      assert_status 200 "store reset (skip)"
+      json_assert "store reset (skip)" $'assert (data or {}).get("success") is True\nprint("ok")'
+      pass "store POST /api/admin/demo/reset (skip mode)"
+    fi
 
-  http POST "${STORE_BASE_URL}/api/admin/demo/clear" '{"confirm": false}'
-  if [[ "${HTTP_STATUS}" == "401" ]]; then
-    echo "WARN: store clear endpoint requires admin auth (set API_KEY / API_KEY_HEADER)."
-  else
-    # This is a "presence" check; the endpoint should refuse without confirm=true.
-    assert_status 400 "store clear (confirm required)"
-    pass "store POST /api/admin/demo/clear exists (confirm required)"
+    http POST "${STORE_BASE_URL}/api/admin/demo/clear" '{"confirm": false}'
+    if [[ "${HTTP_STATUS}" == "401" ]]; then
+      echo "WARN: store clear endpoint requires admin auth (set API_KEY / API_KEY_HEADER)."
+    else
+      # This is a "presence" check; the endpoint should refuse without confirm=true.
+      assert_status 400 "store clear (confirm required)"
+      pass "store POST /api/admin/demo/clear exists (confirm required)"
+    fi
   fi
 
   echo ""

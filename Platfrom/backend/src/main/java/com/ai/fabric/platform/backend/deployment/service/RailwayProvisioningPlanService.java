@@ -836,6 +836,16 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED",
             Boolean.toString(ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig))
         ));
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS",
+            effectiveCorsAllowedOrigins(securityConfig)
+        );
+    }
+
+    private String effectiveCorsAllowedOrigins(JsonNode securityConfig) {
+        String configured = text(securityConfig, "corsAllowedOrigins");
+        return configured.isEmpty() ? provisioningProperties.corsAllowedOrigins() : configured;
     }
 
     private void addConnectorProfileEnv(List<RailwayEnvVarSummary> connectorEnv,
