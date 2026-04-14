@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.DefaultResourceLoader;
 
@@ -24,9 +25,17 @@ class ConnectorActionCatalogLoaderTest {
 
         ConnectorActionDefinition action = actions.get(0);
         assertThat(action.name()).isEqualTo("create_purchase_order");
+        assertThat(action.displayName()).isEqualTo("Create Purchase Order");
         assertThat(action.accessMode()).isEqualTo(ActionAccessMode.WRITE_ONLY);
         assertThat(action.anonymousAllowed()).isTrue();
         assertThat(action.requiresConfirmation()).isTrue();
+        assertThat(action.groundingEligible()).isFalse();
+        assertThat(action.resultPresentationHint()).isEqualTo(ActionResultPresentationHint.STATUS);
+        assertThat(action.builtInModuleId()).isEqualTo("purchase-orders");
+        assertThat(action.builtInCardId()).isEqualTo("purchase-order-status");
+        assertThat(action.provenance()).isNotNull();
+        assertThat(action.provenance().getSourceType()).isEqualTo("ACTION_CATALOG");
+        assertThat(action.provenance().getPublisher()).isEqualTo("internal-test");
         assertThat(action.confirmationMessage()).contains("{{quantity}}").contains("{{sku}}");
         assertThat(action.params()).hasSize(2);
         assertThat(action.params().stream().anyMatch(p -> "sku".equals(p.name()) && p.required())).isTrue();

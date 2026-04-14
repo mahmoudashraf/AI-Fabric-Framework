@@ -1,7 +1,9 @@
 package com.ai.infrastructure.entity;
 
 import com.ai.infrastructure.intent.action.AIActionParamType;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.AIContributionProvenance;
 import com.ai.infrastructure.intent.action.connector.ConnectorActionDefinition;
 import com.ai.infrastructure.intent.action.connector.ConnectorActionParamDefinition;
 import org.junit.jupiter.api.Test;
@@ -16,6 +18,7 @@ class RegisteredConnectorActionMappingTest {
     void fromDefinition_toDefinition_roundTrips() {
         ConnectorActionDefinition definition = new ConnectorActionDefinition(
             "create_order",
+            "Create Order",
             "Create an order",
             "commerce",
             ActionAccessMode.WRITE_ONLY,
@@ -47,7 +50,17 @@ class RegisteredConnectorActionMappingTest {
                     false
                 )
             ),
-            true
+            true,
+            false,
+            ActionResultPresentationHint.STATUS,
+            "orders-module",
+            "order-status-card",
+            AIContributionProvenance.builder()
+                .contributionType("ACTION")
+                .sourceType("ACTION_CATALOG")
+                .sourceId("create_order")
+                .sourceLocation("classpath:test-actions.yml")
+                .build()
         );
 
         RegisteredConnectorAction entity = RegisteredConnectorAction.fromDefinition(definition);

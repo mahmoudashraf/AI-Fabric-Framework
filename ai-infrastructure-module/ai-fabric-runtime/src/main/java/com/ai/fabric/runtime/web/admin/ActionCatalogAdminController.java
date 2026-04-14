@@ -47,8 +47,17 @@ public class ActionCatalogAdminController {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", true);
+        body.put("contractVersion", "RUNTIME_ACTION_CATALOG_OVERVIEW_V2");
         body.put("count", actions.size());
         body.put("actions", actions);
+        body.put("groundingEligibleCount", actions.stream().filter(AIActionMetaData::isGroundingEligible).count());
+        body.put("withPresentationHintsCount", actions.stream()
+            .filter(action -> action.getResultPresentationHint() != null
+                && action.getResultPresentationHint() != com.ai.infrastructure.intent.action.ActionResultPresentationHint.DEFAULT)
+            .count());
+        body.put("withBuiltInModuleMappingsCount", actions.stream().filter(action -> StringUtils.hasText(action.getBuiltInModuleId())).count());
+        body.put("withBuiltInCardMappingsCount", actions.stream().filter(action -> StringUtils.hasText(action.getBuiltInCardId())).count());
+        body.put("withProvenanceCount", actions.stream().filter(action -> action.getProvenance() != null).count());
         ConfirmationInterceptorCatalogProvider provider = confirmationInterceptorCatalogProvider.getIfAvailable();
         body.put("confirmationInterceptorsCount", provider != null ? provider.getRules().size() : 0);
         body.put("confirmationInterceptorRuleNames", provider != null

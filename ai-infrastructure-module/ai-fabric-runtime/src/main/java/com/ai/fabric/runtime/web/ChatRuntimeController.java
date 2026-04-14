@@ -577,9 +577,16 @@ public class ChatRuntimeController {
             .map(a -> {
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("name", a.getName());
+                out.put("displayName", a.getDisplayName());
                 out.put("category", a.getCategory());
                 out.put("description", a.getDescription());
                 out.put("accessMode", a.getAccessMode() != null ? a.getAccessMode().name() : null);
+                out.put("confirmationRequired", a.isConfirmationRequired());
+                out.put("groundingEligible", a.isGroundingEligible());
+                out.put("sideEffectLevel", a.getSideEffectLevel() != null ? a.getSideEffectLevel().name() : null);
+                out.put("resultPresentationHint", a.getResultPresentationHint() != null ? a.getResultPresentationHint().name() : null);
+                out.put("builtInModuleId", a.getBuiltInModuleId());
+                out.put("builtInCardId", a.getBuiltInCardId());
                 out.put("requiredParameters", a.getRequiredParameters());
                 out.put("parameters", a.getParameters());
                 return out;

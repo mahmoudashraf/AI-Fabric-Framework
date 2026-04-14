@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.action.connector.registry.service;
 
 import com.ai.infrastructure.intent.action.AIActionParamType;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.connector.ConnectorActionDefinition;
 import com.ai.infrastructure.intent.action.connector.ConnectorActionParamDefinition;
@@ -18,13 +19,19 @@ class ConnectorActionDefinitionValidatorTest {
     void validate_rejectsMissingName() {
         ConnectorActionDefinition def = new ConnectorActionDefinition(
             null,
+            null,
             "desc",
             "cat",
             ActionAccessMode.READ,
             false,
             null,
             List.of(),
-            false
+            false,
+            true,
+            ActionResultPresentationHint.DEFAULT,
+            null,
+            null,
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -35,6 +42,7 @@ class ConnectorActionDefinitionValidatorTest {
     void validate_rejectsDuplicateParamNames() {
         ConnectorActionDefinition def = new ConnectorActionDefinition(
             "a",
+            "A",
             "desc",
             "cat",
             ActionAccessMode.READ,
@@ -44,7 +52,12 @@ class ConnectorActionDefinitionValidatorTest {
                 param("sku"),
                 param("SKU")
             ),
-            false
+            false,
+            true,
+            ActionResultPresentationHint.DEFAULT,
+            null,
+            null,
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -56,13 +69,19 @@ class ConnectorActionDefinitionValidatorTest {
     void validate_rejectsConfirmationTemplateUnknownPlaceholder() {
         ConnectorActionDefinition def = new ConnectorActionDefinition(
             "a",
+            "A",
             "desc",
             "cat",
             ActionAccessMode.WRITE_ONLY,
             true,
             "Create order for {{missing}}?",
             List.of(param("sku")),
-            false
+            false,
+            false,
+            ActionResultPresentationHint.STATUS,
+            null,
+            null,
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))

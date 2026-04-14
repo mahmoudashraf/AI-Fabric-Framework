@@ -19,6 +19,11 @@ import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.dto.VectorScanPage;
 import com.ai.infrastructure.dto.VectorScanRequest;
+import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.AIContributionProvenance;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
+import com.ai.infrastructure.intent.action.ActionSideEffectLevel;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
@@ -69,7 +74,27 @@ class RuntimeAdminOverviewControllerTest {
         authProperties.getPublicTokens().getBootstrap().setEnabled(true);
         authProperties.getPublicTokens().getBootstrap().getAllowedOrigins().add("https://storefront.example");
 
-        when(actionRegistry.getAllMetadata()).thenReturn(java.util.List.of());
+        when(actionRegistry.getAllMetadata()).thenReturn(java.util.List.of(
+            AIActionMetaData.builder()
+                .name("create_purchase_order")
+                .displayName("Create Purchase Order")
+                .category("commerce")
+                .description("Create a new purchase order")
+                .accessMode(ActionAccessMode.WRITE_ONLY)
+                .confirmationRequired(true)
+                .groundingEligible(false)
+                .sideEffectLevel(ActionSideEffectLevel.MUTATING)
+                .resultPresentationHint(ActionResultPresentationHint.STATUS)
+                .builtInModuleId("purchase-orders")
+                .builtInCardId("purchase-order-status")
+                .provenance(AIContributionProvenance.builder()
+                    .contributionType("ACTION")
+                    .sourceType("ACTION_CATALOG")
+                    .sourceId("create_purchase_order")
+                    .sourceLocation("classpath:test-actions.yml")
+                    .build())
+                .build()
+        ));
         when(entityConfigurationLoader.getSupportedEntityTypes()).thenReturn(Set.of("product", "policy", "review"));
         Map<String, Object> vectorScope = new LinkedHashMap<>();
         vectorScope.put("sharedStorage", true);
@@ -104,6 +129,12 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
         assertThat(body).containsEntry("supportsVectorScan", true);
+        assertThat(body).containsEntry("actionsCount", 1L);
+        assertThat(body).containsEntry("groundingEligibleActionsCount", 0L);
+        assertThat(body).containsEntry("actionsWithPresentationHintsCount", 1L);
+        assertThat(body).containsEntry("actionsWithBuiltInModuleMappingsCount", 1L);
+        assertThat(body).containsEntry("actionsWithBuiltInCardMappingsCount", 1L);
+        assertThat(body).containsEntry("actionsWithProvenanceCount", 1L);
         assertThat(body).containsEntry("confirmationInterceptorsCount", 1);
         assertThat(body.get("confirmationInterceptorRuleNames")).isEqualTo(List.of("cancel_to_retention_offer"));
         assertThat(body.get("confirmationInterceptorSources")).isEqualTo(List.of("classpath:test-actions.yml"));
@@ -120,6 +151,8 @@ class RuntimeAdminOverviewControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> marketplaceSupport = (Map<String, Object>) body.get("marketplaceSupport");
         assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        assertThat(marketplaceSupport).containsEntry("resolvedActionMetadataSupported", true);
+        assertThat(marketplaceSupport).containsEntry("actionMetadataContractVersion", "ACTION_METADATA_V2");
         assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", true);
         assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", true);
         assertThat(marketplaceSupport).containsEntry("knowledgeSourceContractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");

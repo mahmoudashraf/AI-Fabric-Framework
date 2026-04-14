@@ -61,6 +61,23 @@ public class RuntimeAdminOverviewController {
         long actionCount = actions.stream()
             .filter(action -> action != null && StringUtils.hasText(action.getName()))
             .count();
+        long groundingEligibleActionCount = actions.stream()
+            .filter(action -> action != null && action.isGroundingEligible())
+            .count();
+        long presentationHintedActionCount = actions.stream()
+            .filter(action -> action != null
+                && action.getResultPresentationHint() != null
+                && action.getResultPresentationHint() != com.ai.infrastructure.intent.action.ActionResultPresentationHint.DEFAULT)
+            .count();
+        long moduleMappedActionCount = actions.stream()
+            .filter(action -> action != null && StringUtils.hasText(action.getBuiltInModuleId()))
+            .count();
+        long cardMappedActionCount = actions.stream()
+            .filter(action -> action != null && StringUtils.hasText(action.getBuiltInCardId()))
+            .count();
+        long actionProvenanceCount = actions.stream()
+            .filter(action -> action != null && action.getProvenance() != null)
+            .count();
 
         Set<String> entityTypes = entityConfigurationLoader != null
             ? entityConfigurationLoader.getSupportedEntityTypes()
@@ -89,6 +106,11 @@ public class RuntimeAdminOverviewController {
         body.put("shellConfigLocation", shellConfigLocation);
         body.put("actionCatalogSources", sources);
         body.put("actionsCount", actionCount);
+        body.put("groundingEligibleActionsCount", groundingEligibleActionCount);
+        body.put("actionsWithPresentationHintsCount", presentationHintedActionCount);
+        body.put("actionsWithBuiltInModuleMappingsCount", moduleMappedActionCount);
+        body.put("actionsWithBuiltInCardMappingsCount", cardMappedActionCount);
+        body.put("actionsWithProvenanceCount", actionProvenanceCount);
         body.put("confirmationInterceptorsCount", confirmationProvider != null ? confirmationProvider.getRules().size() : 0);
         body.put("confirmationInterceptorRuleNames", confirmationProvider != null
             ? confirmationProvider.getRules().stream().map(rule -> rule != null ? rule.name() : null).filter(StringUtils::hasText).toList()
@@ -210,6 +232,8 @@ public class RuntimeAdminOverviewController {
         support.put("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
         support.put("resolvedKnowledgeSourcesSupported", knowledgeSourceConfigService != null);
         support.put("resolvedShellConfigSupported", shellConfigService != null);
+        support.put("resolvedActionMetadataSupported", true);
+        support.put("actionMetadataContractVersion", "ACTION_METADATA_V2");
         support.put(
             "knowledgeSourceContractVersion",
             knowledgeSourceConfigService != null

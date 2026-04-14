@@ -1,10 +1,22 @@
 actions:
   - name: create_purchase_order
+    displayName: "Create Purchase Order"
     description: "Create a purchase order"
     category: "test"
     accessMode: WRITE_ONLY
     requiresConfirmation: true
     anonymousAllowed: true
+    groundingEligible: false
+    resultPresentationHint: STATUS
+    builtInModuleId: purchase-orders
+    builtInCardId: purchase-order-status
+    provenance:
+      contributionType: ACTION
+      sourceType: ACTION_CATALOG
+      sourceId: create_purchase_order
+      sourceLocation: classpath:actions/valid-actions.yml
+      publisher: internal-test
+      version: v1
     confirmationMessage: "Create purchase order for {{quantity}} × {{sku}}?"
     params:
       - name: sku

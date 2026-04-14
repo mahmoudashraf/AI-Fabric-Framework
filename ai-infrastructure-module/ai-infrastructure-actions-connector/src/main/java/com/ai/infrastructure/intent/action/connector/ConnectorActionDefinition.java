@@ -1,6 +1,8 @@
 package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
+import com.ai.infrastructure.intent.action.AIContributionProvenance;
 
 import java.util.List;
 
@@ -12,13 +14,19 @@ import java.util.List;
  */
 public record ConnectorActionDefinition(
     String name,
+    String displayName,
     String description,
     String category,
     ActionAccessMode accessMode,
     boolean requiresConfirmation,
     String confirmationMessage,
     List<ConnectorActionParamDefinition> params,
-    boolean anonymousAllowed
+    boolean anonymousAllowed,
+    boolean groundingEligible,
+    ActionResultPresentationHint resultPresentationHint,
+    String builtInModuleId,
+    String builtInCardId,
+    AIContributionProvenance provenance
 ) {
     public ConnectorActionDefinition {
         params = params != null ? List.copyOf(params) : List.of();

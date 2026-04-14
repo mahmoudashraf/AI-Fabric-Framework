@@ -2,7 +2,9 @@ package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.intent.action.AIActionParamType;
+import com.ai.infrastructure.intent.action.AIContributionProvenance;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
@@ -41,6 +43,7 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_ACTIONS = "actions";
     private static final String KEY_CONFIRMATION_INTERCEPTORS = "confirmationInterceptors";
     private static final String KEY_NAME = "name";
+    private static final String KEY_DISPLAY_NAME = "displayName";
     private static final String KEY_DESCRIPTION = "description";
     private static final String KEY_CATEGORY = "category";
     private static final String KEY_ACCESS_MODE = "accessMode";
@@ -48,6 +51,11 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_CONFIRMATION_MESSAGE = "confirmationMessage";
     private static final String KEY_PARAMS = "params";
     private static final String KEY_ANONYMOUS_ALLOWED = "anonymousAllowed";
+    private static final String KEY_GROUNDING_ELIGIBLE = "groundingEligible";
+    private static final String KEY_RESULT_PRESENTATION_HINT = "resultPresentationHint";
+    private static final String KEY_BUILT_IN_MODULE_ID = "builtInModuleId";
+    private static final String KEY_BUILT_IN_CARD_ID = "builtInCardId";
+    private static final String KEY_PROVENANCE = "provenance";
 
     private static final String KEY_TYPE = "type";
     private static final String KEY_REQUIRED = "required";
@@ -208,6 +216,7 @@ public class ConnectorActionCatalogLoader {
             throw new IllegalStateException("Invalid action contract in " + label + ": action.name is required.");
         }
 
+        String displayName = readString(raw, KEY_DISPLAY_NAME);
         String description = readString(raw, KEY_DESCRIPTION);
         String category = readString(raw, KEY_CATEGORY);
 
@@ -217,6 +226,18 @@ public class ConnectorActionCatalogLoader {
         boolean requiresConfirmation = readBoolean(raw, KEY_REQUIRES_CONFIRMATION, false);
         String confirmationMessage = readString(raw, KEY_CONFIRMATION_MESSAGE);
         boolean anonymousAllowed = readBoolean(raw, KEY_ANONYMOUS_ALLOWED, false);
+        boolean groundingEligible = raw.containsKey(KEY_GROUNDING_ELIGIBLE)
+            ? readBoolean(raw, KEY_GROUNDING_ELIGIBLE, false)
+            : defaultGroundingEligible(accessMode);
+        ActionResultPresentationHint resultPresentationHint = parseResultPresentationHint(
+            readString(raw, KEY_RESULT_PRESENTATION_HINT),
+            accessMode,
+            label,
+            name
+        );
+        String builtInModuleId = readString(raw, KEY_BUILT_IN_MODULE_ID);
+        String builtInCardId = readString(raw, KEY_BUILT_IN_CARD_ID);
+        AIContributionProvenance provenance = parseProvenance(raw.get(KEY_PROVENANCE), label, name);
 
         List<ConnectorActionParamDefinition> params = parseParams(raw.get(KEY_PARAMS), label, name);
 
@@ -224,14 +245,89 @@ public class ConnectorActionCatalogLoader {
 
         return new ConnectorActionDefinition(
             name.trim(),
+            StringUtils.hasText(displayName) ? displayName.trim() : humanizeActionName(name),
             description,
             category,
             accessMode,
             requiresConfirmation,
             confirmationMessage,
             params,
-            anonymousAllowed
+            anonymousAllowed,
+            groundingEligible,
+            resultPresentationHint,
+            StringUtils.hasText(builtInModuleId) ? builtInModuleId.trim() : null,
+            StringUtils.hasText(builtInCardId) ? builtInCardId.trim() : null,
+            provenance
         );
+    }
+
+    private boolean defaultGroundingEligible(ActionAccessMode accessMode) {
+        return accessMode == ActionAccessMode.READ || accessMode == ActionAccessMode.READ_WRITE;
+    }
+
+    private ActionResultPresentationHint parseResultPresentationHint(String raw,
+                                                                     ActionAccessMode accessMode,
+                                                                     String label,
+                                                                     String actionName) {
+        if (!StringUtils.hasText(raw)) {
+            return accessMode == ActionAccessMode.WRITE_ONLY
+                ? ActionResultPresentationHint.STATUS
+                : ActionResultPresentationHint.DEFAULT;
+        }
+        try {
+            return ActionResultPresentationHint.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for action '" + actionName + "': unsupported resultPresentationHint '" + raw + "'.");
+        }
+    }
+
+    private AIContributionProvenance parseProvenance(Object raw, String label, String actionName) {
+        Map<String, Object> provenance = raw != null
+            ? readOptionalObjectMap(raw, label, "actions[" + actionName + "].provenance")
+            : Map.of();
+        return AIContributionProvenance.builder()
+            .contributionType(trimToNull(readString(provenance, "contributionType")) != null
+                ? trimToNull(readString(provenance, "contributionType"))
+                : "ACTION")
+            .sourceType(trimToNull(readString(provenance, "sourceType")) != null
+                ? trimToNull(readString(provenance, "sourceType"))
+                : "ACTION_CATALOG")
+            .sourceId(trimToNull(readString(provenance, "sourceId")) != null
+                ? trimToNull(readString(provenance, "sourceId"))
+                : actionName.trim())
+            .sourceLocation(trimToNull(readString(provenance, "sourceLocation")) != null
+                ? trimToNull(readString(provenance, "sourceLocation"))
+                : label)
+            .publisher(trimToNull(readString(provenance, "publisher")))
+            .version(trimToNull(readString(provenance, "version")))
+            .build();
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String humanizeActionName(String actionName) {
+        if (!StringUtils.hasText(actionName)) {
+            return null;
+        }
+        String[] parts = actionName.trim().split("[_\\-\\s]+");
+        StringBuilder out = new StringBuilder(actionName.length() + 8);
+        for (String part : parts) {
+            if (!StringUtils.hasText(part)) {
+                continue;
+            }
+            if (!out.isEmpty()) {
+                out.append(' ');
+            }
+            String normalized = part.trim().toLowerCase(Locale.ROOT);
+            out.append(Character.toUpperCase(normalized.charAt(0)));
+            if (normalized.length() > 1) {
+                out.append(normalized.substring(1));
+            }
+        }
+        return out.isEmpty() ? actionName.trim() : out.toString();
     }
 
     private ConfirmationInterceptorRule parseConfirmationInterceptor(Map<String, Object> raw, String label) {

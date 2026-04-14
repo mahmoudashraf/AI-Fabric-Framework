@@ -24,6 +24,8 @@ public class AIActionMetaData {
 
     private String name;
 
+    private String displayName;
+
     private String description;
 
     private String category;
@@ -40,6 +42,41 @@ public class AIActionMetaData {
      * must opt in per action via the action contract instead of relying on runtime hardcoded allowlists.</p>
      */
     private boolean anonymousAllowed;
+
+    /**
+     * Whether this action requires an explicit confirmation step before execution.
+     */
+    private boolean confirmationRequired;
+
+    /**
+     * Whether this action's result is eligible to ground answer generation.
+     */
+    private boolean groundingEligible;
+
+    /**
+     * Stable side-effect posture for shell and governance surfaces.
+     */
+    private ActionSideEffectLevel sideEffectLevel;
+
+    /**
+     * Advisory shell hint for rendering action outcomes.
+     */
+    private ActionResultPresentationHint resultPresentationHint;
+
+    /**
+     * Optional built-in shell module mapping for this action.
+     */
+    private String builtInModuleId;
+
+    /**
+     * Optional built-in shell card mapping for this action.
+     */
+    private String builtInCardId;
+
+    /**
+     * Resolved provenance metadata for this action capability.
+     */
+    private AIContributionProvenance provenance;
 
     @Builder.Default
     private Map<String, String> parameters = Collections.emptyMap();
