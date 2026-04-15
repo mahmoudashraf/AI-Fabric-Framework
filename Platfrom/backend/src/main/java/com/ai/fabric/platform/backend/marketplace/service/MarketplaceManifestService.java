@@ -28,15 +28,9 @@ public class MarketplaceManifestService {
 
     private static final Set<String> SUPPORTED_REQUIRED_CAPABILITIES = Set.of(
         "actions",
-        "automation",
         "knowledgesources",
         "shellconfig",
         "templates"
-    );
-    private static final Set<String> SUPPORTED_CAPABILITY_PROFILES = Set.of(
-        "SURFACE",
-        "POLICY_LOGIC",
-        "ANALYTICS_EVENT"
     );
     private static final Set<String> SUPPORTED_INSTALL_FIELD_TYPES = Set.of(
         "text",
@@ -119,21 +113,19 @@ public class MarketplaceManifestService {
             case "TEMPLATE" -> parseTemplateContribution(plugin, version, contributions);
             case "ACTION" -> parseActionContribution(plugin, version, contributions);
             case "DATA" -> parseDataContribution(plugin, version, contributions, datasets);
-            case "AUTOMATION" -> parseAutomationContribution(plugin, version, contributions);
             default -> throw invalid(plugin, version, "unsupported pluginType: " + expectedType);
         };
-        List<String> capabilityProfiles = parseCapabilityProfiles(plugin, version, manifest.path("capabilityProfiles"));
+        validateCapabilityProfiles(plugin, version, manifest.path("capabilityProfiles"));
         List<MarketplacePluginInstallFieldSummary> installForm = parseInstallForm(plugin, version, manifest.path("installForm"));
         List<String> recommendedPluginIds = parseRecommendedPluginIds(manifest);
         MarketplacePluginPricingSummary pricing = parsePricing(plugin, version, manifest.path("pricing"));
         MarketplacePluginPermissionsSummary permissions = parsePermissions(
             manifest.path("permissions"),
             expectedType,
-            capabilityProfiles,
             contributionSummary,
             installForm
         );
-        validatePermissions(plugin, version, permissions, capabilityProfiles, contributionSummary, recommendedPluginIds, installForm);
+        validatePermissions(plugin, version, permissions, contributionSummary, recommendedPluginIds, installForm);
 
         return new ParsedMarketplaceManifest(
             manifest,
@@ -142,7 +134,6 @@ public class MarketplaceManifestService {
             compatibility,
             installForm,
             permissions,
-            capabilityProfiles,
             recommendedPluginIds,
             pricing,
             datasets
@@ -161,7 +152,6 @@ public class MarketplaceManifestService {
         validateTemplateSecurityContribution(plugin, version, template.path("security"));
         return new MarketplacePluginContributionSummary(
             StringUtils.hasText(curatedModuleId) ? curatedModuleId : null,
-            List.of(),
             List.of(),
             List.of(),
             readStringList(shell, "enabledModuleIds", "moduleRefs"),
@@ -223,7 +213,6 @@ public class MarketplaceManifestService {
             null,
             List.copyOf(new LinkedHashSet<>(actionIds)),
             List.of(),
-            List.of(),
             readStringList(shell, "moduleRefs", "enabledModuleIds"),
             readStringList(shell, "cardRefs", "enabledCardIds")
         );
@@ -273,7 +262,6 @@ public class MarketplaceManifestService {
             null,
             List.of(),
             List.copyOf(new LinkedHashSet<>(knowledgeSourceIds)),
-            List.of(),
             readStringList(shell, "moduleRefs", "enabledModuleIds"),
             readStringList(shell, "cardRefs", "enabledCardIds")
         );
@@ -406,57 +394,6 @@ public class MarketplaceManifestService {
         });
     }
 
-    private MarketplacePluginContributionSummary parseAutomationContribution(MarketplacePluginEntity plugin,
-                                                                             MarketplacePluginVersionEntity version,
-                                                                             JsonNode contributions) {
-        JsonNode automation = contributions.path("automation");
-        if (!automation.isObject()) {
-            throw invalid(plugin, version, "automation plugins must declare contributions.automation.");
-        }
-
-        LinkedHashSet<String> automationIds = new LinkedHashSet<>();
-        collectContributionIds(plugin, version, automation.path("triggers"), "triggers", automationIds);
-        collectContributionIds(plugin, version, automation.path("actions"), "actions", automationIds);
-        collectContributionIds(plugin, version, automation.path("workflows"), "workflows", automationIds);
-        collectContributionIds(plugin, version, automation.path("schedules"), "schedules", automationIds);
-        if (automationIds.isEmpty()) {
-            throw invalid(plugin, version, "automation plugins must declare at least one automation contribution.");
-        }
-
-        JsonNode shell = contributions.path("shell");
-        return new MarketplacePluginContributionSummary(
-            null,
-            List.of(),
-            List.of(),
-            List.copyOf(automationIds),
-            readStringList(shell, "moduleRefs", "enabledModuleIds"),
-            readStringList(shell, "cardRefs", "enabledCardIds")
-        );
-    }
-
-    private void collectContributionIds(MarketplacePluginEntity plugin,
-                                        MarketplacePluginVersionEntity version,
-                                        JsonNode entries,
-                                        String fieldName,
-                                        LinkedHashSet<String> ids) {
-        if (entries.isMissingNode() || entries.isNull()) {
-            return;
-        }
-        if (!entries.isArray()) {
-            throw invalid(plugin, version, "automation." + fieldName + " must be an array when provided.");
-        }
-        for (JsonNode entry : entries) {
-            if (!entry.isObject()) {
-                throw invalid(plugin, version, "automation." + fieldName + " entries must be objects.");
-            }
-            String id = firstText(entry, "id");
-            if (!StringUtils.hasText(id)) {
-                throw invalid(plugin, version, "automation." + fieldName + " entries must declare id.");
-            }
-            ids.add(id.trim());
-        }
-    }
-
     private void validateRequiredCapabilities(MarketplacePluginEntity plugin,
                                               MarketplacePluginVersionEntity version,
                                               JsonNode requiredCapabilities) {
@@ -534,21 +471,21 @@ public class MarketplaceManifestService {
         return List.copyOf(fields);
     }
 
-    private List<String> parseCapabilityProfiles(MarketplacePluginEntity plugin,
-                                                 MarketplacePluginVersionEntity version,
-                                                 JsonNode capabilityProfilesNode) {
+    private void validateCapabilityProfiles(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode capabilityProfilesNode) {
         List<String> profiles = normalizeUppercaseValues(capabilityProfilesNode);
-        for (String profile : profiles) {
-            if (!SUPPORTED_CAPABILITY_PROFILES.contains(profile)) {
-                throw invalid(plugin, version, "manifest declares unsupported capability profile: " + profile);
-            }
+        if (!profiles.isEmpty()) {
+            throw invalid(
+                plugin,
+                version,
+                "manifest capabilityProfiles are no longer supported; compile only into runtime-backed contracts."
+            );
         }
-        return profiles;
     }
 
     private MarketplacePluginPermissionsSummary parsePermissions(JsonNode permissionsNode,
                                                                  String pluginType,
-                                                                 List<String> capabilityProfiles,
                                                                  MarketplacePluginContributionSummary contributions,
                                                                  List<MarketplacePluginInstallFieldSummary> installForm) {
         boolean hasShellPresentation = !contributions.shellModuleIds().isEmpty() || !contributions.shellCardIds().isEmpty();
@@ -559,11 +496,7 @@ public class MarketplaceManifestService {
             permissionsNode.path("contributesTemplate").asBoolean("TEMPLATE".equals(pluginType)),
             permissionsNode.path("contributesActions").asBoolean("ACTION".equals(pluginType)),
             permissionsNode.path("contributesKnowledgeSources").asBoolean("DATA".equals(pluginType)),
-            permissionsNode.path("contributesAutomation").asBoolean("AUTOMATION".equals(pluginType)),
             permissionsNode.path("contributesShellPresentation").asBoolean(hasShellPresentation),
-            permissionsNode.path("contributesSurfaceCapabilities").asBoolean(capabilityProfiles.contains("SURFACE")),
-            permissionsNode.path("contributesPolicyLogicCapabilities").asBoolean(capabilityProfiles.contains("POLICY_LOGIC")),
-            permissionsNode.path("contributesAnalyticsEventCapabilities").asBoolean(capabilityProfiles.contains("ANALYTICS_EVENT")),
             permissionsNode.path("requiresExternalHttpExecution").asBoolean(requiresExternalHttpExecution),
             permissionsNode.path("requiresSharedDatasetAccess").asBoolean(requiresSharedDatasetAccess),
             permissionsNode.path("requiresDeploymentSecrets").asBoolean(requiresDeploymentSecrets)
@@ -573,7 +506,6 @@ public class MarketplaceManifestService {
     private void validatePermissions(MarketplacePluginEntity plugin,
                                      MarketplacePluginVersionEntity version,
                                      MarketplacePluginPermissionsSummary permissions,
-                                     List<String> capabilityProfiles,
                                      MarketplacePluginContributionSummary contributions,
                                      List<String> recommendedPluginIds,
                                      List<MarketplacePluginInstallFieldSummary> installForm) {
@@ -586,21 +518,9 @@ public class MarketplaceManifestService {
         if (!contributions.knowledgeSourceIds().isEmpty() && !permissions.contributesKnowledgeSources()) {
             throw invalid(plugin, version, "knowledge source contributions require permissions.contributesKnowledgeSources=true.");
         }
-        if (!contributions.automationIds().isEmpty() && !permissions.contributesAutomation()) {
-            throw invalid(plugin, version, "automation contributions require permissions.contributesAutomation=true.");
-        }
         if ((!contributions.shellModuleIds().isEmpty() || !contributions.shellCardIds().isEmpty())
             && !permissions.contributesShellPresentation()) {
             throw invalid(plugin, version, "shell contributions require permissions.contributesShellPresentation=true.");
-        }
-        if (capabilityProfiles.contains("SURFACE") && !permissions.contributesSurfaceCapabilities()) {
-            throw invalid(plugin, version, "SURFACE capability profile requires permissions.contributesSurfaceCapabilities=true.");
-        }
-        if (capabilityProfiles.contains("POLICY_LOGIC") && !permissions.contributesPolicyLogicCapabilities()) {
-            throw invalid(plugin, version, "POLICY_LOGIC capability profile requires permissions.contributesPolicyLogicCapabilities=true.");
-        }
-        if (capabilityProfiles.contains("ANALYTICS_EVENT") && !permissions.contributesAnalyticsEventCapabilities()) {
-            throw invalid(plugin, version, "ANALYTICS_EVENT capability profile requires permissions.contributesAnalyticsEventCapabilities=true.");
         }
         boolean requiresDeploymentSecrets = installForm.stream().anyMatch(field -> "secretRef".equals(field.type()));
         if (requiresDeploymentSecrets && !permissions.requiresDeploymentSecrets()) {
@@ -809,7 +729,6 @@ public class MarketplaceManifestService {
         MarketplacePluginCompatibilitySummary compatibility,
         List<MarketplacePluginInstallFieldSummary> installForm,
         MarketplacePluginPermissionsSummary permissions,
-        List<String> capabilityProfiles,
         List<String> recommendedPluginIds,
         MarketplacePluginPricingSummary pricing,
         List<ParsedMarketplaceDatasetDefinition> datasets

@@ -4,9 +4,6 @@
   "version": "1.0.0",
   "pluginType": "DATA",
   "displayName": "Policy Folder Data",
-  "capabilityProfiles": [
-    "SURFACE"
-  ],
   "compatibility": {
     "minPlatformVersion": "0.1.0",
     "requiredCapabilities": [
@@ -34,7 +31,6 @@
   "permissions": {
     "contributesKnowledgeSources": true,
     "contributesShellPresentation": true,
-    "contributesSurfaceCapabilities": true,
     "requiresSharedDatasetAccess": true
   },
   "contributions": {

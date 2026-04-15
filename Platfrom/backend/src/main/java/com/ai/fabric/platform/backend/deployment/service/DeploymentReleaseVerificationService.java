@@ -258,7 +258,6 @@ public class DeploymentReleaseVerificationService {
         addArtifactPresenceCheck(checks, "entities_artifact_url_present", "Entities artifact URL", artifacts.entityArtifactUrl());
         addArtifactPresenceCheck(checks, "routing_artifact_url_present", "Routing artifact URL", artifacts.routingArtifactUrl());
         addArtifactPresenceCheck(checks, "prompt_artifact_url_present", "Prompt artifact URL", artifacts.promptArtifactUrl());
-        addArtifactPresenceCheck(checks, "automation_artifact_url_present", "Automation artifact URL", artifacts.automationArtifactUrl());
         addArtifactPresenceCheck(checks, "marketplace_dataset_artifact_url_present", "Marketplace dataset artifact URL", artifacts.marketplaceDatasetArtifactUrl());
         addArtifactPresenceCheck(checks, "manifest_artifact_url_present", "Manifest artifact URL", artifacts.manifestUrl());
 
@@ -266,7 +265,6 @@ public class DeploymentReleaseVerificationService {
         addArtifactFetchCheck(checks, "entities_artifact_fetch_probe", "Entities artifact", artifacts.entityArtifactUrl());
         addArtifactFetchCheck(checks, "routing_artifact_fetch_probe", "Routing artifact", artifacts.routingArtifactUrl());
         addArtifactFetchCheck(checks, "prompt_artifact_fetch_probe", "Prompt artifact", artifacts.promptArtifactUrl());
-        addArtifactFetchCheck(checks, "automation_artifact_fetch_probe", "Automation artifact", artifacts.automationArtifactUrl());
         addArtifactFetchCheck(checks, "marketplace_dataset_artifact_fetch_probe", "Marketplace dataset artifact", artifacts.marketplaceDatasetArtifactUrl());
         addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
 

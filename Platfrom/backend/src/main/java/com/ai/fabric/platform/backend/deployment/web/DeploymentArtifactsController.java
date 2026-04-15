@@ -97,17 +97,6 @@ public class DeploymentArtifactsController {
             .body(deploymentArtifactService.readShellArtifact(deploymentId, versionId, expires, signature));
     }
 
-    @GetMapping("/ai-automation-config.json")
-    public ResponseEntity<String> getAutomationArtifact(@PathVariable String deploymentId,
-                                                        @PathVariable String versionId,
-                                                        @RequestParam(name = "expires", required = false) Long expires,
-                                                        @RequestParam(name = "sig", required = false) String signature) {
-        return ResponseEntity.ok()
-            .contentType(MediaType.APPLICATION_JSON)
-            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"ai-automation-config.json\"")
-            .body(deploymentArtifactService.readAutomationArtifact(deploymentId, versionId, expires, signature));
-    }
-
     @GetMapping("/ai-marketplace-dataset-config.json")
     public ResponseEntity<String> getMarketplaceDatasetArtifact(@PathVariable String deploymentId,
                                                                 @PathVariable String versionId,

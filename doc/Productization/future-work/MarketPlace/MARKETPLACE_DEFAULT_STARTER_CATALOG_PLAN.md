@@ -1,47 +1,37 @@
 # Marketplace Default Starter Catalog Plan
 
-Status: implementation-oriented product seed plan (2026-04-14)
+Status: implementation-oriented seed plan (2026-04-15)
 
-This document defines the default first-party plugins that should be available to operators in a new marketplace-enabled platform environment.
+This document defines the default first-party plugins that should be available in a new marketplace-enabled platform installation.
 
-It is not a runtime/framework plan.
-It is a product seed plan for the catalog content that should ship by default.
+It is a product seed plan for the supported public marketplace types only:
 
-Related docs:
+- `TEMPLATE`
+- `ACTION`
+- `DATA`
 
-- `doc/Productization/future-work/MarketPlace/README.md`
-- `doc/Productization/future-work/MarketPlace/MARKETPLACE_CONTROL_PLANE_COMPOSITION_PLAN.md`
-- `doc/Productization/future-work/MarketPlace/PLUGIN_DEVELOPER_EXTENSIBILITY_IMPLEMENTATION_PLAN.md`
+Unsupported public surfaces that are not backed by runtime contracts are intentionally excluded.
 
 ---
 
 ## 1) Goals
 
-The default starter catalog should:
+The starter catalog should:
 
-- make the marketplace feel immediately useful on day 1
-- demonstrate each shipped first-class plugin type
-- show the three supported pricing models:
+- make the marketplace useful on day 1
+- demonstrate every supported public plugin type
+- show the supported pricing models:
   - `FREE`
   - `ONE_OFF`
   - `SUBSCRIPTION`
-- cover more than one vertical so the marketplace does not look commerce-only
-- stay small and opinionated instead of becoming a noisy sample gallery
-
-Recommended rule:
-
-- ship a tight first-party starter set first
-- add broader partner or third-party listings later
+- cover more than one vertical
+- stay small and opinionated
 
 ---
 
 ## 2) Recommended Default Starter Set
 
-Recommended default catalog size:
-
-- `7` first-party plugins in the initial visible starter set
-
-These should be:
+Recommended visible starter set:
 
 1. `mkp-template-commerce-shell`
 2. `mkp-action-shopify-admin`
@@ -49,14 +39,13 @@ These should be:
 4. `mkp-template-support-desk-shell`
 5. `mkp-data-help-center`
 6. `mkp-action-notifications`
-7. `mkp-automation-order-retention`
 
 Why this set:
 
-- it keeps the existing commerce path strong
-- it adds a second obvious business workflow: support operations
-- it adds one cross-domain utility plugin that many deployments can reuse
-- it includes a real automation example so every shipped first-class plugin type is visible by default
+- one strong commerce path
+- one strong support path
+- one cross-domain utility path
+- real examples for all supported public plugin types
 
 ---
 
@@ -83,13 +72,6 @@ Why this set:
   - recommended plugin ids:
     - `mkp-action-shopify-admin`
     - `mkp-data-commerce-catalog`
-- capability profiles:
-  - `SURFACE`
-
-Recommended product stance:
-
-- keep all first-party shell templates free
-- templates are the primary time-to-value path, so pricing them creates unnecessary friction
 
 ### 3.2 `mkp-action-shopify-admin`
 
@@ -101,21 +83,13 @@ Recommended product stance:
 - status:
   - already seeded
 - purpose:
-  - add real storefront/admin system actions to a commerce deployment
+  - add real commerce/admin actions to a deployment
 - baseline contributions:
   - `shopify-order-read`
   - `shopify-order-cancel`
 - install form:
   - `store` text
   - `apiKey` secret ref
-- capability profiles:
-  - `SURFACE`
-  - `POLICY_LOGIC`
-
-Recommended product stance:
-
-- action plugins that primarily use operator-owned credentials should default to `ONE_OFF`
-- this avoids making the platform look like it rents access to the user's own integration
 
 ### 3.3 `mkp-data-commerce-catalog`
 
@@ -136,18 +110,14 @@ Recommended product stance:
     - `docs`
     - `products`
     - `ai-search`
+  - dataset mode:
+    - plugin-owned logical dataset boundary
+    - tenant-shared reuse for installs of the same plugin
 - install form:
   - `scope` select:
     - `refund-policy`
     - `catalog`
     - `all`
-- capability profiles:
-  - `SURFACE`
-
-Recommended product stance:
-
-- shared first-party data that Loom operates and refreshes should default to `SUBSCRIPTION`
-- that aligns pricing with real ongoing hosting and maintenance cost
 
 ### 3.4 `mkp-template-support-desk-shell`
 
@@ -164,20 +134,12 @@ Recommended product stance:
     - `docs`
     - `actions`
     - `ai-search`
-    - `tickets`
+    - `support`
   - default conversation mode:
     - `guided-support`
   - recommended plugin ids:
     - `mkp-data-help-center`
     - `mkp-action-notifications`
-- capability profiles:
-  - `SURFACE`
-
-Recommended install target:
-
-- internal operator-facing deployments
-- support team copilots
-- customer support assistant deployments
 
 ### 3.5 `mkp-data-help-center`
 
@@ -196,25 +158,18 @@ Recommended install target:
     - plugin-owned tenant-shared dataset handle
   - launch ingestion mode:
     - packaged seed dataset
-  - follow-on supported ingestion modes:
+  - supported sync modes:
     - SQL sync connector
     - folder-of-files sync connector
   - shell modules:
     - `docs`
     - `ai-search`
+    - `support`
 - install form:
   - `scope` select:
     - `faq`
     - `policy`
     - `all`
-- capability profiles:
-  - `SURFACE`
-
-Recommended product stance:
-
-- keep one high-quality shared support knowledge plugin free by default
-- this gives non-technical users a strong zero-cost way to see data plugins working
-- the plugin should seed a real starter FAQ corpus on first activation so the install is immediately demonstrable
 
 ### 3.6 `mkp-action-notifications`
 
@@ -230,7 +185,6 @@ Recommended product stance:
 - baseline contributions:
   - `send-email`
   - `send-sms`
-  - `send-slack-message`
 - install form:
   - `provider` select:
     - `sendgrid`
@@ -238,43 +192,6 @@ Recommended product stance:
     - `slack`
   - `credentialSecretRef` secret ref
   - `defaultSender` text optional
-- capability profiles:
-  - `SURFACE`
-
-Recommended product stance:
-
-- this is the cross-domain utility plugin in the starter set
-- it should work with platform-approved outbound adapters only
-
-### 3.7 `mkp-automation-order-retention`
-
-- display name: `Order Retention Automation`
-- type: `AUTOMATION`
-- pricing:
-  - `FREE`
-- status:
-  - already seeded
-- purpose:
-  - provide a real workflow automation example that compiles into deployment automation config
-- baseline contributions:
-  - trigger:
-    - `order-cancel-requested`
-  - action:
-    - `offer-retention-discount`
-  - workflow:
-    - `order-cancel-retention`
-  - schedule:
-    - `retention-follow-up`
-- install form:
-  - `discountPercent` number
-  - `cooldownDays` number
-- capability profiles:
-  - `POLICY_LOGIC`
-
-Recommended product stance:
-
-- keep the first automation example free
-- it proves workflow compilation and governance without adding pricing friction to the starter catalog
 
 ---
 
@@ -288,16 +205,11 @@ Recommended starter-catalog pricing defaults:
   - default:
     - `ONE_OFF` when the operator supplies their own external credentials
   - exception:
-    - `SUBSCRIPTION` only when Loom or the publisher is absorbing real recurring infrastructure or proxy cost
+    - `SUBSCRIPTION` only when Loom or the publisher absorbs recurring proxy or infrastructure cost
 - `DATA`
   - default:
     - `SUBSCRIPTION` for Loom-maintained premium shared datasets
     - `FREE` for foundational public or low-cost shared datasets
-- `AUTOMATION`
-  - default:
-    - `FREE` for first-party workflow starters that exist to prove deployment-governed automation
-  - later:
-    - `ONE_OFF` or `SUBSCRIPTION` when automation packages include premium maintained workflow content or managed execution cost
 
 Recommended first-party pricing mix for the starter set:
 
@@ -305,14 +217,11 @@ Recommended first-party pricing mix for the starter set:
   - `mkp-template-commerce-shell`
   - `mkp-template-support-desk-shell`
   - `mkp-data-help-center`
-  - `mkp-automation-order-retention`
 - one-off:
   - `mkp-action-shopify-admin`
   - `mkp-action-notifications`
 - subscription:
   - `mkp-data-commerce-catalog`
-
-This gives the marketplace a visible range of business models without overcomplicating day-1 operator choice.
 
 ---
 
@@ -320,31 +229,24 @@ This gives the marketplace a visible range of business models without overcompli
 
 This set demonstrates the product clearly:
 
-- template plugin:
+- template plugins:
   - deployment bootstrap and shell defaults
-- action plugin:
+- action plugins:
   - external read and write integrations
-- data plugin:
+- data plugins:
   - shared retrieval with attribution
-- automation plugin:
-  - deployment-governed workflow compilation with triggers, actions, workflows, and schedules
+  - real dataset lifecycle and sync responsibility
 - multi-plugin composition:
-  - templates recommend action, data, and automation add-ons
+  - templates recommend action and data add-ons
 - cross-domain utility:
   - notifications are useful beyond commerce
 
-This also matches the real-world extension mix seen in systems like Shopify:
-
-- solution templates
-- integration actions
-- shared knowledge or catalog data
-- workflow automation
-
-But it stays inside this platform's stricter boundary:
+This keeps the marketplace inside the platform boundary:
 
 - no arbitrary frontend code
 - no arbitrary runtime code
-- no bypass of draft -> publish -> apply
+- no unsupported public automation engine
+- no bypass of `draft -> publish -> apply`
 
 ---
 
@@ -357,14 +259,14 @@ Recommended implementation order:
 - `mkp-template-commerce-shell`
 - `mkp-action-shopify-admin`
 - `mkp-data-commerce-catalog`
-- `mkp-automation-order-retention`
 
-### Seed B: Immediate next first-party defaults
+### Seed B: Immediate first-party defaults
 
 - `mkp-template-support-desk-shell`
 - `mkp-data-help-center`
 - `mkp-action-notifications`
-- Seed B is now implemented in the catalog seed set
+
+Seed B is now implemented in the catalog seed set.
 
 ---
 
@@ -372,15 +274,15 @@ Recommended implementation order:
 
 Default starter plugins should not be demo-only metadata.
 
-Recommended rollout rule:
+Required rollout rule:
 
-- every default starter plugin that depends on underlying infrastructure must have that infrastructure represented in the canonical rollout path
+- every default starter plugin that depends on backing infrastructure must have that infrastructure represented in the canonical rollout path
 
 For starter data plugins, this means:
 
 - the plugin remains a business-facing `DATA` plugin
-- the backing shared corpus lives on a real shared vector backend
-- the canonical marketplace rollout provisions that shared-storage-capable backend as part of rollout instead of assuming an operator created it manually beforehand
+- the backing corpus lives on a real shared vector backend
+- the canonical marketplace rollout provisions that shared-storage-capable backend as part of rollout instead of assuming an operator created it manually
 
 Recommended platform stance:
 
@@ -394,7 +296,7 @@ Concrete implication for the default data plugins:
   - should resolve into a real shared index or shared vector handle
   - should be validated against a rollout-owned shared backend
 - `mkp-data-help-center`
-  - should follow the same model once seeded
+  - should follow the same model with a real seeded starter corpus
 
 This makes a new platform installation reproducible:
 
@@ -406,7 +308,7 @@ This makes a new platform installation reproducible:
 
 ## 8) Suggested Manifest Shapes
 
-These are intentionally compact examples, not final migration payloads.
+These are compact examples, not final migration payloads.
 
 ### 8.1 `mkp-template-support-desk-shell`
 
@@ -420,9 +322,7 @@ pricing:
   pricingModel: FREE
 permissions:
   contributesTemplate: true
-  contributesSurfaceCapabilities: true
-capabilityProfiles:
-  - SURFACE
+  contributesShellPresentation: true
 contributions:
   template:
     curatedModuleId: support
@@ -434,7 +334,7 @@ contributions:
         - docs
         - ai-search
         - actions
-        - tickets
+        - support
       defaultConversationMode: guided-support
 ```
 
@@ -450,9 +350,8 @@ pricing:
   pricingModel: FREE
 permissions:
   contributesKnowledgeSources: true
-  contributesSurfaceCapabilities: true
-capabilityProfiles:
-  - SURFACE
+  contributesShellPresentation: true
+  requiresSharedDatasetAccess: true
 installForm:
   - id: scope
     type: select
@@ -462,14 +361,19 @@ installForm:
       - policy
       - all
 contributions:
+  datasets:
+    - datasetId: help-center-seed
+      entityType: faq-article
+      storageScope: PLUGIN_SCOPED
+      sharingScope: TENANT_SHARED
+      ingestionMode: PACKAGED_SEED
+      updateStrategy: UPSERT_BY_ID
+      seedDatasetRef: classpath:marketplace/datasets/help-center/help-center.jsonl
   knowledgeSources:
     - sourceType: shared-index
       sourceKey: help-center
+      datasetRef: help-center-seed
       attributionLabel: Help center marketplace data
-  shell:
-    moduleRefs:
-      - docs
-      - ai-search
 ```
 
 ### 8.3 `mkp-action-notifications`
@@ -486,11 +390,9 @@ pricing:
   currency: USD
 permissions:
   contributesActions: true
-  contributesSurfaceCapabilities: true
+  contributesShellPresentation: true
   requiresExternalHttpExecution: true
   requiresDeploymentSecrets: true
-capabilityProfiles:
-  - SURFACE
 installForm:
   - id: provider
     type: select
@@ -515,37 +417,4 @@ contributions:
       readOnly: false
       confirmationRequired: true
       adapterType: connector-http
-    - actionId: send-slack-message
-      readOnly: false
-      confirmationRequired: false
-      adapterType: connector-http
-  shell:
-    moduleRefs:
-      - actions
 ```
-
----
-
-## 9) What Should Wait
-
-Do not make these part of the default visible starter catalog yet:
-
-- payments plugins
-- third-party analytics or pixel plugins
-- unrestricted storefront or theme code plugins
-- policy-heavy plugins that require new function or rule execution surfaces
-
-Those are valid later categories, but they should not dilute the first starter catalog.
-
----
-
-## 10) Acceptance Criteria
-
-The starter catalog is ready when:
-
-- operators can see a small high-quality first-party set immediately after enabling marketplace
-- every shipped first-class plugin type has at least one visible first-party example
-- at least one free template, one paid action, one subscription data plugin, and one automation plugin are visible
-- each plugin type has a clear example with install-ready copy and configuration form
-- the starter plugins compose cleanly into deployment drafts and impact previews
-- the catalog looks intentional rather than like a raw developer demo

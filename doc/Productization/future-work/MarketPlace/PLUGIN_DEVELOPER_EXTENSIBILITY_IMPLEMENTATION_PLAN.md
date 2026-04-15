@@ -73,20 +73,11 @@ These rules keep third-party publishing compatible with:
 
 ## 3) Extension Surfaces
 
-The shipped baseline supports three first-class extension surfaces.
-
-The recommended default-mode target supports four first-class plugin types:
+The shipped and supported public baseline is:
 
 - `TEMPLATE`
 - `ACTION`
 - `DATA`
-- `AUTOMATION`
-
-In addition, some extension families should remain capability profiles rather than public arbitrary-code plugin types:
-
-- `SURFACE`
-- `POLICY_LOGIC`
-- `ANALYTICS_EVENT`
 
 ### 3.1 Template plugins
 
@@ -112,61 +103,7 @@ Data plugins define one or more declarative knowledge-source contributions.
 
 They should resolve into deployment-level knowledge source configuration and use approved retrieval adapters.
 
-### 3.4 Automation plugins
-
-Automation plugins should be the next first-class default-mode expansion after template, action, and data plugins.
-
-They should define declarative workflow contributions such as:
-
-- trigger definitions
-- callable workflow actions
-- workflow templates or playbooks
-- bounded event-subscription configuration
-
-They should resolve into platform-owned workflow and eventing surfaces.
-
-They should not define:
-
-- arbitrary worker code
-- arbitrary queue consumers
-- unrestricted schedulers
-- hidden background services outside platform governance
-
-### 3.5 Capability profiles
-
-Capability profiles should refine what a plugin contributes without creating new unrestricted plugin classes.
-
-#### `SURFACE`
-
-Use for bounded UI surface targeting:
-
-- admin or operator shell surfaces
-- customer-facing shell surfaces
-- storefront, checkout, account, or POS mappings
-
-#### `POLICY_LOGIC`
-
-Use for bounded server-side logic contracts:
-
-- validation rules
-- routing hints
-- pricing or eligibility logic
-- governance-aware decision hooks
-
-#### `ANALYTICS_EVENT`
-
-Use for bounded event and telemetry contracts:
-
-- event subscriptions
-- analytics sink wiring
-- reporting-oriented data capture
-
-Required rule:
-
-- these capability profiles must always compile into fixed platform-owned contracts
-- they are not a path to arbitrary code execution
-
-### 3.6 Future shell modules
+### 3.4 Future shell modules
 
 Future shell module extensibility is acceptable only through a fixed platform-owned registry.
 
@@ -215,7 +152,6 @@ Recommended fields:
 - `pluginId`
 - `version`
 - `type`
-- `capabilityProfiles` optional
 - `publisherId`
 - `displayName`
 - `description`
@@ -263,10 +199,6 @@ Recommended permission flags:
 - `contributesTemplate`
 - `contributesActions`
 - `contributesKnowledgeSources`
-- `contributesAutomation`
-- `contributesSurfaceCapabilities`
-- `contributesPolicyLogicCapabilities`
-- `contributesAnalyticsEventCapabilities`
 - `requiresExternalHttpExecution`
 - `requiresSharedDatasetAccess`
 - `requiresDeploymentSecrets`
@@ -292,7 +224,6 @@ Recommended contribution types:
 - `TemplateContribution`
 - `ActionContribution`
 - `KnowledgeSourceContribution`
-- `AutomationContribution`
 
 Recommended rule:
 

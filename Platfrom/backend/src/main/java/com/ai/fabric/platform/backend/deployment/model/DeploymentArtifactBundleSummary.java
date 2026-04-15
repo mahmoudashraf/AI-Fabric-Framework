@@ -11,7 +11,6 @@ public record DeploymentArtifactBundleSummary(
     String promptArtifactUrl,
     String knowledgeSourceArtifactUrl,
     String shellArtifactUrl,
-    String automationArtifactUrl,
     String marketplaceDatasetArtifactUrl,
     String manifestUrl
 ) {
@@ -36,7 +35,6 @@ public record DeploymentArtifactBundleSummary(
             null,
             null,
             null,
-            null,
             manifestUrl
         );
     }
@@ -63,36 +61,6 @@ public record DeploymentArtifactBundleSummary(
             promptArtifactUrl,
             knowledgeSourceArtifactUrl,
             shellArtifactUrl,
-            null,
-            null,
-            manifestUrl
-        );
-    }
-
-    public DeploymentArtifactBundleSummary(String deploymentId,
-                                           String deploymentVersionId,
-                                           String versionLabel,
-                                           String configHash,
-                                           String actionsArtifactUrl,
-                                           String entityArtifactUrl,
-                                           String routingArtifactUrl,
-                                           String promptArtifactUrl,
-                                           String knowledgeSourceArtifactUrl,
-                                           String shellArtifactUrl,
-                                           String automationArtifactUrl,
-                                           String manifestUrl) {
-        this(
-            deploymentId,
-            deploymentVersionId,
-            versionLabel,
-            configHash,
-            actionsArtifactUrl,
-            entityArtifactUrl,
-            routingArtifactUrl,
-            promptArtifactUrl,
-            knowledgeSourceArtifactUrl,
-            shellArtifactUrl,
-            automationArtifactUrl,
             null,
             manifestUrl
         );

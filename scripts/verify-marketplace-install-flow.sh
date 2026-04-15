@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Proves that:
 # - a template plugin can bootstrap a deployment
-# - action, data, and automation plugins can be installed onto that deployment
+# - action and data plugins can be installed onto that deployment
 # - entitlement activation compiles marketplace-managed contributions into the deployment draft
 # - packaged seed, SQL sync, and folder sync DATA plugins flow into deployment config
 # - the draft validates, publishes, applies, and reaches APPLIED_VERIFIED
@@ -30,7 +30,6 @@ ACTION_PLUGIN_ID="${ACTION_PLUGIN_ID:-mkp-action-notifications}"
 PACKAGED_DATA_PLUGIN_ID="${PACKAGED_DATA_PLUGIN_ID:-${DATA_PLUGIN_ID:-mkp-data-help-center}}"
 SQL_DATA_PLUGIN_ID="${SQL_DATA_PLUGIN_ID:-mkp-data-commerce-catalog}"
 FOLDER_DATA_PLUGIN_ID="${FOLDER_DATA_PLUGIN_ID:-mkp-data-policy-folder}"
-AUTOMATION_PLUGIN_ID="${AUTOMATION_PLUGIN_ID:-mkp-automation-order-retention}"
 FOLDER_DATA_PLUGIN_SLUG="${FOLDER_DATA_PLUGIN_SLUG:-policy-folder-data}"
 FIRST_PARTY_PUBLISHER_SLUG="${FIRST_PARTY_PUBLISHER_SLUG:-loom}"
 FIRST_PARTY_PUBLISHER_DISPLAY_NAME="${FIRST_PARTY_PUBLISHER_DISPLAY_NAME:-Loom AI}"
@@ -50,7 +49,6 @@ PACKAGED_DATA_PLUGIN_VERSION="${PACKAGED_DATA_PLUGIN_VERSION:-${DATA_PLUGIN_VERS
 SQL_DATA_PLUGIN_VERSION="${SQL_DATA_PLUGIN_VERSION:-1.0.0}"
 FOLDER_DATA_PLUGIN_VERSION="${FOLDER_DATA_PLUGIN_VERSION:-1.0.0}"
 TEMPLATE_PLUGIN_VERSION="${TEMPLATE_PLUGIN_VERSION:-1.0.0}"
-AUTOMATION_PLUGIN_VERSION="${AUTOMATION_PLUGIN_VERSION:-1.0.0}"
 
 ACTION_CONFIG_JSON="${ACTION_CONFIG_JSON:-{\"provider\":\"sendgrid\",\"defaultSender\":\"support@loom.test\"}}"
 ACTION_SECRET_REFS_JSON="${ACTION_SECRET_REFS_JSON:-{\"credentialSecretRef\":\"sec-sendgrid\"}}"
@@ -60,8 +58,6 @@ SQL_DATA_CONFIG_JSON="${SQL_DATA_CONFIG_JSON:-{\"scope\":\"all\"}}"
 SQL_DATA_SECRET_REFS_JSON="${SQL_DATA_SECRET_REFS_JSON:-{}}"
 FOLDER_DATA_CONFIG_JSON="${FOLDER_DATA_CONFIG_JSON:-{}}"
 FOLDER_DATA_SECRET_REFS_JSON="${FOLDER_DATA_SECRET_REFS_JSON:-{}}"
-AUTOMATION_CONFIG_JSON="${AUTOMATION_CONFIG_JSON:-{\"discountPercent\":10,\"cooldownDays\":7}}"
-AUTOMATION_SECRET_REFS_JSON="${AUTOMATION_SECRET_REFS_JSON:-{}}"
 
 PACKAGED_DATA_QUERY="${PACKAGED_DATA_QUERY:-How do I reset my password?}"
 FOLDER_DATA_QUERY="${FOLDER_DATA_QUERY:-What is the standard shipping target?}"
@@ -588,22 +584,6 @@ FOLDER_DATA_INSTALL_ID="$(extract_json_value 'result = (data or {}).get("id", ""
 json_assert "folder data plugin install" $'assert (data or {}).get("pluginType") == "DATA"\nassert (data or {}).get("readinessStatus") in {"READY", "ENTITLEMENT_REQUIRED"}\nprint("ok")'
 pass "folder data plugin installed as ${FOLDER_DATA_INSTALL_ID}"
 
-platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs" "$(python3 - <<'PY' "${AUTOMATION_PLUGIN_ID}" "${AUTOMATION_PLUGIN_VERSION}" "${AUTOMATION_CONFIG_JSON}" "${AUTOMATION_SECRET_REFS_JSON}"
-import json
-import sys
-print(json.dumps({
-    "pluginId": sys.argv[1],
-    "pluginVersion": sys.argv[2],
-    "config": json.loads(sys.argv[3]),
-    "secretRefs": json.loads(sys.argv[4]),
-}))
-PY
-)"
-assert_status 201 "automation plugin install"
-AUTOMATION_INSTALL_ID="$(extract_json_value 'result = (data or {}).get("id", "")')"
-json_assert "automation plugin install" $'assert (data or {}).get("pluginType") == "AUTOMATION"\nassert (data or {}).get("readinessStatus") in {"READY", "ENTITLEMENT_REQUIRED"}\nprint("ok")'
-pass "automation plugin installed as ${AUTOMATION_INSTALL_ID}"
-
 platform_request "PUT" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs/${ACTION_INSTALL_ID}/entitlement" '{"status":"ACTIVE"}'
 assert_status 200 "action plugin entitlement activation"
 json_assert "action plugin entitlement activation" $'assert ((data or {}).get("entitlement") or {}).get("status") == "ACTIVE"\nassert (data or {}).get("readinessStatus") == "READY"\nprint("ok")'
@@ -619,31 +599,29 @@ PACKAGED_DATA_INSTALL_ID_EXPECTED="${PACKAGED_DATA_INSTALL_ID}" \
 SQL_DATA_INSTALL_ID_EXPECTED="${SQL_DATA_INSTALL_ID}" \
 FOLDER_DATA_INSTALL_ID_EXPECTED="${FOLDER_DATA_INSTALL_ID}" \
 ACTION_INSTALL_ID_EXPECTED="${ACTION_INSTALL_ID}" \
-AUTOMATION_INSTALL_ID_EXPECTED="${AUTOMATION_INSTALL_ID}" \
-json_assert "deployment draft marketplace compilation" $'import os\ndraft = data or {}\nactions = ((draft.get("actionsConfig") or {}).get("actions") or [])\nentities = (((draft.get("entityConfig") or {}).get("ai-entities") or {}))\nsources = ((draft.get("knowledgeSourceConfig") or {}).get("sources") or [])\nautomation = (draft.get("automationConfig") or {})\ntriggers = automation.get("triggers") or []\nautomation_actions = automation.get("actions") or []\nworkflows = automation.get("workflows") or []\nschedules = automation.get("schedules") or []\nshell = draft.get("shellConfig") or {}\nmodules = shell.get("modules") or []\nstarter_prompts = shell.get("starterPrompts") or []\nprompt_config = draft.get("promptConfig") or {}\nsecurity = draft.get("securityConfig") or {}\ndatasets = ((draft.get("marketplaceDatasetConfig") or {}).get("datasets") or [])\npackaged_install_id = os.environ["PACKAGED_DATA_INSTALL_ID_EXPECTED"]\nsql_install_id = os.environ["SQL_DATA_INSTALL_ID_EXPECTED"]\nfolder_install_id = os.environ["FOLDER_DATA_INSTALL_ID_EXPECTED"]\naction_install_id = os.environ["ACTION_INSTALL_ID_EXPECTED"]\nautomation_install_id = os.environ["AUTOMATION_INSTALL_ID_EXPECTED"]\nassert any(item.get("name") == "send-email" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert any(item.get("name") == "send-sms" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert (entities.get("faq-article") or {}).get("marketplaceInstallId") == packaged_install_id, entities\nassert (entities.get("product") or {}).get("marketplaceInstallId") == sql_install_id, entities\nassert (entities.get("support-policy") or {}).get("marketplaceInstallId") == folder_install_id, entities\nassert any(item.get("id") == "help-center" and item.get("marketplaceInstallId") == packaged_install_id for item in sources), sources\nassert any(item.get("id") == "commerce-catalog" and item.get("marketplaceInstallId") == sql_install_id for item in sources), sources\nassert any(item.get("id") == "policy-folder" and item.get("marketplaceInstallId") == folder_install_id for item in sources), sources\nassert any(item.get("id") == "order-cancel-requested" and item.get("marketplaceInstallId") == automation_install_id for item in triggers), triggers\nassert any(item.get("id") == "offer-retention-discount" and item.get("actionRef") == "offer_order_discount" and item.get("marketplaceInstallId") == automation_install_id for item in automation_actions), automation_actions\nassert any(item.get("id") == "order-cancel-retention" and item.get("marketplaceInstallId") == automation_install_id for item in workflows), workflows\nassert any(item.get("id") == "retention-follow-up" and item.get("workflowRef") == "order-cancel-retention" and item.get("marketplaceInstallId") == automation_install_id for item in schedules), schedules\nmodule_ids = {item.get("id") for item in modules}\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(module_ids), modules\nassert shell.get("defaultConversationMode") == "guided-support", shell\nassert (shell.get("greeting") or {}).get("title") == "Support Desk", shell\nstarter_ids = {item.get("id") for item in starter_prompts}\nassert {"support-capabilities", "refund-policy", "notification-troubleshooting"}.issubset(starter_ids), starter_prompts\nassert prompt_config.get("intentExtractionPrompt", "").find("must not be classified as OUT_OF_SCOPE") != -1, prompt_config\nassert security.get("authzMode") == "ALLOW_VERIFIED", security\nif datasets:\n    assert any(item.get("marketplaceInstallId") == packaged_install_id and item.get("ingestionMode") == "PACKAGED_SEED" and (item.get("seedDatasetRef") or "").endswith("help-center.jsonl") for item in datasets), datasets\n    assert any(item.get("marketplaceInstallId") == sql_install_id and item.get("ingestionMode") == "EXTERNAL_SYNC_SQL" and ((item.get("syncConnector") or {}).get("connectionRef")) == "platform-marketplace-demo-sql" for item in datasets), datasets\n    assert any(item.get("marketplaceInstallId") == folder_install_id and item.get("ingestionMode") == "EXTERNAL_SYNC_FOLDER" and "policy-pack" in (((item.get("syncConnector") or {}).get("folderRef")) or "") for item in datasets), datasets\n    for install_id in [packaged_install_id, sql_install_id, folder_install_id]:\n        matches = [item for item in datasets if item.get("marketplaceInstallId") == install_id]\n        assert matches, {"missingInstallId": install_id, "datasets": datasets}\n        assert all(item.get("handleRef") for item in matches), matches\n        assert all(item.get("datasetHash") for item in matches), matches\nprint("ok")'
+json_assert "deployment draft marketplace compilation" $'import os\ndraft = data or {}\nactions = ((draft.get("actionsConfig") or {}).get("actions") or [])\nentities = (((draft.get("entityConfig") or {}).get("ai-entities") or {}))\nsources = ((draft.get("knowledgeSourceConfig") or {}).get("sources") or [])\nshell = draft.get("shellConfig") or {}\nmodules = shell.get("modules") or []\nstarter_prompts = shell.get("starterPrompts") or []\nprompt_config = draft.get("promptConfig") or {}\nsecurity = draft.get("securityConfig") or {}\ndatasets = ((draft.get("marketplaceDatasetConfig") or {}).get("datasets") or [])\npackaged_install_id = os.environ["PACKAGED_DATA_INSTALL_ID_EXPECTED"]\nsql_install_id = os.environ["SQL_DATA_INSTALL_ID_EXPECTED"]\nfolder_install_id = os.environ["FOLDER_DATA_INSTALL_ID_EXPECTED"]\naction_install_id = os.environ["ACTION_INSTALL_ID_EXPECTED"]\nassert any(item.get("name") == "send-email" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert any(item.get("name") == "send-sms" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert (entities.get("faq-article") or {}).get("marketplaceInstallId") == packaged_install_id, entities\nassert (entities.get("product") or {}).get("marketplaceInstallId") == sql_install_id, entities\nassert (entities.get("support-policy") or {}).get("marketplaceInstallId") == folder_install_id, entities\nassert any(item.get("id") == "help-center" and item.get("marketplaceInstallId") == packaged_install_id for item in sources), sources\nassert any(item.get("id") == "commerce-catalog" and item.get("marketplaceInstallId") == sql_install_id for item in sources), sources\nassert any(item.get("id") == "policy-folder" and item.get("marketplaceInstallId") == folder_install_id for item in sources), sources\nmodule_ids = {item.get("id") for item in modules}\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(module_ids), modules\nassert shell.get("defaultConversationMode") == "guided-support", shell\nassert (shell.get("greeting") or {}).get("title") == "Support Desk", shell\nstarter_ids = {item.get("id") for item in starter_prompts}\nassert {"support-capabilities", "refund-policy", "notification-troubleshooting"}.issubset(starter_ids), starter_prompts\nassert prompt_config.get("intentExtractionPrompt", "").find("must not be classified as OUT_OF_SCOPE") != -1, prompt_config\nassert security.get("authzMode") == "ALLOW_VERIFIED", security\nif datasets:\n    assert any(item.get("marketplaceInstallId") == packaged_install_id and item.get("ingestionMode") == "PACKAGED_SEED" and (item.get("seedDatasetRef") or "").endswith("help-center.jsonl") for item in datasets), datasets\n    assert any(item.get("marketplaceInstallId") == sql_install_id and item.get("ingestionMode") == "EXTERNAL_SYNC_SQL" and ((item.get("syncConnector") or {}).get("connectionRef")) == "platform-marketplace-demo-sql" for item in datasets), datasets\n    assert any(item.get("marketplaceInstallId") == folder_install_id and item.get("ingestionMode") == "EXTERNAL_SYNC_FOLDER" and "policy-pack" in (((item.get("syncConnector") or {}).get("folderRef")) or "") for item in datasets), datasets\n    for install_id in [packaged_install_id, sql_install_id, folder_install_id]:\n        matches = [item for item in datasets if item.get("marketplaceInstallId") == install_id]\n        assert matches, {"missingInstallId": install_id, "datasets": datasets}\n        assert all(item.get("handleRef") for item in matches), matches\n        assert all(item.get("datasetHash") for item in matches), matches\nprint("ok")'
 pass "deployment draft contains compiled marketplace contributions"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/marketplace-impact"
 assert_status 200 "deployment marketplace impact"
-json_assert "deployment marketplace impact" $'impact = data or {}\nassert int(impact.get("totalInstalls") or 0) >= 6, impact\nassert int(impact.get("actionPluginCount") or 0) >= 1, impact\nassert int(impact.get("dataPluginCount") or 0) >= 3, impact\nassert int(impact.get("templatePluginCount") or 0) >= 1, impact\nassert int(impact.get("automationPluginCount") or 0) >= 1, impact\nfor plugin_id in ["mkp-template-support-desk-shell", "mkp-action-notifications", "mkp-data-help-center", "mkp-data-commerce-catalog", "mkp-data-policy-folder", "mkp-automation-order-retention"]:\n  assert plugin_id in (impact.get("installedPluginIds") or []), impact\nfor action_id in ["send-email", "send-sms"]:\n  assert action_id in (impact.get("actionIds") or []), impact\nfor source_id in ["help-center", "commerce-catalog", "policy-folder"]:\n  assert source_id in (impact.get("knowledgeSourceIds") or []), impact\nassert "order-cancel-retention" in (impact.get("automationIds") or []), impact\nshell_ids = set(impact.get("shellModuleIds") or [])\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(shell_ids), impact\nprint("ok")'
-pass "impact preview reflects template, action, data, and automation contributions"
+json_assert "deployment marketplace impact" $'impact = data or {}\nassert int(impact.get("totalInstalls") or 0) >= 5, impact\nassert int(impact.get("actionPluginCount") or 0) >= 1, impact\nassert int(impact.get("dataPluginCount") or 0) >= 3, impact\nassert int(impact.get("templatePluginCount") or 0) >= 1, impact\nfor plugin_id in ["mkp-template-support-desk-shell", "mkp-action-notifications", "mkp-data-help-center", "mkp-data-commerce-catalog", "mkp-data-policy-folder"]:\n  assert plugin_id in (impact.get("installedPluginIds") or []), impact\nfor action_id in ["send-email", "send-sms"]:\n  assert action_id in (impact.get("actionIds") or []), impact\nfor source_id in ["help-center", "commerce-catalog", "policy-folder"]:\n  assert source_id in (impact.get("knowledgeSourceIds") or []), impact\nshell_ids = set(impact.get("shellModuleIds") or [])\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(shell_ids), impact\nprint("ok")'
+pass "impact preview reflects template, action, and data contributions"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs"
 assert_status 200 "deployment marketplace installs"
-json_assert "deployment marketplace installs" $'installs = data or []\ninstall_map = {item.get("pluginId"): item for item in installs if isinstance(item, dict)}\nassert install_map["mkp-template-support-desk-shell"]["status"] == "BOOTSTRAPPED", install_map\nassert install_map["mkp-action-notifications"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-help-center"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-commerce-catalog"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-policy-folder"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-automation-order-retention"]["readinessStatus"] == "READY", install_map\nassert ((install_map["mkp-action-notifications"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nassert ((install_map["mkp-data-commerce-catalog"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nprint("ok")'
+json_assert "deployment marketplace installs" $'installs = data or []\ninstall_map = {item.get("pluginId"): item for item in installs if isinstance(item, dict)}\nassert install_map["mkp-template-support-desk-shell"]["status"] == "BOOTSTRAPPED", install_map\nassert install_map["mkp-action-notifications"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-help-center"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-commerce-catalog"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-policy-folder"]["readinessStatus"] == "READY", install_map\nassert ((install_map["mkp-action-notifications"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nassert ((install_map["mkp-data-commerce-catalog"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nprint("ok")'
 pass "install records reflect active entitlements and compiled readiness"
 
 publish_active_draft
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/versions/${PUBLISHED_VERSION_ID}/artifacts"
 assert_status 200 "version artifacts bundle"
-json_assert "version artifacts bundle" $'bundle = data or {}\nassert bool(bundle.get("knowledgeSourceArtifactUrl")), bundle\nassert bool(bundle.get("shellArtifactUrl")), bundle\nassert bool(bundle.get("automationArtifactUrl")), bundle\nassert bool(bundle.get("manifestArtifactUrl") or bundle.get("manifestUrl")), bundle\nprint("ok")'
+json_assert "version artifacts bundle" $'bundle = data or {}\nassert bool(bundle.get("knowledgeSourceArtifactUrl")), bundle\nassert bool(bundle.get("shellArtifactUrl")), bundle\nassert bool(bundle.get("manifestArtifactUrl") or bundle.get("manifestUrl")), bundle\nprint("ok")'
 MARKETPLACE_DATASET_ARTIFACT_URL="$(extract_json_value 'result = (data or {}).get("marketplaceDatasetArtifactUrl", "")')"
 KNOWLEDGE_SOURCE_ARTIFACT_URL="$(extract_json_value 'result = (data or {}).get("knowledgeSourceArtifactUrl", "")')"
 SHELL_ARTIFACT_URL="$(extract_json_value 'result = (data or {}).get("shellArtifactUrl", "")')"
-AUTOMATION_ARTIFACT_URL="$(extract_json_value 'result = (data or {}).get("automationArtifactUrl", "")')"
 MANIFEST_ARTIFACT_URL="$(extract_json_value $'bundle = data or {}\nresult = bundle.get("manifestArtifactUrl") or bundle.get("manifestUrl") or ""')"
-pass "version artifacts include knowledge, shell, automation, and manifest outputs"
+pass "version artifacts include knowledge, shell, and manifest outputs"
 
 if [[ -n "${MARKETPLACE_DATASET_ARTIFACT_URL}" ]]; then
   public_request "${MARKETPLACE_DATASET_ARTIFACT_URL}"
@@ -659,13 +637,9 @@ public_request "${SHELL_ARTIFACT_URL}"
 assert_status 200 "shell artifact fetch"
 json_assert "shell artifact fetch" $'shell = data or {}\nmodule_ids = {item.get("id") for item in (shell.get("modules") or [])}\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(module_ids), shell\nassert (shell.get("greeting") or {}).get("title") == "Support Desk", shell\nprint("ok")'
 
-public_request "${AUTOMATION_ARTIFACT_URL}"
-assert_status 200 "automation artifact fetch"
-json_assert "automation artifact fetch" $'automation = data or {}\nassert any(item.get("id") == "order-cancel-retention" for item in (automation.get("workflows") or [])), automation\nassert any(item.get("id") == "offer-retention-discount" for item in (automation.get("actions") or [])), automation\nprint("ok")'
-
 public_request "${MANIFEST_ARTIFACT_URL}"
 assert_status 200 "manifest artifact fetch"
-json_assert "manifest artifact fetch" $'manifest = data or {}\nassert bool(manifest.get("marketplaceDatasetConfig")), manifest\nassert bool(manifest.get("knowledgeSourceConfig")), manifest\nassert bool(manifest.get("shellConfig")), manifest\nassert bool(manifest.get("automationConfig")), manifest\nprint("ok")'
+json_assert "manifest artifact fetch" $'manifest = data or {}\nassert bool(manifest.get("marketplaceDatasetConfig")), manifest\nassert bool(manifest.get("knowledgeSourceConfig")), manifest\nassert bool(manifest.get("shellConfig")), manifest\nprint("ok")'
 pass "published artifacts expose marketplace dataset outputs"
 
 apply_published_version
@@ -700,5 +674,4 @@ echo "Action install: ${ACTION_INSTALL_ID}"
 echo "Packaged data install: ${PACKAGED_DATA_INSTALL_ID}"
 echo "SQL data install: ${SQL_DATA_INSTALL_ID}"
 echo "Folder data install: ${FOLDER_DATA_INSTALL_ID}"
-echo "Automation install: ${AUTOMATION_INSTALL_ID}"
 pass "marketplace install flow live verification"

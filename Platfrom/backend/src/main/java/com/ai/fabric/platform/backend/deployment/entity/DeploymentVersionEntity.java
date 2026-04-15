@@ -15,8 +15,6 @@ public class DeploymentVersionEntity {
         "{\"contractVersion\":\"KNOWLEDGE_SOURCE_CONFIG_V1\",\"sources\":[]}";
     public static final String DEFAULT_SHELL_CONFIG_JSON =
         "{\"contractVersion\":\"SHELL_CONFIG_V1\",\"modules\":[],\"cards\":[]}";
-    public static final String DEFAULT_AUTOMATION_CONFIG_JSON =
-        "{\"contractVersion\":\"AUTOMATION_CONFIG_V1\",\"triggers\":[],\"actions\":[],\"workflows\":[],\"schedules\":[]}";
     public static final String DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON =
         "{\"contractVersion\":\"MARKETPLACE_DATASET_CONFIG_V1\",\"datasets\":[]}";
 
@@ -64,9 +62,6 @@ public class DeploymentVersionEntity {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String shellConfigJson = DEFAULT_SHELL_CONFIG_JSON;
-
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String automationConfigJson = DEFAULT_AUTOMATION_CONFIG_JSON;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String marketplaceDatasetConfigJson = DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON;
@@ -208,16 +203,6 @@ public class DeploymentVersionEntity {
 
     public void setShellConfigJson(String shellConfigJson) {
         this.shellConfigJson = shellConfigJson;
-    }
-
-    public String getAutomationConfigJson() {
-        return automationConfigJson == null
-            ? DEFAULT_AUTOMATION_CONFIG_JSON
-            : automationConfigJson;
-    }
-
-    public void setAutomationConfigJson(String automationConfigJson) {
-        this.automationConfigJson = automationConfigJson;
     }
 
     public String getMarketplaceDatasetConfigJson() {

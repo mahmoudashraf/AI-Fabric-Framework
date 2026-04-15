@@ -10,7 +10,6 @@ public record DeploymentMarketplaceInstallImpactSummary(
     String pluginVersion,
     List<String> actionIds,
     List<String> knowledgeSourceIds,
-    List<String> automationIds,
     List<String> shellModuleIds,
     List<String> shellCardIds
 ) {

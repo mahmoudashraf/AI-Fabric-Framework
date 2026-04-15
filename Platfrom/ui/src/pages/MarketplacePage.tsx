@@ -97,10 +97,10 @@ function pluginTypeColor(pluginType: string): 'primary' | 'secondary' | 'success
       return 'secondary'
     case 'ACTION':
       return 'primary'
-    case 'AUTOMATION':
-      return 'warning'
-    default:
+    case 'DATA':
       return 'success'
+    default:
+      return 'warning'
   }
 }
 
@@ -112,23 +112,8 @@ function categoryLabel(plugin: MarketplacePluginSummary): string {
       return 'Actions'
     case 'DATA':
       return 'Data'
-    case 'AUTOMATION':
-      return 'Automation'
     default:
       return plugin.pluginType
-  }
-}
-
-function capabilityProfileColor(profile: string): 'primary' | 'secondary' | 'success' | 'warning' | 'default' {
-  switch (profile) {
-    case 'SURFACE':
-      return 'primary'
-    case 'POLICY_LOGIC':
-      return 'warning'
-    case 'ANALYTICS_EVENT':
-      return 'secondary'
-    default:
-      return 'default'
   }
 }
 
@@ -240,7 +225,7 @@ export function MarketplacePage() {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [selectedType, setSelectedType] = useState<'ALL' | 'TEMPLATE' | 'ACTION' | 'DATA' | 'AUTOMATION'>('ALL')
+  const [selectedType, setSelectedType] = useState<'ALL' | 'TEMPLATE' | 'ACTION' | 'DATA'>('ALL')
   const [searchText, setSearchText] = useState('')
   const [selectedPluginId, setSelectedPluginId] = useState('')
   const [selectedVersion, setSelectedVersion] = useState('')
@@ -840,7 +825,7 @@ export function MarketplacePage() {
                       key={category.id}
                       label={`${category.label} (${category.pluginCount})`}
                       color={selectedType === category.id.toUpperCase() ? 'primary' : 'default'}
-                      onClick={() => setSelectedType(category.id.toUpperCase() as 'TEMPLATE' | 'ACTION' | 'DATA' | 'AUTOMATION')}
+                      onClick={() => setSelectedType(category.id.toUpperCase() as 'TEMPLATE' | 'ACTION' | 'DATA')}
                     />
                   ))}
                 </Stack>
@@ -877,19 +862,6 @@ export function MarketplacePage() {
                               <Typography variant="caption" color="text.secondary">
                                 {plugin.publisherDisplayName} · latest {plugin.latestVersion ?? '—'} · {pricingLabel(plugin.pricing)}
                               </Typography>
-                              {plugin.capabilityProfiles.length > 0 ? (
-                                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                                  {plugin.capabilityProfiles.map((profile) => (
-                                    <Chip
-                                      key={`${plugin.id}-${profile}`}
-                                      size="small"
-                                      label={profile}
-                                      color={capabilityProfileColor(profile)}
-                                      variant="outlined"
-                                    />
-                                  ))}
-                                </Stack>
-                              ) : null}
                             </Stack>
                           }
                         />
@@ -920,14 +892,6 @@ export function MarketplacePage() {
                           </Typography>
                           <Chip label={selectedPlugin.pluginType} color={pluginTypeColor(selectedPlugin.pluginType)} />
                           <Chip label={pricingLabel(selectedVersionSummary?.pricing ?? selectedPlugin.pricing)} variant="outlined" />
-                          {selectedVersionSummary?.capabilityProfiles.map((profile) => (
-                            <Chip
-                              key={`${selectedPlugin.id}-${profile}`}
-                              label={profile}
-                              color={capabilityProfileColor(profile)}
-                              variant="outlined"
-                            />
-                          )) ?? null}
                           {selectedInstall ? (
                             <Chip icon={<CheckCircleRoundedIcon />} label={`Installed · ${selectedInstall.status}`} color="success" variant="outlined" />
                           ) : null}
@@ -974,18 +938,6 @@ export function MarketplacePage() {
                             </Typography>
                             <Typography sx={{ mt: 0.75 }}>
                               {contributionList(selectedVersionSummary?.contributions.knowledgeSourceIds ?? [])}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Typography variant="subtitle2" color="text.secondary">
-                              Automation contributions
-                            </Typography>
-                            <Typography sx={{ mt: 0.75 }}>
-                              {contributionList(selectedVersionSummary?.contributions.automationIds ?? [])}
                             </Typography>
                           </CardContent>
                         </Card>
@@ -1189,7 +1141,7 @@ export function MarketplacePage() {
                       </Typography>
                     </Stack>
                     <Typography color="text.secondary">
-                      Action, data, and automation plugins compile into the target deployment draft. Save, publish, and apply are still required before they affect the live runtime.
+                      Action and data plugins compile into the target deployment draft. Save, publish, and apply are still required before they affect the live runtime.
                     </Typography>
                     {!targetDeploymentId ? (
                       <Alert severity="info">Choose a target deployment above to install or update this plugin.</Alert>
@@ -1444,7 +1396,6 @@ export function MarketplacePage() {
                             <Chip label={`${impactQuery.data.actionPluginCount} action plugins`} variant="outlined" />
                             <Chip label={`${impactQuery.data.dataPluginCount} data plugins`} variant="outlined" />
                             <Chip label={`${impactQuery.data.templatePluginCount} template plugins`} variant="outlined" />
-                            <Chip label={`${impactQuery.data.automationPluginCount} automation plugins`} variant="outlined" />
                           </Stack>
                           <Grid container spacing={2}>
                             <Grid item xs={12} md={6}>
@@ -1467,18 +1418,6 @@ export function MarketplacePage() {
                                   </Typography>
                                   <Typography sx={{ mt: 0.75 }}>
                                     {contributionList(impactQuery.data.knowledgeSourceIds)}
-                                  </Typography>
-                                </CardContent>
-                              </Card>
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                              <Card variant="outlined">
-                                <CardContent>
-                                  <Typography variant="subtitle2" color="text.secondary">
-                                    Automation ids
-                                  </Typography>
-                                  <Typography sx={{ mt: 0.75 }}>
-                                    {contributionList(impactQuery.data.automationIds)}
                                   </Typography>
                                 </CardContent>
                               </Card>

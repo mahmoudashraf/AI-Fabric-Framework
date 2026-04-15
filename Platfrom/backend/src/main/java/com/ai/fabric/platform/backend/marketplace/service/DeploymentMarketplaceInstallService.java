@@ -305,7 +305,6 @@ public class DeploymentMarketplaceInstallService {
         LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
         LinkedHashSet<String> actionIds = new LinkedHashSet<>();
         LinkedHashSet<String> knowledgeSourceIds = new LinkedHashSet<>();
-        LinkedHashSet<String> automationIds = new LinkedHashSet<>();
         LinkedHashSet<String> shellModuleIds = new LinkedHashSet<>();
         LinkedHashSet<String> shellCardIds = new LinkedHashSet<>();
         LinkedHashSet<String> recommendedPluginIds = new LinkedHashSet<>();
@@ -313,7 +312,6 @@ public class DeploymentMarketplaceInstallService {
         List<String> warnings = new ArrayList<>();
         int actionPluginCount = 0;
         int dataPluginCount = 0;
-        int automationPluginCount = 0;
         int templatePluginCount = 0;
 
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
@@ -333,14 +331,12 @@ public class DeploymentMarketplaceInstallService {
             pluginIds.add(plugin.getId());
             actionIds.addAll(contribution.actionIds());
             knowledgeSourceIds.addAll(contribution.knowledgeSourceIds());
-            automationIds.addAll(contribution.automationIds());
             shellModuleIds.addAll(contribution.shellModuleIds());
             shellCardIds.addAll(contribution.shellCardIds());
             recommendedPluginIds.addAll(parsed.recommendedPluginIds());
             switch (parsed.pluginType()) {
                 case "ACTION" -> actionPluginCount++;
                 case "DATA" -> dataPluginCount++;
-                case "AUTOMATION" -> automationPluginCount++;
                 case "TEMPLATE" -> {
                     templatePluginCount++;
                     if (!"BOOTSTRAPPED".equalsIgnoreCase(install.getStatus())) {
@@ -361,7 +357,6 @@ public class DeploymentMarketplaceInstallService {
                 version.getVersion(),
                 contribution.actionIds(),
                 contribution.knowledgeSourceIds(),
-                contribution.automationIds(),
                 contribution.shellModuleIds(),
                 contribution.shellCardIds()
             ));
@@ -372,12 +367,10 @@ public class DeploymentMarketplaceInstallService {
             installs.size(),
             actionPluginCount,
             dataPluginCount,
-            automationPluginCount,
             templatePluginCount,
             List.copyOf(pluginIds),
             List.copyOf(actionIds),
             List.copyOf(knowledgeSourceIds),
-            List.copyOf(automationIds),
             List.copyOf(shellModuleIds),
             List.copyOf(shellCardIds),
             List.copyOf(installImpacts),

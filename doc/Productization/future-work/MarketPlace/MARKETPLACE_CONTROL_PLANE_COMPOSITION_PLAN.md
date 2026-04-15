@@ -110,54 +110,34 @@ The shell should only know the resolved `shellConfig`, action presentation metad
 
 ## 3) Plugin Type Model
 
-Recommended distinction for default mode:
+Public marketplace plugin types must stay aligned with runtime-backed contracts.
 
-- public marketplace plugin types should be few and operator-legible
-- richer extension families should be modeled as bounded capability profiles layered onto those public types
-
-Current shipped public types:
+Current supported public types:
 
 - `TEMPLATE`
 - `ACTION`
 - `DATA`
 
-Recommended next public type:
-
-- `AUTOMATION`
-
-Recommended capability profiles:
-
-- `SURFACE`
-- `POLICY_LOGIC`
-- `ANALYTICS_EVENT`
-
-This is the closest fit to real extension ecosystems such as Shopify, which combine:
-
-- multiple UI surfaces
-- workflow automation
-- server-side logic
-- analytics or event integrations
-
-without requiring arbitrary plugin code execution in the core platform.
+Unsupported public marketplace surfaces that do not compile into runtime-backed contracts are being removed. They are not part of the forward implementation baseline.
 
 ### 3.1 Template plugins
 
 Template plugins are deployment bootstrap presets.
 
-They should not install into an existing live deployment. Instead they should:
+They should:
 
 - create a new deployment bootstrap request
 - resolve through the same backend seeding path as other deployment presets
 - produce a normal deployment draft
 - follow the normal publish and apply lifecycle afterward
 
-Template plugins are therefore closest to the advanced create flow, not to runtime extensibility.
+Template plugins are closest to the advanced create flow, not to runtime extensibility.
 
 ### 3.2 Action plugins
 
 Action plugins are declarative packages that contribute one or more actions to a deployment.
 
-They should resolve into the same existing action model already used by custom actions:
+They resolve into the same existing action model already used by custom actions:
 
 - action ids
 - descriptions
@@ -167,30 +147,29 @@ They should resolve into the same existing action model already used by custom a
 - confirmation policy
 - auth and connector references
 
-Recommended route rule:
+Route rule:
 
 - action plugins may contribute an inline action `route`
 - that route may use an absolute `url` or a relative `path`
 - the deployment compiler remains the source of truth for generating the effective routing artifact
-- explicit deployment routing overrides must still win over plugin-provided inline route defaults
+- explicit deployment routing overrides still win over plugin-provided inline route defaults
 
-The install record stores the marketplace-specific information.
+The install record stores marketplace-specific information.
 The deployment draft stores the resolved action behavior.
 
 ### 3.3 Data plugins
 
-Data plugins are declarative packages that contribute one or more read-only deployment-external knowledge sources to a deployment.
+Data plugins are declarative packages that contribute one or more deployment-external knowledge sources to a deployment.
 
 They should not add custom retrieval code into runtime.
 
-They should resolve into a deployment-level `knowledgeSourceConfig` contribution model that describes:
+They resolve into a deployment-level `knowledgeSourceConfig` contribution model that describes:
 
 - source identity
 - source type
 - attribution label
-- subscription or entitlement requirement
+- entitlement requirement
 - query scope filters
-- ranking hints
 - access policy
 - provider handle or plugin-owned shared collection reference
 
@@ -210,95 +189,15 @@ See:
 
 - `MARKETPLACE_DATA_PLUGIN_DATASET_PRODUCTIZATION_PLAN.md`
 
-The runtime should then read those bindings through a single search-source abstraction.
+### 3.4 Shell-facing contributions
 
-### 3.4 Automation plugins
-
-Automation plugins should be the next first-class default-mode plugin type after template, action, and data plugins.
-
-They should package workflow-oriented behavior such as:
-
-- triggers that emit approved workflow events
-- actions callable from platform-owned workflow runners
-- installable workflow templates or playbooks
-- bounded scheduling or event-subscription configuration
-
-They should not introduce:
-
-- arbitrary background services
-- arbitrary queue consumers
-- arbitrary in-process policy engines
-- direct runtime mutation outside standard deployment governance
-
-Recommended automation rule:
-
-- automation plugins compile into platform-owned workflow and eventing configuration surfaces
-- they may reference existing action contributions and data sources
-- they must remain observable, auditable, and governed through the same draft -> publish -> apply model
-
-### 3.5 Shell-facing contributions
-
-The marketplace should not introduce a separate public `SHELL` plugin type at this stage.
+The marketplace should not introduce a separate public `SHELL` plugin type.
 
 Instead:
 
-- template, action, and data plugins may emit internal `ShellContribution` fragments
+- template, action, and data plugins may emit internal shell contribution fragments
 - those fragments compile into deployment-level `shellConfig`
 - the shell renders only through fixed platform-owned module and component registries
-
-Recommended shell contribution uses:
-
-- branding baseline
-- enabled built-in modules
-- greeting and starter suggestions
-- action presentation hints
-- evidence attribution and presentation hints
-- mapping to built-in modules or built-in card styles
-
-### 3.6 Capability profiles
-
-Default mode should recognize some extension families as capability profiles instead of first-class plugin types.
-
-#### `SURFACE`
-
-Use this for bounded UI surface contributions such as:
-
-- admin or operator shell surfaces
-- customer-facing shell surfaces
-- checkout or transactional surfaces
-- account, storefront, or POS-oriented surface mappings
-
-Required rule:
-
-- plugins may target only fixed platform-owned module, card, and block registries
-- no arbitrary custom frontend code is loaded
-
-#### `POLICY_LOGIC`
-
-Use this for bounded server-side decision surfaces such as:
-
-- validation rules
-- routing hints
-- discount or eligibility logic
-- governance or approval-aware decision hooks
-
-Required rule:
-
-- these must compile into platform-owned rule or function contracts
-- no plugin can ship an unrestricted policy engine
-
-#### `ANALYTICS_EVENT`
-
-Use this for bounded telemetry and event contributions such as:
-
-- event subscriptions
-- conversion and engagement analytics
-- reporting-oriented sink configuration
-
-Required rule:
-
-- event and analytics contributions remain sandboxed, typed, and auditable
-- no arbitrary script injection or raw pixel execution model
 
 ---
 
@@ -310,8 +209,7 @@ Recommended core entities:
 
 - `MarketplacePlugin`
   - stable plugin id
-  - type: `TEMPLATE`, `ACTION`, `DATA`, `AUTOMATION`
-  - capability profiles: zero or more of `SURFACE`, `POLICY_LOGIC`, `ANALYTICS_EVENT`
+  - type: `TEMPLATE`, `ACTION`, `DATA`
   - publisher
   - category
   - listing metadata
