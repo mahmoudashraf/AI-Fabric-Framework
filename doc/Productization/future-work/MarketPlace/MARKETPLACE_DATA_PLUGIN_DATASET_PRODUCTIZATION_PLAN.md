@@ -1,6 +1,6 @@
 # Marketplace Data Plugin Dataset Productization Plan
 
-Status: implementation-baseline follow-on plan (2026-04-15)
+Status: implementation-baseline delivered on branch, pending deployed live proof refresh (2026-04-15)
 
 ## 1) Scope
 
@@ -22,18 +22,19 @@ This plan does not change the runtime boundary:
 
 ## 2) Problem Statement
 
-Current state is only partially productized:
+Current branch state:
 
 - `DATA` plugins can compile into `knowledgeSourceConfig`
 - runtime can query `deployment-private-vector` and `shared-index`
 - multi-source retrieval and attribution work
+- installed `DATA` plugins resolve into `marketplaceDatasetConfig`
+- apply now triggers dataset handle creation plus seed or sync before release verification
+- starter plugins such as `mkp-data-help-center`, `mkp-data-commerce-catalog`, and `mkp-data-policy-folder` can populate their own plugin-scoped tenant-shared dataset handles
+- repeated applies skip unchanged ready datasets
+- changed datasets reindex predictably with tracked-document cleanup
+- external SQL and folder-backed datasets now support scheduled resync on active verified deployments using the platform default cadence
 
-But the real data lifecycle is still missing:
-
-- installed `DATA` plugins do not automatically provision and populate their dataset
-- starter plugins such as `mkp-data-help-center` can load correctly but still return zero documents until the corpus is seeded
-
-That means the control-plane composition path is real, but the dataset product is incomplete.
+Remaining gap is operational proof after deploy, not the control-plane design.
 
 ---
 
@@ -372,13 +373,14 @@ Scope:
 
 - change detection
 - differential sync
-- scheduled sync policies
+- scheduled external resync with a platform default cadence
 - cleanup and retention rules
 
 Acceptance criteria:
 
 - repeated applies do not reseed unnecessarily
 - changed datasets reindex predictably
+- active verified deployments can resync external SQL or folder datasets without republishing
 
 ---
 
@@ -412,4 +414,8 @@ This plan tightens the `DATA` plugin model already described in:
 Interpretation rule:
 
 - `DATA` plugin config and runtime retrieval support are already implemented
-- dataset lifecycle, ingestion, and connector productization are the next required control-plane layer
+- dataset lifecycle, ingestion, and connector productization are implemented on this branch
+- live proof should validate:
+  - apply-time dataset seeding or sync
+  - `marketplace_dataset_sync_matches_expected`
+  - real retrieval from installed data-plugin sources after apply

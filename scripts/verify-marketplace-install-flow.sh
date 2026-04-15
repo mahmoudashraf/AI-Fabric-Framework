@@ -445,7 +445,7 @@ run_platform_poc_query() {
 assert_query_source() {
   local label="$1"
   local expected_source_id="$2"
-  json_assert "${label}" $'result = (data or {}).get("result") or {}\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nassert "'"${expected_source_id}"'" in source_ids, {"expectedSource": "'"${expected_source_id}"'", "actual": sorted([v for v in source_ids if v])}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nprint("ok")'
+  EXPECTED_SOURCE_ID="${expected_source_id}" json_assert "${label}" $'import os\nresult = (data or {}).get("result") or {}\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nexpected_source_id = os.environ["EXPECTED_SOURCE_ID"]\nassert expected_source_id in source_ids, {"expectedSource": expected_source_id, "actual": sorted([v for v in source_ids if v])}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nprint("ok")'
 }
 
 assert_multi_source_query() {
@@ -675,6 +675,11 @@ platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/releases"
 assert_status 200 "deployment releases final"
 RELEASE_ID_TARGET="${RELEASE_ID}" PUBLISHED_VERSION_TARGET="${PUBLISHED_VERSION_ID}" json_assert "deployment releases final" $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\npublished_version_id = os.environ["PUBLISHED_VERSION_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nassert release is not None, items\nassert release.get("status") == "APPLIED_VERIFIED", release\nassert release.get("verificationStatus") == "PASSED", release\nassert release.get("deploymentVersionId") == published_version_id, release\nprint("ok")'
 pass "published version is active and verified"
+
+platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/verification-runs"
+assert_status 200 "deployment verification runs"
+RELEASE_ID_TARGET="${RELEASE_ID}" json_assert "deployment verification runs" $'import os\nruns = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrun = next((item for item in runs if (item or {}).get("releaseId") == release_id and (item or {}).get("verificationType") == "POST_APPLY"), None)\nassert run is not None, runs\nassert run.get("status") == "PASSED", run\nchecks = run.get("checks") or []\ncheck_map = {item.get("key"): item for item in checks if isinstance(item, dict) and item.get("key")}\nassert check_map.get("marketplace_dataset_sync_matches_expected", {}).get("status") == "PASSED", check_map\nassert check_map.get("runtime_knowledge_sources_match_expected", {}).get("status") == "PASSED", check_map\nprint("ok")'
+pass "post-apply verification recorded marketplace dataset sync readiness"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/provider-connectivity"
 assert_status 200 "deployment provider connectivity"

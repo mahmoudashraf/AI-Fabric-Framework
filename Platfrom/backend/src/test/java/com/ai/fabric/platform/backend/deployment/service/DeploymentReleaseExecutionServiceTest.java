@@ -424,6 +424,7 @@ class DeploymentReleaseExecutionServiceTest {
         service.executeApply("dep-123", "ver-123", "rel-123");
 
         verify(deploymentProvisioningService).provision(any(), any(), any(), any());
+        verify(marketplaceDatasetSyncService).syncReleaseDatasets(deployment, version, release);
         assertThat(release.getStatus()).isEqualTo("APPLIED_VERIFIED");
         assertThat(deployment.getStatus()).isEqualTo("ACTIVE");
     }

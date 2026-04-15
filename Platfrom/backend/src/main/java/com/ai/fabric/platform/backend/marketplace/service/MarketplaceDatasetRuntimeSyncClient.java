@@ -66,6 +66,31 @@ public class MarketplaceDatasetRuntimeSyncClient {
         return succeeded;
     }
 
+    public int deleteDocuments(DeploymentEntity deployment,
+                               String entityType,
+                               String datasetId,
+                               String handleRef,
+                               String datasetHash,
+                               List<String> documentIds) {
+        if (documentIds == null || documentIds.isEmpty()) {
+            return 0;
+        }
+        int succeeded = 0;
+        int batchSize = 50;
+        for (int index = 0; index < documentIds.size(); index += batchSize) {
+            List<String> batch = documentIds.subList(index, Math.min(documentIds.size(), index + batchSize));
+            JsonNode response = postBatch(deployment, buildDeleteBatchBody(deployment, entityType, datasetId, handleRef, datasetHash, batch));
+            if (!response.path("success").asBoolean(false) || response.path("failedOperations").asInt(0) > 0) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Marketplace dataset delete failed for " + datasetId + ": " + response.path("message").asText("batch failure")
+                );
+            }
+            succeeded += response.path("succeededOperations").asInt(batch.size());
+        }
+        return succeeded;
+    }
+
     private JsonNode postBatch(DeploymentEntity deployment, JsonNode body) {
         String runtimeTrustedBackendApiKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
         if (!StringUtils.hasText(runtimeTrustedBackendApiKey)) {
@@ -129,6 +154,35 @@ public class MarketplaceDatasetRuntimeSyncClient {
             identity.put("sourceRecordId", document.id());
             identity.put("sourceRecordVersion", datasetHash);
             identity.put("contentFingerprint", document.contentFingerprint());
+        }
+        return root;
+    }
+
+    private ObjectNode buildDeleteBatchBody(DeploymentEntity deployment,
+                                            String entityType,
+                                            String datasetId,
+                                            String handleRef,
+                                            String datasetHash,
+                                            List<String> documentIds) {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode trace = root.putObject("trace");
+        trace.put("requestId", "marketplace-dataset-delete-" + datasetId + "-" + System.currentTimeMillis());
+        trace.set("authContext", buildVerifiedAuthContext(deployment));
+        ObjectNode traceMetadata = trace.putObject("metadata");
+        traceMetadata.put("deploymentId", deployment.getId());
+        traceMetadata.put("datasetId", datasetId);
+        traceMetadata.put("handleRef", handleRef);
+        traceMetadata.put("datasetHash", datasetHash);
+
+        ArrayNode operations = root.putArray("operations");
+        for (String documentId : documentIds) {
+            if (!StringUtils.hasText(documentId)) {
+                continue;
+            }
+            ObjectNode operation = operations.addObject();
+            operation.put("type", "DELETE");
+            operation.put("vectorSpace", entityType);
+            operation.put("id", documentId.trim());
         }
         return root;
     }

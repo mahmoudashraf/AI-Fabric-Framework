@@ -17,14 +17,16 @@ Current state:
   - template plugins
   - action plugins
   - data plugins
+  - data-plugin dataset lifecycle:
+    - apply-time seeding or sync
+    - plugin-scoped tenant-shared dataset handles
+    - SQL and folder-backed sync modes
+    - differential cleanup and scheduled external resync
   - inference-profile plugins that compile into deployment `providerConfig`
   - billing and entitlements
   - first external publisher workflow
 - unsupported public surfaces have been removed from the active marketplace baseline
 - remaining marketplace work is now:
-  - `DATA` plugin dataset lifecycle productization
-  - plugin-owned dataset handles and apply-time seeding or sync
-  - approved external sync connectors for `DATA` plugins such as SQL and folder-backed imports
   - payout and revenue-share business workflow
   - broader public data-plugin and open-ecosystem expansion
 

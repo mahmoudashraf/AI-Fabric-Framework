@@ -4,9 +4,11 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetDocumentEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetSyncRunEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginDatasetEntity;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetDocumentRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetHandleRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetSyncRunRepository;
@@ -24,14 +26,17 @@ import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class MarketplaceDatasetSyncService {
@@ -44,6 +49,7 @@ public class MarketplaceDatasetSyncService {
     private static final String CONNECTION_REF_PLATFORM_MARKETPLACE_DEMO_SQL = "platform-marketplace-demo-sql";
 
     private final MarketplaceDatasetHandleRepository datasetHandleRepository;
+    private final MarketplaceDatasetDocumentRepository datasetDocumentRepository;
     private final MarketplaceDatasetSyncRunRepository syncRunRepository;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplacePluginDatasetRepository pluginDatasetRepository;
@@ -53,6 +59,7 @@ public class MarketplaceDatasetSyncService {
     private final ResourcePatternResolver resourcePatternResolver;
 
     public MarketplaceDatasetSyncService(MarketplaceDatasetHandleRepository datasetHandleRepository,
+                                         MarketplaceDatasetDocumentRepository datasetDocumentRepository,
                                          MarketplaceDatasetSyncRunRepository syncRunRepository,
                                          DeploymentMarketplacePluginInstallRepository installRepository,
                                          MarketplacePluginDatasetRepository pluginDatasetRepository,
@@ -61,6 +68,7 @@ public class MarketplaceDatasetSyncService {
                                          JdbcTemplate jdbcTemplate,
                                          ResourcePatternResolver resourcePatternResolver) {
         this.datasetHandleRepository = datasetHandleRepository;
+        this.datasetDocumentRepository = datasetDocumentRepository;
         this.syncRunRepository = syncRunRepository;
         this.installRepository = installRepository;
         this.pluginDatasetRepository = pluginDatasetRepository;
@@ -74,12 +82,36 @@ public class MarketplaceDatasetSyncService {
     public DatasetSyncSummary syncReleaseDatasets(DeploymentEntity deployment,
                                                   DeploymentVersionEntity version,
                                                   DeploymentReleaseEntity release) {
+        return syncDatasets(deployment, version, release, SyncTrigger.APPLY, Duration.ZERO);
+    }
+
+    @Transactional
+    public DatasetSyncSummary syncScheduledDatasets(DeploymentEntity deployment,
+                                                    DeploymentVersionEntity version,
+                                                    DeploymentReleaseEntity release,
+                                                    Duration minimumInterval) {
+        return syncDatasets(
+            deployment,
+            version,
+            release,
+            SyncTrigger.SCHEDULED,
+            minimumInterval == null ? Duration.ofHours(1) : minimumInterval
+        );
+    }
+
+    private DatasetSyncSummary syncDatasets(DeploymentEntity deployment,
+                                            DeploymentVersionEntity version,
+                                            DeploymentReleaseEntity release,
+                                            SyncTrigger trigger,
+                                            Duration minimumInterval) {
         ObjectNode config = readObject(version.getMarketplaceDatasetConfigJson());
         ArrayNode datasets = config.path("datasets") instanceof ArrayNode array ? array : objectMapper.createArrayNode();
         if (datasets.isEmpty()) {
             return new DatasetSyncSummary(0, 0, 0, List.of());
         }
 
+        Instant evaluationTime = Instant.now();
+        int eligibleDatasets = 0;
         int synced = 0;
         int skipped = 0;
         List<String> syncedHandles = new ArrayList<>();
@@ -87,11 +119,15 @@ public class MarketplaceDatasetSyncService {
             if (!(datasetNode instanceof ObjectNode dataset)) {
                 continue;
             }
+            if (!shouldProcessDataset(deployment, dataset, trigger, minimumInterval, evaluationTime)) {
+                continue;
+            }
+            eligibleDatasets += 1;
             String handleRef = text(dataset, "handleRef");
             String datasetId = text(dataset, "datasetId");
             String status;
             try {
-                status = syncDataset(deployment, version, release, dataset);
+                status = syncDataset(deployment, version, release, dataset, trigger);
             } catch (RuntimeException ex) {
                 recordFailure(deployment, release, dataset, ex);
                 throw ex;
@@ -107,19 +143,21 @@ public class MarketplaceDatasetSyncService {
                 syncedHandles.add(datasetId);
             }
         }
-        return new DatasetSyncSummary(datasets.size(), synced, skipped, List.copyOf(syncedHandles));
+        return new DatasetSyncSummary(eligibleDatasets, synced, skipped, List.copyOf(syncedHandles));
     }
 
     private String syncDataset(DeploymentEntity deployment,
                                DeploymentVersionEntity version,
                                DeploymentReleaseEntity release,
-                               ObjectNode dataset) {
+                               ObjectNode dataset,
+                               SyncTrigger trigger) {
         String installId = requiredText(dataset, "marketplaceInstallId");
         String pluginId = requiredText(dataset, "marketplacePluginId");
         String datasetId = requiredText(dataset, "datasetId");
         String entityType = requiredText(dataset, "entityType");
         String handleRef = requiredText(dataset, "handleRef");
         String datasetHash = requiredText(dataset, "datasetHash");
+        String ingestionMode = requiredText(dataset, "ingestionMode");
 
         DeploymentMarketplacePluginInstallEntity install = installRepository.findById(installId)
             .orElseThrow(() -> new IllegalStateException("Marketplace dataset references unknown install: " + installId));
@@ -137,12 +175,19 @@ public class MarketplaceDatasetSyncService {
         handle.setHandleRef(handleRef);
         handle.setEntityType(entityType);
         handle.setUpdatedAt(Instant.now());
-        if (datasetHash.equals(handle.getDatasetHash()) && STATUS_READY.equalsIgnoreCase(handle.getStatus()) && handle.getLastSyncAt() != null) {
+        boolean unchangedReadyHandle = datasetHash.equals(handle.getDatasetHash())
+            && STATUS_READY.equalsIgnoreCase(handle.getStatus())
+            && handle.getLastSyncAt() != null;
+        boolean allowHashSkip = SyncTrigger.APPLY.equals(trigger) || !isExternalSyncIngestionMode(ingestionMode);
+        if (unchangedReadyHandle && allowHashSkip) {
             MarketplaceDatasetSyncRunEntity skippedRun = newRun(handle, deployment, release, dataset, "SKIPPED");
             skippedRun.setDocumentCount(0);
             skippedRun.setStartedAt(Instant.now());
             skippedRun.setCompletedAt(Instant.now());
-            skippedRun.setDetailsJson(writeJson(Map.of("reason", "dataset hash already synced")));
+            skippedRun.setDetailsJson(writeJson(Map.of(
+                "reason", "dataset hash already synced",
+                "trigger", trigger.name()
+            )));
             syncRunRepository.save(skippedRun);
             datasetHandleRepository.save(handle);
             return STATUS_SKIPPED;
@@ -158,6 +203,16 @@ public class MarketplaceDatasetSyncService {
         syncRunRepository.save(run);
 
         List<DatasetDocument> documents = loadDocuments(dataset);
+        Map<String, MarketplaceDatasetDocumentEntity> existingDocuments = datasetDocumentRepository
+            .findByDatasetHandleIdOrderByDocumentIdAsc(handle.getId())
+            .stream()
+            .filter(document -> StringUtils.hasText(document.getDocumentId()))
+            .collect(Collectors.toMap(
+                MarketplaceDatasetDocumentEntity::getDocumentId,
+                document -> document,
+                (left, right) -> right,
+                LinkedHashMap::new
+            ));
         int syncedDocuments = runtimeSyncClient.upsertDocuments(
             deployment,
             entityType,
@@ -166,6 +221,21 @@ public class MarketplaceDatasetSyncService {
             datasetHash,
             documents
         );
+        List<String> staleDocumentIds = existingDocuments.keySet().stream()
+            .filter(existingId -> documents.stream().noneMatch(document -> existingId.equals(document.id())))
+            .toList();
+        int deletedDocuments = 0;
+        if (!staleDocumentIds.isEmpty()) {
+            deletedDocuments = runtimeSyncClient.deleteDocuments(
+                deployment,
+                entityType,
+                datasetId,
+                handleRef,
+                datasetHash,
+                staleDocumentIds
+            );
+        }
+        persistTrackedDocuments(handle, entityType, datasetHash, documents, staleDocumentIds);
 
         handle.setStatus(STATUS_READY);
         handle.setLastSyncAt(Instant.now());
@@ -180,7 +250,9 @@ public class MarketplaceDatasetSyncService {
         run.setDetailsJson(writeJson(Map.of(
             "handleRef", handleRef,
             "entityType", entityType,
-            "documents", syncedDocuments
+            "documents", syncedDocuments,
+            "deletedDocuments", deletedDocuments,
+            "trigger", trigger.name()
         )));
         syncRunRepository.save(run);
         return STATUS_READY;
@@ -268,6 +340,55 @@ public class MarketplaceDatasetSyncService {
         return run;
     }
 
+    private void persistTrackedDocuments(MarketplaceDatasetHandleEntity handle,
+                                         String entityType,
+                                         String datasetHash,
+                                         List<DatasetDocument> documents,
+                                         List<String> staleDocumentIds) {
+        Instant now = Instant.now();
+        Map<String, MarketplaceDatasetDocumentEntity> existingDocuments = datasetDocumentRepository
+            .findByDatasetHandleIdOrderByDocumentIdAsc(handle.getId())
+            .stream()
+            .filter(document -> StringUtils.hasText(document.getDocumentId()))
+            .collect(Collectors.toMap(
+                MarketplaceDatasetDocumentEntity::getDocumentId,
+                document -> document,
+                (left, right) -> right,
+                LinkedHashMap::new
+            ));
+        List<MarketplaceDatasetDocumentEntity> tracked = new ArrayList<>();
+        for (DatasetDocument document : documents) {
+            if (!StringUtils.hasText(document.id())) {
+                continue;
+            }
+            MarketplaceDatasetDocumentEntity entity = existingDocuments.get(document.id());
+            if (entity == null) {
+                entity = new MarketplaceDatasetDocumentEntity();
+                entity.setId("mdd-" + UUID.randomUUID().toString().substring(0, 8));
+                entity.setDatasetHandleId(handle.getId());
+                entity.setDocumentId(document.id());
+                entity.setCreatedAt(now);
+            }
+            entity.setEntityType(entityType);
+            entity.setContentFingerprint(document.contentFingerprint());
+            entity.setDatasetHash(datasetHash);
+            entity.setMetadataJson(writeJson(document.metadata() == null ? Map.of() : document.metadata()));
+            entity.setLastSyncedAt(now);
+            entity.setUpdatedAt(now);
+            tracked.add(entity);
+        }
+        if (!tracked.isEmpty()) {
+            datasetDocumentRepository.saveAll(tracked);
+        }
+        LinkedHashSet<String> staleIds = new LinkedHashSet<>();
+        if (staleDocumentIds != null) {
+            staleIds.addAll(staleDocumentIds);
+        }
+        if (!staleIds.isEmpty()) {
+            datasetDocumentRepository.deleteByDatasetHandleIdAndDocumentIdIn(handle.getId(), staleIds);
+        }
+    }
+
     private List<DatasetDocument> loadDocuments(ObjectNode dataset) {
         String ingestionMode = requiredText(dataset, "ingestionMode");
         return switch (ingestionMode) {
@@ -276,6 +397,40 @@ public class MarketplaceDatasetSyncService {
             case "EXTERNAL_SYNC_FOLDER" -> loadFolderDocuments(dataset);
             default -> throw new IllegalStateException("Unsupported marketplace dataset ingestionMode: " + ingestionMode);
         };
+    }
+
+    private boolean shouldProcessDataset(DeploymentEntity deployment,
+                                         ObjectNode dataset,
+                                         SyncTrigger trigger,
+                                         Duration minimumInterval,
+                                         Instant evaluationTime) {
+        if (SyncTrigger.APPLY.equals(trigger)) {
+            return true;
+        }
+        String ingestionMode = requiredText(dataset, "ingestionMode");
+        if (!isExternalSyncIngestionMode(ingestionMode)) {
+            return false;
+        }
+        if (minimumInterval == null || minimumInterval.isZero() || minimumInterval.isNegative()) {
+            return true;
+        }
+        Optional<MarketplaceDatasetHandleEntity> existingHandle = datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId(
+            requiredText(dataset, "marketplacePluginId"),
+            deployment.getTenantId(),
+            requiredText(dataset, "datasetId")
+        );
+        if (existingHandle.isEmpty()) {
+            return true;
+        }
+        MarketplaceDatasetHandleEntity handle = existingHandle.get();
+        if (!STATUS_READY.equalsIgnoreCase(handle.getStatus()) || handle.getLastSyncAt() == null) {
+            return true;
+        }
+        return !handle.getLastSyncAt().isAfter(evaluationTime.minus(minimumInterval));
+    }
+
+    private boolean isExternalSyncIngestionMode(String ingestionMode) {
+        return "EXTERNAL_SYNC_SQL".equals(ingestionMode) || "EXTERNAL_SYNC_FOLDER".equals(ingestionMode);
     }
 
     private List<DatasetDocument> loadPackagedSeed(ObjectNode dataset) {
@@ -440,6 +595,11 @@ public class MarketplaceDatasetSyncService {
         int skippedDatasets,
         List<String> handleRefs
     ) {
+    }
+
+    private enum SyncTrigger {
+        APPLY,
+        SCHEDULED
     }
 
     public record DatasetDocument(
