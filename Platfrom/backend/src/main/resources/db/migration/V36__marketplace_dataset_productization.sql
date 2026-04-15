@@ -429,7 +429,8 @@ set manifest_json = '{
     review_notes = 'Seeded first-party marketplace folder data plugin.',
     bundle_sha256 = 'seeded-data-policy-folder-v1',
     published_at = current_timestamp
-where id = 'mkv-data-policy-folder-v1';
+where plugin_id = 'mkp-data-policy-folder'
+  and version = '1.0.0';
 
 insert into platform_marketplace_plugin_versions (
     id,
@@ -542,5 +543,6 @@ select
 where not exists (
     select 1
     from platform_marketplace_plugin_versions
-    where id = 'mkv-data-policy-folder-v1'
+    where plugin_id = 'mkp-data-policy-folder'
+      and version = '1.0.0'
 );
