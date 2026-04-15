@@ -156,6 +156,10 @@ class PlatformSecurityIntegrationTest {
             bundleResult.getResponse().getContentAsString(),
             "$.promptArtifactUrl"
         );
+        String signedMarketplaceDatasetArtifactUrl = com.jayway.jsonpath.JsonPath.read(
+            bundleResult.getResponse().getContentAsString(),
+            "$.marketplaceDatasetArtifactUrl"
+        );
         mockMvc.perform(get(
                 "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml",
                 deploymentId,
@@ -165,6 +169,13 @@ class PlatformSecurityIntegrationTest {
 
         mockMvc.perform(get(
                 "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-prompt-config.json",
+                deploymentId,
+                versionId
+            ))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get(
+                "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-marketplace-dataset-config.json",
                 deploymentId,
                 versionId
             ))
@@ -183,10 +194,20 @@ class PlatformSecurityIntegrationTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("systemPrompt")));
 
+        mockMvc.perform(get(
+                URI.create(signedMarketplaceDatasetArtifactUrl)
+            ))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("MARKETPLACE_DATASET_CONFIG_V1")));
+
         mockMvc.perform(get(URI.create(signedActionsArtifactUrl.replace("sig=", "sig=broken-"))))
             .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get(URI.create(signedPromptArtifactUrl.replace("sig=", "sig=broken-"))))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get(URI.create(signedMarketplaceDatasetArtifactUrl.replace("sig=", "sig=broken-"))))
             .andExpect(status().isUnauthorized());
     }
 
