@@ -106,3 +106,16 @@ If a conceptual marketplace or shell document conflicts with:
 - runtime-supported marketplace capability boundaries
 
 follow the implementation-baseline documents and the underlying platform and auth plans.
+
+---
+
+## 5) User And Developer Guides
+
+Operational and author-facing guides live in `Final_Documentation`:
+
+- `Final_Documentation/User_Guides/MARKETPLACE_ADMIN_USER_GUIDE.md`
+- `Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_AUTHOR_GUIDE.md`
+- `Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_MANIFEST_REFERENCE.md`
+- `Final_Documentation/Development_Guides/MARKETPLACE_DATA_PLUGIN_GUIDE.md`
+- `Final_Documentation/Development_Guides/MARKETPLACE_INFERENCE_PROFILE_GUIDE.md`
+- `Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_VERIFICATION_AND_TROUBLESHOOTING_GUIDE.md`

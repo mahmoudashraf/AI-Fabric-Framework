@@ -10,6 +10,7 @@ Companion guide:
 
 - `Final_Documentation/User_Guides/PLATFORM_USER_TYPES_GUIDE.md`
 - `Final_Documentation/User_Guides/PLATFORM_CONFIG_AND_SECRETS_MANAGEMENT_GUIDE.md`
+- `Final_Documentation/User_Guides/MARKETPLACE_ADMIN_USER_GUIDE.md`
 
 ---
 
@@ -76,7 +77,19 @@ Use this screen to manage:
 - connector route mappings
 - upstream/action execution behavior
 
-### 3.3 Knowledge
+### 3.3 Marketplace
+
+Use this global screen to:
+
+- bootstrap deployments from template plugins
+- install marketplace plugins onto a selected deployment
+- manage entitlement state
+- inspect plugin impact before publish/apply
+- manage publisher and submission workflow
+
+Marketplace is intentionally global, not a deployment-workspace page.
+
+### 3.4 Knowledge
 
 Use this screen to manage:
 
@@ -86,7 +99,7 @@ Use this screen to manage:
 - embeddable fields
 - metadata fields
 
-### 3.4 Providers
+### 3.5 Providers
 
 Use this screen to manage:
 
@@ -94,7 +107,7 @@ Use this screen to manage:
 - embedding model settings
 - vector strategy and related provider configuration
 
-### 3.5 Security
+### 3.6 Security
 
 Use this screen to manage:
 
@@ -104,14 +117,14 @@ Use this screen to manage:
 
 This is the only screen where secret mutation is allowed for Platform Admin.
 
-### 3.6 Verification
+### 3.7 Verification
 
 Use this screen to:
 
 - validate draft readiness before publish
 - review warnings/errors before rollout
 
-### 3.7 Revisions
+### 3.8 Revisions
 
 Use this screen to:
 
@@ -120,7 +133,7 @@ Use this screen to:
 - publish the current draft
 - apply a selected version
 
-### 3.8 Diagnostics
+### 3.9 Diagnostics
 
 Use this screen to:
 
@@ -144,6 +157,13 @@ Use this screen to:
 1. Open `Actions`, `Knowledge`, `Providers`, and `Security`.
 2. Update the active draft for the selected deployment.
 3. Save each section.
+
+If the deployment uses marketplace plugins:
+
+1. Open `Marketplace`.
+2. Select the target deployment.
+3. Install or update the plugin.
+4. Resolve the install before returning to deployment draft editing.
 
 ### 4.3 Validate And Publish
 
