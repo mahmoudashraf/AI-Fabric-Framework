@@ -3,14 +3,14 @@ set manifest_json = replace(
     replace(
         replace(
             replace(
-                replace(manifest_json, ',' || char(10) || '  }', char(10) || '  }'),
-                ',' || char(10) || '    }', char(10) || '    }'
+                replace(manifest_json, ',' || chr(10) || '  }', chr(10) || '  }'),
+                ',' || chr(10) || '    }', chr(10) || '    }'
             ),
-            ',' || char(10) || '      }', char(10) || '      }'
+            ',' || chr(10) || '      }', chr(10) || '      }'
         ),
-        ',' || char(10) || '        }', char(10) || '        }'
+        ',' || chr(10) || '        }', chr(10) || '        }'
     ),
-    ',' || char(10) || '          }', char(10) || '          }'
+    ',' || chr(10) || '          }', chr(10) || '          }'
 )
 where plugin_id in (
     'mkp-template-commerce-shell',
