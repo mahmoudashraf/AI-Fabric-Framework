@@ -49,23 +49,32 @@ import java.util.stream.Collectors;
 public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoCloseable {
 
     private static final String EMBEDDING_PAYLOAD_FIELD = "embedding";
+    private static final String KNOWLEDGE_SOURCE_HANDLE_REF_FIELD = "knowledgeSourceHandleRef";
     private static final Set<String> RESERVED_PAYLOAD_FIELDS = Set.of("entityType", "entityId", "content", EMBEDDING_PAYLOAD_FIELD);
+    private static final List<String> REQUIRED_KEYWORD_PAYLOAD_INDEX_FIELDS = List.of(KNOWLEDGE_SOURCE_HANDLE_REF_FIELD);
 
     private final AIProviderConfig.QdrantConfig config;
     private final VectorDatabaseConfig vectorDatabaseConfig;
     private final String collectionPrefix;
     private final QdrantClient qdrantClient;
     private final ConcurrentMap<String, Boolean> collectionCache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Boolean> payloadIndexCache = new ConcurrentHashMap<>();
 
     public QdrantVectorDatabaseService(AIProviderConfig providerConfig) {
         this(providerConfig, null);
     }
 
     public QdrantVectorDatabaseService(AIProviderConfig providerConfig, VectorDatabaseConfig vectorDatabaseConfig) {
+        this(providerConfig, vectorDatabaseConfig, createClient(providerConfig));
+    }
+
+    QdrantVectorDatabaseService(AIProviderConfig providerConfig,
+                                VectorDatabaseConfig vectorDatabaseConfig,
+                                QdrantClient qdrantClient) {
         this.config = Objects.requireNonNull(providerConfig.getQdrant(), "Qdrant configuration must be present");
         this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
         this.collectionPrefix = normalizeCollectionPrefix(this.config.getCollectionPrefix());
-        this.qdrantClient = new QdrantClient(buildGrpcClient(config));
+        this.qdrantClient = Objects.requireNonNull(qdrantClient, "Qdrant client must be present");
     }
 
     @Override
@@ -641,7 +650,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         }
     }
 
-    private QdrantGrpcClient buildGrpcClient(AIProviderConfig.QdrantConfig config) {
+    private static QdrantGrpcClient buildGrpcClient(AIProviderConfig.QdrantConfig config) {
         String rawHost = Optional.ofNullable(config.getHost()).orElse("localhost").trim();
         boolean tls = false;
         String host = rawHost;
@@ -676,16 +685,19 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     private void ensureCollection(String collection, Integer vectorSize) {
         if (collectionCache.containsKey(collection)) {
+            ensureRequiredPayloadIndexes(collection);
             return;
         }
 
         synchronized (collectionCache) {
             if (collectionCache.containsKey(collection)) {
+                ensureRequiredPayloadIndexes(collection);
                 return;
             }
 
             if (collectionExists(collection)) {
                 collectionCache.put(collection, Boolean.TRUE);
+                ensureRequiredPayloadIndexes(collection);
                 return;
             }
 
@@ -700,7 +712,50 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
             await(qdrantClient.createCollectionAsync(collection, vectorParams), "create collection");
             collectionCache.put(collection, Boolean.TRUE);
+            ensureRequiredPayloadIndexes(collection);
         }
+    }
+
+    private void ensureRequiredPayloadIndexes(String collection) {
+        for (String fieldName : REQUIRED_KEYWORD_PAYLOAD_INDEX_FIELDS) {
+            ensureKeywordPayloadIndex(collection, fieldName);
+        }
+    }
+
+    private void ensureKeywordPayloadIndex(String collection, String fieldName) {
+        String cacheKey = collection + "::" + fieldName;
+        if (payloadIndexCache.containsKey(cacheKey)) {
+            return;
+        }
+
+        synchronized (payloadIndexCache) {
+            if (payloadIndexCache.containsKey(cacheKey)) {
+                return;
+            }
+
+            if (!payloadSchemaExists(collection, fieldName)) {
+                await(
+                    qdrantClient.createPayloadIndexAsync(
+                        collection,
+                        fieldName,
+                        io.qdrant.client.grpc.Collections.PayloadSchemaType.Keyword,
+                        null,
+                        true,
+                        null,
+                        null
+                    ),
+                    "create payload index '" + fieldName + "' for collection " + collection
+                );
+            }
+
+            payloadIndexCache.put(cacheKey, Boolean.TRUE);
+        }
+    }
+
+    private boolean payloadSchemaExists(String collection, String fieldName) {
+        io.qdrant.client.grpc.Collections.CollectionInfo info =
+            await(qdrantClient.getCollectionInfoAsync(collection), "get collection info for " + collection);
+        return info != null && info.containsPayloadSchema(fieldName);
     }
 
     private boolean collectionExists(String collection) {
@@ -718,6 +773,12 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     private String buildVectorId(String entityType, String entityId) {
         String key = entityType + "::" + entityId;
         return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private static QdrantClient createClient(AIProviderConfig providerConfig) {
+        AIProviderConfig.QdrantConfig qdrantConfig =
+            Objects.requireNonNull(providerConfig.getQdrant(), "Qdrant configuration must be present");
+        return new QdrantClient(buildGrpcClient(qdrantConfig));
     }
 
     private UUID parseVectorUuid(String vectorId) {

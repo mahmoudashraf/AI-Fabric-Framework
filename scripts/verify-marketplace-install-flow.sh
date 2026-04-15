@@ -390,7 +390,11 @@ publish_active_draft() {
 
 apply_published_version() {
   platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/apply/${PUBLISHED_VERSION_ID}"
-  assert_status 200 "deployment version apply"
+  if [[ "${HTTP_STATUS}" != "200" && "${HTTP_STATUS}" != "201" ]]; then
+    echo "deployment version apply returned ${HTTP_STATUS}" >&2
+    cat "${HTTP_BODY_FILE}" >&2
+    exit 1
+  fi
   RELEASE_ID="$(extract_json_value 'result = (data or {}).get("id", "")')"
   if [[ -z "${RELEASE_ID}" ]]; then
     fail "Release id was empty when applying version ${PUBLISHED_VERSION_ID}."
@@ -409,10 +413,10 @@ wait_for_release_verification() {
   for _ in $(seq 1 "${attempts}"); do
     platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/releases"
     assert_status 200 "deployment releases poll"
-    status="$(extract_json_value $'items = data or []\nrelease = next((item for item in items if (item or {}).get("id") == "'"${RELEASE_ID}"'"), None)\nresult = "" if release is None else (release.get("status") or "")')"
-    verification_status="$(extract_json_value $'items = data or []\nrelease = next((item for item in items if (item or {}).get("id") == "'"${RELEASE_ID}"'"), None)\nresult = "" if release is None else (release.get("verificationStatus") or "")')"
-    current_step="$(extract_json_value $'items = data or []\nrelease = next((item for item in items if (item or {}).get("id") == "'"${RELEASE_ID}"'"), None)\nresult = "" if release is None else (release.get("currentStepKey") or "")')"
-    error_message="$(extract_json_value $'items = data or []\nrelease = next((item for item in items if (item or {}).get("id") == "'"${RELEASE_ID}"'"), None)\nresult = "" if release is None else (release.get("errorMessage") or "")')"
+    status="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("status") or "")')"
+    verification_status="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("verificationStatus") or "")')"
+    current_step="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("currentStepKey") or "")')"
+    error_message="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("errorMessage") or "")')"
 
     if [[ "${status}" == "APPLIED_VERIFIED" && "${verification_status}" == "PASSED" ]]; then
       pass "release ${RELEASE_ID} reached APPLIED_VERIFIED"
@@ -653,7 +657,7 @@ fi
 
 public_request "${KNOWLEDGE_SOURCE_ARTIFACT_URL}"
 assert_status 200 "knowledge source artifact fetch"
-json_assert "knowledge source artifact fetch" $'sources = ((data or {}).get("sources") or [])\nids = {item.get("id") for item in sources if isinstance(item, dict)}\nassert ids == {"help-center", "commerce-catalog", "policy-folder"}, ids\nfor item in sources:\n  assert item.get("sourceType") == "shared-index", item\n  assert item.get("handleRef", "").startswith("plugin/"), item\nprint("ok")'
+json_assert "knowledge source artifact fetch" $'sources = ((data or {}).get("sources") or [])\nids = {item.get("id") for item in sources if isinstance(item, dict)}\nassert ids == {"help-center", "commerce-catalog", "policy-folder"}, ids\nfor item in sources:\n  source_type = item.get("type") or item.get("sourceType")\n  assert source_type == "shared-index", item\n  assert item.get("handleRef", "").startswith("plugin/"), item\nprint("ok")'
 
 public_request "${SHELL_ARTIFACT_URL}"
 assert_status 200 "shell artifact fetch"
@@ -669,12 +673,12 @@ wait_for_release_verification
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/releases"
 assert_status 200 "deployment releases final"
-json_assert "deployment releases final" $'items = data or []\nrelease = next((item for item in items if (item or {}).get("id") == "'"${RELEASE_ID}"'"), None)\nassert release is not None, items\nassert release.get("status") == "APPLIED_VERIFIED", release\nassert release.get("verificationStatus") == "PASSED", release\nassert release.get("deploymentVersionId") == "'"${PUBLISHED_VERSION_ID}"'", release\nprint("ok")'
+RELEASE_ID_TARGET="${RELEASE_ID}" PUBLISHED_VERSION_TARGET="${PUBLISHED_VERSION_ID}" json_assert "deployment releases final" $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\npublished_version_id = os.environ["PUBLISHED_VERSION_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nassert release is not None, items\nassert release.get("status") == "APPLIED_VERIFIED", release\nassert release.get("verificationStatus") == "PASSED", release\nassert release.get("deploymentVersionId") == published_version_id, release\nprint("ok")'
 pass "published version is active and verified"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/provider-connectivity"
 assert_status 200 "deployment provider connectivity"
-json_assert "deployment provider connectivity" $'probes = (data or {}).get("probes") or []\nprobe_map = {item.get("key"): item for item in probes if isinstance(item, dict) and item.get("key")}\nassert "generation_inference_endpoint" in probe_map, probe_map\nassert "embedding_inference_endpoint" in probe_map, probe_map\nassert probe_map["generation_inference_endpoint"].get("status") == "READY", probe_map\nassert probe_map["embedding_inference_endpoint"].get("status") == "READY", probe_map\nif "orchestration_inference_endpoint" in probe_map:\n    assert probe_map["orchestration_inference_endpoint"].get("status") == "READY", probe_map\nsummary = (data or {}).get("summary") or ""\nassert summary, data\nprint("ok")'
+json_assert "deployment provider connectivity" $'probes = (data or {}).get("probes") or []\nprobe_map = {item.get("key"): item for item in probes if isinstance(item, dict) and item.get("key")}\nassert "generation_inference_endpoint" in probe_map, probe_map\nassert "embedding_inference_endpoint" in probe_map, probe_map\nassert probe_map["generation_inference_endpoint"].get("status") == "READY", probe_map\nassert probe_map["embedding_inference_endpoint"].get("status") == "READY", probe_map\nif "orchestration_inference_endpoint" in probe_map:\n    assert probe_map["orchestration_inference_endpoint"].get("status") == "READY", probe_map\nsummary = (data or {}).get("summary") or (data or {}).get("summaryMessage") or ""\nassert summary, data\nprint("ok")'
 pass "provider connectivity reflects live inference profile readiness"
 
 run_platform_poc_query "${PACKAGED_DATA_QUERY}" "marketplace-help-center-$(date +%s)" "packaged data live query"
