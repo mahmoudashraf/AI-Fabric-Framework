@@ -179,11 +179,11 @@ The deployment draft stores the resolved action behavior.
 
 ### 3.3 Data plugins
 
-Data plugins are declarative packages that contribute one or more read-only shared knowledge sources to a deployment.
+Data plugins are declarative packages that contribute one or more read-only deployment-external knowledge sources to a deployment.
 
 They should not add custom retrieval code into runtime.
 
-They should resolve into a new deployment-level `knowledgeSourceConfig` contribution model that describes:
+They should resolve into a deployment-level `knowledgeSourceConfig` contribution model that describes:
 
 - source identity
 - source type
@@ -192,7 +192,23 @@ They should resolve into a new deployment-level `knowledgeSourceConfig` contribu
 - query scope filters
 - ranking hints
 - access policy
-- provider handle or shared collection reference
+- provider handle or plugin-owned shared collection reference
+
+Required ownership rule:
+
+- a `DATA` plugin owns its own logical dataset boundary
+- deployments that install the same plugin may reuse that dataset boundary under the same tenant
+- other plugins must not share that dataset boundary by default
+
+Required product rule:
+
+- `knowledgeSourceConfig` alone is not enough
+- the platform must also own dataset lifecycle for installed `DATA` plugins
+- packaged seed datasets and approved external sync connectors should populate the plugin-owned dataset handle before the release is considered fully ready
+
+See:
+
+- `MARKETPLACE_DATA_PLUGIN_DATASET_PRODUCTIZATION_PLAN.md`
 
 The runtime should then read those bindings through a single search-source abstraction.
 
@@ -679,16 +695,23 @@ Scope:
 - runtime search-source abstraction
 - shared-source attribution
 - install, unlink, and preview flows
+- plugin-owned dataset handle model
+- packaged dataset seeding
+- approved external sync connectors such as SQL and folder-backed imports
+- apply-time dataset readiness
 
 Acceptance criteria:
 
 - installed marketplace data sources are queried as normal retrieval sources
 - answer evidence clearly attributes plugin-provided data
 - uninstall unlinks the source without deleting shared provider data
+- starter data plugins return real content without manual live seeding
+- plugin-created data plugins can declare approved sync connectors without adding custom ingestion code
 
 Status:
 
-- implemented
+- implemented for config compilation and runtime retrieval support
+- dataset lifecycle productization remains the next control-plane slice
 
 ### Phase 4: Billing and entitlements
 

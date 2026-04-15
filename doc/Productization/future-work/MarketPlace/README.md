@@ -14,6 +14,9 @@ Current state:
   - Phase 4 billing and entitlements
   - Phase 5 first external publisher workflow
 - remaining marketplace work is now:
+  - `DATA` plugin dataset lifecycle productization
+  - plugin-owned dataset handles and apply-time seeding/sync
+  - approved external sync connectors for `DATA` plugins such as SQL and folder-backed imports
   - payout and revenue-share business workflow
   - broader public data-plugin and open-ecosystem expansion
   - deeper capability-profile expansion for `SURFACE`, `POLICY_LOGIC`, and `ANALYTICS_EVENT`
@@ -70,6 +73,7 @@ They should not be treated as the final implementation boundary when they confli
 These documents should be treated as the current safer implementation baseline:
 
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_CONTROL_PLANE_COMPOSITION_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/MARKETPLACE_DATA_PLUGIN_DATASET_PRODUCTIZATION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_DEFAULT_STARTER_CATALOG_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_RUNTIME_AND_FRAMEWORK_SUPPORT_IMPLEMENTATION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_RUNTIME_AND_FRAMEWORK_SUPPORT_CHECKLIST.md`
@@ -98,11 +102,12 @@ Recommended sequence:
 3. `doc/Productization/future-work/MarketPlace/PLUGIN_DEVELOPER_EXTENSIBILITY_DESIGN.md`
 4. `doc/Productization/future-work/MarketPlace/MARKETPLACE_CONTROL_PLANE_COMPOSITION_PLAN.md`
 5. `doc/Productization/future-work/MarketPlace/MARKETPLACE_DEFAULT_STARTER_CATALOG_PLAN.md`
-6. `doc/Productization/future-work/MarketPlace/MARKETPLACE_RUNTIME_AND_FRAMEWORK_SUPPORT_IMPLEMENTATION_PLAN.md`
-7. `doc/Productization/future-work/MarketPlace/EXTERNAL_PLUGIN_PUBLISHER_MODEL_PLAN.md`
-8. `doc/Productization/future-work/MarketPlace/AI_APPLICATION_SHELL_ARCHITECTURE_IMPLEMENTATION_PLAN.md`
-9. `doc/Productization/future-work/MarketPlace/PLUGIN_DEVELOPER_EXTENSIBILITY_IMPLEMENTATION_PLAN.md`
-10. `doc/Productization/future-work/MarketPlace/CONFIG_DRIVEN_MARKETPLACE_VS_MICROFRONTEND_PLUGIN_ARCHITECTURE_PLAN.md`
+6. `doc/Productization/future-work/MarketPlace/MARKETPLACE_DATA_PLUGIN_DATASET_PRODUCTIZATION_PLAN.md`
+7. `doc/Productization/future-work/MarketPlace/MARKETPLACE_RUNTIME_AND_FRAMEWORK_SUPPORT_IMPLEMENTATION_PLAN.md`
+8. `doc/Productization/future-work/MarketPlace/EXTERNAL_PLUGIN_PUBLISHER_MODEL_PLAN.md`
+9. `doc/Productization/future-work/MarketPlace/AI_APPLICATION_SHELL_ARCHITECTURE_IMPLEMENTATION_PLAN.md`
+10. `doc/Productization/future-work/MarketPlace/PLUGIN_DEVELOPER_EXTENSIBILITY_IMPLEMENTATION_PLAN.md`
+11. `doc/Productization/future-work/MarketPlace/CONFIG_DRIVEN_MARKETPLACE_VS_MICROFRONTEND_PLUGIN_ARCHITECTURE_PLAN.md`
 
 ---
 

@@ -192,6 +192,13 @@ Recommended install target:
 - baseline contributions:
   - shared index source:
     - `help-center`
+  - dataset ownership:
+    - plugin-owned tenant-shared dataset handle
+  - launch ingestion mode:
+    - packaged seed dataset
+  - follow-on supported ingestion modes:
+    - SQL sync connector
+    - folder-of-files sync connector
   - shell modules:
     - `docs`
     - `ai-search`
@@ -207,6 +214,7 @@ Recommended product stance:
 
 - keep one high-quality shared support knowledge plugin free by default
 - this gives non-technical users a strong zero-cost way to see data plugins working
+- the plugin should seed a real starter FAQ corpus on first activation so the install is immediately demonstrable
 
 ### 3.6 `mkp-action-notifications`
 

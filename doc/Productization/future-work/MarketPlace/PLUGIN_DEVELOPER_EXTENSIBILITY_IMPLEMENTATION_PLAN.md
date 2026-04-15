@@ -396,7 +396,9 @@ Data plugins are more sensitive than action plugins because they affect retrieva
 - source type
 - expected result contract
 - ranking and freshness hints
+- dataset packages and dataset ids
 - dataset or provider references
+- approved sync connector config for supported connector classes
 
 ### 9.2 What data plugins may not define
 
@@ -405,6 +407,7 @@ Data plugins are more sensitive than action plugins because they affect retrieva
 - embedded database credentials
 - cross-tenant joins
 - hidden access patterns that bypass isolation rules
+- arbitrary ingestion workers or ETL code
 
 ### 9.3 Approved data adapter types
 
@@ -413,12 +416,16 @@ Recommended launch set:
 - `shared-index`
 - `remote-search-api`
 - `provider-managed-dataset`
+- `external-sync-sql`
+- `external-sync-folder`
 
 Recommended rules:
 
-- `shared-index` points to a platform-governed shared vector root or provider-native shared handle
+- `shared-index` points to a platform-governed, plugin-owned logical shared handle
 - `remote-search-api` points to a read-only publisher-hosted search endpoint that matches the platform's canonical search result contract
 - `provider-managed-dataset` points to a provider integration the platform already understands and can verify
+- `external-sync-sql` points to a platform-approved SQL connector definition and query mapping, not publisher-executed SQL code
+- `external-sync-folder` points to a platform-approved folder or object-storage connector, not arbitrary filesystem access
 
 ### 9.4 Data rollout rule
 
@@ -433,6 +440,16 @@ Recommended order:
 ### 9.5 Data resolution target
 
 Resolved data plugins should compile into deployment-level `knowledgeSourceConfig` or equivalent search-source bindings consumed by the runtime's approved retrieval abstraction.
+
+Required productization follow-on:
+
+- installed `DATA` plugins must also resolve into a platform-owned dataset lifecycle
+- the platform should provision plugin-owned tenant-shared dataset handles
+- packaged seed datasets and approved sync connectors should populate those handles before the install is treated as fully ready
+
+See:
+
+- `MARKETPLACE_DATA_PLUGIN_DATASET_PRODUCTIZATION_PLAN.md`
 
 ---
 

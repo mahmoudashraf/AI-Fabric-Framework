@@ -360,22 +360,33 @@ Recommended launch set:
 - `shared-index`
 - `remote-search-api`
 - `provider-managed-dataset`
+- `external-sync-sql`
+- `external-sync-folder`
 
 Each adapter type should have a strict platform contract.
 
 Example:
 
 - `shared-index`
-  - points to a platform-governed shared vector root or provider-native shared handle
+  - points to a platform-governed, plugin-owned logical shared handle
 - `remote-search-api`
   - points to a publisher-hosted read-only search endpoint returning the canonical search result contract
 - `provider-managed-dataset`
   - points to a provider integration the platform already understands and can verify
+- `external-sync-sql`
+  - points to a platform-approved SQL connector definition and query mapping
+- `external-sync-folder`
+  - points to a platform-approved folder or object-storage connector definition
 
 Recommended shell-facing constraint:
 
 - data plugins may reference built-in search, docs, and evidence views
 - data plugins may not ship custom shell-side retrieval or rendering implementations
+
+Required ingestion constraint:
+
+- publishers may describe dataset shape and approved sync mappings
+- publishers may not ship arbitrary ingestion code, crawler code, or long-running ETL workers inside the platform
 
 ### 7.4 Data plugin rollout advice
 
