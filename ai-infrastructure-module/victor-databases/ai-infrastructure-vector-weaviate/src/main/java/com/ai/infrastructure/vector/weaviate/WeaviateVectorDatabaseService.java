@@ -303,7 +303,7 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             .distinct()
             .map(entityType -> Map.entry(entityType, toClassName(entityType)))
             .filter(entry -> classExists(entry.getValue()))
-            .flatMap(entry -> searchClass(entry.getValue(), queryFloatVector, limit, threshold).stream())
+            .flatMap(entry -> searchClass(entry.getValue(), queryFloatVector, limit, threshold, request.getMetadata()).stream())
             .toList();
 
         List<Map<String, Object>> mapped = allResults.stream()
@@ -1205,10 +1205,15 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
         return Boolean.TRUE.equals(result.getResult());
     }
 
-    private List<VectorRecord> searchClass(String className, Float[] queryVector, int limit, double threshold) {
+    private List<VectorRecord> searchClass(String className,
+                                           Float[] queryVector,
+                                           int limit,
+                                           double threshold,
+                                           Map<String, Object> metadataEquals) {
         NearVectorArgument nearVector = NearVectorArgument.builder()
             .vector(queryVector)
             .build();
+        WhereFilter where = buildWhereFilter(metadataEquals);
 
         Field[] fields = new Field[]{
             Field.builder().name(PROPERTY_ENTITY_TYPE).build(),
@@ -1222,13 +1227,17 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             ).build()
         };
 
-        Result<GraphQLResponse> result = applyTenant(client.graphQL()
+        var query = applyTenant(client.graphQL()
             .get()
             .withClassName(className)
             .withNearVector(nearVector)
             .withLimit(limit)
-            .withFields(fields))
-            .run();
+            .withFields(fields));
+        if (where != null) {
+            query = query.withWhere(where);
+        }
+
+        Result<GraphQLResponse> result = query.run();
 
         if (result.hasErrors()) {
             throw new AIServiceException("Weaviate search failed for class " + className + ": " + errorMessages(result.getError()));

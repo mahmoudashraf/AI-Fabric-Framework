@@ -68,6 +68,15 @@ public class MarketplaceManifestService {
         "MONTHLY",
         "YEARLY"
     );
+    private static final Set<String> SUPPORTED_DATASET_STORAGE_SCOPES = Set.of("PLUGIN_SCOPED");
+    private static final Set<String> SUPPORTED_DATASET_SHARING_SCOPES = Set.of("TENANT_SHARED");
+    private static final Set<String> SUPPORTED_DATASET_INGESTION_MODES = Set.of(
+        "PACKAGED_SEED",
+        "EXTERNAL_SYNC_SQL",
+        "EXTERNAL_SYNC_FOLDER"
+    );
+    private static final Set<String> SUPPORTED_DATASET_UPDATE_STRATEGIES = Set.of("UPSERT_BY_ID");
+    private static final Set<String> SUPPORTED_SYNC_CONNECTOR_TYPES = Set.of("SQL_QUERY", "FILE_FOLDER");
 
     private final ObjectMapper objectMapper;
 
@@ -103,10 +112,13 @@ public class MarketplaceManifestService {
             throw invalid(plugin, version, "manifest contributions object is required.");
         }
 
+        List<ParsedMarketplaceDatasetDefinition> datasets = "DATA".equals(expectedType)
+            ? parseDataDatasets(plugin, version, contributions)
+            : List.of();
         MarketplacePluginContributionSummary contributionSummary = switch (expectedType) {
             case "TEMPLATE" -> parseTemplateContribution(plugin, version, contributions);
             case "ACTION" -> parseActionContribution(plugin, version, contributions);
-            case "DATA" -> parseDataContribution(plugin, version, contributions);
+            case "DATA" -> parseDataContribution(plugin, version, contributions, datasets);
             case "AUTOMATION" -> parseAutomationContribution(plugin, version, contributions);
             default -> throw invalid(plugin, version, "unsupported pluginType: " + expectedType);
         };
@@ -132,7 +144,8 @@ public class MarketplaceManifestService {
             permissions,
             capabilityProfiles,
             recommendedPluginIds,
-            pricing
+            pricing,
+            datasets
         );
     }
 
@@ -218,11 +231,16 @@ public class MarketplaceManifestService {
 
     private MarketplacePluginContributionSummary parseDataContribution(MarketplacePluginEntity plugin,
                                                                        MarketplacePluginVersionEntity version,
-                                                                       JsonNode contributions) {
+                                                                       JsonNode contributions,
+                                                                       List<ParsedMarketplaceDatasetDefinition> datasets) {
         JsonNode knowledgeSources = contributions.path("knowledgeSources");
         if (!knowledgeSources.isArray() || knowledgeSources.isEmpty()) {
             throw invalid(plugin, version, "data plugins must declare a non-empty contributions.knowledgeSources array.");
         }
+        if (datasets.isEmpty()) {
+            throw invalid(plugin, version, "data plugins must declare a non-empty contributions.datasets array.");
+        }
+        Set<String> datasetIds = datasets.stream().map(ParsedMarketplaceDatasetDefinition::datasetId).collect(java.util.stream.Collectors.toSet());
         List<String> knowledgeSourceIds = new ArrayList<>();
         for (JsonNode source : knowledgeSources) {
             if (!source.isObject()) {
@@ -236,6 +254,17 @@ public class MarketplaceManifestService {
             if (!StringUtils.hasText(sourceType)) {
                 throw invalid(plugin, version, "each knowledge source contribution must declare adapterType or sourceType.");
             }
+            String datasetRef = firstText(source, "datasetRef");
+            if (!StringUtils.hasText(datasetRef)) {
+                if (datasets.size() == 1) {
+                    datasetRef = datasets.getFirst().datasetId();
+                } else {
+                    throw invalid(plugin, version, "each knowledge source contribution must declare datasetRef when multiple datasets are present.");
+                }
+            }
+            if (!datasetIds.contains(datasetRef)) {
+                throw invalid(plugin, version, "knowledge source '" + sourceId + "' references unknown datasetRef '" + datasetRef + "'.");
+            }
             knowledgeSourceIds.add(sourceId.trim());
         }
         validateEntityContribution(plugin, version, contributions.path("entityConfig"));
@@ -248,6 +277,103 @@ public class MarketplaceManifestService {
             readStringList(shell, "moduleRefs", "enabledModuleIds"),
             readStringList(shell, "cardRefs", "enabledCardIds")
         );
+    }
+
+    private List<ParsedMarketplaceDatasetDefinition> parseDataDatasets(MarketplacePluginEntity plugin,
+                                                                       MarketplacePluginVersionEntity version,
+                                                                       JsonNode contributions) {
+        JsonNode datasetsNode = contributions.path("datasets");
+        if (!datasetsNode.isArray() || datasetsNode.isEmpty()) {
+            return List.of();
+        }
+        List<ParsedMarketplaceDatasetDefinition> datasets = new ArrayList<>();
+        Set<String> datasetIds = new LinkedHashSet<>();
+        for (JsonNode dataset : datasetsNode) {
+            if (!dataset.isObject()) {
+                throw invalid(plugin, version, "data plugin datasets must be objects.");
+            }
+            String datasetId = firstText(dataset, "datasetId", "id");
+            if (!StringUtils.hasText(datasetId)) {
+                throw invalid(plugin, version, "each data dataset must declare datasetId.");
+            }
+            if (!datasetIds.add(datasetId)) {
+                throw invalid(plugin, version, "duplicate data datasetId: " + datasetId);
+            }
+            String entityType = firstText(dataset, "entityType");
+            if (!StringUtils.hasText(entityType)) {
+                throw invalid(plugin, version, "dataset '" + datasetId + "' must declare entityType.");
+            }
+            String storageScope = normalizeUppercaseValue(dataset.path("storageScope").asText("PLUGIN_SCOPED"));
+            if (!SUPPORTED_DATASET_STORAGE_SCOPES.contains(storageScope)) {
+                throw invalid(plugin, version, "dataset '" + datasetId + "' declares unsupported storageScope: " + storageScope);
+            }
+            String sharingScope = normalizeUppercaseValue(dataset.path("sharingScope").asText("TENANT_SHARED"));
+            if (!SUPPORTED_DATASET_SHARING_SCOPES.contains(sharingScope)) {
+                throw invalid(plugin, version, "dataset '" + datasetId + "' declares unsupported sharingScope: " + sharingScope);
+            }
+            String ingestionMode = normalizeUppercaseValue(dataset.path("ingestionMode").asText(""));
+            if (!SUPPORTED_DATASET_INGESTION_MODES.contains(ingestionMode)) {
+                throw invalid(plugin, version, "dataset '" + datasetId + "' declares unsupported ingestionMode: " + dataset.path("ingestionMode").asText(""));
+            }
+            String updateStrategy = normalizeUppercaseValue(dataset.path("updateStrategy").asText("UPSERT_BY_ID"));
+            if (!SUPPORTED_DATASET_UPDATE_STRATEGIES.contains(updateStrategy)) {
+                throw invalid(plugin, version, "dataset '" + datasetId + "' declares unsupported updateStrategy: " + updateStrategy);
+            }
+            String seedDatasetRef = blankToNull(dataset.path("seedDatasetRef").asText(""));
+            JsonNode syncConnector = dataset.path("syncConnector");
+            String connectorType = null;
+            String connectionRefField = null;
+            String folderRefField = null;
+            if ("PACKAGED_SEED".equals(ingestionMode)) {
+                if (!StringUtils.hasText(seedDatasetRef)) {
+                    throw invalid(plugin, version, "PACKAGED_SEED dataset '" + datasetId + "' must declare seedDatasetRef.");
+                }
+            } else {
+                if (!syncConnector.isObject()) {
+                    throw invalid(plugin, version, "dataset '" + datasetId + "' must declare syncConnector for external sync modes.");
+                }
+                connectorType = normalizeUppercaseValue(syncConnector.path("connectorType").asText(""));
+                if (!SUPPORTED_SYNC_CONNECTOR_TYPES.contains(connectorType)) {
+                    throw invalid(plugin, version, "dataset '" + datasetId + "' declares unsupported sync connector type: " + syncConnector.path("connectorType").asText(""));
+                }
+                if ("EXTERNAL_SYNC_SQL".equals(ingestionMode) && !"SQL_QUERY".equals(connectorType)) {
+                    throw invalid(plugin, version, "dataset '" + datasetId + "' must use syncConnector.connectorType=SQL_QUERY for EXTERNAL_SYNC_SQL.");
+                }
+                if ("EXTERNAL_SYNC_FOLDER".equals(ingestionMode) && !"FILE_FOLDER".equals(connectorType)) {
+                    throw invalid(plugin, version, "dataset '" + datasetId + "' must use syncConnector.connectorType=FILE_FOLDER for EXTERNAL_SYNC_FOLDER.");
+                }
+                connectionRefField = blankToNull(syncConnector.path("connectionRefField").asText(""));
+                folderRefField = blankToNull(syncConnector.path("folderRefField").asText(""));
+                String staticConnectionRef = blankToNull(syncConnector.path("connectionRef").asText(""));
+                String staticFolderRef = blankToNull(syncConnector.path("folderRef").asText(""));
+                if ("SQL_QUERY".equals(connectorType)
+                    && !StringUtils.hasText(connectionRefField)
+                    && !StringUtils.hasText(staticConnectionRef)) {
+                    throw invalid(plugin, version, "dataset '" + datasetId + "' SQL_QUERY connector must declare connectionRefField or connectionRef.");
+                }
+                if ("FILE_FOLDER".equals(connectorType)
+                    && !StringUtils.hasText(folderRefField)
+                    && !StringUtils.hasText(staticFolderRef)) {
+                    throw invalid(plugin, version, "dataset '" + datasetId + "' FILE_FOLDER connector must declare folderRefField or folderRef.");
+                }
+            }
+            datasets.add(new ParsedMarketplaceDatasetDefinition(
+                datasetId,
+                entityType,
+                storageScope,
+                sharingScope,
+                ingestionMode,
+                updateStrategy,
+                blankToNull(dataset.path("vectorizationProfile").asText("")),
+                blankToNull(dataset.path("handleTemplate").asText("")),
+                seedDatasetRef,
+                connectorType,
+                connectionRefField,
+                folderRefField,
+                syncConnector != null && syncConnector.isObject() ? syncConnector.deepCopy() : null
+            ));
+        }
+        return List.copyOf(datasets);
     }
 
     private void validateEntityContribution(MarketplacePluginEntity plugin,
@@ -649,6 +775,10 @@ public class MarketplaceManifestService {
         return value == null ? "" : value.trim().replace("-", "").replace("_", "").toLowerCase(Locale.ROOT);
     }
 
+    private String normalizeUppercaseValue(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
     private String normalizeInstallFieldTypeForOutput(String value) {
         return "secretref".equals(value) ? "secretRef" : value;
     }
@@ -681,7 +811,25 @@ public class MarketplaceManifestService {
         MarketplacePluginPermissionsSummary permissions,
         List<String> capabilityProfiles,
         List<String> recommendedPluginIds,
-        MarketplacePluginPricingSummary pricing
+        MarketplacePluginPricingSummary pricing,
+        List<ParsedMarketplaceDatasetDefinition> datasets
+    ) {
+    }
+
+    public record ParsedMarketplaceDatasetDefinition(
+        String datasetId,
+        String entityType,
+        String storageScope,
+        String sharingScope,
+        String ingestionMode,
+        String updateStrategy,
+        String vectorizationProfile,
+        String handleTemplate,
+        String seedDatasetRef,
+        String connectorType,
+        String connectionRefField,
+        String folderRefField,
+        JsonNode syncConnector
     ) {
     }
 }

@@ -58,6 +58,7 @@ public class DeploymentMarketplaceInstallService {
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final MarketplaceManifestService marketplaceManifestService;
+    private final MarketplacePluginDatasetDefinitionService marketplacePluginDatasetDefinitionService;
     private final DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService;
     private final MarketplaceEntitlementService marketplaceEntitlementService;
     private final PlatformAuditService platformAuditService;
@@ -70,6 +71,7 @@ public class DeploymentMarketplaceInstallService {
                                                DeploymentMarketplacePluginInstallRepository installRepository,
                                                MarketplaceCatalogService marketplaceCatalogService,
                                                MarketplaceManifestService marketplaceManifestService,
+                                               MarketplacePluginDatasetDefinitionService marketplacePluginDatasetDefinitionService,
                                                DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService,
                                                MarketplaceEntitlementService marketplaceEntitlementService,
                                                PlatformAuditService platformAuditService,
@@ -81,6 +83,7 @@ public class DeploymentMarketplaceInstallService {
         this.installRepository = installRepository;
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.marketplaceManifestService = marketplaceManifestService;
+        this.marketplacePluginDatasetDefinitionService = marketplacePluginDatasetDefinitionService;
         this.deploymentMarketplaceDraftCompilerService = deploymentMarketplaceDraftCompilerService;
         this.marketplaceEntitlementService = marketplaceEntitlementService;
         this.platformAuditService = platformAuditService;
@@ -115,12 +118,14 @@ public class DeploymentMarketplaceInstallService {
             plugin.getId(),
             request.pluginVersion()
         );
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            marketplaceManifestService.parseAndValidate(plugin, version);
         validateInstallable(plugin, version, deployment.getId(), null);
         DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
         validateInstallInputs(
             deployment,
             activeDraft,
-            marketplaceManifestService.parseAndValidate(plugin, version),
+            parsed,
             normalizeObject(request.config(), "config"),
             normalizeObject(request.secretRefs(), "secretRefs"),
             STATUS_ENABLED
@@ -147,8 +152,9 @@ public class DeploymentMarketplaceInstallService {
         installRepository.save(install);
         marketplaceEntitlementService.ensureEntitlement(
             install,
-            marketplaceManifestService.parseAndValidate(plugin, version)
+            parsed
         );
+        marketplacePluginDatasetDefinitionService.syncPluginVersionDatasets(plugin, version, parsed);
 
         platformAuditService.record(
             "MARKETPLACE_INSTALL_CREATED",
@@ -178,6 +184,7 @@ public class DeploymentMarketplaceInstallService {
         DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
             marketplaceManifestService.parseAndValidate(plugin, version);
+        marketplacePluginDatasetDefinitionService.syncPluginVersionDatasets(plugin, version, parsed);
 
         if (request.status() != null) {
             install.setStatus(normalizeStatus(request.status()));

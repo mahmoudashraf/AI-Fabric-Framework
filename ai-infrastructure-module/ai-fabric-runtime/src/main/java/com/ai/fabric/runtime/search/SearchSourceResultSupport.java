@@ -12,6 +12,8 @@ import java.util.Objects;
 
 final class SearchSourceResultSupport {
 
+    private static final String DEPLOYMENT_PRIVATE_VECTOR_ADAPTER = "deployment-private-vector";
+
     static final String METADATA_KEY_KNOWLEDGE_SOURCE_ID = "knowledgeSourceId";
     static final String METADATA_KEY_KNOWLEDGE_SOURCE_TYPE = "knowledgeSourceType";
     static final String METADATA_KEY_KNOWLEDGE_SOURCE_ADAPTER_TYPE = "knowledgeSourceAdapterType";
@@ -26,6 +28,13 @@ final class SearchSourceResultSupport {
                                          int limitMultiplier) {
         int baseLimit = baseRequest.getLimit() != null ? baseRequest.getLimit() : 10;
         int effectiveLimit = Math.max(baseLimit, Math.min(100, baseLimit * Math.max(limitMultiplier, 1)));
+        Map<String, Object> mergedMetadata = new LinkedHashMap<>();
+        if (baseRequest.getMetadata() != null) {
+            mergedMetadata.putAll(baseRequest.getMetadata());
+        }
+        if (source.getFilters() != null) {
+            mergedMetadata.putAll(source.getFilters());
+        }
         return AISearchRequest.builder()
             .query(baseRequest.getQuery())
             .entityType(source.getEntityType() != null ? source.getEntityType() : baseRequest.getEntityType())
@@ -34,7 +43,7 @@ final class SearchSourceResultSupport {
             .filters(baseRequest.getFilters())
             .sortBy(baseRequest.getSortBy())
             .context(baseRequest.getContext())
-            .metadata(baseRequest.getMetadata())
+            .metadata(mergedMetadata.isEmpty() ? null : Map.copyOf(mergedMetadata))
             .build();
     }
 
@@ -46,6 +55,10 @@ final class SearchSourceResultSupport {
             for (Map<String, Object> result : response.getResults()) {
                 Map<String, Object> metadata = normalizeMetadata(result.get("metadata"));
                 if (!matchesFilters(metadata, requiredMetadata)) {
+                    continue;
+                }
+                if (DEPLOYMENT_PRIVATE_VECTOR_ADAPTER.equalsIgnoreCase(source.getAdapterType())
+                    && metadata.containsKey(METADATA_KEY_KNOWLEDGE_SOURCE_HANDLE_REF)) {
                     continue;
                 }
                 Map<String, Object> decorated = new LinkedHashMap<>(result);

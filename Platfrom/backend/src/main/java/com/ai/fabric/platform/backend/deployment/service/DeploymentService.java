@@ -1019,6 +1019,9 @@ public class DeploymentService {
         if (request.automationConfig() != null) {
             draft.setAutomationConfigJson(writeJson(request.automationConfig()));
         }
+        if (request.marketplaceDatasetConfig() != null) {
+            draft.setMarketplaceDatasetConfigJson(writeJson(request.marketplaceDatasetConfig()));
+        }
 
         draft.setStatus("MODIFIED");
         draft.setUpdatedAt(Instant.now());
@@ -1163,6 +1166,7 @@ public class DeploymentService {
         version.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
         version.setShellConfigJson(draft.getShellConfigJson());
         version.setAutomationConfigJson(draft.getAutomationConfigJson());
+        version.setMarketplaceDatasetConfigJson(draft.getMarketplaceDatasetConfigJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setRoutingArtifactYaml(compiled.routingArtifactYaml());
@@ -1188,6 +1192,7 @@ public class DeploymentService {
         nextDraft.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
         nextDraft.setShellConfigJson(draft.getShellConfigJson());
         nextDraft.setAutomationConfigJson(draft.getAutomationConfigJson());
+        nextDraft.setMarketplaceDatasetConfigJson(draft.getMarketplaceDatasetConfigJson());
         nextDraft.setCreatedAt(now);
         nextDraft.setUpdatedAt(now);
         draftRepository.save(nextDraft);
@@ -1572,6 +1577,8 @@ public class DeploymentService {
         draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
         draft.setKnowledgeSourceConfigJson(writeJson(defaultKnowledgeSourceConfig()));
         draft.setShellConfigJson(writeJson(defaultShellConfig(curatedModuleId)));
+        draft.setAutomationConfigJson(writeJson(defaultAutomationConfig()));
+        draft.setMarketplaceDatasetConfigJson(writeJson(defaultMarketplaceDatasetConfig()));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -1649,6 +1656,23 @@ public class DeploymentService {
                 .put("query", "Help me troubleshoot why notifications are not sending")
                 .put("moduleId", "support");
         }
+        return root;
+    }
+
+    private JsonNode defaultAutomationConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "AUTOMATION_CONFIG_V1");
+        root.set("triggers", objectMapper.createArrayNode());
+        root.set("actions", objectMapper.createArrayNode());
+        root.set("workflows", objectMapper.createArrayNode());
+        root.set("schedules", objectMapper.createArrayNode());
+        return root;
+    }
+
+    private JsonNode defaultMarketplaceDatasetConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "MARKETPLACE_DATASET_CONFIG_V1");
+        root.set("datasets", objectMapper.createArrayNode());
         return root;
     }
 
@@ -2226,6 +2250,7 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getKnowledgeSourceConfigJson()),
                 objectMapper.readTree(draft.getShellConfigJson()),
                 objectMapper.readTree(draft.getAutomationConfigJson()),
+                objectMapper.readTree(draft.getMarketplaceDatasetConfigJson()),
                 draft.getCreatedAt(),
                 draft.getUpdatedAt()
             );

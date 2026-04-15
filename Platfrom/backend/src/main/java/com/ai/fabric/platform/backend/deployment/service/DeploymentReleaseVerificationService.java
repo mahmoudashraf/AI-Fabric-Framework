@@ -10,8 +10,12 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnect
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetSyncRunEntity;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetHandleRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetSyncRunRepository;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
@@ -54,6 +58,8 @@ public class DeploymentReleaseVerificationService {
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final DeploymentConfigCompiler deploymentConfigCompiler;
+    private final MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository;
+    private final MarketplaceDatasetSyncRunRepository marketplaceDatasetSyncRunRepository;
     private final HttpClient httpClient;
 
     DeploymentReleaseVerificationService(ObjectMapper objectMapper,
@@ -75,7 +81,9 @@ public class DeploymentReleaseVerificationService {
             railwayPreflightService,
             deploymentProviderConnectivityService,
             deploymentTenantScopedVectorService,
-            deploymentVectorizationVerificationService
+            deploymentVectorizationVerificationService,
+            null,
+            null
         );
     }
 
@@ -90,6 +98,34 @@ public class DeploymentReleaseVerificationService {
                                                 DeploymentProviderConnectivityService deploymentProviderConnectivityService,
                                                 DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                                 DeploymentVectorizationVerificationService deploymentVectorizationVerificationService) {
+        this(
+            objectMapper,
+            verificationProperties,
+            platformSecretService,
+            deploymentProviderSecretResolutionService,
+            deploymentConfigCompiler,
+            deploymentArtifactService,
+            railwayPreflightService,
+            deploymentProviderConnectivityService,
+            deploymentTenantScopedVectorService,
+            deploymentVectorizationVerificationService,
+            null,
+            null
+        );
+    }
+
+    public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
+                                                PlatformVerificationProperties verificationProperties,
+                                                PlatformSecretService platformSecretService,
+                                                DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                                DeploymentConfigCompiler deploymentConfigCompiler,
+                                                DeploymentArtifactService deploymentArtifactService,
+                                                RailwayPreflightService railwayPreflightService,
+                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                                                DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                                MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository,
+                                                MarketplaceDatasetSyncRunRepository marketplaceDatasetSyncRunRepository) {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
@@ -100,6 +136,8 @@ public class DeploymentReleaseVerificationService {
         this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
+        this.marketplaceDatasetHandleRepository = marketplaceDatasetHandleRepository;
+        this.marketplaceDatasetSyncRunRepository = marketplaceDatasetSyncRunRepository;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -221,6 +259,7 @@ public class DeploymentReleaseVerificationService {
         addArtifactPresenceCheck(checks, "routing_artifact_url_present", "Routing artifact URL", artifacts.routingArtifactUrl());
         addArtifactPresenceCheck(checks, "prompt_artifact_url_present", "Prompt artifact URL", artifacts.promptArtifactUrl());
         addArtifactPresenceCheck(checks, "automation_artifact_url_present", "Automation artifact URL", artifacts.automationArtifactUrl());
+        addArtifactPresenceCheck(checks, "marketplace_dataset_artifact_url_present", "Marketplace dataset artifact URL", artifacts.marketplaceDatasetArtifactUrl());
         addArtifactPresenceCheck(checks, "manifest_artifact_url_present", "Manifest artifact URL", artifacts.manifestUrl());
 
         addArtifactFetchCheck(checks, "actions_artifact_fetch_probe", "Actions artifact", artifacts.actionsArtifactUrl());
@@ -228,6 +267,7 @@ public class DeploymentReleaseVerificationService {
         addArtifactFetchCheck(checks, "routing_artifact_fetch_probe", "Routing artifact", artifacts.routingArtifactUrl());
         addArtifactFetchCheck(checks, "prompt_artifact_fetch_probe", "Prompt artifact", artifacts.promptArtifactUrl());
         addArtifactFetchCheck(checks, "automation_artifact_fetch_probe", "Automation artifact", artifacts.automationArtifactUrl());
+        addArtifactFetchCheck(checks, "marketplace_dataset_artifact_fetch_probe", "Marketplace dataset artifact", artifacts.marketplaceDatasetArtifactUrl());
         addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
 
         verifyManagedSecrets(checks, deployment, providerConfig, securityConfig);
@@ -388,6 +428,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview via runtime proxy", connectorOverview);
         validateConnectorOverview(checks, connectorOverview, expectations);
         validateConnectorAuthz(checks, connectorOverview, expectations);
+        validateMarketplaceDatasetSync(checks, deployment, release, expectations);
 
         JsonProbeResult connectorActionsOverview = probeJson(
             deployment.getRuntimeBaseUrl(),
@@ -624,6 +665,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
         JsonNode shellConfig = readJson(version.getShellConfigJson());
+        JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
         JsonNode routingConfig = deploymentConfigCompiler.compileRoutingConfig(actionsConfig, rawRoutingConfig, securityConfig);
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
@@ -671,6 +713,9 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedKnowledgeSourceIds = textSet(knowledgeSourceConfig.path("sources"), "id");
         Set<String> expectedKnowledgeSourceTypes = textSet(knowledgeSourceConfig.path("sources"), "type");
         Set<String> expectedKnowledgeSourceAdapterTypes = textSet(knowledgeSourceConfig.path("sources"), "adapterType");
+        Set<String> expectedMarketplaceDatasetIds = textSet(marketplaceDatasetConfig.path("datasets"), "datasetId");
+        Set<String> expectedMarketplaceDatasetHandleRefs = textSet(marketplaceDatasetConfig.path("datasets"), "handleRef");
+        Set<String> expectedMarketplaceDatasetHashes = textSet(marketplaceDatasetConfig.path("datasets"), "datasetHash");
         Set<String> expectedShellModuleIds = textSet(shellConfig.path("modules"), "id");
         Set<String> expectedShellCardIds = textSet(shellConfig.path("cards"), "id");
         int expectedShellStarterPromptsCount = shellConfig.path("starterPrompts").isArray()
@@ -711,6 +756,7 @@ public class DeploymentReleaseVerificationService {
             routingConfig,
             knowledgeSourceConfig,
             shellConfig,
+            marketplaceDatasetConfig,
             securityConfig,
             expectedActionNames,
             expectedConfirmationInterceptorNames,
@@ -720,6 +766,10 @@ public class DeploymentReleaseVerificationService {
             expectedKnowledgeSourceIds,
             expectedKnowledgeSourceTypes,
             expectedKnowledgeSourceAdapterTypes,
+            blankToFallback(marketplaceDatasetConfig.path("contractVersion").asText(""), "MARKETPLACE_DATASET_CONFIG_V1"),
+            expectedMarketplaceDatasetIds,
+            expectedMarketplaceDatasetHandleRefs,
+            expectedMarketplaceDatasetHashes,
             blankToFallback(shellConfig.path("contractVersion").asText(""), "SHELL_CONFIG_V1"),
             expectedShellModuleIds,
             expectedShellCardIds,
@@ -1786,6 +1836,100 @@ public class DeploymentReleaseVerificationService {
             && textSet(probe.body().path("knowledgeSourceAdapterTypes")).equals(expectations.expectedKnowledgeSourceAdapterTypes());
     }
 
+    private void validateMarketplaceDatasetSync(ArrayNode checks,
+                                                DeploymentEntity deployment,
+                                                DeploymentReleaseEntity release,
+                                                VerificationExpectations expectations) {
+        if (marketplaceDatasetHandleRepository == null || marketplaceDatasetSyncRunRepository == null) {
+            addSkippedCheck(
+                checks,
+                "marketplace_dataset_sync_matches_expected",
+                "Marketplace dataset sync verification is unavailable in this verification context."
+            );
+            return;
+        }
+        if (expectations.expectedMarketplaceDatasetIds().isEmpty()) {
+            addSkippedCheck(
+                checks,
+                "marketplace_dataset_sync_matches_expected",
+                "No marketplace datasets are expected for this release."
+            );
+            return;
+        }
+
+        List<MarketplaceDatasetHandleEntity> handles = marketplaceDatasetHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId());
+        Map<String, MarketplaceDatasetSyncRunEntity> latestRunsByHandleId = new LinkedHashMap<>();
+        marketplaceDatasetSyncRunRepository.findByReleaseIdOrderByCreatedAtAsc(release.getId())
+            .forEach(run -> latestRunsByHandleId.put(run.getDatasetHandleId(), run));
+
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("expectedMarketplaceDatasetContractVersion", expectations.expectedMarketplaceDatasetContractVersion());
+        details.put("actualMarketplaceDatasetContractVersion", expectations.marketplaceDatasetConfig().path("contractVersion").asText(""));
+        details.set("expectedDatasetIds", toArrayNode(expectations.expectedMarketplaceDatasetIds()));
+        details.set("expectedHandleRefs", toArrayNode(expectations.expectedMarketplaceDatasetHandleRefs()));
+        details.set("expectedDatasetHashes", toArrayNode(expectations.expectedMarketplaceDatasetHashes()));
+
+        ArrayNode actualDatasets = objectMapper.createArrayNode();
+        boolean passed = true;
+        for (JsonNode dataset : expectations.marketplaceDatasetConfig().path("datasets")) {
+            String expectedDatasetId = trimToNull(dataset.path("datasetId").asText(""));
+            String expectedHandleRef = trimToNull(dataset.path("handleRef").asText(""));
+            String expectedDatasetHash = trimToNull(dataset.path("datasetHash").asText(""));
+
+            ObjectNode actual = objectMapper.createObjectNode();
+            actual.put("datasetId", blankToFallback(expectedDatasetId, ""));
+            actual.put("handleRef", blankToFallback(expectedHandleRef, ""));
+            actual.put("expectedDatasetHash", blankToFallback(expectedDatasetHash, ""));
+
+            MarketplaceDatasetHandleEntity handle = handles.stream()
+                .filter(item -> expectedHandleRef != null && expectedHandleRef.equals(item.getHandleRef()))
+                .findFirst()
+                .orElse(null);
+            if (handle == null) {
+                actual.put("status", "MISSING");
+                actualDatasets.add(actual);
+                passed = false;
+                continue;
+            }
+
+            actual.put("actualDatasetHash", blankToFallback(handle.getDatasetHash(), ""));
+            actual.put("status", blankToFallback(handle.getStatus(), ""));
+            actual.put("lastSyncAt", handle.getLastSyncAt() != null ? handle.getLastSyncAt().toString() : null);
+            MarketplaceDatasetSyncRunEntity run = latestRunsByHandleId.get(handle.getId());
+            if (run != null) {
+                actual.put("releaseRunStatus", blankToFallback(run.getStatus(), ""));
+                actual.put("releaseRunDocumentCount", run.getDocumentCount() == null ? -1 : run.getDocumentCount());
+                actual.put("releaseRunError", blankToFallback(run.getErrorMessage(), ""));
+            } else {
+                actual.put("releaseRunStatus", "MISSING");
+            }
+            actualDatasets.add(actual);
+
+            boolean runPassed = run != null
+                && ("PASSED".equalsIgnoreCase(run.getStatus()) || "SKIPPED".equalsIgnoreCase(run.getStatus()));
+            boolean documentCountValid = run != null
+                && ("SKIPPED".equalsIgnoreCase(run.getStatus())
+                    || (run.getDocumentCount() != null && run.getDocumentCount() > 0));
+            passed = passed
+                && "READY".equalsIgnoreCase(handle.getStatus())
+                && expectedDatasetHash != null
+                && expectedDatasetHash.equals(handle.getDatasetHash())
+                && runPassed
+                && documentCountValid;
+        }
+        details.set("actualDatasets", actualDatasets);
+
+        addCheck(
+            checks,
+            "marketplace_dataset_sync_matches_expected",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Marketplace DATA plugin datasets were synchronized and are ready for this release."
+                : "Marketplace DATA plugin datasets are missing, stale, or unsynchronized for this release.",
+            details
+        );
+    }
+
     private boolean runtimeShellConfigMatchesExpected(JsonProbeResult probe,
                                                       VerificationExpectations expectations) {
         if (!probe.success() || probe.body() == null) {
@@ -2308,6 +2452,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode routingConfig,
         JsonNode knowledgeSourceConfig,
         JsonNode shellConfig,
+        JsonNode marketplaceDatasetConfig,
         JsonNode securityConfig,
         Set<String> expectedActionNames,
         Set<String> expectedConfirmationInterceptorNames,
@@ -2317,6 +2462,10 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedKnowledgeSourceIds,
         Set<String> expectedKnowledgeSourceTypes,
         Set<String> expectedKnowledgeSourceAdapterTypes,
+        String expectedMarketplaceDatasetContractVersion,
+        Set<String> expectedMarketplaceDatasetIds,
+        Set<String> expectedMarketplaceDatasetHandleRefs,
+        Set<String> expectedMarketplaceDatasetHashes,
         String expectedShellContractVersion,
         Set<String> expectedShellModuleIds,
         Set<String> expectedShellCardIds,

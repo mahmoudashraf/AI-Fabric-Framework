@@ -135,7 +135,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("28 passed, 0 failed, 0 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("28 passed, 0 failed, 1 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -146,8 +146,8 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(28);
-            assertThat(statuses.values()).containsOnly("PASSED");
+            assertThat(statuses).hasSize(29);
+            assertThat(statuses.values()).contains("SKIPPED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
                 .containsEntry("runtime_auth_overview_http_probe", "PASSED")
@@ -163,6 +163,7 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("connector_config_matches_expected", "PASSED")
                 .containsEntry("connector_actions_match_expected", "PASSED")
                 .containsEntry("connector_authz_configuration_matches_expected", "PASSED")
+                .containsEntry("marketplace_dataset_sync_matches_expected", "SKIPPED")
                 .containsEntry("vectorization_control_plane_ready", "PASSED")
                 .containsEntry("vectorization_runner_registration_ready", "PASSED")
                 .containsEntry("vectorization_runner_service_provisioned", "PASSED");

@@ -73,6 +73,7 @@ public class DeploymentDraftValidationService {
             JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
             JsonNode automationNode = objectMapper.readTree(draft.getAutomationConfigJson());
+            JsonNode marketplaceDatasetNode = objectMapper.readTree(draft.getMarketplaceDatasetConfigJson());
 
             List<DraftValidationIssue> issues = new ArrayList<>();
             ActionValidationSummary actionValidation = validateActions(actionsNode, issues);
@@ -85,6 +86,8 @@ public class DeploymentDraftValidationService {
             validateKnowledgeSources(knowledgeSourceNode, issues);
             validateShellConfig(shellNode, issues);
             validateAutomationConfig(automationNode, issues);
+            validateMarketplaceDatasetConfig(marketplaceDatasetNode, issues);
+            validateKnowledgeSourceDatasetRefs(knowledgeSourceNode, marketplaceDatasetNode, issues);
 
             int errorCount = countBySeverity(issues, "ERROR");
             int warningCount = countBySeverity(issues, "WARNING");
@@ -480,6 +483,154 @@ public class DeploymentDraftValidationService {
             boolean hasInterval = schedule.path("intervalMinutes").canConvertToInt() && schedule.path("intervalMinutes").asInt() > 0;
             if (!hasCron && !hasInterval) {
                 issues.add(error("automation", "AUTOMATION_SCHEDULE_TARGET_REQUIRED", basePath, "automationConfig.schedules[] must declare cron or intervalMinutes."));
+            }
+        }
+    }
+
+    private void validateMarketplaceDatasetConfig(JsonNode marketplaceDatasetNode,
+                                                  List<DraftValidationIssue> issues) {
+        if (marketplaceDatasetNode == null || !marketplaceDatasetNode.isObject()) {
+            issues.add(error(
+                "marketplaceDatasets",
+                "MARKETPLACE_DATASET_CONFIG_OBJECT_REQUIRED",
+                "$.marketplaceDatasetConfig",
+                "marketplaceDatasetConfig must be an object."
+            ));
+            return;
+        }
+
+        JsonNode contractVersion = marketplaceDatasetNode.path("contractVersion");
+        if (!contractVersion.isMissingNode() && !contractVersion.isNull() && !contractVersion.isTextual()) {
+            issues.add(error(
+                "marketplaceDatasets",
+                "MARKETPLACE_DATASET_CONTRACT_VERSION_INVALID",
+                "$.marketplaceDatasetConfig.contractVersion",
+                "marketplaceDatasetConfig.contractVersion must be a string when provided."
+            ));
+        }
+
+        JsonNode datasets = marketplaceDatasetNode.path("datasets");
+        if (!datasets.isArray()) {
+            issues.add(error(
+                "marketplaceDatasets",
+                "MARKETPLACE_DATASETS_ARRAY_REQUIRED",
+                "$.marketplaceDatasetConfig.datasets",
+                "marketplaceDatasetConfig.datasets must be an array."
+            ));
+            return;
+        }
+
+        Set<String> datasetIds = new HashSet<>();
+        Set<String> handleRefs = new HashSet<>();
+        for (int index = 0; index < datasets.size(); index++) {
+            JsonNode dataset = datasets.get(index);
+            String basePath = "$.marketplaceDatasetConfig.datasets[" + index + "]";
+            if (!dataset.isObject()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_OBJECT_REQUIRED", basePath, "Each marketplace dataset entry must be an object."));
+                continue;
+            }
+
+            String datasetId = dataset.path("datasetId").asText("").trim();
+            if (datasetId.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_ID_REQUIRED", basePath + ".datasetId", "marketplaceDatasetConfig.datasets[].datasetId is required."));
+            } else if (!datasetIds.add(datasetId.toLowerCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_ID_DUPLICATE", basePath + ".datasetId", "Duplicate marketplace dataset id: " + datasetId));
+            }
+
+            String entityType = dataset.path("entityType").asText("").trim();
+            if (entityType.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_ENTITY_TYPE_REQUIRED", basePath + ".entityType", "marketplaceDatasetConfig.datasets[].entityType is required."));
+            }
+
+            String storageScope = dataset.path("storageScope").asText("").trim();
+            if (storageScope.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_REQUIRED", basePath + ".storageScope", "marketplaceDatasetConfig.datasets[].storageScope is required."));
+            } else if (!"PLUGIN_SCOPED".equalsIgnoreCase(storageScope)) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_UNSUPPORTED", basePath + ".storageScope", "Supported marketplace dataset storageScope values: PLUGIN_SCOPED."));
+            }
+
+            String sharingScope = dataset.path("sharingScope").asText("").trim();
+            if (sharingScope.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SHARING_SCOPE_REQUIRED", basePath + ".sharingScope", "marketplaceDatasetConfig.datasets[].sharingScope is required."));
+            } else if (!"TENANT_SHARED".equalsIgnoreCase(sharingScope)) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SHARING_SCOPE_UNSUPPORTED", basePath + ".sharingScope", "Supported marketplace dataset sharingScope values: TENANT_SHARED."));
+            }
+
+            String ingestionMode = dataset.path("ingestionMode").asText("").trim();
+            if (ingestionMode.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_INGESTION_MODE_REQUIRED", basePath + ".ingestionMode", "marketplaceDatasetConfig.datasets[].ingestionMode is required."));
+            } else if (!Set.of("PACKAGED_SEED", "EXTERNAL_SYNC_SQL", "EXTERNAL_SYNC_FOLDER").contains(ingestionMode.toUpperCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_INGESTION_MODE_UNSUPPORTED", basePath + ".ingestionMode", "Unsupported marketplace dataset ingestionMode: " + ingestionMode));
+            }
+
+            String updateStrategy = dataset.path("updateStrategy").asText("").trim();
+            if (updateStrategy.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_UPDATE_STRATEGY_REQUIRED", basePath + ".updateStrategy", "marketplaceDatasetConfig.datasets[].updateStrategy is required."));
+            }
+
+            String handleRef = dataset.path("handleRef").asText("").trim();
+            if (handleRef.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_HANDLE_REF_REQUIRED", basePath + ".handleRef", "marketplaceDatasetConfig.datasets[].handleRef is required."));
+            } else if (!handleRefs.add(handleRef.toLowerCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_HANDLE_REF_DUPLICATE", basePath + ".handleRef", "Duplicate marketplace dataset handleRef: " + handleRef));
+            }
+
+            String datasetHash = dataset.path("datasetHash").asText("").trim();
+            if (datasetHash.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_HASH_REQUIRED", basePath + ".datasetHash", "marketplaceDatasetConfig.datasets[].datasetHash is required."));
+            }
+
+            if ("PACKAGED_SEED".equalsIgnoreCase(ingestionMode) && dataset.path("seedDatasetRef").asText("").trim().isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SEED_REF_REQUIRED", basePath + ".seedDatasetRef", "PACKAGED_SEED datasets require seedDatasetRef."));
+            }
+            if (("EXTERNAL_SYNC_SQL".equalsIgnoreCase(ingestionMode) || "EXTERNAL_SYNC_FOLDER".equalsIgnoreCase(ingestionMode))
+                && !dataset.path("syncConnector").isObject()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SYNC_CONNECTOR_REQUIRED", basePath + ".syncConnector", "External sync datasets require a syncConnector object."));
+            }
+            if ("EXTERNAL_SYNC_SQL".equalsIgnoreCase(ingestionMode) && dataset.path("syncConnector").isObject()) {
+                if (dataset.path("syncConnector").path("connectionRef").asText("").trim().isEmpty()) {
+                    issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SQL_CONNECTION_REF_REQUIRED", basePath + ".syncConnector.connectionRef", "EXTERNAL_SYNC_SQL datasets require syncConnector.connectionRef."));
+                }
+                if (dataset.path("syncConnector").path("query").asText("").trim().isEmpty()) {
+                    issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SQL_QUERY_REQUIRED", basePath + ".syncConnector.query", "EXTERNAL_SYNC_SQL datasets require syncConnector.query."));
+                }
+            }
+            if ("EXTERNAL_SYNC_FOLDER".equalsIgnoreCase(ingestionMode) && dataset.path("syncConnector").isObject()) {
+                if (dataset.path("syncConnector").path("folderRef").asText("").trim().isEmpty()) {
+                    issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_FOLDER_REF_REQUIRED", basePath + ".syncConnector.folderRef", "EXTERNAL_SYNC_FOLDER datasets require syncConnector.folderRef."));
+                }
+            }
+        }
+    }
+
+    private void validateKnowledgeSourceDatasetRefs(JsonNode knowledgeSourceNode,
+                                                    JsonNode marketplaceDatasetNode,
+                                                    List<DraftValidationIssue> issues) {
+        if (!knowledgeSourceNode.isObject() || !knowledgeSourceNode.path("sources").isArray()) {
+            return;
+        }
+        Set<String> datasetIds = new HashSet<>();
+        if (marketplaceDatasetNode != null && marketplaceDatasetNode.path("datasets").isArray()) {
+            for (JsonNode dataset : marketplaceDatasetNode.path("datasets")) {
+                String datasetId = dataset.path("datasetId").asText("").trim();
+                if (!datasetId.isEmpty()) {
+                    datasetIds.add(datasetId);
+                }
+            }
+        }
+        for (int index = 0; index < knowledgeSourceNode.path("sources").size(); index++) {
+            JsonNode source = knowledgeSourceNode.path("sources").get(index);
+            if (!source.isObject()) {
+                continue;
+            }
+            String datasetRef = source.path("datasetRef").asText("").trim();
+            if (!datasetRef.isEmpty() && !datasetIds.contains(datasetRef)) {
+                issues.add(error(
+                    "knowledgeSources",
+                    "KNOWLEDGE_SOURCE_DATASET_REF_UNKNOWN",
+                    "$.knowledgeSourceConfig.sources[" + index + "].datasetRef",
+                    "Unknown marketplace datasetRef referenced by knowledge source: " + datasetRef
+                ));
             }
         }
     }

@@ -84,6 +84,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-admin')].pricing.pricingModel", is(List.of("ONE_OFF"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].pricing.pricingModel", is(List.of("SUBSCRIPTION"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-help-center')].pricing.pricingModel", is(List.of("FREE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-data-policy-folder')].pluginType", is(List.of("DATA"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].contributions.knowledgeSourceIds[0]", is(List.of("commerce-catalog"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-automation-order-retention')].pluginType", is(List.of("AUTOMATION"))));
 
@@ -107,7 +108,9 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.pricing.pricingModel", is("SUBSCRIPTION")))
             .andExpect(jsonPath("$.compatibility.supportedAuthModes", hasItem("PUBLIC_RUNTIME_AUTHENTICATED")))
             .andExpect(jsonPath("$.installForm[0].id", is("scope")))
-            .andExpect(jsonPath("$.contributions.knowledgeSourceIds[0]", is("commerce-catalog")));
+            .andExpect(jsonPath("$.contributions.knowledgeSourceIds[0]", is("commerce-catalog")))
+            .andExpect(jsonPath("$.manifest.contributions.datasets[0].datasetId", is("commerce-catalog-sql")))
+            .andExpect(jsonPath("$.manifest.contributions.datasets[0].ingestionMode", is("EXTERNAL_SYNC_SQL")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-automation-order-retention")))
             .andExpect(status().isOk())
@@ -127,7 +130,7 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(2))))
             .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(2))))
-            .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(2))))
+            .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(3))))
             .andExpect(jsonPath("$[?(@.id=='automation')].pluginCount", is(List.of(1))));
     }
 
@@ -223,6 +226,11 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='send-sms')].marketplaceInstallId", is(List.of(notificationInstallId))))
             .andExpect(jsonPath("$.entityConfig['ai-entities']['faq-article'].marketplaceInstallId", is(helpCenterInstallId)))
             .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='help-center')].marketplaceInstallId", is(List.of(helpCenterInstallId))))
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.contractVersion", is("MARKETPLACE_DATASET_CONFIG_V1")))
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='help-center-seed')].marketplaceInstallId", is(List.of(helpCenterInstallId))))
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='help-center-seed')].ingestionMode", is(List.of("PACKAGED_SEED"))))
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='help-center-seed')].handleRef").exists())
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='help-center-seed')].datasetHash").exists())
             .andExpect(jsonPath("$.automationConfig.workflows[?(@.id=='order-cancel-retention')].marketplaceInstallId", is(List.of(automationInstallId))))
             .andExpect(jsonPath("$.automationConfig.triggers[?(@.id=='order-cancel-requested')].eventType", is(List.of("order.cancel.requested"))))
             .andExpect(jsonPath("$.automationConfig.actions[?(@.id=='offer-retention-discount')].actionRef", is(List.of("offer_order_discount"))))
@@ -348,7 +356,10 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-read')].marketplaceInstallId", is(List.of(actionInstall))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-cancel')].requiresConfirmation", is(List.of(true))))
             .andExpect(jsonPath("$.entityConfig['ai-entities']['product'].marketplaceInstallId", is(dataInstall)))
-            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].handleRef", is(List.of("commerce-catalog"))))
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].datasetRef", is(List.of("commerce-catalog-sql"))))
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='commerce-catalog-sql')].marketplaceInstallId", is(List.of(dataInstall))))
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='commerce-catalog-sql')].ingestionMode", is(List.of("EXTERNAL_SYNC_SQL"))))
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='commerce-catalog-sql')].syncConnector.connectionRef", is(List.of("platform-marketplace-demo-sql"))))
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')].marketplaceInstallId", is(List.of(actionInstall))))
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='docs')].marketplaceInstallId", is(List.of(dataInstall))));
 
@@ -363,7 +374,7 @@ class MarketplaceIntegrationTest {
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].handleRef", is(List.of("commerce-catalog"))));
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].datasetRef", is(List.of("commerce-catalog-sql"))));
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-impact", deployment.id())))
             .andExpect(status().isOk())
@@ -409,6 +420,7 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')]").isEmpty())
+            .andExpect(jsonPath("$.marketplaceDatasetConfig.datasets[?(@.datasetId=='commerce-catalog-sql')]").isEmpty())
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='docs')]").isEmpty());
 
         mockMvc.perform(asAdmin(delete("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deployment.id(), actionInstall)))

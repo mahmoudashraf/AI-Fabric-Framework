@@ -15,6 +15,11 @@ on:
         required: false
         type: boolean
         default: true
+      run_marketplace_install_flow_checks:
+        description: Create a fresh deployment from marketplace plugins, publish it, apply it, and verify live dataset-backed retrieval.
+        required: false
+        type: boolean
+        default: false
       run_ecommerce_deployment_checks:
         description: Verify the current ecommerce deployment in read-only mode.
         required: false
@@ -86,6 +91,7 @@ jobs:
       APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
       RUNTIME_TRUSTED_BACKEND_API_KEY: ${{ secrets.AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY }}
       RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
+      RUN_MARKETPLACE_INSTALL_FLOW_CHECKS: ${{ inputs.run_marketplace_install_flow_checks }}
       RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
       RUN_MARKETPLACE_RUNTIME_CHECKS: ${{ inputs.run_marketplace_runtime_checks }}
       RUN_VECTOR_DEPLOYMENT_CHECKS: ${{ inputs.run_vector_deployment_checks }}

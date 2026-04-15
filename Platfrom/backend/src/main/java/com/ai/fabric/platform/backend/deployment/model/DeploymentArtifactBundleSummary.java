@@ -12,6 +12,7 @@ public record DeploymentArtifactBundleSummary(
     String knowledgeSourceArtifactUrl,
     String shellArtifactUrl,
     String automationArtifactUrl,
+    String marketplaceDatasetArtifactUrl,
     String manifestUrl
 ) {
     public DeploymentArtifactBundleSummary(String deploymentId,
@@ -32,6 +33,7 @@ public record DeploymentArtifactBundleSummary(
             entityArtifactUrl,
             routingArtifactUrl,
             promptArtifactUrl,
+            null,
             null,
             null,
             null,
@@ -61,6 +63,36 @@ public record DeploymentArtifactBundleSummary(
             promptArtifactUrl,
             knowledgeSourceArtifactUrl,
             shellArtifactUrl,
+            null,
+            null,
+            manifestUrl
+        );
+    }
+
+    public DeploymentArtifactBundleSummary(String deploymentId,
+                                           String deploymentVersionId,
+                                           String versionLabel,
+                                           String configHash,
+                                           String actionsArtifactUrl,
+                                           String entityArtifactUrl,
+                                           String routingArtifactUrl,
+                                           String promptArtifactUrl,
+                                           String knowledgeSourceArtifactUrl,
+                                           String shellArtifactUrl,
+                                           String automationArtifactUrl,
+                                           String manifestUrl) {
+        this(
+            deploymentId,
+            deploymentVersionId,
+            versionLabel,
+            configHash,
+            actionsArtifactUrl,
+            entityArtifactUrl,
+            routingArtifactUrl,
+            promptArtifactUrl,
+            knowledgeSourceArtifactUrl,
+            shellArtifactUrl,
+            automationArtifactUrl,
             null,
             manifestUrl
         );

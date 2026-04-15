@@ -36,7 +36,7 @@ final class DeploymentPrivateVectorSearchSource implements SearchSource {
 
     @Override
     public AISearchResponse search(List<Double> queryVector, RAGRequest ragRequest, AISearchRequest baseSearchRequest) {
-        AISearchRequest scopedRequest = SearchSourceResultSupport.scopedRequest(baseSearchRequest, source, 1);
+        AISearchRequest scopedRequest = SearchSourceResultSupport.scopedRequest(baseSearchRequest, source, 4);
         if (scopedRequest.getEntityType() == null || scopedRequest.getEntityType().isBlank()) {
             return AISearchResponse.builder()
                 .results(List.of())

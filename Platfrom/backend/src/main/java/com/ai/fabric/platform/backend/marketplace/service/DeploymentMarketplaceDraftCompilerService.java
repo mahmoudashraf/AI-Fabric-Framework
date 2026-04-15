@@ -1,9 +1,11 @@
 package com.ai.fabric.platform.backend.marketplace.service;
 
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDraftValidationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
@@ -19,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -39,28 +43,35 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String DEFAULT_KNOWLEDGE_SOURCE_CONTRACT_VERSION = "KNOWLEDGE_SOURCE_CONFIG_V1";
     private static final String DEFAULT_SHELL_CONTRACT_VERSION = "SHELL_CONFIG_V1";
     private static final String DEFAULT_AUTOMATION_CONTRACT_VERSION = "AUTOMATION_CONFIG_V1";
+    private static final String DEFAULT_MARKETPLACE_DATASET_CONTRACT_VERSION = "MARKETPLACE_DATASET_CONFIG_V1";
 
     private final DeploymentService deploymentService;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
+    private final DeploymentRepository deploymentRepository;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final MarketplaceManifestService marketplaceManifestService;
     private final MarketplaceEntitlementService marketplaceEntitlementService;
+    private final MarketplaceDatasetHandleResolver marketplaceDatasetHandleResolver;
     private final ObjectMapper objectMapper;
 
     public DeploymentMarketplaceDraftCompilerService(DeploymentService deploymentService,
                                                      DeploymentDraftValidationService deploymentDraftValidationService,
+                                                     DeploymentRepository deploymentRepository,
                                                      DeploymentMarketplacePluginInstallRepository installRepository,
                                                      MarketplaceCatalogService marketplaceCatalogService,
                                                      MarketplaceManifestService marketplaceManifestService,
                                                      MarketplaceEntitlementService marketplaceEntitlementService,
+                                                     MarketplaceDatasetHandleResolver marketplaceDatasetHandleResolver,
                                                      ObjectMapper objectMapper) {
         this.deploymentService = deploymentService;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
+        this.deploymentRepository = deploymentRepository;
         this.installRepository = installRepository;
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.marketplaceManifestService = marketplaceManifestService;
         this.marketplaceEntitlementService = marketplaceEntitlementService;
+        this.marketplaceDatasetHandleResolver = marketplaceDatasetHandleResolver;
         this.objectMapper = objectMapper;
     }
 
@@ -72,12 +83,16 @@ public class DeploymentMarketplaceDraftCompilerService {
         ObjectNode knowledgeSourceRoot = normalizeKnowledgeSourceRoot(draft.knowledgeSourceConfig());
         ObjectNode shellRoot = normalizeShellRoot(draft.shellConfig());
         ObjectNode automationRoot = normalizeAutomationRoot(draft.automationConfig());
+        ObjectNode marketplaceDatasetRoot = normalizeMarketplaceDatasetRoot(draft.marketplaceDatasetConfig());
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Deployment not found: " + deploymentId));
 
         stripMarketplaceManagedActions(actionsRoot);
         stripMarketplaceManagedEntities(entityRoot);
         stripMarketplaceManagedKnowledgeSources(knowledgeSourceRoot);
         stripMarketplaceManagedShell(shellRoot);
         stripMarketplaceManagedAutomation(automationRoot);
+        stripMarketplaceManagedDatasets(marketplaceDatasetRoot);
 
         List<DeploymentMarketplacePluginInstallEntity> installs =
             installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
@@ -108,6 +123,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                     entityRoot,
                     knowledgeSourceRoot,
                     shellRoot,
+                    marketplaceDatasetRoot,
+                    deployment,
                     install,
                     plugin,
                     version,
@@ -140,7 +157,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                 null,
                 knowledgeSourceRoot,
                 shellRoot,
-                automationRoot
+                automationRoot,
+                marketplaceDatasetRoot
             )
         );
         DraftValidationResponse validation = deploymentDraftValidationService.validate(asDraftEntity(updated));
@@ -255,6 +273,8 @@ public class DeploymentMarketplaceDraftCompilerService {
     private void applyDataPlugin(ObjectNode entityRoot,
                                  ObjectNode knowledgeSourceRoot,
                                  ObjectNode shellRoot,
+                                 ObjectNode marketplaceDatasetRoot,
+                                 DeploymentEntity deployment,
                                  DeploymentMarketplacePluginInstallEntity install,
                                  MarketplacePluginEntity plugin,
                                  MarketplacePluginVersionEntity version,
@@ -262,6 +282,9 @@ public class DeploymentMarketplaceDraftCompilerService {
                                  Set<String> existingEntityTypes,
                                  Set<String> existingKnowledgeSourceIds) {
         ArrayNode sources = ensureArray(knowledgeSourceRoot, "sources");
+        ArrayNode datasets = ensureArray(marketplaceDatasetRoot, "datasets");
+        JsonNode installConfig = readJson(install.getConfigJson());
+        JsonNode installSecretRefs = readJson(install.getSecretRefsJson());
         applyEntityContribution(
             entityRoot,
             parsed.manifest().path("contributions").path("entityConfig"),
@@ -270,6 +293,44 @@ public class DeploymentMarketplaceDraftCompilerService {
             version,
             existingEntityTypes
         );
+        java.util.Map<String, MarketplaceManifestService.ParsedMarketplaceDatasetDefinition> datasetsById = parsed.datasets().stream()
+            .collect(java.util.stream.Collectors.toMap(
+                MarketplaceManifestService.ParsedMarketplaceDatasetDefinition::datasetId,
+                java.util.function.Function.identity(),
+                (left, right) -> left,
+                java.util.LinkedHashMap::new
+            ));
+        for (MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset : parsed.datasets()) {
+            ObjectNode compiledDataset = objectMapper.createObjectNode();
+            compiledDataset.put("datasetId", dataset.datasetId());
+            compiledDataset.put("entityType", dataset.entityType());
+            compiledDataset.put("storageScope", dataset.storageScope());
+            compiledDataset.put("sharingScope", dataset.sharingScope());
+            compiledDataset.put("ingestionMode", dataset.ingestionMode());
+            compiledDataset.put("updateStrategy", dataset.updateStrategy());
+            if (StringUtils.hasText(dataset.vectorizationProfile())) {
+                compiledDataset.put("vectorizationProfile", dataset.vectorizationProfile());
+            }
+            ObjectNode resolvedSyncConnector = resolveSyncConnector(dataset, installConfig, installSecretRefs);
+            String datasetHash = datasetHash(plugin, version, install, dataset, installConfig, installSecretRefs, resolvedSyncConnector);
+            String resolvedHandleRef = marketplaceDatasetHandleResolver.resolveHandleRef(deployment, plugin, dataset, datasetHash);
+            compiledDataset.put("handleRef", resolvedHandleRef);
+            compiledDataset.put("datasetHash", datasetHash);
+            if (StringUtils.hasText(dataset.seedDatasetRef())) {
+                compiledDataset.put("seedDatasetRef", dataset.seedDatasetRef());
+            }
+            if (StringUtils.hasText(dataset.connectorType())) {
+                compiledDataset.put("connectorType", dataset.connectorType());
+            }
+            if (!resolvedSyncConnector.isEmpty()) {
+                compiledDataset.set("syncConnector", resolvedSyncConnector);
+            }
+            if (installConfig != null && installConfig.isObject() && !installConfig.isEmpty()) {
+                compiledDataset.set("config", installConfig.deepCopy());
+            }
+            applyMarketplaceProvenance(compiledDataset, install, plugin, version);
+            datasets.add(compiledDataset);
+        }
         JsonNode sourceEntries = parsed.manifest().path("contributions").path("knowledgeSources");
         for (JsonNode sourceEntry : iterable(sourceEntries)) {
             if (!sourceEntry.isObject()) {
@@ -311,11 +372,29 @@ public class DeploymentMarketplaceDraftCompilerService {
                 compiled.set("authModes", sourceEntry.path("authModes").deepCopy());
             }
             String handleRef = text(sourceEntry, "handleRef");
+            String datasetRef = text(sourceEntry, "datasetRef");
+            if (!StringUtils.hasText(datasetRef) && parsed.datasets().size() == 1) {
+                datasetRef = parsed.datasets().getFirst().datasetId();
+            }
+            if (StringUtils.hasText(datasetRef)) {
+                compiled.put("datasetRef", datasetRef);
+                MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset = datasetsById.get(datasetRef);
+                if (dataset != null && !StringUtils.hasText(handleRef)) {
+                    ObjectNode resolvedSyncConnector = resolveSyncConnector(dataset, installConfig, installSecretRefs);
+                    String datasetHash = datasetHash(plugin, version, install, dataset, installConfig, installSecretRefs, resolvedSyncConnector);
+                    handleRef = marketplaceDatasetHandleResolver.resolveHandleRef(deployment, plugin, dataset, datasetHash);
+                }
+            }
             if (!StringUtils.hasText(handleRef) && "shared-index".equalsIgnoreCase(compiled.path("adapterType").asText(""))) {
                 handleRef = sourceId;
             }
             if (StringUtils.hasText(handleRef)) {
                 compiled.put("handleRef", handleRef);
+                ObjectNode filters = sourceEntry.path("filters").isObject()
+                    ? (ObjectNode) sourceEntry.path("filters").deepCopy()
+                    : objectMapper.createObjectNode();
+                filters.put("knowledgeSourceHandleRef", handleRef);
+                compiled.set("filters", filters);
             }
             if (sourceEntry.path("enabled").isBoolean()) {
                 compiled.put("enabled", sourceEntry.path("enabled").asBoolean());
@@ -521,6 +600,10 @@ public class DeploymentMarketplaceDraftCompilerService {
         removeMarketplaceManagedEntries(ensureArray(automationRoot, "schedules"));
     }
 
+    private void stripMarketplaceManagedDatasets(ObjectNode marketplaceDatasetRoot) {
+        removeMarketplaceManagedEntries(ensureArray(marketplaceDatasetRoot, "datasets"));
+    }
+
     private void removeMarketplaceManagedEntries(ArrayNode array) {
         for (int index = array.size() - 1; index >= 0; index--) {
             if (isMarketplaceManaged(array.get(index))) {
@@ -721,6 +804,99 @@ public class DeploymentMarketplaceDraftCompilerService {
         return root;
     }
 
+    private ObjectNode normalizeMarketplaceDatasetRoot(JsonNode candidate) {
+        ObjectNode root = ensureObject(candidate);
+        if (!StringUtils.hasText(root.path("contractVersion").asText(""))) {
+            root.put("contractVersion", DEFAULT_MARKETPLACE_DATASET_CONTRACT_VERSION);
+        }
+        ensureArray(root, "datasets");
+        return root;
+    }
+
+    private ObjectNode resolveSyncConnector(MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
+                                            JsonNode installConfig,
+                                            JsonNode installSecretRefs) {
+        ObjectNode resolved = dataset.syncConnector() != null && dataset.syncConnector().isObject()
+            ? (ObjectNode) dataset.syncConnector().deepCopy()
+            : objectMapper.createObjectNode();
+        if (!StringUtils.hasText(dataset.connectorType())) {
+            return resolved;
+        }
+        if ("SQL_QUERY".equals(dataset.connectorType())) {
+            String connectionRef = resolveConfiguredReference(
+                resolved,
+                "connectionRef",
+                dataset.connectionRefField(),
+                installConfig,
+                installSecretRefs
+            );
+            if (StringUtils.hasText(connectionRef)) {
+                resolved.put("connectionRef", connectionRef);
+            }
+        }
+        if ("FILE_FOLDER".equals(dataset.connectorType())) {
+            String folderRef = resolveConfiguredReference(
+                resolved,
+                "folderRef",
+                dataset.folderRefField(),
+                installConfig,
+                installSecretRefs
+            );
+            if (StringUtils.hasText(folderRef)) {
+                resolved.put("folderRef", folderRef);
+            }
+        }
+        return resolved;
+    }
+
+    private String resolveConfiguredReference(ObjectNode connector,
+                                              String directField,
+                                              String installField,
+                                              JsonNode installConfig,
+                                              JsonNode installSecretRefs) {
+        String directValue = text(connector, directField);
+        if (StringUtils.hasText(directValue)) {
+            return directValue;
+        }
+        if (!StringUtils.hasText(installField)) {
+            return null;
+        }
+        String configured = installConfig.path(installField).asText("").trim();
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        String secretConfigured = installSecretRefs.path(installField).asText("").trim();
+        return StringUtils.hasText(secretConfigured) ? secretConfigured : null;
+    }
+
+    private String datasetHash(MarketplacePluginEntity plugin,
+                               MarketplacePluginVersionEntity version,
+                               DeploymentMarketplacePluginInstallEntity install,
+                               MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
+                               JsonNode installConfig,
+                               JsonNode installSecretRefs,
+                               JsonNode resolvedSyncConnector) {
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("pluginId", plugin.getId());
+        payload.put("pluginVersion", version.getVersion());
+        payload.put("pluginVersionId", version.getId());
+        payload.put("installId", install.getId());
+        payload.put("datasetId", dataset.datasetId());
+        payload.put("entityType", dataset.entityType());
+        payload.put("storageScope", dataset.storageScope());
+        payload.put("sharingScope", dataset.sharingScope());
+        payload.put("ingestionMode", dataset.ingestionMode());
+        payload.put("updateStrategy", dataset.updateStrategy());
+        payload.put("vectorizationProfile", blankToNull(dataset.vectorizationProfile()));
+        payload.put("seedDatasetRef", blankToNull(dataset.seedDatasetRef()));
+        if (resolvedSyncConnector != null && !resolvedSyncConnector.isEmpty()) {
+            payload.set("syncConnector", resolvedSyncConnector.deepCopy());
+        }
+        payload.set("config", installConfig == null ? objectMapper.createObjectNode() : installConfig.deepCopy());
+        payload.set("secretRefs", installSecretRefs == null ? objectMapper.createObjectNode() : installSecretRefs.deepCopy());
+        return sha256(writeJson(payload));
+    }
+
     private ObjectNode ensureObject(JsonNode node) {
         return node != null && node.isObject()
             ? (ObjectNode) node.deepCopy()
@@ -812,6 +988,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         entity.setKnowledgeSourceConfigJson(writeJson(draft.knowledgeSourceConfig()));
         entity.setShellConfigJson(writeJson(draft.shellConfig()));
         entity.setAutomationConfigJson(writeJson(draft.automationConfig()));
+        entity.setMarketplaceDatasetConfigJson(writeJson(draft.marketplaceDatasetConfig()));
         entity.setCreatedAt(draft.createdAt());
         entity.setUpdatedAt(draft.updatedAt());
         return entity;
@@ -822,6 +999,35 @@ public class DeploymentMarketplaceDraftCompilerService {
             return objectMapper.writeValueAsString(node == null ? objectMapper.createObjectNode() : node);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to serialize marketplace-composed draft JSON.", ex);
+        }
+    }
+
+    private JsonNode readJson(String json) {
+        try {
+            if (!StringUtils.hasText(json)) {
+                return objectMapper.createObjectNode();
+            }
+            return objectMapper.readTree(json);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to parse marketplace install JSON.", ex);
+        }
+    }
+
+    private String blankToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder();
+            for (byte b : hash) {
+                out.append(String.format("%02x", b));
+            }
+            return out.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to hash marketplace dataset state.", ex);
         }
     }
 }

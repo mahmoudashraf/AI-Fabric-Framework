@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplaceDatasetSyncService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -41,6 +43,7 @@ public class DeploymentReleaseExecutionService {
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
+    private final MarketplaceDatasetSyncService marketplaceDatasetSyncService;
     private final Executor releaseExecutionExecutor;
     private final TransactionOperations transactionOperations;
     private final ObjectMapper objectMapper;
@@ -55,6 +58,7 @@ public class DeploymentReleaseExecutionService {
                                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                                              DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                              DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                             MarketplaceDatasetSyncService marketplaceDatasetSyncService,
                                              @Qualifier("releaseExecutionExecutor") Executor releaseExecutionExecutor,
                                              PlatformTransactionManager transactionManager,
                                              ObjectMapper objectMapper) {
@@ -68,6 +72,7 @@ public class DeploymentReleaseExecutionService {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            marketplaceDatasetSyncService,
             releaseExecutionExecutor,
             new TransactionTemplate(transactionManager),
             objectMapper
@@ -83,6 +88,7 @@ public class DeploymentReleaseExecutionService {
                                       DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                                       DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                       DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                      MarketplaceDatasetSyncService marketplaceDatasetSyncService,
                                       Executor releaseExecutionExecutor,
                                       TransactionOperations transactionOperations,
                                       ObjectMapper objectMapper) {
@@ -95,6 +101,7 @@ public class DeploymentReleaseExecutionService {
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
+        this.marketplaceDatasetSyncService = marketplaceDatasetSyncService;
         this.releaseExecutionExecutor = releaseExecutionExecutor;
         this.transactionOperations = transactionOperations;
         this.objectMapper = objectMapper;
@@ -183,6 +190,7 @@ public class DeploymentReleaseExecutionService {
         );
 
         applyProvisioningResult(deploymentId, versionId, releaseId, provisioningResult);
+        syncMarketplaceDatasets(deploymentId, versionId, releaseId);
         runVerification(deploymentId, versionId, releaseId);
     }
 
@@ -321,6 +329,39 @@ public class DeploymentReleaseExecutionService {
         );
         transactionOperations.executeWithoutResult(
             status -> completeVerification(deploymentId, releaseId, verificationRun)
+        );
+    }
+
+    protected void syncMarketplaceDatasets(String deploymentId, String versionId, String releaseId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentVersionEntity version = getVersion(versionId);
+        DeploymentReleaseEntity release = getRelease(releaseId);
+        deploymentReleaseProgressService.stepStarted(
+            releaseId,
+            "sync_marketplace_datasets",
+            "Sync marketplace DATA plugin datasets."
+        );
+        MarketplaceDatasetSyncService.DatasetSyncSummary summary =
+            marketplaceDatasetSyncService.syncReleaseDatasets(deployment, version, release);
+        if (summary.datasetsCount() > 0) {
+            deploymentReleaseProgressService.mergeProvisioningDetails(
+                releaseId,
+                writeJson(Map.of(
+                    "marketplaceDatasets", Map.of(
+                        "datasetsCount", summary.datasetsCount(),
+                        "syncedDatasets", summary.syncedDatasets(),
+                        "skippedDatasets", summary.skippedDatasets(),
+                        "handleRefs", summary.handleRefs()
+                    )
+                ))
+            );
+        }
+        deploymentReleaseProgressService.stepCompleted(
+            releaseId,
+            "sync_marketplace_datasets",
+            summary.datasetsCount() > 0
+                ? "Synchronized marketplace DATA plugin datasets."
+                : "No marketplace DATA plugin datasets required synchronization."
         );
     }
 
@@ -467,6 +508,14 @@ public class DeploymentReleaseExecutionService {
             return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read deployment provider config during release execution.", ex);
+        }
+    }
+
+    private String writeJson(Map<String, Object> value) {
+        try {
+            return objectMapper.writeValueAsString(value == null ? Map.of() : value);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to serialize deployment release execution details.", ex);
         }
     }
 }

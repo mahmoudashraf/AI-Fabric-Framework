@@ -17,6 +17,8 @@ public class DeploymentDraftEntity {
         "{\"contractVersion\":\"SHELL_CONFIG_V1\",\"modules\":[],\"cards\":[]}";
     public static final String DEFAULT_AUTOMATION_CONFIG_JSON =
         "{\"contractVersion\":\"AUTOMATION_CONFIG_V1\",\"triggers\":[],\"actions\":[],\"workflows\":[],\"schedules\":[]}";
+    public static final String DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON =
+        "{\"contractVersion\":\"MARKETPLACE_DATASET_CONFIG_V1\",\"datasets\":[]}";
 
     @Id
     private String id;
@@ -56,6 +58,9 @@ public class DeploymentDraftEntity {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String automationConfigJson = DEFAULT_AUTOMATION_CONFIG_JSON;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String marketplaceDatasetConfigJson = DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON;
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -171,6 +176,16 @@ public class DeploymentDraftEntity {
 
     public void setAutomationConfigJson(String automationConfigJson) {
         this.automationConfigJson = automationConfigJson;
+    }
+
+    public String getMarketplaceDatasetConfigJson() {
+        return marketplaceDatasetConfigJson == null
+            ? DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON
+            : marketplaceDatasetConfigJson;
+    }
+
+    public void setMarketplaceDatasetConfigJson(String marketplaceDatasetConfigJson) {
+        this.marketplaceDatasetConfigJson = marketplaceDatasetConfigJson;
     }
 
     public Instant getCreatedAt() {

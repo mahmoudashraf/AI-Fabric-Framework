@@ -164,6 +164,7 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
             String entityType = request.getEntityType();
             List<VectorRecord> entities = vectorStore.values().stream()
                 .filter(record -> entityType.equals(record.getEntityType()))
+                .filter(record -> matchesMetadata(record.getMetadata(), request.getMetadata()))
                 .collect(Collectors.toList());
             
             if (entities.isEmpty()) {
@@ -546,5 +547,18 @@ public class InMemoryVectorDatabaseService implements VectorDatabaseService {
         Map<String, Object> copy = new LinkedHashMap<>(metadata);
         copy.remove("raw");
         return copy;
+    }
+
+    private boolean matchesMetadata(Map<String, Object> metadata, Map<String, Object> metadataEquals) {
+        if (metadataEquals == null || metadataEquals.isEmpty()) {
+            return true;
+        }
+        Map<String, Object> candidate = metadata == null ? Collections.emptyMap() : metadata;
+        for (Map.Entry<String, Object> entry : metadataEquals.entrySet()) {
+            if (!Objects.equals(candidate.get(entry.getKey()), entry.getValue())) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -10,12 +10,14 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplaceDatasetSyncService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,6 +40,9 @@ class DeploymentReleaseExecutionServiceTest {
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
         DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        MarketplaceDatasetSyncService marketplaceDatasetSyncService = mock(MarketplaceDatasetSyncService.class);
+        when(marketplaceDatasetSyncService.syncReleaseDatasets(any(), any(), any()))
+            .thenReturn(new MarketplaceDatasetSyncService.DatasetSyncSummary(0, 0, 0, List.of()));
 
         DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
             deploymentRepository,
@@ -49,6 +54,7 @@ class DeploymentReleaseExecutionServiceTest {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            marketplaceDatasetSyncService,
             Runnable::run,
             TransactionOperations.withoutTransaction(),
             new ObjectMapper()
@@ -132,6 +138,9 @@ class DeploymentReleaseExecutionServiceTest {
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
         DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        MarketplaceDatasetSyncService marketplaceDatasetSyncService = mock(MarketplaceDatasetSyncService.class);
+        when(marketplaceDatasetSyncService.syncReleaseDatasets(any(), any(), any()))
+            .thenReturn(new MarketplaceDatasetSyncService.DatasetSyncSummary(0, 0, 0, List.of()));
 
         DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
             deploymentRepository,
@@ -143,6 +152,7 @@ class DeploymentReleaseExecutionServiceTest {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            marketplaceDatasetSyncService,
             Runnable::run,
             TransactionOperations.withoutTransaction(),
             new ObjectMapper()
@@ -216,6 +226,9 @@ class DeploymentReleaseExecutionServiceTest {
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
         DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        MarketplaceDatasetSyncService marketplaceDatasetSyncService = mock(MarketplaceDatasetSyncService.class);
+        when(marketplaceDatasetSyncService.syncReleaseDatasets(any(), any(), any()))
+            .thenReturn(new MarketplaceDatasetSyncService.DatasetSyncSummary(0, 0, 0, List.of()));
 
         DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
             deploymentRepository,
@@ -227,6 +240,7 @@ class DeploymentReleaseExecutionServiceTest {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            marketplaceDatasetSyncService,
             Runnable::run,
             TransactionOperations.withoutTransaction(),
             new ObjectMapper()
@@ -311,6 +325,9 @@ class DeploymentReleaseExecutionServiceTest {
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
         DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        MarketplaceDatasetSyncService marketplaceDatasetSyncService = mock(MarketplaceDatasetSyncService.class);
+        when(marketplaceDatasetSyncService.syncReleaseDatasets(any(), any(), any()))
+            .thenReturn(new MarketplaceDatasetSyncService.DatasetSyncSummary(0, 0, 0, List.of()));
 
         DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
             deploymentRepository,
@@ -322,6 +339,7 @@ class DeploymentReleaseExecutionServiceTest {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            marketplaceDatasetSyncService,
             task -> {
                 throw new TaskRejectedException("executor saturated");
             },
@@ -421,6 +439,9 @@ class DeploymentReleaseExecutionServiceTest {
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
         DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        MarketplaceDatasetSyncService marketplaceDatasetSyncService = mock(MarketplaceDatasetSyncService.class);
+        when(marketplaceDatasetSyncService.syncReleaseDatasets(any(), any(), any()))
+            .thenReturn(new MarketplaceDatasetSyncService.DatasetSyncSummary(0, 0, 0, List.of()));
 
         DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
             deploymentRepository,
@@ -432,6 +453,7 @@ class DeploymentReleaseExecutionServiceTest {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            marketplaceDatasetSyncService,
             Runnable::run,
             TransactionOperations.withoutTransaction(),
             new ObjectMapper()

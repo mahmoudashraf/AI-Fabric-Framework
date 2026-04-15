@@ -18,6 +18,7 @@ public record DeploymentDraftResponse(
     JsonNode knowledgeSourceConfig,
     JsonNode shellConfig,
     JsonNode automationConfig,
+    JsonNode marketplaceDatasetConfig,
     Instant createdAt,
     Instant updatedAt
 ) {
@@ -44,6 +45,7 @@ public record DeploymentDraftResponse(
             providerConfig,
             securityConfig,
             promptConfig,
+            null,
             null,
             null,
             null,
@@ -79,6 +81,7 @@ public record DeploymentDraftResponse(
             promptConfig,
             knowledgeSourceConfig,
             shellConfig,
+            null,
             null,
             createdAt,
             updatedAt

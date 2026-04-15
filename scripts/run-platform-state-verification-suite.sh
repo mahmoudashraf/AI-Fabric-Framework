@@ -21,6 +21,7 @@ PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY:-}"
 
 RUN_PLATFORM_CODE_CHECKS="${RUN_PLATFORM_CODE_CHECKS:-true}"
+RUN_MARKETPLACE_INSTALL_FLOW_CHECKS="${RUN_MARKETPLACE_INSTALL_FLOW_CHECKS:-false}"
 RUN_ECOMMERCE_DEPLOYMENT_CHECKS="${RUN_ECOMMERCE_DEPLOYMENT_CHECKS:-true}"
 RUN_MARKETPLACE_RUNTIME_CHECKS="${RUN_MARKETPLACE_RUNTIME_CHECKS:-true}"
 RUN_VECTOR_DEPLOYMENT_CHECKS="${RUN_VECTOR_DEPLOYMENT_CHECKS:-true}"
@@ -93,17 +94,19 @@ if [[ "${RUN_PLATFORM_CODE_CHECKS}" == "true" ]]; then
   require_cmd mvn
   require_cmd npm
 fi
-if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
+if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_INSTALL_FLOW_CHECKS}" == "true" ]]; then
   if [[ -z "${PLATFORM_BASE_URL}" ]]; then
     echo "Set PLATFORM_BASE_URL when deployment checks are enabled." >&2
     exit 2
   fi
+fi
+if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
   if [[ -z "${APP_ADMIN_API_KEY}" ]]; then
     echo "Set APP_ADMIN_API_KEY when deployment checks are enabled." >&2
     exit 2
   fi
 fi
-if [[ ("${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true") && -z "${PLATFORM_API_KEY}" && ( -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ) ]]; then
+if [[ ("${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_INSTALL_FLOW_CHECKS}" == "true") && -z "${PLATFORM_API_KEY}" && ( -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ) ]]; then
   echo "Set PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD." >&2
   exit 2
 fi
@@ -201,7 +204,16 @@ if [[ "${RUN_PLATFORM_CODE_CHECKS}" == "true" ]]; then
     -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus \
     -am test -DskipITs
   run_step "Platform UI build" bash -c 'cd Platfrom/ui && npm ci && npm run build'
-  run_step "Shell syntax checks" bash -c 'bash -n scripts/verify-ecommerce-deployment.sh && bash -n scripts/verify-vector-deployment.sh && bash -n scripts/verify-managed-vector-providers.sh && bash -n scripts/verify-platform-admin-regression.sh && bash -n scripts/resolve-verification-rollouts.sh && bash -n scripts/run-platform-deployment-verification.sh && bash -n scripts/run-platform-state-verification-suite.sh'
+  run_step "Shell syntax checks" bash -c 'bash -n scripts/verify-ecommerce-deployment.sh && bash -n scripts/verify-vector-deployment.sh && bash -n scripts/verify-managed-vector-providers.sh && bash -n scripts/verify-platform-admin-regression.sh && bash -n scripts/verify-marketplace-install-flow.sh && bash -n scripts/resolve-verification-rollouts.sh && bash -n scripts/run-platform-deployment-verification.sh && bash -n scripts/run-platform-state-verification-suite.sh'
+fi
+
+if [[ "${RUN_MARKETPLACE_INSTALL_FLOW_CHECKS}" == "true" ]]; then
+  run_step "Verify marketplace install flow" env \
+    PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+    PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+    PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+    PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+    bash scripts/verify-marketplace-install-flow.sh
 fi
 
 if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" ]]; then
