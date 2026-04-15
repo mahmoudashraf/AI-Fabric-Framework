@@ -728,6 +728,17 @@ public class DeploymentVerificationRolloutService {
                 @Override
                 UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft) {
                     ObjectNode provider = ensureObject(draft.providerConfig());
+                    provider.put("llmProvider", "openai");
+                    provider.put("orchestrationLlmProvider", "openai");
+                    provider.put("orchestrationEndpointProfile", "openai-cloud-orchestration");
+                    provider.put("orchestrationModel", "gpt-4.1-mini");
+                    provider.put("generationLlmProvider", "openai");
+                    provider.put("generationEndpointProfile", "openai-cloud-default");
+                    provider.put("generationModel", "gpt-4.1-mini");
+                    provider.put("embeddingProvider", "openai");
+                    provider.put("embeddingEndpointProfile", "openai-cloud-default");
+                    provider.put("openaiEmbeddingModel", "text-embedding-3-small");
+                    provider.put("openaiEmbeddingDimensions", OPENAI_VECTOR_DIMENSIONS);
                     provider.put("vectorStrategy", "qdrant");
                     provider.put("vectorProvisioningMode", "PLATFORM_MANAGED");
                     provider.put("vectorStoragePosture", "SHARED");

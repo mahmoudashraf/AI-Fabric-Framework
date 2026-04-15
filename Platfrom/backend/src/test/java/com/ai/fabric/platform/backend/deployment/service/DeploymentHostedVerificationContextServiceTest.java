@@ -70,6 +70,15 @@ class DeploymentHostedVerificationContextServiceTest {
         version.setDeploymentId("dep-marketplace");
         version.setProviderConfigJson("""
             {
+              "llmProvider":"openai",
+              "embeddingProvider":"openai",
+              "embeddingEndpointProfile":"openai-cloud-default",
+              "orchestrationLlmProvider":"openai",
+              "orchestrationEndpointProfile":"openai-cloud-orchestration",
+              "orchestrationModel":"gpt-4.1-mini",
+              "generationLlmProvider":"openai",
+              "generationEndpointProfile":"openai-cloud-default",
+              "generationModel":"gpt-4.1-mini",
               "vectorStrategy":"weaviate",
               "vectorProvisioningMode":"EXTERNAL_EXISTING",
               "vectorStoragePosture":"SHARED",
@@ -195,6 +204,16 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_CARD_IDS", "product-list,policy-summary,order-status");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT", "2");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED", "true");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION", "INFERENCE_PROFILE_RUNTIME_V1");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER", "openai");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER", "openai");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER", "openai");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL", "gpt-4.1-mini");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE", "openai-cloud-orchestration");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER", "openai");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL", "gpt-4.1-mini");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE", "openai-cloud-default");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE", "openai-cloud-default");
         assertThat(context.env()).containsEntry("MARKETPLACE_SMOKE_QUERY", "What is the refund policy?");
     }
 

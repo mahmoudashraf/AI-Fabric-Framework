@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
+import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
@@ -80,11 +81,15 @@ public class CohereProvider implements AIProvider {
             log.debug("Generating content with Cohere: model={}, prompt={}", 
                      request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
             
-            String url = COHERE_BASE_URL + "/chat";
+            ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
+                ProviderRequestOverrideSupport.read(request.getParameters());
+            String baseUrl = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : config.getBaseUrl();
+            String apiKey = hasText(connectionOverride.apiKey()) ? connectionOverride.apiKey() : config.getApiKey();
+            String url = normalizeBaseUrl(baseUrl != null ? baseUrl : COHERE_BASE_URL) + "/chat";
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + config.getApiKey());
+            headers.set("Authorization", "Bearer " + apiKey);
             
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", request.getModel() != null ? request.getModel() : 
@@ -474,5 +479,16 @@ public class CohereProvider implements AIProvider {
         }
         
         return usage;
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return COHERE_BASE_URL;
+        }
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

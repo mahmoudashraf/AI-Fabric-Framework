@@ -94,7 +94,8 @@ public class MarketplaceCatalogService {
         return List.of(
             category("template", "Templates", counts.getOrDefault("TEMPLATE", 0L)),
             category("action", "Actions", counts.getOrDefault("ACTION", 0L)),
-            category("data", "Data", counts.getOrDefault("DATA", 0L))
+            category("data", "Data", counts.getOrDefault("DATA", 0L)),
+            category("inference-profile", "Inference Profiles", counts.getOrDefault("INFERENCE_PROFILE", 0L))
         );
     }
 

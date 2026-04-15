@@ -313,6 +313,8 @@ public class DeploymentMarketplaceInstallService {
         int actionPluginCount = 0;
         int dataPluginCount = 0;
         int templatePluginCount = 0;
+        int automationPluginCount = 0;
+        int inferenceProfilePluginCount = 0;
 
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
             MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
@@ -337,6 +339,8 @@ public class DeploymentMarketplaceInstallService {
             switch (parsed.pluginType()) {
                 case "ACTION" -> actionPluginCount++;
                 case "DATA" -> dataPluginCount++;
+                case "AUTOMATION" -> automationPluginCount++;
+                case "INFERENCE_PROFILE" -> inferenceProfilePluginCount++;
                 case "TEMPLATE" -> {
                     templatePluginCount++;
                     if (!"BOOTSTRAPPED".equalsIgnoreCase(install.getStatus())) {
@@ -358,7 +362,10 @@ public class DeploymentMarketplaceInstallService {
                 contribution.actionIds(),
                 contribution.knowledgeSourceIds(),
                 contribution.shellModuleIds(),
-                contribution.shellCardIds()
+                contribution.shellCardIds(),
+                contribution.automationWorkflowIds(),
+                contribution.inferenceProfileIds(),
+                contribution.inferenceEndpointProfileRefs()
             ));
         }
 
@@ -368,11 +375,16 @@ public class DeploymentMarketplaceInstallService {
             actionPluginCount,
             dataPluginCount,
             templatePluginCount,
+            automationPluginCount,
+            inferenceProfilePluginCount,
             List.copyOf(pluginIds),
             List.copyOf(actionIds),
             List.copyOf(knowledgeSourceIds),
             List.copyOf(shellModuleIds),
             List.copyOf(shellCardIds),
+            installImpacts.stream().flatMap(item -> item.automationWorkflowIds().stream()).distinct().toList(),
+            installImpacts.stream().flatMap(item -> item.inferenceProfileIds().stream()).distinct().toList(),
+            installImpacts.stream().flatMap(item -> item.inferenceEndpointProfileRefs().stream()).distinct().toList(),
             List.copyOf(installImpacts),
             List.copyOf(recommendedPluginIds),
             List.copyOf(warnings)
@@ -453,6 +465,20 @@ public class DeploymentMarketplaceInstallService {
                 CONFLICT,
                 "Template plugins must be used through marketplace bootstrap flow, not deployment install APIs: " + plugin.getId()
             );
+        }
+        if ("INFERENCE_PROFILE".equals(parsed.pluginType())) {
+            installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId).stream()
+                .filter(existing -> installId == null || !existing.getId().equals(installId))
+                .filter(existing -> !"DISABLED".equalsIgnoreCase(existing.getStatus()))
+                .map(existing -> marketplaceCatalogService.requirePluginEntity(existing.getPluginId()))
+                .filter(existingPlugin -> "INFERENCE_PROFILE".equalsIgnoreCase(existingPlugin.getPluginType()))
+                .findFirst()
+                .ifPresent(existingPlugin -> {
+                    throw new ResponseStatusException(
+                        CONFLICT,
+                        "Only one inference-profile plugin may be enabled per deployment. Existing plugin: " + existingPlugin.getId()
+                    );
+                });
         }
         if (parsed.compatibility().requiredCapabilities().contains("templates")) {
             throw new ResponseStatusException(CONFLICT, "Template-only marketplace capability cannot be installed into an existing deployment: " + plugin.getId());
@@ -615,7 +641,8 @@ public class DeploymentMarketplaceInstallService {
                 );
             }
         }
-        if (!compatibility.supportedProviderModes().isEmpty()) {
+        if (!compatibility.supportedProviderModes().isEmpty()
+            && !"INFERENCE_PROFILE".equals(parsed.pluginType())) {
             Map<String, String> providerModes = Map.of(
                 "llm", ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
                 "embedding", ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
@@ -766,7 +793,8 @@ public class DeploymentMarketplaceInstallService {
         }
         return containsInstallId(readJson(version.getActionsConfigJson()), installId)
             || containsInstallId(readJson(version.getKnowledgeSourceConfigJson()), installId)
-            || containsInstallId(readJson(version.getShellConfigJson()), installId);
+            || containsInstallId(readJson(version.getShellConfigJson()), installId)
+            || containsInstallId(readJson(version.getProviderConfigJson()), installId);
     }
 
     private boolean containsInstallId(JsonNode node, String installId) {

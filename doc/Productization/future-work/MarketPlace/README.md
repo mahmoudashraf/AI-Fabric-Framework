@@ -1,12 +1,13 @@
 # Marketplace Planning Docs
 
-Status: implementation index (2026-04-15)
+Status: implementation index with inference-profile support shipped (2026-04-15)
 
 Current supported public marketplace plugin types:
 
 - `TEMPLATE`
 - `ACTION`
 - `DATA`
+- `INFERENCE_PROFILE`
 
 Current state:
 
@@ -16,9 +17,10 @@ Current state:
   - template plugins
   - action plugins
   - data plugins
+  - inference-profile plugins that compile into deployment `providerConfig`
   - billing and entitlements
   - first external publisher workflow
-- unsupported public surfaces are being removed
+- unsupported public surfaces have been removed from the active marketplace baseline
 - remaining marketplace work is now:
   - `DATA` plugin dataset lifecycle productization
   - plugin-owned dataset handles and apply-time seeding or sync
@@ -28,7 +30,7 @@ Current state:
 
 Required interpretation:
 
-- only `TEMPLATE`, `ACTION`, and `DATA` are public marketplace plugin types
+- public marketplace plugin types currently supported are `TEMPLATE`, `ACTION`, `DATA`, and `INFERENCE_PROFILE`
 - marketplace remains a control-plane composition layer, not a runtime plugin-loading system
 - installs compile into deployment drafts and published versions
 - publish and apply remain required before live behavior changes
@@ -59,6 +61,7 @@ They should not override stricter platform, auth, release-governance, or runtime
 These documents should be treated as the current implementation baseline:
 
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_CONTROL_PLANE_COMPOSITION_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/MARKETPLACE_INFERENCE_PROFILE_PRODUCTIZATION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_DATA_PLUGIN_DATASET_PRODUCTIZATION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_DEFAULT_STARTER_CATALOG_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_RUNTIME_AND_FRAMEWORK_SUPPORT_IMPLEMENTATION_PLAN.md`
@@ -78,13 +81,14 @@ Recommended sequence:
 2. `doc/Productization/future-work/MarketPlace/AI_APPLICATION_SHELL_ARCHITECTURE.md`
 3. `doc/Productization/future-work/MarketPlace/PLUGIN_DEVELOPER_EXTENSIBILITY_DESIGN.md`
 4. `doc/Productization/future-work/MarketPlace/MARKETPLACE_CONTROL_PLANE_COMPOSITION_PLAN.md`
-5. `doc/Productization/future-work/MarketPlace/MARKETPLACE_DEFAULT_STARTER_CATALOG_PLAN.md`
-6. `doc/Productization/future-work/MarketPlace/MARKETPLACE_DATA_PLUGIN_DATASET_PRODUCTIZATION_PLAN.md`
-7. `doc/Productization/future-work/MarketPlace/MARKETPLACE_RUNTIME_AND_FRAMEWORK_SUPPORT_IMPLEMENTATION_PLAN.md`
-8. `doc/Productization/future-work/MarketPlace/EXTERNAL_PLUGIN_PUBLISHER_MODEL_PLAN.md`
-9. `doc/Productization/future-work/MarketPlace/AI_APPLICATION_SHELL_ARCHITECTURE_IMPLEMENTATION_PLAN.md`
-10. `doc/Productization/future-work/MarketPlace/PLUGIN_DEVELOPER_EXTENSIBILITY_IMPLEMENTATION_PLAN.md`
-11. `doc/Productization/future-work/MarketPlace/CONFIG_DRIVEN_MARKETPLACE_VS_MICROFRONTEND_PLUGIN_ARCHITECTURE_PLAN.md`
+5. `doc/Productization/future-work/MarketPlace/MARKETPLACE_INFERENCE_PROFILE_PRODUCTIZATION_PLAN.md`
+6. `doc/Productization/future-work/MarketPlace/MARKETPLACE_DEFAULT_STARTER_CATALOG_PLAN.md`
+7. `doc/Productization/future-work/MarketPlace/MARKETPLACE_DATA_PLUGIN_DATASET_PRODUCTIZATION_PLAN.md`
+8. `doc/Productization/future-work/MarketPlace/MARKETPLACE_RUNTIME_AND_FRAMEWORK_SUPPORT_IMPLEMENTATION_PLAN.md`
+9. `doc/Productization/future-work/MarketPlace/EXTERNAL_PLUGIN_PUBLISHER_MODEL_PLAN.md`
+10. `doc/Productization/future-work/MarketPlace/AI_APPLICATION_SHELL_ARCHITECTURE_IMPLEMENTATION_PLAN.md`
+11. `doc/Productization/future-work/MarketPlace/PLUGIN_DEVELOPER_EXTENSIBILITY_IMPLEMENTATION_PLAN.md`
+12. `doc/Productization/future-work/MarketPlace/CONFIG_DRIVEN_MARKETPLACE_VS_MICROFRONTEND_PLUGIN_ARCHITECTURE_PLAN.md`
 
 ---
 

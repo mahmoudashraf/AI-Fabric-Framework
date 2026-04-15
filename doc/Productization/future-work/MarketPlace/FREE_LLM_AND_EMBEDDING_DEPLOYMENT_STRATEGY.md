@@ -1,6 +1,27 @@
 # Free LLM and Embedding Deployment Strategy
 
-Status: planning document (2026-04-07)
+Status: platform infrastructure strategy document (2026-04-15)
+
+This document is a platform and operations strategy, not the marketplace product contract.
+
+Use it for:
+
+- shared inference infrastructure direction
+- cost and tier economics
+- model-service deployment strategy
+- provider-stack rollout sequencing
+
+Do not use it as the marketplace taxonomy source.
+
+Marketplace productization for this area now lives in:
+
+- `doc/Productization/future-work/MarketPlace/MARKETPLACE_INFERENCE_PROFILE_PRODUCTIZATION_PLAN.md`
+
+That companion plan is now the shipped product contract for marketplace inference offers and defines the product boundary:
+
+- public marketplace name should be `INFERENCE_PROFILE`
+- it must compile into deployment `providerConfig`
+- marketplace must not expose arbitrary runtime or model-server code
 
 This document defines how Loom AI can deploy free, open-source LLM and embedding models as external services to power a genuinely free tier and reduce per-tenant costs across all paid tiers.
 

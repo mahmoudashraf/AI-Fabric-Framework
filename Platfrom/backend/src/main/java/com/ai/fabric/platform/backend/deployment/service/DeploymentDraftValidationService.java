@@ -3,8 +3,10 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -57,9 +59,17 @@ public class DeploymentDraftValidationService {
     );
 
     private final ObjectMapper objectMapper;
+    private final PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService;
 
     public DeploymentDraftValidationService(ObjectMapper objectMapper) {
+        this(objectMapper, null);
+    }
+
+    @Autowired
+    public DeploymentDraftValidationService(ObjectMapper objectMapper,
+                                            PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService) {
         this.objectMapper = objectMapper;
+        this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
     }
 
     public DraftValidationResponse validate(DeploymentDraftEntity draft) {
@@ -82,7 +92,7 @@ public class DeploymentDraftValidationService {
             validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
             validatePrompts(promptNode, issues);
-            validateKnowledgeSources(knowledgeSourceNode, issues);
+            validateKnowledgeSources(knowledgeSourceNode, providerNode, issues);
             validateShellConfig(shellNode, issues);
             validateMarketplaceDatasetConfig(marketplaceDatasetNode, issues);
             validateKnowledgeSourceDatasetRefs(knowledgeSourceNode, marketplaceDatasetNode, issues);
@@ -185,7 +195,9 @@ public class DeploymentDraftValidationService {
         return new ActionValidationSummary(actionNames, List.copyOf(inlineRoutes));
     }
 
-    private void validateKnowledgeSources(JsonNode knowledgeSourceNode, List<DraftValidationIssue> issues) {
+    private void validateKnowledgeSources(JsonNode knowledgeSourceNode,
+                                          JsonNode providerNode,
+                                          List<DraftValidationIssue> issues) {
         if (knowledgeSourceNode == null || !knowledgeSourceNode.isObject()) {
             issues.add(error(
                 "knowledgeSources",
@@ -222,6 +234,16 @@ public class DeploymentDraftValidationService {
         }
 
         Set<String> ids = new HashSet<>();
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode);
+        String vectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerNode);
+        String vectorStoragePosture = ManagedDeploymentProfileCatalog.resolveVectorStoragePosture(providerNode);
+        boolean sharedStorageCapable = ManagedDeploymentProfileCatalog.supportsSharedVectorStorage(
+            vectorStrategy,
+            vectorProvisioningMode
+        );
+        boolean sharedStorageSelected = ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_SHARED.equals(
+            vectorStoragePosture
+        );
         for (int index = 0; index < sources.size(); index++) {
             JsonNode source = sources.get(index);
             String basePath = "$.knowledgeSourceConfig.sources[" + index + "]";
@@ -238,6 +260,15 @@ public class DeploymentDraftValidationService {
             JsonNode enabled = source.path("enabled");
             if (!enabled.isMissingNode() && !enabled.isBoolean()) {
                 issues.add(error("knowledgeSources", "KNOWLEDGE_SOURCE_ENABLED_BOOLEAN", basePath + ".enabled", "enabled must be a boolean when provided."));
+            }
+            String sourceType = source.path("sourceType").asText("").trim();
+            if ("shared-index".equalsIgnoreCase(sourceType) && (!sharedStorageCapable || !sharedStorageSelected)) {
+                issues.add(error(
+                    "knowledgeSources",
+                    "SHARED_INDEX_REQUIRES_SHARED_VECTOR_STORAGE",
+                    basePath + ".sourceType",
+                    "shared-index knowledge sources require vectorStoragePosture=SHARED on a shared-storage-capable vector provider."
+                ));
             }
         }
     }
@@ -1162,11 +1193,115 @@ public class DeploymentDraftValidationService {
         validateOptionalAbsoluteHttpUrl(providerNode, "anthropicBaseUrl", "ANTHROPIC_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "cohereBaseUrl", "COHERE_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "geminiBaseUrl", "GEMINI_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "orchestrationBaseUrl", "ORCHESTRATION_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "generationBaseUrl", "GENERATION_BASE_URL_INVALID", issues);
+        validateManagedEndpointProfile(providerNode, "orchestrationEndpointProfile", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerNode), issues);
+        validateManagedEndpointProfile(providerNode, "generationEndpointProfile", ManagedDeploymentProfileCatalog.generationLlmProvider(providerNode), issues);
+        validateManagedEndpointProfile(providerNode, "embeddingEndpointProfile", ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode), issues);
     }
 
     private void validatePurposeSpecificLlmProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
         validateOptionalProviderSelection(providerNode, "orchestrationLlmProvider", "ORCHESTRATION_PROVIDER_INVALID", issues);
         validateOptionalProviderSelection(providerNode, "generationLlmProvider", "GENERATION_PROVIDER_INVALID", issues);
+        validatePurposeSpecificLlmOverride(providerNode, "orchestration", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerNode), issues);
+        validatePurposeSpecificLlmOverride(providerNode, "generation", ManagedDeploymentProfileCatalog.generationLlmProvider(providerNode), issues);
+    }
+
+    private void validatePurposeSpecificLlmOverride(JsonNode providerNode,
+                                                    String purpose,
+                                                    String provider,
+                                                    List<DraftValidationIssue> issues) {
+        if (provider.isBlank()) {
+            return;
+        }
+        String baseUrlField = purpose + "BaseUrl";
+        String deploymentField = purpose + "DeploymentName";
+        String apiVersionField = purpose + "ApiVersion";
+        String baseUrl = text(providerNode, baseUrlField);
+        switch (provider) {
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI,
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC,
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE,
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> {
+                if (!baseUrl.isBlank() && !isAbsoluteHttpUrl(baseUrl)) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_BASE_URL_INVALID",
+                        "$." + baseUrlField,
+                        baseUrlField + " must be a valid absolute http(s) URL."
+                    ));
+                }
+            }
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE -> {
+                if (!baseUrl.isBlank() && !isAbsoluteHttpUrl(baseUrl)) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_AZURE_ENDPOINT_INVALID",
+                        "$." + baseUrlField,
+                        baseUrlField + " must be a valid absolute http(s) URL."
+                    ));
+                }
+                if (baseUrl.isBlank() && ManagedDeploymentProfileCatalog.azureEndpoint(providerNode).isBlank()) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_AZURE_ENDPOINT_REQUIRED",
+                        "$." + baseUrlField,
+                        baseUrlField + " or azureEndpoint is required when " + purpose + "LlmProvider=azure."
+                    ));
+                }
+                if (text(providerNode, deploymentField).isBlank()
+                    && ManagedDeploymentProfileCatalog.azureDeploymentName(providerNode).isBlank()) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_AZURE_DEPLOYMENT_REQUIRED",
+                        "$." + deploymentField,
+                        deploymentField + " or azureDeploymentName is required when " + purpose + "LlmProvider=azure."
+                    ));
+                }
+                String apiVersion = text(providerNode, apiVersionField);
+                if (!apiVersion.isBlank() && apiVersion.length() > 100) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_AZURE_API_VERSION_INVALID",
+                        "$." + apiVersionField,
+                        apiVersionField + " must be a reasonable API version string."
+                    ));
+                }
+            }
+            default -> {
+            }
+        }
+    }
+
+    private void validateManagedEndpointProfile(JsonNode providerNode,
+                                                String fieldName,
+                                                String selectedProvider,
+                                                List<DraftValidationIssue> issues) {
+        String endpointProfile = text(providerNode, fieldName);
+        if (endpointProfile.isBlank() || platformManagedInferenceEndpointService == null) {
+            return;
+        }
+        try {
+            var endpoint = platformManagedInferenceEndpointService.requireActive(endpointProfile);
+            String expectedProvider = selectedProvider == null ? "" : selectedProvider.trim().toLowerCase(Locale.ROOT);
+            String actualProvider = endpoint.getProviderType() == null ? "" : endpoint.getProviderType().trim().toLowerCase(Locale.ROOT);
+            if (!expectedProvider.isBlank() && !actualProvider.isBlank() && !expectedProvider.equals(actualProvider)) {
+                issues.add(error(
+                    "providers",
+                    fieldName.toUpperCase(Locale.ROOT) + "_PROVIDER_MISMATCH",
+                    "$." + fieldName,
+                    "Endpoint profile '" + endpointProfile + "' uses provider '" + endpoint.getProviderType()
+                        + "' but the deployment selects '" + selectedProvider + "'."
+                ));
+            }
+        } catch (Exception ex) {
+            issues.add(error(
+                "providers",
+                fieldName.toUpperCase(Locale.ROOT) + "_UNKNOWN",
+                "$." + fieldName,
+                ex.getMessage()
+            ));
+        }
     }
 
     private void validateProviderTuning(JsonNode providerNode, List<DraftValidationIssue> issues) {
@@ -1805,6 +1940,13 @@ public class DeploymentDraftValidationService {
         if (!value.isBlank() && !isAbsoluteHttpUrl(value)) {
             issues.add(error("providers", code, "$." + key, key + " must be a valid absolute http(s) URL."));
         }
+    }
+
+    private String text(JsonNode node, String key) {
+        if (node == null || key == null) {
+            return "";
+        }
+        return node.path(key).asText("").trim();
     }
 
     private int countBySeverity(List<DraftValidationIssue> issues, String severity) {

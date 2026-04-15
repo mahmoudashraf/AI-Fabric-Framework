@@ -84,6 +84,8 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-admin')].pricing.pricingModel", is(List.of("ONE_OFF"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].pricing.pricingModel", is(List.of("SUBSCRIPTION"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-help-center')].pricing.pricingModel", is(List.of("FREE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-inference-local-embeddings')].pluginType", is(List.of("INFERENCE_PROFILE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-inference-optimized-orchestration')].pricing.pricingModel", is(List.of("SUBSCRIPTION"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-policy-folder')].pluginType", is(List.of("DATA"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].contributions.knowledgeSourceIds[0]", is(List.of("commerce-catalog"))));
 
@@ -110,6 +112,15 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.manifest.contributions.datasets[0].datasetId", is("commerce-catalog-sql")))
             .andExpect(jsonPath("$.manifest.contributions.datasets[0].ingestionMode", is("EXTERNAL_SYNC_SQL")));
 
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-inference-byok-openai")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-inference-byok-openai")))
+            .andExpect(jsonPath("$.versions[0].pluginId", is("mkp-inference-byok-openai")))
+            .andExpect(jsonPath("$.versions[0].permissions.contributesProviders", is(true)))
+            .andExpect(jsonPath("$.versions[0].installForm[?(@.id=='apiKey')].type", is(List.of("secretRef"))))
+            .andExpect(jsonPath("$.versions[0].installForm[?(@.id=='baseUrl')].type", is(List.of("url"))))
+            .andExpect(jsonPath("$.versions[0].contributions.inferenceProfileIds", hasItem("customer-openai")));
+
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-commerce-shell")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-action-shopify-admin")))
@@ -119,7 +130,8 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(2))))
             .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(2))))
-            .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(3))));
+            .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(3))))
+            .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(4))));
     }
 
     @Test
@@ -181,6 +193,28 @@ class MarketplaceIntegrationTest {
             .getContentAsString();
         String helpCenterInstallId = objectMapper.readTree(helpCenterInstallResponse).path("id").asText();
 
+        String inferenceInstallResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-inference-byok-openai",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(
+                            "baseUrl", "https://api.openai.com/v1",
+                            "generationModel", "gpt-4.1-mini",
+                            "embeddingModel", "text-embedding-3-small"
+                        ),
+                        "secretRefs", java.util.Map.of("apiKey", "sec-openai-byok")
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginType", is("INFERENCE_PROFILE")))
+            .andExpect(jsonPath("$.readinessStatus", is("READY")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String inferenceInstallId = objectMapper.readTree(inferenceInstallResponse).path("id").asText();
+
         mockMvc.perform(asAdmin(
                 put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", deploymentId, notificationInstallId)
                     .contentType(APPLICATION_JSON)
@@ -209,27 +243,39 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='support-capabilities')].query", is(List.of("What can you help me with?"))))
             .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='refund-policy')].moduleId", is(List.of("docs"))))
             .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='notification-troubleshooting')].moduleId", is(List.of("support"))))
-            .andExpect(jsonPath("$.shellConfig.defaultConversationMode", is("guided-support")));
+            .andExpect(jsonPath("$.shellConfig.defaultConversationMode", is("guided-support")))
+            .andExpect(jsonPath("$.providerConfig.generationBaseUrl", is("https://api.openai.com/v1")))
+            .andExpect(jsonPath("$.providerConfig.generationApiKeySecretRef", is("sec-openai-byok")))
+            .andExpect(jsonPath("$.providerConfig.generationModel", is("gpt-4.1-mini")))
+            .andExpect(jsonPath("$.providerConfig.embeddingProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.embeddingApiKeySecretRef", is("sec-openai-byok")))
+            .andExpect(jsonPath("$.providerConfig.openaiEmbeddingModel", is("text-embedding-3-small")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.contractVersion", is("MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.profileIds", hasItem("customer-openai")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.installIds", hasItem(inferenceInstallId)));
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-impact", deploymentId)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.totalInstalls", is(3)))
+            .andExpect(jsonPath("$.totalInstalls", is(4)))
             .andExpect(jsonPath("$.templatePluginCount", is(1)))
             .andExpect(jsonPath("$.actionPluginCount", is(1)))
             .andExpect(jsonPath("$.dataPluginCount", is(1)))
+            .andExpect(jsonPath("$.inferenceProfilePluginCount", is(1)))
             .andExpect(jsonPath("$.installedPluginIds", hasItem("mkp-template-support-desk-shell")))
             .andExpect(jsonPath("$.installedPluginIds", hasItem("mkp-action-notifications")))
             .andExpect(jsonPath("$.installedPluginIds", hasItem("mkp-data-help-center")))
+            .andExpect(jsonPath("$.installedPluginIds", hasItem("mkp-inference-byok-openai")))
             .andExpect(jsonPath("$.actionIds", hasItem("send-email")))
             .andExpect(jsonPath("$.knowledgeSourceIds", hasItem("help-center")))
-            .andExpect(jsonPath("$.shellModuleIds", hasItem("support")));
+            .andExpect(jsonPath("$.shellModuleIds", hasItem("support")))
+            .andExpect(jsonPath("$.inferenceProfileIds", hasItem("customer-openai")));
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.pluginId=='mkp-template-support-desk-shell')].status", is(List.of("BOOTSTRAPPED"))))
             .andExpect(jsonPath("$[?(@.pluginId=='mkp-action-notifications')].readinessStatus", is(List.of("READY"))))
             .andExpect(jsonPath("$[?(@.pluginId=='mkp-data-help-center')].readinessStatus", is(List.of("READY"))))
-            .andExpect(jsonPath("$[?(@.pluginId=='mkp-data-help-center')].readinessStatus", is(List.of("READY"))));
+            .andExpect(jsonPath("$[?(@.pluginId=='mkp-inference-byok-openai')].readinessStatus", is(List.of("READY"))));
     }
 
     @Test
@@ -457,6 +503,119 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.message", containsString("Incompatible deployment target.")))
             .andExpect(jsonPath("$.message", containsString("Incompatible provider mode for llm. Supported: openai.")));
+    }
+
+    @Test
+    void managedInferenceProfileInstallCanMigrateProviderModesAndCompilesIntoProviderConfig() throws Exception {
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
+            new CreateDeploymentRequest("Inference Managed Profile", "dev", "dev-anthropic-lucene")
+        ));
+
+        String installResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-inference-optimized-orchestration",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginType", is("INFERENCE_PROFILE")))
+            .andExpect(jsonPath("$.readinessStatus", is("ENTITLEMENT_REQUIRED")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String installId = objectMapper.readTree(installResponse).path("id").asText();
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", deployment.id(), installId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "ACTIVE")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("READY")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.providerConfig.llmProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.orchestrationLlmProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.generationLlmProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.orchestrationEndpointProfile", is("openai-cloud-orchestration")))
+            .andExpect(jsonPath("$.providerConfig.generationEndpointProfile", is("openai-cloud-default")))
+            .andExpect(jsonPath("$.providerConfig.embeddingProvider", is("onnx")))
+            .andExpect(jsonPath("$.providerConfig.embeddingEndpointProfile", is("onnx-bundled")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.contractVersion", is("MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.profileIds", hasItem("optimized-orchestration")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.endpointProfileRefs", hasItem("openai-cloud-orchestration")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.endpointProfileRefs", hasItem("openai-cloud-default")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.endpointProfileRefs", hasItem("onnx-bundled")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.installIds", hasItem(installId)));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-impact", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.inferenceProfilePluginCount", is(1)))
+            .andExpect(jsonPath("$.inferenceProfileIds", hasItem("optimized-orchestration")))
+            .andExpect(jsonPath("$.inferenceEndpointProfileRefs", hasItem("openai-cloud-orchestration")))
+            .andExpect(jsonPath("$.inferenceEndpointProfileRefs", hasItem("onnx-bundled")));
+    }
+
+    @Test
+    void byokInferenceProfileInstallUsesInstallFieldsAndOnlyOneInferenceProfileCanBeEnabled() throws Exception {
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
+            new CreateDeploymentRequest("Inference BYOK Profile", "dev", "dev-openai-lucene")
+        ));
+
+        String installResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-inference-byok-openai",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(
+                            "baseUrl", "https://api.openai.com/v1",
+                            "generationModel", "gpt-4.1-mini",
+                            "embeddingModel", "text-embedding-3-small"
+                        ),
+                        "secretRefs", java.util.Map.of("apiKey", "sec-openai-byok")
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginType", is("INFERENCE_PROFILE")))
+            .andExpect(jsonPath("$.readinessStatus", is("READY")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String installId = objectMapper.readTree(installResponse).path("id").asText();
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.providerConfig.llmProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.generationLlmProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.generationBaseUrl", is("https://api.openai.com/v1")))
+            .andExpect(jsonPath("$.providerConfig.generationApiKeySecretRef", is("sec-openai-byok")))
+            .andExpect(jsonPath("$.providerConfig.generationModel", is("gpt-4.1-mini")))
+            .andExpect(jsonPath("$.providerConfig.embeddingProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.embeddingApiKeySecretRef", is("sec-openai-byok")))
+            .andExpect(jsonPath("$.providerConfig.openaiEmbeddingModel", is("text-embedding-3-small")))
+            .andExpect(jsonPath("$.providerConfig.openaiEmbeddingDimensions", is(1024)))
+            .andExpect(jsonPath("$.providerConfig.embeddingEndpointProfile").doesNotExist())
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.profileIds", hasItem("customer-openai")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.installIds", hasItem(installId)));
+
+        mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-inference-local-embeddings",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message", containsString("Only one inference-profile plugin may be enabled per deployment")));
     }
 
     @Test

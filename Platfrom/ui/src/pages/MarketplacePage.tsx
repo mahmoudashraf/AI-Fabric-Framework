@@ -99,6 +99,10 @@ function pluginTypeColor(pluginType: string): 'primary' | 'secondary' | 'success
       return 'primary'
     case 'DATA':
       return 'success'
+    case 'AUTOMATION':
+      return 'warning'
+    case 'INFERENCE_PROFILE':
+      return 'primary'
     default:
       return 'warning'
   }
@@ -112,9 +116,17 @@ function categoryLabel(plugin: MarketplacePluginSummary): string {
       return 'Actions'
     case 'DATA':
       return 'Data'
+    case 'AUTOMATION':
+      return 'Automation'
+    case 'INFERENCE_PROFILE':
+      return 'Inference Profiles'
     default:
       return plugin.pluginType
   }
+}
+
+function categoryToPluginType(categoryId: string): string {
+  return categoryId.toUpperCase().replace(/-/g, '_')
 }
 
 function contributionList(values: string[]): string {
@@ -225,7 +237,7 @@ export function MarketplacePage() {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [selectedType, setSelectedType] = useState<'ALL' | 'TEMPLATE' | 'ACTION' | 'DATA'>('ALL')
+  const [selectedType, setSelectedType] = useState<'ALL' | string>('ALL')
   const [searchText, setSearchText] = useState('')
   const [selectedPluginId, setSelectedPluginId] = useState('')
   const [selectedVersion, setSelectedVersion] = useState('')
@@ -824,8 +836,8 @@ export function MarketplacePage() {
                     <Chip
                       key={category.id}
                       label={`${category.label} (${category.pluginCount})`}
-                      color={selectedType === category.id.toUpperCase() ? 'primary' : 'default'}
-                      onClick={() => setSelectedType(category.id.toUpperCase() as 'TEMPLATE' | 'ACTION' | 'DATA')}
+                      color={selectedType === categoryToPluginType(category.id) ? 'primary' : 'default'}
+                      onClick={() => setSelectedType(categoryToPluginType(category.id))}
                     />
                   ))}
                 </Stack>
@@ -962,6 +974,42 @@ export function MarketplacePage() {
                             </Typography>
                             <Typography sx={{ mt: 0.75 }}>
                               {selectedVersionSummary?.contributions.templateCuratedModuleId ?? '—'}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" color="text.secondary">
+                              Automation workflows
+                            </Typography>
+                            <Typography sx={{ mt: 0.75 }}>
+                              {contributionList(selectedVersionSummary?.contributions.automationWorkflowIds ?? [])}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" color="text.secondary">
+                              Inference profiles
+                            </Typography>
+                            <Typography sx={{ mt: 0.75 }}>
+                              {contributionList(selectedVersionSummary?.contributions.inferenceProfileIds ?? [])}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" color="text.secondary">
+                              Endpoint profiles
+                            </Typography>
+                            <Typography sx={{ mt: 0.75 }}>
+                              {contributionList(selectedVersionSummary?.contributions.inferenceEndpointProfileRefs ?? [])}
                             </Typography>
                           </CardContent>
                         </Card>
@@ -1396,6 +1444,8 @@ export function MarketplacePage() {
                             <Chip label={`${impactQuery.data.actionPluginCount} action plugins`} variant="outlined" />
                             <Chip label={`${impactQuery.data.dataPluginCount} data plugins`} variant="outlined" />
                             <Chip label={`${impactQuery.data.templatePluginCount} template plugins`} variant="outlined" />
+                            <Chip label={`${impactQuery.data.automationPluginCount} automation plugins`} variant="outlined" />
+                            <Chip label={`${impactQuery.data.inferenceProfilePluginCount} inference plugins`} variant="outlined" />
                           </Stack>
                           <Grid container spacing={2}>
                             <Grid item xs={12} md={6}>
@@ -1430,6 +1480,42 @@ export function MarketplacePage() {
                                   </Typography>
                                   <Typography sx={{ mt: 0.75 }}>
                                     {contributionList(impactQuery.data.shellModuleIds)}
+                                  </Typography>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="subtitle2" color="text.secondary">
+                                    Automation workflows
+                                  </Typography>
+                                  <Typography sx={{ mt: 0.75 }}>
+                                    {contributionList(impactQuery.data.automationWorkflowIds)}
+                                  </Typography>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="subtitle2" color="text.secondary">
+                                    Inference profiles
+                                  </Typography>
+                                  <Typography sx={{ mt: 0.75 }}>
+                                    {contributionList(impactQuery.data.inferenceProfileIds)}
+                                  </Typography>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="subtitle2" color="text.secondary">
+                                    Endpoint profiles
+                                  </Typography>
+                                  <Typography sx={{ mt: 0.75 }}>
+                                    {contributionList(impactQuery.data.inferenceEndpointProfileRefs)}
                                   </Typography>
                                 </CardContent>
                               </Card>

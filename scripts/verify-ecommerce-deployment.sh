@@ -123,6 +123,16 @@ EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_I
 EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}"
 EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION:-KNOWLEDGE_SOURCE_CONFIG_V1}"
 EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION:-SHELL_CONFIG_V1}"
+EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION="${EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION:-INFERENCE_PROFILE_RUNTIME_V1}"
+EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER:-}"
+EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER:-}"
+EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER:-}"
+EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL:-}"
+EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE:-}"
+EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER:-}"
+EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL:-}"
+EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE:-}"
+EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE:-}"
 EXPECT_MARKETPLACE_SHELL_MODULE_IDS="${EXPECT_MARKETPLACE_SHELL_MODULE_IDS:-}"
 EXPECT_MARKETPLACE_SHELL_CARD_IDS="${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}"
 EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT="${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT:-0}"
@@ -619,6 +629,40 @@ assert_marketplace_runtime_overview() {
   json_assert "${label}" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nexpected_module_ids = set('"${expected_module_ids_json}"')\nexpected_card_ids = set('"${expected_card_ids_json}"')\nmarketplace = (data or {}).get("marketplaceSupport") or {}\nassert marketplace.get("contractVersion") == "'"${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("knowledgeSourceContractVersion") == "'"${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("shellConfigContractVersion") == "'"${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("searchSourceDiagnosticsContractVersion") == "'"${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION}"'", marketplace\nassert bool((data or {}).get("knowledgeSourceConfigLocation")), data\nassert bool((data or {}).get("shellConfigLocation")), data\nactual_source_ids = set((data or {}).get("knowledgeSourceIds") or [])\nactual_adapter_types = set((data or {}).get("knowledgeSourceAdapterTypes") or [])\nactual_module_ids = set((data or {}).get("shellModuleIds") or [])\nactual_card_ids = set((data or {}).get("shellCardIds") or [])\nassert actual_source_ids == expected_source_ids, {"expected": sorted(expected_source_ids), "actual": sorted(actual_source_ids)}\nassert actual_adapter_types == expected_adapter_types, {"expected": sorted(expected_adapter_types), "actual": sorted(actual_adapter_types)}\nassert actual_module_ids == expected_module_ids, {"expected": sorted(expected_module_ids), "actual": sorted(actual_module_ids)}\nassert actual_card_ids == expected_card_ids, {"expected": sorted(expected_card_ids), "actual": sorted(actual_card_ids)}\nassert int((data or {}).get("shellStarterPromptsCount") or 0) == int("'"${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT}"'"), data\nassert bool((data or {}).get("shellGreetingConfigured")) == ("'"${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED}"'".lower() == "true"), data\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert search_diag.get("contractVersion") == "'"${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION}"'", search_diag\nassert int(search_diag.get("configuredSourcesCount") or 0) >= len(expected_source_ids), search_diag\nprint("ok")'
 }
 
+assert_marketplace_inference_profile() {
+  local label="$1"
+  local body="$2"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  HTTP_BODY="${body}"
+  EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION="${EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION}" \
+  EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER}" \
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER}" \
+  EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER}" \
+  EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL}" \
+  EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE}" \
+  EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER}" \
+  EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL}" \
+  EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE}" \
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE}" \
+  json_assert "${label}" $'import os\nmarketplace = (data or {}).get("marketplaceSupport") or {}\nassert marketplace.get("inferenceProfileContractVersion") == os.environ["EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION"], marketplace\nprofile = (data or {}).get("inferenceProfile") or {}\nassert profile.get("llmProvider") == os.environ["EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER"], profile\nassert profile.get("embeddingProvider") == os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER"], profile\nassert profile.get("orchestrationProvider") == os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER"], profile\nassert profile.get("orchestrationModel") == os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL"], profile\nassert profile.get("orchestrationEndpointProfile") == os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE"], profile\nassert profile.get("generationProvider") == os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER"], profile\nassert profile.get("generationModel") == os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL"], profile\nassert profile.get("generationEndpointProfile") == os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE"], profile\nassert profile.get("embeddingEndpointProfile") == os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE"], profile\nassert bool(profile.get("orchestrationHasConnectionOverride")) is True, profile\nassert bool(profile.get("generationHasConnectionOverride")) is True, profile\nprint("ok")'
+}
+
+assert_marketplace_provider_connectivity() {
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/provider-connectivity"
+  assert_status 200 "marketplace provider connectivity"
+  EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE}" \
+  EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE}" \
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE}" \
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER}" \
+  json_assert "marketplace provider connectivity" $'import os\nprobes = (data or {}).get("probes") or []\nprobe_map = {item.get("key"): item for item in probes if isinstance(item, dict) and item.get("key")}\nfor key in ["orchestration_inference_endpoint", "generation_inference_endpoint", "embedding_inference_endpoint"]:\n  assert key in probe_map, {"missingProbe": key, "probes": probes}\nassert probe_map["orchestration_inference_endpoint"].get("status") == "READY", probe_map\nassert probe_map["generation_inference_endpoint"].get("status") == "READY", probe_map\nembedding_provider = (os.environ.get("EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER") or "").strip().lower()\nembedding_status = probe_map["embedding_inference_endpoint"].get("status")\nif embedding_provider == "onnx":\n  assert embedding_status == "SKIPPED", probe_map\nelse:\n  assert embedding_status == "READY", probe_map\nsummary = (data or {}).get("summary") or ""\nassert summary, data\nprint("ok")'
+  pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/provider-connectivity"
+}
+
 assert_marketplace_shell_config() {
   local label="$1"
   local body="$2"
@@ -810,7 +854,9 @@ PY
   runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
   assert_status 200 "marketplace runtime admin overview (post-query)"
   assert_marketplace_runtime_overview "marketplace runtime admin overview (post-query)" "${HTTP_BODY}"
+  assert_marketplace_inference_profile "marketplace runtime inference profile (post-query)" "${HTTP_BODY}"
   json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") == "SUCCEEDED", entry\nshared_hits = [entry for entry in sources if isinstance(entry, dict) and entry.get("adapterType") == "shared-index"]\nassert shared_hits, sources\nif any(entry.get("lastResultsCount") is not None for entry in shared_hits):\n  assert any(int(entry.get("lastResultsCount") or 0) >= 1 for entry in shared_hits), shared_hits\nprint("ok")'
+  assert_marketplace_provider_connectivity
   cleanup_marketplace_shared_sentinel
   trap - EXIT
   pass "marketplace runtime live verification"
@@ -1357,6 +1403,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nprint("ok")'
     RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
     assert_marketplace_runtime_overview "runtime admin marketplace alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
+    assert_marketplace_inference_profile "runtime admin marketplace inference alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
     pass "runtime GET /api/admin/overview"
 
     runtime_http GET "${RUNTIME_AUTH_OVERVIEW_URL}"

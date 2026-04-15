@@ -6,6 +6,7 @@ import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
+import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
@@ -36,6 +37,7 @@ public class RuntimeAdminOverviewController {
     private final AIActionRegistry actionRegistry;
     private final RuntimeActionCatalogGateway actionCatalogGateway;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
+    private final AIProviderConfig aiProviderConfig;
     private final VectorDatabaseService vectorDatabaseService;
     private final RuntimeAuthProperties runtimeAuthProperties;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
@@ -127,6 +129,7 @@ public class RuntimeAdminOverviewController {
         body.put("vectorDb", vectorDatabaseService.getClass().getSimpleName());
         body.put("supportsVectorScan", vectorDatabaseService.supportsVectorScan());
         body.put("vectorScope", vectorDatabaseService.adminDiagnostics());
+        body.put("inferenceProfile", inferenceProfile(aiProviderConfig));
         body.put("knowledgeSourcesCount", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceCount() : 0);
         body.put("knowledgeSourceIds", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceIds() : List.of());
         body.put("knowledgeSourceTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceTypes() : List.of());
@@ -278,9 +281,38 @@ public class RuntimeAdminOverviewController {
                 ? searchSourceRegistry.supportedAdapterTypes()
                 : List.of()
         );
+        support.put("inferenceProfileContractVersion", "INFERENCE_PROFILE_RUNTIME_V1");
         support.put("supportedShellModuleIds", BuiltInShellCatalog.MODULE_IDS);
         support.put("supportedShellCardIds", BuiltInShellCatalog.CARD_IDS);
         support.put("supportedEvidenceBlockIds", BuiltInShellCatalog.EVIDENCE_BLOCK_IDS);
         return support;
+    }
+
+    private Map<String, Object> inferenceProfile(AIProviderConfig providerConfig) {
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("llmProvider", providerConfig != null ? providerConfig.getLlmProvider() : null);
+        profile.put("embeddingProvider", providerConfig != null ? providerConfig.getEmbeddingProvider() : null);
+        profile.put("embeddingEndpointProfile", providerConfig != null ? providerConfig.getEmbeddingEndpointProfile() : null);
+        profile.put("orchestrationProvider", providerConfig != null && providerConfig.getOrchestration() != null
+            ? providerConfig.getOrchestration().getLlmProvider()
+            : null);
+        profile.put("orchestrationModel", providerConfig != null && providerConfig.getOrchestration() != null
+            ? providerConfig.getOrchestration().getModel()
+            : null);
+        profile.put("orchestrationEndpointProfile", providerConfig != null && providerConfig.getOrchestration() != null
+            ? providerConfig.getOrchestration().getEndpointProfile()
+            : null);
+        profile.put("orchestrationHasConnectionOverride", providerConfig != null && providerConfig.orchestrationHasConnectionOverride());
+        profile.put("generationProvider", providerConfig != null && providerConfig.getGeneration() != null
+            ? providerConfig.getGeneration().getLlmProvider()
+            : null);
+        profile.put("generationModel", providerConfig != null && providerConfig.getGeneration() != null
+            ? providerConfig.getGeneration().getModel()
+            : null);
+        profile.put("generationEndpointProfile", providerConfig != null && providerConfig.getGeneration() != null
+            ? providerConfig.getGeneration().getEndpointProfile()
+            : null);
+        profile.put("generationHasConnectionOverride", providerConfig != null && providerConfig.generationHasConnectionOverride());
+        return profile;
     }
 }

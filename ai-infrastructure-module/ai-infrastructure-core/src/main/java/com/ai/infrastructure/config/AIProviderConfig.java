@@ -22,6 +22,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "ai.providers")
 public class AIProviderConfig {
 
+    public interface PurposeLlmConnectionConfig {
+        String getLlmProvider();
+        String getModel();
+        Double getTemperature();
+        Integer getMaxTokens();
+        Integer getTimeout();
+        String getEndpointProfile();
+        String getApiKey();
+        String getBaseUrl();
+        String getDeploymentName();
+        String getApiVersion();
+    }
+
     /**
      * Whether AI capabilities are globally enabled.
      */
@@ -50,6 +63,11 @@ public class AIProviderConfig {
      * Active embedding provider identifier (e.g. onnx, openai, rest).
      */
     private String embeddingProvider = "onnx";
+
+    /**
+     * Optional named embedding endpoint-profile identifier used for diagnostics and release verification.
+     */
+    private String embeddingEndpointProfile;
 
     /**
      * Enable automatic fallback when the preferred provider fails.
@@ -93,10 +111,14 @@ public class AIProviderConfig {
      * <p>If {@link #orchestration} is not configured, falls back to {@link #resolveLlmDefaults()}.</p>
      */
     public GenerationDefaults resolveOrchestrationLlmDefaults() {
-        if (orchestration == null || !hasText(orchestration.getLlmProvider())) {
+        if (orchestration == null) {
             return resolveLlmDefaults();
         }
-        return buildPurposeDefaults(orchestration.getLlmProvider(), orchestration.getModel(),
+        String provider = hasText(orchestration.getLlmProvider()) ? orchestration.getLlmProvider() : llmProvider;
+        if (!hasText(provider)) {
+            return resolveLlmDefaults();
+        }
+        return buildPurposeDefaults(provider, orchestration.getModel(),
             orchestration.getMaxTokens(), orchestration.getTemperature(), orchestration.getTimeout());
     }
 
@@ -106,10 +128,14 @@ public class AIProviderConfig {
      * <p>If {@link #generation} is not configured, falls back to {@link #resolveLlmDefaults()}.</p>
      */
     public GenerationDefaults resolveGenerationLlmDefaults() {
-        if (generation == null || !hasText(generation.getLlmProvider())) {
+        if (generation == null) {
             return resolveLlmDefaults();
         }
-        return buildPurposeDefaults(generation.getLlmProvider(), generation.getModel(),
+        String provider = hasText(generation.getLlmProvider()) ? generation.getLlmProvider() : llmProvider;
+        if (!hasText(provider)) {
+            return resolveLlmDefaults();
+        }
+        return buildPurposeDefaults(provider, generation.getModel(),
             generation.getMaxTokens(), generation.getTemperature(), generation.getTimeout());
     }
 
@@ -170,6 +196,23 @@ public class AIProviderConfig {
         };
     }
 
+    public boolean orchestrationHasConnectionOverride() {
+        return hasPurposeConnectionOverride(orchestration);
+    }
+
+    public boolean generationHasConnectionOverride() {
+        return hasPurposeConnectionOverride(generation);
+    }
+
+    private boolean hasPurposeConnectionOverride(PurposeLlmConnectionConfig config) {
+        return config != null
+            && (hasText(config.getEndpointProfile())
+            || hasText(config.getApiKey())
+            || hasText(config.getBaseUrl())
+            || hasText(config.getDeploymentName())
+            || hasText(config.getApiVersion()));
+    }
+
     /**
      * Normalized generation defaults for the active LLM provider.
      *
@@ -201,12 +244,37 @@ public class AIProviderConfig {
     ) {}
 
     @Data
-    public static class OrchestrationLlmConfig {
+    public static class OrchestrationLlmConfig implements PurposeLlmConnectionConfig {
         /**
          * LLM provider for orchestration tasks.
          * Leave null/blank to use {@link #llmProvider}.
          */
         private String llmProvider;
+
+        /**
+         * Optional named endpoint-profile identifier used for diagnostics and release verification.
+         */
+        private String endpointProfile;
+
+        /**
+         * Optional purpose-scoped API key override. Provisioning resolves this from deployment/provider secrets.
+         */
+        private String apiKey;
+
+        /**
+         * Optional purpose-scoped base URL override (for example OpenAI-compatible local orchestration services).
+         */
+        private String baseUrl;
+
+        /**
+         * Optional purpose-scoped deployment name override (mainly for Azure OpenAI deployments).
+         */
+        private String deploymentName;
+
+        /**
+         * Optional purpose-scoped API version override (mainly for Azure OpenAI).
+         */
+        private String apiVersion;
 
         /**
          * Model identifier for orchestration tasks (optional).
@@ -230,8 +298,13 @@ public class AIProviderConfig {
     }
 
     @Data
-    public static class GenerationLlmConfig {
+    public static class GenerationLlmConfig implements PurposeLlmConnectionConfig {
         private String llmProvider;
+        private String endpointProfile;
+        private String apiKey;
+        private String baseUrl;
+        private String deploymentName;
+        private String apiVersion;
         private String model;
         private Double temperature = 0.3;
         private Integer maxTokens;

@@ -30,7 +30,8 @@ public class MarketplaceManifestService {
         "actions",
         "knowledgesources",
         "shellconfig",
-        "templates"
+        "templates",
+        "providers"
     );
     private static final Set<String> SUPPORTED_INSTALL_FIELD_TYPES = Set.of(
         "text",
@@ -113,8 +114,13 @@ public class MarketplaceManifestService {
             case "TEMPLATE" -> parseTemplateContribution(plugin, version, contributions);
             case "ACTION" -> parseActionContribution(plugin, version, contributions);
             case "DATA" -> parseDataContribution(plugin, version, contributions, datasets);
+            case "INFERENCE_PROFILE" -> parseInferenceContribution(plugin, version, contributions);
             default -> throw invalid(plugin, version, "unsupported pluginType: " + expectedType);
         };
+        if ("INFERENCE_PROFILE".equals(expectedType)
+            && !compatibility.requiredCapabilities().contains("providers")) {
+            throw invalid(plugin, version, "inference-profile plugins must declare compatibility.requiredCapabilities including providers.");
+        }
         validateCapabilityProfiles(plugin, version, manifest.path("capabilityProfiles"));
         List<MarketplacePluginInstallFieldSummary> installForm = parseInstallForm(plugin, version, manifest.path("installForm"));
         List<String> recommendedPluginIds = parseRecommendedPluginIds(manifest);
@@ -155,7 +161,10 @@ public class MarketplaceManifestService {
             List.of(),
             List.of(),
             readStringList(shell, "enabledModuleIds", "moduleRefs"),
-            readStringList(shell, "enabledCardIds", "cardRefs")
+            readStringList(shell, "enabledCardIds", "cardRefs"),
+            List.of(),
+            List.of(),
+            List.of()
         );
     }
 
@@ -214,7 +223,10 @@ public class MarketplaceManifestService {
             List.copyOf(new LinkedHashSet<>(actionIds)),
             List.of(),
             readStringList(shell, "moduleRefs", "enabledModuleIds"),
-            readStringList(shell, "cardRefs", "enabledCardIds")
+            readStringList(shell, "cardRefs", "enabledCardIds"),
+            List.of(),
+            List.of(),
+            List.of()
         );
     }
 
@@ -263,8 +275,58 @@ public class MarketplaceManifestService {
             List.of(),
             List.copyOf(new LinkedHashSet<>(knowledgeSourceIds)),
             readStringList(shell, "moduleRefs", "enabledModuleIds"),
-            readStringList(shell, "cardRefs", "enabledCardIds")
+            readStringList(shell, "cardRefs", "enabledCardIds"),
+            List.of(),
+            List.of(),
+            List.of()
         );
+    }
+
+    private MarketplacePluginContributionSummary parseInferenceContribution(MarketplacePluginEntity plugin,
+                                                                            MarketplacePluginVersionEntity version,
+                                                                            JsonNode contributions) {
+        JsonNode inferenceProfile = contributions.path("inferenceProfile");
+        if (!inferenceProfile.isObject()) {
+            throw invalid(plugin, version, "inference-profile plugins must declare contributions.inferenceProfile.");
+        }
+        String profileId = firstText(inferenceProfile, "profileId", "id");
+        if (!StringUtils.hasText(profileId)) {
+            throw invalid(plugin, version, "inferenceProfile must declare profileId.");
+        }
+        JsonNode orchestration = inferenceProfile.path("orchestration");
+        JsonNode generation = inferenceProfile.path("generation");
+        JsonNode embedding = inferenceProfile.path("embedding");
+        if (!orchestration.isObject() && !generation.isObject() && !embedding.isObject()) {
+            throw invalid(plugin, version, "inferenceProfile must declare at least one of orchestration, generation, or embedding.");
+        }
+        List<String> endpointRefs = new ArrayList<>();
+        collectInferenceEndpointRef(orchestration, endpointRefs);
+        collectInferenceEndpointRef(generation, endpointRefs);
+        collectInferenceEndpointRef(embedding, endpointRefs);
+        return new MarketplacePluginContributionSummary(
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(profileId.trim()),
+            List.copyOf(new LinkedHashSet<>(endpointRefs))
+        );
+    }
+
+    private void collectInferenceEndpointRef(JsonNode node, List<String> endpointRefs) {
+        if (!node.isObject()) {
+            return;
+        }
+        String provider = firstText(node, "provider", "llmProvider", "embeddingProvider");
+        if (!StringUtils.hasText(provider)) {
+            return;
+        }
+        String endpointProfileRef = firstText(node, "endpointProfileRef");
+        if (StringUtils.hasText(endpointProfileRef)) {
+            endpointRefs.add(endpointProfileRef.trim());
+        }
     }
 
     private List<ParsedMarketplaceDatasetDefinition> parseDataDatasets(MarketplacePluginEntity plugin,
@@ -496,6 +558,7 @@ public class MarketplaceManifestService {
             permissionsNode.path("contributesTemplate").asBoolean("TEMPLATE".equals(pluginType)),
             permissionsNode.path("contributesActions").asBoolean("ACTION".equals(pluginType)),
             permissionsNode.path("contributesKnowledgeSources").asBoolean("DATA".equals(pluginType)),
+            permissionsNode.path("contributesProviders").asBoolean("INFERENCE_PROFILE".equals(pluginType)),
             permissionsNode.path("contributesShellPresentation").asBoolean(hasShellPresentation),
             permissionsNode.path("requiresExternalHttpExecution").asBoolean(requiresExternalHttpExecution),
             permissionsNode.path("requiresSharedDatasetAccess").asBoolean(requiresSharedDatasetAccess),
@@ -517,6 +580,9 @@ public class MarketplaceManifestService {
         }
         if (!contributions.knowledgeSourceIds().isEmpty() && !permissions.contributesKnowledgeSources()) {
             throw invalid(plugin, version, "knowledge source contributions require permissions.contributesKnowledgeSources=true.");
+        }
+        if (!contributions.inferenceProfileIds().isEmpty() && !permissions.contributesProviders()) {
+            throw invalid(plugin, version, "inference profile contributions require permissions.contributesProviders=true.");
         }
         if ((!contributions.shellModuleIds().isEmpty() || !contributions.shellCardIds().isEmpty())
             && !permissions.contributesShellPresentation()) {

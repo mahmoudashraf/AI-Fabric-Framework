@@ -4,6 +4,7 @@ public record MarketplacePluginPermissionsSummary(
     boolean contributesTemplate,
     boolean contributesActions,
     boolean contributesKnowledgeSources,
+    boolean contributesProviders,
     boolean contributesShellPresentation,
     boolean requiresExternalHttpExecution,
     boolean requiresSharedDatasetAccess,

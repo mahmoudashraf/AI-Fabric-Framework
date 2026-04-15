@@ -301,6 +301,17 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(marketplace.providerConfig().path("qdrantManagedCollectionsEnabled").asBoolean()).isTrue();
         assertThat(marketplace.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
         assertThat(marketplace.providerConfig().path("qdrantCloudRegionId").asText()).isEqualTo("eu-west-1");
+        assertThat(marketplace.providerConfig().path("llmProvider").asText()).isEqualTo("openai");
+        assertThat(marketplace.providerConfig().path("orchestrationLlmProvider").asText()).isEqualTo("openai");
+        assertThat(marketplace.providerConfig().path("orchestrationEndpointProfile").asText()).isEqualTo("openai-cloud-orchestration");
+        assertThat(marketplace.providerConfig().path("orchestrationModel").asText()).isEqualTo("gpt-4.1-mini");
+        assertThat(marketplace.providerConfig().path("generationLlmProvider").asText()).isEqualTo("openai");
+        assertThat(marketplace.providerConfig().path("generationEndpointProfile").asText()).isEqualTo("openai-cloud-default");
+        assertThat(marketplace.providerConfig().path("generationModel").asText()).isEqualTo("gpt-4.1-mini");
+        assertThat(marketplace.providerConfig().path("embeddingProvider").asText()).isEqualTo("openai");
+        assertThat(marketplace.providerConfig().path("embeddingEndpointProfile").asText()).isEqualTo("openai-cloud-default");
+        assertThat(marketplace.providerConfig().path("openaiEmbeddingModel").asText()).isEqualTo("text-embedding-3-small");
+        assertThat(marketplace.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(1536);
         assertThat(marketplace.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
         assertThat(marketplace.shellConfig().path("contractVersion").asText()).isEqualTo("SHELL_CONFIG_V1");
         assertThat(marketplace.shellConfig().path("modules").isArray()).isTrue();

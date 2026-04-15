@@ -6,6 +6,7 @@ set -euo pipefail
 # Proves that:
 # - a template plugin can bootstrap a deployment
 # - action and data plugins can be installed onto that deployment
+# - an inference-profile plugin can compile into deployment provider configuration
 # - entitlement activation compiles marketplace-managed contributions into the deployment draft
 # - packaged seed, SQL sync, and folder sync DATA plugins flow into deployment config
 # - the draft validates, publishes, applies, and reaches APPLIED_VERIFIED
@@ -30,6 +31,7 @@ ACTION_PLUGIN_ID="${ACTION_PLUGIN_ID:-mkp-action-notifications}"
 PACKAGED_DATA_PLUGIN_ID="${PACKAGED_DATA_PLUGIN_ID:-${DATA_PLUGIN_ID:-mkp-data-help-center}}"
 SQL_DATA_PLUGIN_ID="${SQL_DATA_PLUGIN_ID:-mkp-data-commerce-catalog}"
 FOLDER_DATA_PLUGIN_ID="${FOLDER_DATA_PLUGIN_ID:-mkp-data-policy-folder}"
+INFERENCE_PLUGIN_ID="${INFERENCE_PLUGIN_ID:-mkp-inference-byok-openai}"
 FOLDER_DATA_PLUGIN_SLUG="${FOLDER_DATA_PLUGIN_SLUG:-policy-folder-data}"
 FIRST_PARTY_PUBLISHER_SLUG="${FIRST_PARTY_PUBLISHER_SLUG:-loom}"
 FIRST_PARTY_PUBLISHER_DISPLAY_NAME="${FIRST_PARTY_PUBLISHER_DISPLAY_NAME:-Loom AI}"
@@ -49,6 +51,7 @@ PACKAGED_DATA_PLUGIN_VERSION="${PACKAGED_DATA_PLUGIN_VERSION:-${DATA_PLUGIN_VERS
 SQL_DATA_PLUGIN_VERSION="${SQL_DATA_PLUGIN_VERSION:-1.0.0}"
 FOLDER_DATA_PLUGIN_VERSION="${FOLDER_DATA_PLUGIN_VERSION:-1.0.0}"
 TEMPLATE_PLUGIN_VERSION="${TEMPLATE_PLUGIN_VERSION:-1.0.0}"
+INFERENCE_PLUGIN_VERSION="${INFERENCE_PLUGIN_VERSION:-1.0.0}"
 
 ACTION_CONFIG_JSON="${ACTION_CONFIG_JSON:-{\"provider\":\"sendgrid\",\"defaultSender\":\"support@loom.test\"}}"
 ACTION_SECRET_REFS_JSON="${ACTION_SECRET_REFS_JSON:-{\"credentialSecretRef\":\"sec-sendgrid\"}}"
@@ -58,6 +61,8 @@ SQL_DATA_CONFIG_JSON="${SQL_DATA_CONFIG_JSON:-{\"scope\":\"all\"}}"
 SQL_DATA_SECRET_REFS_JSON="${SQL_DATA_SECRET_REFS_JSON:-{}}"
 FOLDER_DATA_CONFIG_JSON="${FOLDER_DATA_CONFIG_JSON:-{}}"
 FOLDER_DATA_SECRET_REFS_JSON="${FOLDER_DATA_SECRET_REFS_JSON:-{}}"
+INFERENCE_CONFIG_JSON="${INFERENCE_CONFIG_JSON:-{\"baseUrl\":\"https://api.openai.com/v1\",\"generationModel\":\"gpt-4.1-mini\",\"embeddingModel\":\"text-embedding-3-small\"}}"
+INFERENCE_SECRET_REFS_JSON="${INFERENCE_SECRET_REFS_JSON:-{\"apiKey\":\"OPENAI_API_KEY\"}}"
 
 PACKAGED_DATA_QUERY="${PACKAGED_DATA_QUERY:-How do I reset my password?}"
 FOLDER_DATA_QUERY="${FOLDER_DATA_QUERY:-What is the standard shipping target?}"
@@ -584,6 +589,22 @@ FOLDER_DATA_INSTALL_ID="$(extract_json_value 'result = (data or {}).get("id", ""
 json_assert "folder data plugin install" $'assert (data or {}).get("pluginType") == "DATA"\nassert (data or {}).get("readinessStatus") in {"READY", "ENTITLEMENT_REQUIRED"}\nprint("ok")'
 pass "folder data plugin installed as ${FOLDER_DATA_INSTALL_ID}"
 
+platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs" "$(python3 - <<'PY' "${INFERENCE_PLUGIN_ID}" "${INFERENCE_PLUGIN_VERSION}" "${INFERENCE_CONFIG_JSON}" "${INFERENCE_SECRET_REFS_JSON}"
+import json
+import sys
+print(json.dumps({
+    "pluginId": sys.argv[1],
+    "pluginVersion": sys.argv[2],
+    "config": json.loads(sys.argv[3]),
+    "secretRefs": json.loads(sys.argv[4]),
+}))
+PY
+)"
+assert_status 201 "inference plugin install"
+INFERENCE_INSTALL_ID="$(extract_json_value 'result = (data or {}).get("id", "")')"
+json_assert "inference plugin install" $'assert (data or {}).get("pluginType") == "INFERENCE_PROFILE"\nassert (data or {}).get("readinessStatus") == "READY"\nprint("ok")'
+pass "inference plugin installed as ${INFERENCE_INSTALL_ID}"
+
 platform_request "PUT" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs/${ACTION_INSTALL_ID}/entitlement" '{"status":"ACTIVE"}'
 assert_status 200 "action plugin entitlement activation"
 json_assert "action plugin entitlement activation" $'assert ((data or {}).get("entitlement") or {}).get("status") == "ACTIVE"\nassert (data or {}).get("readinessStatus") == "READY"\nprint("ok")'
@@ -599,17 +620,18 @@ PACKAGED_DATA_INSTALL_ID_EXPECTED="${PACKAGED_DATA_INSTALL_ID}" \
 SQL_DATA_INSTALL_ID_EXPECTED="${SQL_DATA_INSTALL_ID}" \
 FOLDER_DATA_INSTALL_ID_EXPECTED="${FOLDER_DATA_INSTALL_ID}" \
 ACTION_INSTALL_ID_EXPECTED="${ACTION_INSTALL_ID}" \
-json_assert "deployment draft marketplace compilation" $'import os\ndraft = data or {}\nactions = ((draft.get("actionsConfig") or {}).get("actions") or [])\nentities = (((draft.get("entityConfig") or {}).get("ai-entities") or {}))\nsources = ((draft.get("knowledgeSourceConfig") or {}).get("sources") or [])\nshell = draft.get("shellConfig") or {}\nmodules = shell.get("modules") or []\nstarter_prompts = shell.get("starterPrompts") or []\nprompt_config = draft.get("promptConfig") or {}\nsecurity = draft.get("securityConfig") or {}\ndatasets = ((draft.get("marketplaceDatasetConfig") or {}).get("datasets") or [])\npackaged_install_id = os.environ["PACKAGED_DATA_INSTALL_ID_EXPECTED"]\nsql_install_id = os.environ["SQL_DATA_INSTALL_ID_EXPECTED"]\nfolder_install_id = os.environ["FOLDER_DATA_INSTALL_ID_EXPECTED"]\naction_install_id = os.environ["ACTION_INSTALL_ID_EXPECTED"]\nassert any(item.get("name") == "send-email" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert any(item.get("name") == "send-sms" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert (entities.get("faq-article") or {}).get("marketplaceInstallId") == packaged_install_id, entities\nassert (entities.get("product") or {}).get("marketplaceInstallId") == sql_install_id, entities\nassert (entities.get("support-policy") or {}).get("marketplaceInstallId") == folder_install_id, entities\nassert any(item.get("id") == "help-center" and item.get("marketplaceInstallId") == packaged_install_id for item in sources), sources\nassert any(item.get("id") == "commerce-catalog" and item.get("marketplaceInstallId") == sql_install_id for item in sources), sources\nassert any(item.get("id") == "policy-folder" and item.get("marketplaceInstallId") == folder_install_id for item in sources), sources\nmodule_ids = {item.get("id") for item in modules}\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(module_ids), modules\nassert shell.get("defaultConversationMode") == "guided-support", shell\nassert (shell.get("greeting") or {}).get("title") == "Support Desk", shell\nstarter_ids = {item.get("id") for item in starter_prompts}\nassert {"support-capabilities", "refund-policy", "notification-troubleshooting"}.issubset(starter_ids), starter_prompts\nassert prompt_config.get("intentExtractionPrompt", "").find("must not be classified as OUT_OF_SCOPE") != -1, prompt_config\nassert security.get("authzMode") == "ALLOW_VERIFIED", security\nif datasets:\n    assert any(item.get("marketplaceInstallId") == packaged_install_id and item.get("ingestionMode") == "PACKAGED_SEED" and (item.get("seedDatasetRef") or "").endswith("help-center.jsonl") for item in datasets), datasets\n    assert any(item.get("marketplaceInstallId") == sql_install_id and item.get("ingestionMode") == "EXTERNAL_SYNC_SQL" and ((item.get("syncConnector") or {}).get("connectionRef")) == "platform-marketplace-demo-sql" for item in datasets), datasets\n    assert any(item.get("marketplaceInstallId") == folder_install_id and item.get("ingestionMode") == "EXTERNAL_SYNC_FOLDER" and "policy-pack" in (((item.get("syncConnector") or {}).get("folderRef")) or "") for item in datasets), datasets\n    for install_id in [packaged_install_id, sql_install_id, folder_install_id]:\n        matches = [item for item in datasets if item.get("marketplaceInstallId") == install_id]\n        assert matches, {"missingInstallId": install_id, "datasets": datasets}\n        assert all(item.get("handleRef") for item in matches), matches\n        assert all(item.get("datasetHash") for item in matches), matches\nprint("ok")'
+INFERENCE_INSTALL_ID_EXPECTED="${INFERENCE_INSTALL_ID}" \
+json_assert "deployment draft marketplace compilation" $'import os\ndraft = data or {}\nactions = ((draft.get("actionsConfig") or {}).get("actions") or [])\nentities = (((draft.get("entityConfig") or {}).get("ai-entities") or {}))\nsources = ((draft.get("knowledgeSourceConfig") or {}).get("sources") or [])\nshell = draft.get("shellConfig") or {}\nmodules = shell.get("modules") or []\nstarter_prompts = shell.get("starterPrompts") or []\nprompt_config = draft.get("promptConfig") or {}\nsecurity = draft.get("securityConfig") or {}\ndatasets = ((draft.get("marketplaceDatasetConfig") or {}).get("datasets") or [])\nprovider = draft.get("providerConfig") or {}\ninference = provider.get("marketplaceInference") or {}\npackaged_install_id = os.environ["PACKAGED_DATA_INSTALL_ID_EXPECTED"]\nsql_install_id = os.environ["SQL_DATA_INSTALL_ID_EXPECTED"]\nfolder_install_id = os.environ["FOLDER_DATA_INSTALL_ID_EXPECTED"]\naction_install_id = os.environ["ACTION_INSTALL_ID_EXPECTED"]\ninference_install_id = os.environ["INFERENCE_INSTALL_ID_EXPECTED"]\nassert any(item.get("name") == "send-email" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert any(item.get("name") == "send-sms" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert (entities.get("faq-article") or {}).get("marketplaceInstallId") == packaged_install_id, entities\nassert (entities.get("product") or {}).get("marketplaceInstallId") == sql_install_id, entities\nassert (entities.get("support-policy") or {}).get("marketplaceInstallId") == folder_install_id, entities\nassert any(item.get("id") == "help-center" and item.get("marketplaceInstallId") == packaged_install_id for item in sources), sources\nassert any(item.get("id") == "commerce-catalog" and item.get("marketplaceInstallId") == sql_install_id for item in sources), sources\nassert any(item.get("id") == "policy-folder" and item.get("marketplaceInstallId") == folder_install_id for item in sources), sources\nassert provider.get("llmProvider") == "openai", provider\nassert provider.get("generationLlmProvider") == "openai", provider\nassert provider.get("generationBaseUrl") == "https://api.openai.com/v1", provider\nassert provider.get("generationApiKeySecretRef") == "OPENAI_API_KEY", provider\nassert provider.get("generationModel") == "gpt-4.1-mini", provider\nassert provider.get("embeddingProvider") == "openai", provider\nassert provider.get("embeddingApiKeySecretRef") == "OPENAI_API_KEY", provider\nassert provider.get("openaiEmbeddingModel") == "text-embedding-3-small", provider\nassert int(provider.get("openaiEmbeddingDimensions") or 0) > 0, provider\nassert not provider.get("embeddingEndpointProfile"), provider\nassert inference.get("contractVersion") == "MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1", inference\nassert "customer-openai" in (inference.get("profileIds") or []), inference\nassert inference_install_id in (inference.get("installIds") or []), inference\nmodule_ids = {item.get("id") for item in modules}\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(module_ids), modules\nassert shell.get("defaultConversationMode") == "guided-support", shell\nassert (shell.get("greeting") or {}).get("title") == "Support Desk", shell\nstarter_ids = {item.get("id") for item in starter_prompts}\nassert {"support-capabilities", "refund-policy", "notification-troubleshooting"}.issubset(starter_ids), starter_prompts\nassert prompt_config.get("intentExtractionPrompt", "").find("must not be classified as OUT_OF_SCOPE") != -1, prompt_config\nassert security.get("authzMode") == "ALLOW_VERIFIED", security\nif datasets:\n    assert any(item.get("marketplaceInstallId") == packaged_install_id and item.get("ingestionMode") == "PACKAGED_SEED" and (item.get("seedDatasetRef") or "").endswith("help-center.jsonl") for item in datasets), datasets\n    assert any(item.get("marketplaceInstallId") == sql_install_id and item.get("ingestionMode") == "EXTERNAL_SYNC_SQL" and ((item.get("syncConnector") or {}).get("connectionRef")) == "platform-marketplace-demo-sql" for item in datasets), datasets\n    assert any(item.get("marketplaceInstallId") == folder_install_id and item.get("ingestionMode") == "EXTERNAL_SYNC_FOLDER" and "policy-pack" in (((item.get("syncConnector") or {}).get("folderRef")) or "") for item in datasets), datasets\n    for install_id in [packaged_install_id, sql_install_id, folder_install_id]:\n        matches = [item for item in datasets if item.get("marketplaceInstallId") == install_id]\n        assert matches, {"missingInstallId": install_id, "datasets": datasets}\n        assert all(item.get("handleRef") for item in matches), matches\n        assert all(item.get("datasetHash") for item in matches), matches\nprint("ok")'
 pass "deployment draft contains compiled marketplace contributions"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/marketplace-impact"
 assert_status 200 "deployment marketplace impact"
-json_assert "deployment marketplace impact" $'impact = data or {}\nassert int(impact.get("totalInstalls") or 0) >= 5, impact\nassert int(impact.get("actionPluginCount") or 0) >= 1, impact\nassert int(impact.get("dataPluginCount") or 0) >= 3, impact\nassert int(impact.get("templatePluginCount") or 0) >= 1, impact\nfor plugin_id in ["mkp-template-support-desk-shell", "mkp-action-notifications", "mkp-data-help-center", "mkp-data-commerce-catalog", "mkp-data-policy-folder"]:\n  assert plugin_id in (impact.get("installedPluginIds") or []), impact\nfor action_id in ["send-email", "send-sms"]:\n  assert action_id in (impact.get("actionIds") or []), impact\nfor source_id in ["help-center", "commerce-catalog", "policy-folder"]:\n  assert source_id in (impact.get("knowledgeSourceIds") or []), impact\nshell_ids = set(impact.get("shellModuleIds") or [])\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(shell_ids), impact\nprint("ok")'
+json_assert "deployment marketplace impact" $'impact = data or {}\nassert int(impact.get("totalInstalls") or 0) >= 6, impact\nassert int(impact.get("actionPluginCount") or 0) >= 1, impact\nassert int(impact.get("dataPluginCount") or 0) >= 3, impact\nassert int(impact.get("templatePluginCount") or 0) >= 1, impact\nassert int(impact.get("inferenceProfilePluginCount") or 0) >= 1, impact\nfor plugin_id in ["mkp-template-support-desk-shell", "mkp-action-notifications", "mkp-data-help-center", "mkp-data-commerce-catalog", "mkp-data-policy-folder", "mkp-inference-byok-openai"]:\n  assert plugin_id in (impact.get("installedPluginIds") or []), impact\nfor action_id in ["send-email", "send-sms"]:\n  assert action_id in (impact.get("actionIds") or []), impact\nfor source_id in ["help-center", "commerce-catalog", "policy-folder"]:\n  assert source_id in (impact.get("knowledgeSourceIds") or []), impact\nassert "customer-openai" in (impact.get("inferenceProfileIds") or []), impact\nshell_ids = set(impact.get("shellModuleIds") or [])\nassert {"actions", "docs", "ai-search", "support", "products"}.issubset(shell_ids), impact\nprint("ok")'
 pass "impact preview reflects template, action, and data contributions"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs"
 assert_status 200 "deployment marketplace installs"
-json_assert "deployment marketplace installs" $'installs = data or []\ninstall_map = {item.get("pluginId"): item for item in installs if isinstance(item, dict)}\nassert install_map["mkp-template-support-desk-shell"]["status"] == "BOOTSTRAPPED", install_map\nassert install_map["mkp-action-notifications"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-help-center"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-commerce-catalog"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-policy-folder"]["readinessStatus"] == "READY", install_map\nassert ((install_map["mkp-action-notifications"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nassert ((install_map["mkp-data-commerce-catalog"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nprint("ok")'
+json_assert "deployment marketplace installs" $'installs = data or []\ninstall_map = {item.get("pluginId"): item for item in installs if isinstance(item, dict)}\nassert install_map["mkp-template-support-desk-shell"]["status"] == "BOOTSTRAPPED", install_map\nassert install_map["mkp-action-notifications"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-help-center"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-commerce-catalog"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-policy-folder"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-inference-byok-openai"]["readinessStatus"] == "READY", install_map\nassert ((install_map["mkp-action-notifications"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nassert ((install_map["mkp-data-commerce-catalog"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nprint("ok")'
 pass "install records reflect active entitlements and compiled readiness"
 
 publish_active_draft
@@ -639,7 +661,7 @@ json_assert "shell artifact fetch" $'shell = data or {}\nmodule_ids = {item.get(
 
 public_request "${MANIFEST_ARTIFACT_URL}"
 assert_status 200 "manifest artifact fetch"
-json_assert "manifest artifact fetch" $'manifest = data or {}\nassert bool(manifest.get("marketplaceDatasetConfig")), manifest\nassert bool(manifest.get("knowledgeSourceConfig")), manifest\nassert bool(manifest.get("shellConfig")), manifest\nprint("ok")'
+json_assert "manifest artifact fetch" $'manifest = data or {}\nprovider = manifest.get("providerConfig") or {}\ninference = provider.get("marketplaceInference") or {}\nassert bool(manifest.get("marketplaceDatasetConfig")), manifest\nassert bool(manifest.get("knowledgeSourceConfig")), manifest\nassert bool(manifest.get("shellConfig")), manifest\nassert provider.get("generationBaseUrl") == "https://api.openai.com/v1", provider\nassert provider.get("generationApiKeySecretRef") == "OPENAI_API_KEY", provider\nassert provider.get("openaiEmbeddingModel") == "text-embedding-3-small", provider\nassert "customer-openai" in (inference.get("profileIds") or []), inference\nprint("ok")'
 pass "published artifacts expose marketplace dataset outputs"
 
 apply_published_version
@@ -649,6 +671,11 @@ platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/releases"
 assert_status 200 "deployment releases final"
 json_assert "deployment releases final" $'items = data or []\nrelease = next((item for item in items if (item or {}).get("id") == "'"${RELEASE_ID}"'"), None)\nassert release is not None, items\nassert release.get("status") == "APPLIED_VERIFIED", release\nassert release.get("verificationStatus") == "PASSED", release\nassert release.get("deploymentVersionId") == "'"${PUBLISHED_VERSION_ID}"'", release\nprint("ok")'
 pass "published version is active and verified"
+
+platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/provider-connectivity"
+assert_status 200 "deployment provider connectivity"
+json_assert "deployment provider connectivity" $'probes = (data or {}).get("probes") or []\nprobe_map = {item.get("key"): item for item in probes if isinstance(item, dict) and item.get("key")}\nassert "generation_inference_endpoint" in probe_map, probe_map\nassert "embedding_inference_endpoint" in probe_map, probe_map\nassert probe_map["generation_inference_endpoint"].get("status") == "READY", probe_map\nassert probe_map["embedding_inference_endpoint"].get("status") == "READY", probe_map\nif "orchestration_inference_endpoint" in probe_map:\n    assert probe_map["orchestration_inference_endpoint"].get("status") == "READY", probe_map\nsummary = (data or {}).get("summary") or ""\nassert summary, data\nprint("ok")'
+pass "provider connectivity reflects live inference profile readiness"
 
 run_platform_poc_query "${PACKAGED_DATA_QUERY}" "marketplace-help-center-$(date +%s)" "packaged data live query"
 assert_query_source "packaged data live query" "help-center"
@@ -674,4 +701,5 @@ echo "Action install: ${ACTION_INSTALL_ID}"
 echo "Packaged data install: ${PACKAGED_DATA_INSTALL_ID}"
 echo "SQL data install: ${SQL_DATA_INSTALL_ID}"
 echo "Folder data install: ${FOLDER_DATA_INSTALL_ID}"
+echo "Inference install: ${INFERENCE_INSTALL_ID}"
 pass "marketplace install flow live verification"

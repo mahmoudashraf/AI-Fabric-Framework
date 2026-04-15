@@ -14,6 +14,7 @@ import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminOverviewController;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
@@ -153,6 +154,19 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("shellGreetingConfigured", true);
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
+        assertThat(body.get("inferenceProfile")).isEqualTo(Map.ofEntries(
+            Map.entry("llmProvider", "openai"),
+            Map.entry("embeddingProvider", "onnx"),
+            Map.entry("embeddingEndpointProfile", "onnx-bundled"),
+            Map.entry("orchestrationProvider", "openai"),
+            Map.entry("orchestrationModel", "gpt-4o-mini"),
+            Map.entry("orchestrationEndpointProfile", "openai-cloud-orchestration"),
+            Map.entry("orchestrationHasConnectionOverride", true),
+            Map.entry("generationProvider", "openai"),
+            Map.entry("generationModel", "gpt-4o"),
+            Map.entry("generationEndpointProfile", "openai-cloud-default"),
+            Map.entry("generationHasConnectionOverride", true)
+        ));
         assertThat(body.get("searchSourceDiagnostics")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> searchSourceDiagnostics = (Map<String, Object>) body.get("searchSourceDiagnostics");
@@ -393,6 +407,7 @@ class RuntimeAdminOverviewControllerTest {
                 actionRegistry,
                 actionCatalogGateway,
                 entityConfigurationLoader,
+                aiProviderConfig(),
                 vectorDatabaseService,
                 authProperties,
                 runtimeRequestAuthResolver,
@@ -404,6 +419,30 @@ class RuntimeAdminOverviewControllerTest {
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private AIProviderConfig aiProviderConfig() {
+        AIProviderConfig providerConfig = new AIProviderConfig();
+        providerConfig.setLlmProvider("openai");
+        providerConfig.setEmbeddingProvider("onnx");
+        providerConfig.setEmbeddingEndpointProfile("onnx-bundled");
+
+        AIProviderConfig.OrchestrationLlmConfig orchestration = new AIProviderConfig.OrchestrationLlmConfig();
+        orchestration.setLlmProvider("openai");
+        orchestration.setModel("gpt-4o-mini");
+        orchestration.setEndpointProfile("openai-cloud-orchestration");
+        orchestration.setBaseUrl("https://api.openai.com/v1");
+        orchestration.setApiKey("platform-openai-key");
+        providerConfig.setOrchestration(orchestration);
+
+        AIProviderConfig.GenerationLlmConfig generation = new AIProviderConfig.GenerationLlmConfig();
+        generation.setLlmProvider("openai");
+        generation.setModel("gpt-4o");
+        generation.setEndpointProfile("openai-cloud-default");
+        generation.setBaseUrl("https://api.openai.com/v1");
+        generation.setApiKey("platform-openai-key");
+        providerConfig.setGeneration(generation);
+        return providerConfig;
     }
 
     private ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider() {

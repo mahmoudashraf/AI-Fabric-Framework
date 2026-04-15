@@ -2,12 +2,18 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class DeploymentDraftValidationServiceTest {
 
@@ -243,6 +249,88 @@ class DeploymentDraftValidationServiceTest {
         assertThat(response.issues())
             .extracting("code")
             .contains("ROUTE_URL_INVALID");
+    }
+
+    @Test
+    void validateRejectsSharedIndexKnowledgeSourceOnEmbeddedVectorProvider() {
+        DeploymentDraftEntity draft = draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "search_docs",
+                      "description": "Search docs"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "faq-article": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "ALLOW_VERIFIED",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        );
+        draft.setKnowledgeSourceConfigJson(
+            """
+                {
+                  "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                  "sources": [
+                    {
+                      "id": "help-center",
+                      "sourceType": "shared-index",
+                      "adapterType": "shared-index",
+                      "handleRef": "plugin/help-center",
+                      "entityType": "faq-article"
+                    }
+                  ]
+                }
+                """
+        );
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("SHARED_INDEX_REQUIRES_SHARED_VECTOR_STORAGE");
     }
 
     @Test
@@ -2566,6 +2654,141 @@ class DeploymentDraftValidationServiceTest {
             .contains("SHELL_MODULE_ID_UNSUPPORTED", "SHELL_STARTER_PROMPT_CARD_UNSUPPORTED");
     }
 
+    @Test
+    void validateRejectsUnknownManagedInferenceEndpointProfile() {
+        PlatformManagedInferenceEndpointService endpointService = mock(PlatformManagedInferenceEndpointService.class);
+        when(endpointService.requireActive("missing-profile"))
+            .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "missing"));
+
+        DraftValidationResponse response = service(endpointService).validate(draft(
+            """
+                {
+                  "actions": []
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "onnx",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "orchestrationLlmProvider": "openai",
+                  "orchestrationEndpointProfile": "missing-profile"
+                }
+                """,
+            """
+                {
+                  "authzMode": "ALLOW_VERIFIED",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ORCHESTRATIONENDPOINTPROFILE_UNKNOWN");
+    }
+
+    @Test
+    void validateRejectsManagedInferenceEndpointProfileWhenProviderMismatches() {
+        PlatformManagedInferenceEndpointEntity endpoint = new PlatformManagedInferenceEndpointEntity();
+        endpoint.setId("pmie-1");
+        endpoint.setProfileRef("openai-cloud-default");
+        endpoint.setProviderType("openai");
+        endpoint.setStatus("ACTIVE");
+
+        PlatformManagedInferenceEndpointService endpointService = mock(PlatformManagedInferenceEndpointService.class);
+        when(endpointService.requireActive("openai-cloud-default")).thenReturn(endpoint);
+
+        DraftValidationResponse response = service(endpointService).validate(draft(
+            """
+                {
+                  "actions": []
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "anthropic",
+                  "embeddingProvider": "onnx",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "generationLlmProvider": "anthropic",
+                  "generationEndpointProfile": "openai-cloud-default"
+                }
+                """,
+            """
+                {
+                  "authzMode": "ALLOW_VERIFIED",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("GENERATIONENDPOINTPROFILE_PROVIDER_MISMATCH");
+    }
+
     private DeploymentDraftEntity draft(String actionsConfig,
                                         String entityConfig,
                                         String routingConfig,
@@ -2611,5 +2834,9 @@ class DeploymentDraftValidationServiceTest {
         draft.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         draft.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return draft;
+    }
+
+    private DeploymentDraftValidationService service(PlatformManagedInferenceEndpointService endpointService) {
+        return new DeploymentDraftValidationService(new ObjectMapper(), endpointService);
     }
 }

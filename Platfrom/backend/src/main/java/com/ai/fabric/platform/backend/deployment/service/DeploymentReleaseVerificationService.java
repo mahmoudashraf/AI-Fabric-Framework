@@ -752,6 +752,7 @@ public class DeploymentReleaseVerificationService {
             actionsConfig,
             entityConfig,
             routingConfig,
+            providerConfig,
             knowledgeSourceConfig,
             shellConfig,
             marketplaceDatasetConfig,
@@ -777,6 +778,15 @@ public class DeploymentReleaseVerificationService {
             expectedActionNamesWithBuiltInModuleMappings,
             expectedActionNamesWithBuiltInCardMappings,
             expectedActionNamesWithProvenance,
+            ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationModel(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationEndpointProfile(providerConfig),
+            ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.generationModel(providerConfig),
+            ManagedDeploymentProfileCatalog.generationEndpointProfile(providerConfig),
+            ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig),
             expectedAuthzEnabled,
             expectedRuntimeProxyEnabled,
             expectedIngressMode,
@@ -1203,24 +1213,35 @@ public class DeploymentReleaseVerificationService {
                                       DeploymentEntity deployment,
                                       JsonNode providerConfig,
                                       JsonNode securityConfig) {
-        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
-        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
-        for (Map.Entry<String, String> entry : ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig).entrySet()) {
-            addProviderSecretCheck(
-                checks,
-                deployment.getId(),
-                "llm_provider_" + entry.getKey() + "_secret_available",
-                entry.getValue(),
-                entry.getKey() + " credential is available for the selected LLM profile."
-            );
-        }
-        addProviderSecretCheck(
+        addInferenceProviderSecretCheck(
             checks,
             deployment.getId(),
-            "embedding_provider_secret_available",
-            resolveEmbeddingSecretName(embeddingProvider),
-            "Embedding provider credential is available for the selected deployment profile."
+            "default_llm_provider_secret_available",
+            ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
+            null,
+            "Default LLM provider credential is available for the selected deployment profile."
+        );
+        addInferenceProviderSecretCheck(
+            checks,
+            deployment.getId(),
+            "orchestration_provider_secret_available",
+            ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationApiKeySecretRef(providerConfig),
+            "Purpose-scoped orchestration credential is available for the selected deployment profile."
+        );
+        addInferenceProviderSecretCheck(
+            checks,
+            deployment.getId(),
+            "generation_provider_secret_available",
+            ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.generationApiKeySecretRef(providerConfig),
+            "Purpose-scoped generation credential is available for the selected deployment profile."
+        );
+        addInferenceEmbeddingSecretCheck(
+            checks,
+            deployment.getId(),
+            providerConfig
         );
         String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
         if (hasText(requiredVectorSecretName)) {
@@ -1301,6 +1322,52 @@ public class DeploymentReleaseVerificationService {
                 "Private runtime admin protection is not required because admin endpoint protection is disabled."
             );
         }
+    }
+
+    private void addInferenceProviderSecretCheck(ArrayNode checks,
+                                                 String deploymentId,
+                                                 String checkName,
+                                                 String provider,
+                                                 String directSecretRef,
+                                                 String message) {
+        String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT);
+        if (!hasText(normalizedProvider) && !hasText(directSecretRef)) {
+            addSkippedCheck(checks, checkName, "No purpose-scoped secret is required for this provider surface.");
+            return;
+        }
+        if (hasText(directSecretRef)) {
+            addSecretCheck(checks, checkName, directSecretRef, message);
+            return;
+        }
+        addProviderSecretCheck(
+            checks,
+            deploymentId,
+            checkName,
+            ManagedDeploymentProfileCatalog.secretNameForLlmProvider(normalizedProvider),
+            message
+        );
+    }
+
+    private void addInferenceEmbeddingSecretCheck(ArrayNode checks,
+                                                  String deploymentId,
+                                                  JsonNode providerConfig) {
+        String directSecretRef = ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig);
+        if (hasText(directSecretRef)) {
+            addSecretCheck(
+                checks,
+                "embedding_provider_secret_available",
+                directSecretRef,
+                "Embedding provider credential is available for the selected deployment profile."
+            );
+            return;
+        }
+        addProviderSecretCheck(
+            checks,
+            deploymentId,
+            "embedding_provider_secret_available",
+            resolveEmbeddingSecretName(ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)),
+            "Embedding provider credential is available for the selected deployment profile."
+        );
     }
 
     private void verifyAuthzDeployability(ArrayNode checks,
@@ -1803,6 +1870,7 @@ public class DeploymentReleaseVerificationService {
             && runtimePromptConfigMatchesExpected(probe, expectations)
             && runtimeKnowledgeSourcesMatchExpected(probe, expectations)
             && runtimeShellConfigMatchesExpected(probe, expectations)
+            && runtimeInferenceProfileMatchesExpected(probe, expectations)
             && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
             && probe.body().path("actionsCount").asInt(-1) == expectations.expectedActionNames().size()
             && probe.body().path("confirmationInterceptorsCount").asInt(-1) == expectations.expectedConfirmationInterceptorNames().size()
@@ -1943,6 +2011,26 @@ public class DeploymentReleaseVerificationService {
             && textSet(probe.body().path("shellCardIds")).equals(expectations.expectedShellCardIds())
             && probe.body().path("shellStarterPromptsCount").asInt(-1) == expectations.expectedShellStarterPromptsCount()
             && probe.body().path("shellGreetingConfigured").asBoolean(false) == expectations.expectedShellGreetingConfigured();
+    }
+
+    private boolean runtimeInferenceProfileMatchesExpected(JsonProbeResult probe,
+                                                           VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        JsonNode inferenceProfile = probe.body().path("inferenceProfile");
+        JsonNode marketplaceSupport = probe.body().path("marketplaceSupport");
+        return probe.body().path("success").asBoolean(false)
+            && "INFERENCE_PROFILE_RUNTIME_V1".equals(marketplaceSupport.path("inferenceProfileContractVersion").asText(""))
+            && expectations.expectedLlmProvider().equals(trimToEmpty(inferenceProfile.path("llmProvider").asText(null)))
+            && expectations.expectedEmbeddingProvider().equals(trimToEmpty(inferenceProfile.path("embeddingProvider").asText(null)))
+            && expectations.expectedOrchestrationProvider().equals(trimToEmpty(inferenceProfile.path("orchestrationProvider").asText(null)))
+            && expectations.expectedOrchestrationModel().equals(trimToEmpty(inferenceProfile.path("orchestrationModel").asText(null)))
+            && expectations.expectedOrchestrationEndpointProfile().equals(trimToEmpty(inferenceProfile.path("orchestrationEndpointProfile").asText(null)))
+            && expectations.expectedGenerationProvider().equals(trimToEmpty(inferenceProfile.path("generationProvider").asText(null)))
+            && expectations.expectedGenerationModel().equals(trimToEmpty(inferenceProfile.path("generationModel").asText(null)))
+            && expectations.expectedGenerationEndpointProfile().equals(trimToEmpty(inferenceProfile.path("generationEndpointProfile").asText(null)))
+            && expectations.expectedEmbeddingEndpointProfile().equals(trimToEmpty(inferenceProfile.path("embeddingEndpointProfile").asText(null)));
     }
 
     private boolean connectorOverviewMatchesExpected(JsonProbeResult probe,
@@ -2275,6 +2363,10 @@ public class DeploymentReleaseVerificationService {
         return values;
     }
 
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
+    }
+
     private ArrayNode toArrayNode(Set<String> values) {
         ArrayNode arrayNode = objectMapper.createArrayNode();
         values.forEach(arrayNode::add);
@@ -2448,6 +2540,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode actionsConfig,
         JsonNode entityConfig,
         JsonNode routingConfig,
+        JsonNode providerConfig,
         JsonNode knowledgeSourceConfig,
         JsonNode shellConfig,
         JsonNode marketplaceDatasetConfig,
@@ -2473,6 +2566,15 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNamesWithBuiltInModuleMappings,
         Set<String> expectedActionNamesWithBuiltInCardMappings,
         Set<String> expectedActionNamesWithProvenance,
+        String expectedLlmProvider,
+        String expectedEmbeddingProvider,
+        String expectedOrchestrationProvider,
+        String expectedOrchestrationModel,
+        String expectedOrchestrationEndpointProfile,
+        String expectedGenerationProvider,
+        String expectedGenerationModel,
+        String expectedGenerationEndpointProfile,
+        String expectedEmbeddingEndpointProfile,
         boolean expectedAuthzEnabled,
         boolean expectedRuntimeProxyEnabled,
         String expectedIngressMode,

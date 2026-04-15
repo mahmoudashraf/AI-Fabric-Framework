@@ -388,7 +388,14 @@ public class RailwayProvisioningPlanService {
                               String embeddingProvider,
                               int vectorDimensions) {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_ENABLED", "true"));
-        addResolvedSingleSecretEnv(runtimeEnv, deployment, "OPENAI_API_KEY", null, "OPENAI_API_KEY", "AI_PROVIDERS_OPENAI_API_KEY");
+        addResolvedSingleSecretEnv(
+            runtimeEnv,
+            deployment,
+            "OPENAI_API_KEY",
+            preferredLlmProviderSecretRef(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI),
+            "OPENAI_API_KEY",
+            "AI_PROVIDERS_OPENAI_API_KEY"
+        );
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_OPENAI_BASE_URL", ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_PROVIDERS_OPENAI_VALIDATE_ON_STARTUP",
@@ -439,7 +446,13 @@ public class RailwayProvisioningPlanService {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_ENABLED", "true"));
-        addResolvedSingleSecretEnv(runtimeEnv, deployment, "ANTHROPIC_API_KEY", null, "AI_PROVIDERS_ANTHROPIC_API_KEY");
+        addResolvedSingleSecretEnv(
+            runtimeEnv,
+            deployment,
+            "ANTHROPIC_API_KEY",
+            preferredLlmProviderSecretRef(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC),
+            "AI_PROVIDERS_ANTHROPIC_API_KEY"
+        );
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ANTHROPIC_BASE_URL", ManagedDeploymentProfileCatalog.anthropicBaseUrl(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_PROVIDERS_ANTHROPIC_MODEL",
@@ -460,7 +473,13 @@ public class RailwayProvisioningPlanService {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_AZURE_ENABLED", "true"));
-        addResolvedSingleSecretEnv(runtimeEnv, deployment, "AZURE_OPENAI_API_KEY", null, "AI_PROVIDERS_AZURE_API_KEY");
+        addResolvedSingleSecretEnv(
+            runtimeEnv,
+            deployment,
+            "AZURE_OPENAI_API_KEY",
+            preferredLlmProviderSecretRef(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE),
+            "AI_PROVIDERS_AZURE_API_KEY"
+        );
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_ENDPOINT", ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_API_VERSION", ManagedDeploymentProfileCatalog.azureApiVersion(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -490,7 +509,13 @@ public class RailwayProvisioningPlanService {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_COHERE_ENABLED", "true"));
-        addResolvedSingleSecretEnv(runtimeEnv, deployment, "COHERE_API_KEY", null, "AI_PROVIDERS_COHERE_API_KEY");
+        addResolvedSingleSecretEnv(
+            runtimeEnv,
+            deployment,
+            "COHERE_API_KEY",
+            preferredLlmProviderSecretRef(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE),
+            "AI_PROVIDERS_COHERE_API_KEY"
+        );
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_COHERE_BASE_URL", ManagedDeploymentProfileCatalog.cohereBaseUrl(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_PROVIDERS_COHERE_VALIDATE_ON_STARTUP",
@@ -521,7 +546,13 @@ public class RailwayProvisioningPlanService {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_GEMINI_ENABLED", "true"));
-        addResolvedSingleSecretEnv(runtimeEnv, deployment, "GEMINI_API_KEY", null, "AI_PROVIDERS_GEMINI_API_KEY");
+        addResolvedSingleSecretEnv(
+            runtimeEnv,
+            deployment,
+            "GEMINI_API_KEY",
+            preferredLlmProviderSecretRef(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI),
+            "AI_PROVIDERS_GEMINI_API_KEY"
+        );
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_BASE_URL", ManagedDeploymentProfileCatalog.geminiBaseUrl(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_PROVIDERS_GEMINI_VALIDATE_ON_STARTUP",
@@ -733,18 +764,87 @@ public class RailwayProvisioningPlanService {
         return value != null && !value.isBlank();
     }
 
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private void addPurposeSpecificLlmEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig) {
-        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_LLM_PROVIDER", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig));
+        String orchestrationProvider = ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig);
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_LLM_PROVIDER", orchestrationProvider);
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_MODEL", ManagedDeploymentProfileCatalog.orchestrationModel(providerConfig));
         addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_MAX_TOKENS", ManagedDeploymentProfileCatalog.orchestrationMaxTokens(providerConfig));
         addOptionalDoubleEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_TEMPERATURE", ManagedDeploymentProfileCatalog.orchestrationTemperature(providerConfig));
         addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_TIMEOUT", ManagedDeploymentProfileCatalog.orchestrationTimeout(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_ENDPOINT_PROFILE", ManagedDeploymentProfileCatalog.orchestrationEndpointProfile(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_BASE_URL", ManagedDeploymentProfileCatalog.orchestrationBaseUrl(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_DEPLOYMENT_NAME", ManagedDeploymentProfileCatalog.orchestrationDeploymentName(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_API_VERSION", ManagedDeploymentProfileCatalog.orchestrationApiVersion(providerConfig));
+        addPurposeScopedSecretEnv(
+            runtimeEnv,
+            "AI_PROVIDERS_ORCHESTRATION_API_KEY",
+            ManagedDeploymentProfileCatalog.orchestrationApiKeySecretRef(providerConfig),
+            ManagedDeploymentProfileCatalog.secretNameForLlmProvider(orchestrationProvider)
+        );
 
-        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_LLM_PROVIDER", ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig));
+        String generationProvider = ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig);
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_LLM_PROVIDER", generationProvider);
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_MODEL", ManagedDeploymentProfileCatalog.generationModel(providerConfig));
         addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_MAX_TOKENS", ManagedDeploymentProfileCatalog.generationMaxTokens(providerConfig));
         addOptionalDoubleEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_TEMPERATURE", ManagedDeploymentProfileCatalog.generationTemperature(providerConfig));
         addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_TIMEOUT", ManagedDeploymentProfileCatalog.generationTimeout(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_ENDPOINT_PROFILE", ManagedDeploymentProfileCatalog.generationEndpointProfile(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_BASE_URL", ManagedDeploymentProfileCatalog.generationBaseUrl(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_DEPLOYMENT_NAME", ManagedDeploymentProfileCatalog.generationDeploymentName(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_API_VERSION", ManagedDeploymentProfileCatalog.generationApiVersion(providerConfig));
+        addPurposeScopedSecretEnv(
+            runtimeEnv,
+            "AI_PROVIDERS_GENERATION_API_KEY",
+            ManagedDeploymentProfileCatalog.generationApiKeySecretRef(providerConfig),
+            ManagedDeploymentProfileCatalog.secretNameForLlmProvider(generationProvider)
+        );
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_EMBEDDING_ENDPOINT_PROFILE", ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig));
+    }
+
+    private String preferredLlmProviderSecretRef(JsonNode providerConfig, String providerName) {
+        String normalizedProvider = trimToNull(providerName);
+        if (normalizedProvider == null) {
+            return trimToNull(ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig));
+        }
+        if (normalizedProvider.equals(trimToNull(ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig)))) {
+            String generationRef = trimToNull(ManagedDeploymentProfileCatalog.generationApiKeySecretRef(providerConfig));
+            if (generationRef != null) {
+                return generationRef;
+            }
+        }
+        if (normalizedProvider.equals(trimToNull(ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig)))) {
+            String orchestrationRef = trimToNull(ManagedDeploymentProfileCatalog.orchestrationApiKeySecretRef(providerConfig));
+            if (orchestrationRef != null) {
+                return orchestrationRef;
+            }
+        }
+        String embeddingProvider = trimToNull(ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig));
+        if (normalizedProvider.equals(embeddingProvider)) {
+            return trimToNull(ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig));
+        }
+        return null;
+    }
+
+    private void addPurposeScopedSecretEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                           String envName,
+                                           String directSecretRef,
+                                           String fallbackSecretName) {
+        String direct = trimToNull(directSecretRef);
+        if (hasText(direct)) {
+            runtimeEnv.add(new RailwayEnvVarSummary(envName, "${secret:" + direct + "}"));
+            return;
+        }
+        if (hasText(fallbackSecretName)) {
+            runtimeEnv.add(new RailwayEnvVarSummary(envName, "${secret:" + fallbackSecretName + "}"));
+        }
     }
 
     private void addRuntimeConnectorAuthEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {

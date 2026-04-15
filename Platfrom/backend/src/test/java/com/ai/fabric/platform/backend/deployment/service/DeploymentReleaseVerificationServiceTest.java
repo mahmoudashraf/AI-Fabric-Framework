@@ -224,9 +224,14 @@ class DeploymentReleaseVerificationServiceTest {
                           "shellStarterPromptsCount": 0,
                           "shellGreetingConfigured": false,
                           "supportedEntityTypes": ["product", "policy"],
+                          "inferenceProfile": {
+                            "llmProvider": "openai",
+                            "embeddingProvider": "openai"
+                          },
                           "marketplaceSupport": {
                             "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
-                            "shellConfigContractVersion": "SHELL_CONFIG_V1"
+                            "shellConfigContractVersion": "SHELL_CONFIG_V1",
+                            "inferenceProfileContractVersion": "INFERENCE_PROFILE_RUNTIME_V1"
                           },
                           "auth": {
                             "ingressMode": "VERIFIED_CONTEXT_REQUIRED",
@@ -512,9 +517,14 @@ class DeploymentReleaseVerificationServiceTest {
                           "shellStarterPromptsCount": 2,
                           "shellGreetingConfigured": true,
                           "supportedEntityTypes": ["product", "policy"],
+                          "inferenceProfile": {
+                            "llmProvider": "openai",
+                            "embeddingProvider": "openai"
+                          },
                           "marketplaceSupport": {
                             "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
-                            "shellConfigContractVersion": "SHELL_CONFIG_V1"
+                            "shellConfigContractVersion": "SHELL_CONFIG_V1",
+                            "inferenceProfileContractVersion": "INFERENCE_PROFILE_RUNTIME_V1"
                           },
                           "auth": {
                             "ingressMode": "VERIFIED_CONTEXT_REQUIRED"
@@ -556,9 +566,14 @@ class DeploymentReleaseVerificationServiceTest {
                           "shellStarterPromptsCount": 2,
                           "shellGreetingConfigured": true,
                           "supportedEntityTypes": ["product", "policy"],
+                          "inferenceProfile": {
+                            "llmProvider": "openai",
+                            "embeddingProvider": "openai"
+                          },
                           "marketplaceSupport": {
                             "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
-                            "shellConfigContractVersion": "SHELL_CONFIG_V1"
+                            "shellConfigContractVersion": "SHELL_CONFIG_V1",
+                            "inferenceProfileContractVersion": "INFERENCE_PROFILE_RUNTIME_V1"
                           },
                           "auth": {
                             "ingressMode": "VERIFIED_CONTEXT_REQUIRED"
@@ -1560,9 +1575,14 @@ class DeploymentReleaseVerificationServiceTest {
                       "shellStarterPromptsCount": 2,
                       "shellGreetingConfigured": true,
                       "supportedEntityTypes": ["product", "policy"],
+                      "inferenceProfile": {
+                        "llmProvider": "openai",
+                        "embeddingProvider": "openai"
+                      },
                       "marketplaceSupport": {
                         "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
-                        "shellConfigContractVersion": "SHELL_CONFIG_V1"
+                        "shellConfigContractVersion": "SHELL_CONFIG_V1",
+                        "inferenceProfileContractVersion": "INFERENCE_PROFILE_RUNTIME_V1"
                       },
                       "auth": {
                         "ingressMode": "VERIFIED_CONTEXT_REQUIRED",

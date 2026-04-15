@@ -238,6 +238,61 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanExportsPurposeSpecificInferenceEndpointProfiles() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider":"openai",
+              "embeddingProvider":"openai",
+              "orchestrationLlmProvider":"openai",
+              "orchestrationEndpointProfile":"openai-cloud-orchestration",
+              "orchestrationModel":"gpt-4.1-mini",
+              "generationLlmProvider":"openai",
+              "generationEndpointProfile":"openai-cloud-default",
+              "generationModel":"gpt-4.1-mini",
+              "embeddingEndpointProfile":"openai-cloud-default",
+              "openaiEmbeddingModel":"text-embedding-3-small",
+              "openaiEmbeddingDimensions":1536,
+              "vectorStrategy":"lucene"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_ENDPOINT_PROFILE", "openai-cloud-orchestration")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_MODEL", "gpt-4.1-mini")
+            .containsEntry("AI_PROVIDERS_GENERATION_ENDPOINT_PROFILE", "openai-cloud-default")
+            .containsEntry("AI_PROVIDERS_GENERATION_MODEL", "gpt-4.1-mini")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_ENDPOINT_PROFILE", "openai-cloud-default");
+    }
+
+    @Test
     void buildPlanTruncatesProjectNameToRailwaySafeLength() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(

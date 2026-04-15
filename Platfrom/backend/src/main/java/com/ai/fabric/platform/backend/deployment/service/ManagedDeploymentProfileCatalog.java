@@ -638,6 +638,26 @@ public final class ManagedDeploymentProfileCatalog {
         return normalizeToSupported(text(providerConfig, "orchestrationLlmProvider"), SUPPORTED_LLM_PROVIDERS, "");
     }
 
+    public static String orchestrationEndpointProfile(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationEndpointProfile");
+    }
+
+    public static String orchestrationBaseUrl(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationBaseUrl");
+    }
+
+    public static String orchestrationDeploymentName(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationDeploymentName");
+    }
+
+    public static String orchestrationApiVersion(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationApiVersion");
+    }
+
+    public static String orchestrationApiKeySecretRef(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationApiKeySecretRef");
+    }
+
     public static String orchestrationModel(JsonNode providerConfig) {
         return text(providerConfig, "orchestrationModel");
     }
@@ -658,6 +678,26 @@ public final class ManagedDeploymentProfileCatalog {
         return normalizeToSupported(text(providerConfig, "generationLlmProvider"), SUPPORTED_LLM_PROVIDERS, "");
     }
 
+    public static String generationEndpointProfile(JsonNode providerConfig) {
+        return text(providerConfig, "generationEndpointProfile");
+    }
+
+    public static String generationBaseUrl(JsonNode providerConfig) {
+        return text(providerConfig, "generationBaseUrl");
+    }
+
+    public static String generationDeploymentName(JsonNode providerConfig) {
+        return text(providerConfig, "generationDeploymentName");
+    }
+
+    public static String generationApiVersion(JsonNode providerConfig) {
+        return text(providerConfig, "generationApiVersion");
+    }
+
+    public static String generationApiKeySecretRef(JsonNode providerConfig) {
+        return text(providerConfig, "generationApiKeySecretRef");
+    }
+
     public static String generationModel(JsonNode providerConfig) {
         return text(providerConfig, "generationModel");
     }
@@ -676,6 +716,14 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String openAiBaseUrl(JsonNode providerConfig) {
         return text(providerConfig, "openaiBaseUrl");
+    }
+
+    public static String embeddingEndpointProfile(JsonNode providerConfig) {
+        return text(providerConfig, "embeddingEndpointProfile");
+    }
+
+    public static String embeddingApiKeySecretRef(JsonNode providerConfig) {
+        return text(providerConfig, "embeddingApiKeySecretRef");
     }
 
     public static boolean openAiValidateOnStartup(JsonNode providerConfig) {

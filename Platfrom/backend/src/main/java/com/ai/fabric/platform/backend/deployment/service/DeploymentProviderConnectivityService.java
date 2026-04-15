@@ -174,10 +174,42 @@ public class DeploymentProviderConnectivityService {
             ));
         }
 
-        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(
+        boolean restEmbeddingProvider = ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(
             ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)
-        )) {
+        );
+        if (restEmbeddingProvider) {
             probes.add(probeRestEmbedding(providerConfig));
+        }
+        addIfPresent(
+            probes,
+            probeInferenceLlmEndpoint(
+                deploymentId,
+                providerConfig,
+                "orchestration",
+                ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig),
+                ManagedDeploymentProfileCatalog.orchestrationEndpointProfile(providerConfig),
+                ManagedDeploymentProfileCatalog.orchestrationBaseUrl(providerConfig),
+                ManagedDeploymentProfileCatalog.orchestrationApiKeySecretRef(providerConfig),
+                ManagedDeploymentProfileCatalog.orchestrationDeploymentName(providerConfig),
+                ManagedDeploymentProfileCatalog.orchestrationApiVersion(providerConfig)
+            )
+        );
+        addIfPresent(
+            probes,
+            probeInferenceLlmEndpoint(
+                deploymentId,
+                providerConfig,
+                "generation",
+                ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig),
+                ManagedDeploymentProfileCatalog.generationEndpointProfile(providerConfig),
+                ManagedDeploymentProfileCatalog.generationBaseUrl(providerConfig),
+                ManagedDeploymentProfileCatalog.generationApiKeySecretRef(providerConfig),
+                ManagedDeploymentProfileCatalog.generationDeploymentName(providerConfig),
+                ManagedDeploymentProfileCatalog.generationApiVersion(providerConfig)
+            )
+        );
+        if (!restEmbeddingProvider) {
+            addIfPresent(probes, probeInferenceEmbeddingEndpoint(deploymentId, providerConfig));
         }
 
         ManagedVectorSummary managedVectorSummary = summarizeManagedVectorProvisioning(providerConfig, entityConfig);
@@ -448,6 +480,163 @@ public class DeploymentProviderConnectivityService {
         );
     }
 
+    private DeploymentProviderConnectivityProbeSummary probeInferenceLlmEndpoint(String deploymentId,
+                                                                                 JsonNode providerConfig,
+                                                                                 String purpose,
+                                                                                 String explicitProvider,
+                                                                                 String endpointProfile,
+                                                                                 String explicitBaseUrl,
+                                                                                 String apiKeySecretRef,
+                                                                                 String deploymentName,
+                                                                                 String apiVersion) {
+        String provider = StringUtils.hasText(explicitProvider)
+            ? explicitProvider
+            : ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
+        if (!StringUtils.hasText(provider)) {
+            return null;
+        }
+        String normalizedProvider = provider.trim().toLowerCase();
+        if ("onnx".equals(normalizedProvider)) {
+            return hasExplicitInferenceLlmEndpointConfiguration(
+                endpointProfile,
+                explicitBaseUrl,
+                apiKeySecretRef,
+                deploymentName,
+                apiVersion
+            )
+                ? skippedInferenceProbe(purpose, "ONNX is local to the runtime and does not require an external " + purpose + " endpoint probe.")
+                : null;
+        }
+        String endpoint = switch (normalizedProvider) {
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI -> fallback(explicitBaseUrl, ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig));
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE -> fallback(explicitBaseUrl, ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig));
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC -> fallback(explicitBaseUrl, ManagedDeploymentProfileCatalog.anthropicBaseUrl(providerConfig));
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE -> fallback(explicitBaseUrl, ManagedDeploymentProfileCatalog.cohereBaseUrl(providerConfig));
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> fallback(explicitBaseUrl, ManagedDeploymentProfileCatalog.geminiBaseUrl(providerConfig));
+            default -> "";
+        };
+        if (!StringUtils.hasText(endpoint)) {
+            if (!hasExplicitInferenceLlmEndpointConfiguration(
+                endpointProfile,
+                explicitBaseUrl,
+                apiKeySecretRef,
+                deploymentName,
+                apiVersion
+            )) {
+                return null;
+            }
+            return new DeploymentProviderConnectivityProbeSummary(
+                purpose + "_inference_endpoint",
+                titleCase(purpose) + " inference endpoint",
+                "BLOCKED",
+                "",
+                titleCase(purpose) + " inference provider '" + normalizedProvider + "' is selected, but no reachable base URL is configured."
+            );
+        }
+        String secretPurpose = ManagedDeploymentProfileCatalog.secretNameForLlmProvider(normalizedProvider);
+        if (StringUtils.hasText(secretPurpose)) {
+            DeploymentProviderSecretResolutionService.ResolvedSecretValue resolution =
+                deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, trimToNull(apiKeySecretRef));
+            if (overrideRequiredButMissing(resolution.summary())) {
+                return new DeploymentProviderConnectivityProbeSummary(
+                    purpose + "_inference_endpoint",
+                    titleCase(purpose) + " inference endpoint",
+                    "BLOCKED",
+                    endpoint,
+                    resolution.summary().diagnosticMessage()
+                );
+            }
+        }
+        StringBuilder message = new StringBuilder(titleCase(purpose))
+            .append(" inference endpoint is reachable for provider ")
+            .append(normalizedProvider);
+        if (StringUtils.hasText(endpointProfile)) {
+            message.append(" via profile ").append(endpointProfile.trim());
+        }
+        if (StringUtils.hasText(deploymentName)) {
+            message.append(" (deployment ").append(deploymentName.trim()).append(")");
+        }
+        if (StringUtils.hasText(apiVersion)) {
+            message.append(" (apiVersion ").append(apiVersion.trim()).append(")");
+        }
+        return sendProbe(
+            purpose + "_inference_endpoint",
+            titleCase(purpose) + " inference endpoint",
+            endpoint,
+            request -> { },
+            false
+        );
+    }
+
+    private DeploymentProviderConnectivityProbeSummary probeInferenceEmbeddingEndpoint(String deploymentId,
+                                                                                       JsonNode providerConfig) {
+        String provider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
+        String endpointProfile = ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig);
+        if (!StringUtils.hasText(provider)) {
+            return null;
+        }
+        String normalizedProvider = provider.trim().toLowerCase();
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX.equals(normalizedProvider)) {
+            return StringUtils.hasText(endpointProfile)
+                ? skippedInferenceProbe("embedding", "ONNX embeddings are bundled in the runtime and do not require an external endpoint probe.")
+                : null;
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(normalizedProvider)) {
+            String endpoint = ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig);
+            if (!StringUtils.hasText(endpoint)) {
+                return new DeploymentProviderConnectivityProbeSummary(
+                    "embedding_inference_endpoint",
+                    "Embedding inference endpoint",
+                    "BLOCKED",
+                    "",
+                    "REST embedding provider is selected, but restEmbeddingBaseUrl is missing."
+                );
+            }
+            return sendProbe("embedding_inference_endpoint", "Embedding inference endpoint", endpoint, request -> { }, false);
+        }
+        String endpoint = switch (normalizedProvider) {
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig);
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE -> ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig);
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE -> ManagedDeploymentProfileCatalog.cohereBaseUrl(providerConfig);
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI -> ManagedDeploymentProfileCatalog.geminiBaseUrl(providerConfig);
+            default -> "";
+        };
+        if (!StringUtils.hasText(endpoint)) {
+            if (!hasExplicitInferenceEmbeddingEndpointConfiguration(
+                endpointProfile,
+                ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig)
+            )) {
+                return null;
+            }
+            return new DeploymentProviderConnectivityProbeSummary(
+                "embedding_inference_endpoint",
+                "Embedding inference endpoint",
+                "BLOCKED",
+                "",
+                "Embedding provider '" + normalizedProvider + "' is selected, but no reachable base URL is configured."
+            );
+        }
+        String secretPurpose = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(normalizedProvider);
+        if (StringUtils.hasText(secretPurpose)) {
+            DeploymentProviderSecretResolutionService.ResolvedSecretValue resolution =
+                deploymentProviderSecretResolutionService.resolve(
+                    deploymentId,
+                    secretPurpose,
+                    trimToNull(ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig))
+                );
+            if (overrideRequiredButMissing(resolution.summary())) {
+                return new DeploymentProviderConnectivityProbeSummary(
+                    "embedding_inference_endpoint",
+                    "Embedding inference endpoint",
+                    "BLOCKED",
+                    endpoint,
+                    resolution.summary().diagnosticMessage()
+                );
+            }
+        }
+        return sendProbe("embedding_inference_endpoint", "Embedding inference endpoint", endpoint, request -> { }, false);
+    }
+
     private DeploymentProviderConnectivityProbeSummary sendProbe(String key,
                                                                  String label,
                                                                  String endpoint,
@@ -506,27 +695,90 @@ public class DeploymentProviderConnectivityService {
             && "REQUIRE_OVERRIDE".equals(summary.bindingMode());
     }
 
+    private void addIfPresent(List<DeploymentProviderConnectivityProbeSummary> probes,
+                              DeploymentProviderConnectivityProbeSummary probe) {
+        if (probe != null) {
+            probes.add(probe);
+        }
+    }
+
+    private boolean hasExplicitInferenceLlmEndpointConfiguration(String endpointProfile,
+                                                                 String explicitBaseUrl,
+                                                                 String apiKeySecretRef,
+                                                                 String deploymentName,
+                                                                 String apiVersion) {
+        return StringUtils.hasText(endpointProfile)
+            || StringUtils.hasText(explicitBaseUrl)
+            || StringUtils.hasText(apiKeySecretRef)
+            || StringUtils.hasText(deploymentName)
+            || StringUtils.hasText(apiVersion);
+    }
+
+    private boolean hasExplicitInferenceEmbeddingEndpointConfiguration(String endpointProfile,
+                                                                       String apiKeySecretRef) {
+        return StringUtils.hasText(endpointProfile) || StringUtils.hasText(apiKeySecretRef);
+    }
+
     private List<DeploymentSecretResolutionSummary> effectiveSecretResolutions(String deploymentId,
                                                                                JsonNode providerConfig) {
-        Set<String> purposes = new LinkedHashSet<>(ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig).values());
-        String embeddingSecretName = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(
-            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)
+        List<DeploymentSecretResolutionSummary> summaries = new ArrayList<>();
+        Set<String> dedupe = new LinkedHashSet<>();
+        addResolvedSecretSummary(
+            summaries,
+            dedupe,
+            deploymentId,
+            ManagedDeploymentProfileCatalog.secretNameForLlmProvider(ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig)),
+            null
         );
-        if (StringUtils.hasText(embeddingSecretName)) {
-            purposes.add(embeddingSecretName);
-        }
+        addResolvedSecretSummary(
+            summaries,
+            dedupe,
+            deploymentId,
+            ManagedDeploymentProfileCatalog.secretNameForLlmProvider(ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig)),
+            ManagedDeploymentProfileCatalog.orchestrationApiKeySecretRef(providerConfig)
+        );
+        addResolvedSecretSummary(
+            summaries,
+            dedupe,
+            deploymentId,
+            ManagedDeploymentProfileCatalog.secretNameForLlmProvider(ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig)),
+            ManagedDeploymentProfileCatalog.generationApiKeySecretRef(providerConfig)
+        );
+        addResolvedSecretSummary(
+            summaries,
+            dedupe,
+            deploymentId,
+            ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(
+                ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)
+            ),
+            ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig)
+        );
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         switch (vectorStrategy) {
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE -> purposes.add("PINECONE_API_KEY");
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT -> purposes.add("QDRANT_API_KEY");
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> purposes.add("WEAVIATE_API_KEY");
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> purposes.add("MILVUS_RUNTIME_CREDENTIALS");
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "PINECONE_API_KEY", null);
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "QDRANT_API_KEY", null);
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "WEAVIATE_API_KEY", null);
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null);
             default -> {
             }
         }
-        return purposes.stream()
-            .map(purpose -> deploymentProviderSecretResolutionService.summarize(deploymentId, purpose))
-            .toList();
+        return List.copyOf(summaries);
+    }
+
+    private void addResolvedSecretSummary(List<DeploymentSecretResolutionSummary> summaries,
+                                          Set<String> dedupe,
+                                          String deploymentId,
+                                          String secretPurpose,
+                                          String managedSecretName) {
+        String normalizedPurpose = trimToNull(secretPurpose);
+        if (normalizedPurpose == null) {
+            return;
+        }
+        String key = normalizedPurpose + "|" + blankToEmpty(trimToNull(managedSecretName));
+        if (!dedupe.add(key)) {
+            return;
+        }
+        summaries.add(deploymentProviderSecretResolutionService.summarize(deploymentId, normalizedPurpose, trimToNull(managedSecretName)));
     }
 
     private String buildQdrantBaseUrl(JsonNode providerConfig) {
@@ -663,6 +915,39 @@ public class DeploymentProviderConnectivityService {
 
     private String trimTrailingSlash(String value) {
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String fallback(String primary, String secondary) {
+        return StringUtils.hasText(primary) ? primary.trim() : blankToEmpty(secondary).trim();
+    }
+
+    private DeploymentProviderConnectivityProbeSummary skippedInferenceProbe(String purpose, String message) {
+        return new DeploymentProviderConnectivityProbeSummary(
+            purpose + "_inference_endpoint",
+            titleCase(purpose) + " inference endpoint",
+            "SKIPPED",
+            "",
+            message
+        );
+    }
+
+    private String titleCase(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.trim().toLowerCase();
+        return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
     }
 
     @FunctionalInterface

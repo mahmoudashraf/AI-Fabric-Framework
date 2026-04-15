@@ -244,6 +244,9 @@ export type MarketplacePluginContributionSummary = {
   knowledgeSourceIds: string[]
   shellModuleIds: string[]
   shellCardIds: string[]
+  automationWorkflowIds: string[]
+  inferenceProfileIds: string[]
+  inferenceEndpointProfileRefs: string[]
 }
 
 export type MarketplacePluginPricingSummary = {
@@ -299,6 +302,7 @@ export type MarketplacePluginVersionSummary = {
     contributesTemplate: boolean
     contributesActions: boolean
     contributesKnowledgeSources: boolean
+    contributesProviders: boolean
     contributesShellPresentation: boolean
     requiresExternalHttpExecution: boolean
     requiresSharedDatasetAccess: boolean
@@ -421,6 +425,9 @@ export type DeploymentMarketplaceInstallImpactSummary = {
   knowledgeSourceIds: string[]
   shellModuleIds: string[]
   shellCardIds: string[]
+  automationWorkflowIds: string[]
+  inferenceProfileIds: string[]
+  inferenceEndpointProfileRefs: string[]
 }
 
 export type DeploymentMarketplaceImpactSummary = {
@@ -429,11 +436,16 @@ export type DeploymentMarketplaceImpactSummary = {
   actionPluginCount: number
   dataPluginCount: number
   templatePluginCount: number
+  automationPluginCount: number
+  inferenceProfilePluginCount: number
   installedPluginIds: string[]
   actionIds: string[]
   knowledgeSourceIds: string[]
   shellModuleIds: string[]
   shellCardIds: string[]
+  automationWorkflowIds: string[]
+  inferenceProfileIds: string[]
+  inferenceEndpointProfileRefs: string[]
   installs: DeploymentMarketplaceInstallImpactSummary[]
   recommendedPluginIds: string[]
   warnings: string[]

@@ -1,6 +1,6 @@
 # Marketplace Control-Plane Composition Plan
 
-Status: implementation-baseline document with phases 0-5 first slice landed and default-mode taxonomy clarified (2026-04-14)
+Status: implementation-baseline document with inference-profile support shipped (2026-04-15)
 
 This document turns the marketplace high-level design into an implementation shape that can be built as a separate feature stream.
 
@@ -53,6 +53,7 @@ Implemented control-plane baseline:
 - template bootstrap flow
 - action plugin compilation into `actionsConfig`
 - data plugin compilation into `knowledgeSourceConfig`
+- inference-profile plugin compilation into deployment `providerConfig`
 - install live-state and readiness tracking
 - compatibility and install-form validation
 - operator marketplace workspace in the platform UI
@@ -62,9 +63,8 @@ Recommended product rule:
 - `template plugins` bootstrap new deployment drafts
 - `action plugins` compile into the existing `actionsConfig` model, including inline route contributions that the compiler resolves into the effective routing artifact
 - `data plugins` compile into the existing deployment-scoped `knowledgeSourceConfig` model that runtime already reads through one narrow search-source abstraction
-- `automation plugins` should be the next default-mode first-class plugin type and should compile into platform-owned workflow and eventing surfaces rather than arbitrary background code
+- `inference-profile plugins` compile into the existing deployment `providerConfig` model, including purpose-specific endpoint-profile references and secret-ref bindings
 - template, action, and data plugins may also emit internal `ShellContribution` fragments that compile into deployment-scoped `shellConfig`
-- surface, policy, and analytics behavior should be represented as bounded capability profiles attached to those plugin types, not as separate arbitrary-code plugin classes
 
 ---
 
@@ -117,8 +117,9 @@ Current supported public types:
 - `TEMPLATE`
 - `ACTION`
 - `DATA`
+- `INFERENCE_PROFILE`
 
-Unsupported public marketplace surfaces that do not compile into runtime-backed contracts are being removed. They are not part of the forward implementation baseline.
+Unsupported public marketplace surfaces that do not compile into runtime-backed contracts have been removed. They are not part of the forward implementation baseline.
 
 ### 3.1 Template plugins
 
@@ -199,6 +200,21 @@ Instead:
 - those fragments compile into deployment-level `shellConfig`
 - the shell renders only through fixed platform-owned module and component registries
 
+### 3.5 Inference-profile plugins
+
+Inference-profile plugins are part of current shipped support because they target a real runtime contract.
+
+They:
+
+- compile into deployment `providerConfig`
+- resolve through the normal draft -> publish -> apply lifecycle
+- bind only to provider fields and secret refs that runtime already understands
+- never expose arbitrary model-server code or raw infrastructure primitives as public plugin content
+
+See:
+
+- `MARKETPLACE_INFERENCE_PROFILE_PRODUCTIZATION_PLAN.md`
+
 ---
 
 ## 4) Recommended Domain Model
@@ -209,7 +225,7 @@ Recommended core entities:
 
 - `MarketplacePlugin`
   - stable plugin id
-  - type: `TEMPLATE`, `ACTION`, `DATA`
+  - type: `TEMPLATE`, `ACTION`, `DATA`, `INFERENCE_PROFILE`
   - publisher
   - category
   - listing metadata

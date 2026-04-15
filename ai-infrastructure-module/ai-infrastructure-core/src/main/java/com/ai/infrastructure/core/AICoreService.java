@@ -9,6 +9,7 @@ import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.provider.AIProviderManager;
+import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.extern.slf4j.Slf4j;
@@ -83,7 +84,7 @@ public class AICoreService {
         try {
             LlmPurpose effectivePurpose = purpose != null ? purpose : LlmPurpose.DEFAULT;
             AIProviderConfig.GenerationDefaults defaults = resolveDefaultsForPurpose(effectivePurpose);
-            AIGenerationRequest generationRequest = applyGenerationDefaults(request, defaults);
+            AIGenerationRequest generationRequest = applyGenerationDefaults(request, defaults, effectivePurpose);
 
             log.debug("Generating AI content via provider manager for purpose={} prompt={}",
                 effectivePurpose, generationRequest.getPrompt());
@@ -318,7 +319,9 @@ public class AICoreService {
         }
     }
 
-    private AIGenerationRequest applyGenerationDefaults(AIGenerationRequest request, AIProviderConfig.GenerationDefaults defaults) {
+    private AIGenerationRequest applyGenerationDefaults(AIGenerationRequest request,
+                                                        AIProviderConfig.GenerationDefaults defaults,
+                                                        LlmPurpose purpose) {
         if (request == null) {
             throw new AIServiceException("Generation request cannot be null");
         }
@@ -340,12 +343,21 @@ public class AICoreService {
             .systemPrompt(request.getSystemPrompt())
             .messages(request.getMessages())
             .purpose(request.getPurpose())
-            .parameters(request.getParameters())
+            .parameters(applyPurposeConnectionOverrides(request.getParameters(), purpose))
             .authContext(request.getAuthContext())
             .model(request.getModel() != null ? request.getModel() : defaults.model())
             .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : defaults.maxTokens())
             .temperature(request.getTemperature() != null ? request.getTemperature() : defaults.temperature())
             .build();
+    }
+
+    private Map<String, Object> applyPurposeConnectionOverrides(Map<String, Object> parameters, LlmPurpose purpose) {
+        AIProviderConfig.PurposeLlmConnectionConfig connectionConfig = switch (purpose) {
+            case ORCHESTRATION -> aiProviderConfig.getOrchestration();
+            case GENERATION -> aiProviderConfig.getGeneration();
+            case EMBEDDINGS, DEFAULT -> null;
+        };
+        return ProviderRequestOverrideSupport.mergeLlmConnectionOverride(parameters, connectionConfig);
     }
 
     private AIProviderConfig.GenerationDefaults resolveDefaultsForPurpose(LlmPurpose purpose) {

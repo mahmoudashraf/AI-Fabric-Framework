@@ -123,7 +123,7 @@ public class DeploymentHostedVerificationContextService {
             }
             env.put("STORE_BASE_URL", storeBaseUrl);
             if ("marketplace-runtime".equals(profile)) {
-                addMarketplaceRuntimeExpectations(env, knowledgeSourceConfig, shellConfig);
+                addMarketplaceRuntimeExpectations(env, providerConfig, knowledgeSourceConfig, shellConfig);
             }
         } else {
             List<String> entityTypes = resolveEntityTypes(entityConfig);
@@ -380,11 +380,13 @@ public class DeploymentHostedVerificationContextService {
     }
 
     private void addMarketplaceRuntimeExpectations(Map<String, String> env,
+                                                   JsonNode providerConfig,
                                                    JsonNode knowledgeSourceConfig,
                                                    JsonNode shellConfig) {
         env.put("VERIFY_MARKETPLACE_RUNTIME", "true");
         env.put("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V1");
         env.put("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
+        env.put("EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION", "INFERENCE_PROFILE_RUNTIME_V1");
         env.put("MARKETPLACE_SMOKE_QUERY", "What is the refund policy?");
         putIfPresent(env, "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS", csvTextSet(knowledgeSourceConfig.path("sources"), "id"));
         putIfPresent(
@@ -412,6 +414,47 @@ public class DeploymentHostedVerificationContextService {
         env.put(
             "EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION",
             blankToFallback(shellConfig.path("contractVersion").asText(""), "SHELL_CONFIG_V1")
+        );
+        putIfPresent(env, "EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER", trimToNull(providerConfig.path("llmProvider").asText("")));
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER",
+            trimToNull(providerConfig.path("embeddingProvider").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER",
+            trimToNull(providerConfig.path("orchestrationLlmProvider").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL",
+            trimToNull(providerConfig.path("orchestrationModel").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE",
+            trimToNull(providerConfig.path("orchestrationEndpointProfile").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER",
+            trimToNull(providerConfig.path("generationLlmProvider").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL",
+            trimToNull(providerConfig.path("generationModel").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE",
+            trimToNull(providerConfig.path("generationEndpointProfile").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE",
+            trimToNull(providerConfig.path("embeddingEndpointProfile").asText(""))
         );
     }
 

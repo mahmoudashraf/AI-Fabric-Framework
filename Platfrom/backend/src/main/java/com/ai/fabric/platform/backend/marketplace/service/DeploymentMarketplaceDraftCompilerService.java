@@ -7,10 +7,12 @@ import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDraftValidationService;
+import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -43,6 +46,8 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String DEFAULT_KNOWLEDGE_SOURCE_CONTRACT_VERSION = "KNOWLEDGE_SOURCE_CONFIG_V1";
     private static final String DEFAULT_SHELL_CONTRACT_VERSION = "SHELL_CONFIG_V1";
     private static final String DEFAULT_MARKETPLACE_DATASET_CONTRACT_VERSION = "MARKETPLACE_DATASET_CONFIG_V1";
+    private static final String DEFAULT_MARKETPLACE_INFERENCE_CONTRACT_VERSION = "MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1";
+    private static final String MARKETPLACE_INFERENCE_FIELD = "marketplaceInference";
 
     private final DeploymentService deploymentService;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
@@ -52,6 +57,7 @@ public class DeploymentMarketplaceDraftCompilerService {
     private final MarketplaceManifestService marketplaceManifestService;
     private final MarketplaceEntitlementService marketplaceEntitlementService;
     private final MarketplaceDatasetHandleResolver marketplaceDatasetHandleResolver;
+    private final PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService;
     private final ObjectMapper objectMapper;
 
     public DeploymentMarketplaceDraftCompilerService(DeploymentService deploymentService,
@@ -62,6 +68,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                                                      MarketplaceManifestService marketplaceManifestService,
                                                      MarketplaceEntitlementService marketplaceEntitlementService,
                                                      MarketplaceDatasetHandleResolver marketplaceDatasetHandleResolver,
+                                                     PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
                                                      ObjectMapper objectMapper) {
         this.deploymentService = deploymentService;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
@@ -71,6 +78,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         this.marketplaceManifestService = marketplaceManifestService;
         this.marketplaceEntitlementService = marketplaceEntitlementService;
         this.marketplaceDatasetHandleResolver = marketplaceDatasetHandleResolver;
+        this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
         this.objectMapper = objectMapper;
     }
 
@@ -82,6 +90,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         ObjectNode knowledgeSourceRoot = normalizeKnowledgeSourceRoot(draft.knowledgeSourceConfig());
         ObjectNode shellRoot = normalizeShellRoot(draft.shellConfig());
         ObjectNode marketplaceDatasetRoot = normalizeMarketplaceDatasetRoot(draft.marketplaceDatasetConfig());
+        ObjectNode providerRoot = normalizeProviderRoot(draft.providerConfig());
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Deployment not found: " + deploymentId));
 
@@ -90,12 +99,14 @@ public class DeploymentMarketplaceDraftCompilerService {
         stripMarketplaceManagedKnowledgeSources(knowledgeSourceRoot);
         stripMarketplaceManagedShell(shellRoot);
         stripMarketplaceManagedDatasets(marketplaceDatasetRoot);
+        stripMarketplaceManagedInference(providerRoot);
 
         List<DeploymentMarketplacePluginInstallEntity> installs =
             installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
         Set<String> existingActionNames = actionNames(actionsRoot.path("actions"));
         Set<String> existingEntityTypes = entityTypes(entityRoot.path("ai-entities"));
         Set<String> existingKnowledgeSourceIds = knowledgeSourceIds(knowledgeSourceRoot.path("sources"));
+        String activeInferencePluginId = null;
 
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
             if (!isEnabledForCompilation(install.getStatus())) {
@@ -134,6 +145,17 @@ public class DeploymentMarketplaceDraftCompilerService {
                     version,
                     parsed.manifest().path("contributions").path("template").path("shell")
                 );
+                case "INFERENCE_PROFILE" -> {
+                    if (activeInferencePluginId != null && !activeInferencePluginId.equals(plugin.getId())) {
+                        throw new ResponseStatusException(
+                            CONFLICT,
+                            "Only one enabled inference-profile plugin may compile into a deployment at a time. Found "
+                                + activeInferencePluginId + " and " + plugin.getId() + "."
+                        );
+                    }
+                    activeInferencePluginId = plugin.getId();
+                    applyInferenceProfile(providerRoot, install, plugin, version, parsed);
+                }
                 default -> throw new ResponseStatusException(
                     CONFLICT,
                     "Unsupported marketplace plugin type during draft compilation: " + parsed.pluginType()
@@ -147,7 +169,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                 actionsRoot,
                 entityRoot,
                 null,
-                null,
+                providerRoot,
                 null,
                 null,
                 knowledgeSourceRoot,
@@ -163,6 +185,206 @@ public class DeploymentMarketplaceDraftCompilerService {
             );
         }
         return updated;
+    }
+
+    private void applyInferenceProfile(ObjectNode providerRoot,
+                                       DeploymentMarketplacePluginInstallEntity install,
+                                       MarketplacePluginEntity plugin,
+                                       MarketplacePluginVersionEntity version,
+                                       MarketplaceManifestService.ParsedMarketplaceManifest parsed) {
+        JsonNode inferenceProfile = parsed.manifest().path("contributions").path("inferenceProfile");
+        if (!inferenceProfile.isObject()) {
+            throw new ResponseStatusException(CONFLICT, "Inference profile contribution is missing for plugin: " + plugin.getId());
+        }
+        JsonNode installConfig = readJson(install.getConfigJson());
+        JsonNode installSecretRefs = readJson(install.getSecretRefsJson());
+        LinkedHashSet<String> managedFields = new LinkedHashSet<>();
+        LinkedHashSet<String> endpointProfileRefs = new LinkedHashSet<>();
+
+        applyInferenceLlmSection(
+            providerRoot,
+            "orchestration",
+            inferenceProfile.path("orchestration"),
+            installConfig,
+            installSecretRefs,
+            managedFields,
+            endpointProfileRefs
+        );
+        applyInferenceLlmSection(
+            providerRoot,
+            "generation",
+            inferenceProfile.path("generation"),
+            installConfig,
+            installSecretRefs,
+            managedFields,
+            endpointProfileRefs
+        );
+        applyInferenceEmbeddingSection(
+            providerRoot,
+            inferenceProfile.path("embedding"),
+            installConfig,
+            installSecretRefs,
+            managedFields,
+            endpointProfileRefs
+        );
+
+        String generationProvider = text(providerRoot, "generationLlmProvider");
+        String orchestrationProvider = text(providerRoot, "orchestrationLlmProvider");
+        String rootLlmProvider = hasText(generationProvider) ? generationProvider : orchestrationProvider;
+        if (hasText(rootLlmProvider)) {
+            providerRoot.put("llmProvider", rootLlmProvider);
+            managedFields.add("llmProvider");
+        }
+
+        ObjectNode metadata = ensureObjectNode(providerRoot, MARKETPLACE_INFERENCE_FIELD);
+        metadata.put("contractVersion", DEFAULT_MARKETPLACE_INFERENCE_CONTRACT_VERSION);
+        metadata.set("profileIds", toStringArray(readStringList(inferenceProfile, "profileId", "id")));
+        metadata.set("endpointProfileRefs", toStringArray(endpointProfileRefs));
+        metadata.set("installIds", toStringArray(List.of(install.getId())));
+        metadata.set("managedFields", toStringArray(managedFields));
+        metadata.put(MARKETPLACE_MANAGED_FIELD, true);
+        metadata.put(MARKETPLACE_PLUGIN_ID_FIELD, plugin.getId());
+        metadata.put(MARKETPLACE_INSTALL_ID_FIELD, install.getId());
+        metadata.put(MARKETPLACE_PLUGIN_VERSION_FIELD, version.getVersion());
+    }
+
+    private void applyInferenceLlmSection(ObjectNode providerRoot,
+                                          String purpose,
+                                          JsonNode section,
+                                          JsonNode installConfig,
+                                          JsonNode installSecretRefs,
+                                          Set<String> managedFields,
+                                          Set<String> endpointProfileRefs) {
+        if (!section.isObject()) {
+            return;
+        }
+        String provider = lower(firstText(section, "provider", "llmProvider"));
+        if (!hasText(provider)) {
+            throw new ResponseStatusException(CONFLICT, "Inference profile " + purpose + " section must declare provider.");
+        }
+        String endpointProfileRef = configuredText(section, installConfig, "endpointProfileRef", "endpointProfileRefField");
+        String baseUrl = configuredText(section, installConfig, "baseUrl", "baseUrlField");
+        String deploymentName = configuredText(section, installConfig, "deploymentName", "deploymentNameField");
+        String apiVersion = configuredText(section, installConfig, "apiVersion", "apiVersionField");
+        String apiKeySecretRef = configuredText(section, installSecretRefs, "apiKeySecretRef", "apiKeySecretRefField");
+
+        if (hasText(endpointProfileRef)) {
+            PlatformManagedInferenceEndpointEntity endpoint = platformManagedInferenceEndpointService.requireActive(endpointProfileRef);
+            String endpointProvider = lower(endpoint.getProviderType());
+            if (hasText(endpointProvider) && !provider.equals(endpointProvider)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Inference profile endpoint '" + endpointProfileRef + "' uses provider '" + endpoint.getProviderType()
+                        + "' but the " + purpose + " section selected '" + provider + "'."
+                );
+            }
+            baseUrl = hasText(baseUrl) ? baseUrl : blankToNull(endpoint.getBaseUrl());
+            deploymentName = hasText(deploymentName) ? deploymentName : blankToNull(endpoint.getDeploymentName());
+            apiVersion = hasText(apiVersion) ? apiVersion : blankToNull(endpoint.getApiVersion());
+            apiKeySecretRef = hasText(apiKeySecretRef) ? apiKeySecretRef : blankToNull(endpoint.getSecretName());
+            endpointProfileRefs.add(endpointProfileRef);
+        }
+
+        String prefix = purpose.trim().toLowerCase(Locale.ROOT);
+        putManaged(providerRoot, prefix + "LlmProvider", provider, managedFields);
+        putManaged(providerRoot, prefix + "EndpointProfile", endpointProfileRef, managedFields);
+        putManaged(providerRoot, prefix + "BaseUrl", baseUrl, managedFields);
+        putManaged(providerRoot, prefix + "DeploymentName", deploymentName, managedFields);
+        putManaged(providerRoot, prefix + "ApiVersion", apiVersion, managedFields);
+        putManaged(providerRoot, prefix + "ApiKeySecretRef", apiKeySecretRef, managedFields);
+        putManaged(providerRoot, prefix + "Model", configuredText(section, installConfig, "model", "modelField"), managedFields);
+        putManaged(providerRoot, prefix + "MaxTokens", configuredInt(section, installConfig, "maxTokens", "maxTokensField"), managedFields);
+        putManaged(providerRoot, prefix + "Temperature", configuredDouble(section, installConfig, "temperature", "temperatureField"), managedFields);
+        putManaged(providerRoot, prefix + "Timeout", configuredInt(section, installConfig, "timeout", "timeoutField"), managedFields);
+
+        seedGlobalLlmProviderDefaults(
+            providerRoot,
+            provider,
+            configuredText(section, installConfig, "model", "modelField"),
+            baseUrl,
+            deploymentName,
+            apiVersion,
+            managedFields
+        );
+    }
+
+    private void applyInferenceEmbeddingSection(ObjectNode providerRoot,
+                                                JsonNode section,
+                                                JsonNode installConfig,
+                                                JsonNode installSecretRefs,
+                                                Set<String> managedFields,
+                                                Set<String> endpointProfileRefs) {
+        if (!section.isObject()) {
+            return;
+        }
+        String provider = lower(firstText(section, "provider", "embeddingProvider"));
+        if (!hasText(provider)) {
+            throw new ResponseStatusException(CONFLICT, "Inference profile embedding section must declare provider.");
+        }
+        String endpointProfileRef = configuredText(section, installConfig, "endpointProfileRef", "endpointProfileRefField");
+        String baseUrl = configuredText(section, installConfig, "baseUrl", "baseUrlField");
+        String deploymentName = configuredText(section, installConfig, "deploymentName", "deploymentNameField");
+        String apiVersion = configuredText(section, installConfig, "apiVersion", "apiVersionField");
+        String apiKeySecretRef = configuredText(section, installSecretRefs, "apiKeySecretRef", "apiKeySecretRefField");
+
+        if (hasText(endpointProfileRef)) {
+            PlatformManagedInferenceEndpointEntity endpoint = platformManagedInferenceEndpointService.requireActive(endpointProfileRef);
+            String endpointProvider = lower(endpoint.getProviderType());
+            if (hasText(endpointProvider) && !provider.equals(endpointProvider)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Inference profile endpoint '" + endpointProfileRef + "' uses provider '" + endpoint.getProviderType()
+                        + "' but the embedding section selected '" + provider + "'."
+                );
+            }
+            baseUrl = hasText(baseUrl) ? baseUrl : blankToNull(endpoint.getBaseUrl());
+            deploymentName = hasText(deploymentName) ? deploymentName : blankToNull(endpoint.getDeploymentName());
+            apiVersion = hasText(apiVersion) ? apiVersion : blankToNull(endpoint.getApiVersion());
+            apiKeySecretRef = hasText(apiKeySecretRef) ? apiKeySecretRef : blankToNull(endpoint.getSecretName());
+            endpointProfileRefs.add(endpointProfileRef);
+        }
+
+        putManaged(providerRoot, "embeddingProvider", provider, managedFields);
+        putManaged(providerRoot, "embeddingEndpointProfile", endpointProfileRef, managedFields);
+        putManaged(providerRoot, "embeddingApiKeySecretRef", apiKeySecretRef, managedFields);
+
+        switch (provider) {
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX -> {
+                putManaged(providerRoot, "onnxModelAlias", configuredText(section, installConfig, "modelAlias", "modelAliasField", "model", "modelField"), managedFields);
+                putManaged(providerRoot, "onnxMaxSequenceLength", configuredInt(section, installConfig, "maxSequenceLength", "maxSequenceLengthField"), managedFields);
+                putManaged(providerRoot, "onnxUseGpu", configuredBoolean(section, installConfig, "useGpu", "useGpuField"), managedFields);
+            }
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST -> {
+                putManaged(providerRoot, "restEmbeddingBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "restEmbeddingEndpoint", configuredText(section, installConfig, "endpoint", "endpointField"), managedFields);
+                putManaged(providerRoot, "restEmbeddingBatchEndpoint", configuredText(section, installConfig, "batchEndpoint", "batchEndpointField"), managedFields);
+                putManaged(providerRoot, "restEmbeddingModel", configuredText(section, installConfig, "model", "modelField"), managedFields);
+            }
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> {
+                putManaged(providerRoot, "openaiBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "openaiEmbeddingModel", configuredText(section, installConfig, "model", "modelField"), managedFields);
+                putManaged(
+                    providerRoot,
+                    "openaiEmbeddingDimensions",
+                    configuredClampedOpenAiEmbeddingDimensions(providerRoot, section, installConfig),
+                    managedFields
+                );
+            }
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE -> {
+                putManaged(providerRoot, "azureEndpoint", baseUrl, managedFields);
+                putManaged(providerRoot, "azureEmbeddingDeploymentName", configuredText(section, installConfig, "model", "modelField", "deploymentName", "deploymentNameField"), managedFields);
+                putManaged(providerRoot, "azureApiVersion", apiVersion, managedFields);
+            }
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE -> {
+                putManaged(providerRoot, "cohereBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "cohereEmbeddingModel", configuredText(section, installConfig, "model", "modelField"), managedFields);
+            }
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI -> {
+                putManaged(providerRoot, "geminiBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "geminiEmbeddingModel", configuredText(section, installConfig, "model", "modelField"), managedFields);
+            }
+            default -> throw new ResponseStatusException(CONFLICT, "Unsupported embedding provider in inference profile: " + provider);
+        }
     }
 
     public ObjectNode compileTemplateShellBaseline(MarketplacePluginEntity plugin,
@@ -538,6 +760,19 @@ public class DeploymentMarketplaceDraftCompilerService {
         removeMarketplaceManagedEntries(ensureArray(marketplaceDatasetRoot, "datasets"));
     }
 
+    private void stripMarketplaceManagedInference(ObjectNode providerRoot) {
+        JsonNode metadataNode = providerRoot.path(MARKETPLACE_INFERENCE_FIELD);
+        if (metadataNode.isObject()) {
+            for (JsonNode field : iterable(metadataNode.path("managedFields"))) {
+                String fieldName = field.asText("").trim();
+                if (hasText(fieldName)) {
+                    providerRoot.remove(fieldName);
+                }
+            }
+        }
+        providerRoot.remove(MARKETPLACE_INFERENCE_FIELD);
+    }
+
     private void removeMarketplaceManagedEntries(ArrayNode array) {
         for (int index = array.size() - 1; index >= 0; index--) {
             if (isMarketplaceManaged(array.get(index))) {
@@ -714,6 +949,10 @@ public class DeploymentMarketplaceDraftCompilerService {
         return root;
     }
 
+    private ObjectNode normalizeProviderRoot(JsonNode candidate) {
+        return ensureObject(candidate);
+    }
+
     private ObjectNode resolveSyncConnector(MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
                                             JsonNode installConfig,
                                             JsonNode installSecretRefs) {
@@ -842,6 +1081,212 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
         return null;
+    }
+
+    private String configuredText(JsonNode section,
+                                  JsonNode installValues,
+                                  String directField,
+                                  String fieldReferenceField) {
+        String fieldRef = text(section, fieldReferenceField);
+        if (hasText(fieldRef) && installValues != null) {
+            String configured = installValues.path(fieldRef).asText("").trim();
+            if (hasText(configured)) {
+                return configured;
+            }
+        }
+        String direct = text(section, directField);
+        return hasText(direct) ? direct : null;
+    }
+
+    private String configuredText(JsonNode section,
+                                  JsonNode installValues,
+                                  String directFieldOne,
+                                  String fieldReferenceFieldOne,
+                                  String directFieldTwo,
+                                  String fieldReferenceFieldTwo) {
+        String value = configuredText(section, installValues, directFieldOne, fieldReferenceFieldOne);
+        return hasText(value) ? value : configuredText(section, installValues, directFieldTwo, fieldReferenceFieldTwo);
+    }
+
+    private Integer configuredInt(JsonNode section,
+                                  JsonNode installValues,
+                                  String directField,
+                                  String fieldReferenceField) {
+        String fieldRef = text(section, fieldReferenceField);
+        if (hasText(fieldRef) && installValues != null && installValues.path(fieldRef).isNumber()) {
+            return installValues.path(fieldRef).asInt();
+        }
+        if (section.path(directField).isInt() || section.path(directField).isLong()) {
+            return section.path(directField).asInt();
+        }
+        return null;
+    }
+
+    private Integer configuredClampedOpenAiEmbeddingDimensions(ObjectNode providerRoot,
+                                                               JsonNode section,
+                                                               JsonNode installValues) {
+        Integer configuredDimensions = configuredInt(section, installValues, "dimensions", "dimensionsField");
+        if (configuredDimensions == null || configuredDimensions <= 0) {
+            return configuredDimensions;
+        }
+        return ManagedDeploymentProfileCatalog.clampVectorDimensions(
+            configuredDimensions,
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerRoot)
+        );
+    }
+
+    private Double configuredDouble(JsonNode section,
+                                    JsonNode installValues,
+                                    String directField,
+                                    String fieldReferenceField) {
+        String fieldRef = text(section, fieldReferenceField);
+        if (hasText(fieldRef) && installValues != null && installValues.path(fieldRef).isNumber()) {
+            return installValues.path(fieldRef).asDouble();
+        }
+        if (section.path(directField).isNumber()) {
+            return section.path(directField).asDouble();
+        }
+        return null;
+    }
+
+    private Boolean configuredBoolean(JsonNode section,
+                                      JsonNode installValues,
+                                      String directField,
+                                      String fieldReferenceField) {
+        String fieldRef = text(section, fieldReferenceField);
+        if (hasText(fieldRef) && installValues != null && installValues.path(fieldRef).isBoolean()) {
+            return installValues.path(fieldRef).asBoolean();
+        }
+        if (section.path(directField).isBoolean()) {
+            return section.path(directField).asBoolean();
+        }
+        return null;
+    }
+
+    private void seedGlobalLlmProviderDefaults(ObjectNode providerRoot,
+                                               String provider,
+                                               String model,
+                                               String baseUrl,
+                                               String deploymentName,
+                                               String apiVersion,
+                                               Set<String> managedFields) {
+        switch (provider) {
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI -> {
+                putManaged(providerRoot, "openaiBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "openaiModel", model, managedFields);
+            }
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE -> {
+                putManaged(providerRoot, "azureEndpoint", baseUrl, managedFields);
+                putManaged(providerRoot, "azureDeploymentName", deploymentName, managedFields);
+                putManaged(providerRoot, "azureApiVersion", apiVersion, managedFields);
+            }
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC -> {
+                putManaged(providerRoot, "anthropicBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "anthropicModel", model, managedFields);
+            }
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE -> {
+                putManaged(providerRoot, "cohereBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "cohereModel", model, managedFields);
+            }
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> {
+                putManaged(providerRoot, "geminiBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "geminiModel", model, managedFields);
+            }
+            default -> {
+            }
+        }
+    }
+
+    private void putManaged(ObjectNode root, String fieldName, String value, Set<String> managedFields) {
+        if (managedFields != null) {
+            managedFields.add(fieldName);
+        }
+        if (hasText(value)) {
+            root.put(fieldName, value.trim());
+        } else {
+            root.remove(fieldName);
+        }
+    }
+
+    private void putManaged(ObjectNode root, String fieldName, Integer value, Set<String> managedFields) {
+        if (managedFields != null) {
+            managedFields.add(fieldName);
+        }
+        if (value != null) {
+            root.put(fieldName, value);
+        } else {
+            root.remove(fieldName);
+        }
+    }
+
+    private void putManaged(ObjectNode root, String fieldName, Double value, Set<String> managedFields) {
+        if (managedFields != null) {
+            managedFields.add(fieldName);
+        }
+        if (value != null) {
+            root.put(fieldName, value);
+        } else {
+            root.remove(fieldName);
+        }
+    }
+
+    private void putManaged(ObjectNode root, String fieldName, Boolean value, Set<String> managedFields) {
+        if (managedFields != null) {
+            managedFields.add(fieldName);
+        }
+        if (value != null) {
+            root.put(fieldName, value);
+        } else {
+            root.remove(fieldName);
+        }
+    }
+
+    private ArrayNode toStringArray(Iterable<String> values) {
+        ArrayNode array = objectMapper.createArrayNode();
+        for (String value : values) {
+            if (hasText(value)) {
+                array.add(value.trim());
+            }
+        }
+        return array;
+    }
+
+    private List<String> readStringList(JsonNode node, String... fieldNames) {
+        for (String fieldName : fieldNames) {
+            JsonNode candidate = node.path(fieldName);
+            if (candidate.isArray()) {
+                List<String> values = new ArrayList<>();
+                for (JsonNode item : candidate) {
+                    String value = item.asText("").trim();
+                    if (hasText(value)) {
+                        values.add(value);
+                    }
+                }
+                return List.copyOf(values);
+            }
+        }
+        String text = text(node, fieldNames);
+        return hasText(text) ? List.of(text) : List.of();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private String firstText(JsonNode node, String... fieldNames) {
+        return text(node, fieldNames);
+    }
+
+    private String lower(String value) {
+        return hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
+    }
+
+    private String capitalize(String value) {
+        if (!hasText(value)) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return Character.toUpperCase(trimmed.charAt(0)) + trimmed.substring(1);
     }
 
     private void copyIfText(JsonNode source, ObjectNode target, String targetField, String... sourceFields) {

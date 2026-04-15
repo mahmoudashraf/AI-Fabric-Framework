@@ -11,6 +11,7 @@ import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
+import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -99,11 +100,21 @@ public class AzureOpenAIProvider implements AIProvider {
         totalRequests.incrementAndGet();
 
         try {
-            String url = buildChatCompletionsUrl();
+            ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
+                ProviderRequestOverrideSupport.read(request.getParameters());
+            String endpoint = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : azureConfig.getEndpoint();
+            String apiKey = hasText(connectionOverride.apiKey()) ? connectionOverride.apiKey() : config.getApiKey();
+            String deploymentName = hasText(connectionOverride.deploymentName())
+                ? connectionOverride.deploymentName()
+                : azureConfig.getDeploymentName();
+            String apiVersion = hasText(connectionOverride.apiVersion())
+                ? connectionOverride.apiVersion()
+                : azureConfig.getApiVersion();
+            String url = buildChatCompletionsUrl(endpoint, deploymentName, apiVersion);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set(HEADER_API_KEY, config.getApiKey());
+            headers.set(HEADER_API_KEY, apiKey);
 
             List<Map<String, String>> messages = new ArrayList<>();
             
@@ -155,11 +166,11 @@ public class AzureOpenAIProvider implements AIProvider {
             applyResponseFormat(body, request.getParameters());
             
             // For OpenAI-compatible format (/openai/v1), include model in request body
-            String endpoint = azureConfig.getEndpoint();
-            if (endpoint != null && endpoint.contains("/openai/v1")) {
+            String currentEndpoint = endpoint;
+            if (currentEndpoint != null && currentEndpoint.contains("/openai/v1")) {
                 String deployment = config.getDefaultModel();
                 if (deployment == null || deployment.isEmpty()) {
-                    deployment = azureConfig.getDeploymentName();
+                    deployment = deploymentName;
                 }
                 if (deployment != null && !deployment.isEmpty()) {
                     body.put("model", deployment);
@@ -362,8 +373,16 @@ public class AzureOpenAIProvider implements AIProvider {
     }
 
     private String buildChatCompletionsUrl() {
-        String endpoint = normalizeEndpoint(azureConfig.getEndpoint());
-        String apiVersion = azureConfig.getApiVersion() != null ? azureConfig.getApiVersion() : "2024-02-15-preview";
+        return buildChatCompletionsUrl(
+            azureConfig.getEndpoint(),
+            azureConfig.getDeploymentName(),
+            azureConfig.getApiVersion()
+        );
+    }
+
+    private String buildChatCompletionsUrl(String endpointRaw, String deploymentOverride, String apiVersionOverride) {
+        String endpoint = normalizeEndpoint(endpointRaw);
+        String apiVersion = apiVersionOverride != null ? apiVersionOverride : "2024-02-15-preview";
         
         // Check if endpoint already contains /models/chat/completions (Azure AI Services/Foundry format)
         if (endpoint.contains("/models/chat/completions")) {
@@ -379,7 +398,7 @@ public class AzureOpenAIProvider implements AIProvider {
             // OpenAI-compatible format - use /chat/completions endpoint
             String deployment = config.getDefaultModel();
             if (deployment == null || deployment.isEmpty()) {
-                deployment = azureConfig.getDeploymentName();
+                deployment = deploymentOverride;
             }
             // For OpenAI-compatible format, model is passed in the request body, not URL
             return String.format("%s/chat/completions", endpoint);
@@ -394,7 +413,7 @@ public class AzureOpenAIProvider implements AIProvider {
         // Azure OpenAI format - traditional deployment-based
         String deployment = config.getDefaultModel();
         if (deployment == null || deployment.isEmpty()) {
-            deployment = azureConfig.getDeploymentName();
+            deployment = deploymentOverride;
         }
         return String.format("%s/openai/deployments/%s/chat/completions?api-version=%s",
             endpoint, deployment, apiVersion);

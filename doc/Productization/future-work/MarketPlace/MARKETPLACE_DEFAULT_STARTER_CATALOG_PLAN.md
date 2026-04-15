@@ -9,6 +9,7 @@ It is a product seed plan for the supported public marketplace types only:
 - `TEMPLATE`
 - `ACTION`
 - `DATA`
+- `INFERENCE_PROFILE`
 
 Unsupported public surfaces that are not backed by runtime contracts are intentionally excluded.
 
@@ -31,7 +32,7 @@ The starter catalog should:
 
 ## 2) Recommended Default Starter Set
 
-Recommended visible starter set:
+Recommended visible business-capability starter set:
 
 1. `mkp-template-commerce-shell`
 2. `mkp-action-shopify-admin`
@@ -46,6 +47,19 @@ Why this set:
 - one strong support path
 - one cross-domain utility path
 - real examples for all supported public plugin types
+
+Recommended operator-facing inference starter set:
+
+7. `mkp-inference-local-embeddings`
+8. `mkp-inference-optimized-orchestration`
+9. `mkp-inference-premium-hybrid`
+10. `mkp-inference-byok-openai`
+
+Why keep inference separate in presentation:
+
+- they are real supported public plugin types
+- they are deployment capability offers, not business-domain add-ons
+- operators should see them, but they should not drown out the business-facing catalog
 
 ---
 
@@ -193,6 +207,97 @@ Why this set:
   - `credentialSecretRef` secret ref
   - `defaultSender` text optional
 
+### 3.7 `mkp-inference-local-embeddings`
+
+- display name: `Local Embeddings Profile`
+- type: `INFERENCE_PROFILE`
+- pricing:
+  - `FREE`
+- status:
+  - already seeded
+- purpose:
+  - provide a zero-external-cost embedding baseline through the bundled ONNX endpoint profile
+- baseline contributions:
+  - `embedding.provider = onnx`
+  - `embedding.endpointProfileRef = onnx-bundled`
+  - `embedding.modelAlias = bge-small-en-v1.5`
+
+### 3.8 `mkp-inference-optimized-orchestration`
+
+- display name: `Optimized Orchestration Profile`
+- type: `INFERENCE_PROFILE`
+- pricing:
+  - `SUBSCRIPTION`
+  - default amount: `19 USD / month`
+  - default trial: `7 days`
+- status:
+  - already seeded
+- purpose:
+  - use a managed orchestration/generation split with ONNX embeddings
+- baseline contributions:
+  - orchestration:
+    - `provider = openai`
+    - `endpointProfileRef = openai-cloud-orchestration`
+    - `model = gpt-4.1-mini`
+  - generation:
+    - `provider = openai`
+    - `endpointProfileRef = openai-cloud-default`
+    - `model = gpt-4.1-mini`
+  - embedding:
+    - `provider = onnx`
+    - `endpointProfileRef = onnx-bundled`
+
+### 3.9 `mkp-inference-premium-hybrid`
+
+- display name: `Premium Hybrid Response Profile`
+- type: `INFERENCE_PROFILE`
+- pricing:
+  - `SUBSCRIPTION`
+  - default amount: `49 USD / month`
+  - default trial: `7 days`
+- status:
+  - already seeded
+- purpose:
+  - upgrade generation and embeddings to premium managed endpoints
+- baseline contributions:
+  - orchestration:
+    - `provider = openai`
+    - `endpointProfileRef = openai-cloud-orchestration`
+  - generation:
+    - `provider = openai`
+    - `endpointProfileRef = openai-cloud-premium`
+    - `model = gpt-4.1`
+  - embedding:
+    - `provider = openai`
+    - `endpointProfileRef = openai-cloud-default`
+    - `model = text-embedding-3-small`
+
+### 3.10 `mkp-inference-byok-openai`
+
+- display name: `Bring Your Own OpenAI Profile`
+- type: `INFERENCE_PROFILE`
+- pricing:
+  - `FREE`
+- status:
+  - already seeded
+- purpose:
+  - let the operator bind their own OpenAI-compatible endpoint and key into deployment `providerConfig`
+- baseline contributions:
+  - generation:
+    - `provider = openai`
+    - `baseUrl` from install form
+    - `apiKeySecretRef` from install form
+    - `model` from install form or default
+  - embedding:
+    - `provider = openai`
+    - `apiKeySecretRef` from install form
+    - `model = text-embedding-3-small`
+- install form:
+  - `baseUrl` text
+  - `apiKey` secret ref
+  - `generationModel` text
+  - `embeddingModel` text
+
 ---
 
 ## 4) Pricing Defaults
@@ -210,6 +315,10 @@ Recommended starter-catalog pricing defaults:
   - default:
     - `SUBSCRIPTION` for Loom-maintained premium shared datasets
     - `FREE` for foundational public or low-cost shared datasets
+- `INFERENCE_PROFILE`
+  - default:
+    - `FREE` for bundled or bring-your-own profiles
+    - `SUBSCRIPTION` for Loom-managed optimized or premium inference profiles
 
 Recommended first-party pricing mix for the starter set:
 
@@ -222,6 +331,8 @@ Recommended first-party pricing mix for the starter set:
   - `mkp-action-notifications`
 - subscription:
   - `mkp-data-commerce-catalog`
+  - `mkp-inference-optimized-orchestration`
+  - `mkp-inference-premium-hybrid`
 
 ---
 
@@ -236,6 +347,10 @@ This set demonstrates the product clearly:
 - data plugins:
   - shared retrieval with attribution
   - real dataset lifecycle and sync responsibility
+- inference-profile plugins:
+  - deployment provider composition
+  - purpose-specific endpoint-profile selection
+  - managed vs customer-supplied credential models
 - multi-plugin composition:
   - templates recommend action and data add-ons
 - cross-domain utility:
@@ -267,6 +382,15 @@ Recommended implementation order:
 - `mkp-action-notifications`
 
 Seed B is now implemented in the catalog seed set.
+
+### Seed C: Inference profile baseline
+
+- `mkp-inference-local-embeddings`
+- `mkp-inference-optimized-orchestration`
+- `mkp-inference-premium-hybrid`
+- `mkp-inference-byok-openai`
+
+Seed C is now implemented in the catalog seed set.
 
 ---
 
