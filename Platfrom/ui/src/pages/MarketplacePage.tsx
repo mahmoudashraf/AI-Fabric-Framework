@@ -35,6 +35,7 @@ import {
   createMarketplacePublisherSubmission,
   createDeploymentMarketplaceInstall,
   deleteDeploymentMarketplaceInstall,
+  fetchDeploymentDraft,
   fetchDeployments,
   fetchDeploymentMarketplaceImpact,
   fetchDeploymentMarketplaceInstalls,
@@ -55,10 +56,12 @@ import {
   type CreateMarketplacePublisherRequest,
   type CreateMarketplacePublisherSubmissionRequest,
   type CreateMarketplaceTemplateBootstrapRequest,
+  type DeploymentDraftResponse,
   type DeploymentSummary,
   type DeploymentMarketplaceInstallSummary,
   type MarketplacePluginDetailSummary,
   type MarketplacePluginSummary,
+  type MarketplacePluginVersionSummary,
   type MarketplacePublisherSummary,
 } from '../api/platformApi'
 
@@ -89,6 +92,100 @@ function parseJsonObject(value: string, label: string): Record<string, unknown> 
     throw new Error(`${label} must be a JSON object.`)
   }
   return parsed as Record<string, unknown>
+}
+
+type MarketplaceInstallField = MarketplacePluginVersionSummary['installForm'][number]
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  return {}
+}
+
+function readRecordString(record: Record<string, unknown>, key: string): string {
+  const value = record[key]
+  return typeof value === 'string' ? value : ''
+}
+
+function readInstallFieldValue(
+  field: MarketplaceInstallField,
+  config: Record<string, unknown>,
+  secretRefs: Record<string, unknown>,
+): string {
+  const source = field.type === 'secretRef' ? secretRefs : config
+  const value = source[field.id]
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false'
+  }
+  if (typeof value === 'number') {
+    return `${value}`
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  return ''
+}
+
+function updateInstallFieldValue(
+  field: MarketplaceInstallField,
+  rawValue: string,
+  config: Record<string, unknown>,
+  secretRefs: Record<string, unknown>,
+): { config: Record<string, unknown>; secretRefs: Record<string, unknown> } {
+  const nextConfig = { ...config }
+  const nextSecretRefs = { ...secretRefs }
+  const target = field.type === 'secretRef' ? nextSecretRefs : nextConfig
+
+  if (rawValue.trim().length === 0) {
+    delete target[field.id]
+    return { config: nextConfig, secretRefs: nextSecretRefs }
+  }
+
+  switch (field.type) {
+    case 'boolean':
+      target[field.id] = rawValue === 'true'
+      break
+    case 'number':
+      target[field.id] = Number(rawValue)
+      break
+    default:
+      target[field.id] = rawValue
+      break
+  }
+  return { config: nextConfig, secretRefs: nextSecretRefs }
+}
+
+function validateInstallFields(
+  fields: MarketplaceInstallField[],
+  config: Record<string, unknown>,
+  secretRefs: Record<string, unknown>,
+): string[] {
+  return fields.flatMap((field) => {
+    const value = readInstallFieldValue(field, config, secretRefs)
+    if (field.required && value.trim().length === 0) {
+      return `${field.label} (${field.id})`
+    }
+    if (field.type === 'number' && value.trim().length > 0 && Number.isNaN(Number(value))) {
+      return `${field.label} (${field.id}) must be numeric`
+    }
+    return []
+  })
+}
+
+function providerDraftSummary(draft: DeploymentDraftResponse | undefined): {
+  llmProvider: string
+  embeddingProvider: string
+  missingBaseline: boolean
+} {
+  const providerConfig = asRecord(draft?.providerConfig)
+  const llmProvider = readRecordString(providerConfig, 'llmProvider').trim()
+  const embeddingProvider = readRecordString(providerConfig, 'embeddingProvider').trim()
+  return {
+    llmProvider,
+    embeddingProvider,
+    missingBaseline: llmProvider.length === 0 || embeddingProvider.length === 0,
+  }
 }
 
 function pluginTypeColor(pluginType: string): 'primary' | 'secondary' | 'success' | 'warning' {
@@ -241,8 +338,8 @@ export function MarketplacePage() {
   const [searchText, setSearchText] = useState('')
   const [selectedPluginId, setSelectedPluginId] = useState('')
   const [selectedVersion, setSelectedVersion] = useState('')
-  const [configJson, setConfigJson] = useState('{\n}')
-  const [secretRefsJson, setSecretRefsJson] = useState('{\n}')
+  const [installConfigState, setInstallConfigState] = useState<Record<string, unknown>>({})
+  const [installSecretRefsState, setInstallSecretRefsState] = useState<Record<string, unknown>>({})
   const [templateName, setTemplateName] = useState('Marketplace Deployment')
   const [templateEnvironment, setTemplateEnvironment] = useState('dev')
   const [templateId, setTemplateId] = useState('')
@@ -303,6 +400,11 @@ export function MarketplacePage() {
   })
   const targetWorkspace = targetWorkspaceQuery.data ?? null
   const canEdit = targetWorkspace?.access.canEdit ?? false
+  const draftQuery = useQuery({
+    queryKey: ['deployment-draft', targetDeploymentId],
+    queryFn: () => fetchDeploymentDraft(targetDeploymentId),
+    enabled: targetDeploymentId.length > 0,
+  })
   const installsQuery = useQuery({
     queryKey: ['deployment-marketplace-installs', targetDeploymentId],
     queryFn: () => fetchDeploymentMarketplaceInstalls(targetDeploymentId),
@@ -403,14 +505,9 @@ export function MarketplacePage() {
   }, [publisherDetailQuery.data?.publisher])
 
   useEffect(() => {
-    if (!selectedInstall) {
-      setConfigJson('{\n}')
-      setSecretRefsJson('{\n}')
-      return
-    }
-    setConfigJson(prettifyJson(selectedInstall.config))
-    setSecretRefsJson(prettifyJson(selectedInstall.secretRefs))
-  }, [selectedInstall?.id])
+    setInstallConfigState(asRecord(selectedInstall?.config))
+    setInstallSecretRefsState(asRecord(selectedInstall?.secretRefs))
+  }, [selectedInstall?.id, selectedPlugin?.id, selectedVersion])
 
   useEffect(() => {
     if (selectedInstall) {
@@ -482,16 +579,51 @@ export function MarketplacePage() {
     ])
   }
 
+  const installFields = selectedVersionSummary?.installForm ?? []
+  const configInstallFields = useMemo(
+    () => installFields.filter((field) => field.type !== 'secretRef'),
+    [installFields],
+  )
+  const secretInstallFields = useMemo(
+    () => installFields.filter((field) => field.type === 'secretRef'),
+    [installFields],
+  )
+  const installFieldErrors = useMemo(
+    () => validateInstallFields(installFields, installConfigState, installSecretRefsState),
+    [installConfigState, installFields, installSecretRefsState],
+  )
+  const providerSummary = useMemo(() => providerDraftSummary(draftQuery.data), [draftQuery.data])
+  const requiresDeploymentProviderBaseline = Boolean(
+    targetDeploymentId
+    && selectedPlugin
+    && selectedPlugin.pluginType !== 'INFERENCE_PROFILE'
+    && providerSummary.missingBaseline,
+  )
+
+  const setInstallField = (field: MarketplaceInstallField, rawValue: string) => {
+    const next = updateInstallFieldValue(field, rawValue, installConfigState, installSecretRefsState)
+    setInstallConfigState(next.config)
+    setInstallSecretRefsState(next.secretRefs)
+  }
+
   const installMutation = useMutation({
     mutationFn: async () => {
       if (!selectedPlugin || targetDeploymentId.length === 0) {
         throw new Error('Select a target deployment and a marketplace plugin first.')
       }
+      if (requiresDeploymentProviderBaseline) {
+        throw new Error(
+          'This deployment is missing provider configuration. Open Providers and set LLM and embedding providers before installing this plugin.',
+        )
+      }
+      if (installFieldErrors.length > 0) {
+        throw new Error(`Complete the required install fields first: ${installFieldErrors.join(', ')}`)
+      }
       const payload = {
         pluginId: selectedPlugin.id,
         pluginVersion: selectedVersion,
-        config: parseJsonObject(configJson, 'Config JSON'),
-        secretRefs: parseJsonObject(secretRefsJson, 'Secret refs JSON'),
+        config: installConfigState,
+        secretRefs: installSecretRefsState,
       }
       if (selectedInstall) {
         return updateDeploymentMarketplaceInstall(targetDeploymentId, selectedInstall.id, {
@@ -727,7 +859,7 @@ export function MarketplacePage() {
             Marketplace
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 900 }}>
-            Browse first-party marketplace plugins, bootstrap template-based deployments, and assign action, data, or automation plugins into an explicitly selected deployment draft through the normal publish and apply lifecycle.
+            Browse first-party marketplace plugins, bootstrap template-based deployments, and assign action, data, or inference-profile plugins into an explicitly selected deployment draft through the normal publish and apply lifecycle.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -748,7 +880,7 @@ export function MarketplacePage() {
       {successMessage ? <Alert severity="success">{successMessage}</Alert> : null}
       {!targetDeploymentId ? (
         <Alert severity="info">
-          Marketplace is global. Template plugins can create new deployments directly, and action, data, or automation plugins install into the target deployment you choose below.
+          Marketplace is global. Template plugins can create new deployments directly, and action, data, or inference-profile plugins install into the target deployment you choose below.
         </Alert>
       ) : null}
 
@@ -1189,17 +1321,45 @@ export function MarketplacePage() {
                       </Typography>
                     </Stack>
                     <Typography color="text.secondary">
-                      Action and data plugins compile into the target deployment draft. Save, publish, and apply are still required before they affect the live runtime.
+                      Action, data, and inference-profile plugins compile into the target deployment draft. Save, publish, and apply are still required before they affect the live runtime.
                     </Typography>
                     {!targetDeploymentId ? (
                       <Alert severity="info">Choose a target deployment above to install or update this plugin.</Alert>
                     ) : !canEdit ? (
                       <Alert severity="warning">Your current assignment role is read-only for marketplace install changes on this deployment.</Alert>
                     ) : null}
-                    {selectedVersionSummary?.installForm.length ? (
+                    {targetDeploymentId ? (
+                      draftQuery.isLoading ? (
+                        <Alert severity="info">Loading target draft prerequisites…</Alert>
+                      ) : (
+                        <Alert
+                          severity={providerSummary.missingBaseline ? 'warning' : 'success'}
+                          action={providerSummary.missingBaseline ? (
+                            <Button
+                              color="inherit"
+                              size="small"
+                              onClick={() => navigate(`/providers?deploymentId=${encodeURIComponent(targetDeploymentId)}`)}
+                            >
+                              Open Providers
+                            </Button>
+                          ) : undefined}
+                        >
+                          Current deployment providers: LLM {providerSummary.llmProvider || 'Not configured'} · Embeddings {providerSummary.embeddingProvider || 'Not configured'}.
+                          {providerSummary.missingBaseline
+                            ? ' This deployment still needs provider configuration before non-inference plugins can compile into the draft.'
+                            : ' Provider baseline is present.'}
+                        </Alert>
+                      )
+                    ) : null}
+                    {selectedPlugin?.pluginType === 'INFERENCE_PROFILE' ? (
                       <Alert severity="info">
-                        This plugin declares install fields. Provide config values in `Config JSON` and secret references in `Secret refs JSON`.
-                        Required fields: {selectedVersionSummary.installForm.filter((field) => field.required).map((field) => `${field.id} (${field.type})`).join(', ')}
+                        Inference-profile plugins write deployment provider configuration themselves. Use this when you want the marketplace install to supply or override model endpoint settings.
+                      </Alert>
+                    ) : null}
+                    {installFields.length > 0 ? (
+                      <Alert severity="info">
+                        This plugin declares install fields. Use the generated form below instead of hand-editing JSON.
+                        Required fields: {installFields.filter((field) => field.required).map((field) => `${field.label} (${field.type})`).join(', ')}
                       </Alert>
                     ) : null}
                     <Alert severity={selectedVersionSummary?.pricing.requiresEntitlement ? 'warning' : 'info'}>
@@ -1208,30 +1368,116 @@ export function MarketplacePage() {
                         ? ' Paid marketplace installs remain out of the deployment draft until entitlement is activated.'
                         : ' Free marketplace installs are entitled immediately.'}
                     </Alert>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          multiline
-                          minRows={8}
-                          label="Config JSON"
-                          value={configJson}
-                          onChange={(event) => setConfigJson(event.target.value)}
-                          disabled={!canEdit || !targetDeploymentId}
-                        />
+                    {installFieldErrors.length > 0 ? (
+                      <Alert severity="warning">
+                        Complete these fields before saving the install: {installFieldErrors.join(', ')}
+                      </Alert>
+                    ) : null}
+                    {installFields.length > 0 ? (
+                      <Grid container spacing={2}>
+                        {configInstallFields.length > 0 ? (
+                          <Grid item xs={12} md={6}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={2}>
+                                  <Typography variant="subtitle2" color="text.secondary">
+                                    Plugin config
+                                  </Typography>
+                                  {configInstallFields.map((field) => (
+                                    <TextField
+                                      key={field.id}
+                                      select={field.type === 'select' || field.type === 'boolean'}
+                                      fullWidth
+                                      type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'}
+                                      label={field.label}
+                                      value={readInstallFieldValue(field, installConfigState, installSecretRefsState)}
+                                      onChange={(event) => setInstallField(field, event.target.value)}
+                                      disabled={!canEdit || !targetDeploymentId}
+                                      required={field.required}
+                                      helperText={field.description ?? (
+                                        field.type === 'url'
+                                          ? 'Absolute URL expected when provided.'
+                                          : field.type === 'boolean'
+                                            ? 'Select true or false.'
+                                            : undefined
+                                      )}
+                                    >
+                                      {field.type === 'boolean' ? (
+                                        [
+                                          <MenuItem key="blank" value="">
+                                            Not set
+                                          </MenuItem>,
+                                          <MenuItem key="true" value="true">
+                                            True
+                                          </MenuItem>,
+                                          <MenuItem key="false" value="false">
+                                            False
+                                          </MenuItem>,
+                                        ]
+                                      ) : null}
+                                      {field.type === 'select'
+                                        ? field.options.map((option) => (
+                                          <MenuItem key={option} value={option}>
+                                            {option}
+                                          </MenuItem>
+                                        ))
+                                        : null}
+                                    </TextField>
+                                  ))}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ) : null}
+                        {secretInstallFields.length > 0 ? (
+                          <Grid item xs={12} md={6}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={2}>
+                                  <Typography variant="subtitle2" color="text.secondary">
+                                    Secret references
+                                  </Typography>
+                                  {secretInstallFields.map((field) => (
+                                    <TextField
+                                      key={field.id}
+                                      fullWidth
+                                      label={field.label}
+                                      value={readInstallFieldValue(field, installConfigState, installSecretRefsState)}
+                                      onChange={(event) => setInstallField(field, event.target.value)}
+                                      disabled={!canEdit || !targetDeploymentId}
+                                      required={field.required}
+                                      helperText={field.description ?? 'Enter the platform secret name, not the raw secret value.'}
+                                    />
+                                  ))}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ) : null}
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            multiline
+                            minRows={8}
+                            label="Generated config preview"
+                            value={prettifyJson(installConfigState)}
+                            InputProps={{ readOnly: true }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            multiline
+                            minRows={8}
+                            label="Generated secret refs preview"
+                            value={prettifyJson(installSecretRefsState)}
+                            InputProps={{ readOnly: true }}
+                          />
+                        </Grid>
                       </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          multiline
-                          minRows={8}
-                          label="Secret refs JSON"
-                          value={secretRefsJson}
-                          onChange={(event) => setSecretRefsJson(event.target.value)}
-                          disabled={!canEdit || !targetDeploymentId}
-                        />
-                      </Grid>
-                    </Grid>
+                    ) : (
+                      <Alert severity="info">This plugin does not require operator install inputs.</Alert>
+                    )}
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                       {selectedInstall ? (
                         <Chip label={`Live state: ${selectedInstall.liveState}`} variant="outlined" />
@@ -1253,7 +1499,7 @@ export function MarketplacePage() {
                           setSuccessMessage(null)
                           installMutation.mutate()
                         }}
-                        disabled={!canEdit || !targetDeploymentId || installMutation.isPending}
+                        disabled={!canEdit || !targetDeploymentId || installMutation.isPending || requiresDeploymentProviderBaseline || installFieldErrors.length > 0}
                       >
                         {selectedInstall ? 'Save install' : 'Install plugin'}
                       </Button>
@@ -1277,7 +1523,7 @@ export function MarketplacePage() {
                               setSuccessMessage(null)
                               resolveMutation.mutate()
                             }}
-                            disabled={!targetDeploymentId || resolveMutation.isPending}
+                            disabled={!targetDeploymentId || resolveMutation.isPending || requiresDeploymentProviderBaseline}
                           >
                             Recompile draft
                           </Button>

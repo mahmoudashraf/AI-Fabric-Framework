@@ -1309,13 +1309,38 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (issues == null || issues.isEmpty()) {
             return "unknown validation failure";
         }
-        return issues.stream()
+        String summary = issues.stream()
             .filter(Objects::nonNull)
             .filter(issue -> "ERROR".equalsIgnoreCase(issue.severity()))
             .map(issue -> issue.code() + " at " + issue.path())
             .limit(5)
             .reduce((left, right) -> left + "; " + right)
             .orElse("unknown validation failure");
+        if (requiresProviderBaselineGuidance(issues)) {
+            return summary
+                + ". This deployment draft is missing provider configuration. Open the deployment Providers screen and set llmProvider and embeddingProvider before installing this plugin, or install an inference-profile plugin first.";
+        }
+        return summary;
+    }
+
+    private boolean requiresProviderBaselineGuidance(List<DraftValidationIssue> issues) {
+        boolean missingLlmProvider = false;
+        boolean missingEmbeddingProvider = false;
+        for (DraftValidationIssue issue : issues) {
+            if (issue == null || !"ERROR".equalsIgnoreCase(issue.severity())) {
+                continue;
+            }
+            if (!"REQUIRED_VALUE_MISSING".equalsIgnoreCase(issue.code())) {
+                continue;
+            }
+            if ("$.llmProvider".equals(issue.path())) {
+                missingLlmProvider = true;
+            }
+            if ("$.embeddingProvider".equals(issue.path())) {
+                missingEmbeddingProvider = true;
+            }
+        }
+        return missingLlmProvider || missingEmbeddingProvider;
     }
 
     private com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity asDraftEntity(DeploymentDraftResponse draft) {
