@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -118,6 +119,42 @@ class QdrantVectorDatabaseServiceTest {
             isNull(),
             isNull()
         );
+    }
+
+    @Test
+    void searchFallsBackToUnfilteredQueryWhenPayloadIndexIsStillMissing() {
+        AIProviderConfig config = baseConfig();
+        QdrantClient client = mock(QdrantClient.class);
+        when(client.listCollectionsAsync()).thenReturn(Futures.immediateFuture(List.of("customer_a__tenant_b__faq-article")));
+        when(client.getCollectionInfoAsync("customer_a__tenant_b__faq-article"))
+            .thenReturn(Futures.immediateFuture(Collections.CollectionInfo.newBuilder().build()));
+        when(client.createPayloadIndexAsync(
+            eq("customer_a__tenant_b__faq-article"),
+            eq("knowledgeSourceHandleRef"),
+            eq(Collections.PayloadSchemaType.Keyword),
+            isNull(),
+            eq(true),
+            isNull(),
+            isNull()
+        )).thenReturn(Futures.immediateFuture(Points.UpdateResult.getDefaultInstance()));
+        when(client.searchAsync(any()))
+            .thenReturn(
+                Futures.immediateFailedFuture(new RuntimeException(
+                    "INVALID_ARGUMENT: Bad request: Index required but not found for \"knowledgeSourceHandleRef\""
+                )),
+                Futures.immediateFuture(List.of())
+            );
+
+        QdrantVectorDatabaseService service = new QdrantVectorDatabaseService(config, null, client);
+
+        service.search(List.of(0.1d, 0.2d), AISearchRequest.builder()
+            .query("reset password")
+            .entityType("faq-article")
+            .limit(5)
+            .metadata(java.util.Map.of("knowledgeSourceHandleRef", "plugin/mkp-data-help-center"))
+            .build());
+
+        verify(client, atLeast(2)).searchAsync(any());
     }
 
     private AIProviderConfig baseConfig() {

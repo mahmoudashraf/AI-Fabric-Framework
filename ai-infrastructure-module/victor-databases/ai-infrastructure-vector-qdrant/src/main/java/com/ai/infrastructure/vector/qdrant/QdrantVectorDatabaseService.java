@@ -282,7 +282,27 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
                 searchBuilder.setFilter(filter);
             }
 
-            List<Points.ScoredPoint> scored = await(qdrantClient.searchAsync(searchBuilder.build()), "search points");
+            List<Points.ScoredPoint> scored;
+            try {
+                scored = await(qdrantClient.searchAsync(searchBuilder.build()), "search points");
+            } catch (AIServiceException ex) {
+                if (filter == null || !isMissingPayloadIndexFailure(ex)) {
+                    throw ex;
+                }
+                log.warn(
+                    "Qdrant filtered search for collection '{}' failed because a required payload index is missing. "
+                        + "Retrying without server-side metadata filtering and relying on client-side source scoping.",
+                    collection
+                );
+                Points.SearchPoints fallbackSearch = Points.SearchPoints.newBuilder()
+                    .setCollectionName(collection)
+                    .addAllVector(queryVectorFloat)
+                    .setLimit(limit)
+                    .setWithPayload(WithPayloadSelectorFactory.enable(true))
+                    .setWithVectors(WithVectorsSelectorFactory.enable(true))
+                    .build();
+                scored = await(qdrantClient.searchAsync(fallbackSearch), "search points without metadata filter");
+            }
             if (CollectionUtils.isEmpty(scored)) {
                 continue;
             }
@@ -1120,6 +1140,15 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     private static String normalizeCollectionPrefix(String collectionPrefix) {
         return collectionPrefix == null ? "" : collectionPrefix.trim();
+    }
+
+    private boolean isMissingPayloadIndexFailure(AIServiceException exception) {
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        return message.contains("Index required but not found")
+            || message.contains(KNOWLEDGE_SOURCE_HANDLE_REF_FIELD);
     }
 
     private <T> T await(ListenableFuture<T> future, String action) {
