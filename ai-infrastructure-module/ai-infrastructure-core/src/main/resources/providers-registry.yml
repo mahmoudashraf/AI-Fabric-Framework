@@ -76,16 +76,6 @@ providers:
         - "AZURE_EMBEDDING_DEPLOYMENT_NAME"
       notes: "Supports both /openai/v1/ and /models/ endpoint formats"
         
-    rest:
-      name: "rest"
-      displayName: "REST API"
-      apiKeyEnvVar: null
-      required: false
-      enabled: true
-      description: "Generic REST API provider"
-      supportedFeatures:
-        - "custom_endpoints"
-
   embedding:
     onnx:
       name: "onnx"
@@ -170,13 +160,3 @@ providers:
       additionalEnvVars:
         - "AZURE_API_VERSION"
       notes: "Supports both /openai/deployments/ and /models/ endpoint formats"
-      
-    rest:
-      name: "rest"
-      displayName: "REST Embeddings"
-      apiKeyEnvVar: null
-      required: false
-      enabled: true
-      description: "Generic REST embedding API"
-      supportedFeatures:
-        - "custom_endpoints"

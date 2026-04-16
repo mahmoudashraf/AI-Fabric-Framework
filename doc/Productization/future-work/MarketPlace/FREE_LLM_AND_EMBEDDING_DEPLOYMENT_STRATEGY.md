@@ -16,6 +16,7 @@ Do not use it as the marketplace taxonomy source.
 Marketplace productization for this area now lives in:
 
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_INFERENCE_PROFILE_PRODUCTIZATION_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/MARKETPLACE_SHARED_INFERENCE_SERVICE_PLATFORM_PLAN.md`
 
 That companion plan is now the shipped product contract for marketplace inference offers and defines the product boundary:
 
@@ -24,6 +25,10 @@ That companion plan is now the shipped product contract for marketplace inferenc
 - marketplace must not expose arbitrary runtime or model-server code
 
 This document defines how Loom AI can deploy free, open-source LLM and embedding models as external services to power a genuinely free tier and reduce per-tenant costs across all paid tiers.
+
+For the implementation-baseline service lifecycle that should sit behind marketplace inference-profile installs, use:
+
+- `doc/Productization/future-work/MarketPlace/MARKETPLACE_SHARED_INFERENCE_SERVICE_PLATFORM_PLAN.md`
 
 ---
 
@@ -90,15 +95,7 @@ Key principle: **model services are shared infrastructure, not per-customer.** O
 
 ### 3.1 What exists in codebase
 
-The framework already has two providers that support external embedding services:
-
-**RestEmbeddingProvider** (`ai-infrastructure-provider-rest`)
-- Connects to any HTTP service exposing `/embed`, `/embed/batch`, `/health`
-- Request format: `{"text": "...", "model": "..."}`
-- Response format: `{"embedding": [0.1, 0.2, ...]}`
-- Auto-detects dimensions from first response
-- Batch support with fallback to sequential
-- Location: `com.ai.infrastructure.provider.rest.RestEmbeddingProvider`
+The framework should standardize external embedding services on OpenAI-compatible APIs rather than a custom REST contract.
 
 **OpenAIEmbeddingProvider** (`ai-infrastructure-provider-openai`)
 - Connects to any OpenAI-compatible `/v1/embeddings` endpoint
@@ -143,7 +140,7 @@ ai:
       embedding-dimensions: 1024
 ```
 
-Or use the existing REST provider:
+Or expose the service through an OpenAI-compatible endpoint:
 
 ```yaml
 ai:
@@ -262,7 +259,7 @@ ai:
 **Problem:** the current config structure uses a single `openai` block. Pointing orchestration at Ollama and generation at OpenAI requires either:
 
 a) A second OpenAI-compatible provider config (e.g. `openai-local`)
-b) Using the REST provider for the local LLM
+b) Using an OpenAI-compatible provider path for the local LLM
 c) Adding base-url override to OrchestrationLlmConfig
 
 **Recommended approach (a):** add a `local` provider that reuses the OpenAI-compatible protocol. This is a small code change — register a second OpenAI provider instance with different base-url.

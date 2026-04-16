@@ -53,7 +53,6 @@
         <module>providers/ai-infrastructure-provider-cohere</module>
         <module>providers/ai-infrastructure-provider-anthropic</module>
         <module>providers/ai-infrastructure-provider-gemini</module>
-        <module>providers/ai-infrastructure-provider-rest</module>
         <module>providers/ai-infrastructure-onnx-starter</module>
         <module>ai-infrastructure-relationship-query</module>
         <module>ai-infrastructure-chat-session</module>
@@ -215,12 +214,6 @@
                 <artifactId>ai-infrastructure-provider-gemini</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-provider-rest</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
             <!-- Vector Modules -->
             <dependency>
                 <groupId>com.ai.fabric</groupId>
