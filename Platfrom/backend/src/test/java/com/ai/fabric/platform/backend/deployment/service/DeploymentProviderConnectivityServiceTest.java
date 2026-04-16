@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DeploymentProviderConnectivityServiceTest {
@@ -229,6 +230,142 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.managedVectorProvisioningMode()).isEqualTo("MANAGED_ZILLIZ_CLOUD_CLUSTER");
         assertThat(summary.managedVectorTargets().get(0)).contains("project-1");
         assertThat(summary.managedVectorTargets().get(0)).contains("gcp-us-west1");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksEmbeddingEndpointReadyOnlyAfterAuthenticatedEmbeddingResponse() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("emb-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+            {
+              "data": [
+                {
+                  "embedding": [0.11, 0.22]
+                }
+              ]
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().equals("https://shared.example/v1/embeddings")
+                && "Bearer emb-key".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-embed-ready", "Shared Embeddings"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "embeddingBaseUrl": "https://shared.example/v1"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "embedding_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("READY");
+                assertThat(item.endpoint()).isEqualTo("https://shared.example/v1/embeddings");
+                assertThat(item.message()).contains("accepted an authenticated embedding probe");
+            });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksEmbeddingEndpointFailedWhenAuthenticatedProbeReturnsUnauthorized() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("bad-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(401);
+        when(response.body()).thenReturn("""
+            {
+              "error": {
+                "message": "invalid api key"
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://shared.example/v1/embeddings")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-embed-failed", "Shared Embeddings"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "embeddingBaseUrl": "https://shared.example/v1"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "embedding_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("FAILED");
+                assertThat(item.endpoint()).isEqualTo("https://shared.example/v1/embeddings");
+                assertThat(item.message()).contains("HTTP 401");
+            });
+    }
+
+    @Test
+    void probeBlocksEmbeddingEndpointWhenResolvedSecretIsMissing() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        HttpClient httpClient = mock(HttpClient.class);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-embed-blocked", "Shared Embeddings"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "embeddingBaseUrl": "https://shared.example/v1",
+                  "embeddingApiKeySecretRef": "DEPLOYMENT_OPENAI_EMBEDDINGS"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "embedding_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("BLOCKED");
+                assertThat(item.endpoint()).isEqualTo("https://shared.example/v1");
+                assertThat(item.message()).contains("No effective secret is available");
+            });
+        verifyNoInteractions(httpClient);
     }
 
     private DeploymentEntity deployment(String id, String name) {

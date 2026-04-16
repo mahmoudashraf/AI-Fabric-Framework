@@ -28,6 +28,8 @@ import java.util.stream.Collectors;
 @Service
 public class DeploymentProviderConnectivityService {
 
+    private static final String EMBEDDING_SMOKE_TEXT = "connectivity smoke probe";
+
     private final PlatformSecretService platformSecretService;
     private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
     private final ObjectMapper objectMapper;
@@ -590,6 +592,7 @@ public class DeploymentProviderConnectivityService {
                 "Embedding provider '" + normalizedProvider + "' is selected, but no reachable base URL is configured."
             );
         }
+        String apiKey = null;
         String secretPurpose = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(normalizedProvider);
         if (StringUtils.hasText(secretPurpose)) {
             DeploymentProviderSecretResolutionService.ResolvedSecretValue resolution =
@@ -598,7 +601,7 @@ public class DeploymentProviderConnectivityService {
                     secretPurpose,
                     trimToNull(ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig))
                 );
-            if (overrideRequiredButMissing(resolution.summary())) {
+            if (missingResolvedSecret(resolution.summary())) {
                 return new DeploymentProviderConnectivityProbeSummary(
                     "embedding_inference_endpoint",
                     "Embedding inference endpoint",
@@ -607,8 +610,172 @@ public class DeploymentProviderConnectivityService {
                     resolution.summary().diagnosticMessage()
                 );
             }
+            apiKey = resolution.value();
         }
-        return sendProbe("embedding_inference_endpoint", "Embedding inference endpoint", endpoint, request -> { }, false);
+        return probeEmbeddingEndpointWithAuth(normalizedProvider, endpoint, providerConfig, apiKey);
+    }
+
+    private DeploymentProviderConnectivityProbeSummary probeEmbeddingEndpointWithAuth(String provider,
+                                                                                      String endpoint,
+                                                                                      JsonNode providerConfig,
+                                                                                      String apiKey) {
+        return switch (provider) {
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> sendJsonPostProbe(
+                "embedding_inference_endpoint",
+                "Embedding inference endpoint",
+                buildOpenAiEmbeddingProbeEndpoint(endpoint),
+                buildOpenAiEmbeddingProbeEndpoint(endpoint),
+                objectNode("""
+                    {
+                      "model": "%s",
+                      "input": "%s"
+                    }
+                    """.formatted(
+                    ManagedDeploymentProfileCatalog.openAiEmbeddingModel(providerConfig),
+                    EMBEDDING_SMOKE_TEXT
+                )),
+                request -> request.header("Authorization", "Bearer " + apiKey),
+                this::isOpenAiEmbeddingResponse
+            );
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE -> {
+                String requestEndpoint = buildAzureEmbeddingProbeEndpoint(
+                    endpoint,
+                    firstNonBlank(
+                        ManagedDeploymentProfileCatalog.azureEmbeddingDeploymentName(providerConfig),
+                        ManagedDeploymentProfileCatalog.embeddingDeploymentName(providerConfig),
+                        ManagedDeploymentProfileCatalog.azureDeploymentName(providerConfig)
+                    ),
+                    firstNonBlank(
+                        ManagedDeploymentProfileCatalog.azureEmbeddingApiVersion(providerConfig),
+                        ManagedDeploymentProfileCatalog.embeddingApiVersion(providerConfig),
+                        ManagedDeploymentProfileCatalog.azureApiVersion(providerConfig)
+                    )
+                );
+                yield sendJsonPostProbe(
+                    "embedding_inference_endpoint",
+                    "Embedding inference endpoint",
+                    requestEndpoint,
+                    requestEndpoint,
+                    objectNode("""
+                        {
+                          "input": ["%s"]
+                        }
+                        """.formatted(EMBEDDING_SMOKE_TEXT)),
+                    request -> request.header("api-key", apiKey),
+                    this::isOpenAiEmbeddingResponse
+                );
+            }
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE -> sendJsonPostProbe(
+                "embedding_inference_endpoint",
+                "Embedding inference endpoint",
+                buildCohereEmbeddingProbeEndpoint(endpoint),
+                buildCohereEmbeddingProbeEndpoint(endpoint),
+                objectNode("""
+                    {
+                      "model": "%s",
+                      "texts": ["%s"],
+                      "input_type": "search_document"
+                    }
+                    """.formatted(
+                    ManagedDeploymentProfileCatalog.cohereEmbeddingModel(providerConfig),
+                    EMBEDDING_SMOKE_TEXT
+                )),
+                request -> request.header("Authorization", "Bearer " + apiKey),
+                this::isCohereEmbeddingResponse
+            );
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI -> {
+                String displayEndpoint = buildGeminiEmbeddingProbeEndpoint(
+                    endpoint,
+                    ManagedDeploymentProfileCatalog.geminiEmbeddingModel(providerConfig),
+                    null
+                );
+                String requestEndpoint = buildGeminiEmbeddingProbeEndpoint(
+                    endpoint,
+                    ManagedDeploymentProfileCatalog.geminiEmbeddingModel(providerConfig),
+                    apiKey
+                );
+                yield sendJsonPostProbe(
+                    "embedding_inference_endpoint",
+                    "Embedding inference endpoint",
+                    displayEndpoint,
+                    requestEndpoint,
+                    objectNode("""
+                        {
+                          "content": {
+                            "parts": [
+                              {
+                                "text": "%s"
+                              }
+                            ]
+                          }
+                        }
+                        """.formatted(EMBEDDING_SMOKE_TEXT)),
+                    request -> { },
+                    this::isGeminiEmbeddingResponse
+                );
+            }
+            default -> new DeploymentProviderConnectivityProbeSummary(
+                "embedding_inference_endpoint",
+                "Embedding inference endpoint",
+                "SKIPPED",
+                endpoint,
+                "Embedding provider '" + provider + "' does not expose a platform probe in this slice."
+            );
+        };
+    }
+
+    private DeploymentProviderConnectivityProbeSummary sendJsonPostProbe(String key,
+                                                                         String label,
+                                                                         String displayEndpoint,
+                                                                         String requestEndpoint,
+                                                                         JsonNode requestBody,
+                                                                         RequestCustomizer customizer,
+                                                                         ResponseBodyValidator validator) {
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(requestEndpoint))
+                .timeout(Duration.ofSeconds(15))
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody)));
+            customizer.customize(builder);
+
+            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            int statusCode = response.statusCode();
+            if (statusCode < 200 || statusCode >= 300) {
+                return new DeploymentProviderConnectivityProbeSummary(
+                    key,
+                    label,
+                    "FAILED",
+                    displayEndpoint,
+                    label + " responded with HTTP " + statusCode + "."
+                );
+            }
+            JsonNode responseBody = objectMapper.readTree(blankToEmpty(response.body()));
+            if (!validator.isValid(responseBody)) {
+                return new DeploymentProviderConnectivityProbeSummary(
+                    key,
+                    label,
+                    "FAILED",
+                    displayEndpoint,
+                    label + " returned an invalid embedding response payload."
+                );
+            }
+            return new DeploymentProviderConnectivityProbeSummary(
+                key,
+                label,
+                "READY",
+                displayEndpoint,
+                label + " accepted an authenticated embedding probe."
+            );
+        } catch (Exception ex) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                key,
+                label,
+                "FAILED",
+                displayEndpoint,
+                label + " probe failed: " + ex.getMessage()
+            );
+        }
     }
 
     private DeploymentProviderConnectivityProbeSummary sendProbe(String key,
@@ -667,6 +834,10 @@ public class DeploymentProviderConnectivityService {
         return summary != null
             && !summary.resolved()
             && "REQUIRE_OVERRIDE".equals(summary.bindingMode());
+    }
+
+    private boolean missingResolvedSecret(DeploymentSecretResolutionSummary summary) {
+        return summary != null && !summary.resolved();
     }
 
     private void addIfPresent(List<DeploymentProviderConnectivityProbeSummary> probes,
@@ -784,6 +955,81 @@ public class DeploymentProviderConnectivityService {
         String host = ManagedDeploymentProfileCatalog.weaviateHost(providerConfig);
         int port = ManagedDeploymentProfileCatalog.weaviatePort(providerConfig);
         return trimTrailingSlash(scheme + "://" + host + ":" + port);
+    }
+
+    private JsonNode objectNode(String json) {
+        try {
+            return objectMapper.readTree(json);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to build connectivity probe request JSON.", ex);
+        }
+    }
+
+    private String buildOpenAiEmbeddingProbeEndpoint(String baseUrl) {
+        String normalized = trimTrailingSlash(baseUrl.trim());
+        if (normalized.endsWith("/embeddings")) {
+            return normalized;
+        }
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/embeddings";
+        }
+        return normalized + "/v1/embeddings";
+    }
+
+    private String buildAzureEmbeddingProbeEndpoint(String endpoint, String deploymentName, String apiVersion) {
+        String normalized = trimTrailingSlash(endpoint.trim());
+        String resolvedApiVersion = StringUtils.hasText(apiVersion) ? apiVersion.trim() : "2024-02-15-preview";
+        if (normalized.contains("/models/embeddings")) {
+            return normalized.contains("?")
+                ? normalized
+                : normalized + "?api-version=" + resolvedApiVersion;
+        }
+        if (normalized.contains("/models")) {
+            return normalized + "/embeddings?api-version=" + resolvedApiVersion;
+        }
+        if (!StringUtils.hasText(deploymentName)) {
+            throw new IllegalStateException("Azure embedding provider requires azureEmbeddingDeploymentName.");
+        }
+        return normalized + "/openai/deployments/" + deploymentName.trim() + "/embeddings?api-version=" + resolvedApiVersion;
+    }
+
+    private String buildCohereEmbeddingProbeEndpoint(String baseUrl) {
+        String normalized = trimTrailingSlash(baseUrl.trim());
+        if (normalized.endsWith("/embed")) {
+            return normalized;
+        }
+        return normalized + "/embed";
+    }
+
+    private String buildGeminiEmbeddingProbeEndpoint(String baseUrl, String model, String apiKey) {
+        String normalized = trimTrailingSlash(baseUrl.trim());
+        String suffix = "/models/" + model.trim() + ":embedContent";
+        if (!normalized.endsWith(suffix)) {
+            normalized = normalized + suffix;
+        }
+        if (!StringUtils.hasText(apiKey)) {
+            return normalized;
+        }
+        return normalized + "?key=" + apiKey.trim();
+    }
+
+    private boolean isOpenAiEmbeddingResponse(JsonNode responseBody) {
+        return responseBody.path("data").isArray()
+            && responseBody.path("data").size() > 0
+            && responseBody.path("data").get(0).path("embedding").isArray()
+            && responseBody.path("data").get(0).path("embedding").size() > 0;
+    }
+
+    private boolean isCohereEmbeddingResponse(JsonNode responseBody) {
+        return responseBody.path("embeddings").isArray()
+            && responseBody.path("embeddings").size() > 0
+            && responseBody.path("embeddings").get(0).isArray()
+            && responseBody.path("embeddings").get(0).size() > 0;
+    }
+
+    private boolean isGeminiEmbeddingResponse(JsonNode responseBody) {
+        return responseBody.path("embedding").path("values").isArray()
+            && responseBody.path("embedding").path("values").size() > 0;
     }
 
     private String normalizeMilvusEndpoint(JsonNode providerConfig) {
@@ -942,6 +1188,11 @@ public class DeploymentProviderConnectivityService {
     @FunctionalInterface
     private interface RequestCustomizer {
         void customize(HttpRequest.Builder request);
+    }
+
+    @FunctionalInterface
+    private interface ResponseBodyValidator {
+        boolean isValid(JsonNode responseBody);
     }
 
     private record ManagedVectorSummary(
