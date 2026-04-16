@@ -272,7 +272,7 @@ class PublicProvisioningApiIntegrationTest {
     }
 
     @Test
-    void publicConsumerRoutesResolveCurrentDeploymentWithoutPublicApiHeaders() throws Exception {
+    void publicConsumerRoutesRequireAuthenticationAndResolveCurrentDeployment() throws Exception {
         var customer = platformCustomerTenantService.createCustomer(
             new CreatePlatformCustomerRequest("Consumer Contract", "Customer for consumer resolution")
         );
@@ -290,6 +290,11 @@ class PublicProvisioningApiIntegrationTest {
         );
 
         mockMvc.perform(get("/api/public/consumers/{consumerId}/credentials", "storefront-main"))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/credentials", "storefront-main")
+                .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
+                .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.consumerId", is("storefront-main")))
             .andExpect(jsonPath("$.deploymentId", is(firstDeployment)))
@@ -304,7 +309,9 @@ class PublicProvisioningApiIntegrationTest {
             )
         );
 
-        mockMvc.perform(get("/api/public/consumers/{consumerId}/status", "storefront-main"))
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/status", "storefront-main")
+                .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
+                .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.consumerId", is("storefront-main")))
             .andExpect(jsonPath("$.deploymentId", is(secondDeployment)))

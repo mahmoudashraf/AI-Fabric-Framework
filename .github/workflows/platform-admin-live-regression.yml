@@ -373,6 +373,8 @@ jobs:
           PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
           PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
           PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
+          PLATFORM_PUBLIC_API_CLIENT_ID: ${{ secrets.PLATFORM_PUBLIC_API_CLIENT_ID }}
+          PLATFORM_PUBLIC_API_KEY: ${{ secrets.PLATFORM_PUBLIC_API_KEY }}
         run: |
           bash scripts/verify-platform-admin-regression.sh
 

@@ -36,6 +36,10 @@ PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_COOKIE="${PLATFORM_COOKIE:-}"
 PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
+PLATFORM_PUBLIC_API_CLIENT_ID_HEADER="${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:-X-PLATFORM-CLIENT-ID}"
+PLATFORM_PUBLIC_API_KEY_HEADER="${PLATFORM_PUBLIC_API_KEY_HEADER:-X-PLATFORM-PUBLIC-API-KEY}"
+PLATFORM_PUBLIC_API_CLIENT_ID="${PLATFORM_PUBLIC_API_CLIENT_ID:-}"
+PLATFORM_PUBLIC_API_KEY="${PLATFORM_PUBLIC_API_KEY:-}"
 
 VERIFY_ASYNC_DELETE_SMOKE="${VERIFY_ASYNC_DELETE_SMOKE:-true}"
 VERIFY_DEPLOYMENT_OVERRIDE_SMOKE="${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE:-true}"
@@ -191,6 +195,42 @@ public_http_get() {
   HTTP_STATUS="${status}"
   HTTP_BODY="$(cat "${tmp}")"
   rm -f "${tmp}"
+}
+
+consumer_resolution_http_get() {
+  local url="$1"
+
+  if [[ -n "${PLATFORM_PUBLIC_API_CLIENT_ID}" && -n "${PLATFORM_PUBLIC_API_KEY}" ]]; then
+    local tmp
+    tmp="$(mktemp)"
+
+    local status=""
+    local attempt=1
+    while true; do
+      status="$(
+        curl -sS -o "${tmp}" -w "%{http_code}" \
+          -H "Accept: application/json" \
+          -H "${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER}: ${PLATFORM_PUBLIC_API_CLIENT_ID}" \
+          -H "${PLATFORM_PUBLIC_API_KEY_HEADER}: ${PLATFORM_PUBLIC_API_KEY}" \
+          "${url}" || true
+      )"
+      if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+          && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+        echo "WARN: transient consumer resolution GET ${url} returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+        sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+        attempt=$((attempt + 1))
+        continue
+      fi
+      break
+    done
+
+    HTTP_STATUS="${status}"
+    HTTP_BODY="$(cat "${tmp}")"
+    rm -f "${tmp}"
+    return 0
+  fi
+
+  platform_http GET "${url}"
 }
 
 platform_http() {
@@ -654,7 +694,7 @@ PY
   json_assert "create consumer smoke binding" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'"\nprint("ok")'
   pass "platform POST /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers"
 
-  public_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
+  consumer_resolution_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
   assert_status 200 "public consumer credentials"
   json_assert "public consumer credentials" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("deploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'"\nassert bool(((data or {}).get("integration") or {}).get("preferredIntegrationMode"))\nprint("ok")'
   pass "public GET /api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
@@ -677,7 +717,7 @@ PY
   json_assert "rebind consumer smoke" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'"\nprint("ok")'
   pass "platform PUT /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding"
 
-  public_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/status"
+  consumer_resolution_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/status"
   assert_status 200 "public consumer status"
   json_assert "public consumer status" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("deploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'"\nassert bool((data or {}).get("status"))\nprint("ok")'
   pass "public GET /api/public/consumers/${TEMP_CONSUMER_ID}/status"
@@ -709,6 +749,8 @@ PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
 PLATFORM_LOGIN_PASSWORD="$(resolve_secret_value PLATFORM_LOGIN_PASSWORD)"
+PLATFORM_PUBLIC_API_CLIENT_ID="$(resolve_secret_value PLATFORM_PUBLIC_API_CLIENT_ID)"
+PLATFORM_PUBLIC_API_KEY="$(resolve_secret_value PLATFORM_PUBLIC_API_KEY)"
 PLATFORM_UI_BASE_URL="$(resolve_secret_value PLATFORM_UI_BASE_URL)"
 INFERENCE_SERVICE_ROTATE_SECRET_VALUE="$(resolve_secret_value INFERENCE_SERVICE_ROTATE_SECRET_VALUE)"
 

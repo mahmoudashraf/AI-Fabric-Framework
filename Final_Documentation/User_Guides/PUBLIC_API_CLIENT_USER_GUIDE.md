@@ -79,6 +79,13 @@ These routes are intentionally narrower than the internal operator API.
 
 Consumer routes are the preferred external discovery surface once a deployment has been assigned to a consumer by the customer admin team. They return the same integration contract shape as deployment-based status and credentials routes, but they let the platform swap the bound deployment without forcing the external client to change identifiers.
 
+Consumer routes use the same platform public API client authentication headers as the deployment-based public routes:
+
+- `X-PLATFORM-CLIENT-ID`
+- `X-PLATFORM-PUBLIC-API-KEY`
+
+`consumerId` is a stable lookup key. It is not a credential by itself.
+
 ---
 
 ## 4) Standard Integration Sequence
@@ -184,6 +191,7 @@ Important boundaries:
 - create/apply still use deployment-oriented public provisioning routes
 - current runtime auth modes do not change
 - `consumerId` is a stable lookup key, not a credential
+- external callers still authenticate with the platform public API client headers before the platform resolves the bound deployment
 
 ---
 
