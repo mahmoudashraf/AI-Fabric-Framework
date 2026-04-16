@@ -25,7 +25,7 @@ public record PlatformInferenceProvisioningProperties(
 
     public PlatformInferenceProvisioningProperties {
         sharedProjectNamePrefix = normalizeText(sharedProjectNamePrefix, "loom-inference");
-        sharedEmbeddingServiceRoot = normalizeText(sharedEmbeddingServiceRoot, "ai-fabric-product/ai-fabric-embedding-worker");
+        sharedEmbeddingServiceRoot = normalizeText(sharedEmbeddingServiceRoot, ".");
         sharedEmbeddingDockerfilePath = normalizeText(
             sharedEmbeddingDockerfilePath,
             "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile"
@@ -39,7 +39,7 @@ public record PlatformInferenceProvisioningProperties(
         );
         sharedOllamaServiceNamePrefix = normalizeText(sharedOllamaServiceNamePrefix, "shared-ollama");
         sharedOllamaHealthPath = normalizeText(sharedOllamaHealthPath, "/api/tags");
-        dedicatedEmbeddingServiceRoot = normalizeText(dedicatedEmbeddingServiceRoot, "ai-fabric-product/ai-fabric-embedding-worker");
+        dedicatedEmbeddingServiceRoot = normalizeText(dedicatedEmbeddingServiceRoot, ".");
         dedicatedEmbeddingDockerfilePath = normalizeText(
             dedicatedEmbeddingDockerfilePath,
             "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile"

@@ -70,7 +70,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
                 "inst-1",
                 "svc-1",
                 "shared-embeddings-shared-embeddings-standard",
-                "ai-fabric-product/ai-fabric-embedding-worker",
+                ".",
                 "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile",
                 "/actuator/health",
                 "http://shared-embeddings.internal",
@@ -108,7 +108,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
         verify(railwayGraphqlClient).updateServiceInstance(
             "svc-1",
             "env-1",
-            "ai-fabric-product/ai-fabric-embedding-worker",
+            ".",
             "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile",
             "/actuator/health",
             2
@@ -156,7 +156,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
                 "inst-1",
                 "svc-1",
                 "shared-embeddings-shared-embeddings-standard",
-                "ai-fabric-product/ai-fabric-embedding-worker",
+                ".",
                 "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile",
                 "/actuator/health",
                 "http://shared-embeddings.internal",
@@ -188,7 +188,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
         verify(railwayGraphqlClient).updateServiceInstance(
             "svc-1",
             "env-1",
-            "ai-fabric-product/ai-fabric-embedding-worker",
+            ".",
             "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile",
             "/actuator/health",
             3
@@ -224,7 +224,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
     private PlatformInferenceProvisioningProperties inferenceProvisioningProperties() {
         return new PlatformInferenceProvisioningProperties(
             "loom-inference",
-            "ai-fabric-product/ai-fabric-embedding-worker",
+            ".",
             "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile",
             "shared-embeddings",
             "/actuator/health",
@@ -232,7 +232,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
             "ai-fabric-product/ai-fabric-shared-ollama-service/deploy/railway/Dockerfile",
             "shared-ollama",
             "/api/tags",
-            "ai-fabric-product/ai-fabric-embedding-worker",
+            ".",
             "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile",
             "embedding-worker",
             "/actuator/health",

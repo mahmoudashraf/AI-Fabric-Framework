@@ -122,7 +122,7 @@ platform:
   inference:
     provisioning:
       shared-project-name-prefix: ${PLATFORM_INFERENCE_SHARED_PROJECT_NAME_PREFIX:loom-inference}
-      shared-embedding-service-root: ${PLATFORM_SHARED_EMBEDDING_SERVICE_ROOT:ai-fabric-product/ai-fabric-embedding-worker}
+      shared-embedding-service-root: ${PLATFORM_SHARED_EMBEDDING_SERVICE_ROOT:.}
       shared-embedding-dockerfile-path: ${PLATFORM_SHARED_EMBEDDING_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile}
       shared-embedding-service-name-prefix: ${PLATFORM_SHARED_EMBEDDING_SERVICE_NAME_PREFIX:shared-embeddings}
       shared-embedding-health-path: ${PLATFORM_SHARED_EMBEDDING_HEALTH_PATH:/actuator/health}
@@ -130,7 +130,7 @@ platform:
       shared-ollama-dockerfile-path: ${PLATFORM_SHARED_OLLAMA_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-shared-ollama-service/deploy/railway/Dockerfile}
       shared-ollama-service-name-prefix: ${PLATFORM_SHARED_OLLAMA_SERVICE_NAME_PREFIX:shared-ollama}
       shared-ollama-health-path: ${PLATFORM_SHARED_OLLAMA_HEALTH_PATH:/api/tags}
-      dedicated-embedding-service-root: ${PLATFORM_DEDICATED_EMBEDDING_SERVICE_ROOT:ai-fabric-product/ai-fabric-embedding-worker}
+      dedicated-embedding-service-root: ${PLATFORM_DEDICATED_EMBEDDING_SERVICE_ROOT:.}
       dedicated-embedding-dockerfile-path: ${PLATFORM_DEDICATED_EMBEDDING_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile}
       dedicated-embedding-service-name-prefix: ${PLATFORM_DEDICATED_EMBEDDING_SERVICE_NAME_PREFIX:embedding-worker}
       dedicated-embedding-health-path: ${PLATFORM_DEDICATED_EMBEDDING_HEALTH_PATH:/actuator/health}
