@@ -10,8 +10,18 @@ on:
         required: false
         type: string
         default: https://ai-fabric-framework-production-324f.up.railway.app
+      platform_ui_base_url:
+        description: Platform UI base URL.
+        required: false
+        type: string
+        default: https://platform-ui-production-00e3.up.railway.app
       run_platform_code_checks:
         description: Run platform backend tests and UI build.
+        required: false
+        type: boolean
+        default: true
+      run_platform_admin_checks:
+        description: Verify the live platform admin flows, including inference-service UI and restart/scale/rotate-secret/force-recreate operations.
         required: false
         type: boolean
         default: true
@@ -50,6 +60,11 @@ on:
         required: false
         type: string
         default: ''
+      admin_target_deployment_id:
+        description: Deployment id used for platform-admin assignment and inference-service verification. Leave empty to fall back to ecommerce, then qdrant.
+        required: false
+        type: string
+        default: ''
       marketplace_deployment_id:
         description: Marketplace runtime deployment id override. Leave empty to resolve from canonical rollout inventory.
         required: false
@@ -75,6 +90,11 @@ on:
         required: false
         type: string
         default: ''
+      inference_service_ref:
+        description: Managed inference service ref used for admin mutation verification.
+        required: false
+        type: string
+        default: shared-ollama-orchestration
 
 jobs:
   verify:
@@ -85,18 +105,23 @@ jobs:
       contents: read
     env:
       PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
+      PLATFORM_UI_BASE_URL: ${{ inputs.platform_ui_base_url }}
       PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
       PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
       PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
+      INFERENCE_SERVICE_ROTATE_SECRET_VALUE: ${{ secrets.MANAGED_SHARED_INFERENCE_SHARED_OLLAMA_ORCHESTRATION_API_KEY }}
+      INFERENCE_SERVICE_REF: ${{ inputs.inference_service_ref }}
       APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
       RUNTIME_TRUSTED_BACKEND_API_KEY: ${{ secrets.AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY }}
       RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
+      RUN_PLATFORM_ADMIN_CHECKS: ${{ inputs.run_platform_admin_checks }}
       RUN_MARKETPLACE_INSTALL_FLOW_CHECKS: ${{ inputs.run_marketplace_install_flow_checks }}
       RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
       RUN_MARKETPLACE_RUNTIME_CHECKS: ${{ inputs.run_marketplace_runtime_checks }}
       RUN_VECTOR_DEPLOYMENT_CHECKS: ${{ inputs.run_vector_deployment_checks }}
       RUN_MANAGED_PROVIDER_CHECKS: ${{ inputs.run_managed_provider_checks }}
       ENSURE_CANONICAL_ROLLOUTS: ${{ inputs.ensure_canonical_rollouts }}
+      ADMIN_TARGET_DEPLOYMENT_ID: ${{ inputs.admin_target_deployment_id }}
       ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
       MARKETPLACE_DEPLOYMENT_ID: ${{ inputs.marketplace_deployment_id }}
       QDRANT_DEPLOYMENT_ID: ${{ inputs.qdrant_deployment_id }}
@@ -250,9 +275,47 @@ jobs:
           bash -n scripts/verify-vector-deployment.sh
           bash -n scripts/verify-managed-vector-providers.sh
           bash -n scripts/verify-platform-admin-regression.sh
+          bash -n scripts/verify-marketplace-install-flow.sh
           bash -n scripts/resolve-verification-rollouts.sh
           bash -n scripts/run-platform-deployment-verification.sh
           bash -n scripts/run-platform-state-verification-suite.sh
+
+      - name: Verify platform admin regression
+        if: ${{ inputs.run_platform_admin_checks }}
+        env:
+          CONFIGURED_ADMIN_TARGET_DEPLOYMENT_ID: ${{ inputs.admin_target_deployment_id }}
+          RESOLVED_ECOMMERCE_DEPLOYMENT_ID: ${{ steps.resolve_rollouts.outputs.ecommerce_deployment_id }}
+          RESOLVED_QDRANT_DEPLOYMENT_ID: ${{ steps.resolve_rollouts.outputs.qdrant_deployment_id }}
+        run: |
+          set -euo pipefail
+          admin_target_deployment_id="${CONFIGURED_ADMIN_TARGET_DEPLOYMENT_ID:-}"
+          if [[ -z "${admin_target_deployment_id}" ]]; then
+            admin_target_deployment_id="${RESOLVED_ECOMMERCE_DEPLOYMENT_ID:-${ECOMMERCE_DEPLOYMENT_ID}}"
+          fi
+          if [[ -z "${admin_target_deployment_id}" ]]; then
+            admin_target_deployment_id="${RESOLVED_QDRANT_DEPLOYMENT_ID:-${QDRANT_DEPLOYMENT_ID}}"
+          fi
+          if [[ -z "${admin_target_deployment_id}" ]]; then
+            echo "Missing admin target deployment id after rollout resolution." >&2
+            exit 1
+          fi
+          env \
+            PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+            PLATFORM_UI_BASE_URL="${PLATFORM_UI_BASE_URL}" \
+            PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+            PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+            PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+            ADMIN_TARGET_DEPLOYMENT_ID="${admin_target_deployment_id}" \
+            VERIFY_ASYNC_DELETE_SMOKE="true" \
+            VERIFY_DEPLOYMENT_OVERRIDE_SMOKE="true" \
+            VERIFY_CANONICAL_ROLLOUT_READONLY="true" \
+            VERIFY_CANONICAL_ROLLOUT_MUTATION="false" \
+            VERIFY_INFERENCE_SERVICE_UI="true" \
+            VERIFY_INFERENCE_SERVICE_ADMIN_READONLY="true" \
+            VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="true" \
+            INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF}" \
+            INFERENCE_SERVICE_ROTATE_SECRET_VALUE="${INFERENCE_SERVICE_ROTATE_SECRET_VALUE}" \
+            bash scripts/verify-platform-admin-regression.sh
 
       - name: Verify ecommerce deployment
         if: ${{ inputs.run_ecommerce_deployment_checks }}

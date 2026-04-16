@@ -10,6 +10,11 @@ on:
         required: false
         type: string
         default: ''
+      platform_ui_base_url:
+        description: Platform UI base URL override. Leave empty to use repo variable or the production default.
+        required: false
+        type: string
+        default: ''
       run_code_regression:
         description: Run code regression before live checks.
         required: false
@@ -116,6 +121,7 @@ jobs:
       contents: read
     outputs:
       platform_base_url: ${{ steps.resolve.outputs.platform_base_url }}
+      platform_ui_base_url: ${{ steps.resolve.outputs.platform_ui_base_url }}
       admin_target_deployment_id: ${{ steps.resolve.outputs.admin_target_deployment_id }}
       ecommerce_deployment_id: ${{ steps.resolve.outputs.ecommerce_deployment_id }}
       marketplace_deployment_id: ${{ steps.resolve.outputs.marketplace_deployment_id }}
@@ -141,6 +147,7 @@ jobs:
           INPUT_ENSURE_CANONICAL_ROLLOUTS: ${{ inputs.ensure_canonical_rollouts }}
           INPUT_RUN_CANONICAL_ROLLOUT_MUTATION: ${{ inputs.run_canonical_rollout_mutation }}
           INPUT_PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
+          INPUT_PLATFORM_UI_BASE_URL: ${{ inputs.platform_ui_base_url }}
           INPUT_ADMIN_TARGET_DEPLOYMENT_ID: ${{ inputs.admin_target_deployment_id }}
           INPUT_ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
           INPUT_MARKETPLACE_DEPLOYMENT_ID: ${{ inputs.marketplace_deployment_id }}
@@ -152,6 +159,7 @@ jobs:
           INPUT_TENANT_COUNTERPART_DEPLOYMENT_ID: ${{ inputs.tenant_counterpart_deployment_id }}
           INPUT_CANONICAL_ROLLOUT_KEYS: ${{ inputs.canonical_rollout_keys }}
           VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+          VAR_PLATFORM_UI_BASE_URL: ${{ vars.PLATFORM_UI_BASE_URL }}
           VAR_REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID: ${{ vars.REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID }}
           VAR_REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID: ${{ vars.REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID }}
           PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
@@ -171,6 +179,10 @@ jobs:
           }
 
           platform_base_url="$(choose "${INPUT_PLATFORM_BASE_URL:-}" "${VAR_PLATFORM_BASE_URL:-}")"
+          platform_ui_base_url="$(choose "${INPUT_PLATFORM_UI_BASE_URL:-}" "${VAR_PLATFORM_UI_BASE_URL:-}")"
+          if [[ -z "${platform_ui_base_url}" ]]; then
+            platform_ui_base_url="https://platform-ui-production-00e3.up.railway.app"
+          fi
           tenant_primary_deployment_id="$(choose "${INPUT_TENANT_PRIMARY_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID:-}")"
           tenant_counterpart_deployment_id="$(choose "${INPUT_TENANT_COUNTERPART_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID:-}")"
 
@@ -263,6 +275,7 @@ jobs:
           SHOULD_RUN_MARKETPLACE="${should_run_marketplace}" \
           SHOULD_RUN_VECTORS="${should_run_vectors}" \
           PLATFORM_BASE_URL="${platform_base_url}" \
+          PLATFORM_UI_BASE_URL="${platform_ui_base_url}" \
           python3 - <<'PY'
           import json
           import os
@@ -301,6 +314,7 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
               for key, value in {
                   "platform_base_url": os.environ.get("PLATFORM_BASE_URL", ""),
+                  "platform_ui_base_url": os.environ.get("PLATFORM_UI_BASE_URL", ""),
                   "admin_target_deployment_id": admin_target_id,
                   "ecommerce_deployment_id": ecommerce_id,
                   "marketplace_deployment_id": marketplace_id,
@@ -334,7 +348,7 @@ jobs:
     needs: [resolve-context]
     name: Platform admin smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
@@ -344,12 +358,18 @@ jobs:
       - name: Run platform-admin live regression
         env:
           PLATFORM_BASE_URL: ${{ needs.resolve-context.outputs.platform_base_url }}
+          PLATFORM_UI_BASE_URL: ${{ needs.resolve-context.outputs.platform_ui_base_url }}
           ADMIN_TARGET_DEPLOYMENT_ID: ${{ needs.resolve-context.outputs.admin_target_deployment_id }}
           VERIFY_ASYNC_DELETE_SMOKE: true
           VERIFY_DEPLOYMENT_OVERRIDE_SMOKE: true
           VERIFY_CANONICAL_ROLLOUT_READONLY: true
           VERIFY_CANONICAL_ROLLOUT_MUTATION: ${{ inputs.run_canonical_rollout_mutation }}
           CANONICAL_ROLLOUT_KEYS: ${{ inputs.canonical_rollout_keys }}
+          VERIFY_INFERENCE_SERVICE_UI: true
+          VERIFY_INFERENCE_SERVICE_ADMIN_READONLY: true
+          VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION: true
+          INFERENCE_SERVICE_REF: shared-ollama-orchestration
+          INFERENCE_SERVICE_ROTATE_SECRET_VALUE: ${{ secrets.MANAGED_SHARED_INFERENCE_SHARED_OLLAMA_ORCHESTRATION_API_KEY }}
           PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
           PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
           PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
