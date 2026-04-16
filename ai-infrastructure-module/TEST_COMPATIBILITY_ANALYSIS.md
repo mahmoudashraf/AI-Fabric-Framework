@@ -33,7 +33,7 @@ The dimension reduction fix will work for **most tests**, but **not automaticall
 - **Examples**:
   - Cohere `embed-english-light-v3.0` (384 dims)
   - Cohere `embed-english-v3.0` (1024 dims)
-  - REST provider (configurable)
+  - OpenAI-compatible endpoint override
 
 ## ❌ Tests That Will NOT Work Automatically
 

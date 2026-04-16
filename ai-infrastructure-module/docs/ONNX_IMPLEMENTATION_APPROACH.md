@@ -61,7 +61,6 @@ Vector Database (Lucene/Pinecone/Memory)
 The system uses an `EmbeddingProvider` interface that allows swappable embedding implementations:
 
 - **ONNXEmbeddingProvider** (default): Local ONNX Runtime inference
-- **RestEmbeddingProvider**: RESTful API calls to Docker container
 - **OpenAIEmbeddingProvider**: OpenAI API calls (fallback)
 
 This abstraction enables switching between providers via configuration without code changes. Upcoming packaging work keeps this abstraction intact while allowing teams to opt into ONNX assets via a dedicated starter module.
@@ -635,4 +634,3 @@ The current ONNX implementation:
 - [Embedding Provider Configuration](./EMBEDDING_PROVIDER_CONFIGURATION.md) - Configuration details
 - [User Guide](./USER_GUIDE.md) - General usage
 - [Model README](../providers/ai-infrastructure-onnx-starter/src/main/resources/models/embeddings/README.md) - Model download instructions
-

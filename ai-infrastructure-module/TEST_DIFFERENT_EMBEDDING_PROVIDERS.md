@@ -117,16 +117,14 @@ mvn test "-Dtest=RealAPIVectorLifecycleIntegrationTest" \
 **Dimensions**: Configurable (default: 384)  
 **Status**: Works if external service provides ≤1024 dimensions
 
-**Test with REST provider:**
+**Test with OpenAI provider:**
 ```bash
 cd ai-infrastructure-module/integration-Testing/integration-tests
 export OPENAI_API_KEY="your-key"
-export REST_EMBEDDING_BASE_URL="your-rest-service-url"
 mvn test "-Dtest=RealAPIVectorLifecycleIntegrationTest" \
   "-Dspring.profiles.active=realapi" \
   "-Dai.providers.llm-provider=openai" \
-  "-Dai.providers.embedding-provider=rest" \
-  "-Dai.providers.rest.base-url=${REST_EMBEDDING_BASE_URL}" \
+  "-Dai.providers.embedding-provider=openai" \
   "-Dai.vector-db.type=lucene" \
   "-Dai-infrastructure.storage.strategy=SINGLE_TABLE"
 ```
@@ -172,7 +170,7 @@ ai:
 - **Solution**: 
   - Use ONNX provider instead
   - Upgrade OpenAI library (if newer version supports it)
-  - Use Cohere or REST provider
+  - Use Cohere or an OpenAI-compatible endpoint
 
 ### Error: "Provider not available"
 - **Cause**: Missing API keys or configuration

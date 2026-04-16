@@ -5,7 +5,6 @@
 The AI Infrastructure module provides a swappable `EmbeddingProvider` abstraction, similar to `VectorDatabaseService`, allowing you to switch between different embedding generation methods:
 
 - **ONNX Runtime** (default): Local, no API calls, free
-- **REST API**: Docker/sentence-transformers container
 - **OpenAI API**: Cloud service (fallback)
 
 ## Architecture
@@ -20,9 +19,6 @@ EmbeddingProvider (interface)
 ├─────────────────────────────────────────┤
 │  • ONNXEmbeddingProvider               │
 │    (Default - local, no API calls)     │
-│                                         │
-│  • RestEmbeddingProvider               │
-│    (Docker/REST API - flexible)        │
 │                                         │
 │  • OpenAIEmbeddingProvider             │
 │    (Fallback - cloud API)              │
@@ -333,5 +329,4 @@ ai:
 - [ONNX Runtime Embeddings Guide](./ONNX_RUNTIME_EMBEDDINGS_GUIDE.md)
 - [Local Embedding Options](./LOCAL_EMBEDDING_OPTIONS.md)
 - [Vector Database Abstraction](./VECTOR_DATABASE_ABSTRACTION.md)
-
 

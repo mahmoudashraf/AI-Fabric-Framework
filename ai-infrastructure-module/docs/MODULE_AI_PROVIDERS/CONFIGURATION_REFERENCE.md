@@ -91,20 +91,6 @@ ai:
       # Note: ONNX only supports embeddings, not LLM
 ```
 
-## REST Embedding Configuration
-
-```yaml
-ai:
-  providers:
-    rest:
-      enabled: false                  # Enable REST embedding provider
-      base-url: http://localhost:8000 # REST API base URL
-      endpoint: /embed                # Embedding endpoint
-      batch-endpoint: /embed/batch   # Batch embedding endpoint
-      timeout: 30000                  # Request timeout (ms)
-      model: all-MiniLM-L6-v2        # Model name
-```
-
 ## Cohere Configuration
 
 ```yaml

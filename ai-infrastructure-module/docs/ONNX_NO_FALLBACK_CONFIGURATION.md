@@ -59,17 +59,7 @@ ai:
    }
    ```
 
-2. **REST Provider** (Only if `embedding-provider=rest`)
-   ```java
-   @Bean
-   @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "rest")
-   @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")  // Won't create if ONNX exists
-   public EmbeddingProvider restEmbeddingProvider(...) {
-       // Only created if explicitly requested AND ONNX not available
-   }
-   ```
-
-3. **OpenAI Provider** (Only if `embedding-provider=openai`)
+2. **OpenAI Provider** (Only if `embedding-provider=openai`)
    ```java
    @Bean
    @ConditionalOnProperty(name = "ai.providers.embedding-provider", havingValue = "openai")
@@ -271,4 +261,3 @@ mvn test -Dtest=SimpleIntegrationTest -Dspring.profiles.active=onnx-test
 ---
 
 **Result**: With proper configuration, **ONNX is the only provider used** with **no automatic fallback** to other providers! 🚀
-

@@ -121,7 +121,7 @@ This means:
 
 ### 3.2 Pinecone templates
 
-`dev-azure-pinecone` and `dev-openai-rest-pinecone` now default to:
+`dev-azure-pinecone` now defaults to:
 
 - `vectorStrategy = pinecone`
 - `vectorProvisioningMode = PLATFORM_MANAGED`
@@ -280,16 +280,7 @@ If you switch to `Bring your own`:
 
 ## 7. Other External Backends
 
-### 7.1 REST embeddings
-
-When `embeddingProvider = rest`, the operator must set:
-
-- `restEmbeddingBaseUrl`
-- optionally endpoint paths, model identifier, timeout, and startup validation
-
-The platform can probe the external embedding service before apply.
-
-### 7.2 Weaviate
+### 7.1 Weaviate
 
 When `vectorStrategy = weaviate`, the operator must set:
 
@@ -297,7 +288,7 @@ When `vectorStrategy = weaviate`, the operator must set:
 - `weaviateScheme` and `weaviatePort` as needed
 - `WEAVIATE_API_KEY` in Secrets if the cluster is protected
 
-### 7.3 Milvus
+### 7.2 Milvus
 
 When `vectorStrategy = milvus`, the operator must set:
 
@@ -340,7 +331,6 @@ This is the correct flow for:
 
 - trying a new Qdrant endpoint
 - trying a new Pinecone index/region combination
-- testing a REST embedding base URL
 - checking a Weaviate host change
 
 The draft remains unchanged until the operator explicitly saves.

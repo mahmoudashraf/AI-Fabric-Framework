@@ -456,13 +456,13 @@ public class AIProviderConfigValidator {
         AIProviderConfig.RestConfig config = providerConfig.getRest();
 
         if (isBlank(config.getBaseUrl())) {
-            result.addError("ai.providers.rest.base-url",
-                "REST embedding base URL is required. Must be explicitly configured.");
+            result.addError("ai.providers.embedding-provider",
+                "Only supported embedding providers should be configurable.");
         }
 
         if (isBlank(config.getEndpoint())) {
-            result.addError("ai.providers.rest.endpoint",
-                "REST embedding endpoint is required. Must be explicitly configured.");
+            result.addError("ai.providers.embedding-provider",
+                "Custom embedding endpoints are not supported in the greenfield provider matrix.");
         }
     }
 

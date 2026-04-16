@@ -379,13 +379,6 @@ RAGResponse results = queryService.execute(
 </dependency>
 ```
 
-**REST** — Custom endpoints
-```xml
-<dependency>
-  <artifactId>ai-infrastructure-provider-rest</artifactId>
-</dependency>
-```
-
 **Swap providers** with one line of YAML:
 ```yaml
 ai:

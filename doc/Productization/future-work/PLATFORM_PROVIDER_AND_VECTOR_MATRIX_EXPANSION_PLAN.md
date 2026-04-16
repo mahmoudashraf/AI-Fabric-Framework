@@ -80,7 +80,6 @@ Wave 4 should make the provider stack fully first-class in platform-managed depl
 
 - Validate required fields for:
   - Azure endpoint, deployment name, embedding deployment name when selected
-  - REST embedding base URL when selected
   - Qdrant host
   - Pinecone index and endpoint/environment requirements
   - Weaviate host
@@ -105,7 +104,6 @@ Wave 4 should make the provider stack fully first-class in platform-managed depl
   - Azure
   - Cohere
   - Gemini
-  - REST embeddings
   - Pinecone
   - Weaviate
   - Milvus
@@ -201,12 +199,12 @@ That is the minimum platform-level implementation that makes these options real 
 ### Item 52. Managed vector provisioning visibility and verification evidence
 
 - Show when the platform will create or reconcile Pinecone indexes or Qdrant collections, not just which provider is selected.
-- Carry vendor probe evidence into pre-apply verification so deployment verification fails before rollout if Pinecone, Qdrant, Weaviate, or REST embeddings are unreachable.
+- Carry vendor probe evidence into pre-apply verification so deployment verification fails before rollout if Pinecone, Qdrant, Weaviate, or Milvus providers are unreachable.
 - Reflect external vendor readiness in production-readiness scoring without adding background live network calls to every page load.
 
 ### Item 53. Vendor onboarding guidance in the provider workspace
 
-- Surface vendor-specific setup guidance directly in the provider editor for Qdrant, Pinecone, REST embeddings, Weaviate, and Milvus.
+- Surface vendor-specific setup guidance directly in the provider editor for Qdrant, Pinecone, Weaviate, and Milvus.
 - Make the remaining operator actions explicit:
   - which host/base URL still needs configuration
   - which secret must exist in the Secrets workspace
@@ -217,4 +215,4 @@ That is the minimum platform-level implementation that makes these options real 
 
 - Let operators probe vendor connectivity against unsaved provider-form edits instead of forcing a draft save first.
 - Keep the existing saved-draft probe for read-only inspection, but allow editors to run a preview probe from the current browser buffer.
-- Use this flow for quick iteration on Qdrant, Pinecone, Weaviate, and REST embedding endpoint changes before a draft save or release attempt.
+- Use this flow for quick iteration on Qdrant, Pinecone, Weaviate, and Milvus endpoint changes before a draft save or release attempt.

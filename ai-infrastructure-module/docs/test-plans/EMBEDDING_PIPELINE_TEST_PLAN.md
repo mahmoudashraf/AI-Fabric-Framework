@@ -16,7 +16,6 @@ This test plan covers comprehensive integration testing of the embedding generat
 - `EmbeddingProvider` interface
 - `OpenAIEmbeddingProvider`
 - `ONNXEmbeddingProvider`
-- `RestEmbeddingProvider`
 - Embedding cache layer
 - Batch processing logic
 
@@ -132,22 +131,6 @@ public void testONNXEmbeddingGeneration() {
 
 ---
 
-### TEST-EMBED-003: REST Embedding Provider
-**Priority**: Medium  
-**Status**: ❌ NOT IMPLEMENTED  
-**Pre-requisites**: REST embedding service running (Docker)
-
-#### Test Steps
-1. Start REST embedding service in Docker
-2. Configure REST provider endpoint
-3. Send embedding request
-4. Verify REST API is called
-5. Verify embedding is returned correctly
-
-#### Expected Results
-- ✅ REST service responds successfully
-- ✅ Embedding vector returned
-- ✅ Response time < 2 seconds
 - ✅ Proper error handling for service down
 
 #### Test Data
@@ -600,7 +583,7 @@ Map.of(
 
 ### Current Issues
 1. ONNX provider not implemented
-2. REST provider not tested
+2. No separate generic REST embedding provider remains to test
 3. No concurrent operation tests
 4. Cache effectiveness unknown
 5. No multi-language validation

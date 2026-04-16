@@ -38,7 +38,7 @@ The workflow accepts the following inputs:
 | Input | Type | Default | Options |
 |-------|------|---------|---------|
 | `openai_api_key` | string | (required) | Your OpenAI API key |
-| `llm_provider` | choice | `openai` | openai, azure-openai, cohere, anthropic, rest |
+| `llm_provider` | choice | `openai` | openai, azure-openai, cohere, anthropic |
 | `embedding_provider` | choice | `onnx` | onnx, openai, azure-openai |
 | `vector_database` | choice | `lucene` | lucene, pinecone, weaviate, qdrant, milvus, memory |
 | `persistence_database` | choice | `h2` | h2, postgresql |
@@ -198,7 +198,7 @@ ai:
 - ⚠️ **anthropic** - Requires ANTHROPIC_API_KEY
 - ⚠️ **azure-openai** - Requires Azure credentials
 - ⚠️ **cohere** - Requires COHERE_API_KEY
-- ⚠️ **rest** - Custom REST endpoint
+- ⚠️ **openai-compatible** - Custom OpenAI-compatible endpoint
 
 ### Embedding Providers
 - ✅ **onnx** (default) - Local all-MiniLM-L6-v2 model (384 dimensions)
@@ -314,4 +314,3 @@ export AI_INFRASTRUCTURE_LLM_PROVIDER="${AI_INFRASTRUCTURE_LLM_PROVIDER:-$LLM_PR
 - [REALAPI_TESTS.md](REALAPI_TESTS.md) - Comprehensive test documentation
 - [run-relationship-query-realapi-tests.sh](run-relationship-query-realapi-tests.sh) - Script source
 - [.github/workflows/integration-tests-manual.yml](../../.github/workflows/integration-tests-manual.yml) - Workflow configuration
-
