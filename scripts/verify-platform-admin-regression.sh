@@ -694,6 +694,10 @@ PY
   json_assert "create consumer smoke binding" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'"\nprint("ok")'
   pass "platform POST /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers"
 
+  public_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
+  assert_status 401 "anonymous consumer credentials blocked"
+  pass "anonymous GET /api/public/consumers/${TEMP_CONSUMER_ID}/credentials is blocked"
+
   consumer_resolution_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
   assert_status 200 "public consumer credentials"
   json_assert "public consumer credentials" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("deploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'"\nassert bool(((data or {}).get("integration") or {}).get("preferredIntegrationMode"))\nprint("ok")'
