@@ -164,6 +164,7 @@ public class MarketplaceManifestService {
             readStringList(shell, "enabledCardIds", "cardRefs"),
             List.of(),
             List.of(),
+            List.of(),
             List.of()
         );
     }
@@ -226,6 +227,7 @@ public class MarketplaceManifestService {
             readStringList(shell, "cardRefs", "enabledCardIds"),
             List.of(),
             List.of(),
+            List.of(),
             List.of()
         );
     }
@@ -278,6 +280,7 @@ public class MarketplaceManifestService {
             readStringList(shell, "cardRefs", "enabledCardIds"),
             List.of(),
             List.of(),
+            List.of(),
             List.of()
         );
     }
@@ -300,9 +303,10 @@ public class MarketplaceManifestService {
             throw invalid(plugin, version, "inferenceProfile must declare at least one of orchestration, generation, or embedding.");
         }
         List<String> endpointRefs = new ArrayList<>();
-        collectInferenceEndpointRef(orchestration, endpointRefs);
-        collectInferenceEndpointRef(generation, endpointRefs);
-        collectInferenceEndpointRef(embedding, endpointRefs);
+        List<String> managedServiceRefs = new ArrayList<>();
+        collectInferenceEndpointRef(orchestration, endpointRefs, managedServiceRefs);
+        collectInferenceEndpointRef(generation, endpointRefs, managedServiceRefs);
+        collectInferenceEndpointRef(embedding, endpointRefs, managedServiceRefs);
         return new MarketplacePluginContributionSummary(
             null,
             List.of(),
@@ -311,11 +315,14 @@ public class MarketplaceManifestService {
             List.of(),
             List.of(),
             List.of(profileId.trim()),
-            List.copyOf(new LinkedHashSet<>(endpointRefs))
+            List.copyOf(new LinkedHashSet<>(endpointRefs)),
+            List.copyOf(new LinkedHashSet<>(managedServiceRefs))
         );
     }
 
-    private void collectInferenceEndpointRef(JsonNode node, List<String> endpointRefs) {
+    private void collectInferenceEndpointRef(JsonNode node,
+                                             List<String> endpointRefs,
+                                             List<String> managedServiceRefs) {
         if (!node.isObject()) {
             return;
         }
@@ -324,8 +331,18 @@ public class MarketplaceManifestService {
             return;
         }
         String endpointProfileRef = firstText(node, "endpointProfileRef");
+        String managedServiceRef = firstText(node, "managedServiceRef");
+        if (StringUtils.hasText(endpointProfileRef) && StringUtils.hasText(managedServiceRef)) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Inference profile sections may declare either endpointProfileRef or managedServiceRef, not both."
+            );
+        }
         if (StringUtils.hasText(endpointProfileRef)) {
             endpointRefs.add(endpointProfileRef.trim());
+        }
+        if (StringUtils.hasText(managedServiceRef)) {
+            managedServiceRefs.add(managedServiceRef.trim());
         }
     }
 

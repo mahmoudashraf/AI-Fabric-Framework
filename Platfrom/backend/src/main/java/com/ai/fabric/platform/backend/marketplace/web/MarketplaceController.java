@@ -14,16 +14,20 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginVersion
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherDetailSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSubmissionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSummary;
+import com.ai.fabric.platform.backend.marketplace.model.PlatformManagedInferenceServiceSummary;
 import com.ai.fabric.platform.backend.marketplace.model.ReviewMarketplacePublisherSubmissionRequest;
+import com.ai.fabric.platform.backend.marketplace.model.UpdatePlatformManagedInferenceServiceScaleRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceEntitlementRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateMarketplacePublisherVerificationRequest;
+import com.ai.fabric.platform.backend.deployment.service.PlatformManagedInferenceProvisioningService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublisherService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublishingService;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -49,17 +53,23 @@ public class MarketplaceController {
     private final MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService;
     private final MarketplacePublisherService marketplacePublisherService;
     private final MarketplacePublishingService marketplacePublishingService;
+    private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
+    private final PlatformManagedInferenceProvisioningService platformManagedInferenceProvisioningService;
 
     public MarketplaceController(MarketplaceCatalogService marketplaceCatalogService,
                                  DeploymentMarketplaceInstallService deploymentMarketplaceInstallService,
                                  MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService,
                                  MarketplacePublisherService marketplacePublisherService,
-                                 MarketplacePublishingService marketplacePublishingService) {
+                                 MarketplacePublishingService marketplacePublishingService,
+                                 PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
+                                 PlatformManagedInferenceProvisioningService platformManagedInferenceProvisioningService) {
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
         this.marketplaceTemplateBootstrapService = marketplaceTemplateBootstrapService;
         this.marketplacePublisherService = marketplacePublisherService;
         this.marketplacePublishingService = marketplacePublishingService;
+        this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
+        this.platformManagedInferenceProvisioningService = platformManagedInferenceProvisioningService;
     }
 
     @GetMapping("/marketplace/plugins")
@@ -91,6 +101,27 @@ public class MarketplaceController {
     @GetMapping("/marketplace/publishers/{publisherId}")
     public MarketplacePublisherDetailSummary getPublisher(@PathVariable String publisherId) {
         return marketplacePublishingService.getPublisherDetail(publisherId);
+    }
+
+    @GetMapping("/marketplace/inference-services")
+    public List<PlatformManagedInferenceServiceSummary> listInferenceServices() {
+        return platformManagedInferenceServiceService.listServices();
+    }
+
+    @GetMapping("/marketplace/inference-services/{serviceRef}")
+    public PlatformManagedInferenceServiceSummary getInferenceService(@PathVariable String serviceRef) {
+        return platformManagedInferenceServiceService.getService(serviceRef);
+    }
+
+    @PostMapping("/marketplace/inference-services/{serviceRef}/reconcile")
+    public PlatformManagedInferenceServiceSummary reconcileInferenceService(@PathVariable String serviceRef) {
+        return platformManagedInferenceProvisioningService.reconcile(serviceRef);
+    }
+
+    @PutMapping("/marketplace/inference-services/{serviceRef}/scale")
+    public PlatformManagedInferenceServiceSummary scaleInferenceService(@PathVariable String serviceRef,
+                                                                        @Valid @RequestBody UpdatePlatformManagedInferenceServiceScaleRequest request) {
+        return platformManagedInferenceProvisioningService.scale(serviceRef, request.desiredReplicas());
     }
 
     @PostMapping("/marketplace/publishers")

@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePl
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,6 +59,7 @@ public class DeploymentMarketplaceDraftCompilerService {
     private final MarketplaceEntitlementService marketplaceEntitlementService;
     private final MarketplaceDatasetHandleResolver marketplaceDatasetHandleResolver;
     private final PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService;
+    private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
     private final ObjectMapper objectMapper;
 
     public DeploymentMarketplaceDraftCompilerService(DeploymentService deploymentService,
@@ -69,6 +71,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                                                      MarketplaceEntitlementService marketplaceEntitlementService,
                                                      MarketplaceDatasetHandleResolver marketplaceDatasetHandleResolver,
                                                      PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
+                                                     PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
                                                      ObjectMapper objectMapper) {
         this.deploymentService = deploymentService;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
@@ -79,6 +82,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         this.marketplaceEntitlementService = marketplaceEntitlementService;
         this.marketplaceDatasetHandleResolver = marketplaceDatasetHandleResolver;
         this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
+        this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
         this.objectMapper = objectMapper;
     }
 
@@ -154,7 +158,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                         );
                     }
                     activeInferencePluginId = plugin.getId();
-                    applyInferenceProfile(providerRoot, install, plugin, version, parsed);
+                    applyInferenceProfile(providerRoot, deployment, install, plugin, version, parsed);
                 }
                 default -> throw new ResponseStatusException(
                     CONFLICT,
@@ -188,6 +192,7 @@ public class DeploymentMarketplaceDraftCompilerService {
     }
 
     private void applyInferenceProfile(ObjectNode providerRoot,
+                                       DeploymentEntity deployment,
                                        DeploymentMarketplacePluginInstallEntity install,
                                        MarketplacePluginEntity plugin,
                                        MarketplacePluginVersionEntity version,
@@ -200,6 +205,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         JsonNode installSecretRefs = readJson(install.getSecretRefsJson());
         LinkedHashSet<String> managedFields = new LinkedHashSet<>();
         LinkedHashSet<String> endpointProfileRefs = new LinkedHashSet<>();
+        LinkedHashSet<String> managedServiceRefs = new LinkedHashSet<>();
 
         applyInferenceLlmSection(
             providerRoot,
@@ -208,7 +214,8 @@ public class DeploymentMarketplaceDraftCompilerService {
             installConfig,
             installSecretRefs,
             managedFields,
-            endpointProfileRefs
+            endpointProfileRefs,
+            managedServiceRefs
         );
         applyInferenceLlmSection(
             providerRoot,
@@ -217,15 +224,19 @@ public class DeploymentMarketplaceDraftCompilerService {
             installConfig,
             installSecretRefs,
             managedFields,
-            endpointProfileRefs
+            endpointProfileRefs,
+            managedServiceRefs
         );
         applyInferenceEmbeddingSection(
             providerRoot,
+            deployment,
+            install,
             inferenceProfile.path("embedding"),
             installConfig,
             installSecretRefs,
             managedFields,
-            endpointProfileRefs
+            endpointProfileRefs,
+            managedServiceRefs
         );
 
         String generationProvider = text(providerRoot, "generationLlmProvider");
@@ -240,6 +251,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         metadata.put("contractVersion", DEFAULT_MARKETPLACE_INFERENCE_CONTRACT_VERSION);
         metadata.set("profileIds", toStringArray(readStringList(inferenceProfile, "profileId", "id")));
         metadata.set("endpointProfileRefs", toStringArray(endpointProfileRefs));
+        metadata.set("managedServiceRefs", toStringArray(managedServiceRefs));
         metadata.set("installIds", toStringArray(List.of(install.getId())));
         metadata.set("managedFields", toStringArray(managedFields));
         metadata.put(MARKETPLACE_MANAGED_FIELD, true);
@@ -254,7 +266,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                                           JsonNode installConfig,
                                           JsonNode installSecretRefs,
                                           Set<String> managedFields,
-                                          Set<String> endpointProfileRefs) {
+                                          Set<String> endpointProfileRefs,
+                                          Set<String> managedServiceRefs) {
         if (!section.isObject()) {
             return;
         }
@@ -263,12 +276,29 @@ public class DeploymentMarketplaceDraftCompilerService {
             throw new ResponseStatusException(CONFLICT, "Inference profile " + purpose + " section must declare provider.");
         }
         String endpointProfileRef = configuredText(section, installConfig, "endpointProfileRef", "endpointProfileRefField");
+        String managedServiceRef = configuredText(section, installConfig, "managedServiceRef", "managedServiceRefField");
         String baseUrl = configuredText(section, installConfig, "baseUrl", "baseUrlField");
         String deploymentName = configuredText(section, installConfig, "deploymentName", "deploymentNameField");
         String apiVersion = configuredText(section, installConfig, "apiVersion", "apiVersionField");
         String apiKeySecretRef = configuredText(section, installSecretRefs, "apiKeySecretRef", "apiKeySecretRefField");
 
-        if (hasText(endpointProfileRef)) {
+        if (hasText(endpointProfileRef) && hasText(managedServiceRef)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Inference profile " + purpose + " section may not declare both endpointProfileRef and managedServiceRef."
+            );
+        }
+        if (hasText(managedServiceRef)) {
+            PlatformManagedInferenceEndpointEntity endpoint = platformManagedInferenceServiceService
+                .requireActiveEndpointForService(managedServiceRef, purpose, provider);
+            endpointProfileRef = endpoint.getProfileRef();
+            baseUrl = hasText(baseUrl) ? baseUrl : blankToNull(endpoint.getBaseUrl());
+            deploymentName = hasText(deploymentName) ? deploymentName : blankToNull(endpoint.getDeploymentName());
+            apiVersion = hasText(apiVersion) ? apiVersion : blankToNull(endpoint.getApiVersion());
+            apiKeySecretRef = hasText(apiKeySecretRef) ? apiKeySecretRef : blankToNull(endpoint.getSecretName());
+            endpointProfileRefs.add(endpointProfileRef);
+            managedServiceRefs.add(managedServiceRef);
+        } else if (hasText(endpointProfileRef)) {
             PlatformManagedInferenceEndpointEntity endpoint = platformManagedInferenceEndpointService.requireActive(endpointProfileRef);
             String endpointProvider = lower(endpoint.getProviderType());
             if (hasText(endpointProvider) && !provider.equals(endpointProvider)) {
@@ -287,6 +317,7 @@ public class DeploymentMarketplaceDraftCompilerService {
 
         String prefix = purpose.trim().toLowerCase(Locale.ROOT);
         putManaged(providerRoot, prefix + "LlmProvider", provider, managedFields);
+        putManaged(providerRoot, prefix + "ManagedServiceRef", managedServiceRef, managedFields);
         putManaged(providerRoot, prefix + "EndpointProfile", endpointProfileRef, managedFields);
         putManaged(providerRoot, prefix + "BaseUrl", baseUrl, managedFields);
         putManaged(providerRoot, prefix + "DeploymentName", deploymentName, managedFields);
@@ -309,11 +340,14 @@ public class DeploymentMarketplaceDraftCompilerService {
     }
 
     private void applyInferenceEmbeddingSection(ObjectNode providerRoot,
+                                                DeploymentEntity deployment,
+                                                DeploymentMarketplacePluginInstallEntity install,
                                                 JsonNode section,
                                                 JsonNode installConfig,
                                                 JsonNode installSecretRefs,
                                                 Set<String> managedFields,
-                                                Set<String> endpointProfileRefs) {
+                                                Set<String> endpointProfileRefs,
+                                                Set<String> managedServiceRefs) {
         if (!section.isObject()) {
             return;
         }
@@ -322,12 +356,38 @@ public class DeploymentMarketplaceDraftCompilerService {
             throw new ResponseStatusException(CONFLICT, "Inference profile embedding section must declare provider.");
         }
         String endpointProfileRef = configuredText(section, installConfig, "endpointProfileRef", "endpointProfileRefField");
+        String managedServiceRef = configuredText(section, installConfig, "managedServiceRef", "managedServiceRefField");
+        String serviceMode = configuredText(section, installConfig, "serviceMode", "serviceModeField");
         String baseUrl = configuredText(section, installConfig, "baseUrl", "baseUrlField");
         String deploymentName = configuredText(section, installConfig, "deploymentName", "deploymentNameField");
         String apiVersion = configuredText(section, installConfig, "apiVersion", "apiVersionField");
         String apiKeySecretRef = configuredText(section, installSecretRefs, "apiKeySecretRef", "apiKeySecretRefField");
 
-        if (hasText(endpointProfileRef)) {
+        if (hasText(endpointProfileRef) && hasText(managedServiceRef)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Inference profile embedding section may not declare both endpointProfileRef and managedServiceRef."
+            );
+        }
+        if (ManagedDeploymentProfileCatalog.INFERENCE_SERVICE_MODE_DEPLOYMENT_DEDICATED_SERVICE.equals(serviceMode)) {
+            if (!hasText(managedServiceRef)) {
+                managedServiceRef = pluginScopedDedicatedEmbeddingServiceRef(deployment, install);
+            }
+            endpointProfileRef = hasText(endpointProfileRef)
+                ? endpointProfileRef
+                : dedicatedEmbeddingEndpointProfileRef(deployment);
+            managedServiceRefs.add(managedServiceRef);
+        } else if (hasText(managedServiceRef)) {
+            PlatformManagedInferenceEndpointEntity endpoint = platformManagedInferenceServiceService
+                .requireActiveEndpointForService(managedServiceRef, "EMBEDDING", provider);
+            endpointProfileRef = endpoint.getProfileRef();
+            baseUrl = hasText(baseUrl) ? baseUrl : blankToNull(endpoint.getBaseUrl());
+            deploymentName = hasText(deploymentName) ? deploymentName : blankToNull(endpoint.getDeploymentName());
+            apiVersion = hasText(apiVersion) ? apiVersion : blankToNull(endpoint.getApiVersion());
+            apiKeySecretRef = hasText(apiKeySecretRef) ? apiKeySecretRef : blankToNull(endpoint.getSecretName());
+            endpointProfileRefs.add(endpointProfileRef);
+            managedServiceRefs.add(managedServiceRef);
+        } else if (hasText(endpointProfileRef)) {
             PlatformManagedInferenceEndpointEntity endpoint = platformManagedInferenceEndpointService.requireActive(endpointProfileRef);
             String endpointProvider = lower(endpoint.getProviderType());
             if (hasText(endpointProvider) && !provider.equals(endpointProvider)) {
@@ -345,8 +405,13 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
 
         putManaged(providerRoot, "embeddingProvider", provider, managedFields);
+        putManaged(providerRoot, "embeddingServiceMode", serviceMode, managedFields);
+        putManaged(providerRoot, "embeddingManagedServiceRef", managedServiceRef, managedFields);
         putManaged(providerRoot, "embeddingEndpointProfile", endpointProfileRef, managedFields);
         putManaged(providerRoot, "embeddingApiKeySecretRef", apiKeySecretRef, managedFields);
+        putManaged(providerRoot, "embeddingBaseUrl", baseUrl, managedFields);
+        putManaged(providerRoot, "embeddingDeploymentName", deploymentName, managedFields);
+        putManaged(providerRoot, "embeddingApiVersion", apiVersion, managedFields);
 
         switch (provider) {
             case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX -> {
@@ -354,14 +419,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                 putManaged(providerRoot, "onnxMaxSequenceLength", configuredInt(section, installConfig, "maxSequenceLength", "maxSequenceLengthField"), managedFields);
                 putManaged(providerRoot, "onnxUseGpu", configuredBoolean(section, installConfig, "useGpu", "useGpuField"), managedFields);
             }
-            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST -> {
-                putManaged(providerRoot, "restEmbeddingBaseUrl", baseUrl, managedFields);
-                putManaged(providerRoot, "restEmbeddingEndpoint", configuredText(section, installConfig, "endpoint", "endpointField"), managedFields);
-                putManaged(providerRoot, "restEmbeddingBatchEndpoint", configuredText(section, installConfig, "batchEndpoint", "batchEndpointField"), managedFields);
-                putManaged(providerRoot, "restEmbeddingModel", configuredText(section, installConfig, "model", "modelField"), managedFields);
-            }
             case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> {
-                putManaged(providerRoot, "openaiBaseUrl", baseUrl, managedFields);
+                putManaged(providerRoot, "openaiEmbeddingBaseUrl", baseUrl, managedFields);
                 putManaged(providerRoot, "openaiEmbeddingModel", configuredText(section, installConfig, "model", "modelField"), managedFields);
                 putManaged(
                     providerRoot,
@@ -371,9 +430,9 @@ public class DeploymentMarketplaceDraftCompilerService {
                 );
             }
             case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE -> {
-                putManaged(providerRoot, "azureEndpoint", baseUrl, managedFields);
+                putManaged(providerRoot, "azureEmbeddingEndpoint", baseUrl, managedFields);
                 putManaged(providerRoot, "azureEmbeddingDeploymentName", configuredText(section, installConfig, "model", "modelField", "deploymentName", "deploymentNameField"), managedFields);
-                putManaged(providerRoot, "azureApiVersion", apiVersion, managedFields);
+                putManaged(providerRoot, "azureEmbeddingApiVersion", apiVersion, managedFields);
             }
             case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE -> {
                 putManaged(providerRoot, "cohereBaseUrl", baseUrl, managedFields);
@@ -1303,6 +1362,15 @@ public class DeploymentMarketplaceDraftCompilerService {
         List<JsonNode> values = new ArrayList<>();
         node.forEach(values::add);
         return values;
+    }
+
+    private String dedicatedEmbeddingEndpointProfileRef(DeploymentEntity deployment) {
+        return "dep-" + deployment.getId() + "-embedding-worker";
+    }
+
+    private String pluginScopedDedicatedEmbeddingServiceRef(DeploymentEntity deployment,
+                                                            DeploymentMarketplacePluginInstallEntity install) {
+        return "dedicated-embedding-" + deployment.getId() + "-" + install.getId();
     }
 
     private String summarizeIssues(List<DraftValidationIssue> issues) {

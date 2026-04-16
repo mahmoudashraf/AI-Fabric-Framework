@@ -2,25 +2,34 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformVerificationProperties;
+import com.ai.fabric.platform.backend.config.PlatformInferenceProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
+import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceServiceEntity;
+import com.ai.fabric.platform.backend.marketplace.repository.PlatformManagedInferenceEndpointRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.PlatformManagedInferenceServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationRunnerProvisioningService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -31,12 +40,15 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformVerificationProperties verificationProperties;
+    private final PlatformInferenceProvisioningProperties inferenceProvisioningProperties;
     private final DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService;
     private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformSecretService platformSecretService;
+    private final PlatformManagedInferenceServiceRepository platformManagedInferenceServiceRepository;
+    private final PlatformManagedInferenceEndpointRepository platformManagedInferenceEndpointRepository;
     private final VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
     private final ObjectMapper objectMapper;
 
@@ -52,12 +64,15 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         this(
             provisioningProperties,
             verificationProperties,
+            new PlatformInferenceProvisioningProperties(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
             deploymentManagedVectorProvisioningService,
             deploymentManagedVectorResourceService,
             railwayProvisioningPlanService,
             deploymentSourceResolver,
             railwayGraphqlClient,
             platformSecretService,
+            null,
+            null,
             null,
             objectMapper
         );
@@ -66,22 +81,28 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     @Autowired
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
                                           PlatformVerificationProperties verificationProperties,
+                                          PlatformInferenceProvisioningProperties inferenceProvisioningProperties,
                                           DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService,
                                           DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
                                           RailwayProvisioningPlanService railwayProvisioningPlanService,
                                           DeploymentSourceResolver deploymentSourceResolver,
                                           RailwayGraphqlClient railwayGraphqlClient,
                                           PlatformSecretService platformSecretService,
+                                          PlatformManagedInferenceServiceRepository platformManagedInferenceServiceRepository,
+                                          PlatformManagedInferenceEndpointRepository platformManagedInferenceEndpointRepository,
                                           VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.verificationProperties = verificationProperties;
+        this.inferenceProvisioningProperties = inferenceProvisioningProperties;
         this.deploymentManagedVectorProvisioningService = deploymentManagedVectorProvisioningService;
         this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.platformSecretService = platformSecretService;
+        this.platformManagedInferenceServiceRepository = platformManagedInferenceServiceRepository;
+        this.platformManagedInferenceEndpointRepository = platformManagedInferenceEndpointRepository;
         this.vectorizationRunnerProvisioningService = vectorizationRunnerProvisioningService;
         this.objectMapper = objectMapper;
     }
@@ -117,6 +138,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             managedVectorProvisioningResult
         );
 
+        JsonNode effectiveProviderConfig = managedVectorProvisioningResult.effectiveProviderConfig();
+        JsonNode initialProviderConfig = effectiveProviderConfig;
         RailwayProvisioningPlanSummary plan = trackedStep(
             progressTracker,
             "publish_artifacts",
@@ -124,14 +147,16 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             () -> railwayProvisioningPlanService.buildPlan(
                 deployment,
                 version,
-                managedVectorProvisioningResult.effectiveProviderConfig()
+                initialProviderConfig
             )
         );
-        ObjectNode details = objectMapper.valueToTree(plan);
+        ObjectNode details = objectMapper.createObjectNode();
+        mergePlanDetails(details, plan);
         details.put("provider", "RAILWAY_API");
         details.put("releaseId", release.getId());
         details.put("generatedAt", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
         details.set("managedVectorProvisioning", managedVectorProvisioningResult.details());
+        details.set("effectiveProviderConfig", copyJson(effectiveProviderConfig));
         mergeTrackedDetails(progressTracker, details);
         String environmentName = resolveEnvironmentName(deployment);
 
@@ -142,6 +167,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             plan.projectName()
         );
 
+        String projectName = plan.projectName();
         RailwayProjectContext projectContext = trackedStep(
             progressTracker,
             "prepare_project",
@@ -149,12 +175,12 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             () -> {
                 RailwayGraphqlClient.RailwayProjectSnapshot existingProject = railwayGraphqlClient.findProjectByName(
                     provisioningProperties.workspaceId(),
-                    plan.projectName()
+                    projectName
                 );
                 if (existingProject == null) {
                     existingProject = railwayGraphqlClient.createProject(
                         provisioningProperties.workspaceId(),
-                        plan.projectName(),
+                        projectName,
                         environmentName
                     );
                 }
@@ -167,6 +193,42 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         );
         RailwayGraphqlClient.RailwayProjectSnapshot project = projectContext.project();
         RailwayGraphqlClient.RailwayEnvironmentSummary environment = projectContext.environment();
+
+        DedicatedEmbeddingWorkerProvisioningResult embeddingWorkerResult = null;
+        if (plan.services().embeddingWorker() != null) {
+            JsonNode providerConfigBeforeWorker = effectiveProviderConfig;
+            RailwayServicePlanSummary embeddingWorkerPlan = plan.services().embeddingWorker();
+            embeddingWorkerResult = trackedStep(
+                progressTracker,
+                "configure_embedding_worker",
+                "Provision or reconcile the deployment-dedicated embedding worker before runtime deployment.",
+                () -> provisionDedicatedEmbeddingWorker(
+                    deployment,
+                    version,
+                    project,
+                    environment,
+                    embeddingWorkerPlan,
+                    providerConfigBeforeWorker
+                )
+            );
+            effectiveProviderConfig = embeddingWorkerResult.effectiveProviderConfig();
+            JsonNode rebuiltProviderConfig = effectiveProviderConfig;
+            plan = trackedStep(
+                progressTracker,
+                "publish_artifacts",
+                "Rebuild deployment plan with resolved dedicated embedding worker endpoint settings.",
+                () -> railwayProvisioningPlanService.buildPlan(
+                    deployment,
+                    version,
+                    rebuiltProviderConfig
+                )
+            );
+            mergePlanDetails(details, plan);
+            details.set("effectiveProviderConfig", copyJson(effectiveProviderConfig));
+            mergeTrackedDetails(progressTracker, details);
+        }
+
+        RailwayProvisioningPlanSummary finalPlan = plan;
         RailwayServicePlanSummary runnerPlan = plan.services().vectorizationRunner();
         if (runnerPlan != null) {
             if (vectorizationRunnerProvisioningService != null) {
@@ -203,10 +265,12 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             environment,
             runtimeService,
             connectorService,
-            runnerService
+            runnerService,
+            embeddingWorkerResult == null ? null : embeddingWorkerResult.service()
         );
         final RailwayGraphqlClient.RailwayServiceSummary deploymentRunnerService = runnerService;
         final RailwayServicePlanSummary deploymentRunnerPlan = runnerPlan;
+        final DedicatedEmbeddingWorkerProvisioningResult finalEmbeddingWorkerResult = embeddingWorkerResult;
         String runtimeServiceBaseUrl = ensureServiceDomain(
             project.id(),
             environment.id(),
@@ -224,8 +288,10 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             "PENDING",
             "PENDING",
             runnerService == null ? null : "PENDING",
+            embeddingWorkerResult == null ? null : embeddingWorkerResult.deploymentStatus(),
             runtimeServiceBaseUrl,
-            connectorServiceBaseUrl
+            connectorServiceBaseUrl,
+            embeddingWorkerResult == null ? null : embeddingWorkerResult.baseUrl()
         );
         mergeTrackedDetails(progressTracker, details);
 
@@ -238,7 +304,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     project.id(),
                     runtimeService.id(),
                     environment.id(),
-                    plan.services().runtime(),
+                    finalPlan.services().runtime(),
                     verificationProperties.runtimeHealthPath(),
                     deployment,
                     runtimeServiceBaseUrl,
@@ -256,7 +322,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     project.id(),
                     connectorService.id(),
                     environment.id(),
-                    plan.services().restConnector(),
+                    finalPlan.services().restConnector(),
                     verificationProperties.connectorHealthPath(),
                     deployment,
                     runtimeServiceBaseUrl,
@@ -301,13 +367,13 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 String runtimeDeploymentId = resolveOrTriggerDeployment(
                     runtimeService.id(),
                     environment.id(),
-                    plan.services().runtime().serviceName(),
+                    finalPlan.services().runtime().serviceName(),
                     releaseStartedAt
                 );
                 String connectorDeploymentId = resolveOrTriggerDeployment(
                     connectorService.id(),
                     environment.id(),
-                    plan.services().restConnector().serviceName(),
+                    finalPlan.services().restConnector().serviceName(),
                     releaseStartedAt
                 );
                 String runnerDeploymentId = deploymentRunnerPlan == null || deploymentRunnerService == null
@@ -331,13 +397,13 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             () -> {
                 RailwayGraphqlClient.RailwayDeploymentSummary runtimeDeployment = awaitSuccessfulDeployment(
                     deploymentContext.runtimeDeploymentId(),
-                    plan.services().runtime().serviceName(),
+                    finalPlan.services().runtime().serviceName(),
                     runtimeServiceBaseUrl,
                     verificationProperties.runtimeHealthPath()
                 );
                 RailwayGraphqlClient.RailwayDeploymentSummary connectorDeployment = awaitSuccessfulDeployment(
                     deploymentContext.connectorDeploymentId(),
-                    plan.services().restConnector().serviceName(),
+                    finalPlan.services().restConnector().serviceName(),
                     connectorServiceBaseUrl,
                     verificationProperties.connectorHealthPath()
                 );
@@ -353,8 +419,10 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     activatedServicesDeploymentStatus(runtimeDeployment),
                     activatedServicesDeploymentStatus(connectorDeployment),
                     activatedServicesDeploymentStatus(runnerDeployment),
+                    finalEmbeddingWorkerResult == null ? null : finalEmbeddingWorkerResult.deploymentStatus(),
                     runtimeServiceBaseUrl,
-                    connectorServiceBaseUrl
+                    connectorServiceBaseUrl,
+                    finalEmbeddingWorkerResult == null ? null : finalEmbeddingWorkerResult.baseUrl()
                 );
                 mergeTrackedDetails(progressTracker, details);
                 return new RailwayActivatedServices(
@@ -595,6 +663,240 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         }
     }
 
+    private DedicatedEmbeddingWorkerProvisioningResult provisionDedicatedEmbeddingWorker(DeploymentEntity deployment,
+                                                                                         DeploymentVersionEntity version,
+                                                                                         RailwayGraphqlClient.RailwayProjectSnapshot project,
+                                                                                         RailwayGraphqlClient.RailwayEnvironmentSummary environment,
+                                                                                         RailwayServicePlanSummary workerPlan,
+                                                                                         JsonNode providerConfig) {
+        if (platformManagedInferenceServiceRepository == null || platformManagedInferenceEndpointRepository == null) {
+            throw new RailwayProvisioningConfigurationException(
+                "Deployment-dedicated embedding workers require managed inference repositories to be available."
+            );
+        }
+
+        String serviceRef = firstNonBlank(
+            ManagedDeploymentProfileCatalog.embeddingManagedServiceRef(providerConfig),
+            "dedicated-embedding-" + deployment.getId()
+        );
+        String endpointProfileRef = firstNonBlank(
+            ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig),
+            "dep-" + deployment.getId() + "-embedding-worker"
+        );
+        String secretName = firstNonBlank(
+            ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig),
+            managedEmbeddingWorkerSecretName(deployment)
+        );
+
+        ensureManagedEmbeddingWorkerSecret(deployment, serviceRef, secretName);
+        PlatformManagedInferenceServiceEntity serviceEntity = upsertDedicatedEmbeddingServiceEntity(
+            deployment,
+            workerPlan,
+            providerConfig,
+            serviceRef,
+            secretName
+        );
+        PlatformManagedInferenceEndpointEntity endpointEntity = upsertDedicatedEmbeddingEndpointEntity(
+            serviceEntity,
+            endpointProfileRef,
+            secretName
+        );
+
+        RailwayGraphqlClient.RailwayServiceSummary workerService = ensureService(
+            project,
+            deployment,
+            workerPlan.serviceName()
+        );
+        railwayGraphqlClient.connectServiceToRepository(
+            workerService.id(),
+            deploymentSourceResolver.resolveRepository(deployment),
+            deploymentSourceResolver.resolveBranch(deployment)
+        );
+        railwayGraphqlClient.updateServiceInstance(
+            workerService.id(),
+            environment.id(),
+            workerPlan.rootDir(),
+            workerPlan.dockerfilePath(),
+            firstNonBlank(inferenceProvisioningProperties.dedicatedEmbeddingHealthPath(), "/actuator/health")
+        );
+
+        List<RailwayEnvVarSummary> workerEnv = new ArrayList<>(workerPlan.env());
+        workerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_EMBEDDING_WORKER_API_KEY",
+            "${secret:" + secretName + "}"
+        ));
+        railwayGraphqlClient.upsertVariables(
+            project.id(),
+            environment.id(),
+            workerService.id(),
+            toEnvVarInputs(workerEnv, null, null)
+        );
+        if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
+            railwayGraphqlClient.commitStagedChanges(environment.id());
+        }
+
+        String deploymentId = railwayGraphqlClient.deployService(workerService.id(), environment.id());
+        RailwayGraphqlClient.RailwayDeploymentSummary deploymentSummary = awaitSuccessfulDeployment(
+            deploymentId,
+            workerPlan.serviceName()
+        );
+        String publicBaseUrl = ensureServiceDomain(project.id(), environment.id(), workerService.id(), null);
+        RailwayGraphqlClient.RailwayServiceInstanceSummary instance = railwayGraphqlClient.getServiceInstance(
+            environment.id(),
+            workerService.id()
+        );
+        String privateNetworkUrl = trimToNull(instance.upstreamUrl());
+        String resolvedEndpointBaseUrl = publicBaseUrl + "/v1";
+
+        serviceEntity.setDeploymentId(deployment.getId());
+        serviceEntity.setRailwayProjectId(project.id());
+        serviceEntity.setRailwayEnvironmentId(environment.id());
+        serviceEntity.setRailwayServiceId(workerService.id());
+        serviceEntity.setDesiredReplicas(1);
+        serviceEntity.setActualReplicas(1);
+        serviceEntity.setBaseUrl(publicBaseUrl);
+        serviceEntity.setPrivateNetworkUrl(privateNetworkUrl);
+        serviceEntity.setHealthPath(firstNonBlank(inferenceProvisioningProperties.dedicatedEmbeddingHealthPath(), "/actuator/health"));
+        serviceEntity.setSecretName(secretName);
+        serviceEntity.setStatus("ACTIVE");
+        serviceEntity.setDetailsJson(objectMapper.createObjectNode()
+            .put("deploymentId", deployment.getId())
+            .put("versionId", version.getId())
+            .put("serviceRef", serviceRef)
+            .put("endpointProfileRef", endpointProfileRef)
+            .put("deploymentMode", ManagedDeploymentProfileCatalog.INFERENCE_SERVICE_MODE_DEPLOYMENT_DEDICATED_SERVICE)
+            .put("railwayDeploymentId", deploymentId)
+            .put("reconciledAt", Instant.now().toString())
+            .toPrettyString());
+        serviceEntity.setUpdatedAt(Instant.now());
+        platformManagedInferenceServiceRepository.save(serviceEntity);
+
+        endpointEntity.setServiceId(serviceEntity.getId());
+        endpointEntity.setEndpointPurpose("EMBEDDING");
+        endpointEntity.setDisplayName("Dedicated Embedding Worker");
+        endpointEntity.setProviderType(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI);
+        endpointEntity.setProtocolType(ManagedDeploymentProfileCatalog.INFERENCE_PROTOCOL_OPENAI_COMPATIBLE);
+        endpointEntity.setBaseUrl(resolvedEndpointBaseUrl);
+        endpointEntity.setSecretName(secretName);
+        endpointEntity.setStatus("ACTIVE");
+        endpointEntity.setUpdatedAt(Instant.now());
+        platformManagedInferenceEndpointRepository.save(endpointEntity);
+
+        ObjectNode effective = providerConfig != null && providerConfig.isObject()
+            ? ((ObjectNode) providerConfig).deepCopy()
+            : objectMapper.createObjectNode();
+        effective.put("embeddingProvider", ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI);
+        effective.put("embeddingServiceMode", ManagedDeploymentProfileCatalog.INFERENCE_SERVICE_MODE_DEPLOYMENT_DEDICATED_SERVICE);
+        effective.put("embeddingManagedServiceRef", serviceRef);
+        effective.put("embeddingEndpointProfile", endpointProfileRef);
+        effective.put("embeddingBaseUrl", resolvedEndpointBaseUrl);
+        effective.put("embeddingApiKeySecretRef", secretName);
+        effective.put("openaiEmbeddingBaseUrl", resolvedEndpointBaseUrl);
+
+        return new DedicatedEmbeddingWorkerProvisioningResult(
+            effective,
+            workerService,
+            deploymentId,
+            activatedServicesDeploymentStatus(deploymentSummary),
+            publicBaseUrl,
+            serviceRef,
+            endpointProfileRef
+        );
+    }
+
+    private PlatformManagedInferenceServiceEntity upsertDedicatedEmbeddingServiceEntity(DeploymentEntity deployment,
+                                                                                        RailwayServicePlanSummary workerPlan,
+                                                                                        JsonNode providerConfig,
+                                                                                        String serviceRef,
+                                                                                        String secretName) {
+        PlatformManagedInferenceServiceEntity entity = platformManagedInferenceServiceRepository
+            .findByServiceRefIgnoreCase(serviceRef)
+            .orElseGet(PlatformManagedInferenceServiceEntity::new);
+        if (entity.getId() == null || entity.getId().isBlank()) {
+            entity.setId("pmis-" + serviceRef);
+            entity.setCreatedAt(Instant.now());
+        }
+        entity.setServiceRef(serviceRef);
+        entity.setDisplayName("Dedicated Embedding Worker");
+        entity.setServiceKind("DEDICATED_EMBEDDING_SERVICE");
+        entity.setDeploymentMode(ManagedDeploymentProfileCatalog.INFERENCE_SERVICE_MODE_DEPLOYMENT_DEDICATED_SERVICE);
+        entity.setProviderType(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI);
+        entity.setProtocolType(ManagedDeploymentProfileCatalog.INFERENCE_PROTOCOL_OPENAI_COMPATIBLE);
+        entity.setModelId(firstNonBlank(
+            ManagedDeploymentProfileCatalog.openAiEmbeddingModel(providerConfig),
+            ManagedDeploymentProfileCatalog.onnxModelAlias(providerConfig),
+            "bge-small-en-v1.5"
+        ));
+        entity.setEnvironmentScope(resolveEnvironmentName(deployment));
+        entity.setTierScope("dedicated");
+        entity.setDeploymentId(deployment.getId());
+        entity.setDesiredReplicas(1);
+        entity.setActualReplicas(0);
+        entity.setMinReplicas(1);
+        entity.setMaxReplicas(1);
+        entity.setAutoscalingMode(ManagedDeploymentProfileCatalog.INFERENCE_SERVICE_AUTOSCALING_MANUAL);
+        entity.setHealthPath(firstNonBlank(inferenceProvisioningProperties.dedicatedEmbeddingHealthPath(), "/actuator/health"));
+        entity.setSecretName(secretName);
+        entity.setStatus("PROVISIONING");
+        entity.setUpdatedAt(Instant.now());
+        return platformManagedInferenceServiceRepository.save(entity);
+    }
+
+    private PlatformManagedInferenceEndpointEntity upsertDedicatedEmbeddingEndpointEntity(PlatformManagedInferenceServiceEntity serviceEntity,
+                                                                                          String endpointProfileRef,
+                                                                                          String secretName) {
+        PlatformManagedInferenceEndpointEntity endpoint = platformManagedInferenceEndpointRepository
+            .findByProfileRefIgnoreCase(endpointProfileRef)
+            .orElseGet(PlatformManagedInferenceEndpointEntity::new);
+        if (endpoint.getId() == null || endpoint.getId().isBlank()) {
+            endpoint.setId("pmie-" + endpointProfileRef);
+            endpoint.setCreatedAt(Instant.now());
+        }
+        endpoint.setProfileRef(endpointProfileRef);
+        endpoint.setServiceId(serviceEntity.getId());
+        endpoint.setEndpointPurpose("EMBEDDING");
+        endpoint.setDisplayName("Dedicated Embedding Worker");
+        endpoint.setProviderType(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI);
+        endpoint.setProtocolType(ManagedDeploymentProfileCatalog.INFERENCE_PROTOCOL_OPENAI_COMPATIBLE);
+        endpoint.setSecretName(secretName);
+        endpoint.setStatus("PROVISIONING");
+        endpoint.setUpdatedAt(Instant.now());
+        return platformManagedInferenceEndpointRepository.save(endpoint);
+    }
+
+    private void ensureManagedEmbeddingWorkerSecret(DeploymentEntity deployment,
+                                                    String serviceRef,
+                                                    String secretName) {
+        if (platformSecretService.isSecretPresent(secretName)) {
+            return;
+        }
+        platformSecretService.upsertManagedSecret(
+            secretName,
+            UUID.randomUUID().toString().replace("-", ""),
+            Map.of(
+                "deploymentId", deployment.getId(),
+                "serviceRef", serviceRef,
+                "purpose", "DEPLOYMENT_DEDICATED_EMBEDDING_WORKER"
+            )
+        );
+    }
+
+    private String managedEmbeddingWorkerSecretName(DeploymentEntity deployment) {
+        return "MANAGED_DEPLOYMENT_EMBEDDING_WORKER_API_KEY_DEP_" + deployment.getId().replace('-', '_').toUpperCase();
+    }
+
+    private void mergePlanDetails(ObjectNode details, RailwayProvisioningPlanSummary plan) {
+        ObjectNode planNode = objectMapper.valueToTree(plan);
+        planNode.fields().forEachRemaining(entry -> details.set(entry.getKey(), entry.getValue()));
+    }
+
+    private JsonNode copyJson(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return objectMapper.createObjectNode();
+        }
+        return node.deepCopy();
+    }
+
     private String resolveEnvironmentName(DeploymentEntity deployment) {
         if (deployment.getEnvironmentName() != null && !deployment.getEnvironmentName().isBlank()) {
             return deployment.getEnvironmentName().trim();
@@ -685,6 +987,14 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         return null;
     }
 
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private Instant parseDeploymentCreatedAt(String createdAt) {
         if (createdAt == null || createdAt.isBlank()) {
             return null;
@@ -702,7 +1012,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                       RailwayGraphqlClient.RailwayEnvironmentSummary environment,
                                       RailwayGraphqlClient.RailwayServiceSummary runtimeService,
                                       RailwayGraphqlClient.RailwayServiceSummary connectorService,
-                                      RailwayGraphqlClient.RailwayServiceSummary runnerService) {
+                                      RailwayGraphqlClient.RailwayServiceSummary runnerService,
+                                      RailwayGraphqlClient.RailwayServiceSummary embeddingWorkerService) {
         ObjectNode railway = objectNode(details, "railway");
         railway.put("workspaceId", provisioningProperties.workspaceId());
         railway.put("projectId", project.id());
@@ -723,6 +1034,11 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             ObjectNode vectorizationRunner = objectNode(services, "vectorizationRunner");
             vectorizationRunner.put("serviceId", runnerService.id());
             vectorizationRunner.put("serviceName", runnerService.name());
+        }
+        if (embeddingWorkerService != null) {
+            ObjectNode embeddingWorker = objectNode(services, "embeddingWorker");
+            embeddingWorker.put("serviceId", embeddingWorkerService.id());
+            embeddingWorker.put("serviceName", embeddingWorkerService.name());
         }
     }
 
@@ -745,8 +1061,10 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                          String runtimeDeploymentStatus,
                                          String connectorDeploymentStatus,
                                          String runnerDeploymentStatus,
+                                         String embeddingWorkerDeploymentStatus,
                                          String runtimeBaseUrl,
-                                         String connectorBaseUrl) {
+                                         String connectorBaseUrl,
+                                         String embeddingWorkerBaseUrl) {
         ObjectNode services = objectNode(objectNode(details, "railway"), "services");
         ObjectNode runtime = objectNode(services, "runtime");
         runtime.put("deploymentStatus", runtimeDeploymentStatus);
@@ -763,6 +1081,13 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         if (runnerDeploymentStatus != null) {
             ObjectNode vectorizationRunner = objectNode(services, "vectorizationRunner");
             vectorizationRunner.put("deploymentStatus", runnerDeploymentStatus);
+        }
+        if (embeddingWorkerDeploymentStatus != null) {
+            ObjectNode embeddingWorker = objectNode(services, "embeddingWorker");
+            embeddingWorker.put("deploymentStatus", embeddingWorkerDeploymentStatus);
+            if (embeddingWorkerBaseUrl != null) {
+                embeddingWorker.put("baseUrl", embeddingWorkerBaseUrl);
+            }
         }
     }
 
@@ -830,6 +1155,17 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         RailwayGraphqlClient.RailwayDeploymentSummary vectorizationRunnerDeployment,
         String runtimeBaseUrl,
         String connectorBaseUrl
+    ) {
+    }
+
+    private record DedicatedEmbeddingWorkerProvisioningResult(
+        JsonNode effectiveProviderConfig,
+        RailwayGraphqlClient.RailwayServiceSummary service,
+        String deploymentId,
+        String deploymentStatus,
+        String baseUrl,
+        String managedServiceRef,
+        String endpointProfileRef
     ) {
     }
 }

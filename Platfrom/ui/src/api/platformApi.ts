@@ -247,6 +247,51 @@ export type MarketplacePluginContributionSummary = {
   automationWorkflowIds: string[]
   inferenceProfileIds: string[]
   inferenceEndpointProfileRefs: string[]
+  inferenceManagedServiceRefs: string[]
+}
+
+export type PlatformManagedInferenceEndpointSummary = {
+  id: string
+  profileRef: string
+  serviceId: string | null
+  endpointPurpose: string | null
+  displayName: string
+  providerType: string
+  protocolType: string | null
+  baseUrl: string | null
+  deploymentName: string | null
+  apiVersion: string | null
+  secretName: string | null
+  status: string
+}
+
+export type PlatformManagedInferenceServiceSummary = {
+  id: string
+  serviceRef: string
+  displayName: string
+  serviceKind: string
+  deploymentMode: string
+  providerType: string
+  protocolType: string
+  modelId: string | null
+  environmentScope: string | null
+  tierScope: string | null
+  deploymentId: string | null
+  desiredReplicas: number | null
+  actualReplicas: number | null
+  minReplicas: number | null
+  maxReplicas: number | null
+  autoscalingMode: string | null
+  baseUrl: string | null
+  privateNetworkUrl: string | null
+  healthPath: string | null
+  secretName: string | null
+  status: string
+  endpoints: PlatformManagedInferenceEndpointSummary[]
+}
+
+export type UpdatePlatformManagedInferenceServiceScaleRequest = {
+  desiredReplicas: number
 }
 
 export type MarketplacePluginPricingSummary = {
@@ -2286,6 +2331,38 @@ export function fetchMarketplacePublishers() {
 
 export function fetchMarketplacePublisher(publisherId: string) {
   return request<MarketplacePublisherDetailSummary>(`/api/marketplace/publishers/${encodeURIComponent(publisherId)}`)
+}
+
+export function fetchMarketplaceInferenceServices() {
+  return request<PlatformManagedInferenceServiceSummary[]>('/api/marketplace/inference-services')
+}
+
+export function fetchMarketplaceInferenceService(serviceRef: string) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}`,
+  )
+}
+
+export function reconcileMarketplaceInferenceService(serviceRef: string) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/reconcile`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function scaleMarketplaceInferenceService(
+  serviceRef: string,
+  payload: UpdatePlatformManagedInferenceServiceScaleRequest,
+) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/scale`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function createMarketplacePublisher(payload: CreateMarketplacePublisherRequest) {

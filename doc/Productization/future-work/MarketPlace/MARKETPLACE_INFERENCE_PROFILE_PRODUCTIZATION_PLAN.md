@@ -16,6 +16,7 @@ Related docs:
 - `doc/Productization/future-work/MarketPlace/FREE_LLM_AND_EMBEDDING_DEPLOYMENT_STRATEGY.md`
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_CONTROL_PLANE_COMPOSITION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/README.md`
+- `doc/Productization/future-work/MarketPlace/MARKETPLACE_SHARED_INFERENCE_SERVICE_PLATFORM_PLAN.md`
 
 ---
 
@@ -161,10 +162,6 @@ The current platform/provider stack already supports these kinds of fields:
 - `onnxTokenizerPath`
 - `onnxMaxSequenceLength`
 - `onnxUseGpu`
-- `restEmbeddingBaseUrl`
-- `restEmbeddingEndpoint`
-- `restEmbeddingBatchEndpoint`
-- `restEmbeddingModel`
 - `enableFallback`
 
 ### 5.2 Recommended inference contribution shape

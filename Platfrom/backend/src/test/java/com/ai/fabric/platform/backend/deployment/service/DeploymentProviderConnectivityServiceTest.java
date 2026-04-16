@@ -231,35 +231,6 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.managedVectorTargets().get(0)).contains("gcp-us-west1");
     }
 
-    @Test
-    void probeBlocksRestEmbeddingConnectivityWhenBaseUrlIsMissing() {
-        PlatformSecretService secretService = mock(PlatformSecretService.class);
-        HttpClient httpClient = mock(HttpClient.class);
-        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
-            secretService,
-            objectMapper,
-            httpClient
-        );
-
-        DeploymentProviderConnectivitySummary summary = service.probe(
-            deployment("dep-789", "Private Embeddings"),
-            draft("""
-                {
-                  "llmProvider": "openai",
-                  "embeddingProvider": "rest",
-                  "vectorStrategy": "lucene"
-                }
-                """)
-        );
-
-        assertThat(summary.probes()).hasSize(2);
-        assertThat(summary.probes())
-            .anySatisfy(probe -> {
-                assertThat(probe.key()).isEqualTo("rest_embedding_base_url");
-                assertThat(probe.status()).isEqualTo("BLOCKED");
-            });
-    }
-
     private DeploymentEntity deployment(String id, String name) {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId(id);

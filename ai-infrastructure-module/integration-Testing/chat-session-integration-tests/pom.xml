@@ -77,12 +77,6 @@
         </dependency>
         <dependency>
             <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-provider-rest</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-onnx-starter</artifactId>
             <version>${project.version}</version>
         </dependency>

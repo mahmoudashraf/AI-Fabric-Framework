@@ -22,7 +22,7 @@
 #     * GEMINI_API_KEY (for Gemini)
 #     * COHERE_API_KEY (for Cohere)
 #     * AZURE_API_KEY + AZURE_ENDPOINT (for Azure)
-#   - ONNX and REST providers don't require API keys
+#   - ONNX provider doesn't require API keys
 #   - Local: Dependencies built (script auto-builds if missing)
 #   - CI/CD: Dependencies must be pre-built by workflow (script skips build check)
 #
@@ -144,7 +144,7 @@ check_provider_api_keys() {
 	                providers_checked+=("Azure LLM")
 	            fi
 	            ;;
-        onnx|rest)
+        onnx)
             providers_checked+=("$llm_provider LLM (no API key required)")
             ;;
         *)
@@ -191,7 +191,7 @@ check_provider_api_keys() {
 	                providers_checked+=("Azure Embedding")
 	            fi
 	            ;;
-        onnx|rest)
+        onnx)
             providers_checked+=("$embedding_provider Embedding (no API key required)")
             ;;
         *)

@@ -1168,7 +1168,7 @@ class DeploymentReleaseVerificationServiceTest {
                 version("""
                     {
                       "llmProvider": "openai",
-                      "embeddingProvider": "rest",
+                      "embeddingProvider": "openai",
                       "vectorStrategy": "pinecone"
                     }
                     """),

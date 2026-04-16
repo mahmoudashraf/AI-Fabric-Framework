@@ -540,6 +540,15 @@ public class RailwayGraphqlClient {
                                       String rootDirectory,
                                       String dockerfilePath,
                                       String healthcheckPath) {
+        updateServiceInstance(serviceId, environmentId, rootDirectory, dockerfilePath, healthcheckPath, null);
+    }
+
+    public void updateServiceInstance(String serviceId,
+                                      String environmentId,
+                                      String rootDirectory,
+                                      String dockerfilePath,
+                                      String healthcheckPath,
+                                      Integer numReplicas) {
         Map<String, Object> input = new LinkedHashMap<>();
         if (rootDirectory != null && !rootDirectory.isBlank()) {
             input.put("rootDirectory", rootDirectory);
@@ -548,6 +557,9 @@ public class RailwayGraphqlClient {
             input.put("dockerfilePath", dockerfilePath);
         }
         input.put("healthcheckPath", healthcheckPath);
+        if (numReplicas != null && numReplicas > 0) {
+            input.put("numReplicas", numReplicas);
+        }
 
         execute(
             SERVICE_INSTANCE_UPDATE_MUTATION,
@@ -558,11 +570,12 @@ public class RailwayGraphqlClient {
             )
         );
         log.info(
-            "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}, dockerfilePath={}",
+            "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}, dockerfilePath={}, numReplicas={}",
             serviceId,
             environmentId,
             rootDirectory,
-            dockerfilePath
+            dockerfilePath,
+            numReplicas
         );
     }
 

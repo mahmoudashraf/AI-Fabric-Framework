@@ -293,6 +293,9 @@ public class RuntimeAdminOverviewController {
         profile.put("llmProvider", providerConfig != null ? providerConfig.getLlmProvider() : null);
         profile.put("embeddingProvider", providerConfig != null ? providerConfig.getEmbeddingProvider() : null);
         profile.put("embeddingEndpointProfile", providerConfig != null ? providerConfig.getEmbeddingEndpointProfile() : null);
+        profile.put("embeddingManagedServiceRef", providerConfig != null ? providerConfig.getEmbeddingManagedServiceRef() : null);
+        profile.put("embeddingServiceMode", providerConfig != null ? providerConfig.getEmbeddingServiceMode() : null);
+        profile.put("embeddingHasConnectionOverride", providerConfig != null && providerConfig.embeddingHasConnectionOverride());
         profile.put("orchestrationProvider", providerConfig != null && providerConfig.getOrchestration() != null
             ? providerConfig.getOrchestration().getLlmProvider()
             : null);
@@ -301,6 +304,9 @@ public class RuntimeAdminOverviewController {
             : null);
         profile.put("orchestrationEndpointProfile", providerConfig != null && providerConfig.getOrchestration() != null
             ? providerConfig.getOrchestration().getEndpointProfile()
+            : null);
+        profile.put("orchestrationManagedServiceRef", providerConfig != null && providerConfig.getOrchestration() != null
+            ? providerConfig.getOrchestration().getManagedServiceRef()
             : null);
         profile.put("orchestrationHasConnectionOverride", providerConfig != null && providerConfig.orchestrationHasConnectionOverride());
         profile.put("generationProvider", providerConfig != null && providerConfig.getGeneration() != null
@@ -311,6 +317,9 @@ public class RuntimeAdminOverviewController {
             : null);
         profile.put("generationEndpointProfile", providerConfig != null && providerConfig.getGeneration() != null
             ? providerConfig.getGeneration().getEndpointProfile()
+            : null);
+        profile.put("generationManagedServiceRef", providerConfig != null && providerConfig.getGeneration() != null
+            ? providerConfig.getGeneration().getManagedServiceRef()
             : null);
         profile.put("generationHasConnectionOverride", providerConfig != null && providerConfig.generationHasConnectionOverride());
         return profile;

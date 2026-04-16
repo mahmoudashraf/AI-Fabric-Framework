@@ -220,17 +220,6 @@ public class DeploymentService {
             true,
             "MANAGED_ZILLIZ_CLOUD_CLUSTER",
             "After create, open Providers to choose the Zilliz Cloud project, region, and plan. Apply will create or reuse a deployment-owned Zilliz Cloud cluster and bind deployment-scoped Milvus runtime credentials automatically."
-        ),
-        template(
-            "dev-openai-rest-pinecone",
-            "OpenAI / REST Embeddings / Pinecone",
-            "OpenAI generation with an external REST embedding service and a platform-managed Pinecone serverless index.",
-            "openai",
-            "rest",
-            "pinecone",
-            true,
-            "MANAGED_SERVERLESS_INDEX",
-            "After create, point the deployment at the external embedding service and review the generated Pinecone index name. Apply will create or reconcile the serverless index and bind runtime to the managed host when PINECONE_API_KEY is configured."
         )
     );
 
@@ -1721,12 +1710,6 @@ public class DeploymentService {
             root.put("onnxModelAlias", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX));
             root.put("onnxMaxSequenceLength", 512);
             root.put("onnxUseGpu", false);
-        }
-        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(embeddingProvider)) {
-            root.put("restEmbeddingEndpoint", ManagedDeploymentProfileCatalog.restEmbeddingEndpoint(null));
-            root.put("restEmbeddingBatchEndpoint", ManagedDeploymentProfileCatalog.restEmbeddingBatchEndpoint(null));
-            root.put("restEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST));
-            root.put("restEmbeddingTimeoutMs", 30000);
         }
     }
 

@@ -17,6 +17,7 @@
         <module>ai-fabric-product-integration-core</module>
         <module>ai-fabric-vectorization-core</module>
         <module>ai-fabric-vectorization-runner</module>
+        <module>ai-fabric-embedding-worker</module>
     </modules>
 
     <properties>

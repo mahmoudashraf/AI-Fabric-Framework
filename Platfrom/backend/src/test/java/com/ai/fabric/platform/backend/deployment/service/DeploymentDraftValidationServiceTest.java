@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2138,76 +2140,6 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
-    void validateRejectsRestEmbeddingWithoutBaseUrl() {
-        DraftValidationResponse response = service.validate(draft(
-            """
-                {
-                  "actions": [
-                    {
-                      "name": "list_products",
-                      "description": "List products"
-                    }
-                  ]
-                }
-                """,
-            """
-                {
-                  "ai-config": { "vector-dimensions": 384 },
-                  "ai-entities": {
-                    "product": {
-                      "fields": []
-                    }
-                  }
-                }
-                """,
-            """
-                {
-                  "connector": {
-                    "inbound-auth": {
-                      "allow-unauthenticated": false,
-                      "api-key": {
-                        "enabled": true,
-                        "header": "X-AIFABRIC-API-KEY",
-                        "value": "${CONNECTOR_API_KEY}"
-                      }
-                    },
-                    "upstream": {
-                      "base-url": "https://customer.example"
-                    }
-                  },
-                  "actions": {
-                    "list_products": {
-                      "method": "GET",
-                      "path": "/api/products/search"
-                    }
-                  }
-                }
-                """,
-            """
-                {
-                  "llmProvider": "gemini",
-                  "embeddingProvider": "rest",
-                  "vectorStrategy": "lucene",
-                  "runtimeProfile": "runtime-managed",
-                  "connectorProfile": "connector-hosted"
-                }
-                """,
-            """
-                {
-                  "authzMode": "REMOTE_HTTP",
-                  "adminApiKeyEnabled": true,
-                  "connectorApiKeyEnabled": true
-                }
-                """
-        ));
-
-        assertThat(response.publishReady()).isFalse();
-        assertThat(response.issues())
-            .extracting("code")
-            .contains("REST_EMBEDDING_BASE_URL_REQUIRED");
-    }
-
-    @Test
     void validateRejectsMilvusWithoutHost() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -2789,6 +2721,87 @@ class DeploymentDraftValidationServiceTest {
             .contains("GENERATIONENDPOINTPROFILE_PROVIDER_MISMATCH");
     }
 
+    @Test
+    void validateAcceptsDedicatedEmbeddingWorkerRefsBeforeManagedServiceExists() {
+        PlatformManagedInferenceEndpointService endpointService = mock(PlatformManagedInferenceEndpointService.class);
+        PlatformManagedInferenceServiceService inferenceService = mock(PlatformManagedInferenceServiceService.class);
+        when(endpointService.requireActive(anyString()))
+            .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "endpoint should not be resolved"));
+        when(inferenceService.requireActiveEndpointForService(anyString(), anyString(), anyString()))
+            .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "service should not be resolved"));
+
+        DraftValidationResponse response = service(endpointService, inferenceService).validate(draft(
+            """
+                {
+                  "actions": []
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {}
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "embeddingServiceMode": "DEPLOYMENT_DEDICATED_SERVICE",
+                  "embeddingManagedServiceRef": "dedicated-embedding-dep-123-mpi-abc",
+                  "embeddingEndpointProfile": "dep-dep-123-embedding-worker"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """,
+            """
+                {
+                  "systemPrompt": "You are helpful.",
+                  "intentExtractionPrompt": "Extract the user intent.",
+                  "actionSelectionPrompt": "Select actions when needed.",
+                  "clarificationPrompt": "Ask for missing information.",
+                  "answerGenerationPrompt": "Answer using grounded information.",
+                  "retrievalPrompt": "Use retrieval when relevant.",
+                  "assistantUiPrompt": "Be concise."
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("EMBEDDINGMANAGEDSERVICEREF_UNKNOWN", "EMBEDDINGENDPOINTPROFILE_UNKNOWN");
+    }
+
     private DeploymentDraftEntity draft(String actionsConfig,
                                         String entityConfig,
                                         String routingConfig,
@@ -2838,5 +2851,10 @@ class DeploymentDraftValidationServiceTest {
 
     private DeploymentDraftValidationService service(PlatformManagedInferenceEndpointService endpointService) {
         return new DeploymentDraftValidationService(new ObjectMapper(), endpointService);
+    }
+
+    private DeploymentDraftValidationService service(PlatformManagedInferenceEndpointService endpointService,
+                                                     PlatformManagedInferenceServiceService inferenceService) {
+        return new DeploymentDraftValidationService(new ObjectMapper(), endpointService, inferenceService);
     }
 }

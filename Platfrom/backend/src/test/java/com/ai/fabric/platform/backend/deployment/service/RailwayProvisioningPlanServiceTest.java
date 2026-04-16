@@ -94,6 +94,79 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanAddsDedicatedEmbeddingWorkerWhenDeploymentRequestsDedicatedEmbeddingService() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            new PlatformVectorizationProperties(
+                Duration.ofDays(7),
+                Duration.ofHours(6),
+                Duration.ofMinutes(15),
+                100,
+                "2026.04.05",
+                "2026.04"
+            ),
+            new PlatformVectorizationRunnerProvisioningProperties(
+                "ai-fabric-product/ai-fabric-vectorization-runner",
+                "ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile",
+                "vectorization-runner",
+                Duration.ofSeconds(10),
+                Duration.ofMinutes(5)
+            ),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            mock(VectorizationPlanRepository.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "embeddingServiceMode": "DEPLOYMENT_DEDICATED_SERVICE",
+              "embeddingManagedServiceRef": "dedicated-embedding-dep-123-install-1",
+              "embeddingEndpointProfile": "dep-dep-123-embedding-worker",
+              "openaiEmbeddingModel": "text-embedding-3-small"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+
+        assertThat(plan.services().embeddingWorker()).isNotNull();
+        assertThat(plan.services().embeddingWorker().serviceName()).isEqualTo("embedding-worker-dep-123");
+        assertThat(plan.services().embeddingWorker().dockerfilePath())
+            .isEqualTo("ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile");
+        Map<String, String> workerEnv = envMap(plan.services().embeddingWorker().env());
+        assertThat(workerEnv)
+            .containsEntry("AI_SERVICE_FEATURES_ENABLE_GENERATION", "false")
+            .containsEntry("AI_SERVICE_FEATURES_ENABLE_EMBEDDINGS", "true")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "onnx")
+            .containsEntry("AI_PROVIDERS_ENABLE_FALLBACK", "false");
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_EMBEDDING_SERVICE_MODE", "DEPLOYMENT_DEDICATED_SERVICE")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_MANAGED_SERVICE_REF", "dedicated-embedding-dep-123-install-1")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_ENDPOINT_PROFILE", "dep-dep-123-embedding-worker");
+    }
+
+    @Test
     void buildPlanUsesRuntimeAndConnectorEnvKeysExpectedByServices() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
@@ -1172,84 +1245,6 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_PROVIDERS_WEAVIATE_HOST", "weaviate.internal")
             .containsEntry("AI_PROVIDERS_WEAVIATE_PORT", "443")
             .containsEntry("AI_PROVIDERS_WEAVIATE_API_KEY", "${secret:WEAVIATE_API_KEY}")
-            .containsEntry("OPENAI_ENABLED", "false");
-    }
-
-    @Test
-    void buildPlanCompilesGeminiRestAndMilvusSettingsIntoLiveEnv() {
-        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
-        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
-            new DeploymentArtifactBundleSummary(
-                "dep-123",
-                "ver-123",
-                "v1",
-                "hash-123",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
-            )
-        );
-        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
-        when(platformSecretService.isSecretPresent("MILVUS_USERNAME")).thenReturn(true);
-        when(platformSecretService.isSecretPresent("MILVUS_PASSWORD")).thenReturn(true);
-
-        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
-            properties(),
-            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
-            artifactService,
-            new DeploymentSourceResolver(properties()),
-            platformSecretService,
-            new ObjectMapper()
-        );
-
-        DeploymentVersionEntity version = version();
-        version.setProviderConfigJson("""
-            {
-              "llmProvider": "gemini",
-              "embeddingProvider": "rest",
-              "vectorStrategy": "milvus",
-              "runtimeProfile": "runtime-managed",
-              "connectorProfile": "connector-hosted",
-              "geminiModel": "gemini-1.5-flash",
-              "restEmbeddingBaseUrl": "https://embedder.example",
-              "restEmbeddingEndpoint": "/embed",
-              "restEmbeddingBatchEndpoint": "/embed/batch",
-              "restEmbeddingModel": "custom-embedder",
-              "restEmbeddingTimeoutMs": "45000",
-              "milvusHost": "milvus.internal",
-              "milvusPort": "19530",
-              "milvusDatabaseName": "customer",
-              "milvusSecure": true,
-              "milvusFlushOnWrite": true
-            }
-            """);
-
-        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
-        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
-
-        assertThat(runtimeEnv)
-            .containsEntry("AI_PROVIDERS_LLM_PROVIDER", "gemini")
-            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "rest")
-            .containsEntry("AI_VECTOR_DB_TYPE", "milvus")
-            .containsEntry("AI_PROVIDERS_GEMINI_ENABLED", "true")
-            .containsEntry("AI_PROVIDERS_GEMINI_API_KEY", "${secret:GEMINI_API_KEY}")
-            .containsEntry("AI_PROVIDERS_GEMINI_MODEL", "gemini-1.5-flash")
-            .containsEntry("AI_PROVIDERS_REST_ENABLED", "true")
-            .containsEntry("AI_PROVIDERS_REST_BASE_URL", "https://embedder.example")
-            .containsEntry("AI_PROVIDERS_REST_ENDPOINT", "/embed")
-            .containsEntry("AI_PROVIDERS_REST_BATCH_ENDPOINT", "/embed/batch")
-            .containsEntry("AI_PROVIDERS_REST_MODEL", "custom-embedder")
-            .containsEntry("AI_PROVIDERS_REST_TIMEOUT", "45000")
-            .containsEntry("AI_PROVIDERS_MILVUS_ENABLED", "true")
-            .containsEntry("AI_PROVIDERS_MILVUS_HOST", "milvus.internal")
-            .containsEntry("AI_PROVIDERS_MILVUS_PORT", "19530")
-            .containsEntry("AI_PROVIDERS_MILVUS_DATABASE_NAME", "customer")
-            .containsEntry("AI_PROVIDERS_MILVUS_SECURE", "true")
-            .containsEntry("AI_PROVIDERS_MILVUS_FLUSH_ON_WRITE", "true")
-            .containsEntry("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MILVUS_USERNAME}")
-            .containsEntry("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MILVUS_PASSWORD}")
             .containsEntry("OPENAI_ENABLED", "false");
     }
 

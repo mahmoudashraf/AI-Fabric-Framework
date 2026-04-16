@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,16 +61,24 @@ public class DeploymentDraftValidationService {
 
     private final ObjectMapper objectMapper;
     private final PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService;
+    private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
 
     public DeploymentDraftValidationService(ObjectMapper objectMapper) {
-        this(objectMapper, null);
+        this(objectMapper, null, null);
+    }
+
+    public DeploymentDraftValidationService(ObjectMapper objectMapper,
+                                            PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService) {
+        this(objectMapper, platformManagedInferenceEndpointService, null);
     }
 
     @Autowired
     public DeploymentDraftValidationService(ObjectMapper objectMapper,
-                                            PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService) {
+                                            PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
+                                            PlatformManagedInferenceServiceService platformManagedInferenceServiceService) {
         this.objectMapper = objectMapper;
         this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
+        this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
     }
 
     public DraftValidationResponse validate(DeploymentDraftEntity draft) {
@@ -1134,6 +1143,17 @@ public class DeploymentDraftValidationService {
             ));
         }
 
+        String embeddingServiceMode = providerNode.path("embeddingServiceMode").asText("").trim();
+        if (!embeddingServiceMode.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_INFERENCE_SERVICE_MODES.contains(embeddingServiceMode.toUpperCase(Locale.ROOT))) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_EMBEDDING_SERVICE_MODE",
+                "$.embeddingServiceMode",
+                "embeddingServiceMode must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_INFERENCE_SERVICE_MODES + "."
+            ));
+        }
+
         validateAzureProviders(providerNode, issues);
         validateProviderBaseUrls(providerNode, issues);
         validatePurposeSpecificLlmProviders(providerNode, issues);
@@ -1141,7 +1161,6 @@ public class DeploymentDraftValidationService {
         validateOpenAiProvider(providerNode, issues);
         validateAnthropicProvider(providerNode, issues);
         validateOnnxProvider(providerNode, issues);
-        validateRestEmbeddingProvider(providerNode, issues);
         validateQdrantVectorProvider(providerNode, issues);
         validatePineconeVectorProvider(providerNode, issues);
         validateWeaviateVectorProvider(providerNode, issues);
@@ -1190,11 +1209,17 @@ public class DeploymentDraftValidationService {
 
     private void validateProviderBaseUrls(JsonNode providerNode, List<DraftValidationIssue> issues) {
         validateOptionalAbsoluteHttpUrl(providerNode, "openaiBaseUrl", "OPENAI_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "openaiEmbeddingBaseUrl", "OPENAI_EMBEDDING_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "anthropicBaseUrl", "ANTHROPIC_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "cohereBaseUrl", "COHERE_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "geminiBaseUrl", "GEMINI_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "embeddingBaseUrl", "EMBEDDING_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "azureEmbeddingEndpoint", "AZURE_EMBEDDING_ENDPOINT_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "orchestrationBaseUrl", "ORCHESTRATION_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "generationBaseUrl", "GENERATION_BASE_URL_INVALID", issues);
+        validateManagedServiceRef(providerNode, "orchestrationManagedServiceRef", "ORCHESTRATION", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerNode), issues);
+        validateManagedServiceRef(providerNode, "generationManagedServiceRef", "GENERATION", ManagedDeploymentProfileCatalog.generationLlmProvider(providerNode), issues);
+        validateManagedServiceRef(providerNode, "embeddingManagedServiceRef", "EMBEDDING", ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode), issues);
         validateManagedEndpointProfile(providerNode, "orchestrationEndpointProfile", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerNode), issues);
         validateManagedEndpointProfile(providerNode, "generationEndpointProfile", ManagedDeploymentProfileCatalog.generationLlmProvider(providerNode), issues);
         validateManagedEndpointProfile(providerNode, "embeddingEndpointProfile", ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode), issues);
@@ -1281,6 +1306,9 @@ public class DeploymentDraftValidationService {
         if (endpointProfile.isBlank() || platformManagedInferenceEndpointService == null) {
             return;
         }
+        if (skipDedicatedEmbeddingServiceValidation(providerNode, fieldName, endpointProfile)) {
+            return;
+        }
         try {
             var endpoint = platformManagedInferenceEndpointService.requireActive(endpointProfile);
             String expectedProvider = selectedProvider == null ? "" : selectedProvider.trim().toLowerCase(Locale.ROOT);
@@ -1302,6 +1330,47 @@ public class DeploymentDraftValidationService {
                 ex.getMessage()
             ));
         }
+    }
+
+    private void validateManagedServiceRef(JsonNode providerNode,
+                                           String fieldName,
+                                           String purpose,
+                                           String selectedProvider,
+                                           List<DraftValidationIssue> issues) {
+        String serviceRef = text(providerNode, fieldName);
+        if (serviceRef.isBlank() || platformManagedInferenceServiceService == null) {
+            return;
+        }
+        if (skipDedicatedEmbeddingServiceValidation(providerNode, fieldName, serviceRef)) {
+            return;
+        }
+        try {
+            platformManagedInferenceServiceService.requireActiveEndpointForService(serviceRef, purpose, selectedProvider);
+        } catch (Exception ex) {
+            issues.add(error(
+                "providers",
+                fieldName.toUpperCase(Locale.ROOT) + "_UNKNOWN",
+                "$." + fieldName,
+                ex.getMessage()
+            ));
+        }
+    }
+
+    private boolean skipDedicatedEmbeddingServiceValidation(JsonNode providerNode,
+                                                            String fieldName,
+                                                            String value) {
+        if (!"embeddingManagedServiceRef".equals(fieldName) && !"embeddingEndpointProfile".equals(fieldName)) {
+            return false;
+        }
+        if (ManagedDeploymentProfileCatalog.dedicatedEmbeddingServiceRequested(providerNode)) {
+            return true;
+        }
+        if ("embeddingManagedServiceRef".equals(fieldName) && value.startsWith("dedicated-embedding-")) {
+            return true;
+        }
+        return "embeddingEndpointProfile".equals(fieldName)
+            && value.startsWith("dep-")
+            && value.endsWith("-embedding-worker");
     }
 
     private void validateProviderTuning(JsonNode providerNode, List<DraftValidationIssue> issues) {
@@ -1334,7 +1403,6 @@ public class DeploymentDraftValidationService {
         validatePositiveInteger(providerNode, "geminiPriority", "providers", issues);
         validateTemperature(providerNode, "geminiTemperature", "GEMINI_TEMPERATURE_INVALID", issues);
 
-        validateBooleanIfPresent(providerNode, "restEmbeddingValidateOnStartup", "REST_VALIDATE_ON_STARTUP_BOOLEAN_REQUIRED", issues);
         validatePositiveInteger(providerNode, "weaviateTimeout", "providers", issues);
         validatePositiveInteger(providerNode, "milvusTimeout", "providers", issues);
 
@@ -1384,31 +1452,6 @@ public class DeploymentDraftValidationService {
                 "onnxUseGpu must be a boolean when provided."
             ));
         }
-    }
-
-    private void validateRestEmbeddingProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
-        if (!ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(
-            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
-        )) {
-            return;
-        }
-        String baseUrl = ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerNode);
-        if (baseUrl.isBlank()) {
-            issues.add(error(
-                "providers",
-                "REST_EMBEDDING_BASE_URL_REQUIRED",
-                "$.restEmbeddingBaseUrl",
-                "restEmbeddingBaseUrl is required when embeddingProvider=rest."
-            ));
-        } else if (!isAbsoluteHttpUrl(baseUrl)) {
-            issues.add(error(
-                "providers",
-                "REST_EMBEDDING_BASE_URL_INVALID",
-                "$.restEmbeddingBaseUrl",
-                "restEmbeddingBaseUrl must be a valid absolute http(s) URL."
-            ));
-        }
-        validatePositiveInteger(providerNode, "restEmbeddingTimeoutMs", "providers", issues);
     }
 
     private void validatePineconeVectorProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {

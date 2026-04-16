@@ -174,12 +174,6 @@ public class DeploymentProviderConnectivityService {
             ));
         }
 
-        boolean restEmbeddingProvider = ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(
-            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)
-        );
-        if (restEmbeddingProvider) {
-            probes.add(probeRestEmbedding(providerConfig));
-        }
         addIfPresent(
             probes,
             probeInferenceLlmEndpoint(
@@ -208,9 +202,7 @@ public class DeploymentProviderConnectivityService {
                 ManagedDeploymentProfileCatalog.generationApiVersion(providerConfig)
             )
         );
-        if (!restEmbeddingProvider) {
-            addIfPresent(probes, probeInferenceEmbeddingEndpoint(deploymentId, providerConfig));
-        }
+        addIfPresent(probes, probeInferenceEmbeddingEndpoint(deploymentId, providerConfig));
 
         ManagedVectorSummary managedVectorSummary = summarizeManagedVectorProvisioning(providerConfig, entityConfig);
         String vectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig);
@@ -459,27 +451,6 @@ public class DeploymentProviderConnectivityService {
         }
     }
 
-    private DeploymentProviderConnectivityProbeSummary probeRestEmbedding(JsonNode providerConfig) {
-        String endpoint = ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig);
-        if (!StringUtils.hasText(endpoint)) {
-            return new DeploymentProviderConnectivityProbeSummary(
-                "rest_embedding_base_url",
-                "REST embedding base URL",
-                "BLOCKED",
-                "",
-                "restEmbeddingBaseUrl is missing, so the platform cannot verify the external embedding service."
-            );
-        }
-        return sendProbe(
-            "rest_embedding_base_url",
-            "REST embedding base URL",
-            endpoint,
-            request -> {
-            },
-            false
-        );
-    }
-
     private DeploymentProviderConnectivityProbeSummary probeInferenceLlmEndpoint(String deploymentId,
                                                                                  JsonNode providerConfig,
                                                                                  String purpose,
@@ -572,6 +543,7 @@ public class DeploymentProviderConnectivityService {
                                                                                        JsonNode providerConfig) {
         String provider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String endpointProfile = ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig);
+        String serviceMode = ManagedDeploymentProfileCatalog.embeddingServiceMode(providerConfig);
         if (!StringUtils.hasText(provider)) {
             return null;
         }
@@ -581,22 +553,23 @@ public class DeploymentProviderConnectivityService {
                 ? skippedInferenceProbe("embedding", "ONNX embeddings are bundled in the runtime and do not require an external endpoint probe.")
                 : null;
         }
-        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(normalizedProvider)) {
-            String endpoint = ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig);
-            if (!StringUtils.hasText(endpoint)) {
-                return new DeploymentProviderConnectivityProbeSummary(
-                    "embedding_inference_endpoint",
-                    "Embedding inference endpoint",
-                    "BLOCKED",
-                    "",
-                    "REST embedding provider is selected, but restEmbeddingBaseUrl is missing."
-                );
-            }
-            return sendProbe("embedding_inference_endpoint", "Embedding inference endpoint", endpoint, request -> { }, false);
+        if (ManagedDeploymentProfileCatalog.INFERENCE_SERVICE_MODE_DEPLOYMENT_DEDICATED_SERVICE.equals(serviceMode)) {
+            return skippedInferenceProbe(
+                "embedding",
+                "Dedicated embedding worker will be provisioned during apply and does not require a pre-apply external endpoint probe."
+            );
         }
         String endpoint = switch (normalizedProvider) {
-            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig);
-            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE -> ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig);
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> firstNonBlank(
+                ManagedDeploymentProfileCatalog.openAiEmbeddingBaseUrl(providerConfig),
+                ManagedDeploymentProfileCatalog.embeddingBaseUrl(providerConfig),
+                ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig)
+            );
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE -> firstNonBlank(
+                ManagedDeploymentProfileCatalog.azureEmbeddingEndpoint(providerConfig),
+                ManagedDeploymentProfileCatalog.embeddingBaseUrl(providerConfig),
+                ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig)
+            );
             case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE -> ManagedDeploymentProfileCatalog.cohereBaseUrl(providerConfig);
             case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI -> ManagedDeploymentProfileCatalog.geminiBaseUrl(providerConfig);
             default -> "";
@@ -604,6 +577,7 @@ public class DeploymentProviderConnectivityService {
         if (!StringUtils.hasText(endpoint)) {
             if (!hasExplicitInferenceEmbeddingEndpointConfiguration(
                 endpointProfile,
+                ManagedDeploymentProfileCatalog.embeddingBaseUrl(providerConfig),
                 ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig)
             )) {
                 return null;
@@ -715,8 +689,23 @@ public class DeploymentProviderConnectivityService {
     }
 
     private boolean hasExplicitInferenceEmbeddingEndpointConfiguration(String endpointProfile,
+                                                                       String explicitBaseUrl,
                                                                        String apiKeySecretRef) {
-        return StringUtils.hasText(endpointProfile) || StringUtils.hasText(apiKeySecretRef);
+        return StringUtils.hasText(endpointProfile)
+            || StringUtils.hasText(explicitBaseUrl)
+            || StringUtils.hasText(apiKeySecretRef);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private List<DeploymentSecretResolutionSummary> effectiveSecretResolutions(String deploymentId,

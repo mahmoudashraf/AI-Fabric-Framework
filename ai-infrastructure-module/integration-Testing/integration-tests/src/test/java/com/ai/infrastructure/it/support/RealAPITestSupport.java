@@ -122,7 +122,7 @@ public final class RealAPITestSupport {
             return;
         }
 
-        // No provider configured - this is OK for ONNX/REST providers
+        // No provider configured - this is OK for ONNX-only local embedding runs
         configured = true;
     }
 

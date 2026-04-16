@@ -155,7 +155,6 @@ public class AIProviderConfigValidator {
         switch (provider) {
             case "openai" -> validateOpenAI(result, false, false);
             case "azure" -> validateAzure(result, false, true, false);
-            case "rest" -> validateRest(result);
             case "onnx" -> validateOnnx(result);
             default -> result.addWarning("ai.providers.embedding-provider='" + provider
                 + "' is not a built-in provider. Skipping strict embedding provider validation.");
@@ -179,14 +178,21 @@ public class AIProviderConfigValidator {
             return;
         }
 
-        if (isBlank(config.getApiKey())) {
-            result.addError("ai.providers.openai.api-key",
-                "OpenAI API key is required when OpenAI is selected.");
+        String apiKey = isLlm ? config.getApiKey() : firstPresent(config.getEmbeddingApiKey(), config.getApiKey());
+        String baseUrl = isLlm ? config.getBaseUrl() : firstPresent(config.getEmbeddingBaseUrl(), config.getBaseUrl());
+
+        if (isBlank(apiKey)) {
+            result.addError(
+                isLlm ? "ai.providers.openai.api-key" : "ai.providers.openai.embedding-api-key",
+                "OpenAI API key is required when OpenAI is selected."
+            );
         }
 
-        if (isBlank(config.getBaseUrl())) {
-            result.addError("ai.providers.openai.base-url",
-                "OpenAI base URL is required (e.g. https://api.openai.com/v1).");
+        if (isBlank(baseUrl)) {
+            result.addError(
+                isLlm ? "ai.providers.openai.base-url" : "ai.providers.openai.embedding-base-url",
+                "OpenAI base URL is required (e.g. https://api.openai.com/v1)."
+            );
         }
 
         if (isLlm && requireModel && isBlank(config.getModel())) {
@@ -281,16 +287,29 @@ public class AIProviderConfigValidator {
             return;
         }
 
-        if (isBlank(config.getApiKey())) {
-            result.addError("ai.providers.azure.api-key", "Azure API key is required when Azure is selected.");
+        String apiKey = isEmbedding ? firstPresent(config.getEmbeddingApiKey(), config.getApiKey()) : config.getApiKey();
+        String endpoint = isEmbedding ? firstPresent(config.getEmbeddingEndpoint(), config.getEndpoint()) : config.getEndpoint();
+        String apiVersion = isEmbedding ? firstPresent(config.getEmbeddingApiVersion(), config.getApiVersion()) : config.getApiVersion();
+
+        if (isBlank(apiKey)) {
+            result.addError(
+                isEmbedding ? "ai.providers.azure.embedding-api-key" : "ai.providers.azure.api-key",
+                "Azure API key is required when Azure is selected."
+            );
         }
 
-        if (isBlank(config.getEndpoint())) {
-            result.addError("ai.providers.azure.endpoint", "Azure endpoint is required (your Azure OpenAI resource URL).");
+        if (isBlank(endpoint)) {
+            result.addError(
+                isEmbedding ? "ai.providers.azure.embedding-endpoint" : "ai.providers.azure.endpoint",
+                "Azure endpoint is required (your Azure OpenAI resource URL)."
+            );
         }
 
-        if (isBlank(config.getApiVersion())) {
-            result.addError("ai.providers.azure.api-version", "Azure api-version is required when Azure is selected.");
+        if (isBlank(apiVersion)) {
+            result.addError(
+                isEmbedding ? "ai.providers.azure.embedding-api-version" : "ai.providers.azure.api-version",
+                "Azure api-version is required when Azure is selected."
+            );
         }
 
         if (isLlm && requireLlmDeployment && isBlank(config.getDeploymentName())) {
@@ -300,28 +319,6 @@ public class AIProviderConfigValidator {
         if (isEmbedding && isBlank(config.getEmbeddingDeploymentName())) {
             result.addError("ai.providers.azure.embedding-deployment-name",
                 "Azure embedding-deployment-name is required when Azure is the embedding provider.");
-        }
-    }
-
-    private void validateRest(ValidationResult result) {
-        AIProviderConfig.RestConfig config = providerConfig.getRest();
-
-        if (config == null) {
-            result.addError("ai.providers.rest", "REST embedding configuration block is missing");
-            return;
-        }
-
-        if (!config.isEnabled()) {
-            result.addError("ai.providers.rest.enabled", "REST is selected but ai.providers.rest.enabled=false");
-            return;
-        }
-
-        if (isBlank(config.getBaseUrl())) {
-            result.addError("ai.providers.rest.base-url", "REST embedding base-url is required when REST is selected.");
-        }
-
-        if (isBlank(config.getEndpoint())) {
-            result.addError("ai.providers.rest.endpoint", "REST embedding endpoint is required when REST is selected.");
         }
     }
 
@@ -379,6 +376,10 @@ public class AIProviderConfigValidator {
         }
         Boolean flag = serviceConfig.getFeatures().getEnableGeneration();
         return flag == null || flag;
+    }
+
+    private String firstPresent(String primary, String fallback) {
+        return isBlank(primary) ? fallback : primary;
     }
 
     private boolean isBlank(String value) {

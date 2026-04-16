@@ -232,11 +232,11 @@ public class OpenAIProvider implements AIProvider {
             log.debug("Generating embedding with OpenAI: model={}, text={}", 
                      request.getModel(), request.getText().substring(0, Math.min(100, request.getText().length())));
             
-            String url = normalizeBaseUrl(config.getBaseUrl()) + PATH_EMBEDDINGS;
+            String url = normalizeBaseUrl(firstNonBlank(config.getEmbeddingBaseUrl(), config.getBaseUrl())) + PATH_EMBEDDINGS;
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + config.getApiKey());
+            headers.set("Authorization", "Bearer " + firstNonBlank(config.getEmbeddingApiKey(), config.getApiKey()));
             
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultEmbeddingModel());
@@ -453,6 +453,10 @@ public class OpenAIProvider implements AIProvider {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        return hasText(primary) ? primary : fallback;
     }
 
     private void applyResponseFormat(Map<String, Object> requestBody, Map<String, Object> parameters) {

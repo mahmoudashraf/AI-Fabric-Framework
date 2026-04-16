@@ -42,12 +42,15 @@ import {
   fetchDeploymentTemplates,
   fetchDeploymentWorkspace,
   fetchMarketplaceCategories,
+  fetchMarketplaceInferenceServices,
   fetchMarketplacePlugin,
   fetchMarketplacePlugins,
   fetchMarketplacePublisher,
   fetchMarketplacePublishers,
   publishMarketplaceSubmission,
+  reconcileMarketplaceInferenceService,
   rejectMarketplaceSubmission,
+  scaleMarketplaceInferenceService,
   resolveDeploymentMarketplaceInstall,
   updateDeploymentMarketplaceInstall,
   updateDeploymentMarketplaceInstallEntitlement,
@@ -62,6 +65,7 @@ import {
   type MarketplacePluginDetailSummary,
   type MarketplacePluginSummary,
   type MarketplacePluginVersionSummary,
+  type PlatformManagedInferenceServiceSummary,
   type MarketplacePublisherSummary,
 } from '../api/platformApi'
 
@@ -356,6 +360,7 @@ export function MarketplacePage() {
   const [publisherContactEmail, setPublisherContactEmail] = useState('')
   const [publisherVerificationStatus, setPublisherVerificationStatus] = useState('PENDING')
   const [publisherStatus, setPublisherStatus] = useState('ACTIVE')
+  const [serviceReplicaInputs, setServiceReplicaInputs] = useState<Record<string, string>>({})
   const [submissionPluginSlug, setSubmissionPluginSlug] = useState('')
   const [submissionReleaseChannel, setSubmissionReleaseChannel] = useState('DRAFT')
   const [submissionManifestJson, setSubmissionManifestJson] = useState('{\n  "schemaVersion": 1,\n  "pluginId": "",\n  "version": "1.0.0",\n  "pluginType": "TEMPLATE",\n  "displayName": "",\n  "description": "",\n  "compatibility": {\n    "requiredCapabilities": ["templates", "shellConfig"]\n  },\n  "pricing": {\n    "pricingModel": "FREE"\n  },\n  "permissions": {\n    "contributesTemplate": true,\n    "contributesShellPresentation": true\n  },\n  "contributions": {\n    "template": {\n      "curatedModuleId": "commerce",\n      "shell": {\n        "enabledModuleIds": ["docs", "actions"]\n      }\n    }\n  }\n}')
@@ -379,6 +384,10 @@ export function MarketplacePage() {
   const publishersQuery = useQuery({
     queryKey: ['marketplace-publishers'],
     queryFn: fetchMarketplacePublishers,
+  })
+  const inferenceServicesQuery = useQuery({
+    queryKey: ['marketplace-inference-services'],
+    queryFn: fetchMarketplaceInferenceServices,
   })
   const deploymentTemplatesQuery = useQuery({
     queryKey: ['deployment-templates'],
@@ -419,6 +428,27 @@ export function MarketplacePage() {
     queryKey: ['marketplace-publisher', selectedPublisherId],
     queryFn: () => fetchMarketplacePublisher(selectedPublisherId),
     enabled: selectedPublisherId.length > 0,
+  })
+  const reconcileInferenceServiceMutation = useMutation({
+    mutationFn: (serviceRef: string) => reconcileMarketplaceInferenceService(serviceRef),
+    onSuccess: (service) => {
+      setSuccessMessage(`Managed inference service reconciled: ${service.displayName}`)
+      void queryClient.invalidateQueries({ queryKey: ['marketplace-inference-services'] })
+    },
+    onError: (error: unknown) => {
+      setFormError(error instanceof Error ? error.message : 'Failed to reconcile managed inference service.')
+    },
+  })
+  const scaleInferenceServiceMutation = useMutation({
+    mutationFn: ({ serviceRef, desiredReplicas }: { serviceRef: string; desiredReplicas: number }) =>
+      scaleMarketplaceInferenceService(serviceRef, { desiredReplicas }),
+    onSuccess: (service) => {
+      setSuccessMessage(`Replica target updated for ${service.displayName}`)
+      void queryClient.invalidateQueries({ queryKey: ['marketplace-inference-services'] })
+    },
+    onError: (error: unknown) => {
+      setFormError(error instanceof Error ? error.message : 'Failed to update managed inference service scale.')
+    },
   })
 
   const filteredPlugins = useMemo(() => {
@@ -940,6 +970,112 @@ export function MarketplacePage() {
                 )}
               </Grid>
             </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Managed inference services
+                </Typography>
+                <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+                  Shared inference-profile plugins depend on these platform-managed services being reconciled and active before installs can compile into deployment provider configuration.
+                </Typography>
+              </Box>
+              <Chip
+                icon={<ManageAccountsRoundedIcon />}
+                label={`${inferenceServicesQuery.data?.length ?? 0} services`}
+                variant="outlined"
+              />
+            </Stack>
+            {inferenceServicesQuery.isLoading ? (
+              <Typography color="text.secondary">Loading managed inference services…</Typography>
+            ) : (
+              <Grid container spacing={2}>
+                {(inferenceServicesQuery.data ?? []).map((service) => (
+                  <Grid item xs={12} md={6} key={service.id}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>{service.displayName}</Typography>
+                            <Chip size="small" label={service.status} color={service.status === 'ACTIVE' ? 'success' : service.status === 'FAILED' ? 'error' : 'warning'} />
+                            <Chip size="small" label={service.serviceKind} variant="outlined" />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            {service.serviceRef} · {service.providerType} · desired replicas {service.desiredReplicas ?? 1}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Endpoints: {service.endpoints.map((endpoint) => `${endpoint.endpointPurpose ?? 'UNKNOWN'}:${endpoint.profileRef}`).join(', ') || '—'}
+                          </Typography>
+                          {service.baseUrl ? (
+                            <Typography variant="body2" color="text.secondary">
+                              Base URL: {service.baseUrl}
+                            </Typography>
+                          ) : null}
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                            <Button
+                              variant="outlined"
+                              startIcon={<SyncRoundedIcon />}
+                              onClick={() => {
+                                setFormError(null)
+                                setSuccessMessage(null)
+                                reconcileInferenceServiceMutation.mutate(service.serviceRef)
+                              }}
+                              disabled={reconcileInferenceServiceMutation.isPending}
+                            >
+                              Reconcile
+                            </Button>
+                            <TextField
+                              size="small"
+                              label="Desired replicas"
+                              value={serviceReplicaInputs[service.serviceRef] ?? `${service.desiredReplicas ?? 1}`}
+                              onChange={(event) =>
+                                setServiceReplicaInputs((current) => ({
+                                  ...current,
+                                  [service.serviceRef]: event.target.value,
+                                }))
+                              }
+                              sx={{ maxWidth: 180 }}
+                            />
+                            <Button
+                              variant="contained"
+                              onClick={() => {
+                                const raw = serviceReplicaInputs[service.serviceRef] ?? `${service.desiredReplicas ?? 1}`
+                                const desiredReplicas = Number(raw)
+                                if (!Number.isInteger(desiredReplicas) || desiredReplicas <= 0) {
+                                  setFormError('Desired replicas must be a positive integer.')
+                                  return
+                                }
+                                setFormError(null)
+                                setSuccessMessage(null)
+                                scaleInferenceServiceMutation.mutate({ serviceRef: service.serviceRef, desiredReplicas })
+                              }}
+                              disabled={scaleInferenceServiceMutation.isPending}
+                            >
+                              Scale
+                            </Button>
+                            {service.baseUrl ? (
+                              <Button
+                                variant="text"
+                                endIcon={<LaunchRoundedIcon />}
+                                onClick={() => window.open(service.baseUrl ?? '', '_blank', 'noopener,noreferrer')}
+                              >
+                                Open
+                              </Button>
+                            ) : null}
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
           </Stack>
         </CardContent>
       </Card>

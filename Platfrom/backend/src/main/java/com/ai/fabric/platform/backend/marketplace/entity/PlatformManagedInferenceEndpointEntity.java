@@ -17,11 +17,20 @@ public class PlatformManagedInferenceEndpointEntity {
     @Column(nullable = false, unique = true)
     private String profileRef;
 
+    @Column
+    private String serviceId;
+
+    @Column
+    private String endpointPurpose;
+
     @Column(nullable = false)
     private String displayName;
 
     @Column(nullable = false)
     private String providerType;
+
+    @Column
+    private String protocolType;
 
     @Column(columnDefinition = "TEXT")
     private String baseUrl;
@@ -60,6 +69,22 @@ public class PlatformManagedInferenceEndpointEntity {
         this.profileRef = profileRef;
     }
 
+    public String getServiceId() {
+        return serviceId;
+    }
+
+    public void setServiceId(String serviceId) {
+        this.serviceId = serviceId;
+    }
+
+    public String getEndpointPurpose() {
+        return endpointPurpose;
+    }
+
+    public void setEndpointPurpose(String endpointPurpose) {
+        this.endpointPurpose = endpointPurpose;
+    }
+
     public String getDisplayName() {
         return displayName;
     }
@@ -74,6 +99,14 @@ public class PlatformManagedInferenceEndpointEntity {
 
     public void setProviderType(String providerType) {
         this.providerType = providerType;
+    }
+
+    public String getProtocolType() {
+        return protocolType;
+    }
+
+    public void setProtocolType(String protocolType) {
+        this.protocolType = protocolType;
     }
 
     public String getBaseUrl() {

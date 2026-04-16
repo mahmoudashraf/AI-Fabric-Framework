@@ -5,6 +5,10 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceServiceEntity;
+import com.ai.fabric.platform.backend.marketplace.repository.PlatformManagedInferenceEndpointRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.PlatformManagedInferenceServiceRepository;
 import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplacePublisherRequest;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSummary;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublisherService;
@@ -73,6 +77,12 @@ class MarketplaceIntegrationTest {
     @Autowired
     private MarketplacePublisherService marketplacePublisherService;
 
+    @Autowired
+    private PlatformManagedInferenceServiceRepository platformManagedInferenceServiceRepository;
+
+    @Autowired
+    private PlatformManagedInferenceEndpointRepository platformManagedInferenceEndpointRepository;
+
     @Test
     void catalogEndpointsExposeSeededMarketplacePluginsAndVersions() throws Exception {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins")))
@@ -131,7 +141,18 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(2))))
             .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(2))))
             .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(3))))
-            .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(4))));
+            .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(7))));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-inference-shared-embeddings")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-inference-shared-embeddings")))
+            .andExpect(jsonPath("$.versions[0].contributions.inferenceManagedServiceRefs", hasItem("shared-embeddings-standard")))
+            .andExpect(jsonPath("$.versions[0].pricing.pricingModel", is("SUBSCRIPTION")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/inference-services")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.serviceRef=='shared-embeddings-standard')].serviceKind", is(List.of("SHARED_EMBEDDING_SERVICE"))))
+            .andExpect(jsonPath("$[?(@.serviceRef=='shared-ollama-orchestration')].serviceKind", is(List.of("SHARED_OLLAMA_SERVICE"))));
     }
 
     @Test
@@ -562,6 +583,96 @@ class MarketplaceIntegrationTest {
     }
 
     @Test
+    void sharedAndDedicatedInferenceProfilesCompileManagedServiceBindingsIntoProviderConfig() throws Exception {
+        activateManagedInferenceService(
+            "shared-embeddings-standard",
+            "shared-embeddings-standard",
+            "EMBEDDING",
+            "https://shared-embeddings.dev.loom.test/v1"
+        );
+        activateManagedInferenceService(
+            "shared-ollama-orchestration",
+            "shared-ollama-orchestration",
+            "ORCHESTRATION",
+            "https://shared-ollama.dev.loom.test/v1"
+        );
+
+        DeploymentSummary sharedDeployment = runAsAdmin(() -> createSharedQdrantDeployment("Shared Inference Profile"));
+
+        String sharedInstallResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", sharedDeployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-inference-shared-embeddings",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginType", is("INFERENCE_PROFILE")))
+            .andExpect(jsonPath("$.readinessStatus", is("ENTITLEMENT_REQUIRED")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String sharedInstallId = objectMapper.readTree(sharedInstallResponse).path("id").asText();
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", sharedDeployment.id(), sharedInstallId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "ACTIVE")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("READY")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", sharedDeployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.providerConfig.embeddingProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.embeddingServiceMode", is("SHARED_PLATFORM_SERVICE")))
+            .andExpect(jsonPath("$.providerConfig.embeddingManagedServiceRef", is("shared-embeddings-standard")))
+            .andExpect(jsonPath("$.providerConfig.embeddingEndpointProfile", is("shared-embeddings-standard")))
+            .andExpect(jsonPath("$.providerConfig.embeddingBaseUrl", is("https://shared-embeddings.dev.loom.test/v1")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.managedServiceRefs", hasItem("shared-embeddings-standard")));
+
+        DeploymentSummary dedicatedDeployment = runAsAdmin(() -> createSharedQdrantDeployment("Dedicated Embedding Worker"));
+
+        String dedicatedInstallResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", dedicatedDeployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-inference-dedicated-embedding-worker",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginType", is("INFERENCE_PROFILE")))
+            .andExpect(jsonPath("$.readinessStatus", is("ENTITLEMENT_REQUIRED")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String dedicatedInstallId = objectMapper.readTree(dedicatedInstallResponse).path("id").asText();
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", dedicatedDeployment.id(), dedicatedInstallId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "ACTIVE")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("READY")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", dedicatedDeployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.providerConfig.embeddingProvider", is("openai")))
+            .andExpect(jsonPath("$.providerConfig.embeddingServiceMode", is("DEPLOYMENT_DEDICATED_SERVICE")))
+            .andExpect(jsonPath("$.providerConfig.embeddingManagedServiceRef", containsString("dedicated-embedding-" + dedicatedDeployment.id())))
+            .andExpect(jsonPath("$.providerConfig.embeddingEndpointProfile", is("dep-" + dedicatedDeployment.id() + "-embedding-worker")))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.managedServiceRefs[0]", containsString("dedicated-embedding-" + dedicatedDeployment.id())))
+            .andExpect(jsonPath("$.providerConfig.marketplaceInference.installIds", hasItem(dedicatedInstallId)));
+    }
+
+    @Test
     void byokInferenceProfileInstallUsesInstallFieldsAndOnlyOneInferenceProfileCanBeEnabled() throws Exception {
         DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Inference BYOK Profile", "dev", "dev-openai-lucene")
@@ -929,6 +1040,30 @@ class MarketplaceIntegrationTest {
                 null
             )
         );
+    }
+
+    private void activateManagedInferenceService(String serviceRef,
+                                                 String endpointProfileRef,
+                                                 String endpointPurpose,
+                                                 String baseUrl) {
+        PlatformManagedInferenceServiceEntity service = platformManagedInferenceServiceRepository
+            .findByServiceRefIgnoreCase(serviceRef)
+            .orElseThrow();
+        service.setStatus("ACTIVE");
+        service.setBaseUrl(baseUrl.substring(0, baseUrl.lastIndexOf("/v1")));
+        service.setSecretName("MANAGED_TEST_" + serviceRef.toUpperCase().replace('-', '_') + "_KEY");
+        service.setActualReplicas(1);
+        platformManagedInferenceServiceRepository.save(service);
+
+        PlatformManagedInferenceEndpointEntity endpoint = platformManagedInferenceEndpointRepository
+            .findByProfileRefIgnoreCase(endpointProfileRef)
+            .orElseThrow();
+        endpoint.setServiceId(service.getId());
+        endpoint.setEndpointPurpose(endpointPurpose);
+        endpoint.setBaseUrl(baseUrl);
+        endpoint.setStatus("ACTIVE");
+        endpoint.setSecretName(service.getSecretName());
+        platformManagedInferenceEndpointRepository.save(endpoint);
     }
 
     private <T> T runAsAdmin(Supplier<T> supplier) {

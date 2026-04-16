@@ -1,0 +1,48 @@
+server:
+  port: ${PORT:8097}
+  shutdown: graceful
+
+spring:
+  application:
+    name: ai-fabric-embedding-worker
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+ai:
+  enabled: true
+  service:
+    features:
+      enable-generation: false
+      enable-embeddings: true
+  fabric:
+    embedding-worker:
+      api-key: ${AI_FABRIC_EMBEDDING_WORKER_API_KEY:}
+  providers:
+    enabled: true
+    llm-provider: openai
+    embedding-provider: onnx
+    enable-fallback: false
+    openai:
+      enabled: true
+      api-key: ${OPENAI_API_KEY:unused}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-4.1-mini}
+      max-tokens: ${OPENAI_MAX_TOKENS:512}
+      temperature: ${OPENAI_TEMPERATURE:0.1}
+      timeout: ${OPENAI_TIMEOUT:30}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:bge-small-en-v1.5}
+      embedding-api-key: ${AI_FABRIC_EMBEDDING_WORKER_API_KEY:}
+      embedding-base-url: ${OPENAI_EMBEDDING_BASE_URL:https://api.openai.com/v1}
+    onnx:
+      enabled: true
+      model-alias: ${AI_PROVIDERS_ONNX_MODEL_ALIAS:bge-small-en-v1.5}
+      max-sequence-length: ${AI_PROVIDERS_ONNX_MAX_SEQUENCE_LENGTH:512}
+      use-gpu: ${AI_PROVIDERS_ONNX_USE_GPU:false}
+
+logging:
+  level:
+    com.ai.fabric.embedding.worker: INFO

@@ -40,6 +40,8 @@ public class OpenAIAutoConfiguration {
             .baseUrl(openai.getBaseUrl())
             .defaultModel(openai.getModel())
             .defaultEmbeddingModel(openai.getEmbeddingModel())
+            .embeddingApiKey(openai.getEmbeddingApiKey())
+            .embeddingBaseUrl(openai.getEmbeddingBaseUrl())
             .maxTokens(openai.getMaxTokens())
             .temperature(openai.getTemperature())
             .timeoutSeconds(openai.getTimeout())

@@ -153,7 +153,7 @@ public class DeploymentReleaseVerificationService {
         if ("PRE_APPLY".equalsIgnoreCase(verificationType)) {
             verifyPreApply(checks, deployment, version, release, artifacts);
         } else {
-            VerificationExpectations expectations = buildExpectations(version, artifacts);
+            VerificationExpectations expectations = buildExpectations(version, release, artifacts);
             addBooleanCheck(
                 checks,
                 "active_version_matches_release",
@@ -655,11 +655,12 @@ public class DeploymentReleaseVerificationService {
     }
 
     private VerificationExpectations buildExpectations(DeploymentVersionEntity version,
+                                                       DeploymentReleaseEntity release,
                                                        DeploymentArtifactBundleSummary artifacts) {
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode rawRoutingConfig = readJson(version.getRoutingConfigJson());
-        JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        JsonNode providerConfig = effectiveProviderConfig(version, release);
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
         JsonNode shellConfig = readJson(version.getShellConfigJson());
@@ -783,10 +784,14 @@ public class DeploymentReleaseVerificationService {
             ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig),
             ManagedDeploymentProfileCatalog.orchestrationModel(providerConfig),
             ManagedDeploymentProfileCatalog.orchestrationEndpointProfile(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationManagedServiceRef(providerConfig),
             ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig),
             ManagedDeploymentProfileCatalog.generationModel(providerConfig),
             ManagedDeploymentProfileCatalog.generationEndpointProfile(providerConfig),
+            ManagedDeploymentProfileCatalog.generationManagedServiceRef(providerConfig),
             ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig),
+            ManagedDeploymentProfileCatalog.embeddingManagedServiceRef(providerConfig),
+            ManagedDeploymentProfileCatalog.embeddingServiceMode(providerConfig),
             expectedAuthzEnabled,
             expectedRuntimeProxyEnabled,
             expectedIngressMode,
@@ -803,6 +808,21 @@ public class DeploymentReleaseVerificationService {
             ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig),
             expectedPublicTokenValidationConfigured && ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)
         );
+    }
+
+    private JsonNode effectiveProviderConfig(DeploymentVersionEntity version,
+                                             DeploymentReleaseEntity release) {
+        JsonNode fallback = readJson(version.getProviderConfigJson());
+        if (release == null || !hasText(release.getProvisioningDetailsJson())) {
+            return fallback;
+        }
+        try {
+            JsonNode details = objectMapper.readTree(release.getProvisioningDetailsJson());
+            JsonNode effective = details.path("effectiveProviderConfig");
+            return effective.isObject() ? effective : fallback;
+        } catch (Exception ex) {
+            return fallback;
+        }
     }
 
     private void validateRuntimeOverview(ArrayNode checks,
@@ -2027,10 +2047,14 @@ public class DeploymentReleaseVerificationService {
             && expectations.expectedOrchestrationProvider().equals(trimToEmpty(inferenceProfile.path("orchestrationProvider").asText(null)))
             && expectations.expectedOrchestrationModel().equals(trimToEmpty(inferenceProfile.path("orchestrationModel").asText(null)))
             && expectations.expectedOrchestrationEndpointProfile().equals(trimToEmpty(inferenceProfile.path("orchestrationEndpointProfile").asText(null)))
+            && expectations.expectedOrchestrationManagedServiceRef().equals(trimToEmpty(inferenceProfile.path("orchestrationManagedServiceRef").asText(null)))
             && expectations.expectedGenerationProvider().equals(trimToEmpty(inferenceProfile.path("generationProvider").asText(null)))
             && expectations.expectedGenerationModel().equals(trimToEmpty(inferenceProfile.path("generationModel").asText(null)))
             && expectations.expectedGenerationEndpointProfile().equals(trimToEmpty(inferenceProfile.path("generationEndpointProfile").asText(null)))
-            && expectations.expectedEmbeddingEndpointProfile().equals(trimToEmpty(inferenceProfile.path("embeddingEndpointProfile").asText(null)));
+            && expectations.expectedGenerationManagedServiceRef().equals(trimToEmpty(inferenceProfile.path("generationManagedServiceRef").asText(null)))
+            && expectations.expectedEmbeddingEndpointProfile().equals(trimToEmpty(inferenceProfile.path("embeddingEndpointProfile").asText(null)))
+            && expectations.expectedEmbeddingManagedServiceRef().equals(trimToEmpty(inferenceProfile.path("embeddingManagedServiceRef").asText(null)))
+            && expectations.expectedEmbeddingServiceMode().equals(trimToEmpty(inferenceProfile.path("embeddingServiceMode").asText(null)));
     }
 
     private boolean connectorOverviewMatchesExpected(JsonProbeResult probe,
@@ -2571,10 +2595,14 @@ public class DeploymentReleaseVerificationService {
         String expectedOrchestrationProvider,
         String expectedOrchestrationModel,
         String expectedOrchestrationEndpointProfile,
+        String expectedOrchestrationManagedServiceRef,
         String expectedGenerationProvider,
         String expectedGenerationModel,
         String expectedGenerationEndpointProfile,
+        String expectedGenerationManagedServiceRef,
         String expectedEmbeddingEndpointProfile,
+        String expectedEmbeddingManagedServiceRef,
+        String expectedEmbeddingServiceMode,
         boolean expectedAuthzEnabled,
         boolean expectedRuntimeProxyEnabled,
         String expectedIngressMode,

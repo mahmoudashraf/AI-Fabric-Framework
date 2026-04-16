@@ -731,17 +731,6 @@ public class DeploymentServiceConfigModelService {
                 "GPU acceleration is optional and should only be enabled for runtimes built with the required ONNX GPU support."
             ));
         }
-        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(embeddingProvider)) {
-            fields.add(field(
-                "providers.restEmbeddingBaseUrl",
-                "REST embedding base URL",
-                blankOrValue(ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig), "Not configured"),
-                true,
-                hasText(ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig)),
-                "DRAFT_PROVIDER",
-                "Required when the runtime uses an external REST embedding service."
-            ));
-        }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)) {
             boolean platformManaged = ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig);
             if (platformManaged) {
