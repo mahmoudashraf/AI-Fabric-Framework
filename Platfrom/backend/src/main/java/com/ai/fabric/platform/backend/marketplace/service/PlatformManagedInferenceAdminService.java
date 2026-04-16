@@ -185,6 +185,16 @@ public class PlatformManagedInferenceAdminService {
         );
     }
 
+    public PlatformManagedInferenceServiceSummary reconcile(String serviceRef) {
+        provisioningService.reconcile(serviceRef);
+        return verifyAfterMutation(serviceRef, "RECONCILE");
+    }
+
+    public PlatformManagedInferenceServiceSummary scale(String serviceRef, Integer desiredReplicas) {
+        provisioningService.scale(serviceRef, desiredReplicas);
+        return verifyAfterMutation(serviceRef, "SCALE");
+    }
+
     @Transactional
     public PlatformManagedInferenceServiceSummary rotateSecret(String serviceRef, String value) {
         PlatformManagedInferenceServiceEntity service = serviceService.requireService(serviceRef);
@@ -215,22 +225,59 @@ public class PlatformManagedInferenceAdminService {
             service.getServiceRef(),
             Map.of("serviceRef", service.getServiceRef(), "secretName", service.getSecretName())
         );
-        return provisioningService.reconcile(serviceRef);
+        provisioningService.reconcile(serviceRef);
+        return verifyAfterMutation(serviceRef, "ROTATE_SECRET");
     }
 
     public PlatformManagedInferenceServiceSummary restart(String serviceRef) {
-        return provisioningService.restart(serviceRef);
+        provisioningService.restart(serviceRef);
+        return verifyAfterMutation(serviceRef, "RESTART");
     }
 
     public PlatformManagedInferenceServiceSummary forceRecreate(String serviceRef) {
-        PlatformManagedInferenceServiceSummary summary = provisioningService.forceRecreate(serviceRef);
+        provisioningService.forceRecreate(serviceRef);
         platformAuditService.record(
             "MANAGED_INFERENCE_FORCE_RECREATED",
             TARGET_TYPE,
             serviceRef,
             Map.of("serviceRef", serviceRef)
         );
-        return summary;
+        return verifyAfterMutation(serviceRef, "FORCE_RECREATE");
+    }
+
+    @Transactional
+    PlatformManagedInferenceServiceSummary verifyAfterMutation(String serviceRef, String action) {
+        PlatformManagedInferenceHealthSummary health = getHealth(serviceRef);
+        PlatformManagedInferenceServiceEntity service = serviceService.requireService(serviceRef);
+        Instant now = Instant.now();
+        ObjectNode details = mutableDetails(service);
+        details.put("lastVerifiedOperation", action);
+        details.put("lastVerifiedAt", now.toString());
+        details.put("lastVerifiedStatus", health.status());
+        details.put(
+            "lastVerifiedMessage",
+            firstNonBlank(
+                health.lastProbeMessage(),
+                health.inferenceProbe().message(),
+                health.healthProbe().message(),
+                health.driftMessage()
+            )
+        );
+        service.setDetailsJson(details.toPrettyString());
+        service.setUpdatedAt(now);
+        serviceRepository.save(service);
+        platformAuditService.record(
+            "MANAGED_INFERENCE_OPERATION_VERIFIED",
+            TARGET_TYPE,
+            serviceRef,
+            Map.of(
+                "serviceRef", serviceRef,
+                "action", action,
+                "status", health.status(),
+                "message", firstNonBlank(health.lastProbeMessage(), health.driftMessage(), "")
+            )
+        );
+        return serviceService.getService(serviceRef);
     }
 
     private ProbeResult buildHealthProbe(PlatformManagedInferenceServiceEntity service, boolean railwayManaged) {

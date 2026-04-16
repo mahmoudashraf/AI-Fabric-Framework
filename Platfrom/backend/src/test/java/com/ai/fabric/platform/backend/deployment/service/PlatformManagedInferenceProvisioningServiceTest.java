@@ -325,6 +325,10 @@ class PlatformManagedInferenceProvisioningServiceTest {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
             0,
             0,
             List.of(new PlatformManagedInferenceEndpointSummary(

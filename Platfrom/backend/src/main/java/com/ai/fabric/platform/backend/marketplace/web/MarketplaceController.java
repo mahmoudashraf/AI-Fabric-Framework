@@ -24,7 +24,6 @@ import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketpl
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateMarketplacePublisherVerificationRequest;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceAdminService;
-import com.ai.fabric.platform.backend.deployment.service.PlatformManagedInferenceProvisioningService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
@@ -59,7 +58,6 @@ public class MarketplaceController {
     private final MarketplacePublisherService marketplacePublisherService;
     private final MarketplacePublishingService marketplacePublishingService;
     private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
-    private final PlatformManagedInferenceProvisioningService platformManagedInferenceProvisioningService;
     private final PlatformManagedInferenceAdminService platformManagedInferenceAdminService;
 
     public MarketplaceController(MarketplaceCatalogService marketplaceCatalogService,
@@ -68,7 +66,6 @@ public class MarketplaceController {
                                  MarketplacePublisherService marketplacePublisherService,
                                  MarketplacePublishingService marketplacePublishingService,
                                  PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
-                                 PlatformManagedInferenceProvisioningService platformManagedInferenceProvisioningService,
                                  PlatformManagedInferenceAdminService platformManagedInferenceAdminService) {
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
@@ -76,7 +73,6 @@ public class MarketplaceController {
         this.marketplacePublisherService = marketplacePublisherService;
         this.marketplacePublishingService = marketplacePublishingService;
         this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
-        this.platformManagedInferenceProvisioningService = platformManagedInferenceProvisioningService;
         this.platformManagedInferenceAdminService = platformManagedInferenceAdminService;
     }
 
@@ -138,7 +134,7 @@ public class MarketplaceController {
 
     @PostMapping("/marketplace/inference-services/{serviceRef}/reconcile")
     public PlatformManagedInferenceServiceSummary reconcileInferenceService(@PathVariable String serviceRef) {
-        return platformManagedInferenceProvisioningService.reconcile(serviceRef);
+        return platformManagedInferenceAdminService.reconcile(serviceRef);
     }
 
     @PostMapping("/marketplace/inference-services/{serviceRef}/restart")
@@ -161,7 +157,7 @@ public class MarketplaceController {
     @PutMapping("/marketplace/inference-services/{serviceRef}/scale")
     public PlatformManagedInferenceServiceSummary scaleInferenceService(@PathVariable String serviceRef,
                                                                         @Valid @RequestBody UpdatePlatformManagedInferenceServiceScaleRequest request) {
-        return platformManagedInferenceProvisioningService.scale(serviceRef, request.desiredReplicas());
+        return platformManagedInferenceAdminService.scale(serviceRef, request.desiredReplicas());
     }
 
     @PostMapping("/marketplace/publishers")

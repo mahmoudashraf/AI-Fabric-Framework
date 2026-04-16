@@ -631,10 +631,12 @@ export function InferenceServicesPage() {
                         <Card variant="outlined">
                           <CardContent>
                             <Stack spacing={0.75}>
-                              <Typography variant="body2" color="text.secondary">Drift</Typography>
-                              <Chip size="small" label={detailValue(selectedService.driftStatus)} color={chipColor(selectedService.driftStatus)} />
+                              <Typography variant="body2" color="text.secondary">Last verified</Typography>
+                              <Chip size="small" label={detailValue(selectedService.lastVerifiedStatus ?? selectedService.driftStatus)} color={chipColor(selectedService.lastVerifiedStatus ?? selectedService.driftStatus)} />
                               <Typography variant="caption" color="text.secondary">
-                                Secret {selectedService.secretConfigured ? 'configured' : 'missing'}
+                                {selectedService.lastVerifiedOperation
+                                  ? `${selectedService.lastVerifiedOperation} · ${formatTimestamp(selectedService.lastVerifiedAt)}`
+                                  : `Secret ${selectedService.secretConfigured ? 'configured' : 'missing'}`}
                               </Typography>
                             </Stack>
                           </CardContent>
@@ -664,6 +666,10 @@ export function InferenceServicesPage() {
                         <Typography variant="body2"><strong>Last reconciled:</strong> {formatTimestamp(selectedService.lastReconciledAt)}</Typography>
                         <Typography variant="body2"><strong>Reconcile status:</strong> {detailValue(selectedService.lastReconcileStatus)}</Typography>
                         <Typography variant="body2" color="text.secondary">{detailValue(selectedService.lastReconcileMessage)}</Typography>
+                        <Typography variant="body2"><strong>Last verified action:</strong> {detailValue(selectedService.lastVerifiedOperation)}</Typography>
+                        <Typography variant="body2"><strong>Last verified at:</strong> {formatTimestamp(selectedService.lastVerifiedAt)}</Typography>
+                        <Typography variant="body2"><strong>Verification status:</strong> {detailValue(selectedService.lastVerifiedStatus)}</Typography>
+                        <Typography variant="body2" color="text.secondary">{detailValue(selectedService.lastVerifiedMessage)}</Typography>
                       </Stack>
                     </CardContent>
                   </Card>

@@ -499,6 +499,16 @@ After any recovery action, the platform should automatically run:
 - authenticated inference probe
 - dependency-impact summary refresh
 
+Implemented baseline:
+
+- `reconcile`
+- `scale`
+- `restart`
+- `force recreate`
+- `rotate secret`
+
+all trigger an automatic post-action verification pass and persist the latest verified action, verification timestamp, and verification status for the service summary and detail view.
+
 ---
 
 ## 11) Scaling And Capacity UX

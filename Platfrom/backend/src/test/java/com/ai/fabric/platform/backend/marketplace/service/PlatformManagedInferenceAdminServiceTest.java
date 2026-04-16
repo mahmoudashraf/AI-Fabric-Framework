@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -180,10 +181,13 @@ class PlatformManagedInferenceAdminServiceTest {
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
 
         when(serviceService.requireService("shared-embeddings-standard")).thenReturn(service);
+        when(serviceService.getService("shared-embeddings-standard")).thenReturn(serviceSummary(service));
         when(platformSecretService.isManagedSecretName(service.getSecretName())).thenReturn(true);
+        when(platformSecretService.isSecretPresent(service.getSecretName())).thenReturn(true);
         when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(provisioningService.reconcile("shared-embeddings-standard")).thenReturn(serviceSummary(service));
         doNothing().when(platformSecretService).upsertManagedSecret(eq(service.getSecretName()), eq("new-secret"), any());
+        when(endpointRepository.findAllByServiceIdOrderByProfileRefAsc(service.getId())).thenReturn(List.of());
 
         PlatformManagedInferenceAdminService adminService = new PlatformManagedInferenceAdminService(
             serviceService,
@@ -204,6 +208,53 @@ class PlatformManagedInferenceAdminServiceTest {
         assertThat(summary.serviceRef()).isEqualTo("shared-embeddings-standard");
         verify(platformSecretService).upsertManagedSecret(eq(service.getSecretName()), eq("new-secret"), any());
         verify(provisioningService).reconcile("shared-embeddings-standard");
+        verify(serviceService).getService("shared-embeddings-standard");
+        verify(serviceRepository, atLeastOnce()).save(service);
+    }
+
+    @Test
+    void scaleTriggersPostActionVerification() {
+        PlatformManagedInferenceServiceEntity service = serviceEntity("onnx-bundled", "BUNDLED_ONNX_SERVICE", "BUNDLED_RUNTIME");
+        service.setProviderType("onnx");
+        service.setSecretName(null);
+
+        PlatformManagedInferenceServiceService serviceService = mock(PlatformManagedInferenceServiceService.class);
+        PlatformManagedInferenceProvisioningService provisioningService = mock(PlatformManagedInferenceProvisioningService.class);
+        PlatformManagedInferenceServiceRepository serviceRepository = mock(PlatformManagedInferenceServiceRepository.class);
+        PlatformManagedInferenceEndpointRepository endpointRepository = mock(PlatformManagedInferenceEndpointRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentDraftRepository deploymentDraftRepository = mock(DeploymentDraftRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        when(serviceService.requireService("onnx-bundled")).thenReturn(service);
+        when(serviceService.getService("onnx-bundled")).thenReturn(serviceSummary(service));
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(endpointRepository.findAllByServiceIdOrderByProfileRefAsc(service.getId())).thenReturn(List.of());
+        when(provisioningService.scale("onnx-bundled", 2)).thenReturn(serviceSummary(service));
+
+        PlatformManagedInferenceAdminService adminService = new PlatformManagedInferenceAdminService(
+            serviceService,
+            provisioningService,
+            serviceRepository,
+            endpointRepository,
+            deploymentRepository,
+            deploymentDraftRepository,
+            deploymentVersionRepository,
+            platformSecretService,
+            platformAuditService,
+            railwayGraphqlClient,
+            new ObjectMapper()
+        );
+
+        PlatformManagedInferenceServiceSummary summary = adminService.scale("onnx-bundled", 2);
+
+        assertThat(summary.serviceRef()).isEqualTo("onnx-bundled");
+        verify(provisioningService).scale("onnx-bundled", 2);
+        verify(serviceService).getService("onnx-bundled");
+        verify(serviceRepository, atLeastOnce()).save(service);
     }
 
     private void handleEmbeddingsRequest(HttpExchange exchange) throws IOException {
@@ -281,6 +332,10 @@ class PlatformManagedInferenceAdminServiceTest {
             entity.getSecretName(),
             entity.getStatus(),
             true,
+            null,
+            null,
+            null,
+            null,
             null,
             null,
             null,

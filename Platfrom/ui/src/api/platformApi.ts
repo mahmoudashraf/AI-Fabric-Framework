@@ -301,6 +301,10 @@ export type PlatformManagedInferenceServiceSummary = {
   lastFailedProbeAt: string | null
   lastProbeStatus: string | null
   lastProbeMessage: string | null
+  lastVerifiedOperation: string | null
+  lastVerifiedAt: string | null
+  lastVerifiedStatus: string | null
+  lastVerifiedMessage: string | null
   driftStatus: string | null
   driftMessage: string | null
   dependentDeploymentsCount: number

@@ -23,6 +23,12 @@ Current state:
     - SQL and folder-backed sync modes
     - differential cleanup and scheduled external resync
   - inference-profile plugins that compile into deployment `providerConfig`
+  - managed inference admin operations with post-action verification for:
+    - reconcile
+    - scale
+    - restart
+    - force recreate
+    - rotate secret
   - billing and entitlements
   - first external publisher workflow
 - unsupported public surfaces have been removed from the active marketplace baseline
