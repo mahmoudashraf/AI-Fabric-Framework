@@ -23,6 +23,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.time.Duration;
 import java.time.Instant;
@@ -37,6 +41,11 @@ import java.util.function.Supplier;
 public class RailwayApiProvisioningProvider implements DeploymentProvisioningProvider {
 
     private static final Logger log = LoggerFactory.getLogger(RailwayApiProvisioningProvider.class);
+    private static final Duration HEALTH_FALLBACK_GRACE_PERIOD = Duration.ofSeconds(45);
+    private static final int HEALTH_FALLBACK_REQUIRED_SUCCESSES = 2;
+    private static final HttpClient HEALTHCHECK_HTTP_CLIENT = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .build();
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformVerificationProperties verificationProperties;
@@ -570,7 +579,12 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 serviceName,
                 deploymentId,
                 ex.getMessage()
-            )
+            ),
+            hasText(serviceBaseUrl) && hasText(healthPath)
+                ? () -> isServiceHealthConfirmed(serviceBaseUrl, healthPath)
+                : null,
+            HEALTH_FALLBACK_GRACE_PERIOD,
+            HEALTH_FALLBACK_REQUIRED_SUCCESSES
         );
     }
 
@@ -581,9 +595,35 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                                                                    Supplier<RailwayGraphqlClient.RailwayDeploymentSummary> deploymentSupplier,
                                                                                    DeploymentPollSleeper sleeper,
                                                                                    Consumer<RailwayProvisioningException> transientErrorHandler) {
+        return awaitSuccessfulDeployment(
+            deploymentId,
+            serviceName,
+            timeout,
+            pollInterval,
+            deploymentSupplier,
+            sleeper,
+            transientErrorHandler,
+            null,
+            HEALTH_FALLBACK_GRACE_PERIOD,
+            HEALTH_FALLBACK_REQUIRED_SUCCESSES
+        );
+    }
+
+    static RailwayGraphqlClient.RailwayDeploymentSummary awaitSuccessfulDeployment(String deploymentId,
+                                                                                   String serviceName,
+                                                                                   java.time.Duration timeout,
+                                                                                   java.time.Duration pollInterval,
+                                                                                   Supplier<RailwayGraphqlClient.RailwayDeploymentSummary> deploymentSupplier,
+                                                                                   DeploymentPollSleeper sleeper,
+                                                                                   Consumer<RailwayProvisioningException> transientErrorHandler,
+                                                                                   DeploymentHealthProbe healthProbe,
+                                                                                   java.time.Duration healthFallbackGracePeriod,
+                                                                                   int healthFallbackRequiredSuccesses) {
         Instant deadline = Instant.now().plus(timeout);
         RailwayProvisioningException lastPollingError = null;
         String lastObservedStatus = null;
+        Instant firstObservedAt = Instant.now();
+        int consecutiveHealthyFallbacks = 0;
 
         while (Instant.now().isBefore(deadline)) {
             try {
@@ -598,9 +638,23 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                         "Railway deployment failed for service '" + serviceName + "' with status " + status
                     );
                 }
+                if (shouldAcceptHealthFallback(
+                    deployment,
+                    firstObservedAt,
+                    healthFallbackGracePeriod,
+                    healthProbe
+                )) {
+                    consecutiveHealthyFallbacks++;
+                    if (consecutiveHealthyFallbacks >= Math.max(1, healthFallbackRequiredSuccesses)) {
+                        return deployment;
+                    }
+                } else {
+                    consecutiveHealthyFallbacks = 0;
+                }
                 lastPollingError = null;
             } catch (RailwayProvisioningException ex) {
                 lastPollingError = ex;
+                consecutiveHealthyFallbacks = 0;
                 transientErrorHandler.accept(ex);
             }
 
@@ -638,6 +692,26 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         throw new RailwayProvisioningException(
             "Timed out waiting for Railway deployment " + deploymentId + " to become active."
         );
+    }
+
+    private static boolean shouldAcceptHealthFallback(RailwayGraphqlClient.RailwayDeploymentSummary deployment,
+                                                      Instant firstObservedAt,
+                                                      Duration gracePeriod,
+                                                      DeploymentHealthProbe healthProbe) {
+        if (deployment == null || healthProbe == null) {
+            return false;
+        }
+        Instant baseline = deployment.createdAt() == null || deployment.createdAt().isBlank()
+            ? firstObservedAt
+            : parseInstantOr(firstObservedAt, deployment.createdAt());
+        if (Instant.now().isBefore(baseline.plus(gracePeriod))) {
+            return false;
+        }
+        try {
+            return healthProbe.isHealthy();
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private void validateConfiguration() {
@@ -978,6 +1052,44 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             || "CANCELED".equals(status);
     }
 
+    private boolean isServiceHealthConfirmed(String serviceBaseUrl, String healthPath) {
+        try {
+            URI uri = buildProbeUri(serviceBaseUrl, healthPath);
+            HttpRequest request = HttpRequest.newBuilder(uri)
+                .timeout(verificationProperties.timeout())
+                .GET()
+                .build();
+            HttpResponse<String> response = HEALTHCHECK_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return false;
+            }
+            String body = response.body();
+            if (body == null || body.isBlank()) {
+                return true;
+            }
+            try {
+                JsonNode payload = objectMapper.readTree(body);
+                JsonNode status = payload.path("status");
+                if (status.isTextual()) {
+                    return "UP".equalsIgnoreCase(status.asText(""));
+                }
+            } catch (Exception ignored) {
+                return true;
+            }
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private URI buildProbeUri(String baseUrl, String path) {
+        String normalizedBaseUrl = baseUrl.endsWith("/")
+            ? baseUrl.substring(0, baseUrl.length() - 1)
+            : baseUrl;
+        String normalizedPath = path.startsWith("/") ? path : "/" + path;
+        return URI.create(normalizedBaseUrl + normalizedPath);
+    }
+
     private String firstNonBlank(String... values) {
         for (String value : values) {
             if (value != null && !value.isBlank()) {
@@ -1004,6 +1116,17 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         } catch (RuntimeException ex) {
             log.warn("Unable to parse Railway deployment creation timestamp '{}'.", createdAt);
             return null;
+        }
+    }
+
+    private static Instant parseInstantOr(Instant fallback, String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Instant.parse(rawValue);
+        } catch (RuntimeException ex) {
+            return fallback;
         }
     }
 
@@ -1134,6 +1257,11 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     @FunctionalInterface
     interface DeploymentPollSleeper {
         void sleep(java.time.Duration duration) throws InterruptedException;
+    }
+
+    @FunctionalInterface
+    interface DeploymentHealthProbe {
+        boolean isHealthy();
     }
 
     private record RailwayProjectContext(
