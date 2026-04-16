@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 public class DeploymentProviderConnectivityService {
 
     private static final String EMBEDDING_SMOKE_TEXT = "connectivity smoke probe";
+    private static final Duration DEFAULT_JSON_PROBE_TIMEOUT = Duration.ofSeconds(15);
+    private static final Duration MIN_LLM_PROBE_TIMEOUT = Duration.ofSeconds(60);
 
     private final PlatformSecretService platformSecretService;
     private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
@@ -565,7 +567,8 @@ public class DeploymentProviderConnectivityService {
                     EMBEDDING_SMOKE_TEXT
                 )),
                 request -> request.header("Authorization", "Bearer " + apiKey),
-                this::isOpenAiChatResponse
+                this::isOpenAiChatResponse,
+                llmProbeTimeout(purpose, provider, providerConfig)
             );
             case ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE -> {
                 String requestEndpoint = buildAzureChatProbeEndpoint(
@@ -609,7 +612,8 @@ public class DeploymentProviderConnectivityService {
                     requestEndpoint,
                     requestBody,
                     request -> request.header("api-key", apiKey),
-                    this::isOpenAiChatResponse
+                    this::isOpenAiChatResponse,
+                    llmProbeTimeout(purpose, provider, providerConfig)
                 );
             }
             case ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC -> sendJsonPostProbe(
@@ -637,7 +641,8 @@ public class DeploymentProviderConnectivityService {
                     request.header("x-api-key", apiKey);
                     request.header("anthropic-version", "2023-06-01");
                 },
-                this::isAnthropicChatResponse
+                this::isAnthropicChatResponse,
+                llmProbeTimeout(purpose, provider, providerConfig)
             );
             case ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE -> sendJsonPostProbe(
                 key,
@@ -656,7 +661,8 @@ public class DeploymentProviderConnectivityService {
                     EMBEDDING_SMOKE_TEXT
                 )),
                 request -> request.header("Authorization", "Bearer " + apiKey),
-                this::isCohereChatResponse
+                this::isCohereChatResponse,
+                llmProbeTimeout(purpose, provider, providerConfig)
             );
             case ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> {
                 String displayEndpoint = buildGeminiChatProbeEndpoint(
@@ -693,7 +699,8 @@ public class DeploymentProviderConnectivityService {
                         }
                         """.formatted(EMBEDDING_SMOKE_TEXT)),
                     request -> { },
-                    this::isGeminiChatResponse
+                    this::isGeminiChatResponse,
+                    llmProbeTimeout(purpose, provider, providerConfig)
                 );
             }
             default -> new DeploymentProviderConnectivityProbeSummary(
@@ -896,9 +903,29 @@ public class DeploymentProviderConnectivityService {
                                                                          JsonNode requestBody,
                                                                          RequestCustomizer customizer,
                                                                          ResponseBodyValidator validator) {
+        return sendJsonPostProbe(
+            key,
+            label,
+            displayEndpoint,
+            requestEndpoint,
+            requestBody,
+            customizer,
+            validator,
+            DEFAULT_JSON_PROBE_TIMEOUT
+        );
+    }
+
+    private DeploymentProviderConnectivityProbeSummary sendJsonPostProbe(String key,
+                                                                         String label,
+                                                                         String displayEndpoint,
+                                                                         String requestEndpoint,
+                                                                         JsonNode requestBody,
+                                                                         RequestCustomizer customizer,
+                                                                         ResponseBodyValidator validator,
+                                                                         Duration timeout) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(requestEndpoint))
-                .timeout(Duration.ofSeconds(15))
+                .timeout(timeout)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody)));
@@ -930,7 +957,7 @@ public class DeploymentProviderConnectivityService {
                 label,
                 "READY",
                 displayEndpoint,
-                label + " accepted an authenticated embedding probe."
+                label + " accepted an authenticated probe."
             );
         } catch (Exception ex) {
             return new DeploymentProviderConnectivityProbeSummary(
@@ -1259,6 +1286,30 @@ public class DeploymentProviderConnectivityService {
             && responseBody.path("candidates").get(0).path("content").path("parts").isArray()
             && responseBody.path("candidates").get(0).path("content").path("parts").size() > 0
             && responseBody.path("candidates").get(0).path("content").path("parts").get(0).path("text").isTextual();
+    }
+
+    private Duration llmProbeTimeout(String purpose, String provider, JsonNode providerConfig) {
+        int configuredSeconds = switch (purpose) {
+            case "orchestration" -> ManagedDeploymentProfileCatalog.orchestrationTimeout(providerConfig);
+            case "generation" -> ManagedDeploymentProfileCatalog.generationTimeout(providerConfig);
+            default -> 0;
+        };
+        if (configuredSeconds <= 0) {
+            configuredSeconds = switch (provider) {
+                case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI,
+                    ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE -> ManagedDeploymentProfileCatalog.openAiTimeout(providerConfig);
+                case ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC -> ManagedDeploymentProfileCatalog.anthropicTimeout(providerConfig);
+                case ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE -> ManagedDeploymentProfileCatalog.cohereTimeout(providerConfig);
+                case ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> ManagedDeploymentProfileCatalog.geminiTimeout(providerConfig);
+                default -> 0;
+            };
+        }
+        Duration configured = configuredSeconds > 0
+            ? Duration.ofSeconds(configuredSeconds)
+            : Duration.ZERO;
+        return configured.compareTo(MIN_LLM_PROBE_TIMEOUT) >= 0
+            ? configured
+            : MIN_LLM_PROBE_TIMEOUT;
     }
 
     private String resolveLlmProbeModel(String purpose, String provider, JsonNode providerConfig) {

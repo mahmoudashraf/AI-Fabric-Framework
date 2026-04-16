@@ -293,7 +293,7 @@ class DeploymentProviderConnectivityServiceTest {
             .satisfies(item -> {
                 assertThat(item.status()).isEqualTo("READY");
                 assertThat(item.endpoint()).isEqualTo("https://shared-llm.example/v1/chat/completions");
-                assertThat(item.message()).contains("accepted an authenticated");
+                assertThat(item.message()).contains("accepted an authenticated probe");
             });
     }
 
@@ -429,7 +429,7 @@ class DeploymentProviderConnectivityServiceTest {
             .satisfies(item -> {
                 assertThat(item.status()).isEqualTo("READY");
                 assertThat(item.endpoint()).isEqualTo("https://shared.example/v1/embeddings");
-                assertThat(item.message()).contains("accepted an authenticated embedding probe");
+                assertThat(item.message()).contains("accepted an authenticated probe");
             });
     }
 
