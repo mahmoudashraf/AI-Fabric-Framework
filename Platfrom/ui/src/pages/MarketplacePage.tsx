@@ -986,11 +986,19 @@ export function MarketplacePage() {
                   Shared inference-profile plugins depend on these platform-managed services being reconciled and active before installs can compile into deployment provider configuration.
                 </Typography>
               </Box>
-              <Chip
-                icon={<ManageAccountsRoundedIcon />}
-                label={`${inferenceServicesQuery.data?.length ?? 0} services`}
-                variant="outlined"
-              />
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Chip
+                  icon={<ManageAccountsRoundedIcon />}
+                  label={`${inferenceServicesQuery.data?.length ?? 0} services`}
+                  variant="outlined"
+                />
+                <Button
+                  variant="outlined"
+                  onClick={() => navigate('/inference-services')}
+                >
+                  Open admin
+                </Button>
+              </Stack>
             </Stack>
             {inferenceServicesQuery.isLoading ? (
               <Typography color="text.secondary">Loading managed inference services…</Typography>

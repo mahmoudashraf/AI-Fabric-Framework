@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformInferenceProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
@@ -9,6 +10,7 @@ import com.ai.fabric.platform.backend.marketplace.repository.PlatformManagedInfe
 import com.ai.fabric.platform.backend.marketplace.repository.PlatformManagedInferenceServiceRepository;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class PlatformManagedInferenceProvisioningService {
     private final PlatformManagedInferenceServiceRepository serviceRepository;
     private final PlatformManagedInferenceEndpointRepository endpointRepository;
     private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
+    private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
     public PlatformManagedInferenceProvisioningService(PlatformProvisioningProperties provisioningProperties,
@@ -44,6 +47,7 @@ public class PlatformManagedInferenceProvisioningService {
                                                        PlatformManagedInferenceServiceRepository serviceRepository,
                                                        PlatformManagedInferenceEndpointRepository endpointRepository,
                                                        PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
+                                                       PlatformAuditService platformAuditService,
                                                        ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.inferenceProvisioningProperties = inferenceProvisioningProperties;
@@ -52,6 +56,7 @@ public class PlatformManagedInferenceProvisioningService {
         this.serviceRepository = serviceRepository;
         this.endpointRepository = endpointRepository;
         this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
+        this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
 
@@ -72,59 +77,65 @@ public class PlatformManagedInferenceProvisioningService {
         serviceRepository.save(service);
 
         try {
-            String environmentName = resolveEnvironmentName(service);
-            RailwayGraphqlClient.RailwayProjectSnapshot project = railwayGraphqlClient.findProjectByName(
-                provisioningProperties.workspaceId(),
-                sharedProjectName(service)
+            ReconciledRailwayService reconciled = reconcileRailwayService(service);
+            finalizeActiveService(
+                service,
+                reconciled.projectId(),
+                reconciled.environmentId(),
+                reconciled.serviceId(),
+                reconciled.instance(),
+                reconciled.publicBaseUrl(),
+                reconciled.deploymentId(),
+                "Railway project and services reconciled successfully."
             );
-            if (project == null) {
-                project = railwayGraphqlClient.createProject(
-                    provisioningProperties.workspaceId(),
-                    sharedProjectName(service),
-                    environmentName
-                );
-            }
-            RailwayGraphqlClient.RailwayEnvironmentSummary environment = project.environmentNamed(environmentName);
-            if (environment == null) {
-                environment = railwayGraphqlClient.createEnvironment(project.id(), environmentName);
-            }
-
-            RailwayGraphqlClient.RailwayServiceSummary railwayService = project.serviceNamed(sharedServiceName(service));
-            if (railwayService == null) {
-                railwayService = railwayGraphqlClient.createServiceFromRepository(
-                    project.id(),
-                    sharedServiceName(service),
-                    provisioningProperties.repository(),
-                    provisioningProperties.branch()
-                );
-            }
-
-            railwayGraphqlClient.connectServiceToRepository(
-                railwayService.id(),
-                provisioningProperties.repository(),
-                provisioningProperties.branch()
+            platformAuditService.record(
+                "MANAGED_INFERENCE_RECONCILED",
+                "MANAGED_INFERENCE_SERVICE",
+                service.getServiceRef(),
+                Map.of(
+                    "serviceRef", service.getServiceRef(),
+                    "deploymentId", reconciled.deploymentId(),
+                    "status", service.getStatus()
+                )
             );
-            railwayGraphqlClient.updateServiceInstance(
-                railwayService.id(),
-                environment.id(),
-                serviceRoot(service),
-                dockerfilePath(service),
-                healthPath(service),
-                desiredReplicas(service)
+            return platformManagedInferenceServiceService.getService(serviceRef);
+        } catch (RuntimeException ex) {
+            markLifecycleFailure(service, "FAILED", ex.getMessage(), "lastReconcileStatus", "lastReconcileMessage");
+            platformAuditService.record(
+                "MANAGED_INFERENCE_RECONCILE_FAILED",
+                "MANAGED_INFERENCE_SERVICE",
+                service.getServiceRef(),
+                Map.of(
+                    "serviceRef", service.getServiceRef(),
+                    "error", blankToFallback(ex.getMessage(), ex.getClass().getSimpleName())
+                )
             );
+            throw ex;
+        }
+    }
 
-            ensureServiceSecret(service);
-            railwayGraphqlClient.upsertVariables(
-                project.id(),
-                environment.id(),
-                railwayService.id(),
-                buildServiceEnv(service)
-            );
+    @Transactional
+    public PlatformManagedInferenceServiceSummary scale(String serviceRef, Integer desiredReplicas) {
+        PlatformManagedInferenceServiceSummary ignored = platformManagedInferenceServiceService.updateDesiredReplicas(serviceRef, desiredReplicas);
+        return reconcile(serviceRef);
+    }
 
-            if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
-                railwayGraphqlClient.commitStagedChanges(environment.id());
-            }
-            String deploymentId = railwayGraphqlClient.deployService(railwayService.id(), environment.id());
+    @Transactional
+    public PlatformManagedInferenceServiceSummary restart(String serviceRef) {
+        PlatformManagedInferenceServiceEntity service = platformManagedInferenceServiceService.requireService(serviceRef);
+        if (!requiresRailwayLifecycle(service)) {
+            return platformManagedInferenceServiceService.getService(serviceRef);
+        }
+        if (!hasText(service.getRailwayEnvironmentId()) || !hasText(service.getRailwayServiceId())) {
+            return reconcile(serviceRef);
+        }
+
+        service.setStatus("PROVISIONING");
+        service.setUpdatedAt(Instant.now());
+        serviceRepository.save(service);
+
+        try {
+            String deploymentId = railwayGraphqlClient.deployService(service.getRailwayServiceId(), service.getRailwayEnvironmentId());
             RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
                 deploymentId,
                 sharedServiceName(service),
@@ -137,52 +148,211 @@ public class PlatformManagedInferenceProvisioningService {
             );
 
             RailwayGraphqlClient.RailwayServiceInstanceSummary instance = railwayGraphqlClient.getServiceInstance(
-                environment.id(),
-                railwayService.id()
+                service.getRailwayEnvironmentId(),
+                service.getRailwayServiceId()
             );
-            String publicBaseUrl = ensureServiceDomain(project.id(), environment.id(), railwayService.id());
-            String privateNetworkUrl = trimToNull(instance.upstreamUrl());
-
-            service.setRailwayProjectId(project.id());
-            service.setRailwayEnvironmentId(environment.id());
-            service.setRailwayServiceId(railwayService.id());
-            service.setDesiredReplicas(desiredReplicas(service));
-            service.setActualReplicas(desiredReplicas(service));
-            service.setBaseUrl(publicBaseUrl);
-            service.setPrivateNetworkUrl(privateNetworkUrl);
-            service.setHealthPath(healthPath(service));
-            service.setStatus("ACTIVE");
-            service.setDetailsJson(buildServiceDetails(service, deploymentId).toPrettyString());
-            service.setUpdatedAt(Instant.now());
+            String publicBaseUrl = ensureServiceDomain(
+                service.getRailwayProjectId(),
+                service.getRailwayEnvironmentId(),
+                service.getRailwayServiceId()
+            );
+            finalizeActiveService(
+                service,
+                blankToFallback(service.getRailwayProjectId(), null),
+                blankToFallback(service.getRailwayEnvironmentId(), null),
+                blankToFallback(service.getRailwayServiceId(), null),
+                instance,
+                publicBaseUrl,
+                deploymentId,
+                "Managed inference service restarted successfully."
+            );
+            ObjectNode details = mutableDetails(service);
+            details.put("lastRestartedAt", Instant.now().toString());
+            details.put("lastRestartStatus", "SUCCESS");
+            details.put("lastRestartMessage", "Managed inference service restarted successfully.");
+            service.setDetailsJson(details.toPrettyString());
             serviceRepository.save(service);
-
-            List<PlatformManagedInferenceEndpointEntity> endpoints = endpointRepository.findAllByServiceIdOrderByProfileRefAsc(service.getId());
-            for (PlatformManagedInferenceEndpointEntity endpoint : endpoints) {
-                endpoint.setBaseUrl(endpointBaseUrl(service, publicBaseUrl));
-                endpoint.setProtocolType(ManagedDeploymentProfileCatalog.INFERENCE_PROTOCOL_OPENAI_COMPATIBLE);
-                endpoint.setSecretName(service.getSecretName());
-                endpoint.setStatus("ACTIVE");
-                endpoint.setUpdatedAt(Instant.now());
-                endpointRepository.save(endpoint);
-            }
+            platformAuditService.record(
+                "MANAGED_INFERENCE_RESTARTED",
+                "MANAGED_INFERENCE_SERVICE",
+                service.getServiceRef(),
+                Map.of(
+                    "serviceRef", service.getServiceRef(),
+                    "deploymentId", deploymentId
+                )
+            );
             return platformManagedInferenceServiceService.getService(serviceRef);
         } catch (RuntimeException ex) {
-            service.setStatus("FAILED");
-            service.setUpdatedAt(Instant.now());
-            serviceRepository.save(service);
+            markLifecycleFailure(service, "FAILED", ex.getMessage(), "lastRestartStatus", "lastRestartMessage");
+            platformAuditService.record(
+                "MANAGED_INFERENCE_RESTART_FAILED",
+                "MANAGED_INFERENCE_SERVICE",
+                service.getServiceRef(),
+                Map.of(
+                    "serviceRef", service.getServiceRef(),
+                    "error", blankToFallback(ex.getMessage(), ex.getClass().getSimpleName())
+                )
+            );
             throw ex;
         }
     }
 
     @Transactional
-    public PlatformManagedInferenceServiceSummary scale(String serviceRef, Integer desiredReplicas) {
-        PlatformManagedInferenceServiceSummary ignored = platformManagedInferenceServiceService.updateDesiredReplicas(serviceRef, desiredReplicas);
+    public PlatformManagedInferenceServiceSummary forceRecreate(String serviceRef) {
+        PlatformManagedInferenceServiceEntity service = platformManagedInferenceServiceService.requireService(serviceRef);
+        if (!requiresRailwayLifecycle(service)) {
+            return platformManagedInferenceServiceService.getService(serviceRef);
+        }
+
+        platformAuditService.record(
+            "MANAGED_INFERENCE_FORCE_RECREATE_REQUESTED",
+            "MANAGED_INFERENCE_SERVICE",
+            service.getServiceRef(),
+            Map.of("serviceRef", service.getServiceRef())
+        );
+
+        RailwayGraphqlClient.RailwayProjectSnapshot existingProject = null;
+        if (hasText(service.getRailwayProjectId())) {
+            try {
+                existingProject = railwayGraphqlClient.getProject(service.getRailwayProjectId());
+            } catch (RuntimeException ignored) {
+                existingProject = null;
+            }
+        }
+        if (existingProject == null) {
+            existingProject = railwayGraphqlClient.findProjectByName(
+                provisioningProperties.workspaceId(),
+                sharedProjectName(service)
+            );
+        }
+        if (existingProject != null && hasText(existingProject.id())) {
+            railwayGraphqlClient.deleteProject(existingProject.id());
+        }
+
+        clearRailwayBinding(service);
         return reconcile(serviceRef);
     }
 
     private boolean requiresRailwayLifecycle(PlatformManagedInferenceServiceEntity service) {
         String kind = upper(service.getServiceKind());
         return "SHARED_EMBEDDING_SERVICE".equals(kind) || "SHARED_OLLAMA_SERVICE".equals(kind);
+    }
+
+    private ReconciledRailwayService reconcileRailwayService(PlatformManagedInferenceServiceEntity service) {
+        String environmentName = resolveEnvironmentName(service);
+        RailwayGraphqlClient.RailwayProjectSnapshot project = railwayGraphqlClient.findProjectByName(
+            provisioningProperties.workspaceId(),
+            sharedProjectName(service)
+        );
+        if (project == null) {
+            project = railwayGraphqlClient.createProject(
+                provisioningProperties.workspaceId(),
+                sharedProjectName(service),
+                environmentName
+            );
+        }
+        RailwayGraphqlClient.RailwayEnvironmentSummary environment = project.environmentNamed(environmentName);
+        if (environment == null) {
+            environment = railwayGraphqlClient.createEnvironment(project.id(), environmentName);
+        }
+
+        RailwayGraphqlClient.RailwayServiceSummary railwayService = project.serviceNamed(sharedServiceName(service));
+        if (railwayService == null) {
+            railwayService = railwayGraphqlClient.createServiceFromRepository(
+                project.id(),
+                sharedServiceName(service),
+                provisioningProperties.repository(),
+                provisioningProperties.branch()
+            );
+        }
+
+        railwayGraphqlClient.connectServiceToRepository(
+            railwayService.id(),
+            provisioningProperties.repository(),
+            provisioningProperties.branch()
+        );
+        railwayGraphqlClient.updateServiceInstance(
+            railwayService.id(),
+            environment.id(),
+            serviceRoot(service),
+            dockerfilePath(service),
+            healthPath(service),
+            desiredReplicas(service)
+        );
+
+        ensureServiceSecret(service);
+        railwayGraphqlClient.upsertVariables(
+            project.id(),
+            environment.id(),
+            railwayService.id(),
+            buildServiceEnv(service)
+        );
+
+        if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
+            railwayGraphqlClient.commitStagedChanges(environment.id());
+        }
+        String deploymentId = railwayGraphqlClient.deployService(railwayService.id(), environment.id());
+        RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
+            deploymentId,
+            sharedServiceName(service),
+            provisioningProperties.deploymentTimeout(),
+            inferenceProvisioningProperties.pollInterval(),
+            () -> railwayGraphqlClient.getDeployment(deploymentId),
+            duration -> Thread.sleep(Math.max(duration.toMillis(), 0L)),
+            ex -> {
+            }
+        );
+
+        RailwayGraphqlClient.RailwayServiceInstanceSummary instance = railwayGraphqlClient.getServiceInstance(
+            environment.id(),
+            railwayService.id()
+        );
+        String publicBaseUrl = ensureServiceDomain(project.id(), environment.id(), railwayService.id());
+        return new ReconciledRailwayService(
+            project.id(),
+            environment.id(),
+            railwayService.id(),
+            instance,
+            publicBaseUrl,
+            deploymentId
+        );
+    }
+
+    private void finalizeActiveService(PlatformManagedInferenceServiceEntity service,
+                                       String projectId,
+                                       String environmentId,
+                                       String serviceId,
+                                       RailwayGraphqlClient.RailwayServiceInstanceSummary instance,
+                                       String publicBaseUrl,
+                                       String deploymentId,
+                                       String message) {
+        String privateNetworkUrl = trimToNull(instance.upstreamUrl());
+
+        service.setRailwayProjectId(projectId);
+        service.setRailwayEnvironmentId(environmentId);
+        service.setRailwayServiceId(serviceId);
+        service.setDesiredReplicas(desiredReplicas(service));
+        service.setActualReplicas(desiredReplicas(service));
+        service.setBaseUrl(publicBaseUrl);
+        service.setPrivateNetworkUrl(privateNetworkUrl);
+        service.setHealthPath(healthPath(service));
+        service.setStatus("ACTIVE");
+        ObjectNode details = buildServiceDetails(service, deploymentId);
+        details.put("lastReconcileStatus", "SUCCESS");
+        details.put("lastReconcileMessage", blankToFallback(message, "Managed inference service is active."));
+        service.setDetailsJson(details.toPrettyString());
+        service.setUpdatedAt(Instant.now());
+        serviceRepository.save(service);
+
+        List<PlatformManagedInferenceEndpointEntity> endpoints = endpointRepository.findAllByServiceIdOrderByProfileRefAsc(service.getId());
+        for (PlatformManagedInferenceEndpointEntity endpoint : endpoints) {
+            endpoint.setBaseUrl(endpointBaseUrl(service, publicBaseUrl));
+            endpoint.setProtocolType(ManagedDeploymentProfileCatalog.INFERENCE_PROTOCOL_OPENAI_COMPATIBLE);
+            endpoint.setSecretName(service.getSecretName());
+            endpoint.setStatus("ACTIVE");
+            endpoint.setUpdatedAt(Instant.now());
+            endpointRepository.save(endpoint);
+        }
     }
 
     private String resolveEnvironmentName(PlatformManagedInferenceServiceEntity service) {
@@ -313,13 +483,66 @@ public class PlatformManagedInferenceProvisioningService {
 
     private ObjectNode buildServiceDetails(PlatformManagedInferenceServiceEntity service,
                                            String deploymentId) {
-        ObjectNode details = objectMapper.createObjectNode();
+        ObjectNode details = mutableDetails(service);
         details.put("serviceRef", service.getServiceRef());
         details.put("serviceKind", blankToFallback(service.getServiceKind(), ""));
         details.put("deploymentMode", blankToFallback(service.getDeploymentMode(), ""));
         details.put("deploymentId", deploymentId);
         details.put("reconciledAt", Instant.now().toString());
+        details.put("lastDeploymentId", blankToFallback(deploymentId, ""));
+        details.put("lastReconciledAt", Instant.now().toString());
         return details;
+    }
+
+    private void clearRailwayBinding(PlatformManagedInferenceServiceEntity service) {
+        service.setRailwayProjectId(null);
+        service.setRailwayEnvironmentId(null);
+        service.setRailwayServiceId(null);
+        service.setBaseUrl(null);
+        service.setPrivateNetworkUrl(null);
+        service.setActualReplicas(0);
+        service.setStatus("CREATED");
+        ObjectNode details = mutableDetails(service);
+        details.put("lastForceRecreatedAt", Instant.now().toString());
+        details.put("lastForceRecreateStatus", "SUCCESS");
+        details.put("lastForceRecreateMessage", "Managed inference service linkage was cleared and will be recreated.");
+        service.setDetailsJson(details.toPrettyString());
+        service.setUpdatedAt(Instant.now());
+        serviceRepository.save(service);
+
+        List<PlatformManagedInferenceEndpointEntity> endpoints = endpointRepository.findAllByServiceIdOrderByProfileRefAsc(service.getId());
+        for (PlatformManagedInferenceEndpointEntity endpoint : endpoints) {
+            endpoint.setBaseUrl(null);
+            endpoint.setStatus("CREATED");
+            endpoint.setUpdatedAt(Instant.now());
+            endpointRepository.save(endpoint);
+        }
+    }
+
+    private void markLifecycleFailure(PlatformManagedInferenceServiceEntity service,
+                                      String status,
+                                      String message,
+                                      String statusField,
+                                      String messageField) {
+        service.setStatus(status);
+        ObjectNode details = mutableDetails(service);
+        details.put(statusField, "FAILED");
+        details.put(messageField, blankToFallback(message, "Managed inference service operation failed."));
+        details.put("lastFailureAt", Instant.now().toString());
+        service.setDetailsJson(details.toPrettyString());
+        service.setUpdatedAt(Instant.now());
+        serviceRepository.save(service);
+    }
+
+    private ObjectNode mutableDetails(PlatformManagedInferenceServiceEntity service) {
+        try {
+            JsonNode parsed = hasText(service.getDetailsJson())
+                ? objectMapper.readTree(service.getDetailsJson())
+                : objectMapper.createObjectNode();
+            return parsed.isObject() ? (ObjectNode) parsed.deepCopy() : objectMapper.createObjectNode();
+        } catch (Exception ex) {
+            return objectMapper.createObjectNode();
+        }
     }
 
     private String trimProjectName(String value) {
@@ -353,5 +576,15 @@ public class PlatformManagedInferenceProvisioningService {
 
     private String trimToNull(String value) {
         return hasText(value) ? value.trim() : null;
+    }
+
+    private record ReconciledRailwayService(
+        String projectId,
+        String environmentId,
+        String serviceId,
+        RailwayGraphqlClient.RailwayServiceInstanceSummary instance,
+        String publicBaseUrl,
+        String deploymentId
+    ) {
     }
 }

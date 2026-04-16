@@ -277,6 +277,9 @@ export type PlatformManagedInferenceServiceSummary = {
   environmentScope: string | null
   tierScope: string | null
   deploymentId: string | null
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  railwayServiceId: string | null
   desiredReplicas: number | null
   actualReplicas: number | null
   minReplicas: number | null
@@ -287,11 +290,69 @@ export type PlatformManagedInferenceServiceSummary = {
   healthPath: string | null
   secretName: string | null
   status: string
+  secretConfigured: boolean
+  lastDeploymentId: string | null
+  lastReconciledAt: string | null
+  lastReconcileStatus: string | null
+  lastReconcileMessage: string | null
+  lastHealthyAt: string | null
+  lastProbeAt: string | null
+  lastSuccessfulProbeAt: string | null
+  lastFailedProbeAt: string | null
+  lastProbeStatus: string | null
+  lastProbeMessage: string | null
+  driftStatus: string | null
+  driftMessage: string | null
+  dependentDeploymentsCount: number
+  dependentActiveDeploymentsCount: number
   endpoints: PlatformManagedInferenceEndpointSummary[]
 }
 
 export type UpdatePlatformManagedInferenceServiceScaleRequest = {
   desiredReplicas: number
+}
+
+export type RotatePlatformManagedInferenceServiceSecretRequest = {
+  value: string
+}
+
+export type PlatformManagedInferenceProbeSummary = {
+  key: string
+  label: string
+  status: string
+  endpoint: string | null
+  method: string
+  message: string
+  checkedAt: string
+}
+
+export type PlatformManagedInferenceHealthSummary = {
+  serviceRef: string
+  status: string
+  railwayLifecycleManaged: boolean
+  secretConfigured: boolean
+  driftStatus: string
+  driftMessage: string
+  lastHealthyAt: string | null
+  lastProbeAt: string | null
+  lastSuccessfulProbeAt: string | null
+  lastFailedProbeAt: string | null
+  lastProbeStatus: string | null
+  lastProbeMessage: string | null
+  healthProbe: PlatformManagedInferenceProbeSummary
+  inferenceProbe: PlatformManagedInferenceProbeSummary
+}
+
+export type PlatformManagedInferenceDependentDeploymentSummary = {
+  deploymentId: string
+  deploymentName: string
+  environmentName: string
+  deploymentStatus: string
+  activeVersionId: string | null
+  currentDraftUsesService: boolean
+  activeVersionUsesService: boolean
+  runtimeActive: boolean
+  usages: string[]
 }
 
 export type MarketplacePluginPricingSummary = {
@@ -2343,6 +2404,24 @@ export function fetchMarketplaceInferenceService(serviceRef: string) {
   )
 }
 
+export function fetchMarketplaceInferenceServiceDependents(serviceRef: string) {
+  return request<PlatformManagedInferenceDependentDeploymentSummary[]>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/dependents`,
+  )
+}
+
+export function fetchMarketplaceInferenceServiceActivity(serviceRef: string) {
+  return request<PlatformAuditEventSummary[]>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/activity`,
+  )
+}
+
+export function fetchMarketplaceInferenceServiceHealth(serviceRef: string) {
+  return request<PlatformManagedInferenceHealthSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/health`,
+  )
+}
+
 export function reconcileMarketplaceInferenceService(serviceRef: string) {
   return request<PlatformManagedInferenceServiceSummary>(
     `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/reconcile`,
@@ -2358,6 +2437,37 @@ export function scaleMarketplaceInferenceService(
 ) {
   return request<PlatformManagedInferenceServiceSummary>(
     `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/scale`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function restartMarketplaceInferenceService(serviceRef: string) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/restart`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function forceRecreateMarketplaceInferenceService(serviceRef: string) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/force-recreate`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function rotateMarketplaceInferenceServiceSecret(
+  serviceRef: string,
+  payload: RotatePlatformManagedInferenceServiceSecretRequest,
+) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/rotate-secret`,
     {
       method: 'PUT',
       body: JSON.stringify(payload),

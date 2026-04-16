@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformInferenceProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceServiceEntity;
 import com.ai.fabric.platform.backend.marketplace.model.PlatformManagedInferenceEndpointSummary;
@@ -35,6 +36,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
 
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         PlatformManagedInferenceServiceRepository serviceRepository = mock(PlatformManagedInferenceServiceRepository.class);
         PlatformManagedInferenceEndpointRepository endpointRepository = mock(PlatformManagedInferenceEndpointRepository.class);
         PlatformManagedInferenceServiceService serviceService = mock(PlatformManagedInferenceServiceService.class);
@@ -94,6 +96,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
             serviceRepository,
             endpointRepository,
             serviceService,
+            platformAuditService,
             new ObjectMapper()
         );
 
@@ -128,6 +131,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
 
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         PlatformManagedInferenceServiceRepository serviceRepository = mock(PlatformManagedInferenceServiceRepository.class);
         PlatformManagedInferenceEndpointRepository endpointRepository = mock(PlatformManagedInferenceEndpointRepository.class);
         PlatformManagedInferenceServiceService serviceService = mock(PlatformManagedInferenceServiceService.class);
@@ -179,6 +183,7 @@ class PlatformManagedInferenceProvisioningServiceTest {
             serviceRepository,
             endpointRepository,
             serviceService,
+            platformAuditService,
             new ObjectMapper()
         );
 
@@ -294,6 +299,9 @@ class PlatformManagedInferenceProvisioningServiceTest {
             entity.getEnvironmentScope(),
             entity.getTierScope(),
             entity.getDeploymentId(),
+            entity.getRailwayProjectId(),
+            entity.getRailwayEnvironmentId(),
+            entity.getRailwayServiceId(),
             entity.getDesiredReplicas(),
             entity.getActualReplicas(),
             entity.getMinReplicas(),
@@ -304,6 +312,21 @@ class PlatformManagedInferenceProvisioningServiceTest {
             entity.getHealthPath(),
             entity.getSecretName(),
             entity.getStatus(),
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            0,
             List.of(new PlatformManagedInferenceEndpointSummary(
                 endpoint.getId(),
                 endpoint.getProfileRef(),

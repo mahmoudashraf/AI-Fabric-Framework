@@ -11,6 +11,7 @@ import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
 import { MarketplacePage } from './pages/MarketplacePage'
+import { InferenceServicesPage } from './pages/InferenceServicesPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { PocPage } from './pages/PocPage'
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/marketplace" element={<MarketplacePage />} />
+          <Route path="/inference-services" element={<InferenceServicesPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />
           <Route path="/prompts" element={<PromptsPage />} />

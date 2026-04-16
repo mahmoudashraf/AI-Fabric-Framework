@@ -9,6 +9,7 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
+import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded'
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
@@ -49,6 +50,7 @@ const navItems = [
   { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, customerManagement: true },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
   { label: 'Marketplace', path: '/marketplace', icon: <StorefrontRoundedIcon /> },
+  { label: 'Inference Services', path: '/inference-services', icon: <MemoryRoundedIcon />, platformAdminOnly: true },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
   { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },

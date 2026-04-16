@@ -14,12 +14,16 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginVersion
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherDetailSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSubmissionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSummary;
+import com.ai.fabric.platform.backend.marketplace.model.PlatformManagedInferenceDependentDeploymentSummary;
+import com.ai.fabric.platform.backend.marketplace.model.PlatformManagedInferenceHealthSummary;
 import com.ai.fabric.platform.backend.marketplace.model.PlatformManagedInferenceServiceSummary;
 import com.ai.fabric.platform.backend.marketplace.model.ReviewMarketplacePublisherSubmissionRequest;
+import com.ai.fabric.platform.backend.marketplace.model.RotatePlatformManagedInferenceServiceSecretRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdatePlatformManagedInferenceServiceScaleRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceEntitlementRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateMarketplacePublisherVerificationRequest;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceAdminService;
 import com.ai.fabric.platform.backend.deployment.service.PlatformManagedInferenceProvisioningService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -42,6 +46,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
 
 @RestController
 @RequestMapping("/api")
@@ -55,6 +60,7 @@ public class MarketplaceController {
     private final MarketplacePublishingService marketplacePublishingService;
     private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
     private final PlatformManagedInferenceProvisioningService platformManagedInferenceProvisioningService;
+    private final PlatformManagedInferenceAdminService platformManagedInferenceAdminService;
 
     public MarketplaceController(MarketplaceCatalogService marketplaceCatalogService,
                                  DeploymentMarketplaceInstallService deploymentMarketplaceInstallService,
@@ -62,7 +68,8 @@ public class MarketplaceController {
                                  MarketplacePublisherService marketplacePublisherService,
                                  MarketplacePublishingService marketplacePublishingService,
                                  PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
-                                 PlatformManagedInferenceProvisioningService platformManagedInferenceProvisioningService) {
+                                 PlatformManagedInferenceProvisioningService platformManagedInferenceProvisioningService,
+                                 PlatformManagedInferenceAdminService platformManagedInferenceAdminService) {
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
         this.marketplaceTemplateBootstrapService = marketplaceTemplateBootstrapService;
@@ -70,6 +77,7 @@ public class MarketplaceController {
         this.marketplacePublishingService = marketplacePublishingService;
         this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
         this.platformManagedInferenceProvisioningService = platformManagedInferenceProvisioningService;
+        this.platformManagedInferenceAdminService = platformManagedInferenceAdminService;
     }
 
     @GetMapping("/marketplace/plugins")
@@ -113,9 +121,41 @@ public class MarketplaceController {
         return platformManagedInferenceServiceService.getService(serviceRef);
     }
 
+    @GetMapping("/marketplace/inference-services/{serviceRef}/dependents")
+    public List<PlatformManagedInferenceDependentDeploymentSummary> listInferenceServiceDependents(@PathVariable String serviceRef) {
+        return platformManagedInferenceAdminService.listDependents(serviceRef);
+    }
+
+    @GetMapping("/marketplace/inference-services/{serviceRef}/activity")
+    public List<PlatformAuditEventSummary> listInferenceServiceActivity(@PathVariable String serviceRef) {
+        return platformManagedInferenceAdminService.listActivity(serviceRef);
+    }
+
+    @GetMapping("/marketplace/inference-services/{serviceRef}/health")
+    public PlatformManagedInferenceHealthSummary getInferenceServiceHealth(@PathVariable String serviceRef) {
+        return platformManagedInferenceAdminService.getHealth(serviceRef);
+    }
+
     @PostMapping("/marketplace/inference-services/{serviceRef}/reconcile")
     public PlatformManagedInferenceServiceSummary reconcileInferenceService(@PathVariable String serviceRef) {
         return platformManagedInferenceProvisioningService.reconcile(serviceRef);
+    }
+
+    @PostMapping("/marketplace/inference-services/{serviceRef}/restart")
+    public PlatformManagedInferenceServiceSummary restartInferenceService(@PathVariable String serviceRef) {
+        return platformManagedInferenceAdminService.restart(serviceRef);
+    }
+
+    @PostMapping("/marketplace/inference-services/{serviceRef}/force-recreate")
+    public PlatformManagedInferenceServiceSummary forceRecreateInferenceService(@PathVariable String serviceRef) {
+        return platformManagedInferenceAdminService.forceRecreate(serviceRef);
+    }
+
+    @PutMapping("/marketplace/inference-services/{serviceRef}/rotate-secret")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformManagedInferenceServiceSummary rotateInferenceServiceSecret(@PathVariable String serviceRef,
+                                                                              @Valid @RequestBody RotatePlatformManagedInferenceServiceSecretRequest request) {
+        return platformManagedInferenceAdminService.rotateSecret(serviceRef, request.value());
     }
 
     @PutMapping("/marketplace/inference-services/{serviceRef}/scale")
