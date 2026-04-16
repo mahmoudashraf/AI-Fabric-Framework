@@ -200,6 +200,99 @@ class PlatformManagedInferenceProvisioningServiceTest {
         );
     }
 
+    @Test
+    void forceRecreateWaitsForProjectDeletionBeforeReconciling() {
+        PlatformManagedInferenceServiceEntity serviceEntity = sharedEmbeddingService(1);
+        serviceEntity.setRailwayProjectId("proj-1");
+        serviceEntity.setRailwayEnvironmentId("env-1");
+        serviceEntity.setRailwayServiceId("svc-1");
+        PlatformManagedInferenceEndpointEntity endpointEntity = sharedEmbeddingEndpoint(serviceEntity.getId());
+
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        PlatformManagedInferenceServiceRepository serviceRepository = mock(PlatformManagedInferenceServiceRepository.class);
+        PlatformManagedInferenceEndpointRepository endpointRepository = mock(PlatformManagedInferenceEndpointRepository.class);
+        PlatformManagedInferenceServiceService serviceService = mock(PlatformManagedInferenceServiceService.class);
+
+        when(serviceService.requireService("shared-embeddings-standard")).thenReturn(serviceEntity);
+        when(serviceService.getService("shared-embeddings-standard")).thenReturn(summary(serviceEntity, endpointEntity));
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(endpointRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(endpointRepository.findAllByServiceIdOrderByProfileRefAsc(serviceEntity.getId())).thenReturn(List.of(endpointEntity));
+
+        RailwayGraphqlClient.RailwayProjectSnapshot existingProject = new RailwayGraphqlClient.RailwayProjectSnapshot(
+            "proj-1",
+            "loom-inference-dev-shared-embeddings-standard",
+            List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-1", "dev")),
+            List.of(new RailwayGraphqlClient.RailwayServiceSummary("svc-1", "shared-embeddings-shared-embeddings-standard"))
+        );
+        when(railwayGraphqlClient.getProject("proj-1"))
+            .thenReturn(existingProject)
+            .thenThrow(new RuntimeException("gone"));
+        when(railwayGraphqlClient.findProjectByName("workspace", "loom-inference-dev-shared-embeddings-standard"))
+            .thenReturn(null);
+        when(railwayGraphqlClient.createProject("workspace", "loom-inference-dev-shared-embeddings-standard", "dev"))
+            .thenReturn(new RailwayGraphqlClient.RailwayProjectSnapshot(
+                "proj-2",
+                "loom-inference-dev-shared-embeddings-standard",
+                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-2", "dev")),
+                List.of()
+            ));
+        when(railwayGraphqlClient.createServiceFromRepository(
+            "proj-2",
+            "shared-embeddings-shared-embeddings-standard",
+            "mahmoudashraf/AI-Fabric-Framework",
+            "main"
+        )).thenReturn(new RailwayGraphqlClient.RailwayServiceSummary("svc-2", "shared-embeddings-shared-embeddings-standard"));
+        when(railwayGraphqlClient.hasStagedChanges("env-2")).thenReturn(false);
+        when(railwayGraphqlClient.deployService("svc-2", "env-2")).thenReturn("dep-2");
+        when(railwayGraphqlClient.getDeployment("dep-2")).thenReturn(
+            new RailwayGraphqlClient.RailwayDeploymentSummary("dep-2", "SUCCESS", null, null, Instant.now().toString())
+        );
+        when(railwayGraphqlClient.getServiceInstance("env-2", "svc-2")).thenReturn(
+            new RailwayGraphqlClient.RailwayServiceInstanceSummary(
+                "inst-2",
+                "svc-2",
+                "shared-embeddings-shared-embeddings-standard",
+                ".",
+                "ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile",
+                "/actuator/health",
+                "http://shared-embeddings.internal",
+                "mahmoudashraf/AI-Fabric-Framework",
+                null
+            )
+        );
+        when(railwayGraphqlClient.listServiceDomains("proj-2", "env-2", "svc-2")).thenReturn(List.of());
+        when(railwayGraphqlClient.createServiceDomain("svc-2", "env-2"))
+            .thenReturn(new RailwayGraphqlClient.RailwayServiceDomainSummary("dom-2", "shared-embeddings-recreated.example.com"));
+
+        when(platformSecretService.isSecretPresent(serviceEntity.getSecretName())).thenReturn(true);
+        when(platformSecretService.resolveSecret(serviceEntity.getSecretName())).thenReturn("secret-value");
+
+        PlatformManagedInferenceProvisioningService service = new PlatformManagedInferenceProvisioningService(
+            provisioningProperties(),
+            inferenceProvisioningProperties(),
+            railwayGraphqlClient,
+            platformSecretService,
+            serviceRepository,
+            endpointRepository,
+            serviceService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        PlatformManagedInferenceServiceSummary result = service.forceRecreate("shared-embeddings-standard");
+
+        assertThat(result.serviceRef()).isEqualTo("shared-embeddings-standard");
+        assertThat(serviceEntity.getRailwayProjectId()).isEqualTo("proj-2");
+        assertThat(serviceEntity.getRailwayEnvironmentId()).isEqualTo("env-2");
+        assertThat(serviceEntity.getRailwayServiceId()).isEqualTo("svc-2");
+        assertThat(serviceEntity.getBaseUrl()).isEqualTo("https://shared-embeddings-recreated.example.com");
+        verify(railwayGraphqlClient).deleteProject("proj-1");
+        verify(railwayGraphqlClient).createProject("workspace", "loom-inference-dev-shared-embeddings-standard", "dev");
+    }
+
     private PlatformProvisioningProperties provisioningProperties() {
         return new PlatformProvisioningProperties(
             "RAILWAY_API",

@@ -227,10 +227,44 @@ public class PlatformManagedInferenceProvisioningService {
         }
         if (existingProject != null && hasText(existingProject.id())) {
             railwayGraphqlClient.deleteProject(existingProject.id());
+            awaitProjectDeletion(existingProject.id(), sharedProjectName(service));
         }
 
         clearRailwayBinding(service);
         return reconcile(serviceRef);
+    }
+
+    private void awaitProjectDeletion(String projectId, String projectName) {
+        Instant deadline = Instant.now().plus(provisioningProperties.deploymentTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            boolean projectExistsById = false;
+            try {
+                railwayGraphqlClient.getProject(projectId);
+                projectExistsById = true;
+            } catch (RuntimeException ignored) {
+                projectExistsById = false;
+            }
+            if (!projectExistsById) {
+                RailwayGraphqlClient.RailwayProjectSnapshot projectByName = null;
+                try {
+                    projectByName = railwayGraphqlClient.findProjectByName(provisioningProperties.workspaceId(), projectName);
+                } catch (RuntimeException ignored) {
+                    projectByName = null;
+                }
+                if (projectByName == null || !projectId.equalsIgnoreCase(blankToFallback(projectByName.id(), ""))) {
+                    return;
+                }
+            }
+            try {
+                Thread.sleep(Math.max(inferenceProvisioningProperties.pollInterval().toMillis(), 0L));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new RailwayProvisioningException("Interrupted while waiting for Railway project deletion.", ex);
+            }
+        }
+        throw new RailwayProvisioningException(
+            "Timed out waiting for Railway project deletion to settle: " + projectName
+        );
     }
 
     private boolean requiresRailwayLifecycle(PlatformManagedInferenceServiceEntity service) {
