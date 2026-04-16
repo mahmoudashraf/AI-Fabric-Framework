@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -580,7 +581,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 deploymentId,
                 ex.getMessage()
             ),
-            hasText(serviceBaseUrl) && hasText(healthPath)
+            StringUtils.hasText(serviceBaseUrl) && StringUtils.hasText(healthPath)
                 ? () -> isServiceHealthConfirmed(serviceBaseUrl, healthPath)
                 : null,
             HEALTH_FALLBACK_GRACE_PERIOD,
