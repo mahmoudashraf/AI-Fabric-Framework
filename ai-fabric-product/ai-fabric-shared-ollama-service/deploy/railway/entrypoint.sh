@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+export OLLAMA_HOST="0.0.0.0:${PORT:-11434}"
+
 ollama serve &
 server_pid=$!
 

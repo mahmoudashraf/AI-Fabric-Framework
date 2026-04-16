@@ -266,7 +266,6 @@ public class PlatformManagedInferenceProvisioningService {
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("AI_FABRIC_EMBEDDING_WORKER_API_KEY", resolveSecret(service.getSecretName())));
             }
             case "SHARED_OLLAMA_SERVICE" -> {
-                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("OLLAMA_HOST", "0.0.0.0:11434"));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("OLLAMA_KEEP_ALIVE", "24h"));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("OLLAMA_ORIGINS", "*"));
                 if (hasText(service.getModelId())) {
