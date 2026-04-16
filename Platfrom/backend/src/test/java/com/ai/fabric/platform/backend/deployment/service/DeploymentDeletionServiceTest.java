@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,7 @@ class DeploymentDeletionServiceTest {
         DeploymentDeletionOperationRepository deletionOperationRepository = mock(DeploymentDeletionOperationRepository.class);
         DeploymentDeletionExecutionService executionService = mock(DeploymentDeletionExecutionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         DeploymentDeletionService service = new DeploymentDeletionService(
             deploymentRepository,
@@ -60,7 +62,8 @@ class DeploymentDeletionServiceTest {
             deletionOperationRepository,
             executionService,
             auditService,
-            new ObjectMapper()
+            new ObjectMapper(),
+            platformCustomerConsumerService
         );
 
         DeploymentDeletionOperationEntity failedOperation = failedOperation();
@@ -114,6 +117,7 @@ class DeploymentDeletionServiceTest {
         DeploymentDeletionOperationRepository deletionOperationRepository = mock(DeploymentDeletionOperationRepository.class);
         DeploymentDeletionExecutionService executionService = mock(DeploymentDeletionExecutionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         DeploymentDeletionService service = new DeploymentDeletionService(
             deploymentRepository,
@@ -124,7 +128,8 @@ class DeploymentDeletionServiceTest {
             deletionOperationRepository,
             executionService,
             auditService,
-            new ObjectMapper()
+            new ObjectMapper(),
+            platformCustomerConsumerService
         );
 
         DeploymentDeletionOperationEntity succeededOperation = failedOperation();
@@ -150,6 +155,7 @@ class DeploymentDeletionServiceTest {
         DeploymentDeletionOperationRepository deletionOperationRepository = mock(DeploymentDeletionOperationRepository.class);
         DeploymentDeletionExecutionService executionService = mock(DeploymentDeletionExecutionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         DeploymentDeletionService service = new DeploymentDeletionService(
             deploymentRepository,
@@ -160,7 +166,8 @@ class DeploymentDeletionServiceTest {
             deletionOperationRepository,
             executionService,
             auditService,
-            new ObjectMapper()
+            new ObjectMapper(),
+            platformCustomerConsumerService
         );
 
         DeploymentDeletionOperationEntity runningOperation = runningOperation();
@@ -206,6 +213,7 @@ class DeploymentDeletionServiceTest {
         DeploymentDeletionOperationRepository deletionOperationRepository = mock(DeploymentDeletionOperationRepository.class);
         DeploymentDeletionExecutionService executionService = mock(DeploymentDeletionExecutionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         DeploymentDeletionService service = new DeploymentDeletionService(
             deploymentRepository,
@@ -216,7 +224,8 @@ class DeploymentDeletionServiceTest {
             deletionOperationRepository,
             executionService,
             auditService,
-            new ObjectMapper()
+            new ObjectMapper(),
+            platformCustomerConsumerService
         );
 
         DeploymentDeletionOperationEntity failedOperation = failedOperation();

@@ -21,7 +21,7 @@ on:
         type: boolean
         default: true
       run_platform_admin_checks:
-        description: Verify the live platform admin flows, including inference-service UI and restart/scale/rotate-secret/force-recreate operations.
+        description: Verify the live platform admin flows, including consumer-bound deployment resolution and inference-service UI and restart/scale/rotate-secret/force-recreate operations.
         required: false
         type: boolean
         default: true

@@ -1935,6 +1935,34 @@ export type PurgePlatformTenantSharedVectorHandlesSummary = {
   message: string
 }
 
+export type PlatformConsumerSummary = {
+  consumerId: string
+  customerId: string
+  displayName: string
+  description: string | null
+  status: string
+  boundDeploymentId: string | null
+  boundDeploymentName: string | null
+  boundDeploymentEnvironment: string | null
+  boundDeploymentStatus: string | null
+  lastBoundAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type PlatformConsumerBindingHistorySummary = {
+  consumerId: string
+  customerId: string
+  fromDeploymentId: string | null
+  fromDeploymentName: string | null
+  toDeploymentId: string | null
+  toDeploymentName: string | null
+  reason: string | null
+  actorId: string
+  actorRole: string
+  createdAt: string
+}
+
 export type PlatformCustomerSummary = {
   id: string
   name: string
@@ -1944,9 +1972,11 @@ export type PlatformCustomerSummary = {
   platformManaged: boolean
   tenantCount: number
   deploymentCount: number
+  consumerCount: number
   createdAt: string
   updatedAt: string
   tenants: PlatformTenantSummary[]
+  consumers: PlatformConsumerSummary[]
 }
 
 export type PlatformLoginRequest = {
@@ -2877,6 +2907,59 @@ export function updatePlatformTenant(tenantId: string, payload: {
     method: 'PUT',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchPlatformConsumers(customerId: string) {
+  return request<PlatformConsumerSummary[]>(`/api/platform/customers/${customerId}/consumers`)
+}
+
+export function createPlatformConsumer(customerId: string, payload: {
+  consumerId: string
+  displayName: string
+  description?: string
+  deploymentId?: string
+  bindingReason?: string
+}) {
+  return request<PlatformConsumerSummary>(`/api/platform/customers/${customerId}/consumers`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformConsumer(customerId: string, consumerId: string, payload: {
+  displayName: string
+  description?: string
+  status: string
+}) {
+  return request<PlatformConsumerSummary>(`/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformConsumerBinding(customerId: string, consumerId: string, payload: {
+  deploymentId?: string
+  reason?: string
+}) {
+  return request<PlatformConsumerSummary>(
+    `/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}/binding`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function deletePlatformConsumer(customerId: string, consumerId: string) {
+  return request<void>(`/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export function fetchPlatformConsumerBindingHistory(customerId: string, consumerId: string) {
+  return request<PlatformConsumerBindingHistorySummary[]>(
+    `/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}/history`,
+  )
 }
 
 export function fetchPlatformTenantSharedVectorHandles(tenantId: string) {

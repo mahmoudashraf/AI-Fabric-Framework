@@ -12,8 +12,10 @@ public record PlatformCustomerSummary(
     boolean platformManaged,
     int tenantCount,
     int deploymentCount,
+    int consumerCount,
     Instant createdAt,
     Instant updatedAt,
-    List<PlatformTenantSummary> tenants
+    List<PlatformTenantSummary> tenants,
+    List<PlatformConsumerSummary> consumers
 ) {
 }

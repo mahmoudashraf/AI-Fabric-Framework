@@ -1,20 +1,25 @@
 package com.ai.fabric.platform.backend.tenant;
 
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.entity.TenantScopedVectorResourceEntity;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTenantBindingRequest;
 import com.ai.fabric.platform.backend.deployment.repository.TenantScopedVectorResourceRepository;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentDeletionService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.security.PlatformTestSecurity;
+import com.ai.fabric.platform.backend.tenant.model.CreatePlatformConsumerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorHandleSummary;
 import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesRequest;
 import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesSummary;
+import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerBindingRequest;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +45,12 @@ class PlatformCustomerTenantIntegrationTest {
 
     @Autowired
     private PlatformCustomerTenantService platformCustomerTenantService;
+
+    @Autowired
+    private PlatformCustomerConsumerService platformCustomerConsumerService;
+
+    @Autowired
+    private DeploymentDeletionService deploymentDeletionService;
 
     @Autowired
     private TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository;
@@ -182,6 +193,101 @@ class PlatformCustomerTenantIntegrationTest {
 
         assertThat(purge.purgedCount()).isEqualTo(1);
         assertThat(tenantScopedVectorResourceRepository.findByTenantIdOrderByUpdatedAtDesc(tenant.id())).isEmpty();
+    }
+
+    @Test
+    void deploymentDeleteIsBlockedWhileConsumerRemainsBound() {
+        PlatformCustomerSummary customer = platformCustomerTenantService.createCustomer(
+            new CreatePlatformCustomerRequest("Delete Guard Customer", "Customer for delete guard")
+        );
+        DeploymentSummary deployment = deploymentService.createDeployment(new CreateDeploymentRequest(
+            "Delete Guard Deployment",
+            "dev",
+            "dev-openai-lucene",
+            "default",
+            null,
+            customer.id(),
+            null
+        ));
+        platformCustomerConsumerService.createConsumer(
+            customer.id(),
+            new CreatePlatformConsumerRequest(
+                "delete-guard-consumer",
+                "Delete guard consumer",
+                "Bound to deployment before delete.",
+                deployment.id(),
+                "Initial binding."
+            )
+        );
+        deploymentService.archiveDeployment(deployment.id());
+
+        assertThatThrownBy(() -> deploymentDeletionService.queueDeleteDeployment(
+            deployment.id(),
+            new DeleteDeploymentRequest(false, null, "Attempt delete while consumer is still bound.")
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(ex -> {
+                ResponseStatusException responseStatusException = (ResponseStatusException) ex;
+                assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                assertThat(responseStatusException.getReason()).contains("consumer is bound");
+            });
+    }
+
+    @Test
+    void deploymentCustomerMoveIsBlockedWhileConsumerRemainsBound() {
+        PlatformCustomerSummary customerA = platformCustomerTenantService.createCustomer(
+            new CreatePlatformCustomerRequest("Source Customer", "Source customer")
+        );
+        PlatformCustomerSummary customerB = platformCustomerTenantService.createCustomer(
+            new CreatePlatformCustomerRequest("Target Customer", "Target customer")
+        );
+        var tenantB = platformCustomerTenantService.createTenant(
+            customerB.id(),
+            new CreatePlatformTenantRequest("Target Tenant", "Target tenant")
+        );
+        DeploymentSummary deployment = deploymentService.createDeployment(new CreateDeploymentRequest(
+            "Consumer Move Guard",
+            "dev",
+            "dev-openai-lucene",
+            "default",
+            null,
+            customerA.id(),
+            null
+        ));
+        platformCustomerConsumerService.createConsumer(
+            customerA.id(),
+            new CreatePlatformConsumerRequest(
+                "move-guard-consumer",
+                "Move guard consumer",
+                "Bound during customer move attempt.",
+                deployment.id(),
+                "Initial binding."
+            )
+        );
+
+        assertThatThrownBy(() -> deploymentService.updateDeploymentTenantBinding(
+            deployment.id(),
+            new UpdateDeploymentTenantBindingRequest(customerB.id(), tenantB.id())
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(ex -> {
+                ResponseStatusException responseStatusException = (ResponseStatusException) ex;
+                assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                assertThat(responseStatusException.getReason()).contains("consumer is bound");
+            });
+
+        platformCustomerConsumerService.updateBinding(
+            customerA.id(),
+            "move-guard-consumer",
+            new UpdatePlatformConsumerBindingRequest(null, "Unbind before migration.")
+        );
+
+        DeploymentOverviewSummary rebound = deploymentService.updateDeploymentTenantBinding(
+            deployment.id(),
+            new UpdateDeploymentTenantBindingRequest(customerB.id(), tenantB.id())
+        );
+        assertThat(rebound.binding()).isNotNull();
+        assertThat(rebound.binding().customerId()).isEqualTo(customerB.id());
     }
 
     private TenantScopedVectorResourceEntity sharedHandle(String id,

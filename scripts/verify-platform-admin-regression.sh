@@ -9,6 +9,7 @@ set -euo pipefail
 # - deployment assignment visibility
 # - async deletion and notification flow
 # - canonical rollout inventory
+# - consumer-bound deployment resolution
 # - inference-service admin UI and API verification
 # - managed inference service restart/scale/rotate-secret/force-recreate
 # - optional manual canonical rollout mutation
@@ -41,6 +42,7 @@ VERIFY_DEPLOYMENT_OVERRIDE_SMOKE="${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE:-true}"
 VERIFY_CANONICAL_ROLLOUT_READONLY="${VERIFY_CANONICAL_ROLLOUT_READONLY:-true}"
 VERIFY_CANONICAL_ROLLOUT_MUTATION="${VERIFY_CANONICAL_ROLLOUT_MUTATION:-false}"
 CANONICAL_ROLLOUT_KEYS="${CANONICAL_ROLLOUT_KEYS:-}"
+VERIFY_CONSUMER_RESOLUTION_SMOKE="${VERIFY_CONSUMER_RESOLUTION_SMOKE:-true}"
 VERIFY_INFERENCE_SERVICE_UI="${VERIFY_INFERENCE_SERVICE_UI:-true}"
 VERIFY_INFERENCE_SERVICE_ADMIN_READONLY="${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY:-true}"
 VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION:-false}"
@@ -65,6 +67,9 @@ PLATFORM_COOKIE_JAR=""
 TEMP_DEPLOYMENT_ID=""
 TEMP_DEPLOYMENT_CLEANED_UP="false"
 TEMP_OVERRIDE_SECRET_NAME=""
+TEMP_CONSUMER_CUSTOMER_ID=""
+TEMP_CONSUMER_ID=""
+TEMP_CONSUMER_DEPLOYMENT_ID=""
 PLATFORM_CURRENT_ACTOR_ID=""
 PLATFORM_CURRENT_USER_ID=""
 
@@ -320,6 +325,15 @@ cleanup() {
     local payload='{"hardDelete":false,"reason":"Best-effort cleanup from verify-platform-admin-regression.sh"}'
     platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}" "${payload}" || true
   fi
+  if [[ -n "${TEMP_CONSUMER_ID}" && -n "${TEMP_CONSUMER_CUSTOMER_ID}" ]]; then
+    platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" '{"deploymentId":null,"reason":"Best-effort cleanup from verify-platform-admin-regression.sh"}' || true
+    platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}" || true
+  fi
+  if [[ -n "${TEMP_CONSUMER_DEPLOYMENT_ID}" ]]; then
+    platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${TEMP_CONSUMER_DEPLOYMENT_ID}/archive" || true
+    local consumer_payload='{"hardDelete":false,"reason":"Best-effort cleanup from verify-platform-admin-regression.sh consumer smoke"}'
+    platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_CONSUMER_DEPLOYMENT_ID}" "${consumer_payload}" || true
+  fi
   if [[ -n "${TEMP_OVERRIDE_SECRET_NAME}" ]]; then
     platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/secrets/deployment-overrides/${TEMP_OVERRIDE_SECRET_NAME}" || true
   fi
@@ -563,6 +577,134 @@ PY
   fi
 }
 
+verify_consumer_resolution_smoke() {
+  echo ""
+  echo "== Consumer Resolution Smoke =="
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/deployments/overview?includeArchived=false"
+  assert_status 200 "list deployment overviews for consumer smoke"
+
+  TEMP_CONSUMER_CUSTOMER_ID="$(
+    TARGET_DEPLOYMENT_ID="${ADMIN_TARGET_DEPLOYMENT_ID}" JSON_EXTRACT_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+
+items = json.loads(os.environ.get("JSON_EXTRACT_BODY", "") or "[]")
+target = os.environ["TARGET_DEPLOYMENT_ID"]
+for item in items:
+    if (item or {}).get("id") != target:
+        continue
+    binding = (item or {}).get("binding") or {}
+    customer_id = binding.get("customerId")
+    if not customer_id:
+        raise SystemExit(f"Missing customer binding for deployment {target}")
+    print(customer_id)
+    break
+else:
+    raise SystemExit(f"Deployment not found in overview payload: {target}")
+PY
+  )"
+
+  local consumer_timestamp
+  consumer_timestamp="$(date -u +%Y%m%d%H%M%S)"
+  local consumer_create_payload
+  consumer_create_payload="$(
+    CREATE_NAME="Consumer Resolution Smoke ${consumer_timestamp}" \
+    CUSTOMER_ID="${TEMP_CONSUMER_CUSTOMER_ID}" \
+    python3 - <<'PY'
+import json
+import os
+
+payload = {
+    "name": os.environ["CREATE_NAME"],
+    "environment": "dev",
+    "templateId": "dev-openai-lucene",
+    "customerId": os.environ["CUSTOMER_ID"],
+}
+print(json.dumps(payload))
+PY
+  )"
+  platform_http POST "${PLATFORM_BASE_URL}/api/deployments" "${consumer_create_payload}"
+  assert_status 201 "create consumer smoke deployment"
+  json_assert "create consumer smoke deployment" $'assert bool((data or {}).get("id"))\nassert (data or {}).get("binding", {}).get("customerId") == "'"${TEMP_CONSUMER_CUSTOMER_ID}"'"\nprint("ok")'
+  TEMP_CONSUMER_DEPLOYMENT_ID="$(json_extract 'print((data or {}).get("id") or "")')"
+  pass "platform POST /api/deployments (consumer smoke deployment)"
+
+  TEMP_CONSUMER_ID="consumer-smoke-${consumer_timestamp}"
+  local consumer_payload
+  consumer_payload="$(
+    CONSUMER_ID="${TEMP_CONSUMER_ID}" \
+    DEPLOYMENT_ID="${ADMIN_TARGET_DEPLOYMENT_ID}" \
+    python3 - <<'PY'
+import json
+import os
+
+payload = {
+    "consumerId": os.environ["CONSUMER_ID"],
+    "displayName": "Consumer smoke",
+    "description": "Live regression consumer-bound deployment resolution smoke.",
+    "deploymentId": os.environ["DEPLOYMENT_ID"],
+    "bindingReason": "Initial live regression binding."
+}
+print(json.dumps(payload))
+PY
+  )"
+  platform_http POST "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers" "${consumer_payload}"
+  assert_status 201 "create consumer smoke binding"
+  json_assert "create consumer smoke binding" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'"\nprint("ok")'
+  pass "platform POST /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers"
+
+  public_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
+  assert_status 200 "public consumer credentials"
+  json_assert "public consumer credentials" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("deploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'"\nassert bool(((data or {}).get("integration") or {}).get("preferredIntegrationMode"))\nprint("ok")'
+  pass "public GET /api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
+
+  local rebind_payload
+  rebind_payload="$(
+    DEPLOYMENT_ID="${TEMP_CONSUMER_DEPLOYMENT_ID}" python3 - <<'PY'
+import json
+import os
+
+payload = {
+    "deploymentId": os.environ["DEPLOYMENT_ID"],
+    "reason": "Rebind consumer to the replacement deployment during live regression."
+}
+print(json.dumps(payload))
+PY
+  )"
+  platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" "${rebind_payload}"
+  assert_status 200 "rebind consumer smoke"
+  json_assert "rebind consumer smoke" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'"\nprint("ok")'
+  pass "platform PUT /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding"
+
+  public_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/status"
+  assert_status 200 "public consumer status"
+  json_assert "public consumer status" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("deploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'"\nassert bool((data or {}).get("status"))\nprint("ok")'
+  pass "public GET /api/public/consumers/${TEMP_CONSUMER_ID}/status"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/history"
+  assert_status 200 "consumer binding history"
+  json_assert "consumer binding history" $'items = data or []\nassert isinstance(items, list)\nassert len(items) >= 2, items\nassert any((item or {}).get("toDeploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'" for item in items), items\nassert any((item or {}).get("toDeploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'" for item in items), items\nprint("ok")'
+  pass "platform GET /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/history"
+
+  platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" '{"deploymentId":null,"reason":"Unbind consumer after live regression."}'
+  assert_status 200 "unbind consumer smoke"
+  json_assert "unbind consumer smoke" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") in (None, "")\nprint("ok")'
+  pass "platform PUT /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding -> unbound"
+
+  platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}"
+  assert_status 204 "delete consumer smoke"
+  pass "platform DELETE /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}"
+  TEMP_CONSUMER_ID=""
+
+  platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${TEMP_CONSUMER_DEPLOYMENT_ID}/archive"
+  assert_status 200 "archive consumer smoke deployment"
+  platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_CONSUMER_DEPLOYMENT_ID}" '{"hardDelete":false,"reason":"Cleanup consumer smoke deployment"}'
+  assert_status 202 "delete consumer smoke deployment"
+  pass "consumer smoke deployment cleanup queued"
+  TEMP_CONSUMER_DEPLOYMENT_ID=""
+}
+
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
@@ -618,6 +760,7 @@ echo "Verify async delete smoke: ${VERIFY_ASYNC_DELETE_SMOKE}"
 echo "Verify deployment override smoke: ${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}"
 echo "Verify canonical rollout inventory: ${VERIFY_CANONICAL_ROLLOUT_READONLY}"
 echo "Verify canonical rollout mutation: ${VERIFY_CANONICAL_ROLLOUT_MUTATION}"
+echo "Verify consumer resolution smoke: ${VERIFY_CONSUMER_RESOLUTION_SMOKE}"
 echo "Verify inference service UI: ${VERIFY_INFERENCE_SERVICE_UI}"
 echo "Verify inference service admin read-only: ${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY}"
 echo "Verify inference service admin mutation: ${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION}"
@@ -690,6 +833,10 @@ if [[ -n "${ADMIN_TARGET_DEPLOYMENT_ID}" ]]; then
   assert_status 200 "existing deployment assignments"
   json_assert "existing deployment assignments" $'items = data or []\nassert isinstance(items, list)\nfor item in items:\n  assert (item or {}).get("deploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'", item\n  assert (item or {}).get("assignmentRole"), item\n  assert (item or {}).get("userId"), item\nprint("ok")'
   pass "platform GET /api/deployments/${ADMIN_TARGET_DEPLOYMENT_ID}/assignments"
+fi
+
+if [[ "${VERIFY_CONSUMER_RESOLUTION_SMOKE}" == "true" && -n "${ADMIN_TARGET_DEPLOYMENT_ID}" ]]; then
+  verify_consumer_resolution_smoke
 fi
 
 echo ""

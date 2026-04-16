@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -83,6 +84,12 @@ public class PlatformSecurityConfiguration {
                 "/api/platform/auth/login",
                 "/api/platform/auth/logout",
                 "/api/vectorization/runner/**"
+            ).permitAll();
+            authorize.requestMatchers(
+                HttpMethod.GET,
+                "/api/public/consumers/*",
+                "/api/public/consumers/*/status",
+                "/api/public/consumers/*/credentials"
             ).permitAll();
             authorize.requestMatchers(
                 "/api/deployments/*/versions/*/artifacts/ai-actions.yml",

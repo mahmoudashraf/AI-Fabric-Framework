@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformTenantEntity;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
+import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorHandleSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSummary;
@@ -58,6 +59,7 @@ public class PlatformCustomerTenantService {
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
     private final PlatformAuditService platformAuditService;
     private final PlatformCustomerAccessService platformCustomerAccessService;
+    private final PlatformCustomerConsumerService platformCustomerConsumerService;
 
     public PlatformCustomerTenantService(PlatformCustomerRepository customerRepository,
                                          PlatformTenantRepository tenantRepository,
@@ -66,7 +68,8 @@ public class PlatformCustomerTenantService {
                                          DeploymentReleaseRepository deploymentReleaseRepository,
                                          DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
                                          PlatformAuditService platformAuditService,
-                                         PlatformCustomerAccessService platformCustomerAccessService) {
+                                         PlatformCustomerAccessService platformCustomerAccessService,
+                                         PlatformCustomerConsumerService platformCustomerConsumerService) {
         this.customerRepository = customerRepository;
         this.tenantRepository = tenantRepository;
         this.deploymentRepository = deploymentRepository;
@@ -75,6 +78,7 @@ public class PlatformCustomerTenantService {
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
         this.platformAuditService = platformAuditService;
         this.platformCustomerAccessService = platformCustomerAccessService;
+        this.platformCustomerConsumerService = platformCustomerConsumerService;
     }
 
     @Transactional
@@ -394,6 +398,8 @@ public class PlatformCustomerTenantService {
                 (left, right) -> left,
                 LinkedHashMap::new
             ));
+        Map<String, List<PlatformConsumerSummary>> consumersByCustomerId =
+            platformCustomerConsumerService.summarizeConsumersByCustomerIds(customerIds);
 
         return customers.stream()
             .map(customer -> {
@@ -406,6 +412,7 @@ public class PlatformCustomerTenantService {
                 int deploymentCount = (int) tenantSummaries.stream()
                     .filter(tenant -> tenant.boundDeploymentId() != null)
                     .count();
+                List<PlatformConsumerSummary> consumerSummaries = consumersByCustomerId.getOrDefault(customer.getId(), List.of());
                 return new PlatformCustomerSummary(
                     customer.getId(),
                     customer.getName(),
@@ -415,9 +422,11 @@ public class PlatformCustomerTenantService {
                     customer.isPlatformManaged(),
                     tenantSummaries.size(),
                     deploymentCount,
+                    consumerSummaries.size(),
                     customer.getCreatedAt(),
                     customer.getUpdatedAt(),
-                    tenantSummaries
+                    tenantSummaries,
+                    consumerSummaries
                 );
             })
             .sorted(Comparator

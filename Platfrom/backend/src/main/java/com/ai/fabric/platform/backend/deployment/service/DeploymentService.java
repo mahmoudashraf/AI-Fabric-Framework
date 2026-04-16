@@ -59,6 +59,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -113,6 +114,7 @@ public class DeploymentService {
     private final DeploymentDeletionService deploymentDeletionService;
     private final DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService;
     private final PlatformCustomerTenantService platformCustomerTenantService;
+    private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -250,6 +252,7 @@ public class DeploymentService {
                              DeploymentDeletionService deploymentDeletionService,
                              DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService,
                              PlatformCustomerTenantService platformCustomerTenantService,
+                             PlatformCustomerConsumerService platformCustomerConsumerService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
@@ -280,6 +283,7 @@ public class DeploymentService {
         this.deploymentDeletionService = deploymentDeletionService;
         this.deploymentCuratedModuleCatalogService = deploymentCuratedModuleCatalogService;
         this.platformCustomerTenantService = platformCustomerTenantService;
+        this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -360,6 +364,12 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return toOverview(getDeployment(deploymentId));
+    }
+
+    public DeploymentOverviewSummary getDeploymentOverviewForExternalResolution(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return toOverview(deployment);
     }
 
     public DeploymentWorkspaceSummary getDeploymentWorkspace(String deploymentId) {
@@ -720,6 +730,13 @@ public class DeploymentService {
             request.customerId(),
             request.tenantId()
         );
+        if (!deployment.getCustomerId().equals(binding.customer().getId())
+            && platformCustomerConsumerService.hasBoundConsumer(deployment.getId())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Deployment customer binding cannot be moved while a consumer is bound to the deployment."
+            );
+        }
         deployment.setCustomerId(binding.customer().getId());
         deployment.setTenantId(binding.tenant().getId());
         deployment.setUpdatedAt(Instant.now());

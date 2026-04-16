@@ -21,7 +21,7 @@ on:
         type: boolean
         default: false
       run_platform_admin_smoke:
-        description: Run platform-admin-only live API regression, including user directory, assignments, deployment override smoke, notifications, and async deletion smoke.
+        description: Run platform-admin-only live API regression, including user directory, assignments, consumer-bound deployment resolution, deployment override smoke, notifications, and async deletion smoke.
         required: false
         type: boolean
         default: true

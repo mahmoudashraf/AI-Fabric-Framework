@@ -1,5 +1,10 @@
 package com.ai.fabric.platform.backend.deployment;
 
+import com.ai.fabric.platform.backend.tenant.model.CreatePlatformConsumerRequest;
+import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
+import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerBindingRequest;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -38,6 +43,15 @@ class PublicProvisioningApiIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private com.ai.fabric.platform.backend.deployment.service.DeploymentService deploymentService;
+
+    @Autowired
+    private PlatformCustomerTenantService platformCustomerTenantService;
+
+    @Autowired
+    private PlatformCustomerConsumerService platformCustomerConsumerService;
 
     @Test
     void publicClientCanCreateInspectAndIdempotentlyApplyDeployment() throws Exception {
@@ -255,6 +269,60 @@ class PublicProvisioningApiIntegrationTest {
 
         mockMvc.perform(get("/api/platform/audit-events"))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void publicConsumerRoutesResolveCurrentDeploymentWithoutPublicApiHeaders() throws Exception {
+        var customer = platformCustomerTenantService.createCustomer(
+            new CreatePlatformCustomerRequest("Consumer Contract", "Customer for consumer resolution")
+        );
+        var firstDeployment = createDeploymentForCustomer(customer.id(), "Consumer Frontend A");
+        var secondDeployment = createDeploymentForCustomer(customer.id(), "Consumer Frontend B");
+        platformCustomerConsumerService.createConsumer(
+            customer.id(),
+            new CreatePlatformConsumerRequest(
+                "storefront-main",
+                "Storefront main",
+                "Primary external consumer",
+                firstDeployment,
+                "Initial consumer binding."
+            )
+        );
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/credentials", "storefront-main"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.consumerId", is("storefront-main")))
+            .andExpect(jsonPath("$.deploymentId", is(firstDeployment)))
+            .andExpect(jsonPath("$.integration.preferredIntegrationMode", notNullValue()));
+
+        platformCustomerConsumerService.updateBinding(
+            customer.id(),
+            "storefront-main",
+            new UpdatePlatformConsumerBindingRequest(
+                secondDeployment,
+                "Cut over consumer to the replacement deployment."
+            )
+        );
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/status", "storefront-main"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.consumerId", is("storefront-main")))
+            .andExpect(jsonPath("$.deploymentId", is(secondDeployment)))
+            .andExpect(jsonPath("$.status", notNullValue()));
+    }
+
+    private String createDeploymentForCustomer(String customerId, String name) {
+        return deploymentService.createDeployment(
+            new com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest(
+                name,
+                "dev",
+                "dev-openai-lucene",
+                "default",
+                null,
+                customerId,
+                null
+            )
+        ).id();
     }
 
     private void awaitRuntimeAuthConfigurationRequiredStatus(String deploymentId,
