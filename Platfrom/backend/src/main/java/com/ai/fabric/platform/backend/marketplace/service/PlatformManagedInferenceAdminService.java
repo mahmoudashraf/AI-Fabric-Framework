@@ -24,6 +24,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -50,6 +51,8 @@ public class PlatformManagedInferenceAdminService {
     private static final String EMBEDDING_SMOKE_TEXT = "platform managed inference health check";
     private static final String CHAT_SMOKE_TEXT = "Reply with ok";
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration POST_MUTATION_VERIFICATION_TIMEOUT = Duration.ofSeconds(90);
+    private static final Duration POST_MUTATION_VERIFICATION_POLL_INTERVAL = Duration.ofSeconds(2);
 
     private final PlatformManagedInferenceServiceService serviceService;
     private final PlatformManagedInferenceProvisioningService provisioningService;
@@ -63,7 +66,10 @@ public class PlatformManagedInferenceAdminService {
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final Duration postMutationVerificationTimeout;
+    private final Duration postMutationVerificationPollInterval;
 
+    @Autowired
     public PlatformManagedInferenceAdminService(PlatformManagedInferenceServiceService serviceService,
                                                 PlatformManagedInferenceProvisioningService provisioningService,
                                                 PlatformManagedInferenceServiceRepository serviceRepository,
@@ -75,6 +81,36 @@ public class PlatformManagedInferenceAdminService {
                                                 PlatformAuditService platformAuditService,
                                                 RailwayGraphqlClient railwayGraphqlClient,
                                                 ObjectMapper objectMapper) {
+        this(
+            serviceService,
+            provisioningService,
+            serviceRepository,
+            endpointRepository,
+            deploymentRepository,
+            deploymentDraftRepository,
+            deploymentVersionRepository,
+            platformSecretService,
+            platformAuditService,
+            railwayGraphqlClient,
+            objectMapper,
+            POST_MUTATION_VERIFICATION_TIMEOUT,
+            POST_MUTATION_VERIFICATION_POLL_INTERVAL
+        );
+    }
+
+    PlatformManagedInferenceAdminService(PlatformManagedInferenceServiceService serviceService,
+                                         PlatformManagedInferenceProvisioningService provisioningService,
+                                         PlatformManagedInferenceServiceRepository serviceRepository,
+                                         PlatformManagedInferenceEndpointRepository endpointRepository,
+                                         DeploymentRepository deploymentRepository,
+                                         DeploymentDraftRepository deploymentDraftRepository,
+                                         DeploymentVersionRepository deploymentVersionRepository,
+                                         PlatformSecretService platformSecretService,
+                                         PlatformAuditService platformAuditService,
+                                         RailwayGraphqlClient railwayGraphqlClient,
+                                         ObjectMapper objectMapper,
+                                         Duration postMutationVerificationTimeout,
+                                         Duration postMutationVerificationPollInterval) {
         this.serviceService = serviceService;
         this.provisioningService = provisioningService;
         this.serviceRepository = serviceRepository;
@@ -87,6 +123,12 @@ public class PlatformManagedInferenceAdminService {
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder().connectTimeout(HTTP_TIMEOUT).build();
+        this.postMutationVerificationTimeout = postMutationVerificationTimeout == null
+            ? POST_MUTATION_VERIFICATION_TIMEOUT
+            : postMutationVerificationTimeout;
+        this.postMutationVerificationPollInterval = postMutationVerificationPollInterval == null
+            ? POST_MUTATION_VERIFICATION_POLL_INTERVAL
+            : postMutationVerificationPollInterval;
     }
 
     public List<PlatformManagedInferenceDependentDeploymentSummary> listDependents(String serviceRef) {
@@ -138,11 +180,12 @@ public class PlatformManagedInferenceAdminService {
         DriftResult drift = buildDrift(service, endpoints, secretConfigured, railwayManaged);
 
         String overallStatus = summarizeOverallStatus(healthProbe.summary().status(), inferenceProbe.summary().status(), drift.status());
+        String overallMessage = summarizeOverallMessage(overallStatus, healthProbe.summary(), inferenceProbe.summary(), drift);
         Instant now = Instant.now();
         ObjectNode details = mutableDetails(service);
         details.put("lastProbeAt", now.toString());
         details.put("lastProbeStatus", overallStatus);
-        details.put("lastProbeMessage", firstNonBlank(inferenceProbe.summary().message(), healthProbe.summary().message(), drift.message(), ""));
+        details.put("lastProbeMessage", overallMessage);
         details.put("driftStatus", drift.status());
         details.put("driftMessage", drift.message());
         if ("READY".equals(overallStatus)) {
@@ -247,7 +290,7 @@ public class PlatformManagedInferenceAdminService {
 
     @Transactional
     PlatformManagedInferenceServiceSummary verifyAfterMutation(String serviceRef, String action) {
-        PlatformManagedInferenceHealthSummary health = getHealth(serviceRef);
+        PlatformManagedInferenceHealthSummary health = awaitStableVerification(serviceRef);
         PlatformManagedInferenceServiceEntity service = serviceService.requireService(serviceRef);
         Instant now = Instant.now();
         ObjectNode details = mutableDetails(service);
@@ -278,6 +321,23 @@ public class PlatformManagedInferenceAdminService {
             )
         );
         return serviceService.getService(serviceRef);
+    }
+
+    private PlatformManagedInferenceHealthSummary awaitStableVerification(String serviceRef) {
+        Instant deadline = Instant.now().plus(postMutationVerificationTimeout);
+        PlatformManagedInferenceHealthSummary latest = null;
+        while (true) {
+            latest = getHealth(serviceRef);
+            if (isStableVerificationStatus(latest.status()) || Instant.now().isAfter(deadline)) {
+                return latest;
+            }
+            try {
+                Thread.sleep(Math.max(postMutationVerificationPollInterval.toMillis(), 0L));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return latest;
+            }
+        }
     }
 
     private ProbeResult buildHealthProbe(PlatformManagedInferenceServiceEntity service, boolean railwayManaged) {
@@ -430,12 +490,10 @@ public class PlatformManagedInferenceAdminService {
             }
             try {
                 RailwayGraphqlClient.RailwayProjectSnapshot project = railwayGraphqlClient.getProject(service.getRailwayProjectId());
-                if (project.environmentNamed(service.getRailwayEnvironmentId()) == null
-                    && project.environmentNamed(blankToNull(service.getEnvironmentScope())) == null) {
+                if (!matchesEnvironment(project, service.getRailwayEnvironmentId(), blankToNull(service.getEnvironmentScope()))) {
                     return new DriftResult("RAILWAY_RESOURCE_DRIFT", "Stored Railway environment linkage no longer exists.");
                 }
-                if (project.serviceNamed(service.getRailwayServiceId()) == null
-                    && project.serviceNamed(normalizeRailwayServiceName(service)) == null) {
+                if (!matchesService(project, service.getRailwayServiceId(), normalizeRailwayServiceName(service))) {
                     return new DriftResult("RAILWAY_RESOURCE_DRIFT", "Stored Railway service linkage no longer exists.");
                 }
                 if (service.getDesiredReplicas() != null
@@ -479,6 +537,23 @@ public class PlatformManagedInferenceAdminService {
             return "READY";
         }
         return "SKIPPED";
+    }
+
+    private String summarizeOverallMessage(String overallStatus,
+                                           PlatformManagedInferenceProbeSummary healthProbe,
+                                           PlatformManagedInferenceProbeSummary inferenceProbe,
+                                           DriftResult drift) {
+        if ("DEGRADED".equals(overallStatus) && !"NO_DRIFT".equals(drift.status())) {
+            return drift.message();
+        }
+        if ("FAILED".equals(overallStatus) || "BLOCKED".equals(overallStatus)) {
+            return firstNonBlank(
+                failureMessage(inferenceProbe),
+                failureMessage(healthProbe),
+                drift.message()
+            );
+        }
+        return firstNonBlank(inferenceProbe.message(), healthProbe.message(), drift.message(), "");
     }
 
     private ProbeResult sendGetProbe(String key, String label, String endpoint) {
@@ -558,6 +633,24 @@ public class PlatformManagedInferenceAdminService {
             case "GENERATION" -> 2;
             default -> 10;
         };
+    }
+
+    private boolean matchesEnvironment(RailwayGraphqlClient.RailwayProjectSnapshot project,
+                                       String environmentId,
+                                       String environmentName) {
+        return project.environments().stream().anyMatch(environment ->
+            equalsIgnoreCase(environment.id(), environmentId)
+                || equalsIgnoreCase(environment.name(), environmentName)
+        );
+    }
+
+    private boolean matchesService(RailwayGraphqlClient.RailwayProjectSnapshot project,
+                                   String serviceId,
+                                   String serviceName) {
+        return project.services().stream().anyMatch(service ->
+            equalsIgnoreCase(service.id(), serviceId)
+                || equalsIgnoreCase(service.name(), serviceName)
+        );
     }
 
     private Set<String> providerConfigUsages(String providerConfigJson,
@@ -739,6 +832,16 @@ public class PlatformManagedInferenceAdminService {
         return hasText(value) ? value.trim() : fallback;
     }
 
+    private String failureMessage(PlatformManagedInferenceProbeSummary probe) {
+        if (probe == null) {
+            return null;
+        }
+        return switch (normalize(probe.status())) {
+            case "FAILED", "BLOCKED", "DEGRADED" -> probe.message();
+            default -> null;
+        };
+    }
+
     private String blankToEmpty(String value) {
         return value == null ? "" : value;
     }
@@ -753,6 +856,17 @@ public class PlatformManagedInferenceAdminService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private boolean equalsIgnoreCase(String left, String right) {
+        return hasText(left) && hasText(right) && left.trim().equalsIgnoreCase(right.trim());
+    }
+
+    private boolean isStableVerificationStatus(String status) {
+        return switch (normalize(status)) {
+            case "READY", "DEGRADED", "SKIPPED" -> true;
+            default -> false;
+        };
     }
 
     private record DriftResult(String status, String message) {

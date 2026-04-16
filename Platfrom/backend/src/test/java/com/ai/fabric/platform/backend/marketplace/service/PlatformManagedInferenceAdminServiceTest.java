@@ -27,6 +27,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -113,6 +114,7 @@ class PlatformManagedInferenceAdminServiceTest {
     @Test
     void healthRunsAuthenticatedEmbeddingProbeForOpenAiCompatibleService() throws Exception {
         httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/actuator/health", this::handleHealthRequest);
         httpServer.createContext("/v1/embeddings", this::handleEmbeddingsRequest);
         httpServer.start();
         String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
@@ -162,6 +164,59 @@ class PlatformManagedInferenceAdminServiceTest {
         assertThat(health.inferenceProbe().endpoint()).isEqualTo(baseUrl + "/v1/embeddings");
         assertThat(health.secretConfigured()).isTrue();
         verify(serviceRepository).save(service);
+    }
+
+    @Test
+    void healthPrefersDriftMessageWhenServiceIsOtherwiseReachable() throws Exception {
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/actuator/health", this::handleHealthRequest);
+        httpServer.createContext("/v1/embeddings", this::handleEmbeddingsRequest);
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedInferenceServiceEntity service = serviceEntity("shared-embeddings-standard", "SHARED_EMBEDDING_SERVICE", "SHARED_PLATFORM_SERVICE");
+        service.setBaseUrl(baseUrl);
+        service.setHealthPath("/actuator/health");
+        service.setSecretName("OPENAI_API_KEY");
+        PlatformManagedInferenceEndpointEntity endpoint = endpointEntity(service.getId(), "shared-embeddings-standard", "EMBEDDING");
+        endpoint.setBaseUrl(baseUrl + "/v1");
+        endpoint.setStatus("ACTIVE");
+
+        PlatformManagedInferenceServiceService serviceService = mock(PlatformManagedInferenceServiceService.class);
+        PlatformManagedInferenceProvisioningService provisioningService = mock(PlatformManagedInferenceProvisioningService.class);
+        PlatformManagedInferenceServiceRepository serviceRepository = mock(PlatformManagedInferenceServiceRepository.class);
+        PlatformManagedInferenceEndpointRepository endpointRepository = mock(PlatformManagedInferenceEndpointRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentDraftRepository deploymentDraftRepository = mock(DeploymentDraftRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        when(serviceService.requireService("shared-embeddings-standard")).thenReturn(service);
+        when(endpointRepository.findAllByServiceIdOrderByProfileRefAsc(service.getId())).thenReturn(List.of(endpoint));
+        when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("OPENAI_API_KEY")).thenReturn("test-token");
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformManagedInferenceAdminService adminService = new PlatformManagedInferenceAdminService(
+            serviceService,
+            provisioningService,
+            serviceRepository,
+            endpointRepository,
+            deploymentRepository,
+            deploymentDraftRepository,
+            deploymentVersionRepository,
+            platformSecretService,
+            platformAuditService,
+            railwayGraphqlClient,
+            new ObjectMapper()
+        );
+
+        PlatformManagedInferenceHealthSummary health = adminService.getHealth("shared-embeddings-standard");
+
+        assertThat(health.status()).isEqualTo("DEGRADED");
+        assertThat(health.lastProbeMessage()).isEqualTo("Railway linkage is missing for this managed service.");
     }
 
     @Test
@@ -255,6 +310,83 @@ class PlatformManagedInferenceAdminServiceTest {
         verify(provisioningService).scale("onnx-bundled", 2);
         verify(serviceService).getService("onnx-bundled");
         verify(serviceRepository, atLeastOnce()).save(service);
+    }
+
+    @Test
+    void verifyAfterMutationRetriesTransientInferenceFailures() throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/v1/embeddings", exchange -> {
+            int attempt = attempts.incrementAndGet();
+            if (attempt == 1) {
+                exchange.sendResponseHeaders(404, -1);
+                exchange.close();
+                return;
+            }
+            handleEmbeddingsRequest(exchange);
+        });
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedInferenceServiceEntity service = serviceEntity("shared-embeddings-standard", "MANAGED_ENDPOINT_PROFILE", "SHARED_PLATFORM_SERVICE");
+        service.setBaseUrl(baseUrl);
+        service.setSecretName("OPENAI_API_KEY");
+        PlatformManagedInferenceEndpointEntity endpoint = endpointEntity(service.getId(), "shared-embeddings-standard", "EMBEDDING");
+        endpoint.setBaseUrl(baseUrl + "/v1");
+        endpoint.setStatus("ACTIVE");
+
+        PlatformManagedInferenceServiceService serviceService = mock(PlatformManagedInferenceServiceService.class);
+        PlatformManagedInferenceProvisioningService provisioningService = mock(PlatformManagedInferenceProvisioningService.class);
+        PlatformManagedInferenceServiceRepository serviceRepository = mock(PlatformManagedInferenceServiceRepository.class);
+        PlatformManagedInferenceEndpointRepository endpointRepository = mock(PlatformManagedInferenceEndpointRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentDraftRepository deploymentDraftRepository = mock(DeploymentDraftRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        when(serviceService.requireService("shared-embeddings-standard")).thenReturn(service);
+        when(serviceService.getService("shared-embeddings-standard")).thenReturn(serviceSummary(service));
+        when(endpointRepository.findAllByServiceIdOrderByProfileRefAsc(service.getId())).thenReturn(List.of(endpoint));
+        when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("OPENAI_API_KEY")).thenReturn("test-token");
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformManagedInferenceAdminService adminService = new PlatformManagedInferenceAdminService(
+            serviceService,
+            provisioningService,
+            serviceRepository,
+            endpointRepository,
+            deploymentRepository,
+            deploymentDraftRepository,
+            deploymentVersionRepository,
+            platformSecretService,
+            platformAuditService,
+            railwayGraphqlClient,
+            new ObjectMapper(),
+            java.time.Duration.ofSeconds(5),
+            java.time.Duration.ofMillis(10)
+        );
+
+        PlatformManagedInferenceServiceSummary summary = adminService.verifyAfterMutation("shared-embeddings-standard", "ROTATE_SECRET");
+
+        assertThat(summary.serviceRef()).isEqualTo("shared-embeddings-standard");
+        assertThat(attempts.get()).isGreaterThanOrEqualTo(2);
+        verify(serviceRepository, atLeastOnce()).save(service);
+    }
+
+    private void handleHealthRequest(HttpExchange exchange) throws IOException {
+        String response = """
+            {
+              "status": "UP"
+            }
+            """;
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, response.getBytes().length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(response.getBytes());
+        }
     }
 
     private void handleEmbeddingsRequest(HttpExchange exchange) throws IOException {
