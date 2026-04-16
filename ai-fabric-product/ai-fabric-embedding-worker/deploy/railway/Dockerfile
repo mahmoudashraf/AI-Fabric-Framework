@@ -1,7 +1,6 @@
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
-COPY pom.xml ./
 COPY ai-infrastructure-module/pom.xml ./ai-infrastructure-module/
 COPY ai-fabric-product/pom.xml ./ai-fabric-product/
 COPY ai-infrastructure-module ./ai-infrastructure-module
