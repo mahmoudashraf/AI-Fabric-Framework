@@ -234,6 +234,144 @@ class DeploymentProviderConnectivityServiceTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void probeMarksLlmEndpointReadyOnlyAfterAuthenticatedChatResponse() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("llm-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+            {
+              "choices": [
+                {
+                  "message": {
+                    "content": "ok"
+                  }
+                }
+              ]
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().equals("https://shared-llm.example/v1/chat/completions")
+                && "Bearer llm-key".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-llm-ready", "Shared LLM"),
+            draft("""
+                {
+                  "embeddingProvider": "openai",
+                  "orchestrationLlmProvider": "openai",
+                  "orchestrationBaseUrl": "https://shared-llm.example/v1"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "orchestration_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("READY");
+                assertThat(item.endpoint()).isEqualTo("https://shared-llm.example/v1/chat/completions");
+                assertThat(item.message()).contains("accepted an authenticated");
+            });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksLlmEndpointFailedWhenAuthenticatedChatProbeReturnsUnauthorized() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("bad-llm-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(401);
+        when(response.body()).thenReturn("""
+            {
+              "error": {
+                "message": "invalid api key"
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://shared-llm.example/v1/chat/completions")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-llm-failed", "Shared LLM"),
+            draft("""
+                {
+                  "embeddingProvider": "openai",
+                  "orchestrationLlmProvider": "openai",
+                  "orchestrationBaseUrl": "https://shared-llm.example/v1"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "orchestration_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("FAILED");
+                assertThat(item.endpoint()).isEqualTo("https://shared-llm.example/v1/chat/completions");
+                assertThat(item.message()).contains("HTTP 401");
+            });
+    }
+
+    @Test
+    void probeBlocksLlmEndpointWhenResolvedSecretIsMissing() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        HttpClient httpClient = mock(HttpClient.class);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-llm-blocked", "Shared LLM"),
+            draft("""
+                {
+                  "embeddingProvider": "openai",
+                  "orchestrationLlmProvider": "openai",
+                  "orchestrationBaseUrl": "https://shared-llm.example/v1",
+                  "orchestrationApiKeySecretRef": "DEPLOYMENT_OPENAI_LLM"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "orchestration_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("BLOCKED");
+                assertThat(item.endpoint()).isEqualTo("https://shared-llm.example/v1");
+                assertThat(item.message()).contains("No effective secret is available");
+            });
+        verifyNoInteractions(httpClient);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void probeMarksEmbeddingEndpointReadyOnlyAfterAuthenticatedEmbeddingResponse() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("emb-key");

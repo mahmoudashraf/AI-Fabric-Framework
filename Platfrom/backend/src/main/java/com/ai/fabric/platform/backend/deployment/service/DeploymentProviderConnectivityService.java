@@ -507,10 +507,11 @@ public class DeploymentProviderConnectivityService {
             );
         }
         String secretPurpose = ManagedDeploymentProfileCatalog.secretNameForLlmProvider(normalizedProvider);
+        String apiKey = null;
         if (StringUtils.hasText(secretPurpose)) {
             DeploymentProviderSecretResolutionService.ResolvedSecretValue resolution =
                 deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, trimToNull(apiKeySecretRef));
-            if (overrideRequiredButMissing(resolution.summary())) {
+            if (missingResolvedSecret(resolution.summary())) {
                 return new DeploymentProviderConnectivityProbeSummary(
                     purpose + "_inference_endpoint",
                     titleCase(purpose) + " inference endpoint",
@@ -519,26 +520,193 @@ public class DeploymentProviderConnectivityService {
                     resolution.summary().diagnosticMessage()
                 );
             }
+            apiKey = resolution.value();
         }
-        StringBuilder message = new StringBuilder(titleCase(purpose))
-            .append(" inference endpoint is reachable for provider ")
-            .append(normalizedProvider);
-        if (StringUtils.hasText(endpointProfile)) {
-            message.append(" via profile ").append(endpointProfile.trim());
-        }
-        if (StringUtils.hasText(deploymentName)) {
-            message.append(" (deployment ").append(deploymentName.trim()).append(")");
-        }
-        if (StringUtils.hasText(apiVersion)) {
-            message.append(" (apiVersion ").append(apiVersion.trim()).append(")");
-        }
-        return sendProbe(
-            purpose + "_inference_endpoint",
-            titleCase(purpose) + " inference endpoint",
+        return probeLlmEndpointWithAuth(
+            purpose,
+            normalizedProvider,
             endpoint,
-            request -> { },
-            false
+            providerConfig,
+            apiKey,
+            deploymentName,
+            apiVersion
         );
+    }
+
+    private DeploymentProviderConnectivityProbeSummary probeLlmEndpointWithAuth(String purpose,
+                                                                                String provider,
+                                                                                String endpoint,
+                                                                                JsonNode providerConfig,
+                                                                                String apiKey,
+                                                                                String deploymentName,
+                                                                                String apiVersion) {
+        String key = purpose + "_inference_endpoint";
+        String label = titleCase(purpose) + " inference endpoint";
+        return switch (provider) {
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI -> sendJsonPostProbe(
+                key,
+                label,
+                buildOpenAiChatProbeEndpoint(endpoint),
+                buildOpenAiChatProbeEndpoint(endpoint),
+                objectNode("""
+                    {
+                      "model": "%s",
+                      "messages": [
+                        {
+                          "role": "user",
+                          "content": "%s"
+                        }
+                      ],
+                      "max_completion_tokens": 8,
+                      "temperature": 0
+                    }
+                    """.formatted(
+                    ManagedDeploymentProfileCatalog.openAiModel(providerConfig),
+                    EMBEDDING_SMOKE_TEXT
+                )),
+                request -> request.header("Authorization", "Bearer " + apiKey),
+                this::isOpenAiChatResponse
+            );
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE -> {
+                String requestEndpoint = buildAzureChatProbeEndpoint(
+                    endpoint,
+                    deploymentName,
+                    apiVersion
+                );
+                JsonNode requestBody = endpoint.contains("/openai/v1")
+                    ? objectNode("""
+                        {
+                          "model": "%s",
+                          "messages": [
+                            {
+                              "role": "user",
+                              "content": "%s"
+                            }
+                          ],
+                          "max_tokens": 8,
+                          "temperature": 0
+                        }
+                        """.formatted(
+                        firstNonBlank(
+                            ManagedDeploymentProfileCatalog.openAiModel(providerConfig),
+                            deploymentName
+                        ),
+                        EMBEDDING_SMOKE_TEXT
+                    ))
+                    : objectNode("""
+                        {
+                          "messages": [
+                            {
+                              "role": "user",
+                              "content": "%s"
+                            }
+                          ],
+                          "max_tokens": 8,
+                          "temperature": 0
+                        }
+                        """.formatted(EMBEDDING_SMOKE_TEXT));
+                yield sendJsonPostProbe(
+                    key,
+                    label,
+                    requestEndpoint,
+                    requestEndpoint,
+                    requestBody,
+                    request -> request.header("api-key", apiKey),
+                    this::isOpenAiChatResponse
+                );
+            }
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC -> sendJsonPostProbe(
+                key,
+                label,
+                buildAnthropicChatProbeEndpoint(endpoint),
+                buildAnthropicChatProbeEndpoint(endpoint),
+                objectNode("""
+                    {
+                      "model": "%s",
+                      "max_tokens": 8,
+                      "temperature": 0,
+                      "messages": [
+                        {
+                          "role": "user",
+                          "content": "%s"
+                        }
+                      ]
+                    }
+                    """.formatted(
+                    ManagedDeploymentProfileCatalog.anthropicModel(providerConfig),
+                    EMBEDDING_SMOKE_TEXT
+                )),
+                request -> {
+                    request.header("x-api-key", apiKey);
+                    request.header("anthropic-version", "2023-06-01");
+                },
+                this::isAnthropicChatResponse
+            );
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE -> sendJsonPostProbe(
+                key,
+                label,
+                buildCohereChatProbeEndpoint(endpoint),
+                buildCohereChatProbeEndpoint(endpoint),
+                objectNode("""
+                    {
+                      "model": "%s",
+                      "message": "%s",
+                      "max_tokens": 8,
+                      "temperature": 0
+                    }
+                    """.formatted(
+                    ManagedDeploymentProfileCatalog.cohereModel(providerConfig),
+                    EMBEDDING_SMOKE_TEXT
+                )),
+                request -> request.header("Authorization", "Bearer " + apiKey),
+                this::isCohereChatResponse
+            );
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> {
+                String displayEndpoint = buildGeminiChatProbeEndpoint(
+                    endpoint,
+                    ManagedDeploymentProfileCatalog.geminiModel(providerConfig),
+                    null
+                );
+                String requestEndpoint = buildGeminiChatProbeEndpoint(
+                    endpoint,
+                    ManagedDeploymentProfileCatalog.geminiModel(providerConfig),
+                    apiKey
+                );
+                yield sendJsonPostProbe(
+                    key,
+                    label,
+                    displayEndpoint,
+                    requestEndpoint,
+                    objectNode("""
+                        {
+                          "contents": [
+                            {
+                              "role": "user",
+                              "parts": [
+                                {
+                                  "text": "%s"
+                                }
+                              ]
+                            }
+                          ],
+                          "generationConfig": {
+                            "maxOutputTokens": 8,
+                            "temperature": 0
+                          }
+                        }
+                        """.formatted(EMBEDDING_SMOKE_TEXT)),
+                    request -> { },
+                    this::isGeminiChatResponse
+                );
+            }
+            default -> new DeploymentProviderConnectivityProbeSummary(
+                key,
+                label,
+                "SKIPPED",
+                endpoint,
+                label + " provider '" + provider + "' does not expose a platform probe in this slice."
+            );
+        };
     }
 
     private DeploymentProviderConnectivityProbeSummary probeInferenceEmbeddingEndpoint(String deploymentId,
@@ -976,6 +1144,17 @@ public class DeploymentProviderConnectivityService {
         return normalized + "/v1/embeddings";
     }
 
+    private String buildOpenAiChatProbeEndpoint(String baseUrl) {
+        String normalized = trimTrailingSlash(baseUrl.trim());
+        if (normalized.endsWith("/chat/completions")) {
+            return normalized;
+        }
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/chat/completions";
+        }
+        return normalized + "/v1/chat/completions";
+    }
+
     private String buildAzureEmbeddingProbeEndpoint(String endpoint, String deploymentName, String apiVersion) {
         String normalized = trimTrailingSlash(endpoint.trim());
         String resolvedApiVersion = StringUtils.hasText(apiVersion) ? apiVersion.trim() : "2024-02-15-preview";
@@ -993,12 +1172,48 @@ public class DeploymentProviderConnectivityService {
         return normalized + "/openai/deployments/" + deploymentName.trim() + "/embeddings?api-version=" + resolvedApiVersion;
     }
 
+    private String buildAzureChatProbeEndpoint(String endpoint, String deploymentName, String apiVersion) {
+        String normalized = trimTrailingSlash(endpoint.trim());
+        String resolvedApiVersion = StringUtils.hasText(apiVersion) ? apiVersion.trim() : "2024-02-15-preview";
+        if (normalized.contains("/models/chat/completions")) {
+            return normalized.contains("?")
+                ? normalized
+                : normalized + "?api-version=" + resolvedApiVersion;
+        }
+        if (normalized.contains("/openai/v1")) {
+            return normalized + "/chat/completions";
+        }
+        if (normalized.contains("/models")) {
+            return normalized + "/chat/completions?api-version=" + resolvedApiVersion;
+        }
+        if (!StringUtils.hasText(deploymentName)) {
+            throw new IllegalStateException("Azure inference provider requires azureDeploymentName.");
+        }
+        return normalized + "/openai/deployments/" + deploymentName.trim() + "/chat/completions?api-version=" + resolvedApiVersion;
+    }
+
     private String buildCohereEmbeddingProbeEndpoint(String baseUrl) {
         String normalized = trimTrailingSlash(baseUrl.trim());
         if (normalized.endsWith("/embed")) {
             return normalized;
         }
         return normalized + "/embed";
+    }
+
+    private String buildAnthropicChatProbeEndpoint(String baseUrl) {
+        String normalized = trimTrailingSlash(baseUrl.trim());
+        if (normalized.endsWith("/messages")) {
+            return normalized;
+        }
+        return normalized + "/messages";
+    }
+
+    private String buildCohereChatProbeEndpoint(String baseUrl) {
+        String normalized = trimTrailingSlash(baseUrl.trim());
+        if (normalized.endsWith("/chat")) {
+            return normalized;
+        }
+        return normalized + "/chat";
     }
 
     private String buildGeminiEmbeddingProbeEndpoint(String baseUrl, String model, String apiKey) {
@@ -1011,6 +1226,42 @@ public class DeploymentProviderConnectivityService {
             return normalized;
         }
         return normalized + "?key=" + apiKey.trim();
+    }
+
+    private String buildGeminiChatProbeEndpoint(String baseUrl, String model, String apiKey) {
+        String normalized = trimTrailingSlash(baseUrl.trim());
+        String suffix = "/models/" + model.trim() + ":generateContent";
+        if (!normalized.endsWith(suffix)) {
+            normalized = normalized + suffix;
+        }
+        if (!StringUtils.hasText(apiKey)) {
+            return normalized;
+        }
+        return normalized + "?key=" + apiKey.trim();
+    }
+
+    private boolean isOpenAiChatResponse(JsonNode responseBody) {
+        return responseBody.path("choices").isArray()
+            && responseBody.path("choices").size() > 0
+            && responseBody.path("choices").get(0).path("message").isObject();
+    }
+
+    private boolean isAnthropicChatResponse(JsonNode responseBody) {
+        return responseBody.path("content").isArray()
+            && responseBody.path("content").size() > 0
+            && responseBody.path("content").get(0).path("text").isTextual();
+    }
+
+    private boolean isCohereChatResponse(JsonNode responseBody) {
+        return responseBody.path("text").isTextual();
+    }
+
+    private boolean isGeminiChatResponse(JsonNode responseBody) {
+        return responseBody.path("candidates").isArray()
+            && responseBody.path("candidates").size() > 0
+            && responseBody.path("candidates").get(0).path("content").path("parts").isArray()
+            && responseBody.path("candidates").get(0).path("content").path("parts").size() > 0
+            && responseBody.path("candidates").get(0).path("content").path("parts").get(0).path("text").isTextual();
     }
 
     private boolean isOpenAiEmbeddingResponse(JsonNode responseBody) {
