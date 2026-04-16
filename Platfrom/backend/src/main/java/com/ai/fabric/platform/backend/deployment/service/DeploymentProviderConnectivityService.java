@@ -561,7 +561,7 @@ public class DeploymentProviderConnectivityService {
                       "temperature": 0
                     }
                     """.formatted(
-                    ManagedDeploymentProfileCatalog.openAiModel(providerConfig),
+                    resolveLlmProbeModel(purpose, provider, providerConfig),
                     EMBEDDING_SMOKE_TEXT
                 )),
                 request -> request.header("Authorization", "Bearer " + apiKey),
@@ -587,10 +587,7 @@ public class DeploymentProviderConnectivityService {
                           "temperature": 0
                         }
                         """.formatted(
-                        firstNonBlank(
-                            ManagedDeploymentProfileCatalog.openAiModel(providerConfig),
-                            deploymentName
-                        ),
+                        firstNonBlank(resolveLlmProbeModel(purpose, provider, providerConfig), deploymentName),
                         EMBEDDING_SMOKE_TEXT
                     ))
                     : objectNode("""
@@ -633,7 +630,7 @@ public class DeploymentProviderConnectivityService {
                       ]
                     }
                     """.formatted(
-                    ManagedDeploymentProfileCatalog.anthropicModel(providerConfig),
+                    resolveLlmProbeModel(purpose, provider, providerConfig),
                     EMBEDDING_SMOKE_TEXT
                 )),
                 request -> {
@@ -655,7 +652,7 @@ public class DeploymentProviderConnectivityService {
                       "temperature": 0
                     }
                     """.formatted(
-                    ManagedDeploymentProfileCatalog.cohereModel(providerConfig),
+                    resolveLlmProbeModel(purpose, provider, providerConfig),
                     EMBEDDING_SMOKE_TEXT
                 )),
                 request -> request.header("Authorization", "Bearer " + apiKey),
@@ -664,12 +661,12 @@ public class DeploymentProviderConnectivityService {
             case ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> {
                 String displayEndpoint = buildGeminiChatProbeEndpoint(
                     endpoint,
-                    ManagedDeploymentProfileCatalog.geminiModel(providerConfig),
+                    resolveLlmProbeModel(purpose, provider, providerConfig),
                     null
                 );
                 String requestEndpoint = buildGeminiChatProbeEndpoint(
                     endpoint,
-                    ManagedDeploymentProfileCatalog.geminiModel(providerConfig),
+                    resolveLlmProbeModel(purpose, provider, providerConfig),
                     apiKey
                 );
                 yield sendJsonPostProbe(
@@ -1262,6 +1259,25 @@ public class DeploymentProviderConnectivityService {
             && responseBody.path("candidates").get(0).path("content").path("parts").isArray()
             && responseBody.path("candidates").get(0).path("content").path("parts").size() > 0
             && responseBody.path("candidates").get(0).path("content").path("parts").get(0).path("text").isTextual();
+    }
+
+    private String resolveLlmProbeModel(String purpose, String provider, JsonNode providerConfig) {
+        String purposeOverride = switch (purpose) {
+            case "orchestration" -> ManagedDeploymentProfileCatalog.orchestrationModel(providerConfig);
+            case "generation" -> ManagedDeploymentProfileCatalog.generationModel(providerConfig);
+            default -> "";
+        };
+        if (StringUtils.hasText(purposeOverride)) {
+            return purposeOverride.trim();
+        }
+        return switch (provider) {
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI,
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE -> ManagedDeploymentProfileCatalog.openAiModel(providerConfig);
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC -> ManagedDeploymentProfileCatalog.anthropicModel(providerConfig);
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE -> ManagedDeploymentProfileCatalog.cohereModel(providerConfig);
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> ManagedDeploymentProfileCatalog.geminiModel(providerConfig);
+            default -> "";
+        };
     }
 
     private boolean isOpenAiEmbeddingResponse(JsonNode responseBody) {

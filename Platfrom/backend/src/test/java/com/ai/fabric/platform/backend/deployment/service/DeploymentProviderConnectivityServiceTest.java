@@ -9,6 +9,13 @@ import org.junit.jupiter.api.Test;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
+import java.net.http.HttpRequest;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -256,7 +263,8 @@ class DeploymentProviderConnectivityServiceTest {
             argThat(request -> request != null
                 && "POST".equals(request.method())
                 && request.uri().toString().equals("https://shared-llm.example/v1/chat/completions")
-                && "Bearer llm-key".equals(request.headers().firstValue("Authorization").orElse(null))),
+                && "Bearer llm-key".equals(request.headers().firstValue("Authorization").orElse(null))
+                && requestBody(request).contains("\"model\":\"llama3.1:8b\"")),
             any(HttpResponse.BodyHandler.class)
         )).thenReturn(response);
 
@@ -272,7 +280,9 @@ class DeploymentProviderConnectivityServiceTest {
                 {
                   "embeddingProvider": "openai",
                   "orchestrationLlmProvider": "openai",
-                  "orchestrationBaseUrl": "https://shared-llm.example/v1"
+                  "orchestrationBaseUrl": "https://shared-llm.example/v1",
+                  "orchestrationModel": "llama3.1:8b",
+                  "openaiModel": "gpt-4.1-mini"
                 }
                 """)
         );
@@ -511,6 +521,43 @@ class DeploymentProviderConnectivityServiceTest {
         deployment.setId(id);
         deployment.setName(name);
         return deployment;
+    }
+
+    private String requestBody(HttpRequest request) {
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            CountDownLatch finished = new CountDownLatch(1);
+            request.bodyPublisher().orElseThrow().subscribe(new Flow.Subscriber<>() {
+                private Flow.Subscription subscription;
+
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    this.subscription = subscription;
+                    subscription.request(Long.MAX_VALUE);
+                }
+
+                @Override
+                public void onNext(ByteBuffer item) {
+                    byte[] bytes = new byte[item.remaining()];
+                    item.get(bytes);
+                    output.write(bytes, 0, bytes.length);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    finished.countDown();
+                }
+
+                @Override
+                public void onComplete() {
+                    finished.countDown();
+                }
+            });
+            finished.await(1, TimeUnit.SECONDS);
+            return output.toString(StandardCharsets.UTF_8);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read request body", ex);
+        }
     }
 
     private DeploymentDraftEntity draft(String providerConfigJson) {
