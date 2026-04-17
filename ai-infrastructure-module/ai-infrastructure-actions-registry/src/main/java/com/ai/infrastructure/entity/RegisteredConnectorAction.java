@@ -125,7 +125,8 @@ public class RegisteredConnectorAction {
                 : ActionResultPresentationHint.DEFAULT,
             null,
             null,
-            null
+            null,
+            List.of()
         );
     }
 }
