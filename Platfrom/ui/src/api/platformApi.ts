@@ -1136,6 +1136,45 @@ export type DeploymentDraftResponse = {
   updatedAt: string
 }
 
+export type DeploymentWebhookDeliverySummary = {
+  id: string
+  actionName: string
+  eventType: string
+  targetRef: string
+  status: string
+  attemptCount: number
+  maxAttempts: number
+  lastStatusCode: number | null
+  lastError: string | null
+  deploymentId: string | null
+  conversationId: string | null
+  requestId: string | null
+  nextAttemptAt: string | null
+  claimedAt: string | null
+  deliveredAt: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  retryEligible: boolean
+}
+
+export type DeploymentWebhookOverviewSummary = {
+  success: boolean
+  contractVersion: string
+  retrySupported: boolean
+  counts: Record<string, number>
+  recentDeliveries: DeploymentWebhookDeliverySummary[]
+  retryEligibleCount: number
+  limit: number
+}
+
+export type DeploymentWebhookRetrySummary = {
+  success: boolean
+  deliveryId: string
+  status: string
+  nextAttemptAt: string | null
+  summaryMessage: string
+}
+
 export type DeploymentPromptRevisionSummary = {
   id: string
   deploymentId: string
@@ -2400,6 +2439,21 @@ export function fetchDeploymentDraft(deploymentId: string) {
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
   return request<DeploymentWorkspaceSummary>(`/api/deployments/${deploymentId}/workspace`)
+}
+
+export function fetchDeploymentWebhookOverview(deploymentId: string, limit = 50) {
+  return request<DeploymentWebhookOverviewSummary>(
+    `/api/deployments/${deploymentId}/webhooks/overview?limit=${encodeURIComponent(String(limit))}`,
+  )
+}
+
+export function retryDeploymentWebhookDelivery(deploymentId: string, deliveryId: string) {
+  return request<DeploymentWebhookRetrySummary>(
+    `/api/deployments/${deploymentId}/webhooks/deliveries/${encodeURIComponent(deliveryId)}/retry`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function fetchMarketplacePlugins() {

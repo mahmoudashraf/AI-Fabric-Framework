@@ -13,6 +13,10 @@ import java.util.List;
 
 public interface ActionWebhookDeliveryRepository extends JpaRepository<ActionWebhookDeliveryEntity, String> {
 
+    long countByStatus(String status);
+
+    List<ActionWebhookDeliveryEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
         select delivery

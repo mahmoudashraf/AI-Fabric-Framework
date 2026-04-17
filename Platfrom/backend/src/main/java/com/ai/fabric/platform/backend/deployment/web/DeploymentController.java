@@ -78,6 +78,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentRemediationSe
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentWebhookOperationsService;
 import com.ai.fabric.platform.backend.deployment.service.EcommerceDemoBootstrapService;
 import com.ai.fabric.platform.backend.deployment.service.PublicProvisioningApiService;
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingCatalogSummary;
@@ -121,6 +122,7 @@ public class DeploymentController {
     private final DeploymentRemediationService deploymentRemediationService;
     private final EcommerceDemoBootstrapService ecommerceDemoBootstrapService;
     private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
+    private final DeploymentWebhookOperationsService deploymentWebhookOperationsService;
     private final PublicProvisioningApiService publicProvisioningApiService;
 
     public DeploymentController(DeploymentService deploymentService,
@@ -138,6 +140,7 @@ public class DeploymentController {
                                 DeploymentRemediationService deploymentRemediationService,
                                 EcommerceDemoBootstrapService ecommerceDemoBootstrapService,
                                 DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService,
+                                DeploymentWebhookOperationsService deploymentWebhookOperationsService,
                                 PublicProvisioningApiService publicProvisioningApiService) {
         this.deploymentService = deploymentService;
         this.deploymentActivityService = deploymentActivityService;
@@ -154,6 +157,7 @@ public class DeploymentController {
         this.deploymentRemediationService = deploymentRemediationService;
         this.ecommerceDemoBootstrapService = ecommerceDemoBootstrapService;
         this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
+        this.deploymentWebhookOperationsService = deploymentWebhookOperationsService;
         this.publicProvisioningApiService = publicProvisioningApiService;
     }
 
@@ -301,6 +305,18 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/workspace")
     public DeploymentWorkspaceSummary getDeploymentWorkspace(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentWorkspace(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/webhooks/overview")
+    public JsonNode getDeploymentWebhookOverview(@PathVariable String deploymentId,
+                                                 @RequestParam(defaultValue = "50") int limit) {
+        return deploymentWebhookOperationsService.getOverview(deploymentId, limit);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/webhooks/deliveries/{deliveryId}/retry")
+    public JsonNode retryDeploymentWebhookDelivery(@PathVariable String deploymentId,
+                                                   @PathVariable String deliveryId) {
+        return deploymentWebhookOperationsService.retryDelivery(deploymentId, deliveryId);
     }
 
     @GetMapping("/deployments/{deploymentId}/config-diff-center")
