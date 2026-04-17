@@ -40,6 +40,12 @@ This preserves the platform’s core rule:
 
 - no live behavior without draft -> publish -> apply -> verify
 
+Default storefront auth posture for launch:
+
+- browser -> Shopify app backend -> private runtime
+
+Direct browser -> public runtime traffic is a later optional variant only when the deployment explicitly enables a public runtime posture.
+
 ---
 
 ## 2) Actors
@@ -61,7 +67,7 @@ Main actors in the flow:
 
 ## 3) High-Level Lifecycle
 
-The full lifecycle has five phases:
+The full lifecycle has seven phases:
 
 1. `Install and identity`
 2. `Product provisioning`
@@ -276,7 +282,8 @@ Expose the companion on the store through the approved Shopify storefront mechan
 After this phase:
 
 - the merchant has enabled the theme app extension
-- the storefront widget can resolve the Companion deployment through `consumerId`
+- the storefront widget can load a browser-safe storefront bootstrap from the Shopify app backend
+- the Shopify app backend can resolve the Companion deployment through `consumerId`
 - shoppers can use the companion
 
 ### 8.3 Sequence
@@ -288,14 +295,13 @@ sequenceDiagram
     participant SA as Shopify Admin / Theme Editor
     participant TE as Theme App Extension
     participant CR as Consumer Resolution
-    participant RT as Deployment Runtime
 
     AF->>SA: Deep-link merchant to theme app extension enablement
     SA->>TE: Enable Companion app embed
-    TE->>CR: Resolve consumerId credentials/status
-    CR-->>TE: Current deployment integration contract
-    TE->>RT: Bootstrap runtime session using allowed posture
-    RT-->>TE: Companion session ready
+    TE->>AB: Load storefront companion bootstrap/config
+    AB->>CR: Resolve consumerId and current deployment posture
+    CR-->>AB: Current deployment integration contract
+    AB-->>TE: Browser-safe storefront bootstrap/config
 ```
 
 ### 8.4 Storefront rule
@@ -307,6 +313,13 @@ The theme extension should depend on:
 not:
 
 - hardcoded deployment ids
+
+In the default launch model, the theme extension should not call consumer-resolution credential endpoints directly from the browser.
+
+Instead:
+
+- the Shopify app backend resolves `consumerId`
+- the Shopify app backend owns private-runtime access
 
 This is what makes later rollout, replacement, and white-label evolution possible without breaking storefront installation.
 
@@ -324,14 +337,14 @@ Serve grounded shopper conversations against the verified Companion deployment.
 sequenceDiagram
     participant S as Shopper
     participant TE as Theme App Extension
-    participant CR as Consumer Resolution
+    participant AB as Shopify App Backend
     participant RT as Deployment Runtime
 
     S->>TE: Open companion and ask question
-    TE->>CR: Resolve consumer-backed deployment posture if needed
-    CR-->>TE: Active deployment/runtime contract
-    TE->>RT: Send shopper query
-    RT-->>TE: Grounded product/review/policy response
+    TE->>AB: Send shopper query
+    AB->>RT: Forward query using private-runtime posture
+    RT-->>AB: Grounded product/review/policy response
+    AB-->>TE: Response payload
     TE-->>S: Render companion answer
 ```
 
@@ -383,37 +396,70 @@ The merchant should be able to:
 
 ---
 
-## 11) Failure Paths
+## 11) Optional Public-Runtime Variant
 
-### 11.1 Install/auth failure
+### 11.1 Purpose
+
+Allow a later optimized storefront path where the browser talks directly to a public runtime surface.
+
+### 11.2 Rules
+
+This is valid only when:
+
+- the deployment explicitly enables a public runtime auth posture
+- the Shopify app backend resolves `consumerId`
+- the Shopify app backend returns only browser-safe bootstrap or token material
+
+### 11.3 Sequence
+
+```mermaid
+sequenceDiagram
+    participant TE as Theme App Extension
+    participant AB as Shopify App Backend
+    participant CR as Consumer Resolution
+    participant RT as Deployment Runtime
+
+    TE->>AB: Request public-runtime storefront bootstrap
+    AB->>CR: Resolve consumerId and active deployment posture
+    CR-->>AB: Active deployment/runtime contract
+    AB-->>TE: Browser-safe public-runtime bootstrap
+    TE->>RT: Start shopper session using explicit public posture
+    RT-->>TE: Session ready
+```
+
+---
+
+## 12) Failure Paths
+
+### 12.1 Install/auth failure
 
 If Shopify install/auth fails:
 
 - merchant remains outside onboarding
 - no provisioning should begin
 
-### 11.2 Provisioning failure
+### 12.2 Provisioning failure
 
 If deployment or bundle provisioning fails:
 
 - no consumer binding should be treated as live
 - merchant remains in onboarding repair state
 
-### 11.3 Sync failure
+### 12.3 Sync failure
 
 If initial sync fails:
 
 - merchant can still access admin UI
 - storefront go-live should remain blocked or clearly marked unhealthy
 
-### 11.4 Verification failure
+### 12.4 Verification failure
 
 If publish/apply verification fails:
 
 - the product must not be considered live
 - the embedded admin app should show the failure clearly
 
-### 11.5 Theme enablement failure
+### 12.5 Theme enablement failure
 
 If the merchant does not enable the theme app extension:
 
@@ -424,7 +470,7 @@ This distinction should be visible in the admin UI.
 
 ---
 
-## 12) Sequence Diagram Summary
+## 13) Sequence Diagram Summary
 
 The canonical merchant subscription flow is:
 
@@ -456,14 +502,16 @@ sequenceDiagram
     CP->>RT: Apply version
     CP->>CP: Verify release
     AF->>SA: Enable theme app extension
-    TE->>CR: Resolve consumerId
-    CR-->>TE: Active deployment contract
-    TE->>RT: Start shopper session
+    TE->>AB: Load storefront bootstrap
+    AB->>CR: Resolve consumerId
+    CR-->>AB: Active deployment contract
+    TE->>AB: Start shopper session
+    AB->>RT: Forward shopper traffic
 ```
 
 ---
 
-## 13) Recommendation
+## 14) Recommendation
 
 The correct mental model is:
 

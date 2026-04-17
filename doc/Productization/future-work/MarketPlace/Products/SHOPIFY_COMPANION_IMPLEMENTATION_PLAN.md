@@ -49,6 +49,7 @@ The correct launch shape is:
 2. a platform-backed deployment bundle assembled from marketplace-backed capabilities
 3. a storefront shopper companion delivered through a theme app extension
 4. stable storefront identity through `consumerId` resolution
+5. backend-mediated private-runtime traffic as the default storefront auth posture
 
 ---
 
@@ -348,21 +349,22 @@ The Shopify app backend should own:
 
 - install/auth/sync/admin operations
 
-The live shopper chat path should not become a permanent heavyweight proxy if public runtime posture is sufficient.
-
-Preferred model:
+Default launch model:
 
 1. Shopify app backend provisions or binds the deployment and consumer.
-2. The storefront companion resolves runtime credentials through the consumer-facing integration contract.
-3. The shopper widget talks to the intended public runtime surface allowed for that deployment.
+2. The storefront companion talks to the Shopify app backend.
+3. The Shopify app backend resolves `consumerId` and current deployment posture.
+4. The Shopify app backend forwards shopper traffic to the private runtime.
 
-The app backend may still mediate:
+This is the correct default because the current auth model does not make consumer credential resolution browser-public by default.
 
-- config bootstrap
-- abuse protection helpers
-- signed storefront setup
+Optional later variant:
 
-But it should not become an unnecessary always-on replacement for the runtime chat path.
+1. Shopify app backend still provisions or binds the deployment and consumer.
+2. Shopify app backend resolves `consumerId` and prepares a browser-safe public-runtime bootstrap.
+3. The shopper widget talks directly to the explicitly enabled public runtime surface for that deployment.
+
+The public-runtime variant is a later optimization, not the default launch posture.
 
 ---
 
@@ -378,6 +380,25 @@ Use:
 - Shopify-managed installation
 
 This aligns with Shopify's current recommended app auth posture.
+
+### 8.1.1 Storefront chat auth posture
+
+Default launch posture:
+
+- `PRIVATE_RUNTIME_BACKEND_MEDIATED`
+
+That means:
+
+- browser talks to Shopify app backend
+- Shopify app backend resolves `consumerId`
+- Shopify app backend calls the private runtime
+
+Optional later variant:
+
+- `PUBLIC_RUNTIME_ANONYMOUS`
+- `PUBLIC_RUNTIME_AUTHENTICATED`
+
+Those variants are valid only when the deployment explicitly enables a public runtime posture and the Shopify app backend returns browser-safe bootstrap information for it.
 
 ### 8.2 Launch scope posture
 
