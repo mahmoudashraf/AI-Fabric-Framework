@@ -49,6 +49,12 @@ This folder contains both marketplace vision documents and stricter implementati
 
 If two documents differ, the implementation-baseline documents should win.
 
+Product-facing decision records and launch roadmaps now live under:
+
+- `doc/Productization/future-work/MarketPlace/Products/README.md`
+- `doc/Productization/future-work/MarketPlace/Products/PRODUCT_DIRECTION_DECISION_RECORD.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_PRODUCTS_SHIPPING_ROADMAP.md`
+
 ---
 
 ## 1) Vision Documents
