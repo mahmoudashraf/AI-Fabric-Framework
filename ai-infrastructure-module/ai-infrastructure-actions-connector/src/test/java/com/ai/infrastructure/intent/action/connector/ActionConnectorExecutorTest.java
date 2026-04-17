@@ -1,20 +1,17 @@
 package com.ai.infrastructure.intent.action.connector;
 
-import com.ai.infrastructure.http.AIHttpClientFactory;
-import com.ai.infrastructure.http.HttpClient;
+import com.ai.infrastructure.http.OutboundHttpExecutionRequest;
+import com.ai.infrastructure.http.OutboundHttpExecutionResponse;
+import com.ai.infrastructure.http.OutboundHttpExecutor;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionListPayload;
 import com.ai.infrastructure.intent.action.ActionObjectPayload;
-import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -34,12 +31,12 @@ class ActionConnectorExecutorTest {
     @Test
     void execute_shouldParseObjectPayloadSuccess() {
         StubHttpClient stub = new StubHttpClient(List.of(
-            ResponseEntity.ok("{\"success\":true,\"message\":\"ok\",\"data\":{\"orderRef\":\"PO-1\"}}")
+            new OutboundHttpExecutionResponse(200, "{\"success\":true,\"message\":\"ok\",\"data\":{\"orderRef\":\"PO-1\"}}", Map.of())
         ));
 
         ActionConnectorExecutor executor = new ActionConnectorExecutor(
             connectorProps("https://example", 1, Duration.ZERO),
-            factory(stub),
+            stub,
             null,
             fixedClock()
         );
@@ -81,14 +78,18 @@ class ActionConnectorExecutorTest {
     @Test
     void execute_shouldParseListPayloadWithCursorAndTotalCount() {
         StubHttpClient stub = new StubHttpClient(List.of(
-            ResponseEntity.ok("""
-                {"success":true,"message":"Products","data":{"_count":2,"_items":[{"id":"p1"},{"id":"p2"}],"_totalCount":10,"_cursor":"abc","note":"x"}}
-                """.trim())
+            new OutboundHttpExecutionResponse(
+                200,
+                """
+                    {"success":true,"message":"Products","data":{"_count":2,"_items":[{"id":"p1"},{"id":"p2"}],"_totalCount":10,"_cursor":"abc","note":"x"}}
+                    """.trim(),
+                Map.of()
+            )
         ));
 
         ActionConnectorExecutor executor = new ActionConnectorExecutor(
             connectorProps("https://example", 1, Duration.ZERO),
-            factory(stub),
+            stub,
             null,
             fixedClock()
         );
@@ -112,13 +113,13 @@ class ActionConnectorExecutorTest {
     @Test
     void execute_shouldRetryOnRetryableErrorCodeWhenIdempotent() {
         StubHttpClient stub = new StubHttpClient(List.of(
-            ResponseEntity.ok("{\"success\":false,\"errorCode\":\"SERVICE_UNAVAILABLE\",\"message\":\"temp\"}"),
-            ResponseEntity.ok("{\"success\":true,\"message\":\"ok\",\"data\":{\"orderRef\":\"PO-2\"}}")
+            new OutboundHttpExecutionResponse(200, "{\"success\":false,\"errorCode\":\"SERVICE_UNAVAILABLE\",\"message\":\"temp\"}", Map.of()),
+            new OutboundHttpExecutionResponse(200, "{\"success\":true,\"message\":\"ok\",\"data\":{\"orderRef\":\"PO-2\"}}", Map.of())
         ));
 
         ActionConnectorExecutor executor = new ActionConnectorExecutor(
             connectorProps("https://example", 2, Duration.ZERO),
-            factory(stub),
+            stub,
             null,
             fixedClock()
         );
@@ -142,20 +143,6 @@ class ActionConnectorExecutorTest {
         props.setConnectTimeout(Duration.ofMillis(1));
         props.setReadTimeout(Duration.ofMillis(1));
         return props;
-    }
-
-    private static AIHttpClientFactory factory(HttpClient client) {
-        return new AIHttpClientFactory() {
-            @Override
-            public HttpClient create() {
-                return client;
-            }
-
-            @Override
-            public HttpClient create(Duration connectTimeout, Duration readTimeout) {
-                return client;
-            }
-        };
     }
 
     private static Clock fixedClock() {
@@ -190,23 +177,20 @@ class ActionConnectorExecutorTest {
         }
     }
 
-    private static final class StubHttpClient implements HttpClient {
-        private final List<ResponseEntity<String>> responses;
+    private static final class StubHttpClient implements OutboundHttpExecutor {
+        private final List<OutboundHttpExecutionResponse> responses;
         private final AtomicInteger calls = new AtomicInteger(0);
         private volatile String lastRequestBody;
 
-        private StubHttpClient(List<ResponseEntity<String>> responses) {
+        private StubHttpClient(List<OutboundHttpExecutionResponse> responses) {
             this.responses = responses != null ? new ArrayList<>(responses) : List.of();
         }
 
         @Override
-        public <T> ResponseEntity<T> exchange(String url, HttpMethod method, HttpEntity<?> requestEntity, Class<T> responseType) {
+        public OutboundHttpExecutionResponse execute(OutboundHttpExecutionRequest request) {
             int idx = calls.getAndIncrement();
-            Object body = requestEntity != null ? requestEntity.getBody() : null;
-            lastRequestBody = body instanceof String s ? s : null;
-            @SuppressWarnings("unchecked")
-            ResponseEntity<T> casted = (ResponseEntity<T>) responses.get(Math.min(idx, responses.size() - 1));
-            return casted;
+            lastRequestBody = request != null ? request.body() : null;
+            return responses.get(Math.min(idx, responses.size() - 1));
         }
 
         int callCount() {

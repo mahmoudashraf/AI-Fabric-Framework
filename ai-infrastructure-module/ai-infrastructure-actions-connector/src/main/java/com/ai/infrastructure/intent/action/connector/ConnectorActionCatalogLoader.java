@@ -43,6 +43,7 @@ public class ConnectorActionCatalogLoader {
 
     private static final String KEY_ACTIONS = "actions";
     private static final String KEY_CONFIRMATION_INTERCEPTORS = "confirmationInterceptors";
+    private static final String KEY_WEBHOOK_TARGETS = "webhookTargets";
     private static final String KEY_NAME = "name";
     private static final String KEY_DISPLAY_NAME = "displayName";
     private static final String KEY_DESCRIPTION = "description";
@@ -57,6 +58,14 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_BUILT_IN_MODULE_ID = "builtInModuleId";
     private static final String KEY_BUILT_IN_CARD_ID = "builtInCardId";
     private static final String KEY_PROVENANCE = "provenance";
+    private static final String KEY_POST_POLICIES = "postPolicies";
+    private static final String KEY_TARGET_REF = "targetRef";
+    private static final String KEY_EVENT_TYPE = "eventType";
+    private static final String KEY_ID = "id";
+    private static final String KEY_URL_SECRET_REF = "urlSecretRef";
+    private static final String KEY_SIGNING_SECRET_REF = "signingSecretRef";
+    private static final String KEY_TIMEOUT_MS = "timeoutMs";
+    private static final String KEY_MAX_ATTEMPTS = "maxAttempts";
 
     private static final String KEY_TYPE = "type";
     private static final String KEY_REQUIRED = "required";
@@ -79,6 +88,7 @@ public class ConnectorActionCatalogLoader {
     private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
     private static final Pattern INTERCEPTION_TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
     private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Pattern SAFE_SECRET_REF = Pattern.compile("[A-Z][A-Z0-9_]*");
 
     private final ResourceLoader resourceLoader;
     private final Yaml yaml;
@@ -104,11 +114,12 @@ public class ConnectorActionCatalogLoader {
 
     public ConnectorActionCatalog loadCatalog(List<AIActionCatalogProperties.ActionSourceProperties> sources) {
         if (sources == null || sources.isEmpty()) {
-            return new ConnectorActionCatalog(List.of(), List.of(), List.of());
+            return new ConnectorActionCatalog(List.of(), List.of(), List.of(), List.of());
         }
 
         List<ConnectorActionDefinition> actions = new ArrayList<>();
         List<ConfirmationInterceptorRule> confirmationInterceptors = new ArrayList<>();
+        List<ConnectorWebhookTargetDefinition> webhookTargets = new ArrayList<>();
         List<String> sourceLocations = new ArrayList<>();
         for (AIActionCatalogProperties.ActionSourceProperties source : sources) {
             if (source == null) {
@@ -136,11 +147,12 @@ public class ConnectorActionCatalogLoader {
             CatalogPart part = loadFromResource(resource, label);
             actions.addAll(part.actions());
             confirmationInterceptors.addAll(part.confirmationInterceptors());
+            webhookTargets.addAll(part.webhookTargets());
             sourceLocations.add(label);
         }
 
-        validateCatalog(actions, confirmationInterceptors);
-        return new ConnectorActionCatalog(actions, confirmationInterceptors, sourceLocations);
+        validateCatalog(actions, confirmationInterceptors, webhookTargets);
+        return new ConnectorActionCatalog(actions, confirmationInterceptors, webhookTargets, sourceLocations);
     }
 
     private CatalogPart loadFromResource(Resource resource, String label) {
@@ -158,6 +170,12 @@ public class ConnectorActionCatalogLoader {
             label,
             KEY_CONFIRMATION_INTERCEPTORS,
             "confirmation interceptor"
+        );
+        List<Map<String, Object>> webhookTargetMaps = extractSectionMaps(
+            rootMap.get(KEY_WEBHOOK_TARGETS),
+            label,
+            KEY_WEBHOOK_TARGETS,
+            "webhook target"
         );
         if (actionMaps.isEmpty()) {
             log.info("No connector actions found in {}", label);
@@ -178,7 +196,14 @@ public class ConnectorActionCatalogLoader {
             }
             confirmationInterceptors.add(parseConfirmationInterceptor(map, label));
         }
-        return new CatalogPart(actions, confirmationInterceptors);
+        List<ConnectorWebhookTargetDefinition> webhookTargets = new ArrayList<>();
+        for (Map<String, Object> map : webhookTargetMaps) {
+            if (map == null || map.isEmpty()) {
+                continue;
+            }
+            webhookTargets.add(parseWebhookTarget(map, label));
+        }
+        return new CatalogPart(actions, confirmationInterceptors, webhookTargets);
     }
 
     @SuppressWarnings("unchecked")
@@ -241,6 +266,7 @@ public class ConnectorActionCatalogLoader {
         AIContributionProvenance provenance = parseProvenance(raw.get(KEY_PROVENANCE), label, name);
 
         List<ConnectorActionParamDefinition> params = parseParams(raw.get(KEY_PARAMS), label, name);
+        List<ConnectorActionPostPolicyDefinition> postPolicies = parsePostPolicies(raw.get(KEY_POST_POLICIES), label, name);
 
         validateConfirmationTemplate(name, confirmationMessage, params, label);
 
@@ -258,7 +284,79 @@ public class ConnectorActionCatalogLoader {
             resultPresentationHint,
             StringUtils.hasText(builtInModuleId) ? builtInModuleId.trim() : null,
             StringUtils.hasText(builtInCardId) ? builtInCardId.trim() : null,
-            provenance
+            provenance,
+            postPolicies
+        );
+    }
+
+    private List<ConnectorActionPostPolicyDefinition> parsePostPolicies(Object rawPostPolicies,
+                                                                        String label,
+                                                                        String actionName) {
+        if (rawPostPolicies == null) {
+            return List.of();
+        }
+        if (!(rawPostPolicies instanceof List<?> list)) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for action '" + actionName + "': postPolicies must be a list.");
+        }
+        List<ConnectorActionPostPolicyDefinition> out = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': each post policy must be a map/object.");
+            }
+            Map<String, Object> raw = toStringKeyedMap(map);
+            String type = readString(raw, KEY_TYPE);
+            if (!"webhook".equalsIgnoreCase(type)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': unsupported post policy type '" + type + "'.");
+            }
+            String targetRef = readString(raw, KEY_TARGET_REF);
+            if (!StringUtils.hasText(targetRef)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': post policy targetRef is required.");
+            }
+            String eventType = readString(raw, KEY_EVENT_TYPE);
+            if (!StringUtils.hasText(eventType)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': webhook post policy eventType is required.");
+            }
+            out.add(new ConnectorActionPostPolicyDefinition(
+                "webhook",
+                targetRef.trim(),
+                eventType.trim()
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private ConnectorWebhookTargetDefinition parseWebhookTarget(Map<String, Object> raw, String label) {
+        String id = readString(raw, KEY_ID);
+        if (!StringUtils.hasText(id)) {
+            throw new IllegalStateException("Invalid action contract in " + label + ": webhookTargets[].id is required.");
+        }
+        String urlSecretRef = readString(raw, KEY_URL_SECRET_REF);
+        if (!StringUtils.hasText(urlSecretRef)) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for webhook target '" + id + "': urlSecretRef is required.");
+        }
+        if (!SAFE_SECRET_REF.matcher(urlSecretRef.trim()).matches()) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for webhook target '" + id + "': urlSecretRef must be a managed secret-style name.");
+        }
+        String signingSecretRef = readString(raw, KEY_SIGNING_SECRET_REF);
+        if (StringUtils.hasText(signingSecretRef) && !SAFE_SECRET_REF.matcher(signingSecretRef.trim()).matches()) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for webhook target '" + id + "': signingSecretRef must be a managed secret-style name.");
+        }
+        Long timeoutMs = readLong(raw.get(KEY_TIMEOUT_MS), label, "webhook target", id, KEY_TIMEOUT_MS);
+        Long maxAttempts = readLong(raw.get(KEY_MAX_ATTEMPTS), label, "webhook target", id, KEY_MAX_ATTEMPTS);
+        return new ConnectorWebhookTargetDefinition(
+            id.trim(),
+            urlSecretRef.trim(),
+            StringUtils.hasText(signingSecretRef) ? signingSecretRef.trim() : null,
+            timeoutMs != null ? timeoutMs.intValue() : null,
+            maxAttempts != null ? maxAttempts.intValue() : null
         );
     }
 
@@ -473,7 +571,8 @@ public class ConnectorActionCatalogLoader {
     }
 
     private void validateCatalog(List<ConnectorActionDefinition> actions,
-                                 List<ConfirmationInterceptorRule> confirmationInterceptors) {
+                                 List<ConfirmationInterceptorRule> confirmationInterceptors,
+                                 List<ConnectorWebhookTargetDefinition> webhookTargets) {
         Map<String, ConnectorActionDefinition> actionsByName = new LinkedHashMap<>();
         for (ConnectorActionDefinition action : actions) {
             if (action == null || !StringUtils.hasText(action.name())) {
@@ -483,6 +582,36 @@ public class ConnectorActionCatalogLoader {
             String normalized = action.name().trim().toLowerCase(Locale.ROOT);
             if (actionsByName.put(normalized, action) != null) {
                 throw new IllegalStateException("Duplicate action name in connector catalog: " + action.name());
+            }
+        }
+        Map<String, ConnectorWebhookTargetDefinition> webhookTargetsById = new LinkedHashMap<>();
+        for (ConnectorWebhookTargetDefinition target : webhookTargets) {
+            if (target == null || !StringUtils.hasText(target.id())) {
+                continue;
+            }
+            String normalizedTargetId = normalizeName(target.id());
+            if (webhookTargetsById.put(normalizedTargetId, target) != null) {
+                throw new IllegalStateException("Duplicate webhook target id in connector catalog: " + target.id());
+            }
+            if (target.timeoutMs() != null && target.timeoutMs() <= 0) {
+                throw new IllegalStateException("Webhook target '" + target.id() + "' timeoutMs must be positive.");
+            }
+            if (target.maxAttempts() != null && target.maxAttempts() <= 0) {
+                throw new IllegalStateException("Webhook target '" + target.id() + "' maxAttempts must be positive.");
+            }
+        }
+        for (ConnectorActionDefinition action : actions) {
+            if (action == null || !StringUtils.hasText(action.name()) || action.postPolicies() == null) {
+                continue;
+            }
+            for (ConnectorActionPostPolicyDefinition policy : action.postPolicies()) {
+                if (policy == null) {
+                    continue;
+                }
+                if (!webhookTargetsById.containsKey(normalizeName(policy.targetRef()))) {
+                    throw new IllegalStateException("Action '" + action.name()
+                        + "' references unknown webhook target '" + policy.targetRef() + "'.");
+                }
             }
         }
 
@@ -810,7 +939,8 @@ public class ConnectorActionCatalogLoader {
 
     private record CatalogPart(
         List<ConnectorActionDefinition> actions,
-        List<ConfirmationInterceptorRule> confirmationInterceptors
+        List<ConfirmationInterceptorRule> confirmationInterceptors,
+        List<ConnectorWebhookTargetDefinition> webhookTargets
     ) {
     }
 }

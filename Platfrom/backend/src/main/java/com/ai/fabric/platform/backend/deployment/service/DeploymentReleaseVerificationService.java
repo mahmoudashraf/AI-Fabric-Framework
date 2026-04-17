@@ -726,6 +726,9 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNamesWithBuiltInModuleMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInModuleId");
         Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInCardId");
         Set<String> expectedActionNamesWithProvenance = Set.copyOf(expectedActionNames);
+        Set<String> expectedActionNamesWithPostActionWebhookPolicies = expectedActionNamesWithArrayField(actionsConfig.path("actions"), "postPolicies");
+        Set<String> expectedWebhookTargetIds = textSet(actionsConfig.path("webhookTargets"), "id");
+        int expectedPostActionWebhookPoliciesCount = expectedPostActionWebhookPoliciesCount(actionsConfig.path("actions"));
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
@@ -779,6 +782,9 @@ public class DeploymentReleaseVerificationService {
             expectedActionNamesWithBuiltInModuleMappings,
             expectedActionNamesWithBuiltInCardMappings,
             expectedActionNamesWithProvenance,
+            expectedActionNamesWithPostActionWebhookPolicies,
+            expectedWebhookTargetIds,
+            expectedPostActionWebhookPoliciesCount,
             ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
             ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
             ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig),
@@ -838,8 +844,12 @@ public class DeploymentReleaseVerificationService {
         Set<String> actionSourcePaths = textSet(probe.body().path("actionCatalogSources"), "path");
         int actionsCount = probe.body().path("actionsCount").asInt(-1);
         int confirmationInterceptorsCount = probe.body().path("confirmationInterceptorsCount").asInt(-1);
+        long postActionWebhookPoliciesCount = probe.body().path("postActionWebhookPoliciesCount").asLong(-1L);
+        int webhookTargetsCount = probe.body().path("webhookTargetsCount").asInt(-1);
         Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
         Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
+        Set<String> actionNamesWithPostActionWebhookPolicies = textSet(probe.body().path("actionNamesWithPostActionWebhookPolicies"));
+        Set<String> webhookTargetIds = textSet(probe.body().path("webhookTargetIds"));
         Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
 
         ObjectNode details = objectMapper.createObjectNode();
@@ -853,9 +863,17 @@ public class DeploymentReleaseVerificationService {
         details.set("actionSourcePaths", toArrayNode(actionSourcePaths));
         details.put("confirmationInterceptorsCount", confirmationInterceptorsCount);
         details.put("expectedConfirmationInterceptorsCount", expectations.expectedConfirmationInterceptorNames().size());
+        details.put("postActionWebhookPoliciesCount", postActionWebhookPoliciesCount);
+        details.put("expectedPostActionWebhookPoliciesCount", expectations.expectedPostActionWebhookPoliciesCount());
+        details.put("webhookTargetsCount", webhookTargetsCount);
+        details.put("expectedWebhookTargetsCount", expectations.expectedWebhookTargetIds().size());
         details.set("confirmationInterceptorRuleNames", toArrayNode(confirmationInterceptorRuleNames));
         details.set("expectedConfirmationInterceptorRuleNames", toArrayNode(expectations.expectedConfirmationInterceptorNames()));
         details.set("confirmationInterceptorSources", toArrayNode(confirmationInterceptorSources));
+        details.set("actionNamesWithPostActionWebhookPolicies", toArrayNode(actionNamesWithPostActionWebhookPolicies));
+        details.set("expectedActionNamesWithPostActionWebhookPolicies", toArrayNode(expectations.expectedActionNamesWithPostActionWebhookPolicies()));
+        details.set("webhookTargetIds", toArrayNode(webhookTargetIds));
+        details.set("expectedWebhookTargetIds", toArrayNode(expectations.expectedWebhookTargetIds()));
         details.set("supportedEntityTypes", toArrayNode(supportedEntityTypes));
         details.set("expectedEntityTypes", toArrayNode(expectations.expectedEntityTypes()));
 
@@ -1032,8 +1050,12 @@ public class DeploymentReleaseVerificationService {
         Set<String> loadedActionNames = textSet(probe.body().path("actions"), "name");
         int count = probe.body().path("count").asInt(-1);
         int confirmationInterceptorsCount = probe.body().path("confirmationInterceptorsCount").asInt(-1);
+        long postActionWebhookPoliciesCount = probe.body().path("postActionWebhookPoliciesCount").asLong(-1L);
+        int webhookTargetsCount = probe.body().path("webhookTargetsCount").asInt(-1);
         Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
         Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
+        Set<String> actionNamesWithPostActionWebhookPolicies = textSet(probe.body().path("actionNamesWithPostActionWebhookPolicies"));
+        Set<String> webhookTargetIds = textSet(probe.body().path("webhookTargetIds"));
         Set<String> actionNamesWithPresentationHints = actionNamesWithNonDefaultPresentationHints(probe.body().path("actions"));
         Set<String> actionNamesWithBuiltInModuleMappings = actionNamesWithTextField(probe.body().path("actions"), "builtInModuleId");
         Set<String> actionNamesWithBuiltInCardMappings = actionNamesWithTextField(probe.body().path("actions"), "builtInCardId");
@@ -1046,9 +1068,17 @@ public class DeploymentReleaseVerificationService {
         details.set("expectedActionNames", toArrayNode(expectations.expectedActionNames()));
         details.put("confirmationInterceptorsCount", confirmationInterceptorsCount);
         details.put("expectedConfirmationInterceptorsCount", expectations.expectedConfirmationInterceptorNames().size());
+        details.put("postActionWebhookPoliciesCount", postActionWebhookPoliciesCount);
+        details.put("expectedPostActionWebhookPoliciesCount", expectations.expectedPostActionWebhookPoliciesCount());
+        details.put("webhookTargetsCount", webhookTargetsCount);
+        details.put("expectedWebhookTargetsCount", expectations.expectedWebhookTargetIds().size());
         details.set("confirmationInterceptorRuleNames", toArrayNode(confirmationInterceptorRuleNames));
         details.set("expectedConfirmationInterceptorRuleNames", toArrayNode(expectations.expectedConfirmationInterceptorNames()));
         details.set("confirmationInterceptorSources", toArrayNode(confirmationInterceptorSources));
+        details.set("actionNamesWithPostActionWebhookPolicies", toArrayNode(actionNamesWithPostActionWebhookPolicies));
+        details.set("expectedActionNamesWithPostActionWebhookPolicies", toArrayNode(expectations.expectedActionNamesWithPostActionWebhookPolicies()));
+        details.set("webhookTargetIds", toArrayNode(webhookTargetIds));
+        details.set("expectedWebhookTargetIds", toArrayNode(expectations.expectedWebhookTargetIds()));
         details.set("actionNamesWithPresentationHints", toArrayNode(actionNamesWithPresentationHints));
         details.set("expectedActionNamesWithPresentationHints", toArrayNode(expectations.expectedActionNamesWithPresentationHints()));
         details.set("actionNamesWithBuiltInModuleMappings", toArrayNode(actionNamesWithBuiltInModuleMappings));
@@ -1062,7 +1092,11 @@ public class DeploymentReleaseVerificationService {
             && count == expectations.expectedActionNames().size()
             && loadedActionNames.equals(expectations.expectedActionNames())
             && confirmationInterceptorsCount == expectations.expectedConfirmationInterceptorNames().size()
+            && postActionWebhookPoliciesCount == expectations.expectedPostActionWebhookPoliciesCount()
+            && webhookTargetsCount == expectations.expectedWebhookTargetIds().size()
             && confirmationInterceptorRuleNames.equals(expectations.expectedConfirmationInterceptorNames())
+            && actionNamesWithPostActionWebhookPolicies.equals(expectations.expectedActionNamesWithPostActionWebhookPolicies())
+            && webhookTargetIds.equals(expectations.expectedWebhookTargetIds())
             && confirmationInterceptorSources.contains(expectations.artifacts().actionsArtifactUrl());
 
         addCheck(
@@ -1894,8 +1928,12 @@ public class DeploymentReleaseVerificationService {
             && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
             && probe.body().path("actionsCount").asInt(-1) == expectations.expectedActionNames().size()
             && probe.body().path("confirmationInterceptorsCount").asInt(-1) == expectations.expectedConfirmationInterceptorNames().size()
+            && probe.body().path("postActionWebhookPoliciesCount").asLong(-1L) == expectations.expectedPostActionWebhookPoliciesCount()
+            && probe.body().path("webhookTargetsCount").asInt(-1) == expectations.expectedWebhookTargetIds().size()
             && confirmationInterceptorRuleNames.equals(expectations.expectedConfirmationInterceptorNames())
             && confirmationInterceptorSources.contains(expectations.artifacts().actionsArtifactUrl())
+            && textSet(probe.body().path("actionNamesWithPostActionWebhookPolicies")).equals(expectations.expectedActionNamesWithPostActionWebhookPolicies())
+            && textSet(probe.body().path("webhookTargetIds")).equals(expectations.expectedWebhookTargetIds())
             && supportedEntityTypes.equals(expectations.expectedEntityTypes());
     }
 
@@ -2122,6 +2160,34 @@ public class DeploymentReleaseVerificationService {
             }
         }
         return Set.copyOf(names);
+    }
+
+    private Set<String> expectedActionNamesWithArrayField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && action.path(field).isArray() && !action.path(field).isEmpty()) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private int expectedPostActionWebhookPoliciesCount(JsonNode actions) {
+        if (!actions.isArray()) {
+            return 0;
+        }
+        int count = 0;
+        for (JsonNode action : actions) {
+            JsonNode postPolicies = action.path("postPolicies");
+            if (postPolicies.isArray()) {
+                count += postPolicies.size();
+            }
+        }
+        return count;
     }
 
     private Set<String> actionNamesWithNonDefaultPresentationHints(JsonNode actions) {
@@ -2590,6 +2656,9 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNamesWithBuiltInModuleMappings,
         Set<String> expectedActionNamesWithBuiltInCardMappings,
         Set<String> expectedActionNamesWithProvenance,
+        Set<String> expectedActionNamesWithPostActionWebhookPolicies,
+        Set<String> expectedWebhookTargetIds,
+        int expectedPostActionWebhookPoliciesCount,
         String expectedLlmProvider,
         String expectedEmbeddingProvider,
         String expectedOrchestrationProvider,

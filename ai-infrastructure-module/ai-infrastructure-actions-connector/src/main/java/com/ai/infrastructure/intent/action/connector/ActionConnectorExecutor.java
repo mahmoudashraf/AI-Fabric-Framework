@@ -1,8 +1,9 @@
 package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.dto.AIAccessSubjectContext;
-import com.ai.infrastructure.http.AIHttpClientFactory;
-import com.ai.infrastructure.http.HttpClient;
+import com.ai.infrastructure.http.OutboundHttpExecutionRequest;
+import com.ai.infrastructure.http.OutboundHttpExecutionResponse;
+import com.ai.infrastructure.http.OutboundHttpExecutor;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionListPayload;
 import com.ai.infrastructure.intent.action.ActionObjectPayload;
@@ -14,11 +15,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -64,20 +63,17 @@ public class ActionConnectorExecutor {
     );
 
     private final AIActionConnectorProperties properties;
-    private final AIHttpClientFactory httpClientFactory;
+    private final OutboundHttpExecutor outboundHttpExecutor;
     private final ObjectMapper objectMapper;
     private final UlidGenerator ulidGenerator;
     private final Clock clock;
 
-    private volatile HttpClient httpClient;
-    private volatile boolean httpClientInitialized = false;
-
     public ActionConnectorExecutor(AIActionConnectorProperties properties,
-                                   AIHttpClientFactory httpClientFactory,
+                                   OutboundHttpExecutor outboundHttpExecutor,
                                    ObjectProvider<ObjectMapper> objectMapperProvider,
                                    Clock clock) {
         this.properties = properties;
-        this.httpClientFactory = httpClientFactory;
+        this.outboundHttpExecutor = outboundHttpExecutor;
         this.objectMapper = objectMapperProvider != null
             ? objectMapperProvider.getIfAvailable(ObjectMapper::new)
             : new ObjectMapper();
@@ -125,16 +121,32 @@ public class ActionConnectorExecutor {
 
         String body = writeJson(request);
         HttpHeaders headers = buildHeaders(body);
-        HttpEntity<String> entity = new HttpEntity<>(body, headers);
+        Map<String, String> headerValues = new LinkedHashMap<>();
+        headers.forEach((key, values) -> {
+            if (StringUtils.hasText(key) && values != null && !values.isEmpty()) {
+                headerValues.put(key, values.getFirst());
+            }
+        });
 
         int maxAttempts = Math.max(1, properties != null ? properties.getMaxAttempts() : 1);
         Duration backoff = properties != null && properties.getInitialBackoff() != null
             ? properties.getInitialBackoff()
             : Duration.ofSeconds(1);
+        Duration connectTimeout = properties != null ? properties.getConnectTimeout() : null;
+        Duration readTimeout = properties != null ? properties.getReadTimeout() : null;
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                ResponseEntity<String> response = httpClient().exchange(url, HttpMethod.POST, entity, String.class);
+                OutboundHttpExecutionResponse response = outboundHttpExecutor.execute(
+                    new OutboundHttpExecutionRequest(
+                        url,
+                        HttpMethod.POST,
+                        headerValues,
+                        body,
+                        connectTimeout,
+                        readTimeout
+                    )
+                );
                 ActionResult result = parseResponse(response, actionId);
 
                 if (shouldRetryResult(result, accessMode, idempotencyKey) && attempt < maxAttempts) {
@@ -254,26 +266,6 @@ public class ActionConnectorExecutor {
         return normalized;
     }
 
-    private HttpClient httpClient() {
-        if (httpClientInitialized) {
-            return httpClient;
-        }
-        synchronized (this) {
-            if (httpClientInitialized) {
-                return httpClient;
-            }
-            Duration connect = properties != null ? properties.getConnectTimeout() : null;
-            Duration read = properties != null ? properties.getReadTimeout() : null;
-            HttpClient created = httpClientFactory != null && connect != null && read != null
-                ? httpClientFactory.create(connect, read)
-                : httpClientFactory.create();
-            httpClient = created;
-            httpClientInitialized = true;
-            log.debug("Initialized connector HttpClient (connectTimeout={}, readTimeout={})", connect, read);
-            return httpClient;
-        }
-    }
-
     private HttpHeaders buildHeaders(String body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -316,12 +308,12 @@ public class ActionConnectorExecutor {
         }
     }
 
-    private ActionResult parseResponse(ResponseEntity<String> response, String actionId) {
+    private ActionResult parseResponse(OutboundHttpExecutionResponse response, String actionId) {
         if (response == null) {
             return failure(ERROR_SERVICE_UNAVAILABLE, "Connector returned no response.");
         }
 
-        String body = response.getBody();
+        String body = response.body();
         if (!StringUtils.hasText(body)) {
             return failure(ERROR_SERVICE_UNAVAILABLE, "Connector returned an empty response.");
         }

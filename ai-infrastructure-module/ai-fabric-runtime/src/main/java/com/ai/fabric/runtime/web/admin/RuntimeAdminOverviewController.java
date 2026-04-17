@@ -10,6 +10,7 @@ import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.rag.source.SearchSourceRegistry;
@@ -42,6 +43,7 @@ public class RuntimeAdminOverviewController {
     private final RuntimeAuthProperties runtimeAuthProperties;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
     private final ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
+    private final ObjectProvider<ConnectorActionWebhookPolicyCatalog> webhookPolicyCatalogProvider;
     private final ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigServiceProvider;
     private final ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigServiceProvider;
     private final ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider;
@@ -104,6 +106,7 @@ public class RuntimeAdminOverviewController {
         ConfirmationInterceptorCatalogProvider confirmationProvider = confirmationInterceptorCatalogProvider.getIfAvailable();
         RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService = knowledgeSourceConfigServiceProvider.getIfAvailable();
         RuntimeDeploymentShellConfigService shellConfigService = shellConfigServiceProvider.getIfAvailable();
+        ConnectorActionWebhookPolicyCatalog webhookPolicyCatalog = webhookPolicyCatalogProvider.getIfAvailable();
         SearchSourceRegistry searchSourceRegistry = searchSourceRegistryProvider.getIfAvailable();
         Map<String, Object> searchSourceDiagnostics = searchSourceRegistry != null
             ? searchSourceRegistry.adminDiagnostics()
@@ -125,6 +128,21 @@ public class RuntimeAdminOverviewController {
             ? confirmationProvider.getRules().stream().map(rule -> rule != null ? rule.name() : null).filter(StringUtils::hasText).toList()
             : List.of());
         body.put("confirmationInterceptorSources", confirmationProvider != null ? confirmationProvider.getSourceLocations() : List.of());
+        body.put("postActionWebhookPoliciesCount", webhookPolicyCatalog != null ? webhookPolicyCatalog.postPolicyCount() : 0L);
+        body.put(
+            "actionNamesWithPostActionWebhookPolicies",
+            webhookPolicyCatalog != null ? List.copyOf(webhookPolicyCatalog.actionNamesWithPostPolicies()) : List.of()
+        );
+        body.put("webhookTargetsCount", webhookPolicyCatalog != null ? webhookPolicyCatalog.webhookTargets().size() : 0);
+        body.put(
+            "webhookTargetIds",
+            webhookPolicyCatalog != null
+                ? webhookPolicyCatalog.webhookTargets().stream()
+                    .map(target -> target != null ? target.id() : null)
+                    .filter(StringUtils::hasText)
+                    .toList()
+                : List.of()
+        );
         body.put("supportedEntityTypes", entityTypes);
         body.put("vectorDb", vectorDatabaseService.getClass().getSimpleName());
         body.put("supportsVectorScan", vectorDatabaseService.supportsVectorScan());
@@ -246,10 +264,12 @@ public class RuntimeAdminOverviewController {
                                                    SearchSourceRegistry searchSourceRegistry,
                                                    Map<String, Object> searchSourceDiagnostics) {
         Map<String, Object> support = new LinkedHashMap<>();
-        support.put("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        support.put("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V2");
         support.put("resolvedKnowledgeSourcesSupported", knowledgeSourceConfigService != null);
         support.put("resolvedShellConfigSupported", shellConfigService != null);
         support.put("resolvedActionMetadataSupported", true);
+        support.put("postActionWebhookPoliciesSupported", true);
+        support.put("postActionWebhookPolicyContractVersion", "ACTION_WEBHOOK_POLICY_V1");
         support.put("resolvedSearchSourcesSupported", searchSourceRegistry != null);
         support.put("degradedSearchSupported", searchSourceRegistry != null);
         support.put("actionMetadataContractVersion", "ACTION_METADATA_V2");

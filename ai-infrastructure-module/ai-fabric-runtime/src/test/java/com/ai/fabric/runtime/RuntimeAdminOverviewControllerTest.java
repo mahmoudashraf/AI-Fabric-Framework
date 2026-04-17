@@ -26,6 +26,8 @@ import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import com.ai.infrastructure.intent.action.ActionSideEffectLevel;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import com.ai.infrastructure.intent.action.connector.ConnectorWebhookTargetDefinition;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
@@ -115,6 +117,7 @@ class RuntimeAdminOverviewControllerTest {
             authProperties,
             new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
             confirmationProvider(),
+            webhookPolicyProvider(),
             knowledgeSourceConfigProvider(),
             shellConfigProvider(),
             searchSourceRegistryProvider()
@@ -140,8 +143,12 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("actionsWithBuiltInCardMappingsCount", 1L);
         assertThat(body).containsEntry("actionsWithProvenanceCount", 1L);
         assertThat(body).containsEntry("confirmationInterceptorsCount", 1);
+        assertThat(body).containsEntry("postActionWebhookPoliciesCount", 1L);
+        assertThat(body).containsEntry("webhookTargetsCount", 1);
         assertThat(body.get("confirmationInterceptorRuleNames")).isEqualTo(List.of("cancel_to_retention_offer"));
         assertThat(body.get("confirmationInterceptorSources")).isEqualTo(List.of("classpath:test-actions.yml"));
+        assertThat(body.get("actionNamesWithPostActionWebhookPolicies")).isEqualTo(List.of("create_purchase_order"));
+        assertThat(body.get("webhookTargetIds")).isEqualTo(List.of("zapier_purchase_orders"));
         assertThat(body).containsEntry("knowledgeSourcesCount", 2);
         assertThat(body.get("knowledgeSourceIds")).isEqualTo(List.of("shared-catalog", "shared-policy"));
         assertThat(body.get("knowledgeSourceTypes")).isEqualTo(List.of("shared-vector", "shared-vector"));
@@ -154,19 +161,21 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("shellGreetingConfigured", true);
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
-        assertThat(body.get("inferenceProfile")).isEqualTo(Map.ofEntries(
-            Map.entry("llmProvider", "openai"),
-            Map.entry("embeddingProvider", "onnx"),
-            Map.entry("embeddingEndpointProfile", "onnx-bundled"),
-            Map.entry("orchestrationProvider", "openai"),
-            Map.entry("orchestrationModel", "gpt-4o-mini"),
-            Map.entry("orchestrationEndpointProfile", "openai-cloud-orchestration"),
-            Map.entry("orchestrationHasConnectionOverride", true),
-            Map.entry("generationProvider", "openai"),
-            Map.entry("generationModel", "gpt-4o"),
-            Map.entry("generationEndpointProfile", "openai-cloud-default"),
-            Map.entry("generationHasConnectionOverride", true)
-        ));
+        assertThat(body.get("inferenceProfile")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> inferenceProfile = (Map<String, Object>) body.get("inferenceProfile");
+        assertThat(inferenceProfile).containsEntry("llmProvider", "openai");
+        assertThat(inferenceProfile).containsEntry("embeddingProvider", "onnx");
+        assertThat(inferenceProfile).containsEntry("embeddingEndpointProfile", "onnx-bundled");
+        assertThat(inferenceProfile).containsEntry("embeddingHasConnectionOverride", true);
+        assertThat(inferenceProfile).containsEntry("orchestrationProvider", "openai");
+        assertThat(inferenceProfile).containsEntry("orchestrationModel", "gpt-4o-mini");
+        assertThat(inferenceProfile).containsEntry("orchestrationEndpointProfile", "openai-cloud-orchestration");
+        assertThat(inferenceProfile).containsEntry("orchestrationHasConnectionOverride", true);
+        assertThat(inferenceProfile).containsEntry("generationProvider", "openai");
+        assertThat(inferenceProfile).containsEntry("generationModel", "gpt-4o");
+        assertThat(inferenceProfile).containsEntry("generationEndpointProfile", "openai-cloud-default");
+        assertThat(inferenceProfile).containsEntry("generationHasConnectionOverride", true);
         assertThat(body.get("searchSourceDiagnostics")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> searchSourceDiagnostics = (Map<String, Object>) body.get("searchSourceDiagnostics");
@@ -188,8 +197,10 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body.get("marketplaceSupport")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> marketplaceSupport = (Map<String, Object>) body.get("marketplaceSupport");
-        assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V2");
         assertThat(marketplaceSupport).containsEntry("resolvedActionMetadataSupported", true);
+        assertThat(marketplaceSupport).containsEntry("postActionWebhookPoliciesSupported", true);
+        assertThat(marketplaceSupport).containsEntry("postActionWebhookPolicyContractVersion", "ACTION_WEBHOOK_POLICY_V1");
         assertThat(marketplaceSupport).containsEntry("actionMetadataContractVersion", "ACTION_METADATA_V2");
         assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", true);
         assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", true);
@@ -274,6 +285,7 @@ class RuntimeAdminOverviewControllerTest {
                 null
             ),
             confirmationProvider(),
+            webhookPolicyProvider(),
             knowledgeSourceConfigProvider(),
             shellConfigProvider(),
             searchSourceRegistryProvider()
@@ -346,6 +358,7 @@ class RuntimeAdminOverviewControllerTest {
             authProperties,
             new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
             emptyProvider(ConfirmationInterceptorCatalogProvider.class),
+            emptyProvider(ConnectorActionWebhookPolicyCatalog.class),
             emptyProvider(RuntimeDeploymentKnowledgeSourceConfigService.class),
             emptyProvider(RuntimeDeploymentShellConfigService.class),
             emptyProvider(SearchSourceRegistry.class)
@@ -363,6 +376,8 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("success", true);
         assertThat(body).containsEntry("actionsCount", 1L);
         assertThat(body).containsEntry("confirmationInterceptorsCount", 0);
+        assertThat(body).containsEntry("postActionWebhookPoliciesCount", 0L);
+        assertThat(body).containsEntry("webhookTargetsCount", 0);
         assertThat(body).containsEntry("knowledgeSourcesCount", 0);
         assertThat(body).containsEntry("knowledgeSourceIds", List.of());
         assertThat(body).containsEntry("knowledgeSourceTypes", List.of());
@@ -377,8 +392,10 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body.get("marketplaceSupport")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> marketplaceSupport = (Map<String, Object>) body.get("marketplaceSupport");
-        assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V2");
         assertThat(marketplaceSupport).containsEntry("resolvedActionMetadataSupported", true);
+        assertThat(marketplaceSupport).containsEntry("postActionWebhookPoliciesSupported", true);
+        assertThat(marketplaceSupport).containsEntry("postActionWebhookPolicyContractVersion", "ACTION_WEBHOOK_POLICY_V1");
         assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", false);
         assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", false);
         assertThat(marketplaceSupport).containsEntry("resolvedSearchSourcesSupported", false);
@@ -397,6 +414,7 @@ class RuntimeAdminOverviewControllerTest {
                                                                  RuntimeAuthProperties authProperties,
                                                                  RuntimeRequestAuthResolver runtimeRequestAuthResolver,
                                                                  ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider,
+                                                                 ObjectProvider<ConnectorActionWebhookPolicyCatalog> webhookPolicyProvider,
                                                                  ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceProvider,
                                                                  ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider,
                                                                  ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider) {
@@ -412,6 +430,7 @@ class RuntimeAdminOverviewControllerTest {
                 authProperties,
                 runtimeRequestAuthResolver,
                 confirmationProvider,
+                webhookPolicyProvider,
                 knowledgeSourceProvider,
                 shellConfigProvider,
                 searchSourceRegistryProvider
@@ -469,6 +488,18 @@ class RuntimeAdminOverviewControllerTest {
 
     private <T> ObjectProvider<T> emptyProvider(Class<T> type) {
         return new StaticListableBeanFactory().getBeanProvider(type);
+    }
+
+    private ObjectProvider<ConnectorActionWebhookPolicyCatalog> webhookPolicyProvider() {
+        ConnectorActionWebhookPolicyCatalog provider = mock(ConnectorActionWebhookPolicyCatalog.class);
+        when(provider.postPolicyCount()).thenReturn(1L);
+        when(provider.actionNamesWithPostPolicies()).thenReturn(Set.of("create_purchase_order"));
+        when(provider.webhookTargets()).thenReturn(List.of(
+            new ConnectorWebhookTargetDefinition("zapier_purchase_orders", "ZAPIER_URL", "ZAPIER_SIGNING_SECRET", 3000, 5)
+        ));
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("connectorActionWebhookPolicyCatalog", provider);
+        return beanFactory.getBeanProvider(ConnectorActionWebhookPolicyCatalog.class);
     }
 
     private ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigProvider() {

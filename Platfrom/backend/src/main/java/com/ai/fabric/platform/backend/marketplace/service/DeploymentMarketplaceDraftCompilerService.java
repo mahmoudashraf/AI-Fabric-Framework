@@ -482,6 +482,47 @@ public class DeploymentMarketplaceDraftCompilerService {
                                    MarketplaceManifestService.ParsedMarketplaceManifest parsed,
                                    Set<String> existingActionNames) {
         ArrayNode actions = ensureArray(actionsRoot, "actions");
+        ArrayNode webhookTargets = ensureArray(actionsRoot, "webhookTargets");
+        JsonNode installConfig = readJson(install.getConfigJson());
+        JsonNode installSecretRefs = readJson(install.getSecretRefsJson());
+        JsonNode webhookTargetEntries = parsed.manifest().path("contributions").path("webhookTargets");
+        for (JsonNode targetEntry : iterable(webhookTargetEntries)) {
+            if (!targetEntry.isObject()) {
+                continue;
+            }
+            String targetId = text(targetEntry, "id");
+            if (!StringUtils.hasText(targetId)) {
+                continue;
+            }
+            if (hasWebhookTarget(webhookTargets, targetId)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Marketplace webhook target conflicts with an existing deployment target: " + targetId
+                );
+            }
+            ObjectNode compiledTarget = objectMapper.createObjectNode();
+            compiledTarget.put("id", targetId);
+            String urlSecretRef = configuredText(targetEntry, installSecretRefs, "urlSecretRef", "urlSecretRefField");
+            if (!hasText(urlSecretRef)) {
+                throw new ResponseStatusException(CONFLICT, "Webhook target '" + targetId + "' is missing urlSecretRef.");
+            }
+            compiledTarget.put("urlSecretRef", urlSecretRef);
+            String signingSecretRef = configuredText(targetEntry, installSecretRefs, "signingSecretRef", "signingSecretRefField");
+            if (hasText(signingSecretRef)) {
+                compiledTarget.put("signingSecretRef", signingSecretRef);
+            }
+            Integer timeoutMs = configuredInt(targetEntry, installConfig, "timeoutMs", "timeoutMsField");
+            if (timeoutMs != null) {
+                compiledTarget.put("timeoutMs", timeoutMs);
+            }
+            Integer maxAttempts = configuredInt(targetEntry, installConfig, "maxAttempts", "maxAttemptsField");
+            if (maxAttempts != null) {
+                compiledTarget.put("maxAttempts", maxAttempts);
+            }
+            applyMarketplaceProvenance(compiledTarget, install, plugin, version);
+            webhookTargets.add(compiledTarget);
+        }
+
         JsonNode actionEntries = parsed.manifest().path("contributions").path("actions");
         for (JsonNode actionEntry : iterable(actionEntries)) {
             if (!actionEntry.isObject()) {
@@ -531,6 +572,9 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
             if (actionEntry.path("route").isObject()) {
                 compiled.set("route", actionEntry.path("route").deepCopy());
+            }
+            if (actionEntry.path("postPolicies").isArray()) {
+                compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
             }
             applyMarketplaceProvenance(compiled, install, plugin, version);
             actions.add(compiled);
@@ -784,6 +828,8 @@ public class DeploymentMarketplaceDraftCompilerService {
     private void stripMarketplaceManagedActions(ObjectNode actionsRoot) {
         ArrayNode actions = ensureArray(actionsRoot, "actions");
         removeMarketplaceManagedEntries(actions);
+        ArrayNode webhookTargets = ensureArray(actionsRoot, "webhookTargets");
+        removeMarketplaceManagedEntries(webhookTargets);
     }
 
     private void stripMarketplaceManagedEntities(ObjectNode entityRoot) {
@@ -838,6 +884,18 @@ public class DeploymentMarketplaceDraftCompilerService {
                 array.remove(index);
             }
         }
+    }
+
+    private boolean hasWebhookTarget(ArrayNode targets, String targetId) {
+        if (targets == null || !hasText(targetId)) {
+            return false;
+        }
+        for (JsonNode target : targets) {
+            if (target != null && target.isObject() && targetId.trim().equalsIgnoreCase(target.path("id").asText(""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isMarketplaceManaged(JsonNode node) {

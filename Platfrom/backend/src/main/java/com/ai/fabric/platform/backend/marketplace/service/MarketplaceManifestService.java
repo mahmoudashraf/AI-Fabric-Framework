@@ -196,6 +196,7 @@ public class MarketplaceManifestService {
         if (!actions.isArray() || actions.isEmpty()) {
             throw invalid(plugin, version, "action plugins must declare a non-empty contributions.actions array.");
         }
+        Set<String> webhookTargetIds = parseWebhookTargets(plugin, version, contributions.path("webhookTargets"));
         List<String> actionIds = new ArrayList<>();
         for (JsonNode action : actions) {
             if (!action.isObject()) {
@@ -216,6 +217,7 @@ public class MarketplaceManifestService {
                     throw invalid(plugin, version, "action route must declare url or path when route is present.");
                 }
             }
+            validateActionPostPolicies(plugin, version, action.path("postPolicies"), webhookTargetIds, actionId);
             actionIds.add(actionId.trim());
         }
         JsonNode shell = contributions.path("shell");
@@ -230,6 +232,106 @@ public class MarketplaceManifestService {
             List.of(),
             List.of()
         );
+    }
+
+    private Set<String> parseWebhookTargets(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode webhookTargets) {
+        if (webhookTargets.isMissingNode() || webhookTargets.isNull()) {
+            return Set.of();
+        }
+        if (!webhookTargets.isArray()) {
+            throw invalid(plugin, version, "action plugin webhookTargets must be an array when provided.");
+        }
+        Set<String> ids = new LinkedHashSet<>();
+        for (JsonNode target : webhookTargets) {
+            if (!target.isObject()) {
+                throw invalid(plugin, version, "each webhook target contribution must be an object.");
+            }
+            String id = firstText(target, "id");
+            if (!StringUtils.hasText(id)) {
+                throw invalid(plugin, version, "each webhook target must declare id.");
+            }
+            if (!ids.add(id.trim())) {
+                throw invalid(plugin, version, "duplicate webhook target id: " + id);
+            }
+            validateSecretContribution(plugin, version, target, "urlSecretRef", "urlSecretRefField", true, "webhook target '" + id + "'");
+            validateSecretContribution(plugin, version, target, "signingSecretRef", "signingSecretRefField", false, "webhook target '" + id + "'");
+            validateNumberContribution(plugin, version, target, "timeoutMs", "timeoutMsField", false, "webhook target '" + id + "'");
+            validateNumberContribution(plugin, version, target, "maxAttempts", "maxAttemptsField", false, "webhook target '" + id + "'");
+        }
+        return Set.copyOf(ids);
+    }
+
+    private void validateActionPostPolicies(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode postPolicies,
+                                            Set<String> webhookTargetIds,
+                                            String actionId) {
+        if (postPolicies.isMissingNode() || postPolicies.isNull()) {
+            return;
+        }
+        if (!postPolicies.isArray()) {
+            throw invalid(plugin, version, "action '" + actionId + "' postPolicies must be an array when provided.");
+        }
+        for (JsonNode postPolicy : postPolicies) {
+            if (!postPolicy.isObject()) {
+                throw invalid(plugin, version, "action '" + actionId + "' post policy entries must be objects.");
+            }
+            String type = firstText(postPolicy, "type");
+            if (!"webhook".equalsIgnoreCase(type)) {
+                throw invalid(plugin, version, "action '" + actionId + "' declares unsupported post policy type: " + type);
+            }
+            String targetRef = firstText(postPolicy, "targetRef");
+            if (!StringUtils.hasText(targetRef)) {
+                throw invalid(plugin, version, "action '" + actionId + "' webhook post policy must declare targetRef.");
+            }
+            if (!webhookTargetIds.contains(targetRef.trim())) {
+                throw invalid(plugin, version, "action '" + actionId + "' references unknown webhook target: " + targetRef);
+            }
+            String eventType = firstText(postPolicy, "eventType");
+            if (!StringUtils.hasText(eventType)) {
+                throw invalid(plugin, version, "action '" + actionId + "' webhook post policy must declare eventType.");
+            }
+        }
+    }
+
+    private void validateSecretContribution(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode node,
+                                            String directField,
+                                            String fieldRefField,
+                                            boolean required,
+                                            String subject) {
+        String direct = firstText(node, directField);
+        String fieldRef = firstText(node, fieldRefField);
+        if (StringUtils.hasText(direct) && StringUtils.hasText(fieldRef)) {
+            throw invalid(plugin, version, subject + " may not declare both " + directField + " and " + fieldRefField + ".");
+        }
+        if (required && !StringUtils.hasText(direct) && !StringUtils.hasText(fieldRef)) {
+            throw invalid(plugin, version, subject + " must declare " + directField + " or " + fieldRefField + ".");
+        }
+    }
+
+    private void validateNumberContribution(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode node,
+                                            String directField,
+                                            String fieldRefField,
+                                            boolean required,
+                                            String subject) {
+        String fieldRef = firstText(node, fieldRefField);
+        JsonNode directNode = node.path(directField);
+        boolean hasDirect = !directNode.isMissingNode() && !directNode.isNull();
+        if (hasDirect && StringUtils.hasText(fieldRef)) {
+            throw invalid(plugin, version, subject + " may not declare both " + directField + " and " + fieldRefField + ".");
+        }
+        if (required && !hasDirect && !StringUtils.hasText(fieldRef)) {
+            throw invalid(plugin, version, subject + " must declare " + directField + " or " + fieldRefField + ".");
+        }
+        if (hasDirect && (!directNode.canConvertToInt() || directNode.asInt() <= 0)) {
+            throw invalid(plugin, version, subject + " field '" + directField + "' must be a positive integer.");
+        }
     }
 
     private MarketplacePluginContributionSummary parseDataContribution(MarketplacePluginEntity plugin,

@@ -24,6 +24,7 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
+import com.ai.infrastructure.intent.action.policy.ActionPostPolicyEngine;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
@@ -242,6 +243,8 @@ public class IntentHandlingStep implements PipelineStep {
     private final PromptRenderer promptRenderer;
     @Autowired(required = false)
     private ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
+    @Autowired(required = false)
+    private ObjectProvider<ActionPostPolicyEngine> actionPostPolicyEngineProvider;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -544,6 +547,8 @@ public class IntentHandlingStep implements PipelineStep {
                 resultData = Collections.unmodifiableMap(enriched);
             }
 
+            enqueuePostPolicies(actionName, effectiveParams, actionResult, actionContext);
+
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.ACTION_EXECUTED)
                 .success(success)
@@ -570,6 +575,23 @@ public class IntentHandlingStep implements PipelineStep {
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
+        }
+    }
+
+    private void enqueuePostPolicies(String actionName,
+                                     Map<String, Object> effectiveParams,
+                                     ActionResult actionResult,
+                                     ActionContext actionContext) {
+        ActionPostPolicyEngine engine = actionPostPolicyEngineProvider != null
+            ? actionPostPolicyEngineProvider.getIfAvailable()
+            : null;
+        if (engine == null || !StringUtils.hasText(actionName) || actionResult == null || !actionResult.isSuccess()) {
+            return;
+        }
+        try {
+            engine.handleSuccessfulAction(actionName, effectiveParams, actionResult, actionContext);
+        } catch (Exception ex) {
+            log.warn("Post-action policy enqueue failed for action '{}': {}", actionName, ex.getMessage(), ex);
         }
     }
 

@@ -25,8 +25,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class RailwayProvisioningPlanService {
@@ -215,6 +217,7 @@ public class RailwayProvisioningPlanService {
         JsonNode providerConfig = providerConfigOverride != null && providerConfigOverride.isObject()
             ? providerConfigOverride
             : readJson(version.getProviderConfigJson());
+        JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
 
@@ -238,6 +241,7 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
+        addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
         addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
@@ -937,6 +941,30 @@ public class RailwayProvisioningPlanService {
         if (platformSecretService.isSecretPresent(CONNECTOR_ADMIN_SECRET)) {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
+        }
+    }
+
+    private void addRuntimeWebhookTargetEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode actionsConfig) {
+        Set<String> secretRefs = new LinkedHashSet<>();
+        JsonNode webhookTargets = actionsConfig.path("webhookTargets");
+        if (!webhookTargets.isArray()) {
+            return;
+        }
+        for (JsonNode target : webhookTargets) {
+            if (!target.isObject()) {
+                continue;
+            }
+            String urlSecretRef = trimToNull(text(target, "urlSecretRef"));
+            if (hasText(urlSecretRef)) {
+                secretRefs.add(urlSecretRef);
+            }
+            String signingSecretRef = trimToNull(text(target, "signingSecretRef"));
+            if (hasText(signingSecretRef)) {
+                secretRefs.add(signingSecretRef);
+            }
+        }
+        for (String secretRef : secretRefs) {
+            runtimeEnv.add(new RailwayEnvVarSummary(secretRef, "${secret:" + secretRef + "}"));
         }
     }
 

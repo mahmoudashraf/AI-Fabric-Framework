@@ -24,7 +24,7 @@ public class ConnectorActionCatalogService {
                     catalogProperties != null ? catalogProperties.getSources() : List.of();
                 cachedCatalog = catalogLoader != null
                     ? catalogLoader.loadCatalog(sources)
-                    : new ConnectorActionCatalog(List.of(), List.of(), List.of());
+                    : new ConnectorActionCatalog(List.of(), List.of(), List.of(), List.of());
             }
             return cachedCatalog;
         }

@@ -3,6 +3,7 @@ package com.ai.fabric.runtime.web.admin;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class ActionCatalogAdminController {
     private final AIActionRegistry actionRegistry;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
     private final ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
+    private final ObjectProvider<ConnectorActionWebhookPolicyCatalog> webhookPolicyCatalogProvider;
 
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
@@ -47,7 +49,7 @@ public class ActionCatalogAdminController {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", true);
-        body.put("contractVersion", "RUNTIME_ACTION_CATALOG_OVERVIEW_V2");
+        body.put("contractVersion", "RUNTIME_ACTION_CATALOG_OVERVIEW_V3");
         body.put("count", actions.size());
         body.put("actions", actions);
         body.put("groundingEligibleCount", actions.stream().filter(AIActionMetaData::isGroundingEligible).count());
@@ -64,6 +66,22 @@ public class ActionCatalogAdminController {
             ? provider.getRules().stream().map(rule -> rule != null ? rule.name() : null).filter(StringUtils::hasText).toList()
             : List.of());
         body.put("confirmationInterceptorSources", provider != null ? provider.getSourceLocations() : List.of());
+        ConnectorActionWebhookPolicyCatalog webhookPolicyCatalog = webhookPolicyCatalogProvider.getIfAvailable();
+        body.put("postActionWebhookPoliciesCount", webhookPolicyCatalog != null ? webhookPolicyCatalog.postPolicyCount() : 0L);
+        body.put(
+            "actionNamesWithPostActionWebhookPolicies",
+            webhookPolicyCatalog != null ? List.copyOf(webhookPolicyCatalog.actionNamesWithPostPolicies()) : List.of()
+        );
+        body.put("webhookTargetsCount", webhookPolicyCatalog != null ? webhookPolicyCatalog.webhookTargets().size() : 0);
+        body.put(
+            "webhookTargetIds",
+            webhookPolicyCatalog != null
+                ? webhookPolicyCatalog.webhookTargets().stream()
+                    .map(target -> target != null ? target.id() : null)
+                    .filter(StringUtils::hasText)
+                    .toList()
+                : List.of()
+        );
         return ResponseEntity.ok(body);
     }
 }

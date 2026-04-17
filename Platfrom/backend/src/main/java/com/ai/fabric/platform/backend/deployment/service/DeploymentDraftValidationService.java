@@ -28,7 +28,9 @@ public class DeploymentDraftValidationService {
 
     private static final Set<String> SUPPORTED_CONFIRMATION_TYPES = Set.of("CONFIRMATION_POSITIVE", "CONFIRMATION_NEGATIVE");
     private static final Set<String> SUPPORTED_CONFIRMATION_DECISION_TYPES = Set.of("PROMPT_ACTION", "EXECUTE_ACTION", "REPLY");
+    private static final Set<String> SUPPORTED_POST_POLICY_TYPES = Set.of("WEBHOOK");
     private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Pattern SAFE_SECRET_REF = Pattern.compile("[A-Z][A-Z0-9_]*");
     private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
     private static final Set<String> SUPPORTED_SHELL_MODULE_IDS = Set.of(
         "search",
@@ -143,16 +145,17 @@ public class DeploymentDraftValidationService {
     private ActionValidationSummary validateActions(JsonNode actionsNode, List<DraftValidationIssue> issues) {
         Set<String> actionNames = new HashSet<>();
         Set<String> confirmableActionNames = new HashSet<>();
+        Set<String> webhookTargetIds = validateWebhookTargets(actionsNode.path("webhookTargets"), issues);
         List<InlineActionRoute> inlineRoutes = new ArrayList<>();
         JsonNode actions = actionsNode.path("actions");
         if (!actions.isArray()) {
             issues.add(error("actions", "ACTIONS_ARRAY_REQUIRED", "$.actions", "actions must be an array."));
-            return new ActionValidationSummary(actionNames, List.of());
+            return new ActionValidationSummary(actionNames, List.of(), webhookTargetIds);
         }
 
         if (actions.isEmpty()) {
             issues.add(warning("actions", "NO_ACTIONS_CONFIGURED", "$.actions", "No actions are currently configured."));
-            return new ActionValidationSummary(actionNames, List.of());
+            return new ActionValidationSummary(actionNames, List.of(), webhookTargetIds);
         }
 
         for (int index = 0; index < actions.size(); index++) {
@@ -194,6 +197,8 @@ public class DeploymentDraftValidationService {
                 }
             }
 
+            validatePostPolicies(action.path("postPolicies"), basePath, name, webhookTargetIds, issues);
+
             if (action.path("requiresConfirmation").asBoolean(false) && !name.isEmpty()) {
                 confirmableActionNames.add(name);
             }
@@ -201,7 +206,94 @@ public class DeploymentDraftValidationService {
 
         validateConfirmationInterceptors(actionsNode.path("confirmationInterceptors"), actionNames, confirmableActionNames, issues);
 
-        return new ActionValidationSummary(actionNames, List.copyOf(inlineRoutes));
+        return new ActionValidationSummary(actionNames, List.copyOf(inlineRoutes), webhookTargetIds);
+    }
+
+    private Set<String> validateWebhookTargets(JsonNode webhookTargets, List<DraftValidationIssue> issues) {
+        Set<String> ids = new HashSet<>();
+        if (webhookTargets.isMissingNode() || webhookTargets.isNull()) {
+            return ids;
+        }
+        if (!webhookTargets.isArray()) {
+            issues.add(error("actions", "WEBHOOK_TARGETS_ARRAY_REQUIRED", "$.webhookTargets", "webhookTargets must be an array when provided."));
+            return ids;
+        }
+        for (int index = 0; index < webhookTargets.size(); index++) {
+            JsonNode target = webhookTargets.get(index);
+            String basePath = "$.webhookTargets[" + index + "]";
+            if (!target.isObject()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_OBJECT_REQUIRED", basePath, "Each webhook target entry must be an object."));
+                continue;
+            }
+
+            String id = target.path("id").asText("").trim();
+            if (id.isEmpty()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_ID_REQUIRED", basePath + ".id", "Webhook target id is required."));
+            } else if (!ids.add(id)) {
+                issues.add(error("actions", "DUPLICATE_WEBHOOK_TARGET_ID", basePath + ".id", "Duplicate webhook target id: " + id));
+            }
+
+            String urlSecretRef = target.path("urlSecretRef").asText("").trim();
+            if (urlSecretRef.isEmpty()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_URL_SECRET_REF_REQUIRED", basePath + ".urlSecretRef", "Webhook target urlSecretRef is required."));
+            } else if (!SAFE_SECRET_REF.matcher(urlSecretRef).matches()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_URL_SECRET_REF_INVALID", basePath + ".urlSecretRef", "Webhook target urlSecretRef must be an uppercase secret ref."));
+            }
+
+            String signingSecretRef = target.path("signingSecretRef").asText("").trim();
+            if (!signingSecretRef.isEmpty() && !SAFE_SECRET_REF.matcher(signingSecretRef).matches()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_SIGNING_SECRET_REF_INVALID", basePath + ".signingSecretRef", "Webhook target signingSecretRef must be an uppercase secret ref."));
+            }
+
+            if (target.has("timeoutMs") && (!target.path("timeoutMs").canConvertToInt() || target.path("timeoutMs").asInt() <= 0)) {
+                issues.add(error("actions", "WEBHOOK_TARGET_TIMEOUT_INVALID", basePath + ".timeoutMs", "Webhook target timeoutMs must be a positive integer."));
+            }
+            if (target.has("maxAttempts") && (!target.path("maxAttempts").canConvertToInt() || target.path("maxAttempts").asInt() <= 0)) {
+                issues.add(error("actions", "WEBHOOK_TARGET_MAX_ATTEMPTS_INVALID", basePath + ".maxAttempts", "Webhook target maxAttempts must be a positive integer."));
+            }
+        }
+        return ids;
+    }
+
+    private void validatePostPolicies(JsonNode postPolicies,
+                                      String basePath,
+                                      String actionName,
+                                      Set<String> webhookTargetIds,
+                                      List<DraftValidationIssue> issues) {
+        if (postPolicies.isMissingNode() || postPolicies.isNull()) {
+            return;
+        }
+        if (!postPolicies.isArray()) {
+            issues.add(error("actions", "POST_POLICIES_ARRAY_REQUIRED", basePath + ".postPolicies", "postPolicies must be an array when provided."));
+            return;
+        }
+        for (int index = 0; index < postPolicies.size(); index++) {
+            JsonNode postPolicy = postPolicies.get(index);
+            String policyPath = basePath + ".postPolicies[" + index + "]";
+            if (!postPolicy.isObject()) {
+                issues.add(error("actions", "POST_POLICY_OBJECT_REQUIRED", policyPath, "Each post policy must be an object."));
+                continue;
+            }
+            String type = postPolicy.path("type").asText("").trim().toUpperCase(Locale.ROOT);
+            if (!SUPPORTED_POST_POLICY_TYPES.contains(type)) {
+                issues.add(error("actions", "POST_POLICY_TYPE_UNSUPPORTED", policyPath + ".type", "Unsupported post policy type."));
+            }
+            String targetRef = postPolicy.path("targetRef").asText("").trim();
+            if (targetRef.isEmpty()) {
+                issues.add(error("actions", "POST_POLICY_TARGET_REF_REQUIRED", policyPath + ".targetRef", "Webhook post policy targetRef is required."));
+            } else if (!webhookTargetIds.contains(targetRef)) {
+                issues.add(error(
+                    "actions",
+                    "POST_POLICY_TARGET_REF_UNKNOWN",
+                    policyPath + ".targetRef",
+                    "Webhook post policy references unknown target '" + targetRef + "'" + (actionName.isEmpty() ? "." : " for action '" + actionName + "'.")
+                ));
+            }
+            String eventType = postPolicy.path("eventType").asText("").trim();
+            if (eventType.isEmpty()) {
+                issues.add(error("actions", "POST_POLICY_EVENT_TYPE_REQUIRED", policyPath + ".eventType", "Webhook post policy eventType is required."));
+            }
+        }
     }
 
     private void validateKnowledgeSources(JsonNode knowledgeSourceNode,
@@ -2119,7 +2211,9 @@ public class DeploymentDraftValidationService {
             && !remainder.contains(" ");
     }
 
-    private record ActionValidationSummary(Set<String> actionNames, List<InlineActionRoute> inlineRoutes) {
+    private record ActionValidationSummary(Set<String> actionNames,
+                                           List<InlineActionRoute> inlineRoutes,
+                                           Set<String> webhookTargetIds) {
     }
 
     private record InlineActionRoute(String actionName, JsonNode route, String path) {

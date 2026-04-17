@@ -38,7 +38,25 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(action.provenance().getPublisher()).isEqualTo("internal-test");
         assertThat(action.confirmationMessage()).contains("{{quantity}}").contains("{{sku}}");
         assertThat(action.params()).hasSize(2);
+        assertThat(action.postPolicies()).hasSize(1);
+        assertThat(action.postPolicies().getFirst().type()).isEqualTo("webhook");
+        assertThat(action.postPolicies().getFirst().targetRef()).isEqualTo("zapier_purchase_orders");
         assertThat(action.params().stream().anyMatch(p -> "sku".equals(p.name()) && p.required())).isTrue();
+    }
+
+    @Test
+    void loadCatalog_shouldLoadWebhookTargets() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/valid-actions.yml");
+
+        ConnectorActionCatalog catalog = loader.loadCatalog(List.of(source));
+
+        assertThat(catalog.webhookTargets()).hasSize(1);
+        assertThat(catalog.webhookTargets().getFirst().id()).isEqualTo("zapier_purchase_orders");
+        assertThat(catalog.webhookTargets().getFirst().urlSecretRef()).isEqualTo("ZAPIER_PURCHASE_ORDERS_URL");
     }
 
     @Test
@@ -121,5 +139,18 @@ class ConnectorActionCatalogLoaderTest {
         assertThatThrownBy(() -> loader.loadActions(List.of(source)))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("unsupported builtInModuleId");
+    }
+
+    @Test
+    void loadCatalog_shouldRejectUnknownWebhookTargetReference() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/invalid-webhook-target.yml");
+
+        assertThatThrownBy(() -> loader.loadCatalog(List.of(source)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("unknown webhook target");
     }
 }

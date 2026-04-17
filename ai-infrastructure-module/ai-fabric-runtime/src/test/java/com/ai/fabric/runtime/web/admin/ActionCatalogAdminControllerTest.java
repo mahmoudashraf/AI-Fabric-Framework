@@ -12,6 +12,8 @@ import com.ai.infrastructure.intent.action.AIContributionProvenance;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import com.ai.infrastructure.intent.action.ActionSideEffectLevel;
+import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import com.ai.infrastructure.intent.action.connector.ConnectorWebhookTargetDefinition;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
@@ -40,6 +42,7 @@ class ActionCatalogAdminControllerTest {
         AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
         RuntimeRequestAuthResolver authResolver = mock(RuntimeRequestAuthResolver.class);
         ConfirmationInterceptorCatalogProvider confirmationProvider = mock(ConfirmationInterceptorCatalogProvider.class);
+        ConnectorActionWebhookPolicyCatalog webhookPolicyCatalog = mock(ConnectorActionWebhookPolicyCatalog.class);
 
         RuntimeResolvedIdentity identity = RuntimeResolvedIdentity.builder()
             .authContext(RuntimeAuthContext.builder()
@@ -87,11 +90,17 @@ class ActionCatalogAdminControllerTest {
             )
         ));
         when(confirmationProvider.getSourceLocations()).thenReturn(List.of("classpath:test-actions.yml"));
+        when(webhookPolicyCatalog.postPolicyCount()).thenReturn(1L);
+        when(webhookPolicyCatalog.actionNamesWithPostPolicies()).thenReturn(java.util.Set.of("create_purchase_order"));
+        when(webhookPolicyCatalog.webhookTargets()).thenReturn(List.of(
+            new ConnectorWebhookTargetDefinition("zapier_purchase_orders", "ZAPIER_URL", "ZAPIER_SIGNING_SECRET", 3000, 5)
+        ));
 
         ActionCatalogAdminController controller = new ActionCatalogAdminController(
             actionRegistry,
             authResolver,
-            fixedProvider(confirmationProvider)
+            fixedProvider(confirmationProvider),
+            fixedProvider(webhookPolicyCatalog)
         );
 
         ResponseEntity<?> response = controller.overview(new MockHttpServletRequest());
@@ -101,7 +110,7 @@ class ActionCatalogAdminControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
-        assertThat(body).containsEntry("contractVersion", "RUNTIME_ACTION_CATALOG_OVERVIEW_V2");
+        assertThat(body).containsEntry("contractVersion", "RUNTIME_ACTION_CATALOG_OVERVIEW_V3");
         assertThat(body).containsEntry("count", 1);
         assertThat(body).containsEntry("groundingEligibleCount", 0L);
         assertThat(body).containsEntry("withPresentationHintsCount", 1L);
@@ -109,7 +118,11 @@ class ActionCatalogAdminControllerTest {
         assertThat(body).containsEntry("withBuiltInCardMappingsCount", 1L);
         assertThat(body).containsEntry("withProvenanceCount", 1L);
         assertThat(body).containsEntry("confirmationInterceptorsCount", 1);
+        assertThat(body).containsEntry("postActionWebhookPoliciesCount", 1L);
+        assertThat(body).containsEntry("webhookTargetsCount", 1);
         assertThat(body.get("confirmationInterceptorRuleNames")).isEqualTo(List.of("cancel_to_retention_offer"));
+        assertThat(body.get("actionNamesWithPostActionWebhookPolicies")).isEqualTo(List.of("create_purchase_order"));
+        assertThat(body.get("webhookTargetIds")).isEqualTo(List.of("zapier_purchase_orders"));
     }
 
     private <T> ObjectProvider<T> fixedProvider(T value) {
