@@ -23,3 +23,4 @@ Current docs:
 
 - `doc/Productization/future-work/MarketPlace/Products/PRODUCT_DIRECTION_DECISION_RECORD.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_PRODUCTS_SHIPPING_ROADMAP.md`
+- `doc/Productization/future-work/MarketPlace/Products/PRODUCT_FACTORY_FACTORIZATION_CONSIDERATIONS.md`
