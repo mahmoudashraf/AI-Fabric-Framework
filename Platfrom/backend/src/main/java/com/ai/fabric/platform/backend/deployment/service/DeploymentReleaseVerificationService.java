@@ -381,7 +381,7 @@ public class DeploymentReleaseVerificationService {
         );
 
         Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders(deployment);
-        JsonProbeResult connectorHealth = probeJson(
+        JsonProbeResult connectorHealth = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeConnectorHealthPath(),
             runtimeAdminHeaders
@@ -477,6 +477,27 @@ public class DeploymentReleaseVerificationService {
             }
         }
         return new SettledOverviewProbes(runtimeOverview, connectorOverview);
+    }
+
+    private JsonProbeResult awaitSuccessfulJsonProbe(String baseUrl,
+                                                     String path,
+                                                     Map<String, String> headers) {
+        JsonProbeResult probe = probeJson(baseUrl, path, headers);
+        if (probe.success()) {
+            return probe;
+        }
+
+        Instant deadline = Instant.now().plus(verificationProperties.postApplyConsistencyTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            if (!sleepQuietly(verificationProperties.postApplyConsistencyPollInterval())) {
+                break;
+            }
+            probe = probeJson(baseUrl, path, headers);
+            if (probe.success()) {
+                break;
+            }
+        }
+        return probe;
     }
 
     private boolean adminOverviewsMatchExpected(JsonProbeResult runtimeOverview,

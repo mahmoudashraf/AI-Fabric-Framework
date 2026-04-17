@@ -10,8 +10,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RuntimeActionWebhookDeliveryWorkerTest {
@@ -19,51 +19,55 @@ class RuntimeActionWebhookDeliveryWorkerTest {
     @Test
     void dispatchReadyDeliveriesMarksSuccessfulResponsesDelivered() {
         RuntimeWebhookSecretResolver secretResolver = mock(RuntimeWebhookSecretResolver.class);
+        RuntimeActionWebhookDeliveryStore deliveryStore = mock(RuntimeActionWebhookDeliveryStore.class);
         when(secretResolver.resolveRequired("ZAPIER_URL")).thenReturn("https://hooks.example.test/zapier");
-        TestableWorker worker = new TestableWorker(
+        when(deliveryStore.claimReadyDeliveries()).thenReturn(List.of(delivery("whd-1")));
+        RuntimeActionWebhookDeliveryWorker worker = new RuntimeActionWebhookDeliveryWorker(
+            deliveryStore,
             new StubOutboundExecutor(new OutboundHttpExecutionResponse(202, "", java.util.Map.of())),
-            secretResolver
+            secretResolver,
+            Clock.fixed(Instant.parse("2026-04-17T10:00:00Z"), ZoneOffset.UTC)
         );
-        worker.deliveries = List.of(delivery("whd-1"));
 
         worker.dispatchReadyDeliveries();
 
-        assertThat(worker.deliveredId).isEqualTo("whd-1");
-        assertThat(worker.failedId).isNull();
-        assertThat(worker.retryId).isNull();
+        verify(deliveryStore).markDelivered("whd-1", 202);
     }
 
     @Test
     void dispatchReadyDeliveriesMarksClientErrorsFailed() {
         RuntimeWebhookSecretResolver secretResolver = mock(RuntimeWebhookSecretResolver.class);
+        RuntimeActionWebhookDeliveryStore deliveryStore = mock(RuntimeActionWebhookDeliveryStore.class);
         when(secretResolver.resolveRequired("ZAPIER_URL")).thenReturn("https://hooks.example.test/zapier");
-        TestableWorker worker = new TestableWorker(
+        when(deliveryStore.claimReadyDeliveries()).thenReturn(List.of(delivery("whd-2")));
+        RuntimeActionWebhookDeliveryWorker worker = new RuntimeActionWebhookDeliveryWorker(
+            deliveryStore,
             new StubOutboundExecutor(new OutboundHttpExecutionResponse(400, "", java.util.Map.of())),
-            secretResolver
+            secretResolver,
+            Clock.fixed(Instant.parse("2026-04-17T10:00:00Z"), ZoneOffset.UTC)
         );
-        worker.deliveries = List.of(delivery("whd-2"));
 
         worker.dispatchReadyDeliveries();
 
-        assertThat(worker.failedId).isEqualTo("whd-2");
-        assertThat(worker.deliveredId).isNull();
+        verify(deliveryStore).markFailed("whd-2", 400, "Webhook delivery returned non-retryable HTTP 400.");
     }
 
     @Test
     void dispatchReadyDeliveriesRejectsWebhookUrlsWithUserInfo() {
         RuntimeWebhookSecretResolver secretResolver = mock(RuntimeWebhookSecretResolver.class);
+        RuntimeActionWebhookDeliveryStore deliveryStore = mock(RuntimeActionWebhookDeliveryStore.class);
         when(secretResolver.resolveRequired("ZAPIER_URL")).thenReturn("https://user:pass@hooks.example.test/zapier");
-        TestableWorker worker = new TestableWorker(
+        when(deliveryStore.claimReadyDeliveries()).thenReturn(List.of(delivery("whd-3")));
+        RuntimeActionWebhookDeliveryWorker worker = new RuntimeActionWebhookDeliveryWorker(
+            deliveryStore,
             new StubOutboundExecutor(new OutboundHttpExecutionResponse(202, "", java.util.Map.of())),
-            secretResolver
+            secretResolver,
+            Clock.fixed(Instant.parse("2026-04-17T10:00:00Z"), ZoneOffset.UTC)
         );
-        worker.deliveries = List.of(delivery("whd-3"));
 
         worker.dispatchReadyDeliveries();
 
-        assertThat(worker.failedId).isEqualTo("whd-3");
-        assertThat(worker.deliveredId).isNull();
-        assertThat(worker.retryId).isNull();
+        verify(deliveryStore).markFailed("whd-3", null, "Webhook target URL must not include user info.");
     }
 
     private static ActionWebhookDeliveryEntity delivery(String id) {
@@ -80,43 +84,6 @@ class RuntimeActionWebhookDeliveryWorkerTest {
         entity.setPayloadJson("{\"eventType\":\"order.cancelled\"}");
         entity.setNextAttemptAt(Instant.parse("2026-04-17T10:00:00Z"));
         return entity;
-    }
-
-    private static final class TestableWorker extends RuntimeActionWebhookDeliveryWorker {
-        private List<ActionWebhookDeliveryEntity> deliveries = List.of();
-        private String deliveredId;
-        private String failedId;
-        private String retryId;
-
-        private TestableWorker(OutboundHttpExecutor outboundHttpExecutor,
-                               RuntimeWebhookSecretResolver secretResolver) {
-            super(
-                mock(ActionWebhookDeliveryRepository.class),
-                outboundHttpExecutor,
-                secretResolver,
-                Clock.fixed(Instant.parse("2026-04-17T10:00:00Z"), ZoneOffset.UTC)
-            );
-        }
-
-        @Override
-        protected List<ActionWebhookDeliveryEntity> claimReadyDeliveries() {
-            return deliveries;
-        }
-
-        @Override
-        protected void markDelivered(String deliveryId, Integer statusCode) {
-            this.deliveredId = deliveryId;
-        }
-
-        @Override
-        protected void markRetryPending(String deliveryId, Integer statusCode, String message) {
-            this.retryId = deliveryId;
-        }
-
-        @Override
-        protected void markFailed(String deliveryId, Integer statusCode, String message) {
-            this.failedId = deliveryId;
-        }
     }
 
     private record StubOutboundExecutor(OutboundHttpExecutionResponse response) implements OutboundHttpExecutor {
