@@ -20,12 +20,20 @@ It is the minimum coherent slice needed to support Zapier-style outbound webhook
 
 Short answer:
 
-- **No, not as the primary execution abstraction.**
+- **Yes at the outbound execution substrate level, no at the lifecycle level.**
 
-The connector should remain the abstraction for the **main customer/business action** itself.
-The post-action webhook should be a **separate runtime post-policy subsystem**.
+The correct architecture is:
 
-### Why not use the connector abstraction directly
+- **one outbound execution substrate**
+- **separate synchronous action vs asynchronous post-action lifecycles**
+
+That means:
+
+- the main action may still execute through the existing connector/outbound path
+- the post-action webhook should reuse that outbound transport substrate where possible
+- but the post-action webhook should still be executed by a separate runtime post-policy subsystem
+
+### Why not fully unify the lifecycle
 
 The connector path is designed for:
 
@@ -50,17 +58,38 @@ If we force this into the connector abstraction, we conflate two separate concer
 
 That would make retries, auditability, and operational visibility less coherent.
 
+### What should be unified
+
+We should unify the underlying outbound execution substrate:
+
+- HTTP client and connection handling
+- auth header or token injection
+- request signing helpers
+- JSON serialization
+- upstream delivery execution
+- optional relay or agent-aware delivery later
+
+### What should remain separate
+
+We should keep separate orchestration lifecycles:
+
+- synchronous user-facing action execution
+- asynchronous post-action webhook delivery
+
+The webhook should therefore **not** appear as a normal user-visible action in the connector catalog, even if it reuses connector-style transport components underneath.
+
 ### What we should reuse from the connector/runtime stack
 
-We should still reuse shared infrastructure where useful:
+We should reuse shared infrastructure where useful:
 
 - shared HTTP client factory
+- outbound execution helpers
 - secret resolution patterns
 - signing helpers
 - stable JSON serialization
 - trace and deployment identifiers
 
-But the post-action webhook should **not** appear as a normal action in the connector catalog.
+This keeps transport code unified without collapsing delivery semantics.
 
 ---
 
@@ -157,7 +186,7 @@ This shape is intentionally strict:
 
 ## 6) Runtime/Framework Architecture
 
-## 6.1 Where the hook belongs
+## 6.1 Where the lifecycle hook belongs
 
 The post-policy hook should sit in the main action execution path in:
 
@@ -178,7 +207,27 @@ The webhook enqueue hook should be inserted:
 - **before final response return**
 - **isolated so enqueue failure cannot turn a successful action into a user-facing failure**
 
-### 6.2 New runtime subsystem
+### 6.2 One outbound execution substrate
+
+The runtime/framework should expose one reusable outbound execution substrate for:
+
+- normal connector-backed actions
+- asynchronous post-action webhook delivery
+
+This substrate should centralize:
+
+- transport
+- auth and signing
+- serialization
+- timeout handling
+- common response classification
+
+But it should not erase the difference between:
+
+- synchronous action execution
+- asynchronous queued delivery
+
+### 6.3 New runtime subsystem
 
 Add a small dedicated post-policy subsystem:
 
@@ -186,16 +235,17 @@ Add a small dedicated post-policy subsystem:
 - `ActionWebhookPolicyResolver`
 - `ActionWebhookEnqueueService`
 - `ActionWebhookDeliveryWorker`
+- `OutboundExecutionService` or equivalent shared outbound substrate
 
 Responsibilities:
 
 - resolve applicable webhook policies for the executed action
 - build deterministic payloads
 - enqueue delivery jobs
-- send queued webhooks in the background
+- dispatch queued webhooks through the shared outbound execution substrate
 - update delivery status
 
-### 6.3 Catalog/config loading
+### 6.4 Catalog/config loading
 
 Extend the action catalog/config loading path to load:
 
@@ -206,10 +256,13 @@ Likely home:
 
 - `ai-infrastructure-module/ai-infrastructure-actions-connector/.../ConnectorActionCatalogLoader.java`
 
-This does not mean “use connector execution.”
-It only means the existing action config artifact loader remains the right place to parse deployment action config.
+This does not mean “turn the webhook into a normal synchronous action.”
+It only means:
 
-### 6.4 Minimal delivery payload
+- the existing action config artifact loader remains the right place to parse deployment action config
+- the existing outbound execution substrate should be reused instead of duplicating HTTP/auth plumbing
+
+### 6.5 Minimal delivery payload
 
 Use a fixed payload shape in v1:
 
@@ -333,7 +386,7 @@ Scheduled worker loop:
 
 1. pick due `PENDING` deliveries
 2. mark `IN_PROGRESS`
-3. send HTTP POST
+3. dispatch HTTP POST through the shared outbound execution substrate
 4. on `2xx`, mark `DELIVERED`
 5. on failure, either:
    - reschedule with backoff
@@ -463,8 +516,9 @@ This is product-legible and easy to validate live.
 For the minimal production slice:
 
 - **use the existing action config artifact**
-- **do not use the connector as the post-policy execution abstraction**
-- **do use a dedicated async webhook delivery subsystem**
-- **do reuse shared HTTP and secret-resolution infrastructure**
+- **do use one outbound execution substrate**
+- **do keep synchronous action and asynchronous post-action lifecycles separate**
+- **do use a dedicated async webhook delivery subsystem above that substrate**
+- **do reuse shared HTTP, auth, signing, and secret-resolution infrastructure**
 
 That gives the smallest architecture that is still coherent, secure, and marketplace-compatible.
