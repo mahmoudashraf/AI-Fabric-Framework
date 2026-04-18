@@ -136,6 +136,15 @@ platform:
       dedicated-embedding-health-path: ${PLATFORM_DEDICATED_EMBEDDING_HEALTH_PATH:/actuator/health}
       poll-interval: ${PLATFORM_INFERENCE_PROVISIONING_POLL_INTERVAL:15s}
       request-timeout: ${PLATFORM_INFERENCE_PROVISIONING_REQUEST_TIMEOUT:5m}
+  product-service:
+    provisioning:
+      shared-project-name-prefix: ${PLATFORM_PRODUCT_SHARED_PROJECT_NAME_PREFIX:loom-product}
+      shopify-bridge-service-root: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_ROOT:product-services/shopify-bridge-service}
+      shopify-bridge-dockerfile-path: ${PLATFORM_SHOPIFY_BRIDGE_DOCKERFILE_PATH:product-services/shopify-bridge-service/deploy/railway/Dockerfile}
+      shopify-bridge-service-name-prefix: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_NAME_PREFIX:shopify-bridge}
+      shopify-bridge-health-path: ${PLATFORM_SHOPIFY_BRIDGE_HEALTH_PATH:/actuator/health}
+      poll-interval: ${PLATFORM_PRODUCT_PROVISIONING_POLL_INTERVAL:15s}
+      request-timeout: ${PLATFORM_PRODUCT_PROVISIONING_REQUEST_TIMEOUT:5m}
 
 logging:
   level:

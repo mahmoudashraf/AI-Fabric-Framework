@@ -83,6 +83,12 @@ public class ProductServiceController {
         return adminService.forceRecreate(serviceRef);
     }
 
+    @PostMapping("/{serviceRef}/decommission")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformManagedProductServiceSummary decommission(@PathVariable String serviceRef) {
+        return adminService.decommission(serviceRef);
+    }
+
     @PutMapping("/{serviceRef}/scale")
     public PlatformManagedProductServiceSummary scale(@PathVariable String serviceRef,
                                                       @Valid @RequestBody UpdatePlatformManagedProductServiceScaleRequest request) {
@@ -96,4 +102,3 @@ public class ProductServiceController {
         return adminService.rotateSecret(serviceRef, request.value());
     }
 }
-

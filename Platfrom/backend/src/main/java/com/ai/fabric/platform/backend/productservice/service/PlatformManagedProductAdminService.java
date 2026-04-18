@@ -4,8 +4,8 @@ import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
-import com.ai.fabric.platform.backend.deployment.service.RailwayProvisioningException;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceProbeSummary;
@@ -33,9 +33,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 
@@ -52,6 +50,7 @@ public class PlatformManagedProductAdminService {
     private final DeploymentRepository deploymentRepository;
     private final PlatformConsumerRepository platformConsumerRepository;
     private final PlatformSecretService platformSecretService;
+    private final PlatformManagedProductProvisioningService provisioningService;
     private final PlatformAuditService platformAuditService;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final ObjectMapper objectMapper;
@@ -64,6 +63,7 @@ public class PlatformManagedProductAdminService {
                                               DeploymentRepository deploymentRepository,
                                               PlatformConsumerRepository platformConsumerRepository,
                                               PlatformSecretService platformSecretService,
+                                              PlatformManagedProductProvisioningService provisioningService,
                                               PlatformAuditService platformAuditService,
                                               RailwayGraphqlClient railwayGraphqlClient,
                                               ObjectMapper objectMapper) {
@@ -74,6 +74,7 @@ public class PlatformManagedProductAdminService {
         this.deploymentRepository = deploymentRepository;
         this.platformConsumerRepository = platformConsumerRepository;
         this.platformSecretService = platformSecretService;
+        this.provisioningService = provisioningService;
         this.platformAuditService = platformAuditService;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.objectMapper = objectMapper;
@@ -150,91 +151,12 @@ public class PlatformManagedProductAdminService {
 
     @Transactional
     public PlatformManagedProductServiceSummary reconcile(String serviceRef) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        try {
-            if (hasText(service.getRailwayServiceId()) && hasText(service.getRailwayEnvironmentId())) {
-                RailwayGraphqlClient.RailwayServiceInstanceSummary instance = railwayGraphqlClient.getServiceInstance(
-                    service.getRailwayEnvironmentId(),
-                    service.getRailwayServiceId()
-                );
-                if (hasText(service.getRailwayProjectId())) {
-                    List<RailwayGraphqlClient.RailwayServiceDomainSummary> domains = railwayGraphqlClient.listServiceDomains(
-                        service.getRailwayProjectId(),
-                        service.getRailwayEnvironmentId(),
-                        service.getRailwayServiceId()
-                    );
-                    if (!domains.isEmpty() && hasText(domains.get(0).domain())) {
-                        service.setBaseUrl("https://" + domains.get(0).domain());
-                    }
-                }
-                service.setPrivateNetworkUrl(trimToNull(instance.upstreamUrl()));
-                service.setActualReplicas(defaultReplicaCount(service));
-                service.setStatus("ACTIVE");
-                ObjectNode details = mutableDetails(service);
-                details.put("lastDeploymentId", firstDeploymentId(service));
-                details.put("lastReconciledAt", Instant.now().toString());
-                details.put("lastReconcileStatus", "SUCCESS");
-                details.put("lastReconcileMessage", "Railway product service linkage reconciled successfully.");
-                service.setDetailsJson(details.toPrettyString());
-            } else if (hasText(service.getBaseUrl())) {
-                service.setStatus("ACTIVE");
-                ObjectNode details = mutableDetails(service);
-                details.put("lastReconciledAt", Instant.now().toString());
-                details.put("lastReconcileStatus", "SUCCESS");
-                details.put("lastReconcileMessage", "External/baseUrl product service reconciled successfully.");
-                service.setDetailsJson(details.toPrettyString());
-            } else {
-                ObjectNode details = mutableDetails(service);
-                details.put("lastReconciledAt", Instant.now().toString());
-                details.put("lastReconcileStatus", "BLOCKED");
-                details.put("lastReconcileMessage", "No Railway linkage or baseUrl configured for this managed product service.");
-                service.setDetailsJson(details.toPrettyString());
-            }
-            service.setUpdatedAt(Instant.now());
-            serviceRepository.save(service);
-            platformAuditService.record("MANAGED_PRODUCT_RECONCILED", TARGET_TYPE, service.getServiceRef(), Map.of("serviceRef", service.getServiceRef()));
-            return serviceService.getService(serviceRef);
-        } catch (RuntimeException ex) {
-            markFailure(service, "FAILED", ex.getMessage(), "lastReconcileStatus", "lastReconcileMessage");
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RECONCILE_FAILED",
-                TARGET_TYPE,
-                service.getServiceRef(),
-                Map.of("serviceRef", service.getServiceRef(), "error", firstNonBlank(ex.getMessage(), ex.getClass().getSimpleName()))
-            );
-            throw ex;
-        }
+        return provisioningService.reconcile(serviceRef);
     }
 
     @Transactional
     public PlatformManagedProductServiceSummary scale(String serviceRef, Integer desiredReplicas) {
-        PlatformManagedProductServiceSummary ignored = serviceService.updateDesiredReplicas(serviceRef, desiredReplicas);
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        if (hasText(service.getRailwayServiceId()) && hasText(service.getRailwayEnvironmentId())) {
-            railwayGraphqlClient.updateServiceInstance(
-                service.getRailwayServiceId(),
-                service.getRailwayEnvironmentId(),
-                service.getServiceRoot(),
-                service.getDockerfilePath(),
-                blankToFallback(service.getHealthPath(), "/actuator/health"),
-                desiredReplicas
-            );
-            service.setActualReplicas(desiredReplicas);
-            ObjectNode details = mutableDetails(service);
-            details.put("lastScaledAt", Instant.now().toString());
-            details.put("lastScaleStatus", "SUCCESS");
-            details.put("lastScaleMessage", "Railway replica target updated.");
-            service.setDetailsJson(details.toPrettyString());
-            service.setUpdatedAt(Instant.now());
-            serviceRepository.save(service);
-        }
-        platformAuditService.record(
-            "MANAGED_PRODUCT_SCALED",
-            TARGET_TYPE,
-            serviceRef,
-            Map.of("serviceRef", serviceRef, "desiredReplicas", desiredReplicas)
-        );
-        return serviceService.getService(serviceRef);
+        return provisioningService.scale(serviceRef, desiredReplicas);
     }
 
     @Transactional
@@ -273,67 +195,17 @@ public class PlatformManagedProductAdminService {
 
     @Transactional
     public PlatformManagedProductServiceSummary restart(String serviceRef) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        requireRailwayLinkage(service, "restart");
-        try {
-            String deploymentId = railwayGraphqlClient.deployService(service.getRailwayServiceId(), service.getRailwayEnvironmentId());
-            ObjectNode details = mutableDetails(service);
-            details.put("lastRestartedAt", Instant.now().toString());
-            details.put("lastRestartStatus", "SUCCESS");
-            details.put("lastRestartMessage", "Managed product service restart requested.");
-            details.put("lastDeploymentId", deploymentId);
-            service.setDetailsJson(details.toPrettyString());
-            service.setStatus("PROVISIONING");
-            service.setUpdatedAt(Instant.now());
-            serviceRepository.save(service);
-            platformAuditService.record(
-                "MANAGED_PRODUCT_RESTARTED",
-                TARGET_TYPE,
-                service.getServiceRef(),
-                Map.of("serviceRef", service.getServiceRef(), "deploymentId", deploymentId)
-            );
-            return serviceService.getService(serviceRef);
-        } catch (RuntimeException ex) {
-            markFailure(service, "FAILED", ex.getMessage(), "lastRestartStatus", "lastRestartMessage");
-            throw ex;
-        }
+        return provisioningService.restart(serviceRef);
     }
 
     @Transactional
     public PlatformManagedProductServiceSummary forceRecreate(String serviceRef) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        if (hasText(service.getRailwayProjectId())) {
-            try {
-                railwayGraphqlClient.deleteProject(service.getRailwayProjectId());
-            } catch (RailwayProvisioningException ignored) {
-            }
-        } else if (hasText(service.getRailwayServiceId())) {
-            try {
-                railwayGraphqlClient.deleteService(service.getRailwayServiceId());
-            } catch (RailwayProvisioningException ignored) {
-            }
-        }
-        service.setRailwayProjectId(null);
-        service.setRailwayEnvironmentId(null);
-        service.setRailwayServiceId(null);
-        service.setBaseUrl(null);
-        service.setPrivateNetworkUrl(null);
-        service.setActualReplicas(0);
-        service.setStatus("CREATED");
-        ObjectNode details = mutableDetails(service);
-        details.put("lastForceRecreatedAt", Instant.now().toString());
-        details.put("lastForceRecreateStatus", "SUCCESS");
-        details.put("lastForceRecreateMessage", "Managed product service linkage cleared and ready for reprovisioning.");
-        service.setDetailsJson(details.toPrettyString());
-        service.setUpdatedAt(Instant.now());
-        serviceRepository.save(service);
-        platformAuditService.record(
-            "MANAGED_PRODUCT_FORCE_RECREATED",
-            TARGET_TYPE,
-            service.getServiceRef(),
-            Map.of("serviceRef", service.getServiceRef())
-        );
-        return serviceService.getService(serviceRef);
+        return provisioningService.forceRecreate(serviceRef);
+    }
+
+    @Transactional
+    public PlatformManagedProductServiceSummary decommission(String serviceRef) {
+        return provisioningService.decommission(serviceRef);
     }
 
     private ShopifyStoreConnectionSummary toSummary(ShopifyStoreConnectionEntity entity, PlatformManagedProductServiceEntity service) {
@@ -440,27 +312,6 @@ public class PlatformManagedProductAdminService {
         return "DEGRADED";
     }
 
-    private void requireRailwayLinkage(PlatformManagedProductServiceEntity service, String action) {
-        if (!hasText(service.getRailwayServiceId()) || !hasText(service.getRailwayEnvironmentId())) {
-            throw new ResponseStatusException(CONFLICT, "Cannot " + action + " managed product service without Railway linkage.");
-        }
-    }
-
-    private void markFailure(PlatformManagedProductServiceEntity service,
-                             String status,
-                             String message,
-                             String statusField,
-                             String messageField) {
-        service.setStatus(status);
-        ObjectNode details = mutableDetails(service);
-        details.put(statusField, "FAILED");
-        details.put(messageField, firstNonBlank(message, "Managed product service operation failed."));
-        details.put("lastFailureAt", Instant.now().toString());
-        service.setDetailsJson(details.toPrettyString());
-        service.setUpdatedAt(Instant.now());
-        serviceRepository.save(service);
-    }
-
     private ObjectNode mutableDetails(PlatformManagedProductServiceEntity service) {
         try {
             JsonNode parsed = hasText(service.getDetailsJson())
@@ -487,24 +338,6 @@ public class PlatformManagedProductAdminService {
         String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String suffix = path.startsWith("/") ? path : "/" + path;
         return base + suffix;
-    }
-
-    private int defaultReplicaCount(PlatformManagedProductServiceEntity service) {
-        return service.getDesiredReplicas() != null && service.getDesiredReplicas() > 0 ? service.getDesiredReplicas() : 1;
-    }
-
-    private String firstDeploymentId(PlatformManagedProductServiceEntity service) {
-        try {
-            if (!hasText(service.getRailwayServiceId())) {
-                return null;
-            }
-            return railwayGraphqlClient.listServiceDeployments(service.getRailwayServiceId(), 1).stream()
-                .findFirst()
-                .map(RailwayGraphqlClient.RailwayDeploymentSummary::id)
-                .orElse(null);
-        } catch (RuntimeException ignored) {
-            return null;
-        }
     }
 
     private String blankToFallback(String value, String fallback) {
@@ -534,4 +367,3 @@ public class PlatformManagedProductAdminService {
     private record DriftResult(String status, String message) {
     }
 }
-

@@ -31,6 +31,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   createProductService,
+  decommissionProductService,
   fetchProductService,
   fetchProductServiceActivity,
   fetchProductServiceDependents,
@@ -158,8 +159,10 @@ export function ProductServicesPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [rotateDialogOpen, setRotateDialogOpen] = useState(false)
   const [forceRecreateDialogOpen, setForceRecreateDialogOpen] = useState(false)
+  const [decommissionDialogOpen, setDecommissionDialogOpen] = useState(false)
   const [rotateSecretValue, setRotateSecretValue] = useState('')
   const [forceRecreateConfirmation, setForceRecreateConfirmation] = useState('')
+  const [decommissionConfirmation, setDecommissionConfirmation] = useState('')
   const [scaleValue, setScaleValue] = useState('1')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [form, setForm] = useState<ProductServiceFormState>(emptyForm)
@@ -295,6 +298,17 @@ export function ProductServicesPage() {
     onError: (error) => setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to force recreate product service.' }),
   })
 
+  const decommissionMutation = useMutation({
+    mutationFn: (serviceRef: string) => decommissionProductService(serviceRef),
+    onSuccess: async (service) => {
+      setMessage({ type: 'success', text: `Decommissioned ${service.displayName}.` })
+      setDecommissionDialogOpen(false)
+      setDecommissionConfirmation('')
+      await refreshSelected(service.serviceRef)
+    },
+    onError: (error) => setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to decommission product service.' }),
+  })
+
   return (
     <Stack spacing={3}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
@@ -398,6 +412,13 @@ export function ProductServicesPage() {
                           onClick={() => setForceRecreateDialogOpen(true)}
                         >
                           Force recreate
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          onClick={() => setDecommissionDialogOpen(true)}
+                        >
+                          Decommission
                         </Button>
                       </Stack>
                     </Stack>
@@ -631,7 +652,34 @@ export function ProductServicesPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog open={decommissionDialogOpen} onClose={() => setDecommissionDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Decommission service</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Type the service ref to delete the managed Railway linkage and clear the managed secret. Dependent Shopify store mappings must be removed first.
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Service ref"
+            value={decommissionConfirmation}
+            onChange={(event) => setDecommissionConfirmation(event.target.value)}
+            fullWidth
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDecommissionDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => selectedService && decommissionMutation.mutate(selectedService.serviceRef)}
+            disabled={!selectedService || selectedService.serviceRef !== decommissionConfirmation.trim() || decommissionMutation.isPending}
+          >
+            Decommission
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   )
 }
-

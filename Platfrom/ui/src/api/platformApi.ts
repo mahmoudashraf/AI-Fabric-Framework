@@ -2750,6 +2750,12 @@ export function forceRecreateProductService(serviceRef: string) {
   })
 }
 
+export function decommissionProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/decommission`, {
+    method: 'POST',
+  })
+}
+
 export function rotateProductServiceSecret(
   serviceRef: string,
   payload: RotatePlatformManagedProductServiceSecretRequest,

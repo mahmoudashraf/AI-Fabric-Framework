@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.productservice.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
@@ -68,6 +69,7 @@ class PlatformManagedProductAdminServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
 
@@ -85,6 +87,7 @@ class PlatformManagedProductAdminServiceTest {
             deploymentRepository,
             consumerRepository,
             platformSecretService,
+            provisioningService,
             platformAuditService,
             railwayGraphqlClient,
             new ObjectMapper()
@@ -115,6 +118,7 @@ class PlatformManagedProductAdminServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
 
@@ -129,6 +133,7 @@ class PlatformManagedProductAdminServiceTest {
             deploymentRepository,
             consumerRepository,
             platformSecretService,
+            provisioningService,
             platformAuditService,
             railwayGraphqlClient,
             new ObjectMapper()
@@ -189,4 +194,3 @@ class PlatformManagedProductAdminServiceTest {
         }
     }
 }
-

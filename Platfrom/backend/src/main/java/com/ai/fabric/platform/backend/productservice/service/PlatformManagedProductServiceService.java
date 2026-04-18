@@ -86,9 +86,9 @@ public class PlatformManagedProductServiceService {
         entity.setMinReplicas(minReplicas);
         entity.setMaxReplicas(maxReplicas);
         entity.setBaseUrl(trimToNull(request.baseUrl()));
-        entity.setHealthPath(trimToNull(request.healthPath()) == null ? "/actuator/health" : trimToNull(request.healthPath()));
-        entity.setServiceRoot(trimToNull(request.serviceRoot()));
-        entity.setDockerfilePath(trimToNull(request.dockerfilePath()));
+        entity.setHealthPath(defaultHealthPath(entity.getServiceKind(), request.healthPath()));
+        entity.setServiceRoot(defaultServiceRoot(entity.getServiceKind(), request.serviceRoot()));
+        entity.setDockerfilePath(defaultDockerfilePath(entity.getServiceKind(), request.dockerfilePath()));
         entity.setSecretName(trimToNull(request.secretName()));
         entity.setStatus(StringUtils.hasText(entity.getBaseUrl()) ? "ACTIVE" : "CREATED");
         entity.setDetailsJson("{}");
@@ -209,6 +209,39 @@ public class PlatformManagedProductServiceService {
             throw new ResponseStatusException(CONFLICT, "Required value is blank.");
         }
         return trimmed;
+    }
+
+    private String defaultHealthPath(String serviceKind, String requestedValue) {
+        String explicit = trimToNull(requestedValue);
+        if (explicit != null) {
+            return explicit;
+        }
+        return switch (normalizeEnum(serviceKind)) {
+            case "SHOPIFY_BRIDGE_SERVICE" -> "/actuator/health";
+            default -> "/actuator/health";
+        };
+    }
+
+    private String defaultServiceRoot(String serviceKind, String requestedValue) {
+        String explicit = trimToNull(requestedValue);
+        if (explicit != null) {
+            return explicit;
+        }
+        return switch (normalizeEnum(serviceKind)) {
+            case "SHOPIFY_BRIDGE_SERVICE" -> "product-services/shopify-bridge-service";
+            default -> null;
+        };
+    }
+
+    private String defaultDockerfilePath(String serviceKind, String requestedValue) {
+        String explicit = trimToNull(requestedValue);
+        if (explicit != null) {
+            return explicit;
+        }
+        return switch (normalizeEnum(serviceKind)) {
+            case "SHOPIFY_BRIDGE_SERVICE" -> "product-services/shopify-bridge-service/deploy/railway/Dockerfile";
+            default -> null;
+        };
     }
 
     private boolean hasText(String value) {
