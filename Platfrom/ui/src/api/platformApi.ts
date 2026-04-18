@@ -526,6 +526,23 @@ export type PlatformManagedProductServiceDeploymentHistorySummary = {
   deployments: PlatformManagedProductServiceRailwayDeploymentSummary[]
 }
 
+export type PlatformManagedProductServiceRailwayLogsSummary = {
+  serviceRef: string
+  source: string
+  available: boolean
+  message: string
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  railwayServiceId: string | null
+  railwayDeploymentId: string | null
+  requestedLimit: number
+  filter: string | null
+  startDate: string | null
+  endDate: string | null
+  queriedAt: string
+  entries: RailwayLogEntrySummary[]
+}
+
 export type PlatformManagedProductServiceWebhookSubscriptionSummary = {
   shopDomain: string | null
   status: string
@@ -3038,6 +3055,24 @@ export function fetchProductServiceStoreBinding(serviceRef: string, shopDomain: 
 export function fetchProductServiceDeploymentHistory(serviceRef: string, limit = 10) {
   return request<PlatformManagedProductServiceDeploymentHistorySummary>(
     `/api/product-services/${encodeURIComponent(serviceRef)}/railway/deployments?limit=${encodeURIComponent(String(limit))}`,
+  )
+}
+
+export function fetchProductServiceRailwayLogs(options: {
+  serviceRef: string
+  source?: string
+  deploymentId?: string
+  limit?: number
+  filter?: string
+}) {
+  const params = new URLSearchParams()
+  if (options.source) params.set('source', options.source)
+  if (options.deploymentId) params.set('deploymentId', options.deploymentId)
+  if (options.limit != null) params.set('limit', String(options.limit))
+  if (options.filter) params.set('filter', options.filter)
+  const suffix = params.toString() ? `?${params.toString()}` : ''
+  return request<PlatformManagedProductServiceRailwayLogsSummary>(
+    `/api/product-services/${encodeURIComponent(options.serviceRef)}/railway/logs${suffix}`,
   )
 }
 

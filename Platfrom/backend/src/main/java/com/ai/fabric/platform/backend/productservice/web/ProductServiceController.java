@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.productservice.model.CreatePlatformManaged
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceDeploymentHistorySummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionSummary;
@@ -79,6 +80,17 @@ public class ProductServiceController {
     public PlatformManagedProductServiceDeploymentHistorySummary getDeploymentHistory(@PathVariable String serviceRef,
                                                                                       @RequestParam(required = false) Integer limit) {
         return adminService.getDeploymentHistory(serviceRef, limit);
+    }
+
+    @GetMapping("/{serviceRef}/railway/logs")
+    public PlatformManagedProductServiceRailwayLogsSummary getRailwayLogs(@PathVariable String serviceRef,
+                                                                          @RequestParam(required = false) String source,
+                                                                          @RequestParam(required = false) String deploymentId,
+                                                                          @RequestParam(required = false) Integer limit,
+                                                                          @RequestParam(required = false) String filter,
+                                                                          @RequestParam(required = false) String startDate,
+                                                                          @RequestParam(required = false) String endDate) {
+        return adminService.getRailwayLogs(serviceRef, source, deploymentId, limit, filter, startDate, endDate);
     }
 
     @GetMapping("/{serviceRef}/health")

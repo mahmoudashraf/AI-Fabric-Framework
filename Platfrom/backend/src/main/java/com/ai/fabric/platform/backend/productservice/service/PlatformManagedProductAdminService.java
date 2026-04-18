@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayLogEntrySummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
@@ -20,6 +21,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceProbeSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayDeploymentSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
@@ -170,6 +172,102 @@ public class PlatformManagedProductAdminService {
             );
         } catch (Exception ex) {
             return unavailableDeploymentHistory(service, firstNonBlank(ex.getMessage(), "Failed to load Railway deployment history."));
+        }
+    }
+
+    public PlatformManagedProductServiceRailwayLogsSummary getRailwayLogs(String serviceRef,
+                                                                          String source,
+                                                                          String deploymentId,
+                                                                          Integer limit,
+                                                                          String filter,
+                                                                          String startDate,
+                                                                          String endDate) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        String normalizedSource = normalizeLogSource(source);
+        int requestedLimit = normalizeLogLimit(limit);
+        if (!hasText(service.getRailwayServiceId())) {
+            return unavailableRailwayLogs(
+                service,
+                normalizedSource,
+                trimToNull(deploymentId),
+                requestedLimit,
+                filter,
+                startDate,
+                endDate,
+                "Managed product service does not have a Railway service linkage yet."
+            );
+        }
+
+        String resolvedDeploymentId = trimToNull(deploymentId);
+        try {
+            if (!hasText(resolvedDeploymentId)) {
+                resolvedDeploymentId = railwayGraphqlClient.listServiceDeployments(service.getRailwayServiceId(), 1).stream()
+                    .findFirst()
+                    .map(RailwayGraphqlClient.RailwayDeploymentSummary::id)
+                    .orElse(null);
+            }
+            if (!hasText(resolvedDeploymentId)) {
+                return unavailableRailwayLogs(
+                    service,
+                    normalizedSource,
+                    null,
+                    requestedLimit,
+                    filter,
+                    startDate,
+                    endDate,
+                    "No Railway deployment is available for this managed product service yet."
+                );
+            }
+            List<RailwayLogEntrySummary> entries = switch (normalizedSource) {
+                case "build" -> railwayGraphqlClient.fetchBuildLogs(
+                    resolvedDeploymentId,
+                    requestedLimit,
+                    trimToNull(filter),
+                    trimToNull(startDate),
+                    trimToNull(endDate)
+                );
+                case "http" -> railwayGraphqlClient.fetchHttpLogs(
+                    resolvedDeploymentId,
+                    requestedLimit,
+                    trimToNull(filter),
+                    trimToNull(startDate),
+                    trimToNull(endDate)
+                );
+                default -> railwayGraphqlClient.fetchDeploymentLogs(
+                    resolvedDeploymentId,
+                    requestedLimit,
+                    trimToNull(filter),
+                    trimToNull(startDate),
+                    trimToNull(endDate)
+                );
+            };
+            return new PlatformManagedProductServiceRailwayLogsSummary(
+                service.getServiceRef(),
+                normalizedSource,
+                true,
+                entries.isEmpty() ? "No Railway logs were returned for the current query window." : "Fetched Railway logs successfully.",
+                service.getRailwayProjectId(),
+                service.getRailwayEnvironmentId(),
+                service.getRailwayServiceId(),
+                resolvedDeploymentId,
+                requestedLimit,
+                trimToNull(filter),
+                trimToNull(startDate),
+                trimToNull(endDate),
+                Instant.now(),
+                entries
+            );
+        } catch (Exception ex) {
+            return unavailableRailwayLogs(
+                service,
+                normalizedSource,
+                resolvedDeploymentId,
+                requestedLimit,
+                filter,
+                startDate,
+                endDate,
+                firstNonBlank(ex.getMessage(), "Failed to load Railway logs.")
+            );
         }
     }
 
@@ -649,6 +747,32 @@ public class PlatformManagedProductAdminService {
         );
     }
 
+    private PlatformManagedProductServiceRailwayLogsSummary unavailableRailwayLogs(PlatformManagedProductServiceEntity service,
+                                                                                   String source,
+                                                                                   String deploymentId,
+                                                                                   int requestedLimit,
+                                                                                   String filter,
+                                                                                   String startDate,
+                                                                                   String endDate,
+                                                                                   String message) {
+        return new PlatformManagedProductServiceRailwayLogsSummary(
+            service.getServiceRef(),
+            source,
+            false,
+            firstNonBlank(message, "Managed product service Railway logs are unavailable."),
+            service.getRailwayProjectId(),
+            service.getRailwayEnvironmentId(),
+            service.getRailwayServiceId(),
+            trimToNull(deploymentId),
+            requestedLimit,
+            trimToNull(filter),
+            trimToNull(startDate),
+            trimToNull(endDate),
+            Instant.now(),
+            List.of()
+        );
+    }
+
     private PlatformManagedProductServiceInstallOverview parseInstallOverview(JsonNode node) {
         return new PlatformManagedProductServiceInstallOverview(
             node.path("totalCount").asInt(0),
@@ -892,6 +1016,25 @@ public class PlatformManagedProductAdminService {
             return 10;
         }
         return Math.max(1, Math.min(limit, 20));
+    }
+
+    private int normalizeLogLimit(Integer limit) {
+        if (limit == null) {
+            return 100;
+        }
+        return Math.max(1, Math.min(limit, 200));
+    }
+
+    private String normalizeLogSource(String source) {
+        String normalized = trimToNull(source);
+        if (!hasText(normalized)) {
+            return "deployment";
+        }
+        normalized = normalized.toLowerCase();
+        return switch (normalized) {
+            case "build", "http" -> normalized;
+            default -> "deployment";
+        };
     }
 
     private record ProbeResult(PlatformManagedProductServiceProbeSummary summary) {

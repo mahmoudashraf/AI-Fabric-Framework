@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayLogEntrySummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayLogTagsSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
@@ -14,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceDeploymentHistorySummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -373,6 +376,82 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(summary.deployments()).hasSize(2);
         assertThat(summary.deployments().get(0).id()).isEqualTo("rail-dep-2");
         assertThat(summary.deployments().get(0).status()).isEqualTo("SUCCESS");
+    }
+
+    @Test
+    void railwayLogsResolveLatestDeploymentWhenDeploymentIdIsMissing() {
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setRailwayProjectId("rail-project-123");
+        service.setRailwayEnvironmentId("rail-env-123");
+        service.setRailwayServiceId("rail-svc-123");
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(railwayGraphqlClient.listServiceDeployments("rail-svc-123", 1)).thenReturn(List.of(
+            new RailwayGraphqlClient.RailwayDeploymentSummary(
+                "rail-dep-9",
+                "SUCCESS",
+                "https://deploy-9.example.com",
+                "https://static-9.example.com",
+                "2026-04-18T17:00:00Z"
+            )
+        ));
+        when(railwayGraphqlClient.fetchDeploymentLogs("rail-dep-9", 50, null, null, null)).thenReturn(List.of(
+            new RailwayLogEntrySummary(
+                "2026-04-18T17:01:00Z",
+                "INFO",
+                "Bridge started successfully.",
+                new RailwayLogTagsSummary("rail-dep-9", "inst-1", "rail-env-123", "rail-project-123", "rail-svc-123", "snap-1"),
+                List.of()
+            )
+        ));
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            shopifyStoreConnectionService,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        PlatformManagedProductServiceRailwayLogsSummary summary = adminService.getRailwayLogs(
+            "shopify-bridge-prod",
+            "deployment",
+            null,
+            50,
+            null,
+            null,
+            null
+        );
+
+        assertThat(summary.available()).isTrue();
+        assertThat(summary.railwayDeploymentId()).isEqualTo("rail-dep-9");
+        assertThat(summary.entries()).hasSize(1);
+        assertThat(summary.entries().get(0).message()).contains("Bridge started successfully");
     }
 
     @Test

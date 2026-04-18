@@ -23,6 +23,11 @@ import {
   ListItemText,
   MenuItem,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material'
@@ -38,6 +43,7 @@ import {
   fetchProductServiceDependents,
   fetchProductServiceHealth,
   fetchProductServiceOverview,
+  fetchProductServiceRailwayLogs,
   fetchProductServiceStoreBinding,
   fetchProductServiceStoreBillingSummary,
   fetchProductServiceWebhookSubscriptions,
@@ -54,6 +60,7 @@ import {
   type PlatformManagedProductServiceOverviewSummary,
   type PlatformManagedProductServiceProbeSummary,
   type PlatformManagedProductServiceSummary,
+  type RailwayLogEntrySummary,
   type ShopifyStoreConnectionSummary,
 } from '../api/platformApi'
 
@@ -204,6 +211,23 @@ function activitySummary(event: PlatformAuditEventSummary): string {
   return 'No extra details.'
 }
 
+function railwaySeverityColor(entry: RailwayLogEntrySummary): 'default' | 'error' | 'warning' | 'info' | 'success' {
+  const severity = (entry.severity ?? '').toUpperCase()
+  if (severity.includes('ERROR')) {
+    return 'error'
+  }
+  if (severity.includes('WARN')) {
+    return 'warning'
+  }
+  if (severity.includes('INFO')) {
+    return 'info'
+  }
+  if (severity.includes('DEBUG') || severity.includes('TRACE')) {
+    return 'default'
+  }
+  return 'success'
+}
+
 type ProductServiceFormState = CreatePlatformManagedProductServiceRequest
 
 const emptyForm: ProductServiceFormState = {
@@ -236,6 +260,7 @@ export function ProductServicesPage() {
   const [billingDialogStore, setBillingDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
   const [bindingDialogStore, setBindingDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
   const [deploymentHistoryDialogOpen, setDeploymentHistoryDialogOpen] = useState(false)
+  const [selectedRailwayDeploymentId, setSelectedRailwayDeploymentId] = useState<string | null>(null)
   const [rotateSecretValue, setRotateSecretValue] = useState('')
   const [forceRecreateConfirmation, setForceRecreateConfirmation] = useState('')
   const [decommissionConfirmation, setDecommissionConfirmation] = useState('')
@@ -329,6 +354,32 @@ export function ProductServicesPage() {
     enabled: selectedServiceRef.length > 0 && deploymentHistoryDialogOpen,
   })
 
+  const railwayLogsQuery = useQuery({
+    queryKey: ['product-services', selectedServiceRef, 'railway-logs', selectedRailwayDeploymentId ?? 'latest'],
+    queryFn: () =>
+      fetchProductServiceRailwayLogs({
+        serviceRef: selectedServiceRef,
+        source: 'deployment',
+        deploymentId: selectedRailwayDeploymentId ?? undefined,
+        limit: 100,
+      }),
+    enabled: selectedServiceRef.length > 0 && deploymentHistoryDialogOpen,
+  })
+
+  useEffect(() => {
+    if (!deploymentHistoryDialogOpen) {
+      return
+    }
+    const deployments = deploymentHistoryQuery.data?.deployments ?? []
+    if (deployments.length === 0) {
+      setSelectedRailwayDeploymentId(null)
+      return
+    }
+    if (!selectedRailwayDeploymentId || !deployments.some((deployment) => deployment.id === selectedRailwayDeploymentId)) {
+      setSelectedRailwayDeploymentId(deployments[0].id)
+    }
+  }, [deploymentHistoryDialogOpen, deploymentHistoryQuery.data?.deployments, selectedRailwayDeploymentId])
+
   const refreshSelected = async (serviceRef: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['product-services'] }),
@@ -341,6 +392,7 @@ export function ProductServicesPage() {
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'store-billing-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'store-binding'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'deployment-history'] }),
+      queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'railway-logs'] }),
       queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
     ])
   }
@@ -1163,6 +1215,9 @@ export function ProductServicesPage() {
                             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                               <Typography sx={{ fontWeight: 700 }}>{detailValue(deployment.id)}</Typography>
                               <Chip size="small" label={detailValue(deployment.status)} color={chipColor(deployment.status)} />
+                              <Button size="small" variant={selectedRailwayDeploymentId === deployment.id ? 'contained' : 'outlined'} onClick={() => setSelectedRailwayDeploymentId(deployment.id)}>
+                                View logs
+                              </Button>
                             </Stack>
                             <Typography variant="body2" color="text.secondary">
                               URL {detailValue(deployment.url)} · Static {detailValue(deployment.staticUrl)}
@@ -1176,6 +1231,51 @@ export function ProductServicesPage() {
                     ))}
                   </Stack>
                 ) : null}
+                <Divider />
+                <Stack spacing={1.5}>
+                  <Typography sx={{ fontWeight: 700 }}>Deployment logs</Typography>
+                  {railwayLogsQuery.isLoading ? (
+                    <Alert severity="info">Loading Railway deployment logs…</Alert>
+                  ) : railwayLogsQuery.isError ? (
+                    <Alert severity="error">
+                      {railwayLogsQuery.error instanceof Error ? railwayLogsQuery.error.message : 'Failed to load Railway deployment logs.'}
+                    </Alert>
+                  ) : railwayLogsQuery.data ? (
+                    <>
+                      <Alert severity={railwayLogsQuery.data.available ? 'info' : 'warning'}>{railwayLogsQuery.data.message}</Alert>
+                      <Typography variant="body2" color="text.secondary">
+                        Deployment {detailValue(railwayLogsQuery.data.railwayDeploymentId)} · Source {detailValue(railwayLogsQuery.data.source)} · Queried{' '}
+                        {formatTimestamp(railwayLogsQuery.data.queriedAt)}
+                      </Typography>
+                      {railwayLogsQuery.data.entries.length > 0 ? (
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Time</TableCell>
+                              <TableCell>Severity</TableCell>
+                              <TableCell>Message</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {railwayLogsQuery.data.entries.map((entry, index) => (
+                              <TableRow key={`${entry.timestamp ?? 'na'}-${index}`} hover>
+                                <TableCell>{formatTimestamp(entry.timestamp)}</TableCell>
+                                <TableCell>
+                                  <Chip size="small" label={entry.severity ?? 'UNKNOWN'} color={railwaySeverityColor(entry)} variant="outlined" />
+                                </TableCell>
+                                <TableCell sx={{ maxWidth: 900, whiteSpace: 'pre-wrap' }}>{entry.message ?? '—'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <Alert severity="info">No log entries were returned for the current query.</Alert>
+                      )}
+                    </>
+                  ) : (
+                    <Alert severity="info">Railway logs are not available for this service yet.</Alert>
+                  )}
+                </Stack>
               </Stack>
             ) : (
               <Alert severity="info">Railway deployment history is not available for this service yet.</Alert>
