@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.webhook.service;
 
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreSyncService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreLifecycleService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,15 +15,18 @@ public class ShopifyWebhookService {
     private final ShopifyBridgeStoreLifecycleService storeLifecycleService;
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
+    private final ShopifyBridgeStoreSyncService storeSyncService;
     private final ObjectMapper objectMapper;
 
     public ShopifyWebhookService(ShopifyBridgeStoreLifecycleService storeLifecycleService,
                                  ShopifyInstallRecordService installRecordService,
                                  ShopifyBridgeInstallCredentialService installCredentialService,
+                                 ShopifyBridgeStoreSyncService storeSyncService,
                                  ObjectMapper objectMapper) {
         this.storeLifecycleService = storeLifecycleService;
         this.installRecordService = installRecordService;
         this.installCredentialService = installCredentialService;
+        this.storeSyncService = storeSyncService;
         this.objectMapper = objectMapper;
     }
 
@@ -92,6 +96,9 @@ public class ShopifyWebhookService {
                 impact.message(),
                 impact.invalidateSync()
             );
+            if (impact.invalidateSync()) {
+                triggerIncrementalSyncSafely(shopDomain, normalizedTopic);
+            }
         }
     }
 
@@ -107,6 +114,15 @@ public class ShopifyWebhookService {
             if (ex.getStatusCode().value() != 404) {
                 throw ex;
             }
+        }
+    }
+
+    private void triggerIncrementalSyncSafely(String shopDomain, String topic) {
+        try {
+            installCredentialService.resolvePersistedMaterial(shopDomain)
+                .ifPresent(acquisition -> storeSyncService.syncFromWebhook(acquisition, topic));
+        } catch (RuntimeException ignored) {
+            // Preserve the webhook ack path; store state has already been invalidated for later operator recovery.
         }
     }
 

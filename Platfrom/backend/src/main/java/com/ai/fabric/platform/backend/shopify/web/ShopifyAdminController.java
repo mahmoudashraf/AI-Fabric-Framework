@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWebhookEve
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
@@ -23,7 +24,9 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWebhookService
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetSettingsService;
 import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -114,6 +117,14 @@ public class ShopifyAdminController {
     @ResponseStatus(HttpStatus.OK)
     public ShopifyStoreConnectionSummary clearCredentials(@PathVariable String shopDomain) {
         return shopifyStoreCredentialService.clear(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/credentials/material")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ResponseEntity<ShopifyStoreResolvedCredentialsSummary> resolveCredentials(@PathVariable String shopDomain) {
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(shopifyStoreCredentialService.resolveMaterial(shopDomain));
     }
 
     @PostMapping("/{shopDomain}/bootstrap")

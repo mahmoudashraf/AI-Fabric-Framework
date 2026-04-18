@@ -1,0 +1,104 @@
+package com.ai.fabric.product.shopify.bridge.install.service;
+
+import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class ShopifyBridgeInstallCredentialServiceTest {
+
+    @Test
+    void resolvePersistedMaterialReturnsCredentialAcquisition() {
+        ShopifyTokenExchangeService tokenExchangeService = mock(ShopifyTokenExchangeService.class);
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeInstallCredentialService service = new ShopifyBridgeInstallCredentialService(
+            tokenExchangeService,
+            platformClient,
+            installRecordService
+        );
+
+        ShopifyBridgeStoreSummary store = store();
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store);
+        when(platformClient.resolveCredentialMaterial("alpha.myshopify.com")).thenReturn(
+            new ShopifyBridgeResolvedStoreCredentials(
+                "shpat_access",
+                "shprt_refresh",
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products,read_content",
+                true
+            )
+        );
+
+        Optional<ShopifyBridgeCredentialAcquisition> resolved = service.resolvePersistedMaterial("alpha.myshopify.com");
+
+        assertThat(resolved).isPresent();
+        assertThat(resolved.orElseThrow().store().shopDomain()).isEqualTo("alpha.myshopify.com");
+        assertThat(resolved.orElseThrow().tokenExchangeMaterial().accessToken()).isEqualTo("shpat_access");
+        assertThat(resolved.orElseThrow().tokenExchangeMaterial().refreshToken()).isEqualTo("shprt_refresh");
+        verify(platformClient).getStore("alpha.myshopify.com");
+        verify(platformClient).resolveCredentialMaterial("alpha.myshopify.com");
+    }
+
+    private ShopifyBridgeStoreSummary store() {
+        return new ShopifyBridgeStoreSummary(
+            "shp-1",
+            "alpha.myshopify.com",
+            "Alpha",
+            "shopify-bridge-prod",
+            "Shopify Bridge Prod",
+            "cust-1",
+            "Alpha Customer",
+            "dep-1",
+            "Alpha Deployment",
+            "ACTIVE",
+            "consumer-alpha",
+            "Alpha Storefront",
+            "INSTALLED",
+            "SYNCED",
+            "READY",
+            "ENABLED",
+            "LIVE",
+            true,
+            true,
+            true,
+            true,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products,read_content",
+                true
+            ),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z")
+        );
+    }
+}

@@ -111,6 +111,18 @@ public class ShopifyBridgeStoreSyncService {
     }
 
     public ShopifyBridgeStoreSummary sync(ShopifyBridgeCredentialAcquisition acquisition) {
+        return sync(acquisition, "FULL", "Shopify bridge synced %d documents into the platform runtime.");
+    }
+
+    public ShopifyBridgeStoreSummary syncFromWebhook(ShopifyBridgeCredentialAcquisition acquisition,
+                                                     String topic) {
+        String normalizedTopic = topic == null || topic.isBlank() ? "shopify content change" : topic.trim();
+        return sync(acquisition, "INCREMENTAL", "Shopify bridge completed a webhook-triggered refresh for " + normalizedTopic + " and synced %d documents into the platform runtime.");
+    }
+
+    private ShopifyBridgeStoreSummary sync(ShopifyBridgeCredentialAcquisition acquisition,
+                                           String mode,
+                                           String successMessageTemplate) {
         ShopifyBridgeStoreSummary store = acquisition.store();
         String shopDomain = store.shopDomain();
         String accessToken = acquisition.tokenExchangeMaterial().accessToken();
@@ -130,22 +142,22 @@ public class ShopifyBridgeStoreSyncService {
             }
             ShopifyBridgeStoreSummary synced = platformShopifyStoreClient.syncDocuments(
                 shopDomain,
-                new ShopifyBridgeSyncStoreDocumentsRequest("FULL", documents)
+                new ShopifyBridgeSyncStoreDocumentsRequest(mode, documents)
             );
             return platformShopifyStoreClient.recordSyncStatus(
                 shopDomain,
                 new ShopifyBridgeRecordSyncStatusRequest(
                     "SYNCED",
-                    "FULL",
+                    mode,
                     documents.size(),
-                    "Shopify bridge synced " + documents.size() + " documents into the platform runtime."
+                    successMessageTemplate.formatted(documents.size())
                 )
             );
         } catch (RuntimeException ex) {
             String message = syncFailureMessage(ex);
             platformShopifyStoreClient.recordSyncStatus(
                 shopDomain,
-                new ShopifyBridgeRecordSyncStatusRequest("FAILED", "FULL", 0, message)
+                new ShopifyBridgeRecordSyncStatusRequest("FAILED", mode, 0, message)
             );
             throw new ResponseStatusException(BAD_GATEWAY, message, ex);
         }

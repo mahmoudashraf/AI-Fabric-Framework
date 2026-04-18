@@ -4,8 +4,10 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -147,6 +149,32 @@ public class ShopifyStoreCredentialService {
         return connectionService.getConnection(entity.getShopDomain());
     }
 
+    @Transactional(readOnly = true)
+    public ShopifyStoreResolvedCredentialsSummary resolveMaterial(String shopDomain) {
+        ShopifyStoreConnectionEntity entity = requireConnection(shopDomain);
+        JsonNode details = sourcePreflightSupport.readJsonNode(entity.getDetailsJson());
+        JsonNode credentials = details == null ? null : details.path("credentials");
+        String accessTokenSecretRef = normalize(credentials == null ? null : credentials.path("accessTokenSecretRef").asText(null));
+        String refreshTokenSecretRef = normalize(credentials == null ? null : credentials.path("refreshTokenSecretRef").asText(null));
+        String accessToken = normalize(accessTokenSecretRef == null ? null : platformSecretService.resolveSecret(accessTokenSecretRef));
+        if (accessToken == null) {
+            throw new ResponseStatusException(CONFLICT, "Shopify store credentials are not available for " + entity.getShopDomain() + ".");
+        }
+        String refreshToken = normalize(refreshTokenSecretRef == null ? null : platformSecretService.resolveSecret(refreshTokenSecretRef));
+        Instant accessTokenExpiresAt = parseInstant(credentials, "accessTokenExpiresAt");
+        Instant refreshTokenExpiresAt = parseInstant(credentials, "refreshTokenExpiresAt");
+        String scopesText = normalize(credentials == null ? null : credentials.path("scopesText").asText(null));
+        boolean expiring = credentials != null && credentials.path("expiring").asBoolean(refreshToken != null);
+        return new ShopifyStoreResolvedCredentialsSummary(
+            accessToken,
+            refreshToken,
+            accessTokenExpiresAt,
+            refreshTokenExpiresAt,
+            scopesText,
+            expiring
+        );
+    }
+
     public static String accessTokenSecretRef(String shopDomain) {
         return managedSecretName("MANAGED_SHOPIFY_ACCESS_TOKEN", shopDomain);
     }
@@ -214,6 +242,18 @@ public class ShopifyStoreCredentialService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private Instant parseInstant(JsonNode node, String field) {
+        String value = normalize(node == null ? null : node.path(field).asText(null));
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (RuntimeException ex) {
+            throw new ResponseStatusException(CONFLICT, "Shopify store credentials contain an invalid " + field + " value.");
+        }
     }
 
     private boolean shouldRestoreOnboarding(String onboardingStatus) {

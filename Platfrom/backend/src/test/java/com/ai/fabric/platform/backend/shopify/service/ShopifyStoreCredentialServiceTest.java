@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProd
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
@@ -293,5 +294,97 @@ class ShopifyStoreCredentialServiceTest {
         assertThat(summary.onboardingStatus()).isEqualTo("PLATFORM_BOOTSTRAPPED");
         assertThat(summary.widgetStatus()).isEqualTo("NOT_ENABLED");
         assertThat(summary.sourceReadinessStatus()).isEqualTo("NOT_RUN");
+    }
+
+    @Test
+    void resolveMaterialReturnsManagedSecretValues() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(objectMapper);
+
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("ps-1");
+        service.setServiceRef("shopify-bridge-prod");
+        service.setDisplayName("Shopify Bridge");
+        service.setProductFamily("SHOPIFY");
+        service.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+        when(productServiceService.requireServiceById("ps-1")).thenReturn(service);
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-1");
+        entity.setShopDomain("alpha.myshopify.com");
+        entity.setDisplayName("Alpha");
+        entity.setProductServiceId("ps-1");
+        entity.setInstallStatus("INSTALLED");
+        entity.setSyncStatus("NOT_SYNCED");
+        entity.setSourceReadinessStatus("NOT_RUN");
+        entity.setWidgetStatus("NOT_ENABLED");
+        entity.setOnboardingStatus("CONNECTED");
+        entity.setProductsEnabled(true);
+        entity.setCollectionsEnabled(true);
+        entity.setPagesEnabled(true);
+        entity.setPoliciesEnabled(true);
+        entity.setDetailsJson("""
+            {
+              "credentials": {
+                "status": "READY",
+                "checkedAt": "2026-04-18T10:00:00Z",
+                "accessTokenSecretRef": "%s",
+                "refreshTokenSecretRef": "%s",
+                "accessTokenExpiresAt": "2026-04-18T11:00:00Z",
+                "refreshTokenExpiresAt": "2026-07-18T10:00:00Z",
+                "scopesText": "read_products,read_content",
+                "expiring": true
+              }
+            }
+            """.formatted(
+            ShopifyStoreCredentialService.accessTokenSecretRef("alpha.myshopify.com"),
+            ShopifyStoreCredentialService.refreshTokenSecretRef("alpha.myshopify.com")
+        ));
+        entity.setCreatedAt(Instant.parse("2026-04-18T10:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-04-18T10:00:00Z"));
+
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(entity));
+        when(platformSecretService.resolveSecret(ShopifyStoreCredentialService.accessTokenSecretRef("alpha.myshopify.com")))
+            .thenReturn("shpat_access");
+        when(platformSecretService.resolveSecret(ShopifyStoreCredentialService.refreshTokenSecretRef("alpha.myshopify.com")))
+            .thenReturn("shprt_refresh");
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            support,
+            new ShopifyStoreReadinessEvaluator()
+        );
+        ShopifyStoreCredentialService credentialService = new ShopifyStoreCredentialService(
+            repository,
+            connectionService,
+            support,
+            platformSecretService,
+            platformAuditService
+        );
+
+        ShopifyStoreResolvedCredentialsSummary resolved = credentialService.resolveMaterial("alpha.myshopify.com");
+
+        assertThat(resolved.accessToken()).isEqualTo("shpat_access");
+        assertThat(resolved.refreshToken()).isEqualTo("shprt_refresh");
+        assertThat(resolved.accessTokenExpiresAt()).isEqualTo(Instant.parse("2026-04-18T11:00:00Z"));
+        assertThat(resolved.refreshTokenExpiresAt()).isEqualTo(Instant.parse("2026-07-18T10:00:00Z"));
+        assertThat(resolved.scopesText()).isEqualTo("read_products,read_content");
+        assertThat(resolved.expiring()).isTrue();
     }
 }

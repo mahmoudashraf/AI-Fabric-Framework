@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.client.platform;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWebhookEventRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
@@ -214,6 +215,29 @@ class PlatformShopifyStoreClientTest {
         );
 
         assertThat(response.sourceReadinessStatus()).isEqualTo("READY");
+        server.verify();
+    }
+
+    @Test
+    void resolveCredentialMaterialUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/credentials/material"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "accessToken":"shpat_access",
+                  "refreshToken":"shprt_refresh",
+                  "accessTokenExpiresAt":"2026-04-18T01:00:00Z",
+                  "refreshTokenExpiresAt":"2026-07-18T00:00:00Z",
+                  "scopesText":"read_products,read_content",
+                  "expiring":true
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeResolvedStoreCredentials response = client.resolveCredentialMaterial("alpha.myshopify.com");
+
+        assertThat(response.accessToken()).isEqualTo("shpat_access");
+        assertThat(response.refreshToken()).isEqualTo("shprt_refresh");
         server.verify();
     }
 
