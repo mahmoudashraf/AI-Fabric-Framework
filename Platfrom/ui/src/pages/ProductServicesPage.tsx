@@ -63,6 +63,8 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'SYNCED':
     case 'LIVE':
     case 'PREFLIGHT_READY':
+    case 'APPLIED_VERIFIED':
+    case 'PASSED':
       return 'success'
     case 'FAILED':
     case 'BLOCKED':
@@ -78,6 +80,10 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'NOT_STARTED':
     case 'INSTALL_IDENTITY_READY':
     case 'PLATFORM_BOOTSTRAPPED':
+    case 'GO_LIVE_REQUESTED':
+    case 'APPLY_REQUESTED':
+    case 'PENDING':
+    case 'QUEUED':
       return 'warning'
     default:
       return 'default'
@@ -524,6 +530,16 @@ export function ProductServicesPage() {
                                 <Typography variant="body2" color="text.secondary">
                                   Customer {detailValue(store.customerName)} · Deployment {detailValue(store.deploymentName)} · Consumer {detailValue(store.consumerId)}
                                 </Typography>
+                                {store.latestRelease ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Release {detailValue(store.latestVersion?.versionLabel)} · {store.latestRelease.status.toLowerCase()} · verification{' '}
+                                    {detailValue(store.latestRelease.verificationStatus).toLowerCase()} · provisioning {detailValue(store.latestRelease.provisioningStatus).toLowerCase()}
+                                  </Typography>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Release not requested yet.
+                                  </Typography>
+                                )}
                                 <Typography variant="body2" color="text.secondary">
                                   Sources: products {store.productsEnabled ? 'on' : 'off'} · collections {store.collectionsEnabled ? 'on' : 'off'} · pages {store.pagesEnabled ? 'on' : 'off'} · policies {store.policiesEnabled ? 'on' : 'off'}
                                 </Typography>

@@ -3,7 +3,13 @@ package com.ai.fabric.platform.backend.productservice.service;
 import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
@@ -49,6 +55,8 @@ public class PlatformManagedProductAdminService {
     private final ShopifyStoreConnectionRepository shopifyStoreConnectionRepository;
     private final PlatformCustomerRepository platformCustomerRepository;
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentVersionRepository deploymentVersionRepository;
+    private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final PlatformConsumerRepository platformConsumerRepository;
     private final PlatformSecretService platformSecretService;
     private final PlatformManagedProductProvisioningService provisioningService;
@@ -63,6 +71,8 @@ public class PlatformManagedProductAdminService {
                                               ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
                                               PlatformCustomerRepository platformCustomerRepository,
                                               DeploymentRepository deploymentRepository,
+                                              DeploymentVersionRepository deploymentVersionRepository,
+                                              DeploymentReleaseRepository deploymentReleaseRepository,
                                               PlatformConsumerRepository platformConsumerRepository,
                                               PlatformSecretService platformSecretService,
                                               PlatformManagedProductProvisioningService provisioningService,
@@ -75,6 +85,8 @@ public class PlatformManagedProductAdminService {
         this.shopifyStoreConnectionRepository = shopifyStoreConnectionRepository;
         this.platformCustomerRepository = platformCustomerRepository;
         this.deploymentRepository = deploymentRepository;
+        this.deploymentVersionRepository = deploymentVersionRepository;
+        this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.platformConsumerRepository = platformConsumerRepository;
         this.platformSecretService = platformSecretService;
         this.provisioningService = provisioningService;
@@ -219,6 +231,12 @@ public class PlatformManagedProductAdminService {
         DeploymentEntity deployment = hasText(entity.getDeploymentId())
             ? deploymentRepository.findById(entity.getDeploymentId()).orElse(null)
             : null;
+        DeploymentVersionEntity latestVersion = deployment == null
+            ? null
+            : deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deployment.getId()).stream().findFirst().orElse(null);
+        DeploymentReleaseEntity latestRelease = deployment == null
+            ? null
+            : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
         PlatformConsumerEntity consumer = hasText(entity.getConsumerId())
             ? platformConsumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null)
             : null;
@@ -249,13 +267,52 @@ public class PlatformManagedProductAdminService {
             sourcePreflightSupport.summarize(entity.getDetailsJson()),
             sourcePreflightSupport.summarizeSync(entity.getDetailsJson()),
             sourcePreflightSupport.summarizeWidget(entity.getDetailsJson()),
-            null,
-            null,
+            toVersionSummary(latestVersion),
+            toReleaseSummary(latestRelease),
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
+        );
+    }
+
+    private DeploymentVersionSummary toVersionSummary(DeploymentVersionEntity version) {
+        if (version == null) {
+            return null;
+        }
+        return new DeploymentVersionSummary(
+            version.getId(),
+            version.getDeploymentId(),
+            version.getSourceDraftId(),
+            version.getVersionLabel(),
+            version.getStatus(),
+            version.getConfigHash(),
+            version.isReindexRequired(),
+            version.getPublishedAt()
+        );
+    }
+
+    private DeploymentReleaseSummary toReleaseSummary(DeploymentReleaseEntity release) {
+        if (release == null) {
+            return null;
+        }
+        return new DeploymentReleaseSummary(
+            release.getId(),
+            release.getDeploymentId(),
+            release.getDeploymentVersionId(),
+            release.getStatus(),
+            release.getVerificationStatus(),
+            release.getProvisioningStatus(),
+            release.getProvisioningTarget(),
+            release.getCurrentStepKey(),
+            release.getCurrentStepDescription(),
+            release.getErrorMessage(),
+            release.getVerificationRunId(),
+            sourcePreflightSupport.readJsonNode(release.getProvisioningDetailsJson()),
+            release.getCreatedAt(),
+            release.getAppliedAt(),
+            release.getUpdatedAt()
         );
     }
 

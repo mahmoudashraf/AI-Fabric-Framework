@@ -2,7 +2,11 @@ package com.ai.fabric.platform.backend.productservice.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
@@ -68,6 +72,8 @@ class PlatformManagedProductAdminServiceTest {
         ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
@@ -78,6 +84,8 @@ class PlatformManagedProductAdminServiceTest {
         when(shopifyStoreConnectionRepository.findAllByProductServiceIdOrderByShopDomainAsc(service.getId())).thenReturn(List.of(connection));
         when(customerRepository.findById("cus-123")).thenReturn(java.util.Optional.of(customer));
         when(deploymentRepository.findById("dep-123")).thenReturn(java.util.Optional.of(deployment));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123")).thenReturn(List.of(version()));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(java.util.Optional.of(release()));
         when(consumerRepository.findByConsumerIdIgnoreCase("demo-storefront")).thenReturn(java.util.Optional.of(consumer));
 
         PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
@@ -86,6 +94,8 @@ class PlatformManagedProductAdminServiceTest {
             shopifyStoreConnectionRepository,
             customerRepository,
             deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
             consumerRepository,
             platformSecretService,
             provisioningService,
@@ -101,6 +111,8 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(dependents.get(0).customerName()).isEqualTo("Demo Customer");
         assertThat(dependents.get(0).deploymentName()).isEqualTo("Shopify Companion");
         assertThat(dependents.get(0).consumerDisplayName()).isEqualTo("Demo Storefront");
+        assertThat(dependents.get(0).latestVersion()).isNotNull();
+        assertThat(dependents.get(0).latestRelease()).isNotNull();
     }
 
     @Test
@@ -118,6 +130,8 @@ class PlatformManagedProductAdminServiceTest {
         ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
@@ -133,6 +147,8 @@ class PlatformManagedProductAdminServiceTest {
             shopifyStoreConnectionRepository,
             customerRepository,
             deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
             consumerRepository,
             platformSecretService,
             provisioningService,
@@ -189,6 +205,35 @@ class PlatformManagedProductAdminServiceTest {
         entity.setPagesEnabled(true);
         entity.setPoliciesEnabled(true);
         entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(Instant.now());
+        return entity;
+    }
+
+    private DeploymentVersionEntity version() {
+        DeploymentVersionEntity entity = new DeploymentVersionEntity();
+        entity.setId("ver-123");
+        entity.setDeploymentId("dep-123");
+        entity.setSourceDraftId("drf-123");
+        entity.setVersionLabel("v1");
+        entity.setStatus("PUBLISHED");
+        entity.setConfigHash("hash-123");
+        entity.setPublishedAt(Instant.now());
+        return entity;
+    }
+
+    private DeploymentReleaseEntity release() {
+        DeploymentReleaseEntity entity = new DeploymentReleaseEntity();
+        entity.setId("rel-123");
+        entity.setDeploymentId("dep-123");
+        entity.setDeploymentVersionId("ver-123");
+        entity.setStatus("APPLIED_VERIFIED");
+        entity.setVerificationStatus("PASSED");
+        entity.setProvisioningStatus("SUCCEEDED");
+        entity.setProvisioningTarget("RAILWAY");
+        entity.setCurrentStepKey("completed");
+        entity.setCurrentStepDescription("Release applied and verified.");
+        entity.setCreatedAt(Instant.now());
+        entity.setAppliedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         return entity;
     }
