@@ -7,6 +7,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCreden
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -139,6 +140,32 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
 
         verify(merchantStoreService).syncNow(any(), anyString());
+    }
+
+    @Test
+    void storefrontPreviewUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.storefrontPreview(any())).thenReturn(new ShopifyStorefrontPreviewResponse(
+            true,
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "https://bridge.example.com",
+            "NOT_ENABLED",
+            "LIVE",
+            "consumer-1",
+            "dep-1",
+            "companion-app-embed",
+            "Ask the store assistant",
+            List.of("Enable the Companion launcher app embed."),
+            List.of(),
+            "Storefront theme app extension can be enabled now."
+        ));
+
+        mockMvc.perform(get("/api/app/store/storefront-preview").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ready").value(true))
+            .andExpect(jsonPath("$.bridgeBaseUrl").value("https://bridge.example.com"));
+
+        verify(merchantStoreService).storefrontPreview(any());
     }
 
     @Test

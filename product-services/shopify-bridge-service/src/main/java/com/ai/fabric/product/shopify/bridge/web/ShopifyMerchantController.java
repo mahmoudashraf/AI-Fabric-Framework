@@ -5,6 +5,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSes
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,6 +59,11 @@ public class ShopifyMerchantController {
     public ShopifyBridgeStoreSummary syncNow(Authentication authentication,
                                              @RequestHeader("Authorization") String authorizationHeader) {
         return merchantStoreService.syncNow(requireMerchant(authentication), authorizationHeader);
+    }
+
+    @GetMapping("/store/storefront-preview")
+    public ShopifyStorefrontPreviewResponse storefrontPreview(Authentication authentication) {
+        return merchantStoreService.storefrontPreview(requireMerchant(authentication));
     }
 
     @PostMapping("/store/source-settings")

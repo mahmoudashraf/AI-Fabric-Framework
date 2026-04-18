@@ -129,6 +129,22 @@ export type ShopifyBridgeStoreBootstrapResponse = {
   store: ShopifyBridgeStoreSummary
 }
 
+export type ShopifyStorefrontPreviewResponse = {
+  ready: boolean
+  shopDomain: string
+  storefrontBaseUrl: string | null
+  bridgeBaseUrl: string | null
+  widgetStatus: string
+  onboardingStatus: string
+  consumerId: string | null
+  deploymentId: string | null
+  extensionHandle: string
+  launcherLabelDefault: string
+  activationSteps: string[]
+  blockingReasons: string[]
+  message: string
+}
+
 export async function fetchShell(): Promise<ShopifyBridgeShellResponse> {
   return fetchJson('/api/app/shell')
 }
@@ -158,6 +174,10 @@ export async function goLiveStore(): Promise<ShopifyBridgeStoreSummary> {
 
 export async function syncNowStore(): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/sync-now', { method: 'POST' })
+}
+
+export async function fetchStorefrontPreview(): Promise<ShopifyStorefrontPreviewResponse> {
+  return authenticatedFetchJson('/api/app/store/storefront-preview', { method: 'GET' })
 }
 
 export async function updateSourceSettings(settings: {

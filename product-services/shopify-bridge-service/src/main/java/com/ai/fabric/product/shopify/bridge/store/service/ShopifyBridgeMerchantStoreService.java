@@ -12,6 +12,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootst
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
+import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontPreviewService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -26,19 +28,22 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyBridgeSourcePreflightService sourcePreflightService;
     private final ShopifyBridgeStoreSyncService storeSyncService;
+    private final ShopifyStorefrontPreviewService storefrontPreviewService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
                                              ShopifyInstallRecordService installRecordService,
                                              ShopifyBridgeInstallCredentialService installCredentialService,
                                              ShopifyBridgeSourcePreflightService sourcePreflightService,
-                                             ShopifyBridgeStoreSyncService storeSyncService) {
+                                             ShopifyBridgeStoreSyncService storeSyncService,
+                                             ShopifyStorefrontPreviewService storefrontPreviewService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
         this.installCredentialService = installCredentialService;
         this.sourcePreflightService = sourcePreflightService;
         this.storeSyncService = storeSyncService;
+        this.storefrontPreviewService = storefrontPreviewService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -79,6 +84,10 @@ public class ShopifyBridgeMerchantStoreService {
     public ShopifyBridgeStoreSummary syncNow(ShopifyMerchantSession merchantSession,
                                              String authorizationHeader) {
         return storeSyncService.sync(acquireConnectedCredentials(merchantSession, authorizationHeader));
+    }
+
+    public ShopifyStorefrontPreviewResponse storefrontPreview(ShopifyMerchantSession merchantSession) {
+        return storefrontPreviewService.preview(merchantSession.shopDomain());
     }
 
     public ShopifyBridgeStoreSummary updateSourceSettings(ShopifyMerchantSession merchantSession,

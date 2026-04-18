@@ -18,6 +18,7 @@ import enTranslations from '@shopify/polaris/locales/en.json'
 import {
   bootstrapStore,
   connectStore,
+  fetchStorefrontPreview,
   fetchSession,
   fetchShell,
   goLiveStore,
@@ -28,6 +29,7 @@ import {
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
+  type ShopifyStorefrontPreviewResponse,
 } from './api'
 
 function badgeTone(status: string): 'success' | 'attention' | 'critical' {
@@ -56,6 +58,7 @@ function isReleaseInProgress(status: string | null | undefined): boolean {
 type LoadState = {
   shell: ShopifyBridgeShellResponse | null
   session: ShopifyBridgeMerchantSessionResponse | null
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null
   loading: boolean
   error: string | null
 }
@@ -64,6 +67,7 @@ export default function App() {
   const [state, setState] = useState<LoadState>({
     shell: null,
     session: null,
+    storefrontPreview: null,
     loading: true,
     error: null,
   })
@@ -96,13 +100,16 @@ export default function App() {
     try {
       const shell = await fetchShell()
       let session: ShopifyBridgeMerchantSessionResponse | null = null
+      let storefrontPreview: ShopifyStorefrontPreviewResponse | null = null
       try {
         session = await fetchSession()
+        storefrontPreview = await fetchStorefrontPreview()
       } catch (sessionError) {
         session = null
         setState({
           shell,
           session: null,
+          storefrontPreview: null,
           loading: false,
           error: sessionError instanceof Error ? sessionError.message : 'Failed to resolve merchant session.',
         })
@@ -111,6 +118,7 @@ export default function App() {
       setState({
         shell,
         session,
+        storefrontPreview,
         loading: false,
         error: null,
       })
@@ -126,6 +134,7 @@ export default function App() {
       setState({
         shell: null,
         session: null,
+        storefrontPreview: null,
         loading: false,
         error: error instanceof Error ? error.message : 'Unknown bridge shell failure.',
       })
@@ -247,6 +256,7 @@ export default function App() {
   const shell = state.shell
   const session = state.session
   const store = session?.store ?? null
+  const storefrontPreview = state.storefrontPreview
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
@@ -371,6 +381,63 @@ export default function App() {
                   {store ? <StoreSummary store={store} /> : (
                     <Text as="p" variant="bodyMd" tone="subdued">
                       This merchant has not connected the current store to the platform yet.
+                    </Text>
+                  )}
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Storefront activation
+                  </Text>
+                  {storefrontPreview ? (
+                    <BlockStack gap="200">
+                      <InlineStack gap="200" align="start">
+                        <Badge tone={storefrontPreview.ready ? 'success' : 'attention'}>
+                          {storefrontPreview.ready ? 'Theme embed ready' : 'Blocked'}
+                        </Badge>
+                        <Badge tone={badgeTone(storefrontPreview.widgetStatus)}>{storefrontPreview.widgetStatus}</Badge>
+                      </InlineStack>
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        {storefrontPreview.message}
+                      </Text>
+                      <List type="bullet">
+                        <List.Item>Extension handle: {storefrontPreview.extensionHandle}</List.Item>
+                        <List.Item>Bridge base URL: {storefrontPreview.bridgeBaseUrl ?? 'Not configured'}</List.Item>
+                        <List.Item>Default launcher label: {storefrontPreview.launcherLabelDefault}</List.Item>
+                        <List.Item>Storefront base URL: {storefrontPreview.storefrontBaseUrl ?? '—'}</List.Item>
+                      </List>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Activation steps
+                      </Text>
+                      <List type="number">
+                        {storefrontPreview.activationSteps.map((step) => (
+                          <List.Item key={step}>{step}</List.Item>
+                        ))}
+                      </List>
+                      {storefrontPreview.blockingReasons.length ? (
+                        <Banner tone="warning">
+                          <List type="bullet">
+                            {storefrontPreview.blockingReasons.map((reason) => (
+                              <List.Item key={reason}>{reason}</List.Item>
+                            ))}
+                          </List>
+                        </Banner>
+                      ) : null}
+                      {storefrontPreview.storefrontBaseUrl ? (
+                        <InlineStack gap="200">
+                          <Button url={storefrontPreview.storefrontBaseUrl} target="_blank">
+                            Open storefront
+                          </Button>
+                        </InlineStack>
+                      ) : null}
+                    </BlockStack>
+                  ) : (
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Storefront activation preview is unavailable until the merchant session resolves.
                     </Text>
                   )}
                 </BlockStack>
