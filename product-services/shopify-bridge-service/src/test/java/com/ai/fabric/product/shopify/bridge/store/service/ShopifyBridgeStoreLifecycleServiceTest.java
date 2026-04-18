@@ -78,6 +78,16 @@ class ShopifyBridgeStoreLifecycleServiceTest {
         );
     }
 
+    @Test
+    void deleteStoreMappingDelegatesToPlatform() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeStoreLifecycleService service = new ShopifyBridgeStoreLifecycleService(client);
+
+        service.deleteStoreMapping("alpha.myshopify.com", true);
+
+        verify(client).deleteStore("alpha.myshopify.com", true);
+    }
+
     private ShopifyBridgeStoreSummary store(String installStatus, String syncStatus, String widgetStatus, String onboardingStatus) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",

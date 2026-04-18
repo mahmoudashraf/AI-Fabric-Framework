@@ -57,6 +57,51 @@ class ShopifyWebhookServiceTest {
     }
 
     @Test
+    void customerRedactWebhookRecordsComplianceEvent() {
+        ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, new ObjectMapper());
+
+        service.handle("customers/redact", "alpha.myshopify.com", "{}");
+
+        verify(lifecycleService).recordWebhookEvent(
+            "alpha.myshopify.com",
+            "customers/redact",
+            "COMPLIANCE_CUSTOMER_REDACT",
+            "privacy",
+            "Shopify requested customer redaction. The bridge service does not retain customer records locally.",
+            false
+        );
+        verifyNoInteractions(installCredentialService);
+        verifyNoInteractions(installRecordService);
+    }
+
+    @Test
+    void shopRedactWebhookTriggersCleanup() {
+        ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, new ObjectMapper());
+
+        service.handle("shop/redact", "alpha.myshopify.com", "{}");
+
+        verify(lifecycleService).markUninstalled("alpha.myshopify.com");
+        verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
+        verify(installRecordService).markUninstalled("alpha.myshopify.com");
+        verify(lifecycleService).recordWebhookEvent(
+            "alpha.myshopify.com",
+            "shop/redact",
+            "COMPLIANCE_SHOP_REDACT",
+            "privacy",
+            "Shopify requested shop redaction. Credentials and store mapping cleanup have been triggered.",
+            false
+        );
+        verify(lifecycleService).deleteStoreMapping("alpha.myshopify.com", true);
+        verify(installRecordService).deleteRecord("alpha.myshopify.com");
+    }
+
+    @Test
     void unknownTopicDoesNothing() {
         ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);

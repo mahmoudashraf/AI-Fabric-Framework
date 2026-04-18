@@ -188,6 +188,18 @@ class PlatformShopifyStoreClientTest {
     }
 
     @Test
+    void deleteStoreUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com?force=true"))
+            .andExpect(method(HttpMethod.DELETE))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess());
+
+        client.deleteStore("alpha.myshopify.com", true);
+
+        server.verify();
+    }
+
+    @Test
     void recordSourcePreflightUsesPlatformAdminApiKey() {
         server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/source-preflight"))
             .andExpect(method(HttpMethod.POST))

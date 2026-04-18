@@ -129,6 +129,16 @@ public class ShopifyInstallRecordService {
             });
     }
 
+    @Transactional
+    public boolean deleteRecord(String shopDomain) {
+        return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
+            .map(entity -> {
+                repository.delete(entity);
+                return true;
+            })
+            .orElse(false);
+    }
+
     private ShopifyInstallRecordSummary toSummary(ShopifyInstallRecordEntity entity) {
         return new ShopifyInstallRecordSummary(
             entity.getShopDomain(),

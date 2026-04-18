@@ -97,4 +97,23 @@ class ShopifyInstallRecordServiceTest {
         assertThat(summary.accessTokenSecretRef()).isEqualTo("MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA");
         assertThat(summary.installedAt()).isNotNull();
     }
+
+    @Test
+    void deleteRecordRemovesPersistedInstallState() {
+        service.recordInstall(
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "embedded-host-token",
+            "read_products,read_content",
+            "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+            null,
+            null,
+            null
+        );
+
+        boolean deleted = service.deleteRecord("alpha.myshopify.com");
+
+        assertThat(deleted).isTrue();
+        assertThat(service.findByShopDomain("alpha.myshopify.com")).isEmpty();
+    }
 }

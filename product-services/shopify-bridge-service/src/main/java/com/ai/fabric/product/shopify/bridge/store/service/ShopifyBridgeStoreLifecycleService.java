@@ -26,6 +26,16 @@ public class ShopifyBridgeStoreLifecycleService {
         }
     }
 
+    public void deleteStoreMapping(String shopDomain, boolean force) {
+        try {
+            platformShopifyStoreClient.deleteStore(shopDomain, force);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() != 404) {
+                throw ex;
+            }
+        }
+    }
+
     public ShopifyBridgeStoreSummary recordWebhookEvent(String shopDomain,
                                                         String topic,
                                                         String eventType,

@@ -67,4 +67,23 @@ class ShopifyWebhookControllerTest {
         verify(lifecycleService).markUninstalled("alpha.myshopify.com");
         verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
     }
+
+    @Test
+    void validShopRedactWebhookTriggersLifecycleCleanup() throws Exception {
+        String payload = "{\"myshopify_domain\":\"alpha.myshopify.com\"}";
+        String hmac = verificationService.compute(payload);
+
+        mockMvc.perform(
+                post("/api/webhooks/shopify")
+                    .header("X-Shopify-Hmac-Sha256", hmac)
+                    .header("X-Shopify-Topic", "shop/redact")
+                    .header("X-Shopify-Shop-Domain", "alpha.myshopify.com")
+                    .contentType("application/json")
+                    .content(payload)
+            )
+            .andExpect(status().isOk());
+
+        verify(lifecycleService).markUninstalled("alpha.myshopify.com");
+        verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
+    }
 }

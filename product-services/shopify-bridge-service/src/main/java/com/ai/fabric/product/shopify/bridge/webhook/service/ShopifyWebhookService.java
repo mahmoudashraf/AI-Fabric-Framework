@@ -41,6 +41,47 @@ public class ShopifyWebhookService {
             return;
         }
 
+        if ("customers/data_request".equals(normalizedTopic)) {
+            recordWebhookSafely(
+                shopDomain,
+                normalizedTopic,
+                "COMPLIANCE_DATA_REQUEST",
+                "privacy",
+                "Shopify requested customer data export review.",
+                false
+            );
+            return;
+        }
+
+        if ("customers/redact".equals(normalizedTopic)) {
+            recordWebhookSafely(
+                shopDomain,
+                normalizedTopic,
+                "COMPLIANCE_CUSTOMER_REDACT",
+                "privacy",
+                "Shopify requested customer redaction. The bridge service does not retain customer records locally.",
+                false
+            );
+            return;
+        }
+
+        if ("shop/redact".equals(normalizedTopic)) {
+            storeLifecycleService.markUninstalled(shopDomain);
+            installCredentialService.clearPersistedCredentials(shopDomain);
+            installRecordService.markUninstalled(shopDomain);
+            recordWebhookSafely(
+                shopDomain,
+                normalizedTopic,
+                "COMPLIANCE_SHOP_REDACT",
+                "privacy",
+                "Shopify requested shop redaction. Credentials and store mapping cleanup have been triggered.",
+                false
+            );
+            storeLifecycleService.deleteStoreMapping(shopDomain, true);
+            installRecordService.deleteRecord(shopDomain);
+            return;
+        }
+
         WebhookImpact impact = classify(normalizedTopic);
         if (impact != null) {
             recordWebhookSafely(

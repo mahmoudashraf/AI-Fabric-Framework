@@ -106,6 +106,14 @@ public class PlatformShopifyStoreClient {
             .body(ShopifyBridgeStoreSummary.class);
     }
 
+    public void deleteStore(String shopDomain, boolean force) {
+        restClient.delete()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "?force=" + force)
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .toBodilessEntity();
+    }
+
     public ShopifyBridgeStoreSummary recordSourcePreflight(String shopDomain, ShopifyBridgeRecordSourcePreflightRequest request) {
         return restClient.post()
             .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/source-preflight")
