@@ -143,6 +143,10 @@ platform:
       shopify-bridge-dockerfile-path: ${PLATFORM_SHOPIFY_BRIDGE_DOCKERFILE_PATH:product-services/shopify-bridge-service/deploy/railway/Dockerfile}
       shopify-bridge-service-name-prefix: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_NAME_PREFIX:shopify-bridge}
       shopify-bridge-health-path: ${PLATFORM_SHOPIFY_BRIDGE_HEALTH_PATH:/actuator/health}
+      shopify-bridge-admin-api-version: ${PLATFORM_SHOPIFY_BRIDGE_ADMIN_API_VERSION:2026-04}
+      shopify-bridge-shopify-api-key-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_KEY_SECRET_NAME:}
+      shopify-bridge-shopify-api-secret-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_SECRET_SECRET_NAME:}
+      shopify-bridge-webhook-shared-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET_NAME:}
       poll-interval: ${PLATFORM_PRODUCT_PROVISIONING_POLL_INTERVAL:15s}
       request-timeout: ${PLATFORM_PRODUCT_PROVISIONING_REQUEST_TIMEOUT:5m}
 

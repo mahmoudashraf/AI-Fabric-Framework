@@ -11,6 +11,10 @@ public record PlatformProductProvisioningProperties(
     String shopifyBridgeDockerfilePath,
     String shopifyBridgeServiceNamePrefix,
     String shopifyBridgeHealthPath,
+    String shopifyBridgeAdminApiVersion,
+    String shopifyBridgeShopifyApiKeySecretName,
+    String shopifyBridgeShopifyApiSecretSecretName,
+    String shopifyBridgeWebhookSharedSecretName,
     Duration pollInterval,
     Duration requestTimeout
 ) {
@@ -24,6 +28,10 @@ public record PlatformProductProvisioningProperties(
         );
         shopifyBridgeServiceNamePrefix = normalizeText(shopifyBridgeServiceNamePrefix, "shopify-bridge");
         shopifyBridgeHealthPath = normalizeText(shopifyBridgeHealthPath, "/actuator/health");
+        shopifyBridgeAdminApiVersion = normalizeText(shopifyBridgeAdminApiVersion, "2026-04");
+        shopifyBridgeShopifyApiKeySecretName = normalizeText(shopifyBridgeShopifyApiKeySecretName, "");
+        shopifyBridgeShopifyApiSecretSecretName = normalizeText(shopifyBridgeShopifyApiSecretSecretName, "");
+        shopifyBridgeWebhookSharedSecretName = normalizeText(shopifyBridgeWebhookSharedSecretName, "");
         pollInterval = pollInterval == null || pollInterval.isZero() || pollInterval.isNegative()
             ? Duration.ofSeconds(15)
             : pollInterval;

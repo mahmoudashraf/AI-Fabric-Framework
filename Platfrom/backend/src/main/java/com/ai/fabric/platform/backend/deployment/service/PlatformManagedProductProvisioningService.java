@@ -506,13 +506,24 @@ public class PlatformManagedProductProvisioningService {
         switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" -> {
                 String sharedSecret = resolveSecret(service.getSecretName());
+                String shopifyApiKey = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeShopifyApiKeySecretName());
+                String shopifyApiSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeShopifyApiSecretSecretName());
+                String webhookSharedSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeWebhookSharedSecretName());
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SHARED_SECRET", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SERVICE_REF", service.getServiceRef()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_APP_NAME", blankToFallback(service.getDisplayName(), "Shopify Bridge Service")));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_ENVIRONMENT_SCOPE", resolveEnvironmentName(service)));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_ADMIN_API_VERSION", productProvisioningProperties.shopifyBridgeAdminApiVersion()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PLATFORM_BASE_URL", deliveryProperties.publicBaseUrl()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PUBLIC_BASE_URL", blankToFallback(publicBaseUrl, "")));
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_SHOPIFY_API_KEY", shopifyApiKey);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_SHOPIFY_API_SECRET", shopifyApiSecret);
+                addOptionalEnv(
+                    env,
+                    "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET",
+                    hasText(webhookSharedSecret) ? webhookSharedSecret : shopifyApiSecret
+                );
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "health,info"));
             }
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
@@ -528,6 +539,23 @@ public class PlatformManagedProductProvisioningService {
             );
         }
         return value;
+    }
+
+    private String resolveOptionalSecret(String secretName) {
+        String normalized = trimToNull(secretName);
+        if (!hasText(normalized)) {
+            return null;
+        }
+        String value = platformSecretService.resolveSecret(normalized);
+        return hasText(value) ? value : null;
+    }
+
+    private void addOptionalEnv(List<RailwayGraphqlClient.RailwayEnvVarInput> env,
+                                String name,
+                                String value) {
+        if (hasText(value)) {
+            env.add(new RailwayGraphqlClient.RailwayEnvVarInput(name, value));
+        }
     }
 
     private String ensureServiceDomain(String projectId,

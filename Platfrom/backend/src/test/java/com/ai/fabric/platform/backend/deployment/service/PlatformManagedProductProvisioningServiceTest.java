@@ -59,6 +59,8 @@ class PlatformManagedProductProvisioningServiceTest {
             .thenReturn(new RailwayGraphqlClient.RailwayServiceSummary("svc-123", "shopify-bridge-shopify-bridge-prod"));
         when(platformSecretService.isSecretPresent("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn(true);
         when(platformSecretService.resolveSecret("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn("bridge-secret");
+        when(platformSecretService.resolveSecret("SHOPIFY_APP_API_KEY")).thenReturn("shopify-api-key");
+        when(platformSecretService.resolveSecret("SHOPIFY_APP_API_SECRET")).thenReturn("shopify-api-secret");
         when(railwayGraphqlClient.hasStagedChanges("env-123")).thenReturn(false);
         when(railwayGraphqlClient.deployService("svc-123", "env-123")).thenReturn("dep-railway-123");
         when(railwayGraphqlClient.getDeployment("dep-railway-123"))
@@ -102,7 +104,19 @@ class PlatformManagedProductProvisioningServiceTest {
                 Duration.ofSeconds(1),
                 Duration.ofSeconds(5)
             ),
-            new PlatformProductProvisioningProperties(null, null, null, null, null, Duration.ofSeconds(1), Duration.ofSeconds(5)),
+            new PlatformProductProvisioningProperties(
+                null,
+                null,
+                null,
+                null,
+                null,
+                "2026-04",
+                "SHOPIFY_APP_API_KEY",
+                "SHOPIFY_APP_API_SECRET",
+                "",
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(5)
+            ),
             new PlatformDeliveryProperties("https://platform.example.com", true, Duration.ofDays(1)),
             railwayGraphqlClient,
             platformSecretService,
@@ -140,7 +154,11 @@ class PlatformManagedProductProvisioningServiceTest {
                 "SHOPIFY_BRIDGE_SHARED_SECRET",
                 "SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY",
                 "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
-                "SHOPIFY_BRIDGE_PLATFORM_BASE_URL"
+                "SHOPIFY_BRIDGE_PLATFORM_BASE_URL",
+                "SHOPIFY_BRIDGE_ADMIN_API_VERSION",
+                "SHOPIFY_BRIDGE_SHOPIFY_API_KEY",
+                "SHOPIFY_BRIDGE_SHOPIFY_API_SECRET",
+                "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET"
             );
         assertThat(envCaptor.getValue())
             .filteredOn(input -> "SHOPIFY_BRIDGE_PUBLIC_BASE_URL".equals(input.name()))
@@ -165,7 +183,7 @@ class PlatformManagedProductProvisioningServiceTest {
 
         PlatformManagedProductProvisioningService provisioningService = new PlatformManagedProductProvisioningService(
             new PlatformProvisioningProperties(null, null, null, null, null, null, "ws-123", null, null, null, null, null, null, 32, null, null, false, false, 60_000, Duration.ofSeconds(1), Duration.ofSeconds(5)),
-            new PlatformProductProvisioningProperties(null, null, null, null, null, Duration.ofSeconds(1), Duration.ofSeconds(5)),
+            new PlatformProductProvisioningProperties(null, null, null, null, null, null, null, null, null, Duration.ofSeconds(1), Duration.ofSeconds(5)),
             new PlatformDeliveryProperties("https://platform.example.com", true, Duration.ofDays(1)),
             railwayGraphqlClient,
             platformSecretService,
