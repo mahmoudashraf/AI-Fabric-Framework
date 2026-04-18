@@ -507,6 +507,25 @@ export type PlatformManagedProductServiceStoreBillingSummary = PlatformManagedPr
   shopDomain: string | null
 }
 
+export type PlatformManagedProductServiceRailwayDeploymentSummary = {
+  id: string
+  status: string | null
+  url: string | null
+  staticUrl: string | null
+  createdAt: string | null
+}
+
+export type PlatformManagedProductServiceDeploymentHistorySummary = {
+  serviceRef: string
+  available: boolean
+  message: string
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  railwayServiceId: string | null
+  generatedAt: string
+  deployments: PlatformManagedProductServiceRailwayDeploymentSummary[]
+}
+
 export type PlatformManagedProductServiceWebhookSubscriptionSummary = {
   shopDomain: string | null
   status: string
@@ -3013,6 +3032,12 @@ export function fetchProductServiceStoreBillingSummary(serviceRef: string, shopD
 export function fetchProductServiceStoreBinding(serviceRef: string, shopDomain: string) {
   return request<ShopifyStoreBindingInspectionSummary>(
     `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/binding`,
+  )
+}
+
+export function fetchProductServiceDeploymentHistory(serviceRef: string, limit = 10) {
+  return request<PlatformManagedProductServiceDeploymentHistorySummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/railway/deployments?limit=${encodeURIComponent(String(limit))}`,
   )
 }
 

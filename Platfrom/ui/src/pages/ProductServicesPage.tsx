@@ -32,6 +32,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   createProductService,
   decommissionProductService,
+  fetchProductServiceDeploymentHistory,
   fetchProductService,
   fetchProductServiceActivity,
   fetchProductServiceDependents,
@@ -234,6 +235,7 @@ export function ProductServicesPage() {
   const [webhookDialogStore, setWebhookDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
   const [billingDialogStore, setBillingDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
   const [bindingDialogStore, setBindingDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
+  const [deploymentHistoryDialogOpen, setDeploymentHistoryDialogOpen] = useState(false)
   const [rotateSecretValue, setRotateSecretValue] = useState('')
   const [forceRecreateConfirmation, setForceRecreateConfirmation] = useState('')
   const [decommissionConfirmation, setDecommissionConfirmation] = useState('')
@@ -321,6 +323,12 @@ export function ProductServicesPage() {
     enabled: selectedServiceRef.length > 0 && bindingDialogStore != null,
   })
 
+  const deploymentHistoryQuery = useQuery({
+    queryKey: ['product-services', selectedServiceRef, 'deployment-history'],
+    queryFn: () => fetchProductServiceDeploymentHistory(selectedServiceRef),
+    enabled: selectedServiceRef.length > 0 && deploymentHistoryDialogOpen,
+  })
+
   const refreshSelected = async (serviceRef: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['product-services'] }),
@@ -332,6 +340,7 @@ export function ProductServicesPage() {
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'webhook-subscriptions'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'store-billing-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'store-binding'] }),
+      queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'deployment-history'] }),
       queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
     ])
   }
@@ -490,6 +499,9 @@ export function ProductServicesPage() {
                           disabled={reconcileMutation.isPending}
                         >
                           Reconcile
+                        </Button>
+                        <Button variant="outlined" onClick={() => setDeploymentHistoryDialogOpen(true)}>
+                          Inspect Railway deployments
                         </Button>
                         <Button
                           variant="outlined"
@@ -1117,6 +1129,61 @@ export function ProductServicesPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBindingDialogStore(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deploymentHistoryDialogOpen} onClose={() => setDeploymentHistoryDialogOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Railway Deployment History</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Service {detailValue(selectedServiceRef)}
+            </Typography>
+            {deploymentHistoryQuery.isLoading ? (
+              <Alert severity="info">Loading Railway deployment history…</Alert>
+            ) : deploymentHistoryQuery.isError ? (
+              <Alert severity="error">
+                {deploymentHistoryQuery.error instanceof Error ? deploymentHistoryQuery.error.message : 'Failed to load Railway deployment history.'}
+              </Alert>
+            ) : deploymentHistoryQuery.data ? (
+              <Stack spacing={1.5}>
+                <Alert severity={deploymentHistoryQuery.data.available ? 'info' : 'warning'}>
+                  {deploymentHistoryQuery.data.message}
+                </Alert>
+                <Typography variant="body2" color="text.secondary">
+                  Project {detailValue(deploymentHistoryQuery.data.railwayProjectId)} · Environment {detailValue(deploymentHistoryQuery.data.railwayEnvironmentId)} · Service{' '}
+                  {detailValue(deploymentHistoryQuery.data.railwayServiceId)} · Generated {formatTimestamp(deploymentHistoryQuery.data.generatedAt)}
+                </Typography>
+                {deploymentHistoryQuery.data.deployments.length > 0 ? (
+                  <Stack spacing={1}>
+                    {deploymentHistoryQuery.data.deployments.map((deployment) => (
+                      <Card key={deployment.id} variant="outlined">
+                        <CardContent>
+                          <Stack spacing={1}>
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Typography sx={{ fontWeight: 700 }}>{detailValue(deployment.id)}</Typography>
+                              <Chip size="small" label={detailValue(deployment.status)} color={chipColor(deployment.status)} />
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary">
+                              URL {detailValue(deployment.url)} · Static {detailValue(deployment.staticUrl)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Created {formatTimestamp(deployment.createdAt)}
+                            </Typography>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                ) : null}
+              </Stack>
+            ) : (
+              <Alert severity="info">Railway deployment history is not available for this service yet.</Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeploymentHistoryDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 

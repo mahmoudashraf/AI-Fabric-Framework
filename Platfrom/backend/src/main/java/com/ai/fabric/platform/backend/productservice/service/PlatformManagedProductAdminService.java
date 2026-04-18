@@ -15,9 +15,11 @@ import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceBillingSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceDeploymentHistorySummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceInstallOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceProbeSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayDeploymentSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
@@ -133,6 +135,42 @@ public class PlatformManagedProductAdminService {
     public List<PlatformAuditEventSummary> listActivity(String serviceRef) {
         serviceService.requireService(serviceRef);
         return platformAuditService.listRecentEventsForTarget(TARGET_TYPE, serviceRef, 100);
+    }
+
+    public PlatformManagedProductServiceDeploymentHistorySummary getDeploymentHistory(String serviceRef, Integer limit) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        int requestedLimit = normalizeHistoryLimit(limit);
+        if (!hasText(service.getRailwayServiceId())) {
+            return unavailableDeploymentHistory(service, "Managed product service does not have a Railway service linkage yet.");
+        }
+
+        try {
+            List<PlatformManagedProductServiceRailwayDeploymentSummary> deployments = railwayGraphqlClient
+                .listServiceDeployments(service.getRailwayServiceId(), requestedLimit)
+                .stream()
+                .map(item -> new PlatformManagedProductServiceRailwayDeploymentSummary(
+                    item.id(),
+                    item.status(),
+                    item.url(),
+                    item.staticUrl(),
+                    item.createdAt()
+                ))
+                .toList();
+            return new PlatformManagedProductServiceDeploymentHistorySummary(
+                service.getServiceRef(),
+                true,
+                deployments.isEmpty()
+                    ? "No Railway deployments have been recorded for this managed product service yet."
+                    : "Fetched Railway deployment history successfully.",
+                service.getRailwayProjectId(),
+                service.getRailwayEnvironmentId(),
+                service.getRailwayServiceId(),
+                Instant.now(),
+                deployments
+            );
+        } catch (Exception ex) {
+            return unavailableDeploymentHistory(service, firstNonBlank(ex.getMessage(), "Failed to load Railway deployment history."));
+        }
     }
 
     public ShopifyStoreBindingInspectionSummary getStoreBinding(String serviceRef, String shopDomain) {
@@ -597,6 +635,20 @@ public class PlatformManagedProductAdminService {
         );
     }
 
+    private PlatformManagedProductServiceDeploymentHistorySummary unavailableDeploymentHistory(PlatformManagedProductServiceEntity service,
+                                                                                              String message) {
+        return new PlatformManagedProductServiceDeploymentHistorySummary(
+            service.getServiceRef(),
+            false,
+            firstNonBlank(message, "Managed product service Railway deployment history is unavailable."),
+            service.getRailwayProjectId(),
+            service.getRailwayEnvironmentId(),
+            service.getRailwayServiceId(),
+            Instant.now(),
+            List.of()
+        );
+    }
+
     private PlatformManagedProductServiceInstallOverview parseInstallOverview(JsonNode node) {
         return new PlatformManagedProductServiceInstallOverview(
             node.path("totalCount").asInt(0),
@@ -833,6 +885,13 @@ public class PlatformManagedProductAdminService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private int normalizeHistoryLimit(Integer limit) {
+        if (limit == null) {
+            return 10;
+        }
+        return Math.max(1, Math.min(limit, 20));
     }
 
     private record ProbeResult(PlatformManagedProductServiceProbeSummary summary) {

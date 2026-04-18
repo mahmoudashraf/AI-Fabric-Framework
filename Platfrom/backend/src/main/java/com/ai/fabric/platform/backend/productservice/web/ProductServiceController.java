@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.productservice.web;
 
 import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
 import com.ai.fabric.platform.backend.productservice.model.CreatePlatformManagedProductServiceRequest;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceDeploymentHistorySummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -71,6 +73,12 @@ public class ProductServiceController {
     @GetMapping("/{serviceRef}/activity")
     public List<PlatformAuditEventSummary> listActivity(@PathVariable String serviceRef) {
         return adminService.listActivity(serviceRef);
+    }
+
+    @GetMapping("/{serviceRef}/railway/deployments")
+    public PlatformManagedProductServiceDeploymentHistorySummary getDeploymentHistory(@PathVariable String serviceRef,
+                                                                                      @RequestParam(required = false) Integer limit) {
+        return adminService.getDeploymentHistory(serviceRef, limit);
     }
 
     @GetMapping("/{serviceRef}/health")
