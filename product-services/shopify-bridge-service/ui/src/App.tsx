@@ -22,6 +22,7 @@ import {
   fetchShell,
   goLiveStore,
   runSourcePreflight,
+  syncNowStore,
   updateSourceSettings,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeShellResponse,
@@ -68,7 +69,7 @@ export default function App() {
   })
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'go-live' | 'source-settings' | null>(null)
+  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'sync' | 'go-live' | 'source-settings' | null>(null)
   const [sourceSettings, setSourceSettings] = useState({
     productsEnabled: true,
     collectionsEnabled: true,
@@ -200,6 +201,24 @@ export default function App() {
     }
   }
 
+  async function handleSyncNow() {
+    setBusyAction('sync')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const store = await syncNowStore()
+      setState((current) => ({
+        ...current,
+        session: current.session ? { ...current.session, store } : current.session,
+      }))
+      setActionMessage(`Synced enabled Shopify content into the platform runtime for ${store.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to sync Shopify store content.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   async function handleSourceSettingsSave() {
     setBusyAction('source-settings')
     setActionError(null)
@@ -232,6 +251,10 @@ export default function App() {
     Boolean(session) &&
     Boolean(store) &&
     Boolean(store?.readiness?.goLiveEligible) &&
+    !isReleaseInProgress(store?.latestRelease?.status)
+  const canSyncNow =
+    Boolean(session) &&
+    Boolean(store?.deploymentId) &&
     !isReleaseInProgress(store?.latestRelease?.status)
   const sourceSettingsDirty =
     !!store &&
@@ -393,7 +416,7 @@ export default function App() {
                 Next actions
               </Text>
               <Text as="p" variant="bodyMd" tone="subdued">
-                Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability. Go live only after the source readiness checks are clean.
+                Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability. After bootstrap, use sync now to push enabled Shopify content into the bound deployment runtime. Go live only after the source readiness checks are clean.
               </Text>
               {store?.readiness ? (
                 <List type="bullet">
@@ -439,6 +462,13 @@ export default function App() {
                   disabled={!session}
                 >
                   Bootstrap deployment
+                </Button>
+                <Button
+                  onClick={() => void handleSyncNow()}
+                  loading={busyAction === 'sync'}
+                  disabled={!canSyncNow}
+                >
+                  Sync now
                 </Button>
                 <Button
                   onClick={() => void handleGoLive()}

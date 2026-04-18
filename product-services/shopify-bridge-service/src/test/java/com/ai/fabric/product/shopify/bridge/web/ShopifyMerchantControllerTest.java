@@ -131,6 +131,17 @@ class ShopifyMerchantControllerTest {
     }
 
     @Test
+    void syncNowUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.syncNow(any(), anyString())).thenReturn(store());
+
+        mockMvc.perform(post("/api/app/store/sync-now").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+
+        verify(merchantStoreService).syncNow(any(), anyString());
+    }
+
+    @Test
     void updateSourceSettingsUsesMerchantSessionContext() throws Exception {
         when(merchantStoreService.updateSourceSettings(any(), any())).thenReturn(store());
 

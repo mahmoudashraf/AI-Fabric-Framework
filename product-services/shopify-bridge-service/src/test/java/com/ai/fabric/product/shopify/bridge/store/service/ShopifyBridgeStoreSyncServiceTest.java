@@ -1,0 +1,199 @@
+package com.ai.fabric.product.shopify.bridge.store.service;
+
+import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSyncStoreDocumentsRequest;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class ShopifyBridgeStoreSyncServiceTest {
+
+    @Test
+    void syncCollectsEnabledStoreDocumentsAndCallsPlatformSync() {
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient);
+
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
+        query ShopifyCompanionProductsSync($cursor: String) {
+          products(first: 50, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                title
+                handle
+                descriptionHtml
+                vendor
+                productType
+                tags
+                updatedAt
+              }
+            }
+          }
+        }
+        """), eq(cursorVariables(null)))).thenReturn(Map.of(
+            "data", Map.of(
+                "products", Map.of(
+                    "pageInfo", pageInfo(false, null),
+                    "edges", List.of(Map.of("node", Map.of(
+                        "id", "gid://shopify/Product/1",
+                        "title", "Travel Backpack",
+                        "handle", "travel-backpack",
+                        "descriptionHtml", "<p>Carry-on sized backpack.</p>",
+                        "vendor", "Loom",
+                        "productType", "Bag",
+                        "tags", List.of("travel", "carry-on"),
+                        "updatedAt", "2026-04-18T12:00:00Z"
+                    )))
+                )
+            )
+        ));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
+        query ShopifyCompanionPoliciesSync {
+          shop {
+            shopPolicies {
+              id
+              title
+              type
+              body
+              url
+              updatedAt
+            }
+          }
+        }
+        """))).thenReturn(Map.of(
+            "data", Map.of(
+                "shop", Map.of(
+                    "shopPolicies", List.of(Map.of(
+                        "id", "gid://shopify/ShopPolicy/1",
+                        "title", "Refund policy",
+                        "type", "REFUND_POLICY",
+                        "body", "<p>Refund within 30 days.</p>",
+                        "url", "https://alpha.myshopify.com/policies/refund-policy",
+                        "updatedAt", "2026-04-18T12:05:00Z"
+                    ))
+                )
+            )
+        ));
+        when(platformClient.syncDocuments(eq("alpha.myshopify.com"), any())).thenReturn(store(true, false, false, true));
+        when(platformClient.recordSyncStatus(eq("alpha.myshopify.com"), any())).thenReturn(store(true, false, false, true));
+
+        ShopifyBridgeStoreSummary response = service.sync(acquisition(store(true, false, false, true)));
+
+        ArgumentCaptor<ShopifyBridgeSyncStoreDocumentsRequest> syncCaptor =
+            ArgumentCaptor.forClass(ShopifyBridgeSyncStoreDocumentsRequest.class);
+        verify(platformClient).syncDocuments(eq("alpha.myshopify.com"), syncCaptor.capture());
+        assertThat(syncCaptor.getValue().documents()).hasSize(2);
+        assertThat(syncCaptor.getValue().documents())
+            .extracting(document -> document.sourceCategory() + ":" + document.entityType())
+            .containsExactly("products:product", "policies:support-policy");
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+
+        ArgumentCaptor<ShopifyBridgeRecordSyncStatusRequest> statusCaptor =
+            ArgumentCaptor.forClass(ShopifyBridgeRecordSyncStatusRequest.class);
+        verify(platformClient).recordSyncStatus(eq("alpha.myshopify.com"), statusCaptor.capture());
+        assertThat(statusCaptor.getValue().status()).isEqualTo("SYNCED");
+        assertThat(statusCaptor.getValue().documentCount()).isEqualTo(2);
+    }
+
+    private Map<String, Object> cursorVariables(String cursor) {
+        LinkedHashMap<String, Object> variables = new LinkedHashMap<>();
+        variables.put("cursor", cursor);
+        return variables;
+    }
+
+    private Map<String, Object> pageInfo(boolean hasNextPage, String endCursor) {
+        LinkedHashMap<String, Object> pageInfo = new LinkedHashMap<>();
+        pageInfo.put("hasNextPage", hasNextPage);
+        pageInfo.put("endCursor", endCursor);
+        return pageInfo;
+    }
+
+    private ShopifyBridgeCredentialAcquisition acquisition(ShopifyBridgeStoreSummary store) {
+        return new ShopifyBridgeCredentialAcquisition(
+            store,
+            new ShopifyTokenExchangeMaterial(
+                "shpat_access",
+                "shprt_refresh",
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products,read_content",
+                true
+            )
+        );
+    }
+
+    private ShopifyBridgeStoreSummary store(boolean productsEnabled,
+                                            boolean collectionsEnabled,
+                                            boolean pagesEnabled,
+                                            boolean policiesEnabled) {
+        return new ShopifyBridgeStoreSummary(
+            "shp-1",
+            "alpha.myshopify.com",
+            "Alpha",
+            "shopify-bridge-prod",
+            "Shopify Bridge Prod",
+            "cust-1",
+            "Alpha Customer",
+            "dep-1",
+            "Alpha Deployment",
+            "ACTIVE",
+            "consumer-1",
+            "Alpha Storefront",
+            "INSTALLED",
+            "NOT_SYNCED",
+            "READY",
+            "NOT_ENABLED",
+            "GO_LIVE_REQUESTED",
+            productsEnabled,
+            collectionsEnabled,
+            pagesEnabled,
+            policiesEnabled,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products",
+                true
+            ),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z")
+        );
+    }
+}

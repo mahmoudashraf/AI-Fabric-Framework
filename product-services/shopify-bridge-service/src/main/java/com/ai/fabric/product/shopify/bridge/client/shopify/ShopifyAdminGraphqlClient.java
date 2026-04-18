@@ -27,6 +27,13 @@ public class ShopifyAdminGraphqlClient {
     public Map<String, Object> execute(String shopDomain,
                                        String accessToken,
                                        String query) {
+        return execute(shopDomain, accessToken, query, Map.of());
+    }
+
+    public Map<String, Object> execute(String shopDomain,
+                                       String accessToken,
+                                       String query,
+                                       Map<String, Object> variables) {
         if (properties.shopifyAdminApiVersion().isBlank()) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Shopify admin API version is not configured.");
         }
@@ -35,7 +42,9 @@ public class ShopifyAdminGraphqlClient {
             .contentType(MediaType.APPLICATION_JSON)
             .accept(MediaType.APPLICATION_JSON)
             .header("X-Shopify-Access-Token", accessToken)
-            .body(Map.of("query", query))
+            .body(variables == null || variables.isEmpty()
+                ? Map.of("query", query)
+                : Map.of("query", query, "variables", variables))
             .retrieve()
             .body(new ParameterizedTypeReference<>() { });
         if (response == null) {

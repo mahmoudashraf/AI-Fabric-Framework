@@ -39,7 +39,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             properties(),
             installRecordService,
             mock(ShopifyBridgeInstallCredentialService.class),
-            mock(ShopifyBridgeSourcePreflightService.class)
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class)
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(installRecordService.recordAuthenticatedSession(session(), "host-token")).thenReturn(new ShopifyInstallRecordSummary(
@@ -74,7 +75,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             properties(),
             mock(ShopifyInstallRecordService.class),
             installCredentialService,
-            mock(ShopifyBridgeSourcePreflightService.class)
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class)
         );
         when(client.getStore("alpha.myshopify.com")).thenThrow(notFound());
         when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));
@@ -113,7 +115,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             properties(),
             mock(ShopifyInstallRecordService.class),
             installCredentialService,
-            mock(ShopifyBridgeSourcePreflightService.class)
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class)
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(installCredentialService.acquireAndPersistMaterial(session(), "Bearer session-token"))
@@ -147,7 +150,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             properties(),
             mock(ShopifyInstallRecordService.class),
             installCredentialService,
-            mock(ShopifyBridgeSourcePreflightService.class)
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class)
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(installCredentialService.acquireAndPersistMaterial(session(), "Bearer session-token"))
@@ -171,7 +175,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             properties(),
             mock(ShopifyInstallRecordService.class),
             installCredentialService,
-            sourcePreflightService
+            sourcePreflightService,
+            mock(ShopifyBridgeStoreSyncService.class)
         );
         ShopifyBridgeCredentialAcquisition acquisition = acquisition(store("alpha.myshopify.com"));
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
@@ -186,6 +191,31 @@ class ShopifyBridgeMerchantStoreServiceTest {
     }
 
     @Test
+    void syncNowUsesConnectedCredentials() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            installCredentialService,
+            mock(ShopifyBridgeSourcePreflightService.class),
+            storeSyncService
+        );
+        ShopifyBridgeCredentialAcquisition acquisition = acquisition(store("alpha.myshopify.com"));
+        when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
+        when(installCredentialService.acquireAndPersistMaterial(session(), "Bearer session-token")).thenReturn(acquisition);
+        when(storeSyncService.sync(acquisition)).thenReturn(store("alpha.myshopify.com"));
+
+        ShopifyBridgeStoreSummary response = service.syncNow(session(), "Bearer session-token");
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        verify(installCredentialService).acquireAndPersistMaterial(session(), "Bearer session-token");
+        verify(storeSyncService).sync(acquisition);
+    }
+
+    @Test
     void updateSourceSettingsResetsReadinessAndSyncWhenTogglesChange() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
@@ -193,7 +223,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             properties(),
             mock(ShopifyInstallRecordService.class),
             mock(ShopifyBridgeInstallCredentialService.class),
-            mock(ShopifyBridgeSourcePreflightService.class)
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class)
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));

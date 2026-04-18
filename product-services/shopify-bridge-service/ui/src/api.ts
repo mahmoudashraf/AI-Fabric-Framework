@@ -156,6 +156,10 @@ export async function goLiveStore(): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/go-live', { method: 'POST' })
 }
 
+export async function syncNowStore(): Promise<ShopifyBridgeStoreSummary> {
+  return authenticatedFetchJson('/api/app/store/sync-now', { method: 'POST' })
+}
+
 export async function updateSourceSettings(settings: {
   productsEnabled: boolean
   collectionsEnabled: boolean

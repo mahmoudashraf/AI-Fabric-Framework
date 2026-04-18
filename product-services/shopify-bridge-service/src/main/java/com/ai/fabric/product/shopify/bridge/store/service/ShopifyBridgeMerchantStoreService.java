@@ -25,17 +25,20 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyBridgeSourcePreflightService sourcePreflightService;
+    private final ShopifyBridgeStoreSyncService storeSyncService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
                                              ShopifyInstallRecordService installRecordService,
                                              ShopifyBridgeInstallCredentialService installCredentialService,
-                                             ShopifyBridgeSourcePreflightService sourcePreflightService) {
+                                             ShopifyBridgeSourcePreflightService sourcePreflightService,
+                                             ShopifyBridgeStoreSyncService storeSyncService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
         this.installCredentialService = installCredentialService;
         this.sourcePreflightService = sourcePreflightService;
+        this.storeSyncService = storeSyncService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -71,6 +74,11 @@ public class ShopifyBridgeMerchantStoreService {
                                             String authorizationHeader) {
         acquireConnectedCredentials(merchantSession, authorizationHeader);
         return platformShopifyStoreClient.goLive(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgeStoreSummary syncNow(ShopifyMerchantSession merchantSession,
+                                             String authorizationHeader) {
+        return storeSyncService.sync(acquireConnectedCredentials(merchantSession, authorizationHeader));
     }
 
     public ShopifyBridgeStoreSummary updateSourceSettings(ShopifyMerchantSession merchantSession,

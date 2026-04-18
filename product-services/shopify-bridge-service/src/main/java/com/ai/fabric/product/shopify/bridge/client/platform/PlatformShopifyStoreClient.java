@@ -8,6 +8,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncS
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWebhookEventRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSyncStoreDocumentsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -108,6 +109,15 @@ public class PlatformShopifyStoreClient {
     public ShopifyBridgeStoreSummary recordSyncStatus(String shopDomain, ShopifyBridgeRecordSyncStatusRequest request) {
         return restClient.post()
             .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/sync-status")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public ShopifyBridgeStoreSummary syncDocuments(String shopDomain, ShopifyBridgeSyncStoreDocumentsRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/documents/sync")
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .body(request)
             .retrieve()

@@ -54,6 +54,12 @@ public class ShopifyMerchantController {
         return merchantStoreService.goLive(requireMerchant(authentication), authorizationHeader);
     }
 
+    @PostMapping("/store/sync-now")
+    public ShopifyBridgeStoreSummary syncNow(Authentication authentication,
+                                             @RequestHeader("Authorization") String authorizationHeader) {
+        return merchantStoreService.syncNow(requireMerchant(authentication), authorizationHeader);
+    }
+
     @PostMapping("/store/source-settings")
     public ShopifyBridgeStoreSummary updateSourceSettings(Authentication authentication,
                                                           @RequestBody(required = false) ShopifyBridgeUpdateSourceSettingsRequest request) {

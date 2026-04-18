@@ -7,11 +7,13 @@ import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWebhookEve
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreBootstrapService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreCredentialService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreDocumentSyncService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGoLiveService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
@@ -43,6 +45,7 @@ public class ShopifyAdminController {
     private final ShopifyStoreGoLiveService shopifyStoreGoLiveService;
     private final ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService;
     private final ShopifyStoreSyncService shopifyStoreSyncService;
+    private final ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService;
     private final ShopifyStoreWebhookService shopifyStoreWebhookService;
     private final ShopifyStoreWidgetService shopifyStoreWidgetService;
 
@@ -52,6 +55,7 @@ public class ShopifyAdminController {
                                   ShopifyStoreGoLiveService shopifyStoreGoLiveService,
                                   ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService,
                                   ShopifyStoreSyncService shopifyStoreSyncService,
+                                  ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService,
                                   ShopifyStoreWebhookService shopifyStoreWebhookService,
                                   ShopifyStoreWidgetService shopifyStoreWidgetService) {
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
@@ -60,6 +64,7 @@ public class ShopifyAdminController {
         this.shopifyStoreGoLiveService = shopifyStoreGoLiveService;
         this.shopifyStoreSourcePreflightService = shopifyStoreSourcePreflightService;
         this.shopifyStoreSyncService = shopifyStoreSyncService;
+        this.shopifyStoreDocumentSyncService = shopifyStoreDocumentSyncService;
         this.shopifyStoreWebhookService = shopifyStoreWebhookService;
         this.shopifyStoreWidgetService = shopifyStoreWidgetService;
     }
@@ -125,6 +130,12 @@ public class ShopifyAdminController {
     public ShopifyStoreConnectionSummary recordSyncStatus(@PathVariable String shopDomain,
                                                           @RequestBody RecordShopifyStoreSyncStatusRequest request) {
         return shopifyStoreSyncService.record(shopDomain, request);
+    }
+
+    @PostMapping("/{shopDomain}/documents/sync")
+    public ShopifyStoreConnectionSummary syncDocuments(@PathVariable String shopDomain,
+                                                       @RequestBody SyncShopifyStoreDocumentsRequest request) {
+        return shopifyStoreDocumentSyncService.sync(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/webhook-events")
