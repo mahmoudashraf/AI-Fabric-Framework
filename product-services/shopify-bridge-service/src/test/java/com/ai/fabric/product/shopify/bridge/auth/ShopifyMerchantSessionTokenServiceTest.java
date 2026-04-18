@@ -58,6 +58,7 @@ class ShopifyMerchantSessionTokenServiceTest {
             "SHOPIFY_BRIDGE_SERVICE",
             "test",
             "https://bridge.example.com",
+            "2026-04",
             "shopify-api-key",
             "shopify-secret",
             "https://platform.example.com",

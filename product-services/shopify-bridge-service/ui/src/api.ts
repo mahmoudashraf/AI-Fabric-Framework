@@ -36,6 +36,17 @@ export type ShopifyBridgeStoreSummary = {
     scopesText: string | null
     expiring: boolean
   } | null
+  sourcePreflight: {
+    overallStatus: string
+    checkedAt: string | null
+    categories: Array<{
+      category: string
+      enabled: boolean
+      status: string
+      itemCount: number
+      message: string | null
+    }>
+  } | null
 }
 
 export type ShopifyBridgeMerchantSessionResponse = {
@@ -83,6 +94,10 @@ export async function fetchSession(): Promise<ShopifyBridgeMerchantSessionRespon
 
 export async function connectStore(): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/connect', { method: 'POST' })
+}
+
+export async function runSourcePreflight(): Promise<ShopifyBridgeStoreSummary> {
+  return authenticatedFetchJson('/api/app/store/source-preflight', { method: 'POST' })
 }
 
 export async function bootstrapStore(): Promise<ShopifyBridgeStoreBootstrapResponse> {

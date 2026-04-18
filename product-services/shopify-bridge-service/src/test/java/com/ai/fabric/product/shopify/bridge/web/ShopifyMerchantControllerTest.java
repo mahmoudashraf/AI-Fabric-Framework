@@ -107,6 +107,17 @@ class ShopifyMerchantControllerTest {
         verify(merchantStoreService).bootstrap(any(), anyString());
     }
 
+    @Test
+    void sourcePreflightUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.runSourcePreflight(any(), anyString())).thenReturn(store());
+
+        mockMvc.perform(post("/api/app/store/source-preflight").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+
+        verify(merchantStoreService).runSourcePreflight(any(), anyString());
+    }
+
     private ShopifyBridgeStoreSummary store() {
         return new ShopifyBridgeStoreSummary(
             "shp-1",

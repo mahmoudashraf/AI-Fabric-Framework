@@ -19,6 +19,7 @@ import {
   connectStore,
   fetchSession,
   fetchShell,
+  runSourcePreflight,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
@@ -60,7 +61,7 @@ export default function App() {
   })
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const [busyAction, setBusyAction] = useState<'connect' | 'bootstrap' | null>(null)
+  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | null>(null)
 
   useEffect(() => {
     void refresh()
@@ -127,6 +128,24 @@ export default function App() {
       setActionMessage(`Bootstrapped deployment ${result.deploymentId ?? '—'} for ${result.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to bootstrap store.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleSourcePreflight() {
+    setBusyAction('preflight')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const store = await runSourcePreflight()
+      setState((current) => ({
+        ...current,
+        session: current.session ? { ...current.session, store } : current.session,
+      }))
+      setActionMessage(`Recorded Shopify source preflight for ${store.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to run Shopify source preflight.')
     } finally {
       setBusyAction(null)
     }
@@ -254,7 +273,7 @@ export default function App() {
                 Next actions
               </Text>
               <Text as="p" variant="bodyMd" tone="subdued">
-                Connect the current shop first. Bootstrap creates the platform customer, deployment, and consumer binding for this merchant.
+                Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability.
               </Text>
               <Divider />
               <InlineStack gap="300" align="start">
@@ -265,6 +284,13 @@ export default function App() {
                   disabled={!session}
                 >
                   Connect current shop
+                </Button>
+                <Button
+                  onClick={() => void handleSourcePreflight()}
+                  loading={busyAction === 'preflight'}
+                  disabled={!session}
+                >
+                  Run source preflight
                 </Button>
                 <Button
                   onClick={() => void handleBootstrap()}
@@ -303,6 +329,14 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
       {store.credentials ? (
         <Text as="p" variant="bodySm" tone="subdued">
           Token refs {store.credentials.accessTokenPresent ? 'ready' : 'missing'} / {store.credentials.refreshTokenPresent ? 'refresh ready' : 'refresh missing'} · Scope {store.credentials.scopesText ?? '—'}
+        </Text>
+      ) : null}
+      {store.sourcePreflight ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          Preflight {store.sourcePreflight.overallStatus} ·{' '}
+          {store.sourcePreflight.categories
+            .map((category) => `${category.category} ${category.status.toLowerCase()} (${category.itemCount})`)
+            .join(' · ')}
         </Text>
       ) : null}
       <Text as="p" variant="bodySm" tone="subdued">

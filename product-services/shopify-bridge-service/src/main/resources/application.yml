@@ -40,6 +40,7 @@ shopify:
     service-kind: ${SHOPIFY_BRIDGE_SERVICE_KIND:SHOPIFY_BRIDGE_SERVICE}
     environment-scope: ${SHOPIFY_BRIDGE_ENVIRONMENT_SCOPE:local}
     public-base-url: ${SHOPIFY_BRIDGE_PUBLIC_BASE_URL:}
+    shopify-admin-api-version: ${SHOPIFY_BRIDGE_ADMIN_API_VERSION:2026-04}
     shopify-api-key: ${SHOPIFY_BRIDGE_SHOPIFY_API_KEY:}
     shopify-api-secret: ${SHOPIFY_BRIDGE_SHOPIFY_API_SECRET:}
     platform-base-url: ${SHOPIFY_BRIDGE_PLATFORM_BASE_URL:}

@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
@@ -22,15 +23,18 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyBridgeProperties properties;
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
+    private final ShopifyBridgeSourcePreflightService sourcePreflightService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
                                              ShopifyInstallRecordService installRecordService,
-                                             ShopifyBridgeInstallCredentialService installCredentialService) {
+                                             ShopifyBridgeInstallCredentialService installCredentialService,
+                                             ShopifyBridgeSourcePreflightService sourcePreflightService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
         this.installCredentialService = installCredentialService;
+        this.sourcePreflightService = sourcePreflightService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -48,6 +52,22 @@ public class ShopifyBridgeMerchantStoreService {
 
     public ShopifyBridgeStoreSummary connect(ShopifyMerchantSession merchantSession,
                                              String authorizationHeader) {
+        return acquireConnectedCredentials(merchantSession, authorizationHeader).store();
+    }
+
+    public ShopifyBridgeStoreSummary runSourcePreflight(ShopifyMerchantSession merchantSession,
+                                                        String authorizationHeader) {
+        return sourcePreflightService.run(acquireConnectedCredentials(merchantSession, authorizationHeader));
+    }
+
+    public ShopifyBridgeStoreBootstrapResponse bootstrap(ShopifyMerchantSession merchantSession,
+                                                         String authorizationHeader) {
+        acquireConnectedCredentials(merchantSession, authorizationHeader);
+        return platformShopifyStoreClient.bootstrap(merchantSession.shopDomain());
+    }
+
+    private ShopifyBridgeCredentialAcquisition acquireConnectedCredentials(ShopifyMerchantSession merchantSession,
+                                                                           String authorizationHeader) {
         ShopifyBridgeStoreSummary current = findStoreOrNull(merchantSession.shopDomain());
         if (current == null) {
             platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
@@ -68,13 +88,7 @@ public class ShopifyBridgeMerchantStoreService {
                 true
             ));
         }
-        return installCredentialService.acquireAndPersist(merchantSession, authorizationHeader);
-    }
-
-    public ShopifyBridgeStoreBootstrapResponse bootstrap(ShopifyMerchantSession merchantSession,
-                                                         String authorizationHeader) {
-        connect(merchantSession, authorizationHeader);
-        return platformShopifyStoreClient.bootstrap(merchantSession.shopDomain());
+        return installCredentialService.acquireAndPersistMaterial(merchantSession, authorizationHeader);
     }
 
     private ShopifyBridgeStoreSummary findStoreOrNull(String shopDomain) {

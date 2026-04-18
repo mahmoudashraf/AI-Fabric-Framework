@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.install.service;
 
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -25,6 +26,11 @@ public class ShopifyBridgeInstallCredentialService {
 
     public ShopifyBridgeStoreSummary acquireAndPersist(ShopifyMerchantSession merchantSession,
                                                        String authorizationHeader) {
+        return acquireAndPersistMaterial(merchantSession, authorizationHeader).store();
+    }
+
+    public ShopifyBridgeCredentialAcquisition acquireAndPersistMaterial(ShopifyMerchantSession merchantSession,
+                                                                       String authorizationHeader) {
         ShopifyTokenExchangeMaterial exchanged = tokenExchangeService.exchangeExpiringOfflineToken(merchantSession, authorizationHeader);
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.upsertCredentials(
             merchantSession.shopDomain(),
@@ -47,7 +53,7 @@ public class ShopifyBridgeInstallCredentialService {
                 store.credentials().scopesText()
             );
         }
-        return store;
+        return new ShopifyBridgeCredentialAcquisition(store, exchanged);
     }
 
     public ShopifyInstallRecordSummary clearPersistedCredentials(String shopDomain) {

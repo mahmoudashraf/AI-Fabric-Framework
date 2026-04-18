@@ -34,6 +34,12 @@ public class ShopifyMerchantController {
         return merchantStoreService.connect(requireMerchant(authentication), authorizationHeader);
     }
 
+    @PostMapping("/store/source-preflight")
+    public ShopifyBridgeStoreSummary runSourcePreflight(Authentication authentication,
+                                                        @RequestHeader("Authorization") String authorizationHeader) {
+        return merchantStoreService.runSourcePreflight(requireMerchant(authentication), authorizationHeader);
+    }
+
     @PostMapping("/store/bootstrap")
     public ShopifyBridgeStoreBootstrapResponse bootstrap(Authentication authentication,
                                                          @RequestHeader("Authorization") String authorizationHeader) {

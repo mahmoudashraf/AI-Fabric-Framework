@@ -10,6 +10,7 @@ public record ShopifyBridgeProperties(
     String serviceKind,
     String environmentScope,
     String publicBaseUrl,
+    String shopifyAdminApiVersion,
     String shopifyApiKey,
     String shopifyApiSecret,
     String platformBaseUrl,
@@ -27,6 +28,7 @@ public record ShopifyBridgeProperties(
         serviceKind = normalize(serviceKind, "SHOPIFY_BRIDGE_SERVICE");
         environmentScope = normalize(environmentScope, "local");
         publicBaseUrl = normalize(publicBaseUrl, "");
+        shopifyAdminApiVersion = normalize(shopifyAdminApiVersion, "2026-04");
         shopifyApiKey = normalize(shopifyApiKey, "");
         shopifyApiSecret = normalize(shopifyApiSecret, "");
         platformBaseUrl = normalize(platformBaseUrl, "");
