@@ -137,6 +137,7 @@ public final class ManagedDeploymentProfileCatalog {
         "platform-poc:SESSION",
         "platform-poc:API_KEY",
         "platform-poc:SYSTEM",
+        "platform-consumer-bridge",
         "platform-release-verification",
         "platform-vectorization-verification",
         "platform-runtime-coverage"
