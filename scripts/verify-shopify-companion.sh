@@ -12,13 +12,14 @@ set -euo pipefail
 #
 # Required env:
 #   PLATFORM_BASE_URL
-#   PLATFORM_API_KEY
+#   PLATFORM_API_KEY or PLATFORM_SESSION_COOKIE_JAR
 #   SHOPIFY_BRIDGE_BASE_URL
 #   SHOP_DOMAIN
 #
 # Optional env:
 #   PRODUCT_SERVICE_REF=shopify-bridge-prod
 #   PLATFORM_API_KEY_HEADER=X-PLATFORM-API-KEY
+#   PLATFORM_SESSION_COOKIE_JAR=/tmp/platform.cookies
 #   SHOPIFY_BRIDGE_ADMIN_API_KEY=...
 #   SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER=X-BRIDGE-API-KEY
 #   SHOPPER_SESSION_ID=...
@@ -41,6 +42,7 @@ set -euo pipefail
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-}"
 PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_API_KEY_HEADER="${PLATFORM_API_KEY_HEADER:-X-PLATFORM-API-KEY}"
+PLATFORM_SESSION_COOKIE_JAR="${PLATFORM_SESSION_COOKIE_JAR:-}"
 SHOPIFY_BRIDGE_BASE_URL="${SHOPIFY_BRIDGE_BASE_URL:-}"
 SHOP_DOMAIN="${SHOP_DOMAIN:-}"
 PRODUCT_SERVICE_REF="${PRODUCT_SERVICE_REF:-shopify-bridge-prod}"
@@ -165,7 +167,7 @@ http_request() {
   shift 3 || true
   local headers=("$@")
   local response
-  response="$(python3 - "$method" "$url" "$body" "${headers[@]}" <<'PY'
+  response="$(python3 - "$method" "$url" "$body" "${HTTP_COOKIE_JAR:-}" "${headers[@]}" <<'PY'
 import json
 import subprocess
 import sys
@@ -173,7 +175,8 @@ import sys
 method = sys.argv[1]
 url = sys.argv[2]
 body = sys.argv[3]
-headers = sys.argv[4:]
+cookie_jar = sys.argv[4]
+headers = sys.argv[5:]
 
 cmd = [
     "curl",
@@ -182,6 +185,8 @@ cmd = [
     "-H", "Accept: application/json",
     "-w", "\n%{http_code}",
 ]
+if cookie_jar:
+    cmd.extend(["-b", cookie_jar])
 for header in headers:
     cmd.extend(["-H", header])
 if body:
@@ -197,6 +202,13 @@ PY
 )"
   HTTP_BODY="${response%$'\n'*}"
   HTTP_STATUS="${response##*$'\n'}"
+}
+
+platform_request() {
+  local previous_cookie_jar="${HTTP_COOKIE_JAR:-}"
+  HTTP_COOKIE_JAR="${PLATFORM_SESSION_COOKIE_JAR:-}"
+  http_request "$@"
+  HTTP_COOKIE_JAR="${previous_cookie_jar}"
 }
 
 assert_shopify_webhook_subscriptions() {
@@ -256,19 +268,25 @@ if missing or wrong:
 PY
 }
 
-platform_headers=("${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
+platform_headers=()
+if [[ -n "${PLATFORM_API_KEY}" ]]; then
+  platform_headers=("${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
+fi
 bridge_base="$(trim_slash "${SHOPIFY_BRIDGE_BASE_URL}")"
 platform_base="$(trim_slash "${PLATFORM_BASE_URL}")"
 
 require_cmd curl
 require_cmd python3
 require_env PLATFORM_BASE_URL
-require_env PLATFORM_API_KEY
 require_env SHOPIFY_BRIDGE_BASE_URL
 require_env SHOP_DOMAIN
+if [[ -z "${PLATFORM_API_KEY}" && -z "${PLATFORM_SESSION_COOKIE_JAR}" ]]; then
+  echo "Missing required auth: set PLATFORM_API_KEY or PLATFORM_SESSION_COOKIE_JAR"
+  exit 2
+fi
 
 echo "== Platform product service summary =="
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "product service summary status"
 product_service_json="${HTTP_BODY}"
 assert_equals "$(json_get "${product_service_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "product service ref"
@@ -276,13 +294,13 @@ assert_equals "$(json_get "${product_service_json}" "status")" "${EXPECT_PRODUCT
 assert_nonempty "$(json_get "${product_service_json}" "baseUrl")" "product service baseUrl"
 
 echo "== Platform product service health =="
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/health" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/health" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "product service health status"
 health_json="${HTTP_BODY}"
 assert_nonempty "$(json_get "${health_json}" "overallStatus")" "product service overallStatus"
 
 echo "== Platform product service overview =="
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/overview" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/overview" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "product service overview status"
 overview_json="${HTTP_BODY}"
 assert_nonempty "$(json_get "${overview_json}" "storeOverview.totalCount")" "overview store total count"
@@ -291,7 +309,7 @@ assert_nonempty "$(json_get "${overview_json}" "usage.totalLast7Days")" "overvie
 assert_nonempty "$(json_get "${overview_json}" "billing.mode")" "overview billing mode"
 
 echo "== Platform product service Railway deployments =="
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/deployments?limit=5" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/deployments?limit=5" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "product service Railway deployments status"
 product_service_deployments_json="${HTTP_BODY}"
 assert_equals "$(json_get "${product_service_deployments_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "product service deployment history serviceRef"
@@ -301,7 +319,7 @@ assert_nonempty "$(json_get "${product_service_deployments_json}" "deployments.0
 
 echo "== Platform product service Railway logs =="
 latest_product_service_deployment_id="$(json_get "${product_service_deployments_json}" "deployments.0.id")"
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/logs?source=deployment&deploymentId=${latest_product_service_deployment_id}&limit=50" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/logs?source=deployment&deploymentId=${latest_product_service_deployment_id}&limit=50" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "product service Railway logs status"
 product_service_logs_json="${HTTP_BODY}"
 assert_equals "$(json_get "${product_service_logs_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "product service Railway logs serviceRef"
@@ -310,7 +328,7 @@ assert_equals "$(json_get "${product_service_logs_json}" "railwayDeploymentId")"
 assert_nonempty "$(json_get "${product_service_logs_json}" "queriedAt")" "product service Railway logs queriedAt"
 
 echo "== Platform store summary =="
-http_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "platform store summary status"
 store_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store shopDomain"
@@ -328,7 +346,7 @@ assert_nonempty "$(json_get "${store_json}" "syncDetail.checkedAt")" "platform s
 assert_nonempty "$(json_get "${store_json}" "widgetDetail.message")" "platform widget message"
 
 echo "== Platform store binding inspection =="
-http_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "platform store binding status"
 store_binding_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store binding shopDomain"
@@ -340,7 +358,7 @@ assert_nonempty "$(json_get "${store_binding_json}" "latestVersion.id")" "platfo
 assert_nonempty "$(json_get "${store_binding_json}" "latestRelease.id")" "platform store binding latest release id"
 
 echo "== Platform store binding inspection via product service =="
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "product service store binding status"
 service_store_binding_json="${HTTP_BODY}"
 assert_equals "$(json_get "${service_store_binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "product service store binding shopDomain"
@@ -349,7 +367,7 @@ assert_equals "$(json_get "${service_store_binding_json}" "deployment.id")" "$(j
 assert_equals "$(json_get "${service_store_binding_json}" "consumer.consumerId")" "$(json_get "${store_binding_json}" "consumer.consumerId")" "product service store binding consumer id"
 
 echo "== Platform store billing posture =="
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/billing-summary" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/billing-summary" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "platform store billing summary status"
 platform_store_billing_json="${HTTP_BODY}"
 assert_equals "$(json_get "${platform_store_billing_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store billing shopDomain"
@@ -358,7 +376,7 @@ assert_optional_equals "$(json_get "${platform_store_billing_json}" "status")" "
 assert_optional_equals "$(json_get "${platform_store_billing_json}" "launchBlocked")" "${EXPECT_BILLING_LAUNCH_BLOCKED}" "platform store billing launchBlocked"
 
 echo "== Platform store webhook diagnostics =="
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "platform store webhook diagnostics status"
 platform_store_webhook_json="${HTTP_BODY}"
 assert_equals "$(json_get "${platform_store_webhook_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store webhook shopDomain"

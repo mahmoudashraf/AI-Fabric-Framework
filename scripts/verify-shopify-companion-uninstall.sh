@@ -13,13 +13,14 @@ set -euo pipefail
 #
 # Required env:
 #   PLATFORM_BASE_URL
-#   PLATFORM_API_KEY
+#   PLATFORM_API_KEY or PLATFORM_SESSION_COOKIE_JAR
 #   SHOPIFY_BRIDGE_BASE_URL
 #   SHOP_DOMAIN
 #
 # Optional env:
 #   PRODUCT_SERVICE_REF=shopify-bridge-prod
 #   PLATFORM_API_KEY_HEADER=X-PLATFORM-API-KEY
+#   PLATFORM_SESSION_COOKIE_JAR=/tmp/platform.cookies
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
 #   EXPECT_INSTALL_STATUS=UNINSTALLED
@@ -34,6 +35,7 @@ set -euo pipefail
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-}"
 PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_API_KEY_HEADER="${PLATFORM_API_KEY_HEADER:-X-PLATFORM-API-KEY}"
+PLATFORM_SESSION_COOKIE_JAR="${PLATFORM_SESSION_COOKIE_JAR:-}"
 SHOPIFY_BRIDGE_BASE_URL="${SHOPIFY_BRIDGE_BASE_URL:-}"
 SHOP_DOMAIN="${SHOP_DOMAIN:-}"
 PRODUCT_SERVICE_REF="${PRODUCT_SERVICE_REF:-shopify-bridge-prod}"
@@ -141,14 +143,15 @@ http_request() {
   shift 3 || true
   local headers=("$@")
   local response
-  response="$(python3 - "$method" "$url" "$body" "${headers[@]}" <<'PY'
+  response="$(python3 - "$method" "$url" "$body" "${HTTP_COOKIE_JAR:-}" "${headers[@]}" <<'PY'
 import subprocess
 import sys
 
 method = sys.argv[1]
 url = sys.argv[2]
 body = sys.argv[3]
-headers = sys.argv[4:]
+cookie_jar = sys.argv[4]
+headers = sys.argv[5:]
 
 cmd = [
     "curl",
@@ -157,6 +160,8 @@ cmd = [
     "-H", "Accept: application/json",
     "-w", "\n%{http_code}",
 ]
+if cookie_jar:
+    cmd.extend(["-b", cookie_jar])
 for header in headers:
     cmd.extend(["-H", header])
 if body:
@@ -174,19 +179,32 @@ PY
   HTTP_STATUS="${response##*$'\n'}"
 }
 
+platform_request() {
+  local previous_cookie_jar="${HTTP_COOKIE_JAR:-}"
+  HTTP_COOKIE_JAR="${PLATFORM_SESSION_COOKIE_JAR:-}"
+  http_request "$@"
+  HTTP_COOKIE_JAR="${previous_cookie_jar}"
+}
+
 platform_base="$(trim_slash "${PLATFORM_BASE_URL}")"
 bridge_base="$(trim_slash "${SHOPIFY_BRIDGE_BASE_URL}")"
-platform_headers=("${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
+platform_headers=()
+if [[ -n "${PLATFORM_API_KEY}" ]]; then
+  platform_headers=("${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
+fi
 
 require_cmd curl
 require_cmd python3
 require_env PLATFORM_BASE_URL
-require_env PLATFORM_API_KEY
 require_env SHOPIFY_BRIDGE_BASE_URL
 require_env SHOP_DOMAIN
+if [[ -z "${PLATFORM_API_KEY}" && -z "${PLATFORM_SESSION_COOKIE_JAR}" ]]; then
+  echo "Missing required auth: set PLATFORM_API_KEY or PLATFORM_SESSION_COOKIE_JAR"
+  exit 2
+fi
 
 echo "== Platform uninstall =="
-http_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/uninstall" "" "${platform_headers[@]}"
+platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/uninstall" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "platform uninstall status"
 uninstall_json="${HTTP_BODY}"
 assert_equals "$(json_get "${uninstall_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform uninstall shopDomain"
@@ -201,7 +219,7 @@ assert_equals "$(json_get "${uninstall_json}" "syncDetail.status")" "${EXPECT_DO
 assert_nonempty "$(json_get "${uninstall_json}" "widgetDetail.message")" "platform uninstall widget message"
 
 echo "== Platform store summary after uninstall =="
-http_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "platform store summary after uninstall status"
 store_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_json}" "installStatus")" "${EXPECT_INSTALL_STATUS}" "platform store installStatus"
@@ -210,7 +228,7 @@ assert_equals "$(json_get "${store_json}" "credentials.status")" "${EXPECT_CREDE
 assert_equals "$(json_get "${store_json}" "syncDetail.status")" "${EXPECT_DOCUMENT_CLEANUP_STATUS}" "platform store sync detail status"
 
 echo "== Platform binding inspection after uninstall =="
-http_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "platform binding inspection after uninstall status"
 binding_json="${HTTP_BODY}"
 assert_equals "$(json_get "${binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform binding shopDomain after uninstall"
@@ -220,7 +238,7 @@ assert_nonempty "$(json_get "${binding_json}" "deployment.id")" "platform bindin
 assert_nonempty "$(json_get "${binding_json}" "consumer.consumerId")" "platform binding consumer id after uninstall"
 
 echo "== Product service binding inspection after uninstall =="
-http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
 assert_equals "${HTTP_STATUS}" "200" "product service binding inspection after uninstall status"
 service_binding_json="${HTTP_BODY}"
 assert_equals "$(json_get "${service_binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "product service binding shopDomain after uninstall"
