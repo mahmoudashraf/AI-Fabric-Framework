@@ -47,6 +47,39 @@ public class ShopifyInstallRecordService {
     }
 
     @Transactional
+    public ShopifyInstallRecordSummary recordInstall(String shopDomain,
+                                                     String shopUrl,
+                                                     String appBridgeHost,
+                                                     String scopesText,
+                                                     String accessTokenSecretRef,
+                                                     String refreshTokenSecretRef,
+                                                     Instant accessTokenExpiresAt,
+                                                     Instant refreshTokenExpiresAt) {
+        Instant now = Instant.now();
+        ShopifyInstallRecordEntity entity = repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
+            .orElseGet(ShopifyInstallRecordEntity::new);
+        if (entity.getId() == null) {
+            entity.setId("sir-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16));
+            entity.setCreatedAt(now);
+            entity.setInstalledAt(now);
+        } else if (entity.getInstalledAt() == null) {
+            entity.setInstalledAt(now);
+        }
+        entity.setShopDomain(normalizeShopDomain(shopDomain));
+        entity.setStatus("INSTALLED");
+        entity.setShopUrl(blankToNull(shopUrl));
+        entity.setAppBridgeHost(blankToNull(appBridgeHost));
+        entity.setScopesText(blankToNull(scopesText));
+        entity.setAccessTokenSecretRef(blankToNull(accessTokenSecretRef));
+        entity.setRefreshTokenSecretRef(blankToNull(refreshTokenSecretRef));
+        entity.setAccessTokenExpiresAt(accessTokenExpiresAt);
+        entity.setRefreshTokenExpiresAt(refreshTokenExpiresAt);
+        entity.setLastUninstalledAt(null);
+        entity.setUpdatedAt(now);
+        return toSummary(repository.save(entity));
+    }
+
+    @Transactional
     public Optional<ShopifyInstallRecordSummary> recordCredentials(String shopDomain,
                                                                    String accessTokenSecretRef,
                                                                    String refreshTokenSecretRef,

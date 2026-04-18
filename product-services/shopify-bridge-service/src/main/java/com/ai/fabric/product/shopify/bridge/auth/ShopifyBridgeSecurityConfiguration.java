@@ -34,6 +34,7 @@ public class ShopifyBridgeSecurityConfiguration {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                .requestMatchers("/auth/shopify/**").permitAll()
                 .requestMatchers("/api/webhooks/shopify").permitAll()
                 .requestMatchers("/api/app/shell").permitAll()
                 .requestMatchers("/api/app/**").authenticated()

@@ -77,4 +77,24 @@ class ShopifyInstallRecordServiceTest {
         assertThat(summary.scopesText()).isEqualTo("read_products");
         assertThat(summary.accessTokenExpiresAt()).isEqualTo(Instant.parse("2026-04-18T01:00:00Z"));
     }
+
+    @Test
+    void recordInstallCreatesInstalledRecordWithoutMerchantSession() {
+        ShopifyInstallRecordSummary summary = service.recordInstall(
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "embedded-host-token",
+            "read_products,read_content",
+            "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+            null,
+            null,
+            null
+        );
+
+        assertThat(summary.status()).isEqualTo("INSTALLED");
+        assertThat(summary.shopDomain()).isEqualTo("alpha.myshopify.com");
+        assertThat(summary.appBridgeHost()).isEqualTo("embedded-host-token");
+        assertThat(summary.accessTokenSecretRef()).isEqualTo("MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA");
+        assertThat(summary.installedAt()).isNotNull();
+    }
 }
