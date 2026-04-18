@@ -112,6 +112,7 @@ export default function App() {
   })
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [pendingBillingReturn, setPendingBillingReturn] = useState(() => hasBillingReturnQueryParam())
   const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'sync' | 'go-live' | 'source-settings' | 'billing-approval' | null>(null)
   const [widgetSettings, setWidgetSettings] = useState({
     launcherLabel: 'Ask the store assistant',
@@ -148,6 +149,21 @@ export default function App() {
     }, 5000)
     return () => window.clearTimeout(timer)
   }, [state.session?.store?.latestRelease?.status])
+
+  useEffect(() => {
+    if (!pendingBillingReturn || state.loading) {
+      return
+    }
+    if (state.error) {
+      setActionError(`Returned from Shopify billing approval, but the bridge could not refresh the store state: ${state.error}`)
+      clearBillingReturnQueryParam()
+      setPendingBillingReturn(false)
+      return
+    }
+    setActionMessage(describeBillingReturn(state.billingSummary))
+    clearBillingReturnQueryParam()
+    setPendingBillingReturn(false)
+  }, [pendingBillingReturn, state.billingSummary, state.error, state.loading])
 
   async function refresh() {
     setState((current) => ({ ...current, loading: true, error: null }))
@@ -1456,6 +1472,26 @@ function redirectTopLevel(url: string) {
     return
   }
   window.location.assign(url)
+}
+
+function hasBillingReturnQueryParam(): boolean {
+  return new URLSearchParams(window.location.search).get('billing') === 'return'
+}
+
+function clearBillingReturnQueryParam() {
+  const url = new URL(window.location.href)
+  url.searchParams.delete('billing')
+  window.history.replaceState({}, document.title, url.toString())
+}
+
+function describeBillingReturn(billingSummary: ShopifyBridgeBillingSummary | null): string {
+  if (!billingSummary) {
+    return 'Returned from Shopify billing approval. Refresh the page if the store billing status does not update.'
+  }
+  if (!billingSummary.launchBlocked && billingSummary.status === 'ACTIVE') {
+    return 'Shopify billing is active for this store. You can continue with go-live.'
+  }
+  return `Returned from Shopify billing approval, but billing is still ${billingSummary.status ?? 'UNKNOWN'}. ${billingSummary.message ?? 'Review the billing section before continuing.'}`
 }
 
 function formatUsageBreakdown(entries: Array<{ eventType: string; count: number }>): string {
