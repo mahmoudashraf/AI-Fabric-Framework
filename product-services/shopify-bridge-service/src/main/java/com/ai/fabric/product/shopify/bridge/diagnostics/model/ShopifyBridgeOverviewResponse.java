@@ -1,5 +1,8 @@
 package com.ai.fabric.product.shopify.bridge.diagnostics.model;
 
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -16,6 +19,8 @@ public record ShopifyBridgeOverviewResponse(
     Instant serverStartedAt,
     ShopifyBridgeInstallOverview installs,
     ShopifyBridgeStoreOverview stores,
+    ShopifyBridgeBillingSummary billing,
+    ShopifyBridgeUsageOverview usage,
     List<String> capabilities,
     List<String> notYetImplemented
 ) {

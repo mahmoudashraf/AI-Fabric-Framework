@@ -19,4 +19,8 @@ public interface ShopifyBridgeUsageDailyRepository extends JpaRepository<Shopify
         String shopDomain,
         LocalDate usageDate
     );
+
+    List<ShopifyBridgeUsageDailyEntity> findByUsageDateGreaterThanEqualOrderByUsageDateAscShopDomainAscEventTypeAsc(
+        LocalDate usageDate
+    );
 }

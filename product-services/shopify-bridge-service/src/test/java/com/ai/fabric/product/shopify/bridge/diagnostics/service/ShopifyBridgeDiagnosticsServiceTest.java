@@ -1,5 +1,10 @@
 package com.ai.fabric.product.shopify.bridge.diagnostics.service;
 
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.entity.ShopifyInstallRecordEntity;
@@ -21,6 +26,8 @@ class ShopifyBridgeDiagnosticsServiceTest {
     void overviewAggregatesInstallAndStoreCounts() {
         ShopifyInstallRecordRepository installRecordRepository = mock(ShopifyInstallRecordRepository.class);
         PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
         when(installRecordRepository.findAll()).thenReturn(List.of(
             install("alpha.myshopify.com", "INSTALLED", true),
             install("beta.myshopify.com", "UNINSTALLED", false)
@@ -29,11 +36,31 @@ class ShopifyBridgeDiagnosticsServiceTest {
             store("alpha.myshopify.com", "LIVE", true, true, Instant.parse("2026-04-18T10:15:00Z")),
             store("beta.myshopify.com", "BLOCKED", false, false, Instant.parse("2026-04-18T09:15:00Z"))
         ));
+        when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
+            "FREE",
+            "Companion Free",
+            "ACTIVE",
+            false,
+            false,
+            "Free mode."
+        ));
+        when(usageService.summarizeAllShops()).thenReturn(new ShopifyBridgeUsageOverview(
+            Instant.parse("2026-04-18T10:20:00Z"),
+            Instant.parse("2026-04-18T10:18:00Z"),
+            1,
+            2,
+            5,
+            8,
+            List.of(new ShopifyBridgeUsageEventCountSummary("MERCHANT_GO_LIVE", 2)),
+            List.of(new ShopifyBridgeUsageEventCountSummary("STOREFRONT_WIDGET_OPENED_HOME_PAGE", 4))
+        ));
 
         ShopifyBridgeDiagnosticsService service = new ShopifyBridgeDiagnosticsService(
             properties(),
             installRecordRepository,
-            platformShopifyStoreClient
+            platformShopifyStoreClient,
+            billingService,
+            usageService
         );
 
         var overview = service.overview();
@@ -44,19 +71,45 @@ class ShopifyBridgeDiagnosticsServiceTest {
         assertThat(overview.stores().totalCount()).isEqualTo(2);
         assertThat(overview.stores().readyForGoLiveCount()).isEqualTo(1);
         assertThat(overview.stores().blockedCount()).isEqualTo(1);
+        assertThat(overview.billing().mode()).isEqualTo("FREE");
+        assertThat(overview.usage().activeShopsLast7Days()).isEqualTo(2);
+        assertThat(overview.usage().totalToday()).isEqualTo(5);
+        assertThat(overview.notYetImplemented()).isEmpty();
     }
 
     @Test
     void overviewDegradesWhenPlatformStoreLookupFails() {
         ShopifyInstallRecordRepository installRecordRepository = mock(ShopifyInstallRecordRepository.class);
         PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
         when(installRecordRepository.findAll()).thenReturn(List.of());
         when(platformShopifyStoreClient.listStores()).thenThrow(new IllegalStateException("Platform store API unavailable"));
+        when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
+            "FREE",
+            "Companion Free",
+            "ACTIVE",
+            false,
+            false,
+            "Free mode."
+        ));
+        when(usageService.summarizeAllShops()).thenReturn(new ShopifyBridgeUsageOverview(
+            Instant.parse("2026-04-18T10:20:00Z"),
+            null,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of()
+        ));
 
         ShopifyBridgeDiagnosticsService service = new ShopifyBridgeDiagnosticsService(
             properties(),
             installRecordRepository,
-            platformShopifyStoreClient
+            platformShopifyStoreClient,
+            billingService,
+            usageService
         );
 
         var overview = service.overview();

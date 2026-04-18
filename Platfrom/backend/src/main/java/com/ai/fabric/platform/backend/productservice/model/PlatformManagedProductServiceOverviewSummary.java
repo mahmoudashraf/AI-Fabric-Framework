@@ -16,6 +16,8 @@ public record PlatformManagedProductServiceOverviewSummary(
     String serverStartedAt,
     PlatformManagedProductServiceInstallOverview installs,
     PlatformManagedProductServiceStoreOverview stores,
+    PlatformManagedProductServiceBillingSummary billing,
+    PlatformManagedProductServiceUsageSummary usage,
     List<String> capabilities,
     List<String> notYetImplemented
 ) {

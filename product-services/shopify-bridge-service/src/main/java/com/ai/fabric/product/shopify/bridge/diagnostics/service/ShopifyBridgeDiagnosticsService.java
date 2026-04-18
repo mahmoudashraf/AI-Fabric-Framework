@@ -1,5 +1,9 @@
 package com.ai.fabric.product.shopify.bridge.diagnostics.service;
 
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInstallOverview;
@@ -20,14 +24,20 @@ public class ShopifyBridgeDiagnosticsService {
     private final ShopifyBridgeProperties properties;
     private final ShopifyInstallRecordRepository installRecordRepository;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeBillingService billingService;
+    private final ShopifyBridgeUsageService usageService;
     private final Instant serverStartedAt;
 
     public ShopifyBridgeDiagnosticsService(ShopifyBridgeProperties properties,
                                           ShopifyInstallRecordRepository installRecordRepository,
-                                          PlatformShopifyStoreClient platformShopifyStoreClient) {
+                                          PlatformShopifyStoreClient platformShopifyStoreClient,
+                                          ShopifyBridgeBillingService billingService,
+                                          ShopifyBridgeUsageService usageService) {
         this.properties = properties;
         this.installRecordRepository = installRecordRepository;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.billingService = billingService;
+        this.usageService = usageService;
         this.serverStartedAt = Instant.ofEpochMilli(ManagementFactory.getRuntimeMXBean().getStartTime());
     }
 
@@ -51,6 +61,8 @@ public class ShopifyBridgeDiagnosticsService {
         );
 
         ShopifyBridgeStoreOverview stores = buildStoreOverview();
+        ShopifyBridgeBillingSummary billing = billingService.summarize();
+        ShopifyBridgeUsageOverview usage = usageService.summarizeAllShops();
         String status = !properties.adminApiKey().isBlank() && "READY".equalsIgnoreCase(stores.platformAccessStatus())
             ? "READY"
             : "DEGRADED";
@@ -68,20 +80,23 @@ public class ShopifyBridgeDiagnosticsService {
             serverStartedAt,
             installs,
             stores,
+            billing,
+            usage,
             List.of(
                 "managed-service-health",
                 "platform-bridge-auth",
                 "shopify-auth-shell",
-                "sync-shell",
-                "storefront-bridge-shell"
-            ),
-            List.of(
                 "shopify-oauth-install-flow",
                 "merchant-admin-ui",
                 "source-preflight-jobs",
                 "platform-bootstrap-client",
-                "shopify-webhook-ingestion"
-            )
+                "shopify-webhook-ingestion",
+                "sync-shell",
+                "storefront-bridge-shell",
+                "billing-posture-summary",
+                "usage-attribution-summary"
+            ),
+            List.of()
         );
     }
 

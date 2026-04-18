@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.analytics.service;
 
 import com.ai.fabric.product.shopify.bridge.analytics.entity.ShopifyBridgeUsageDailyEntity;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.repository.ShopifyBridgeUsageDailyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -89,6 +91,45 @@ public class ShopifyBridgeUsageService {
             normalizedShopDomain,
             now,
             lastActivityAt,
+            totalToday,
+            totalLast7Days,
+            toSummaries(todayBreakdown),
+            toSummaries(last7dBreakdown)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public ShopifyBridgeUsageOverview summarizeAllShops() {
+        Instant now = clock.instant();
+        LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
+        LocalDate sevenDaysAgo = today.minusDays(6);
+        List<ShopifyBridgeUsageDailyEntity> rows =
+            repository.findByUsageDateGreaterThanEqualOrderByUsageDateAscShopDomainAscEventTypeAsc(sevenDaysAgo);
+        Map<String, Long> todayBreakdown = new LinkedHashMap<>();
+        Map<String, Long> last7dBreakdown = new LinkedHashMap<>();
+        LinkedHashSet<String> activeToday = new LinkedHashSet<>();
+        LinkedHashSet<String> activeLast7Days = new LinkedHashSet<>();
+        long totalToday = 0L;
+        long totalLast7Days = 0L;
+        Instant lastActivityAt = null;
+        for (ShopifyBridgeUsageDailyEntity row : rows) {
+            activeLast7Days.add(row.getShopDomain());
+            totalLast7Days += row.getEventCount();
+            last7dBreakdown.merge(row.getEventType(), row.getEventCount(), Long::sum);
+            if (today.equals(row.getUsageDate())) {
+                activeToday.add(row.getShopDomain());
+                totalToday += row.getEventCount();
+                todayBreakdown.merge(row.getEventType(), row.getEventCount(), Long::sum);
+            }
+            if (lastActivityAt == null || row.getLastEventAt().isAfter(lastActivityAt)) {
+                lastActivityAt = row.getLastEventAt();
+            }
+        }
+        return new ShopifyBridgeUsageOverview(
+            now,
+            lastActivityAt,
+            activeToday.size(),
+            activeLast7Days.size(),
             totalToday,
             totalLast7Days,
             toSummaries(todayBreakdown),

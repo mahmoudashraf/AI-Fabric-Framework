@@ -63,6 +63,31 @@ class ShopifyBridgeUsageServiceTest {
             .containsExactly("MERCHANT_PLAYGROUND_QUERY", "STOREFRONT_QUERY");
     }
 
+    @Test
+    void summarizeAllShopsAggregatesAcrossStorefronts() {
+        ShopifyBridgeUsageDailyRepository repository = mock(ShopifyBridgeUsageDailyRepository.class);
+        Clock clock = Clock.fixed(Instant.parse("2026-04-18T12:00:00Z"), ZoneOffset.UTC);
+        ShopifyBridgeUsageService service = new ShopifyBridgeUsageService(repository, clock);
+
+        ShopifyBridgeUsageDailyEntity alphaToday = row("alpha.myshopify.com", "STOREFRONT_QUERY", LocalDate.parse("2026-04-18"), 5, Instant.parse("2026-04-18T11:59:00Z"));
+        ShopifyBridgeUsageDailyEntity betaToday = row("beta.myshopify.com", "MERCHANT_GO_LIVE", LocalDate.parse("2026-04-18"), 2, Instant.parse("2026-04-18T10:00:00Z"));
+        ShopifyBridgeUsageDailyEntity alphaPrevious = row("alpha.myshopify.com", "MERCHANT_SYNC_NOW", LocalDate.parse("2026-04-15"), 3, Instant.parse("2026-04-15T09:00:00Z"));
+        when(repository.findByUsageDateGreaterThanEqualOrderByUsageDateAscShopDomainAscEventTypeAsc(LocalDate.parse("2026-04-12")))
+            .thenReturn(List.of(alphaPrevious, alphaToday, betaToday));
+
+        var summary = service.summarizeAllShops();
+
+        assertThat(summary.activeShopsToday()).isEqualTo(2);
+        assertThat(summary.activeShopsLast7Days()).isEqualTo(2);
+        assertThat(summary.totalToday()).isEqualTo(7);
+        assertThat(summary.totalLast7Days()).isEqualTo(10);
+        assertThat(summary.lastActivityAt()).isEqualTo(Instant.parse("2026-04-18T11:59:00Z"));
+        assertThat(summary.todayBreakdown()).extracting("eventType")
+            .containsExactly("STOREFRONT_QUERY", "MERCHANT_GO_LIVE");
+        assertThat(summary.last7DayBreakdown()).extracting("eventType")
+            .containsExactly("MERCHANT_SYNC_NOW", "STOREFRONT_QUERY", "MERCHANT_GO_LIVE");
+    }
+
     private ShopifyBridgeUsageDailyEntity row(String shopDomain,
                                               String eventType,
                                               LocalDate usageDate,

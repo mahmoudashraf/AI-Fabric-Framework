@@ -100,6 +100,50 @@ function detailValue(value: string | number | null | undefined): string {
   return stringValue.length > 0 ? stringValue : '—'
 }
 
+function usageBreakdownLabel(eventType: string): string {
+  const normalized = eventType.trim().toUpperCase()
+  switch (normalized) {
+    case 'MERCHANT_CONNECT':
+      return 'Merchant connect'
+    case 'MERCHANT_SOURCE_PREFLIGHT':
+      return 'Source preflight'
+    case 'MERCHANT_BOOTSTRAP':
+      return 'Platform bootstrap'
+    case 'MERCHANT_SYNC_NOW':
+      return 'Sync now'
+    case 'MERCHANT_GO_LIVE':
+      return 'Go live'
+    case 'MERCHANT_WIDGET_SETTINGS_UPDATED':
+      return 'Widget settings update'
+    case 'MERCHANT_SOURCE_SETTINGS_UPDATED':
+      return 'Source settings update'
+    case 'MERCHANT_PLAYGROUND_QUERY':
+      return 'Merchant playground query'
+    case 'MERCHANT_PLAYGROUND_SUGGESTIONS':
+      return 'Merchant playground suggestions'
+    case 'STOREFRONT_WIDGET_OPENED_HOME_PAGE':
+      return 'Storefront widget opened (home)'
+    case 'STOREFRONT_WIDGET_OPENED_PRODUCT_PAGE':
+      return 'Storefront widget opened (product)'
+    case 'STOREFRONT_WIDGET_OPENED_COLLECTION_PAGE':
+      return 'Storefront widget opened (collection)'
+    case 'STOREFRONT_WIDGET_OPENED_CONTENT_PAGE':
+      return 'Storefront widget opened (content)'
+    case 'STOREFRONT_WIDGET_OPENED_GENERIC_PAGE':
+      return 'Storefront widget opened (generic)'
+    case 'STOREFRONT_SUGGESTION_CLICKED':
+      return 'Storefront suggestion clicked'
+    case 'STOREFRONT_CHAT_RESET':
+      return 'Storefront chat reset'
+    default:
+      return normalized
+        .toLowerCase()
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
+  }
+}
+
 function probeCard(probe: PlatformManagedProductServiceProbeSummary | null | undefined) {
   if (!probe) {
     return (
@@ -570,6 +614,12 @@ export function ProductServicesPage() {
                       Last authenticated {formatTimestamp(overviewQuery.data?.installs.lastAuthenticatedAt)} · Last uninstall{' '}
                       {formatTimestamp(overviewQuery.data?.installs.lastUninstalledAt)} · Last webhook {formatTimestamp(overviewQuery.data?.stores.lastWebhookAt)}
                     </Typography>
+                    {overviewQuery.data?.billing ? (
+                      <Alert severity={overviewQuery.data.billing.launchBlocked ? 'warning' : 'info'}>
+                        Billing {detailValue(overviewQuery.data.billing.mode)} · {detailValue(overviewQuery.data.billing.status)} · plan{' '}
+                        {detailValue(overviewQuery.data.billing.planName)}. {detailValue(overviewQuery.data.billing.message)}
+                      </Alert>
+                    ) : null}
                     {overviewQuery.data?.capabilities?.length ? (
                       <Typography variant="body2" color="text.secondary">
                         Capabilities: {overviewQuery.data.capabilities.join(' · ')}
@@ -578,6 +628,48 @@ export function ProductServicesPage() {
                   </Stack>
                 </CardContent>
               </Card>
+
+              {overviewQuery.data?.usage ? (
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.5}>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <Typography sx={{ fontWeight: 700 }}>Bridge usage</Typography>
+                        <Chip size="small" label={`${overviewQuery.data.usage.totalToday} today`} color={chipColor(overviewQuery.data.usage.totalToday > 0 ? 'READY' : 'PENDING')} />
+                        <Chip size="small" variant="outlined" label={`${overviewQuery.data.usage.totalLast7Days} last 7d`} />
+                      </Stack>
+                      <Grid container spacing={2}>
+                        {[
+                          ['Active shops today', `${overviewQuery.data.usage.activeShopsToday}`],
+                          ['Active shops last 7d', `${overviewQuery.data.usage.activeShopsLast7Days}`],
+                          ['Events today', `${overviewQuery.data.usage.totalToday}`],
+                          ['Events last 7d', `${overviewQuery.data.usage.totalLast7Days}`],
+                        ].map(([label, value]) => (
+                          <Grid item xs={12} md={3} key={label}>
+                            <Typography variant="caption" color="text.secondary">
+                              {label}
+                            </Typography>
+                            <Typography variant="body2">{detailValue(value)}</Typography>
+                          </Grid>
+                        ))}
+                      </Grid>
+                      <Typography variant="body2" color="text.secondary">
+                        Generated {formatTimestamp(overviewQuery.data.usage.generatedAt)} · Last activity {formatTimestamp(overviewQuery.data.usage.lastActivityAt)}
+                      </Typography>
+                      {overviewQuery.data.usage.todayBreakdown.length ? (
+                        <Typography variant="body2" color="text.secondary">
+                          Today: {overviewQuery.data.usage.todayBreakdown.map((entry) => `${usageBreakdownLabel(entry.eventType)} ${entry.count}`).join(' · ')}
+                        </Typography>
+                      ) : null}
+                      {overviewQuery.data.usage.last7DayBreakdown.length ? (
+                        <Typography variant="body2" color="text.secondary">
+                          Last 7 days: {overviewQuery.data.usage.last7DayBreakdown.map((entry) => `${usageBreakdownLabel(entry.eventType)} ${entry.count}`).join(' · ')}
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card variant="outlined">
                 <CardContent>

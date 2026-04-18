@@ -14,11 +14,14 @@ import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductP
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceBillingSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceInstallOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceProbeSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceUsageEventSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceUsageSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -44,6 +47,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -216,6 +220,8 @@ public class PlatformManagedProductAdminService {
                 text(body, "serverStartedAt", null),
                 parseInstallOverview(body.path("installs")),
                 parseStoreOverview(body.path("stores")),
+                parseBillingOverview(body.path("billing")),
+                parseUsageOverview(body.path("usage")),
                 stringList(body.path("capabilities")),
                 stringList(body.path("notYetImplemented"))
             );
@@ -483,6 +489,8 @@ public class PlatformManagedProductAdminService {
             null,
             new PlatformManagedProductServiceInstallOverview(0, 0, 0, 0, null, null),
             new PlatformManagedProductServiceStoreOverview("FAILED", message, 0, 0, 0, 0, 0, null),
+            null,
+            null,
             List.of(),
             List.of()
         );
@@ -510,6 +518,51 @@ public class PlatformManagedProductAdminService {
             node.path("blockedCount").asInt(0),
             text(node, "lastWebhookAt", null)
         );
+    }
+
+    private PlatformManagedProductServiceBillingSummary parseBillingOverview(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) {
+            return null;
+        }
+        return new PlatformManagedProductServiceBillingSummary(
+            text(node, "mode", null),
+            text(node, "planName", null),
+            text(node, "status", null),
+            node.path("merchantApprovalRequired").asBoolean(false),
+            node.path("launchBlocked").asBoolean(false),
+            text(node, "message", null)
+        );
+    }
+
+    private PlatformManagedProductServiceUsageSummary parseUsageOverview(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) {
+            return null;
+        }
+        return new PlatformManagedProductServiceUsageSummary(
+            text(node, "generatedAt", null),
+            text(node, "lastActivityAt", null),
+            node.path("activeShopsToday").asInt(0),
+            node.path("activeShopsLast7Days").asInt(0),
+            node.path("totalToday").asLong(0L),
+            node.path("totalLast7Days").asLong(0L),
+            parseUsageBreakdown(node.path("todayBreakdown")),
+            parseUsageBreakdown(node.path("last7DayBreakdown"))
+        );
+    }
+
+    private List<PlatformManagedProductServiceUsageEventSummary> parseUsageBreakdown(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<PlatformManagedProductServiceUsageEventSummary> values = new ArrayList<>();
+        for (JsonNode item : node) {
+            String eventType = text(item, "eventType", null);
+            if (!hasText(eventType)) {
+                continue;
+            }
+            values.add(new PlatformManagedProductServiceUsageEventSummary(eventType, item.path("count").asLong(0L)));
+        }
+        return List.copyOf(values);
     }
 
     private String summarizeOverviewMessage(JsonNode body) {

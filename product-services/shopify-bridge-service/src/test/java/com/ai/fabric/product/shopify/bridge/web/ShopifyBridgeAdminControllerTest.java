@@ -1,5 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInstallOverview;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeStoreOverview;
@@ -73,8 +75,10 @@ class ShopifyBridgeAdminControllerTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             new ShopifyBridgeInstallOverview(10, 8, 2, 7, Instant.parse("2026-04-18T10:10:00Z"), Instant.parse("2026-04-18T09:00:00Z")),
             new ShopifyBridgeStoreOverview("READY", "Platform store mappings resolved successfully.", 6, 3, 2, 1, 1, Instant.parse("2026-04-18T10:15:00Z")),
+            new ShopifyBridgeBillingSummary("FREE", "Companion Free", "ACTIVE", false, false, "Free mode."),
+            new ShopifyBridgeUsageOverview(Instant.parse("2026-04-18T10:20:00Z"), Instant.parse("2026-04-18T10:18:00Z"), 1, 2, 4, 9, List.of(), List.of()),
             List.of("managed-service-health"),
-            List.of("shopify-webhook-ingestion")
+            List.of()
         ));
         mockMvc.perform(get("/api/admin/overview").header("X-BRIDGE-API-KEY", "test-admin-key"))
             .andExpect(status().isOk())
@@ -83,7 +87,9 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.adminApiKeyConfigured").value(true))
             .andExpect(jsonPath("$.status").value("READY"))
             .andExpect(jsonPath("$.installs.totalCount").value(10))
-            .andExpect(jsonPath("$.stores.readyForGoLiveCount").value(3));
+            .andExpect(jsonPath("$.stores.readyForGoLiveCount").value(3))
+            .andExpect(jsonPath("$.billing.mode").value("FREE"))
+            .andExpect(jsonPath("$.usage.totalToday").value(4));
     }
 
     @Test

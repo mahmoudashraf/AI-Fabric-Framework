@@ -459,6 +459,30 @@ export type PlatformManagedProductServiceOverviewSummary = {
     blockedCount: number
     lastWebhookAt: string | null
   }
+  billing: {
+    mode: string | null
+    planName: string | null
+    status: string | null
+    merchantApprovalRequired: boolean
+    launchBlocked: boolean
+    message: string | null
+  } | null
+  usage: {
+    generatedAt: string | null
+    lastActivityAt: string | null
+    activeShopsToday: number
+    activeShopsLast7Days: number
+    totalToday: number
+    totalLast7Days: number
+    todayBreakdown: Array<{
+      eventType: string
+      count: number
+    }>
+    last7DayBreakdown: Array<{
+      eventType: string
+      count: number
+    }>
+  } | null
   capabilities: string[]
   notYetImplemented: string[]
 }

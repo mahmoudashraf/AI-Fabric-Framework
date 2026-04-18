@@ -225,6 +225,11 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(overview.status()).isEqualTo("READY");
         assertThat(overview.installs().totalCount()).isEqualTo(5);
         assertThat(overview.stores().storefrontReadyCount()).isEqualTo(1);
+        assertThat(overview.billing()).isNotNull();
+        assertThat(overview.billing().mode()).isEqualTo("FREE");
+        assertThat(overview.usage()).isNotNull();
+        assertThat(overview.usage().activeShopsLast7Days()).isEqualTo(2);
+        assertThat(overview.usage().totalToday()).isEqualTo(4);
         assertThat(overview.summaryMessage()).contains("Platform store mappings resolved successfully");
     }
 
@@ -417,8 +422,32 @@ class PlatformManagedProductAdminServiceTest {
                 "blockedCount": 1,
                 "lastWebhookAt": "2026-04-18T10:15:00Z"
               },
-              "capabilities": ["managed-service-health"],
-              "notYetImplemented": ["shopify-webhook-ingestion"]
+              "billing": {
+                "mode": "FREE",
+                "planName": "Companion Free",
+                "status": "ACTIVE",
+                "merchantApprovalRequired": false,
+                "launchBlocked": false,
+                "message": "Free mode."
+              },
+              "usage": {
+                "generatedAt": "2026-04-18T10:20:00Z",
+                "lastActivityAt": "2026-04-18T10:18:00Z",
+                "activeShopsToday": 1,
+                "activeShopsLast7Days": 2,
+                "totalToday": 4,
+                "totalLast7Days": 9,
+                "todayBreakdown": [
+                  {"eventType": "MERCHANT_GO_LIVE", "count": 1},
+                  {"eventType": "STOREFRONT_WIDGET_OPENED_HOME_PAGE", "count": 3}
+                ],
+                "last7DayBreakdown": [
+                  {"eventType": "MERCHANT_SYNC_NOW", "count": 2},
+                  {"eventType": "STOREFRONT_WIDGET_OPENED_HOME_PAGE", "count": 7}
+                ]
+              },
+              "capabilities": ["managed-service-health", "billing-posture-summary"],
+              "notYetImplemented": []
             }
             """.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
