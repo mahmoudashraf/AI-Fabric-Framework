@@ -58,6 +58,13 @@ public class DataSyncService {
 
     private static final String OPERATION_WRITE = "WRITE";
     private static final String OPERATION_DELETE = "DELETE";
+    private static final String AUTH_MODE_PRIVATE_RUNTIME_BACKEND_MEDIATED = "PRIVATE_RUNTIME_BACKEND_MEDIATED";
+    private static final String SUBJECT_TYPE_SYSTEM_PROCESS = "SYSTEM_PROCESS";
+    private static final String CALLER_TYPE_SYSTEM_PROCESS = "SYSTEM_PROCESS";
+    private static final String PLATFORM_SUBJECT_PREFIX = "system:platform-";
+    private static final String PLATFORM_ISSUER_PREFIX = "platform-";
+    private static final String SCOPE_DATA_SYNC_UPSERT = "data-sync:upsert";
+    private static final String SCOPE_DATA_SYNC_DELETE = "data-sync:delete";
 
     private static final String IDENTITY_SOURCE_RECORD_ID = "_dataSyncSourceRecordId";
     private static final String IDENTITY_SOURCE_RECORD_VERSION = "_dataSyncSourceRecordVersion";
@@ -416,6 +423,11 @@ public class DataSyncService {
             }
         }
 
+        if (isTrustedPlatformInternalSync(verifiedAuthContext, operationType)) {
+            meta.put("accessDecisionSource", "trustedPlatformInternalSync");
+            return new AccessDecision(true, "OK", Collections.unmodifiableMap(meta));
+        }
+
         AIAccessControlRequest accessRequest = AIAccessControlRequest.builder()
             .requestId(requestId)
             .authContext(AIAccessSubjectContext.builder()
@@ -447,6 +459,49 @@ public class DataSyncService {
             log.warn("Access control evaluation failed for {}:{}: {}", vectorSpace, id, ex.getMessage());
             return new AccessDecision(false, "Access denied.", Collections.unmodifiableMap(meta));
         }
+    }
+
+    private boolean isTrustedPlatformInternalSync(DataSyncVerifiedAuthContext authContext, String operationType) {
+        if (authContext == null) {
+            return false;
+        }
+        if (!SUBJECT_TYPE_SYSTEM_PROCESS.equalsIgnoreCase(safeText(authContext.getSubjectType()))) {
+            return false;
+        }
+        if (!AUTH_MODE_PRIVATE_RUNTIME_BACKEND_MEDIATED.equalsIgnoreCase(safeText(authContext.getAuthMode()))) {
+            return false;
+        }
+        if (!CALLER_TYPE_SYSTEM_PROCESS.equalsIgnoreCase(safeText(authContext.getCallerType()))) {
+            return false;
+        }
+        String subjectId = safeText(authContext.getSubjectId());
+        String issuer = safeText(authContext.getIssuer());
+        if (!StringUtils.hasText(subjectId) || !subjectId.startsWith(PLATFORM_SUBJECT_PREFIX)) {
+            return false;
+        }
+        if (!StringUtils.hasText(issuer) || !issuer.startsWith(PLATFORM_ISSUER_PREFIX)) {
+            return false;
+        }
+        if (!StringUtils.hasText(authContext.getDeploymentId())) {
+            return false;
+        }
+        return hasScope(authContext.getGrantedScopes(), requiredScope(operationType));
+    }
+
+    private boolean hasScope(List<String> grantedScopes, String requiredScope) {
+        if (!StringUtils.hasText(requiredScope) || grantedScopes == null || grantedScopes.isEmpty()) {
+            return false;
+        }
+        return grantedScopes.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .anyMatch(requiredScope::equals);
+    }
+
+    private String requiredScope(String operationType) {
+        return OPERATION_DELETE.equalsIgnoreCase(safeText(operationType))
+            ? SCOPE_DATA_SYNC_DELETE
+            : SCOPE_DATA_SYNC_UPSERT;
     }
 
     private void putIfText(Map<String, Object> target, String key, String value) {

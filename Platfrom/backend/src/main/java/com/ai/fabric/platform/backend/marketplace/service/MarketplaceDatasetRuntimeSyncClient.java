@@ -27,6 +27,9 @@ public class MarketplaceDatasetRuntimeSyncClient {
     private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String SYSTEM_SUBJECT_ID = "system:platform-marketplace-dataset-sync";
     private static final String SYSTEM_SESSION_ID = "system:marketplace-dataset-sync";
+    private static final String SCOPE_DATA_SYNC_UPSERT = "data-sync:upsert";
+    private static final String SCOPE_DATA_SYNC_DELETE = "data-sync:delete";
+    private static final String SCOPE_VECTORIZATION_VERIFICATION = "vectorization:verification";
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -131,7 +134,10 @@ public class MarketplaceDatasetRuntimeSyncClient {
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode trace = root.putObject("trace");
         trace.put("requestId", "marketplace-dataset-sync-" + datasetId + "-" + System.currentTimeMillis());
-        trace.set("authContext", buildVerifiedAuthContext(deployment));
+        trace.set("authContext", buildVerifiedAuthContext(deployment, List.of(
+            SCOPE_DATA_SYNC_UPSERT,
+            SCOPE_VECTORIZATION_VERIFICATION
+        )));
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("datasetId", datasetId);
@@ -167,7 +173,10 @@ public class MarketplaceDatasetRuntimeSyncClient {
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode trace = root.putObject("trace");
         trace.put("requestId", "marketplace-dataset-delete-" + datasetId + "-" + System.currentTimeMillis());
-        trace.set("authContext", buildVerifiedAuthContext(deployment));
+        trace.set("authContext", buildVerifiedAuthContext(deployment, List.of(
+            SCOPE_DATA_SYNC_DELETE,
+            SCOPE_VECTORIZATION_VERIFICATION
+        )));
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("datasetId", datasetId);
@@ -187,7 +196,7 @@ public class MarketplaceDatasetRuntimeSyncClient {
         return root;
     }
 
-    private ObjectNode buildVerifiedAuthContext(DeploymentEntity deployment) {
+    private ObjectNode buildVerifiedAuthContext(DeploymentEntity deployment, List<String> grantedScopes) {
         ObjectNode authContext = objectMapper.createObjectNode();
         authContext.put("subjectId", SYSTEM_SUBJECT_ID);
         authContext.put("subjectType", "SYSTEM_PROCESS");
@@ -198,9 +207,14 @@ public class MarketplaceDatasetRuntimeSyncClient {
         putIfText(authContext, "customerId", deployment == null ? null : deployment.getCustomerId());
         putIfText(authContext, "tenantId", deployment == null ? null : deployment.getTenantId());
         authContext.put("issuer", "platform-marketplace-dataset-sync");
-        authContext.putArray("grantedScopes")
-            .add("data-sync:upsert")
-            .add("vectorization:verification");
+        ArrayNode scopesNode = authContext.putArray("grantedScopes");
+        if (grantedScopes != null) {
+            grantedScopes.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .forEach(scopesNode::add);
+        }
         return authContext;
     }
 

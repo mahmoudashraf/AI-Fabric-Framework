@@ -30,6 +30,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -256,6 +258,138 @@ class DataSyncServiceTest {
             .containsEntry("subjectId", "verified-system")
             .containsEntry("authMode", "PRIVATE_RUNTIME_BACKEND_MEDIATED")
             .containsEntry("deploymentId", "dep-123");
+    }
+
+    @Test
+    void upsert_shouldBypassAccessControl_forTrustedPlatformInternalSync() {
+        AIDataSyncProperties props = new AIDataSyncProperties();
+        AIEntityConfigurationLoader loader = mock(AIEntityConfigurationLoader.class);
+        AIEmbeddingService embeddingService = mock(AIEmbeddingService.class);
+        VectorManagementService vectorManagementService = mock(VectorManagementService.class);
+        AIAccessControlService accessControlService = mock(AIAccessControlService.class);
+
+        when(loader.getEntityConfig("product")).thenReturn(AIEntityConfig.builder()
+            .entityType("product")
+            .indexable(true)
+            .build());
+        when(embeddingService.generateEmbedding(any())).thenReturn(AIEmbeddingResponse.builder()
+            .embedding(List.of(0.1, 0.2))
+            .build());
+        when(vectorManagementService.storeVector(anyString(), anyString(), anyString(), any(), any()))
+            .thenReturn("vec-platform");
+
+        DataSyncService service = new DataSyncService(
+            props,
+            loader,
+            embeddingService,
+            vectorManagementService,
+            accessControlService,
+            new DataSyncEntityNormalizer(props, null),
+            Clock.fixed(Instant.parse("2026-02-12T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        DataSyncTrace trace = verifiedTrace("system:platform-marketplace-dataset-sync", "verified-session", "req-platform-auth");
+        trace.getAuthContext().setDeploymentId("dep-123");
+        trace.getAuthContext().setIssuer("platform-marketplace-dataset-sync");
+        trace.getAuthContext().setGrantedScopes(List.of("data-sync:upsert", "vectorization:verification"));
+
+        DataSyncUpsertRequest request = new DataSyncUpsertRequest();
+        request.setVectorSpace("product");
+        request.setId("p-platform-auth");
+        request.setContent("hello");
+        request.setTrace(trace);
+
+        DataSyncOperationResponse response = service.upsert(request);
+
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getMetadata()).containsEntry("accessDecisionSource", "trustedPlatformInternalSync");
+        verifyNoInteractions(accessControlService);
+    }
+
+    @Test
+    void upsert_shouldNotBypassAccessControl_whenTrustedPlatformSyncScopeMissing() {
+        AIDataSyncProperties props = new AIDataSyncProperties();
+        AIEntityConfigurationLoader loader = mock(AIEntityConfigurationLoader.class);
+        AIEmbeddingService embeddingService = mock(AIEmbeddingService.class);
+        VectorManagementService vectorManagementService = mock(VectorManagementService.class);
+        AIAccessControlService accessControlService = mock(AIAccessControlService.class);
+
+        when(loader.getEntityConfig("product")).thenReturn(AIEntityConfig.builder()
+            .entityType("product")
+            .indexable(true)
+            .build());
+        when(accessControlService.checkAccess(any())).thenReturn(AIAccessControlResponse.builder()
+            .accessGranted(false)
+            .build());
+
+        DataSyncService service = new DataSyncService(
+            props,
+            loader,
+            embeddingService,
+            vectorManagementService,
+            accessControlService,
+            new DataSyncEntityNormalizer(props, null),
+            Clock.fixed(Instant.parse("2026-02-12T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        DataSyncTrace trace = verifiedTrace("system:platform-marketplace-dataset-sync", "verified-session", "req-platform-auth-missing-scope");
+        trace.getAuthContext().setDeploymentId("dep-123");
+        trace.getAuthContext().setIssuer("platform-marketplace-dataset-sync");
+        trace.getAuthContext().setGrantedScopes(List.of("vectorization:verification"));
+
+        DataSyncUpsertRequest request = new DataSyncUpsertRequest();
+        request.setVectorSpace("product");
+        request.setId("p-platform-auth-missing-scope");
+        request.setContent("hello");
+        request.setTrace(trace);
+
+        DataSyncOperationResponse response = service.upsert(request);
+
+        assertThat(response.getSuccess()).isFalse();
+        assertThat(response.getErrorCode()).isEqualTo("ACCESS_DENIED");
+        verify(accessControlService).checkAccess(any());
+        verify(vectorManagementService, never()).storeVector(anyString(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void delete_shouldBypassAccessControl_forTrustedPlatformInternalSyncWithDeleteScope() {
+        AIDataSyncProperties props = new AIDataSyncProperties();
+        AIEntityConfigurationLoader loader = mock(AIEntityConfigurationLoader.class);
+        AIEmbeddingService embeddingService = mock(AIEmbeddingService.class);
+        VectorManagementService vectorManagementService = mock(VectorManagementService.class);
+        AIAccessControlService accessControlService = mock(AIAccessControlService.class);
+
+        when(loader.getEntityConfig("product")).thenReturn(AIEntityConfig.builder()
+            .entityType("product")
+            .indexable(true)
+            .build());
+        when(vectorManagementService.removeVector("product", "p-platform-delete")).thenReturn(true);
+
+        DataSyncService service = new DataSyncService(
+            props,
+            loader,
+            embeddingService,
+            vectorManagementService,
+            accessControlService,
+            new DataSyncEntityNormalizer(props, null),
+            Clock.fixed(Instant.parse("2026-02-12T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        DataSyncTrace trace = verifiedTrace("system:platform-marketplace-dataset-sync", "verified-session", "req-platform-delete");
+        trace.getAuthContext().setDeploymentId("dep-123");
+        trace.getAuthContext().setIssuer("platform-marketplace-dataset-sync");
+        trace.getAuthContext().setGrantedScopes(List.of("data-sync:delete", "vectorization:verification"));
+
+        var request = new com.ai.infrastructure.datasync.dto.DataSyncDeleteRequest();
+        request.setVectorSpace("product");
+        request.setId("p-platform-delete");
+        request.setTrace(trace);
+
+        DataSyncOperationResponse response = service.delete(request);
+
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getMetadata()).containsEntry("accessDecisionSource", "trustedPlatformInternalSync");
+        verifyNoInteractions(accessControlService);
     }
 
     @Test
