@@ -14,7 +14,10 @@ import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductP
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceInstallOverview;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceProbeSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -50,6 +53,7 @@ public class PlatformManagedProductAdminService {
 
     private static final String TARGET_TYPE = "MANAGED_PRODUCT_SERVICE";
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(20);
+    private static final String BRIDGE_ADMIN_API_KEY_HEADER = "X-BRIDGE-API-KEY";
 
     private final PlatformManagedProductServiceService serviceService;
     private final PlatformManagedProductServiceRepository serviceRepository;
@@ -167,6 +171,54 @@ public class PlatformManagedProductAdminService {
             text(details, "lastProbeMessage"),
             healthProbe.summary
         );
+    }
+
+    public PlatformManagedProductServiceOverviewSummary getOverview(String serviceRef) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (!hasText(service.getBaseUrl())) {
+            return degradedOverview(service, "Managed product service does not declare a base URL yet.");
+        }
+        if (!hasText(service.getSecretName())) {
+            return degradedOverview(service, "Managed product service does not declare an admin secret for overview access.");
+        }
+        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
+        if (!hasText(apiKey)) {
+            return degradedOverview(service, "Managed product service admin secret is missing.");
+        }
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/overview")))
+                .timeout(HTTP_TIMEOUT)
+                .header("Accept", "application/json")
+                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .GET()
+                .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return degradedOverview(service, "Managed product overview request failed with HTTP " + response.statusCode() + ".");
+            }
+            JsonNode body = objectMapper.readTree(response.body());
+            return new PlatformManagedProductServiceOverviewSummary(
+                service.getServiceRef(),
+                text(body, "status", "DEGRADED"),
+                summarizeOverviewMessage(body),
+                text(body, "appName", null),
+                text(body, "productFamily", service.getProductFamily()),
+                text(body, "serviceKind", service.getServiceKind()),
+                text(body, "environmentScope", service.getEnvironmentScope()),
+                text(body, "platformBaseUrl", null),
+                text(body, "publicBaseUrl", null),
+                body.path("adminApiKeyConfigured").asBoolean(false),
+                text(body, "serverStartedAt", null),
+                parseInstallOverview(body.path("installs")),
+                parseStoreOverview(body.path("stores")),
+                stringList(body.path("capabilities")),
+                stringList(body.path("notYetImplemented"))
+            );
+        } catch (Exception ex) {
+            return degradedOverview(service, firstNonBlank(ex.getMessage(), "Managed product overview request failed."));
+        }
     }
 
     @Transactional
@@ -364,6 +416,77 @@ public class PlatformManagedProductAdminService {
                 Instant.now().toString()
             ));
         }
+    }
+
+    private PlatformManagedProductServiceOverviewSummary degradedOverview(PlatformManagedProductServiceEntity service, String message) {
+        return new PlatformManagedProductServiceOverviewSummary(
+            service.getServiceRef(),
+            "DEGRADED",
+            message,
+            service.getDisplayName(),
+            service.getProductFamily(),
+            service.getServiceKind(),
+            service.getEnvironmentScope(),
+            null,
+            service.getBaseUrl(),
+            hasText(service.getSecretName()) && platformSecretService.isSecretPresent(service.getSecretName()),
+            null,
+            new PlatformManagedProductServiceInstallOverview(0, 0, 0, 0, null, null),
+            new PlatformManagedProductServiceStoreOverview("FAILED", message, 0, 0, 0, 0, 0, null),
+            List.of(),
+            List.of()
+        );
+    }
+
+    private PlatformManagedProductServiceInstallOverview parseInstallOverview(JsonNode node) {
+        return new PlatformManagedProductServiceInstallOverview(
+            node.path("totalCount").asInt(0),
+            node.path("installedCount").asInt(0),
+            node.path("uninstalledCount").asInt(0),
+            node.path("credentialReadyCount").asInt(0),
+            text(node, "lastAuthenticatedAt", null),
+            text(node, "lastUninstalledAt", null)
+        );
+    }
+
+    private PlatformManagedProductServiceStoreOverview parseStoreOverview(JsonNode node) {
+        return new PlatformManagedProductServiceStoreOverview(
+            text(node, "platformAccessStatus", "FAILED"),
+            text(node, "platformAccessMessage", "Store overview unavailable."),
+            node.path("totalCount").asInt(0),
+            node.path("readyForGoLiveCount").asInt(0),
+            node.path("storefrontReadyCount").asInt(0),
+            node.path("liveCount").asInt(0),
+            node.path("blockedCount").asInt(0),
+            text(node, "lastWebhookAt", null)
+        );
+    }
+
+    private String summarizeOverviewMessage(JsonNode body) {
+        String status = text(body, "status", "DEGRADED");
+        String platformAccessMessage = text(body.path("stores"), "platformAccessMessage", null);
+        if ("READY".equalsIgnoreCase(status)) {
+            return firstNonBlank(platformAccessMessage, "Managed product overview resolved successfully.");
+        }
+        return firstNonBlank(platformAccessMessage, "Managed product overview is degraded.");
+    }
+
+    private List<String> stringList(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        return java.util.stream.StreamSupport.stream(node.spliterator(), false)
+            .filter(JsonNode::isTextual)
+            .map(JsonNode::asText)
+            .toList();
+    }
+
+    private String text(JsonNode node, String fieldName, String fallback) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return fallback;
+        }
+        JsonNode child = node.path(fieldName);
+        return child.isMissingNode() || child.isNull() ? fallback : child.asText(fallback);
     }
 
     private DriftResult buildDrift(PlatformManagedProductServiceEntity service,

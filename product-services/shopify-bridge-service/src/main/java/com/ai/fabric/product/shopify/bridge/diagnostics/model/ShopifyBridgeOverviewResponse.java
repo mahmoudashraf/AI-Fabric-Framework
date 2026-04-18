@@ -14,6 +14,8 @@ public record ShopifyBridgeOverviewResponse(
     boolean adminApiKeyConfigured,
     String status,
     Instant serverStartedAt,
+    ShopifyBridgeInstallOverview installs,
+    ShopifyBridgeStoreOverview stores,
     List<String> capabilities,
     List<String> notYetImplemented
 ) {

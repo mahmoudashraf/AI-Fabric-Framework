@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.productservice.web;
 import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
 import com.ai.fabric.platform.backend.productservice.model.CreatePlatformManagedProductServiceRequest;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.RotatePlatformManagedProductServiceSecretRequest;
 import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceScaleRequest;
@@ -66,6 +67,11 @@ public class ProductServiceController {
     @GetMapping("/{serviceRef}/health")
     public PlatformManagedProductServiceHealthSummary getHealth(@PathVariable String serviceRef) {
         return adminService.getHealth(serviceRef);
+    }
+
+    @GetMapping("/{serviceRef}/overview")
+    public PlatformManagedProductServiceOverviewSummary getOverview(@PathVariable String serviceRef) {
+        return adminService.getOverview(serviceRef);
     }
 
     @PostMapping("/{serviceRef}/reconcile")

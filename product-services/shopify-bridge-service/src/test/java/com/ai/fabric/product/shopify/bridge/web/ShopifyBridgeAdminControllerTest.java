@@ -1,5 +1,9 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInstallOverview;
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeStoreOverview;
+import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
@@ -36,6 +40,9 @@ class ShopifyBridgeAdminControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
+    private ShopifyBridgeDiagnosticsService diagnosticsService;
+
+    @MockBean
     private ShopifyBridgeStoreAdminService storeAdminService;
 
     @Test
@@ -53,12 +60,30 @@ class ShopifyBridgeAdminControllerTest {
 
     @Test
     void adminOverviewReturnsDiagnosticsWhenApiKeyMatches() throws Exception {
+        when(diagnosticsService.overview()).thenReturn(new ShopifyBridgeOverviewResponse(
+            "Shopify Bridge Service",
+            "shopify-bridge-test",
+            "SHOPIFY",
+            "SHOPIFY_BRIDGE_SERVICE",
+            "prod",
+            "https://platform.example.com",
+            "https://bridge.example.com",
+            true,
+            "READY",
+            Instant.parse("2026-04-18T10:00:00Z"),
+            new ShopifyBridgeInstallOverview(10, 8, 2, 7, Instant.parse("2026-04-18T10:10:00Z"), Instant.parse("2026-04-18T09:00:00Z")),
+            new ShopifyBridgeStoreOverview("READY", "Platform store mappings resolved successfully.", 6, 3, 2, 1, 1, Instant.parse("2026-04-18T10:15:00Z")),
+            List.of("managed-service-health"),
+            List.of("shopify-webhook-ingestion")
+        ));
         mockMvc.perform(get("/api/admin/overview").header("X-BRIDGE-API-KEY", "test-admin-key"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.serviceRef").value("shopify-bridge-test"))
             .andExpect(jsonPath("$.platformBaseUrl").value("https://platform.example.com"))
             .andExpect(jsonPath("$.adminApiKeyConfigured").value(true))
-            .andExpect(jsonPath("$.status").value("READY"));
+            .andExpect(jsonPath("$.status").value("READY"))
+            .andExpect(jsonPath("$.installs.totalCount").value(10))
+            .andExpect(jsonPath("$.stores.readyForGoLiveCount").value(3));
     }
 
     @Test

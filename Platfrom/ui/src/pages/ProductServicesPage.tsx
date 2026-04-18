@@ -36,6 +36,7 @@ import {
   fetchProductServiceActivity,
   fetchProductServiceDependents,
   fetchProductServiceHealth,
+  fetchProductServiceOverview,
   fetchProductServices,
   forceRecreateProductService,
   reconcileProductService,
@@ -45,6 +46,7 @@ import {
   type CreatePlatformManagedProductServiceRequest,
   type PlatformAuditEventSummary,
   type PlatformManagedProductServiceHealthSummary,
+  type PlatformManagedProductServiceOverviewSummary,
   type PlatformManagedProductServiceProbeSummary,
   type PlatformManagedProductServiceSummary,
   type ShopifyStoreConnectionSummary,
@@ -233,6 +235,12 @@ export function ProductServicesPage() {
     enabled: selectedServiceRef.length > 0,
   })
 
+  const overviewQuery = useQuery({
+    queryKey: ['product-services', selectedServiceRef, 'overview'],
+    queryFn: () => fetchProductServiceOverview(selectedServiceRef),
+    enabled: selectedServiceRef.length > 0,
+  })
+
   const refreshSelected = async (serviceRef: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['product-services'] }),
@@ -240,6 +248,7 @@ export function ProductServicesPage() {
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'dependents'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'activity'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'health'] }),
+      queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'overview'] }),
       queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
     ])
   }
@@ -506,6 +515,61 @@ export function ProductServicesPage() {
                   </Card>
                 </Grid>
               </Grid>
+
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Typography sx={{ fontWeight: 700 }}>Bridge overview</Typography>
+                      <Chip size="small" label={overviewQuery.data?.status ?? 'PENDING'} color={chipColor(overviewQuery.data?.status)} />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={overviewQuery.data?.stores.platformAccessStatus ?? 'UNKNOWN'}
+                        color={chipColor(overviewQuery.data?.stores.platformAccessStatus)}
+                      />
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary">
+                      {detailValue(overviewQuery.data?.summaryMessage)}
+                    </Typography>
+                    <Grid container spacing={2}>
+                      {[
+                        ['App name', overviewQuery.data?.appName],
+                        ['Platform base URL', overviewQuery.data?.platformBaseUrl],
+                        ['Public base URL', overviewQuery.data?.publicBaseUrl],
+                        ['Started', formatTimestamp(overviewQuery.data?.serverStartedAt)],
+                        ['Install records', `${overviewQuery.data?.installs.totalCount ?? 0}`],
+                        ['Installed', `${overviewQuery.data?.installs.installedCount ?? 0}`],
+                        ['Credentials ready', `${overviewQuery.data?.installs.credentialReadyCount ?? 0}`],
+                        ['Mapped stores', `${overviewQuery.data?.stores.totalCount ?? 0}`],
+                        ['Go-live ready', `${overviewQuery.data?.stores.readyForGoLiveCount ?? 0}`],
+                        ['Storefront ready', `${overviewQuery.data?.stores.storefrontReadyCount ?? 0}`],
+                        ['Live stores', `${overviewQuery.data?.stores.liveCount ?? 0}`],
+                        ['Blocked stores', `${overviewQuery.data?.stores.blockedCount ?? 0}`],
+                      ].map(([label, value]) => (
+                        <Grid item xs={12} md={3} key={label}>
+                          <Typography variant="caption" color="text.secondary">
+                            {label}
+                          </Typography>
+                          <Typography variant="body2">{detailValue(value)}</Typography>
+                        </Grid>
+                      ))}
+                    </Grid>
+                    <Typography variant="body2" color="text.secondary">
+                      Platform store access: {detailValue(overviewQuery.data?.stores.platformAccessMessage)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Last authenticated {formatTimestamp(overviewQuery.data?.installs.lastAuthenticatedAt)} · Last uninstall{' '}
+                      {formatTimestamp(overviewQuery.data?.installs.lastUninstalledAt)} · Last webhook {formatTimestamp(overviewQuery.data?.stores.lastWebhookAt)}
+                    </Typography>
+                    {overviewQuery.data?.capabilities?.length ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Capabilities: {overviewQuery.data.capabilities.join(' · ')}
+                      </Typography>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
 
               <Card variant="outlined">
                 <CardContent>

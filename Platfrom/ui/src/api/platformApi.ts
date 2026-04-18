@@ -429,6 +429,40 @@ export type PlatformManagedProductServiceHealthSummary = {
   healthProbe: PlatformManagedProductServiceProbeSummary
 }
 
+export type PlatformManagedProductServiceOverviewSummary = {
+  serviceRef: string
+  status: string
+  summaryMessage: string
+  appName: string | null
+  productFamily: string | null
+  serviceKind: string | null
+  environmentScope: string | null
+  platformBaseUrl: string | null
+  publicBaseUrl: string | null
+  adminApiKeyConfigured: boolean
+  serverStartedAt: string | null
+  installs: {
+    totalCount: number
+    installedCount: number
+    uninstalledCount: number
+    credentialReadyCount: number
+    lastAuthenticatedAt: string | null
+    lastUninstalledAt: string | null
+  }
+  stores: {
+    platformAccessStatus: string
+    platformAccessMessage: string
+    totalCount: number
+    readyForGoLiveCount: number
+    storefrontReadyCount: number
+    liveCount: number
+    blockedCount: number
+    lastWebhookAt: string | null
+  }
+  capabilities: string[]
+  notYetImplemented: string[]
+}
+
 export type CreatePlatformManagedProductServiceRequest = {
   serviceRef: string
   displayName: string
@@ -2815,6 +2849,10 @@ export function fetchProductServiceActivity(serviceRef: string) {
 
 export function fetchProductServiceHealth(serviceRef: string) {
   return request<PlatformManagedProductServiceHealthSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/health`)
+}
+
+export function fetchProductServiceOverview(serviceRef: string) {
+  return request<PlatformManagedProductServiceOverviewSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/overview`)
 }
 
 export function reconcileProductService(serviceRef: string) {
