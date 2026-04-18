@@ -174,6 +174,19 @@ class PlatformShopifyStoreClientTest {
     }
 
     @Test
+    void markUninstalledUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/uninstall"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("NOT_RUN", "NOT_SYNCED", "NOT_ENABLED", "UNINSTALLED", "BLOCKED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.markUninstalled("alpha.myshopify.com");
+
+        assertThat(response.installStatus()).isEqualTo("UNINSTALLED");
+        server.verify();
+    }
+
+    @Test
     void recordSourcePreflightUsesPlatformAdminApiKey() {
         server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/source-preflight"))
             .andExpect(method(HttpMethod.POST))
@@ -368,6 +381,14 @@ class PlatformShopifyStoreClientTest {
     }
 
     private String storeBody(String sourceReadinessStatus, String syncStatus, String widgetStatus) {
+        return storeBody(sourceReadinessStatus, syncStatus, widgetStatus, "INSTALLED", "PLATFORM_BOOTSTRAPPED");
+    }
+
+    private String storeBody(String sourceReadinessStatus,
+                             String syncStatus,
+                             String widgetStatus,
+                             String installStatus,
+                             String onboardingStatus) {
         return """
             {
               "id":"shp-1",
@@ -382,11 +403,11 @@ class PlatformShopifyStoreClientTest {
               "deploymentStatus":"DRAFT",
               "consumerId":"consumer-alpha",
               "consumerDisplayName":"Alpha Storefront",
-              "installStatus":"INSTALLED",
+              "installStatus":"%s",
               "syncStatus":"%s",
               "sourceReadinessStatus":"%s",
               "widgetStatus":"%s",
-              "onboardingStatus":"PLATFORM_BOOTSTRAPPED",
+              "onboardingStatus":"%s",
               "productsEnabled":true,
               "collectionsEnabled":true,
               "pagesEnabled":false,
@@ -412,6 +433,6 @@ class PlatformShopifyStoreClientTest {
               "createdAt":"2026-04-18T00:00:00Z",
               "updatedAt":"2026-04-18T00:00:00Z"
             }
-            """.formatted(syncStatus, sourceReadinessStatus, widgetStatus);
+            """.formatted(installStatus, syncStatus, sourceReadinessStatus, widgetStatus, onboardingStatus);
     }
 }

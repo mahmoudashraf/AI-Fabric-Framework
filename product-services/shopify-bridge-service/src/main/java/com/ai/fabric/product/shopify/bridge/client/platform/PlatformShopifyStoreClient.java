@@ -97,6 +97,14 @@ public class PlatformShopifyStoreClient {
             .body(ShopifyBridgeStoreSummary.class);
     }
 
+    public ShopifyBridgeStoreSummary markUninstalled(String shopDomain) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/uninstall")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
+    }
+
     public ShopifyBridgeStoreSummary recordSourcePreflight(String shopDomain, ShopifyBridgeRecordSourcePreflightRequest request) {
         return restClient.post()
             .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/source-preflight")

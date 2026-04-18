@@ -25,30 +25,12 @@ class ShopifyBridgeStoreLifecycleServiceTest {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeStoreLifecycleService service = new ShopifyBridgeStoreLifecycleService(client);
 
-        ShopifyBridgeStoreSummary current = store("INSTALLED", "SYNCED", "ENABLED", "LIVE");
-        when(client.getStore("alpha.myshopify.com")).thenReturn(current);
-        when(client.upsertStore(any())).thenReturn(store("UNINSTALLED", "NOT_SYNCED", "NOT_ENABLED", "BLOCKED"));
+        when(client.markUninstalled("alpha.myshopify.com")).thenReturn(store("UNINSTALLED", "NOT_SYNCED", "NOT_ENABLED", "BLOCKED"));
 
         ShopifyBridgeStoreSummary result = service.markUninstalled("alpha.myshopify.com");
 
         assertThat(result.installStatus()).isEqualTo("UNINSTALLED");
-        verify(client).upsertStore(new ShopifyBridgeUpsertStoreRequest(
-            "alpha.myshopify.com",
-            "Alpha",
-            "shopify-bridge-prod",
-            "cust-1",
-            "dep-1",
-            "consumer-alpha",
-            "UNINSTALLED",
-            "NOT_SYNCED",
-            "READY",
-            "NOT_ENABLED",
-            "BLOCKED",
-            true,
-            true,
-            false,
-            true
-        ));
+        verify(client).markUninstalled("alpha.myshopify.com");
     }
 
     @Test

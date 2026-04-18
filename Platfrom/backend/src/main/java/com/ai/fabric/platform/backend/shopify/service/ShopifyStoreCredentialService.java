@@ -83,6 +83,16 @@ public class ShopifyStoreCredentialService {
         putOrRemove(credentials, "scopesText", request.scopesText());
         credentials.put("expiring", expiring);
 
+        if (!"INSTALLED".equalsIgnoreCase(entity.getInstallStatus())) {
+            entity.setInstallStatus("INSTALLED");
+            entity.setSyncStatus("NOT_SYNCED");
+            entity.setSourceReadinessStatus("NOT_RUN");
+            entity.setWidgetStatus("NOT_ENABLED");
+        }
+        if (shouldRestoreOnboarding(entity.getOnboardingStatus())) {
+            entity.setOnboardingStatus(hasPlatformBindings(entity) ? "PLATFORM_BOOTSTRAPPED" : "CONNECTED");
+        }
+
         entity.setDetailsJson(sourcePreflightSupport.writeJson(details));
         entity.setUpdatedAt(now);
         repository.save(entity);
@@ -204,5 +214,19 @@ public class ShopifyStoreCredentialService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean shouldRestoreOnboarding(String onboardingStatus) {
+        String normalized = normalize(onboardingStatus);
+        return normalized == null
+            || "BLOCKED".equalsIgnoreCase(normalized)
+            || "NOT_STARTED".equalsIgnoreCase(normalized)
+            || "UNINSTALLED".equalsIgnoreCase(normalized);
+    }
+
+    private boolean hasPlatformBindings(ShopifyStoreConnectionEntity entity) {
+        return normalize(entity.getCustomerId()) != null
+            && normalize(entity.getDeploymentId()) != null
+            && normalize(entity.getConsumerId()) != null;
     }
 }

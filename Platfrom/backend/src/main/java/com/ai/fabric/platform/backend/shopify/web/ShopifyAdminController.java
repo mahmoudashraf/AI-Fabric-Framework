@@ -17,6 +17,7 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreDocumentSyncSe
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGoLiveService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreUninstallService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWebhookService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetService;
 import jakarta.validation.Valid;
@@ -43,6 +44,7 @@ public class ShopifyAdminController {
     private final ShopifyStoreBootstrapService shopifyStoreBootstrapService;
     private final ShopifyStoreCredentialService shopifyStoreCredentialService;
     private final ShopifyStoreGoLiveService shopifyStoreGoLiveService;
+    private final ShopifyStoreUninstallService shopifyStoreUninstallService;
     private final ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService;
     private final ShopifyStoreSyncService shopifyStoreSyncService;
     private final ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService;
@@ -53,6 +55,7 @@ public class ShopifyAdminController {
                                   ShopifyStoreBootstrapService shopifyStoreBootstrapService,
                                   ShopifyStoreCredentialService shopifyStoreCredentialService,
                                   ShopifyStoreGoLiveService shopifyStoreGoLiveService,
+                                  ShopifyStoreUninstallService shopifyStoreUninstallService,
                                   ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService,
                                   ShopifyStoreSyncService shopifyStoreSyncService,
                                   ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService,
@@ -62,6 +65,7 @@ public class ShopifyAdminController {
         this.shopifyStoreBootstrapService = shopifyStoreBootstrapService;
         this.shopifyStoreCredentialService = shopifyStoreCredentialService;
         this.shopifyStoreGoLiveService = shopifyStoreGoLiveService;
+        this.shopifyStoreUninstallService = shopifyStoreUninstallService;
         this.shopifyStoreSourcePreflightService = shopifyStoreSourcePreflightService;
         this.shopifyStoreSyncService = shopifyStoreSyncService;
         this.shopifyStoreDocumentSyncService = shopifyStoreDocumentSyncService;
@@ -118,6 +122,12 @@ public class ShopifyAdminController {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ShopifyStoreConnectionSummary goLive(@PathVariable String shopDomain) {
         return shopifyStoreGoLiveService.goLive(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/uninstall")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ShopifyStoreConnectionSummary uninstall(@PathVariable String shopDomain) {
+        return shopifyStoreUninstallService.markUninstalled(shopDomain, "Shopify app uninstall cleanup.");
     }
 
     @PostMapping("/{shopDomain}/source-preflight")

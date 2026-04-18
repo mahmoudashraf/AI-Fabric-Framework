@@ -24,6 +24,7 @@ import com.ai.fabric.platform.backend.tenant.model.CreatePlatformConsumerRequest
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
+import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerRequest;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerBindingRequest;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
@@ -226,8 +227,9 @@ public class ShopifyStoreBootstrapService {
     }
 
     private PlatformConsumerSummary ensureConsumerBinding(PlatformConsumerEntity consumer, BootstrapDeployment deployment) {
+        PlatformConsumerSummary summary;
         if (deployment.id().equals(consumer.getBoundDeploymentId())) {
-            return new PlatformConsumerSummary(
+            summary = new PlatformConsumerSummary(
                 consumer.getConsumerId(),
                 consumer.getCustomerId(),
                 consumer.getDisplayName(),
@@ -241,15 +243,28 @@ public class ShopifyStoreBootstrapService {
                 consumer.getCreatedAt(),
                 consumer.getUpdatedAt()
             );
+        } else {
+            summary = platformCustomerConsumerService.updateBinding(
+                consumer.getCustomerId(),
+                consumer.getConsumerId(),
+                new UpdatePlatformConsumerBindingRequest(
+                    deployment.id(),
+                    "Bootstrap Shopify store binding to deployment " + deployment.id()
+                )
+            );
         }
-        return platformCustomerConsumerService.updateBinding(
-            consumer.getCustomerId(),
-            consumer.getConsumerId(),
-            new UpdatePlatformConsumerBindingRequest(
-                deployment.id(),
-                "Bootstrap Shopify store binding to deployment " + deployment.id()
-            )
-        );
+        if (!"ACTIVE".equalsIgnoreCase(summary.status())) {
+            return platformCustomerConsumerService.updateConsumer(
+                summary.customerId(),
+                summary.consumerId(),
+                new UpdatePlatformConsumerRequest(
+                    summary.displayName(),
+                    summary.description(),
+                    "ACTIVE"
+                )
+            );
+        }
+        return summary;
     }
 
     private List<String> ensureBundle(String deploymentId,

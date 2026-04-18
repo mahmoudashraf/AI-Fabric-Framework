@@ -210,4 +210,88 @@ class ShopifyStoreCredentialServiceTest {
         verify(platformSecretService).clearManagedSecret(eq(ShopifyStoreCredentialService.accessTokenSecretRef("alpha.myshopify.com")), any(Map.class));
         verify(platformSecretService).clearManagedSecret(eq(ShopifyStoreCredentialService.refreshTokenSecretRef("alpha.myshopify.com")), any(Map.class));
     }
+
+    @Test
+    void upsertRestoresInstalledStateAfterUninstall() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(objectMapper);
+
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("ps-1");
+        service.setServiceRef("shopify-bridge-prod");
+        service.setDisplayName("Shopify Bridge");
+        service.setProductFamily("SHOPIFY");
+        service.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+        when(productServiceService.requireServiceById("ps-1")).thenReturn(service);
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-1");
+        entity.setShopDomain("alpha.myshopify.com");
+        entity.setDisplayName("Alpha");
+        entity.setProductServiceId("ps-1");
+        entity.setCustomerId("cust-1");
+        entity.setDeploymentId("dep-1");
+        entity.setConsumerId("consumer-alpha");
+        entity.setInstallStatus("UNINSTALLED");
+        entity.setSyncStatus("NOT_SYNCED");
+        entity.setSourceReadinessStatus("NOT_RUN");
+        entity.setWidgetStatus("NOT_ENABLED");
+        entity.setOnboardingStatus("BLOCKED");
+        entity.setProductsEnabled(true);
+        entity.setCollectionsEnabled(true);
+        entity.setPagesEnabled(true);
+        entity.setPoliciesEnabled(true);
+        entity.setCreatedAt(Instant.parse("2026-04-18T10:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-04-18T10:00:00Z"));
+
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(entity));
+        when(repository.save(any(ShopifyStoreConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(platformSecretService).upsertManagedSecret(any(), any(), any());
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            support,
+            new ShopifyStoreReadinessEvaluator()
+        );
+        ShopifyStoreCredentialService credentialService = new ShopifyStoreCredentialService(
+            repository,
+            connectionService,
+            support,
+            platformSecretService,
+            platformAuditService
+        );
+
+        ShopifyStoreConnectionSummary summary = credentialService.upsert(
+            "alpha.myshopify.com",
+            new UpsertShopifyStoreCredentialsRequest(
+                "shpat_access",
+                "shprt_refresh",
+                Instant.parse("2026-04-18T11:00:00Z"),
+                Instant.parse("2026-07-18T10:00:00Z"),
+                "read_products,read_content",
+                true
+            )
+        );
+
+        assertThat(summary.installStatus()).isEqualTo("INSTALLED");
+        assertThat(summary.onboardingStatus()).isEqualTo("PLATFORM_BOOTSTRAPPED");
+        assertThat(summary.widgetStatus()).isEqualTo("NOT_ENABLED");
+        assertThat(summary.sourceReadinessStatus()).isEqualTo("NOT_RUN");
+    }
 }

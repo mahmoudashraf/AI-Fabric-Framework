@@ -23,6 +23,7 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.model.PlatformConsumerSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
+import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerRequest;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
@@ -180,6 +181,77 @@ class ShopifyStoreBootstrapServiceTest {
         verify(customerTenantService, never()).createCustomer(any());
         verify(templateBootstrapService, never()).bootstrap(any(), any());
         verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
+    }
+
+    @Test
+    void bootstrapReactivatesDisabledConsumer() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        PlatformCustomerTenantService customerTenantService = mock(PlatformCustomerTenantService.class);
+        PlatformCustomerConsumerService customerConsumerService = mock(PlatformCustomerConsumerService.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        MarketplaceTemplateBootstrapService templateBootstrapService = mock(MarketplaceTemplateBootstrapService.class);
+        DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        ShopifyStoreConnectionEntity store = store("demo.myshopify.com");
+        store.setCustomerId("cus-123");
+        store.setDeploymentId("dep-123");
+        store.setConsumerId("shopify-demo");
+
+        PlatformCustomerEntity customer = customerEntity("cus-123");
+        DeploymentEntity deploymentEntity = new DeploymentEntity();
+        deploymentEntity.setId("dep-123");
+        PlatformConsumerEntity consumerEntity = new PlatformConsumerEntity();
+        consumerEntity.setId("con-123");
+        consumerEntity.setCustomerId("cus-123");
+        consumerEntity.setConsumerId("shopify-demo");
+        consumerEntity.setDisplayName("Demo Shop");
+        consumerEntity.setDescription("Storefront consumer");
+        consumerEntity.setStatus("DISABLED");
+        consumerEntity.setBoundDeploymentId(null);
+        consumerEntity.setCreatedAt(Instant.now());
+        consumerEntity.setUpdatedAt(Instant.now());
+
+        PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", "Storefront consumer", "DISABLED", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        PlatformConsumerSummary activeConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", "Storefront consumer", "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
+        when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deploymentEntity));
+        when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.of(consumerEntity));
+        when(customerConsumerService.updateBinding(eq("cus-123"), eq("shopify-demo"), any())).thenReturn(reboundConsumer);
+        when(customerConsumerService.updateConsumer(eq("cus-123"), eq("shopify-demo"), any(UpdatePlatformConsumerRequest.class))).thenReturn(activeConsumer);
+        when(installService.listInstalls("dep-123")).thenReturn(List.of());
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
+
+        ShopifyStoreBootstrapService service = new ShopifyStoreBootstrapService(
+            repository,
+            customerRepository,
+            consumerRepository,
+            deploymentRepository,
+            customerTenantService,
+            customerConsumerService,
+            deploymentService,
+            templateBootstrapService,
+            installService,
+            marketplaceCatalogService,
+            connectionService,
+            new ShopifyCompanionBootstrapProperties("dev", "custom-start-from-scratch", "", "mkp-template-commerce-shell", "", List.of()),
+            auditService
+        );
+
+        ShopifyStoreBootstrapSummary summary = service.bootstrap("demo.myshopify.com", new BootstrapShopifyStoreRequest(null, null, null, null, null, null, null));
+
+        assertThat(summary.consumerId()).isEqualTo("shopify-demo");
+        verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
+        verify(customerConsumerService).updateConsumer(eq("cus-123"), eq("shopify-demo"), any(UpdatePlatformConsumerRequest.class));
     }
 
     private ShopifyStoreConnectionEntity store(String shopDomain) {
