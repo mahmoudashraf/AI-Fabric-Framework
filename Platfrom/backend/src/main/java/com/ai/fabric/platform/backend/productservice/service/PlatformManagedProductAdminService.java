@@ -18,6 +18,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceInstallOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceProbeSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionOverview;
@@ -321,6 +322,45 @@ public class PlatformManagedProductAdminService {
             throw ex;
         } catch (Exception ex) {
             throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product webhook subscription request failed."), ex);
+        }
+    }
+
+    public PlatformManagedProductServiceStoreBillingSummary getStoreBillingSummary(String serviceRef, String shopDomain) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (!hasText(service.getBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
+        }
+        if (!hasText(service.getSecretName())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
+        }
+        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+            ));
+
+        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
+        if (!hasText(apiKey)) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
+        }
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/billing-summary")))
+                .timeout(HTTP_TIMEOUT)
+                .header("Accept", "application/json")
+                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .GET()
+                .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ResponseStatusException(CONFLICT, "Managed product billing summary request failed with HTTP " + response.statusCode() + ".");
+            }
+            return parseStoreBillingSummary(shopDomain, objectMapper.readTree(response.body()));
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product billing summary request failed."), ex);
         }
     }
 
@@ -642,6 +682,18 @@ public class PlatformManagedProductAdminService {
             node.path("driftedCount").asInt(0),
             text(node, "checkedAt", null),
             List.copyOf(topics)
+        );
+    }
+
+    private PlatformManagedProductServiceStoreBillingSummary parseStoreBillingSummary(String shopDomain, JsonNode node) {
+        return new PlatformManagedProductServiceStoreBillingSummary(
+            shopDomain,
+            text(node, "mode", null),
+            text(node, "planName", null),
+            text(node, "status", "UNKNOWN"),
+            node.path("merchantApprovalRequired").asBoolean(false),
+            node.path("launchBlocked").asBoolean(false),
+            text(node, "message", "Managed product service did not return store billing diagnostics.")
         );
     }
 

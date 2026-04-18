@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
@@ -48,6 +49,11 @@ public class ShopifyBridgeAdminController {
     @GetMapping("/stores/{shopDomain}")
     public ShopifyBridgeStoreSummary getStore(@PathVariable String shopDomain) {
         return storeAdminService.getStore(shopDomain);
+    }
+
+    @GetMapping("/stores/{shopDomain}/billing-summary")
+    public ShopifyBridgeBillingSummary billingSummary(@PathVariable String shopDomain) {
+        return storeAdminService.billingSummary(shopDomain);
     }
 
     @GetMapping("/stores/{shopDomain}/webhook-subscriptions")

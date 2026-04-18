@@ -132,6 +132,26 @@ class ShopifyBridgeAdminControllerTest {
     }
 
     @Test
+    void adminBillingSummaryIsReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.billingSummary("alpha.myshopify.com")).thenReturn(new ShopifyBridgeBillingSummary(
+            "PAID",
+            "Companion Growth",
+            "READY_FOR_APPROVAL",
+            true,
+            true,
+            "Merchant approval is required before go-live."
+        ));
+
+        mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/billing-summary").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.mode").value("PAID"))
+            .andExpect(jsonPath("$.planName").value("Companion Growth"))
+            .andExpect(jsonPath("$.status").value("READY_FOR_APPROVAL"))
+            .andExpect(jsonPath("$.merchantApprovalRequired").value(true))
+            .andExpect(jsonPath("$.launchBlocked").value(true));
+    }
+
+    @Test
     void adminStoresAreReturnedWhenApiKeyMatches() throws Exception {
         when(storeAdminService.listStores()).thenReturn(List.of(sampleStore()));
 

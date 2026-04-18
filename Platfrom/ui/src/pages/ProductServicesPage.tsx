@@ -37,6 +37,7 @@ import {
   fetchProductServiceDependents,
   fetchProductServiceHealth,
   fetchProductServiceOverview,
+  fetchProductServiceStoreBillingSummary,
   fetchProductServiceWebhookSubscriptions,
   fetchProductServices,
   forceRecreateProductService,
@@ -46,6 +47,7 @@ import {
   scaleProductService,
   type CreatePlatformManagedProductServiceRequest,
   type PlatformAuditEventSummary,
+  type PlatformManagedProductServiceBillingSummary,
   type PlatformManagedProductServiceHealthSummary,
   type PlatformManagedProductServiceOverviewSummary,
   type PlatformManagedProductServiceProbeSummary,
@@ -99,6 +101,16 @@ function detailValue(value: string | number | null | undefined): string {
   }
   const stringValue = `${value}`.trim()
   return stringValue.length > 0 ? stringValue : '—'
+}
+
+function billingSeverity(billing: PlatformManagedProductServiceBillingSummary | null | undefined): 'info' | 'warning' | 'error' {
+  if (!billing) {
+    return 'info'
+  }
+  if (billing.launchBlocked) {
+    return billing.status?.toUpperCase() === 'PAYMENT_ISSUE' ? 'error' : 'warning'
+  }
+  return 'info'
 }
 
 function usageBreakdownLabel(eventType: string): string {
@@ -219,6 +231,7 @@ export function ProductServicesPage() {
   const [forceRecreateDialogOpen, setForceRecreateDialogOpen] = useState(false)
   const [decommissionDialogOpen, setDecommissionDialogOpen] = useState(false)
   const [webhookDialogStore, setWebhookDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
+  const [billingDialogStore, setBillingDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
   const [rotateSecretValue, setRotateSecretValue] = useState('')
   const [forceRecreateConfirmation, setForceRecreateConfirmation] = useState('')
   const [decommissionConfirmation, setDecommissionConfirmation] = useState('')
@@ -294,6 +307,12 @@ export function ProductServicesPage() {
     enabled: selectedServiceRef.length > 0 && webhookDialogStore != null,
   })
 
+  const storeBillingSummaryQuery = useQuery({
+    queryKey: ['product-services', selectedServiceRef, 'store-billing-summary', billingDialogStore?.shopDomain ?? ''],
+    queryFn: () => fetchProductServiceStoreBillingSummary(selectedServiceRef, billingDialogStore?.shopDomain ?? ''),
+    enabled: selectedServiceRef.length > 0 && billingDialogStore != null,
+  })
+
   const refreshSelected = async (serviceRef: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['product-services'] }),
@@ -303,6 +322,7 @@ export function ProductServicesPage() {
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'health'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'overview'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'webhook-subscriptions'] }),
+      queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'store-billing-summary'] }),
       queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
     ])
   }
@@ -762,6 +782,9 @@ export function ProductServicesPage() {
                                   </Typography>
                                 ) : null}
                                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Button size="small" onClick={() => setBillingDialogStore(store)}>
+                                    Inspect billing posture
+                                  </Button>
                                   <Button size="small" onClick={() => setWebhookDialogStore(store)}>
                                     Inspect webhook subscriptions
                                   </Button>
@@ -917,6 +940,54 @@ export function ProductServicesPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWebhookDialogStore(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={billingDialogStore != null} onClose={() => setBillingDialogStore(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Store Billing Posture</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Store {detailValue(billingDialogStore?.shopDomain)} · Service {detailValue(selectedServiceRef)}
+            </Typography>
+            {storeBillingSummaryQuery.isLoading ? (
+              <Alert severity="info">Loading billing posture…</Alert>
+            ) : storeBillingSummaryQuery.isError ? (
+              <Alert severity="error">
+                {storeBillingSummaryQuery.error instanceof Error
+                  ? storeBillingSummaryQuery.error.message
+                  : 'Failed to load store billing posture.'}
+              </Alert>
+            ) : storeBillingSummaryQuery.data ? (
+              <Stack spacing={1.5}>
+                <Alert severity={billingSeverity(storeBillingSummaryQuery.data)}>
+                  Billing {detailValue(storeBillingSummaryQuery.data.mode)} · {detailValue(storeBillingSummaryQuery.data.status)} · plan{' '}
+                  {detailValue(storeBillingSummaryQuery.data.planName)}. {detailValue(storeBillingSummaryQuery.data.message)}
+                </Alert>
+                <Grid container spacing={2}>
+                  {[
+                    ['Mode', storeBillingSummaryQuery.data.mode],
+                    ['Plan', storeBillingSummaryQuery.data.planName],
+                    ['Status', storeBillingSummaryQuery.data.status],
+                    ['Merchant approval', storeBillingSummaryQuery.data.merchantApprovalRequired ? 'required' : 'not required'],
+                    ['Go-live blocking', storeBillingSummaryQuery.data.launchBlocked ? 'yes' : 'no'],
+                  ].map(([label, value]) => (
+                    <Grid item xs={12} sm={6} key={label}>
+                      <Typography variant="caption" color="text.secondary">
+                        {label}
+                      </Typography>
+                      <Typography variant="body2">{detailValue(value)}</Typography>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Stack>
+            ) : (
+              <Alert severity="info">Billing posture is not available for this store yet.</Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBillingDialogStore(null)}>Close</Button>
         </DialogActions>
       </Dialog>
 

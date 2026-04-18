@@ -494,6 +494,19 @@ export type PlatformManagedProductServiceOverviewSummary = {
   notYetImplemented: string[]
 }
 
+export type PlatformManagedProductServiceBillingSummary = {
+  mode: string | null
+  planName: string | null
+  status: string | null
+  merchantApprovalRequired: boolean
+  launchBlocked: boolean
+  message: string | null
+}
+
+export type PlatformManagedProductServiceStoreBillingSummary = PlatformManagedProductServiceBillingSummary & {
+  shopDomain: string | null
+}
+
 export type PlatformManagedProductServiceWebhookSubscriptionSummary = {
   shopDomain: string | null
   status: string
@@ -2936,6 +2949,12 @@ export function fetchProductServiceOverview(serviceRef: string) {
 export function fetchProductServiceWebhookSubscriptions(serviceRef: string, shopDomain: string) {
   return request<PlatformManagedProductServiceWebhookSubscriptionSummary>(
     `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/webhook-subscriptions`,
+  )
+}
+
+export function fetchProductServiceStoreBillingSummary(serviceRef: string, shopDomain: string) {
+  return request<PlatformManagedProductServiceStoreBillingSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/billing-summary`,
   )
 }
 
