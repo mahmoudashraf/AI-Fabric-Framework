@@ -19,6 +19,7 @@ copy_file() {
 }
 
 copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md" "docs/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md"
+copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md" "docs/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md"
 copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md" "docs/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md"
 copy_file "doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md" "docs/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md"
 copy_file "scripts/verify-shopify-companion.sh" "scripts/verify-shopify-companion.sh"
@@ -34,6 +35,7 @@ This directory is an assembled handoff package for Shopify app review, design-pa
 Contents:
 
 - `docs/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md`
+- `docs/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md`
 - `docs/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md`
 - `docs/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
 - `scripts/verify-shopify-companion.sh`

@@ -460,6 +460,25 @@ export default function App() {
     }
   }
 
+  function handleDownloadSupportBundle() {
+    try {
+      const blob = new Blob([supportBundleText], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const safeShopDomain = session?.shopDomain?.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase() || 'shopify-store'
+      anchor.href = url
+      anchor.download = `shopify-companion-support-bundle-${safeShopDomain}.txt`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setActionError(null)
+      setActionMessage('Downloaded Shopify Companion support bundle.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to download the support bundle.')
+    }
+  }
+
   return (
     <AppProvider i18n={enTranslations}>
       <Page
@@ -717,6 +736,9 @@ export default function App() {
                   <InlineStack gap="200">
                     <Button onClick={() => void handleCopySupportBundle()} disabled={!session}>
                       Copy support bundle
+                    </Button>
+                    <Button onClick={handleDownloadSupportBundle} disabled={!session}>
+                      Download support bundle
                     </Button>
                   </InlineStack>
                 </BlockStack>
