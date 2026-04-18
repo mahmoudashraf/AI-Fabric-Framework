@@ -1,6 +1,8 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -24,11 +26,14 @@ public class ShopifyMerchantController {
 
     private final ShopifyBridgeMerchantStoreService merchantStoreService;
     private final ShopifyMerchantPlaygroundService merchantPlaygroundService;
+    private final ShopifyBridgeUsageService usageService;
 
     public ShopifyMerchantController(ShopifyBridgeMerchantStoreService merchantStoreService,
-                                     ShopifyMerchantPlaygroundService merchantPlaygroundService) {
+                                     ShopifyMerchantPlaygroundService merchantPlaygroundService,
+                                     ShopifyBridgeUsageService usageService) {
         this.merchantStoreService = merchantStoreService;
         this.merchantPlaygroundService = merchantPlaygroundService;
+        this.usageService = usageService;
     }
 
     @GetMapping("/session")
@@ -70,6 +75,11 @@ public class ShopifyMerchantController {
     @GetMapping("/store/storefront-preview")
     public ShopifyStorefrontPreviewResponse storefrontPreview(Authentication authentication) {
         return merchantStoreService.storefrontPreview(requireMerchant(authentication));
+    }
+
+    @GetMapping("/store/usage-summary")
+    public ShopifyBridgeUsageSummary usageSummary(Authentication authentication) {
+        return usageService.summarize(requireMerchant(authentication).shopDomain());
     }
 
     @PostMapping("/store/source-settings")

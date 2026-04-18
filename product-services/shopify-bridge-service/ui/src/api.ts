@@ -166,6 +166,22 @@ export type ShopifyStorefrontPreviewResponse = {
   message: string
 }
 
+export type ShopifyBridgeUsageSummary = {
+  shopDomain: string
+  generatedAt: string
+  lastActivityAt: string | null
+  totalToday: number
+  totalLast7Days: number
+  todayBreakdown: Array<{
+    eventType: string
+    count: number
+  }>
+  last7DayBreakdown: Array<{
+    eventType: string
+    count: number
+  }>
+}
+
 export async function fetchShell(): Promise<ShopifyBridgeShellResponse> {
   return fetchJson('/api/app/shell')
 }
@@ -199,6 +215,10 @@ export async function syncNowStore(): Promise<ShopifyBridgeStoreSummary> {
 
 export async function fetchStorefrontPreview(): Promise<ShopifyStorefrontPreviewResponse> {
   return authenticatedFetchJson('/api/app/store/storefront-preview', { method: 'GET' })
+}
+
+export async function fetchUsageSummary(): Promise<ShopifyBridgeUsageSummary> {
+  return authenticatedFetchJson('/api/app/store/usage-summary', { method: 'GET' })
 }
 
 export async function updateSourceSettings(settings: {

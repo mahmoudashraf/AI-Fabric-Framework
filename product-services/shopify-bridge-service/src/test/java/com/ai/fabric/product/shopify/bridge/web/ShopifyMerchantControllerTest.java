@@ -1,6 +1,9 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabilitySummary;
@@ -54,6 +57,9 @@ class ShopifyMerchantControllerTest {
 
     @MockBean
     private ShopifyMerchantPlaygroundService merchantPlaygroundService;
+
+    @MockBean
+    private ShopifyBridgeUsageService usageService;
 
     @Test
     void sessionRequiresBearerToken() throws Exception {
@@ -197,6 +203,27 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
 
         verify(merchantStoreService).updateWidgetSettings(any(), any());
+    }
+
+    @Test
+    void usageSummaryUsesMerchantSessionContext() throws Exception {
+        when(usageService.summarize("alpha.myshopify.com")).thenReturn(new ShopifyBridgeUsageSummary(
+            "alpha.myshopify.com",
+            Instant.parse("2026-04-18T12:00:00Z"),
+            Instant.parse("2026-04-18T11:59:00Z"),
+            4,
+            17,
+            List.of(new ShopifyBridgeUsageEventCountSummary("MERCHANT_PLAYGROUND_QUERY", 2)),
+            List.of(new ShopifyBridgeUsageEventCountSummary("STOREFRONT_QUERY", 9))
+        ));
+
+        mockMvc.perform(get("/api/app/store/usage-summary").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.totalToday").value(4))
+            .andExpect(jsonPath("$.last7DayBreakdown[0].eventType").value("STOREFRONT_QUERY"));
+
+        verify(usageService).summarize("alpha.myshopify.com");
     }
 
     @Test

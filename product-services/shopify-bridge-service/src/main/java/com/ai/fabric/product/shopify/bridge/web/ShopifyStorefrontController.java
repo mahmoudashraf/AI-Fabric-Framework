@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
@@ -20,16 +21,23 @@ public class ShopifyStorefrontController {
 
     private final ShopifyStorefrontBootstrapService storefrontBootstrapService;
     private final ShopifyStorefrontChatService storefrontChatService;
+    private final ShopifyBridgeUsageService usageService;
 
     public ShopifyStorefrontController(ShopifyStorefrontBootstrapService storefrontBootstrapService,
-                                       ShopifyStorefrontChatService storefrontChatService) {
+                                       ShopifyStorefrontChatService storefrontChatService,
+                                       ShopifyBridgeUsageService usageService) {
         this.storefrontBootstrapService = storefrontBootstrapService;
         this.storefrontChatService = storefrontChatService;
+        this.usageService = usageService;
     }
 
     @GetMapping("/{shopDomain}/bootstrap")
     public ShopifyStorefrontBootstrapResponse bootstrap(@PathVariable String shopDomain) {
-        return storefrontBootstrapService.bootstrap(shopDomain);
+        ShopifyStorefrontBootstrapResponse response = storefrontBootstrapService.bootstrap(shopDomain);
+        if (response.available()) {
+            usageService.recordEvent(shopDomain, "STOREFRONT_BOOTSTRAP");
+        }
+        return response;
     }
 
     @PostMapping("/{shopDomain}/chat/query")
@@ -37,7 +45,9 @@ public class ShopifyStorefrontController {
                           @RequestBody(required = false) JsonNode request,
                           @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
                           String shopperSessionId) {
-        return storefrontChatService.query(shopDomain, request, shopperSessionId);
+        JsonNode response = storefrontChatService.query(shopDomain, request, shopperSessionId);
+        usageService.recordEvent(shopDomain, "STOREFRONT_QUERY");
+        return response;
     }
 
     @PostMapping("/{shopDomain}/chat/suggestions")
@@ -45,6 +55,8 @@ public class ShopifyStorefrontController {
                                 @RequestBody(required = false) JsonNode request,
                                 @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
                                 String shopperSessionId) {
-        return storefrontChatService.suggestions(shopDomain, request, shopperSessionId);
+        JsonNode response = storefrontChatService.suggestions(shopDomain, request, shopperSessionId);
+        usageService.recordEvent(shopDomain, "STOREFRONT_SUGGESTIONS");
+        return response;
     }
 }

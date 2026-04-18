@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.playground.service;
 
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
@@ -11,25 +12,32 @@ import java.util.Locale;
 public class ShopifyMerchantPlaygroundService {
 
     private final ShopifyStorefrontChatService storefrontChatService;
+    private final ShopifyBridgeUsageService usageService;
 
-    public ShopifyMerchantPlaygroundService(ShopifyStorefrontChatService storefrontChatService) {
+    public ShopifyMerchantPlaygroundService(ShopifyStorefrontChatService storefrontChatService,
+                                            ShopifyBridgeUsageService usageService) {
         this.storefrontChatService = storefrontChatService;
+        this.usageService = usageService;
     }
 
     public JsonNode query(ShopifyMerchantSession merchantSession, JsonNode request) {
-        return storefrontChatService.query(
+        JsonNode response = storefrontChatService.query(
             merchantSession.shopDomain(),
             request,
             shopperSessionId(merchantSession)
         );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PLAYGROUND_QUERY");
+        return response;
     }
 
     public JsonNode suggestions(ShopifyMerchantSession merchantSession, JsonNode request) {
-        return storefrontChatService.suggestions(
+        JsonNode response = storefrontChatService.suggestions(
             merchantSession.shopDomain(),
             request,
             shopperSessionId(merchantSession)
         );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PLAYGROUND_SUGGESTIONS");
+        return response;
     }
 
     private String shopperSessionId(ShopifyMerchantSession merchantSession) {

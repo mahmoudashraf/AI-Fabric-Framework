@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
@@ -12,6 +13,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -37,6 +39,9 @@ class ShopifyStorefrontControllerTest {
     @MockBean
     private ShopifyStorefrontChatService storefrontChatService;
 
+    @MockBean
+    private ShopifyBridgeUsageService usageService;
+
     @Test
     void bootstrapIsPublicAndReturnsStorefrontMetadata() throws Exception {
         when(storefrontBootstrapService.bootstrap("alpha.myshopify.com")).thenReturn(new ShopifyStorefrontBootstrapResponse(
@@ -61,6 +66,8 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.available").value(true))
             .andExpect(jsonPath("$.consumerId").value("consumer-alpha"))
             .andExpect(jsonPath("$.bridgeQueryUrl").value("/api/storefront/shops/alpha.myshopify.com/chat/query"));
+
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_BOOTSTRAP");
     }
 
     @Test
@@ -79,5 +86,7 @@ class ShopifyStorefrontControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.conversationId").value("conv-1"));
+
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_QUERY");
     }
 }

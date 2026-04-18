@@ -19,6 +19,7 @@ import enTranslations from '@shopify/polaris/locales/en.json'
 import {
   bootstrapStore,
   connectStore,
+  fetchUsageSummary,
   fetchStorefrontPreview,
   fetchSession,
   fetchShell,
@@ -33,6 +34,7 @@ import {
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
+  type ShopifyBridgeUsageSummary,
   type ShopifyStorefrontPreviewResponse,
 } from './api'
 
@@ -63,6 +65,7 @@ type LoadState = {
   shell: ShopifyBridgeShellResponse | null
   session: ShopifyBridgeMerchantSessionResponse | null
   storefrontPreview: ShopifyStorefrontPreviewResponse | null
+  usageSummary: ShopifyBridgeUsageSummary | null
   loading: boolean
   error: string | null
 }
@@ -77,6 +80,7 @@ export default function App() {
     shell: null,
     session: null,
     storefrontPreview: null,
+    usageSummary: null,
     loading: true,
     error: null,
   })
@@ -125,15 +129,18 @@ export default function App() {
       const shell = await fetchShell()
       let session: ShopifyBridgeMerchantSessionResponse | null = null
       let storefrontPreview: ShopifyStorefrontPreviewResponse | null = null
+      let usageSummary: ShopifyBridgeUsageSummary | null = null
       try {
         session = await fetchSession()
         storefrontPreview = await fetchStorefrontPreview()
+        usageSummary = await fetchUsageSummary()
       } catch (sessionError) {
         session = null
         setState({
           shell,
           session: null,
           storefrontPreview: null,
+          usageSummary: null,
           loading: false,
           error: sessionError instanceof Error ? sessionError.message : 'Failed to resolve merchant session.',
         })
@@ -143,6 +150,7 @@ export default function App() {
         shell,
         session,
         storefrontPreview,
+        usageSummary,
         loading: false,
         error: null,
       })
@@ -165,6 +173,7 @@ export default function App() {
         shell: null,
         session: null,
         storefrontPreview: null,
+        usageSummary: null,
         loading: false,
         error: error instanceof Error ? error.message : 'Unknown bridge shell failure.',
       })
@@ -357,7 +366,8 @@ export default function App() {
   const session = state.session
   const store = session?.store ?? null
   const storefrontPreview = state.storefrontPreview
-  const supportBundleText = buildSupportBundle(shell, session, storefrontPreview)
+  const usageSummary = state.usageSummary
+  const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary)
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
@@ -618,6 +628,19 @@ export default function App() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       Actions {store.capabilities.actionNames.join(' · ') || '—'} · Knowledge {store.capabilities.knowledgeSourceIds.join(' · ') || '—'}
                     </Text>
+                  ) : null}
+                  {usageSummary ? (
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Usage today {usageSummary.totalToday} · last 7 days {usageSummary.totalLast7Days} · last activity {formatTimestamp(usageSummary.lastActivityAt)}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Today {formatUsageBreakdown(usageSummary.todayBreakdown)}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Last 7 days {formatUsageBreakdown(usageSummary.last7DayBreakdown)}
+                      </Text>
+                    </BlockStack>
                   ) : null}
                   <TextField
                     label="Support bundle"
@@ -1027,7 +1050,8 @@ function formatTimestamp(value: string | null | undefined): string {
 function buildSupportBundle(
   shell: ShopifyBridgeShellResponse | null,
   session: ShopifyBridgeMerchantSessionResponse | null,
-  storefrontPreview: ShopifyStorefrontPreviewResponse | null
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  usageSummary: ShopifyBridgeUsageSummary | null
 ): string {
   const store = session?.store ?? null
   return JSON.stringify(
@@ -1097,8 +1121,16 @@ function buildSupportBundle(
             blockingReasons: storefrontPreview.blockingReasons,
           }
         : null,
+      usageSummary,
     },
     null,
     2
   )
+}
+
+function formatUsageBreakdown(entries: Array<{ eventType: string; count: number }>): string {
+  if (!entries.length) {
+    return 'No events recorded'
+  }
+  return entries.map((entry) => `${entry.eventType.toLowerCase()} ${entry.count}`).join(' · ')
 }
