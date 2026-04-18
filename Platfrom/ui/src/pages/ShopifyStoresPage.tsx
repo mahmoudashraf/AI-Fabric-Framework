@@ -73,6 +73,10 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
   }
 }
 
+function isReleaseInProgress(status: string | null | undefined): boolean {
+  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes((status ?? '').toUpperCase())
+}
+
 type StoreFormState = UpsertShopifyStoreConnectionRequest
 type PreflightCategoryStatus = 'READY' | 'PENDING' | 'BLOCKED' | 'FAILED'
 type PreflightFormCategory = ShopifyStoreSourcePreflightCategorySummary & { itemCountText: string }
@@ -167,6 +171,10 @@ export function ShopifyStoresPage() {
     queryKey: ['shopify-stores', selectedShopDomain],
     queryFn: () => fetchShopifyStore(selectedShopDomain),
     enabled: selectedShopDomain.length > 0,
+    refetchInterval: (query) => {
+      const store = (query.state.data as ShopifyStoreConnectionSummary | undefined) ?? selectedSummary
+      return isReleaseInProgress(store?.latestRelease?.status) ? 5000 : false
+    },
   })
 
   const selectedStore = selectedStoreQuery.data ?? selectedSummary

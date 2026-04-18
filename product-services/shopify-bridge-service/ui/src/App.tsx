@@ -46,6 +46,10 @@ function badgeTone(status: string): 'success' | 'attention' | 'critical' {
   }
 }
 
+function isReleaseInProgress(status: string | null | undefined): boolean {
+  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes((status ?? '').toUpperCase())
+}
+
 type LoadState = {
   shell: ShopifyBridgeShellResponse | null
   session: ShopifyBridgeMerchantSessionResponse | null
@@ -67,6 +71,16 @@ export default function App() {
   useEffect(() => {
     void refresh()
   }, [])
+
+  useEffect(() => {
+    if (!isReleaseInProgress(state.session?.store?.latestRelease?.status)) {
+      return undefined
+    }
+    const timer = window.setTimeout(() => {
+      void refresh()
+    }, 5000)
+    return () => window.clearTimeout(timer)
+  }, [state.session?.store?.latestRelease?.status])
 
   async function refresh() {
     setState((current) => ({ ...current, loading: true, error: null }))
@@ -180,6 +194,14 @@ export default function App() {
   const shell = state.shell
   const session = state.session
   const store = session?.store ?? null
+  const canGoLive =
+    Boolean(session) &&
+    Boolean(store) &&
+    store?.installStatus === 'INSTALLED' &&
+    store?.sourceReadinessStatus === 'READY' &&
+    Boolean(store?.deploymentId) &&
+    Boolean(store?.consumerId) &&
+    !isReleaseInProgress(store?.latestRelease?.status)
 
   return (
     <AppProvider i18n={enTranslations}>
@@ -295,6 +317,11 @@ export default function App() {
                 Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability. Go live only after the source readiness checks are clean.
               </Text>
               <Divider />
+              {store?.latestRelease ? (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Latest release {store.latestRelease.status} / verification {store.latestRelease.verificationStatus}. The page will auto-refresh while go-live is still running.
+                </Text>
+              ) : null}
               <InlineStack gap="300" align="start">
                 <Button
                   variant="primary"
@@ -321,7 +348,7 @@ export default function App() {
                 <Button
                   onClick={() => void handleGoLive()}
                   loading={busyAction === 'go-live'}
-                  disabled={!session}
+                  disabled={!canGoLive}
                 >
                   Publish and apply
                 </Button>
