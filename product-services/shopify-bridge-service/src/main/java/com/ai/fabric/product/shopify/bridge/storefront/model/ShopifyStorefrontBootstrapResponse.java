@@ -7,6 +7,8 @@ public record ShopifyStorefrontBootstrapResponse(
     String deploymentId,
     String widgetStatus,
     String sourceReadinessStatus,
+    String launcherLabel,
+    String welcomeMessage,
     String preferredIntegrationMode,
     String runtimeAuthMode,
     String bridgeQueryUrl,

@@ -12,6 +12,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootst
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontPreviewService;
 import org.junit.jupiter.api.Test;
@@ -259,6 +260,38 @@ class ShopifyBridgeMerchantStoreServiceTest {
             false,
             true,
             false
+        ));
+    }
+
+    @Test
+    void updateWidgetSettingsDelegatesToPlatform() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            mock(ShopifyBridgeInstallCredentialService.class),
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class),
+            mock(ShopifyStorefrontPreviewService.class)
+        );
+        when(client.updateWidgetSettings("alpha.myshopify.com", new ShopifyBridgeUpdateWidgetSettingsRequest(
+            "Need help?",
+            "Ask me about products and policies."
+        ))).thenReturn(store("alpha.myshopify.com"));
+
+        ShopifyBridgeStoreSummary response = service.updateWidgetSettings(
+            session(),
+            new ShopifyBridgeUpdateWidgetSettingsRequest(
+                "Need help?",
+                "Ask me about products and policies."
+            )
+        );
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        verify(client).updateWidgetSettings("alpha.myshopify.com", new ShopifyBridgeUpdateWidgetSettingsRequest(
+            "Need help?",
+            "Ask me about products and policies."
         ));
     }
 

@@ -5,6 +5,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSes
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
 import org.springframework.security.core.Authentication;
@@ -72,6 +73,15 @@ public class ShopifyMerchantController {
         return merchantStoreService.updateSourceSettings(
             requireMerchant(authentication),
             request == null ? new ShopifyBridgeUpdateSourceSettingsRequest(null, null, null, null) : request
+        );
+    }
+
+    @PostMapping("/store/widget-settings")
+    public ShopifyBridgeStoreSummary updateWidgetSettings(Authentication authentication,
+                                                          @RequestBody(required = false) ShopifyBridgeUpdateWidgetSettingsRequest request) {
+        return merchantStoreService.updateWidgetSettings(
+            requireMerchant(authentication),
+            request == null ? new ShopifyBridgeUpdateWidgetSettingsRequest(null, null) : request
         );
     }
 

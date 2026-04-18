@@ -49,6 +49,10 @@
   function renderWidget(root, bridgeBaseUrl, launcherLabel, payload) {
     root.dataset.status = 'ready'
     root.textContent = ''
+    var resolvedLauncherLabel = (payload.launcherLabel || launcherLabel || 'Ask the store assistant').trim()
+    var resolvedWelcomeMessage = (
+      payload.welcomeMessage || payload.message || 'Store assistant is ready. Ask about products, policies, or collections.'
+    ).trim()
 
     var state = {
       conversationId: null,
@@ -60,7 +64,7 @@
       messages: [
         {
           role: 'assistant',
-          content: payload.message || 'Store assistant is ready. Ask about products, policies, or collections.',
+          content: resolvedWelcomeMessage,
         },
       ],
     }
@@ -69,7 +73,7 @@
     button.type = 'button'
     button.className = 'loom-companion-launcher'
     button.setAttribute('aria-haspopup', 'dialog')
-    button.textContent = launcherLabel
+    button.textContent = resolvedLauncherLabel
 
     var panel = document.createElement('aside')
     panel.className = 'loom-companion-panel'

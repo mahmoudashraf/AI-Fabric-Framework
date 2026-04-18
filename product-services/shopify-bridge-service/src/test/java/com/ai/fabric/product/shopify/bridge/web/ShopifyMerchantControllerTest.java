@@ -6,6 +6,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootst
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import org.junit.jupiter.api.Test;
@@ -155,6 +157,8 @@ class ShopifyMerchantControllerTest {
             "dep-1",
             "companion-app-embed",
             "Ask the store assistant",
+            "Store assistant is ready. Ask about products, policies, or collections.",
+            "https://admin.shopify.com/store/alpha/themes/current/editor?context=apps&activateAppId=test-shopify-api-key/companion-app-embed",
             List.of("Enable the Companion launcher app embed."),
             List.of(),
             "Storefront theme app extension can be enabled now."
@@ -166,6 +170,25 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.bridgeBaseUrl").value("https://bridge.example.com"));
 
         verify(merchantStoreService).storefrontPreview(any());
+    }
+
+    @Test
+    void updateWidgetSettingsUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.updateWidgetSettings(any(), any())).thenReturn(store());
+
+        mockMvc.perform(post("/api/app/store/widget-settings")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "launcherLabel": "Need help?",
+                      "welcomeMessage": "Ask me about products and policies."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+
+        verify(merchantStoreService).updateWidgetSettings(any(), any());
     }
 
     @Test
@@ -227,7 +250,16 @@ class ShopifyMerchantControllerTest {
             null,
             null,
             null,
-            null,
+            new ShopifyBridgeStoreWidgetSummary(
+                "NOT_ENABLED",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                "THEME_APP_EXTENSION",
+                "Theme app extension not enabled yet.",
+                new ShopifyBridgeStoreWidgetSettingsSummary(
+                    "Ask the store assistant",
+                    "Store assistant is ready. Ask about products, policies, or collections."
+                )
+            ),
             new ShopifyBridgeStoreReadinessSummary(
                 "BLOCKED",
                 false,

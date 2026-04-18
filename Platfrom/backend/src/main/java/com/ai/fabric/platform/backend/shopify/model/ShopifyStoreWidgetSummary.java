@@ -6,6 +6,7 @@ public record ShopifyStoreWidgetSummary(
     String status,
     Instant checkedAt,
     String channel,
-    String message
+    String message,
+    ShopifyStoreWidgetSettingsSummary settings
 ) {
 }

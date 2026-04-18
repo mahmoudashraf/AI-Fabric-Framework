@@ -13,6 +13,8 @@ public record ShopifyStorefrontPreviewResponse(
     String deploymentId,
     String extensionHandle,
     String launcherLabelDefault,
+    String welcomeMessageDefault,
+    String themeEditorActivationUrl,
     List<String> activationSteps,
     List<String> blockingReasons,
     String message

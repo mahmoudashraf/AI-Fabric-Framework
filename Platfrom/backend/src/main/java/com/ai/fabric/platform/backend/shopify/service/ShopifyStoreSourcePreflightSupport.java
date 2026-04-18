@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightS
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSyncSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWebhookSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWidgetSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWidgetSettingsSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -86,11 +87,18 @@ public class ShopifyStoreSourcePreflightSupport {
             if (!widget.isObject()) {
                 return null;
             }
+            JsonNode settings = widget.path("settings");
             return new ShopifyStoreWidgetSummary(
                 widget.path("status").asText("UNKNOWN"),
                 parseInstant(text(widget, "checkedAt")),
                 text(widget, "channel"),
-                text(widget, "message")
+                text(widget, "message"),
+                settings.isObject()
+                    ? new ShopifyStoreWidgetSettingsSummary(
+                        text(settings, "launcherLabel"),
+                        text(settings, "welcomeMessage")
+                    )
+                    : null
             );
         } catch (Exception ex) {
             return null;

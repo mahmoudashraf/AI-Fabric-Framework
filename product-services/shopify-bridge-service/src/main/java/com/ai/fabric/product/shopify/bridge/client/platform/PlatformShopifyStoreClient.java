@@ -11,6 +11,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSyncStoreDocumentsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -144,6 +145,15 @@ public class PlatformShopifyStoreClient {
     public ShopifyBridgeStoreSummary recordWidgetStatus(String shopDomain, ShopifyBridgeRecordWidgetStatusRequest request) {
         return restClient.post()
             .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/widget-status")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public ShopifyBridgeStoreSummary updateWidgetSettings(String shopDomain, ShopifyBridgeUpdateWidgetSettingsRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/widget-settings")
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .body(request)
             .retrieve()

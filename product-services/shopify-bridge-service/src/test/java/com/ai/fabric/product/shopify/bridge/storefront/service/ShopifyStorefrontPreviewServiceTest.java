@@ -5,6 +5,8 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import org.junit.jupiter.api.Test;
 
@@ -47,6 +49,10 @@ class ShopifyStorefrontPreviewServiceTest {
 
         assertThat(preview.ready()).isTrue();
         assertThat(preview.bridgeBaseUrl()).isEqualTo("https://bridge.example.com");
+        assertThat(preview.launcherLabelDefault()).isEqualTo("Need help?");
+        assertThat(preview.welcomeMessageDefault()).isEqualTo("Ask me about products and store policies.");
+        assertThat(preview.themeEditorActivationUrl())
+            .isEqualTo("https://admin.shopify.com/store/alpha/themes/current/editor?context=apps&activateAppId=shopify-api-key/companion-app-embed");
         assertThat(preview.activationSteps()).isNotEmpty();
     }
 
@@ -121,7 +127,16 @@ class ShopifyStorefrontPreviewServiceTest {
             null,
             null,
             null,
-            null,
+            new ShopifyBridgeStoreWidgetSummary(
+                ready ? "ENABLED" : "NOT_ENABLED",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                "THEME_APP_EXTENSION",
+                ready ? "Theme extension loaded successfully." : "Theme extension not enabled yet.",
+                new ShopifyBridgeStoreWidgetSettingsSummary(
+                    "Need help?",
+                    "Ask me about products and store policies."
+                )
+            ),
             ready
                 ? new ShopifyBridgeStoreReadinessSummary("STOREFRONT_READY", true, true, List.of(), List.of(), List.of())
                 : new ShopifyBridgeStoreReadinessSummary(

@@ -13,6 +13,7 @@ import {
   List,
   Page,
   Text,
+  TextField,
 } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
 import {
@@ -25,6 +26,7 @@ import {
   runSourcePreflight,
   syncNowStore,
   updateSourceSettings,
+  updateWidgetSettings,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
@@ -74,6 +76,11 @@ export default function App() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'sync' | 'go-live' | 'source-settings' | null>(null)
+  const [widgetSettings, setWidgetSettings] = useState({
+    launcherLabel: 'Ask the store assistant',
+    welcomeMessage: 'Store assistant is ready. Ask about products, policies, or collections.',
+  })
+  const [busyWidgetSettings, setBusyWidgetSettings] = useState(false)
   const [sourceSettings, setSourceSettings] = useState({
     productsEnabled: true,
     collectionsEnabled: true,
@@ -128,6 +135,12 @@ export default function App() {
           collectionsEnabled: session.store.collectionsEnabled,
           pagesEnabled: session.store.pagesEnabled,
           policiesEnabled: session.store.policiesEnabled,
+        })
+        setWidgetSettings({
+          launcherLabel: session.store.widgetDetail?.settings?.launcherLabel ?? 'Ask the store assistant',
+          welcomeMessage:
+            session.store.widgetDetail?.settings?.welcomeMessage ??
+            'Store assistant is ready. Ask about products, policies, or collections.',
         })
       }
     } catch (error) {
@@ -246,6 +259,21 @@ export default function App() {
     }
   }
 
+  async function handleWidgetSettingsSave() {
+    setBusyWidgetSettings(true)
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const store = await updateWidgetSettings(widgetSettings)
+      await refresh()
+      setActionMessage(`Updated storefront widget settings for ${store.shopDomain}. Reopen the storefront or theme editor to use the latest launcher content.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to update storefront widget settings.')
+    } finally {
+      setBusyWidgetSettings(false)
+    }
+  }
+
   function applyBootstrapResult(result: ShopifyBridgeStoreBootstrapResponse) {
     setState((current) => ({
       ...current,
@@ -272,6 +300,11 @@ export default function App() {
       store.collectionsEnabled !== sourceSettings.collectionsEnabled ||
       store.pagesEnabled !== sourceSettings.pagesEnabled ||
       store.policiesEnabled !== sourceSettings.policiesEnabled)
+  const widgetSettingsDirty =
+    !!store &&
+    ((store.widgetDetail?.settings?.launcherLabel ?? 'Ask the store assistant') !== widgetSettings.launcherLabel ||
+      (store.widgetDetail?.settings?.welcomeMessage ??
+        'Store assistant is ready. Ask about products, policies, or collections.') !== widgetSettings.welcomeMessage)
 
   return (
     <AppProvider i18n={enTranslations}>
@@ -407,7 +440,8 @@ export default function App() {
                       <List type="bullet">
                         <List.Item>Extension handle: {storefrontPreview.extensionHandle}</List.Item>
                         <List.Item>Bridge base URL: {storefrontPreview.bridgeBaseUrl ?? 'Not configured'}</List.Item>
-                        <List.Item>Default launcher label: {storefrontPreview.launcherLabelDefault}</List.Item>
+                        <List.Item>Launcher label: {storefrontPreview.launcherLabelDefault}</List.Item>
+                        <List.Item>Welcome message: {storefrontPreview.welcomeMessageDefault}</List.Item>
                         <List.Item>Storefront base URL: {storefrontPreview.storefrontBaseUrl ?? '—'}</List.Item>
                       </List>
                       <Text as="p" variant="bodySm" tone="subdued">
@@ -427,11 +461,18 @@ export default function App() {
                           </List>
                         </Banner>
                       ) : null}
-                      {storefrontPreview.storefrontBaseUrl ? (
+                      {storefrontPreview.themeEditorActivationUrl || storefrontPreview.storefrontBaseUrl ? (
                         <InlineStack gap="200">
-                          <Button url={storefrontPreview.storefrontBaseUrl} target="_blank">
-                            Open storefront
-                          </Button>
+                          {storefrontPreview.themeEditorActivationUrl ? (
+                            <Button url={storefrontPreview.themeEditorActivationUrl} target="_blank" variant="primary">
+                              Open theme editor
+                            </Button>
+                          ) : null}
+                          {storefrontPreview.storefrontBaseUrl ? (
+                            <Button url={storefrontPreview.storefrontBaseUrl} target="_blank">
+                              Open storefront
+                            </Button>
+                          ) : null}
                         </InlineStack>
                       ) : null}
                     </BlockStack>
@@ -446,6 +487,44 @@ export default function App() {
           </InlineStack>
 
           <InlineStack gap="400" blockAlign="start" align="start">
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Widget settings
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Companion owns bounded launcher content. Theme settings still enable the embed, but the launcher label and first assistant message come from this app.
+                  </Text>
+                  <TextField
+                    label="Launcher label"
+                    autoComplete="off"
+                    value={widgetSettings.launcherLabel}
+                    maxLength={60}
+                    onChange={(value) => setWidgetSettings((current) => ({ ...current, launcherLabel: value }))}
+                  />
+                  <TextField
+                    label="Welcome message"
+                    autoComplete="off"
+                    multiline={4}
+                    value={widgetSettings.welcomeMessage}
+                    maxLength={320}
+                    onChange={(value) => setWidgetSettings((current) => ({ ...current, welcomeMessage: value }))}
+                    helpText="This becomes the first assistant message when the storefront launcher opens."
+                  />
+                  <InlineStack gap="200">
+                    <Button
+                      onClick={() => void handleWidgetSettingsSave()}
+                      loading={busyWidgetSettings}
+                      disabled={!session || !widgetSettingsDirty}
+                    >
+                      Save widget settings
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            </Box>
+
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -591,6 +670,12 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
           {store.sourcePreflight.categories
             .map((category) => `${category.category} ${category.status.toLowerCase()} (${category.itemCount})`)
             .join(' · ')}
+        </Text>
+      ) : null}
+      {store.widgetDetail?.settings ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          Launcher “{store.widgetDetail.settings.launcherLabel ?? 'Ask the store assistant'}” · welcome message{' '}
+          {store.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'}
         </Text>
       ) : null}
       {store.syncDetail ? (

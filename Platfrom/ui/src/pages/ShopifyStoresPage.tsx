@@ -678,6 +678,12 @@ export function ShopifyStoresPage() {
                           <Typography variant="body2" color="text.secondary">
                             Channel {selectedStore.widgetDetail.channel ?? '—'}
                           </Typography>
+                          {selectedStore.widgetDetail.settings ? (
+                            <Typography variant="body2" color="text.secondary">
+                              Launcher {selectedStore.widgetDetail.settings.launcherLabel ?? 'Ask the store assistant'} · Welcome message{' '}
+                              {selectedStore.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'}
+                            </Typography>
+                          ) : null}
                           {selectedStore.widgetDetail.message ? (
                             <Typography variant="body2" color="text.secondary">
                               {selectedStore.widgetDetail.message}

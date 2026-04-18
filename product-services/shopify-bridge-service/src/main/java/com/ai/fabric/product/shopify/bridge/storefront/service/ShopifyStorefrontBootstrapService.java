@@ -13,6 +13,10 @@ import java.nio.charset.StandardCharsets;
 @Service
 public class ShopifyStorefrontBootstrapService {
 
+    private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
+    private static final String DEFAULT_WELCOME_MESSAGE =
+        "Store assistant is ready. Ask about products, policies, or collections.";
+
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
 
     public ShopifyStorefrontBootstrapService(PlatformShopifyStoreClient platformShopifyStoreClient) {
@@ -43,6 +47,14 @@ public class ShopifyStorefrontBootstrapService {
             ? null
             : credentials.integration().posture().runtimeAuthMode();
         String guidance = credentials.integration() == null ? null : credentials.integration().guidance();
+        String launcherLabel = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().launcherLabel() != null && !updated.widgetDetail().settings().launcherLabel().isBlank()
+            ? updated.widgetDetail().settings().launcherLabel().trim()
+            : DEFAULT_LAUNCHER_LABEL;
+        String welcomeMessage = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().welcomeMessage() != null && !updated.widgetDetail().settings().welcomeMessage().isBlank()
+            ? updated.widgetDetail().settings().welcomeMessage().trim()
+            : DEFAULT_WELCOME_MESSAGE;
 
         return new ShopifyStorefrontBootstrapResponse(
             true,
@@ -51,6 +63,8 @@ public class ShopifyStorefrontBootstrapService {
             updated.deploymentId(),
             updated.widgetStatus(),
             updated.sourceReadinessStatus(),
+            launcherLabel,
+            welcomeMessage,
             preferredIntegrationMode,
             runtimeAuthMode,
             bridgeQueryUrl,
@@ -68,6 +82,8 @@ public class ShopifyStorefrontBootstrapService {
             store.deploymentId(),
             store.widgetStatus(),
             store.sourceReadinessStatus(),
+            DEFAULT_LAUNCHER_LABEL,
+            DEFAULT_WELCOME_MESSAGE,
             null,
             null,
             null,

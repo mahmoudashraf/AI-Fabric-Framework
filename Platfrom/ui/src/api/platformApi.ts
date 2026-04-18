@@ -517,6 +517,10 @@ export type ShopifyStoreWidgetSummary = {
   checkedAt: string | null
   channel: string | null
   message: string | null
+  settings: {
+    launcherLabel: string | null
+    welcomeMessage: string | null
+  } | null
 }
 
 export type ShopifyStoreCredentialSummary = {

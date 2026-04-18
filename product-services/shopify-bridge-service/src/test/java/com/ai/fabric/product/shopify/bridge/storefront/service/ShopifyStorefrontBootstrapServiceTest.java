@@ -11,6 +11,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploy
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import org.junit.jupiter.api.Test;
 
@@ -58,6 +60,8 @@ class ShopifyStorefrontBootstrapServiceTest {
 
         assertThat(response.available()).isTrue();
         assertThat(response.consumerId()).isEqualTo("consumer-alpha");
+        assertThat(response.launcherLabel()).isEqualTo("Need help?");
+        assertThat(response.welcomeMessage()).isEqualTo("Ask me about products and store policies.");
         assertThat(response.bridgeQueryUrl()).isEqualTo("/api/storefront/shops/alpha.myshopify.com/chat/query");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
         verify(platformClient).getConsumerCredentials("consumer-alpha");
@@ -118,7 +122,16 @@ class ShopifyStorefrontBootstrapServiceTest {
             null,
             null,
             null,
-            null,
+            new ShopifyBridgeStoreWidgetSummary(
+                widgetStatus,
+                Instant.parse("2026-04-18T00:00:00Z"),
+                "THEME_APP_EXTENSION",
+                "Theme extension status recorded.",
+                new ShopifyBridgeStoreWidgetSettingsSummary(
+                    "Need help?",
+                    "Ask me about products and store policies."
+                )
+            ),
             readiness(sourceReadinessStatus),
             new ShopifyBridgeStoreDeploymentVersionSummary(
                 "ver-1",

@@ -94,6 +94,10 @@ export type ShopifyBridgeStoreSummary = {
     checkedAt: string | null
     channel: string | null
     message: string | null
+    settings: {
+      launcherLabel: string | null
+      welcomeMessage: string | null
+    } | null
   } | null
 }
 
@@ -140,6 +144,8 @@ export type ShopifyStorefrontPreviewResponse = {
   deploymentId: string | null
   extensionHandle: string
   launcherLabelDefault: string
+  welcomeMessageDefault: string
+  themeEditorActivationUrl: string | null
   activationSteps: string[]
   blockingReasons: string[]
   message: string
@@ -187,6 +193,19 @@ export async function updateSourceSettings(settings: {
   policiesEnabled: boolean
 }): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/source-settings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(settings),
+  })
+}
+
+export async function updateWidgetSettings(settings: {
+  launcherLabel: string
+  welcomeMessage: string
+}): Promise<ShopifyBridgeStoreSummary> {
+  return authenticatedFetchJson('/api/app/store/widget-settings', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

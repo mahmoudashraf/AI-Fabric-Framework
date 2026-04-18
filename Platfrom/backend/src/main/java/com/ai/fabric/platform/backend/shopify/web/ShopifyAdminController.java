@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStat
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreBootstrapService;
@@ -20,6 +21,7 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreUninstallService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWebhookService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetSettingsService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,6 +52,7 @@ public class ShopifyAdminController {
     private final ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService;
     private final ShopifyStoreWebhookService shopifyStoreWebhookService;
     private final ShopifyStoreWidgetService shopifyStoreWidgetService;
+    private final ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService;
 
     public ShopifyAdminController(ShopifyStoreConnectionService shopifyStoreConnectionService,
                                   ShopifyStoreBootstrapService shopifyStoreBootstrapService,
@@ -60,7 +63,8 @@ public class ShopifyAdminController {
                                   ShopifyStoreSyncService shopifyStoreSyncService,
                                   ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService,
                                   ShopifyStoreWebhookService shopifyStoreWebhookService,
-                                  ShopifyStoreWidgetService shopifyStoreWidgetService) {
+                                  ShopifyStoreWidgetService shopifyStoreWidgetService,
+                                  ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService) {
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.shopifyStoreBootstrapService = shopifyStoreBootstrapService;
         this.shopifyStoreCredentialService = shopifyStoreCredentialService;
@@ -71,6 +75,7 @@ public class ShopifyAdminController {
         this.shopifyStoreDocumentSyncService = shopifyStoreDocumentSyncService;
         this.shopifyStoreWebhookService = shopifyStoreWebhookService;
         this.shopifyStoreWidgetService = shopifyStoreWidgetService;
+        this.shopifyStoreWidgetSettingsService = shopifyStoreWidgetSettingsService;
     }
 
     @GetMapping
@@ -158,5 +163,11 @@ public class ShopifyAdminController {
     public ShopifyStoreConnectionSummary recordWidgetStatus(@PathVariable String shopDomain,
                                                             @RequestBody RecordShopifyStoreWidgetStatusRequest request) {
         return shopifyStoreWidgetService.record(shopDomain, request);
+    }
+
+    @PostMapping("/{shopDomain}/widget-settings")
+    public ShopifyStoreConnectionSummary updateWidgetSettings(@PathVariable String shopDomain,
+                                                              @RequestBody UpdateShopifyStoreWidgetSettingsRequest request) {
+        return shopifyStoreWidgetSettingsService.update(shopDomain, request);
     }
 }

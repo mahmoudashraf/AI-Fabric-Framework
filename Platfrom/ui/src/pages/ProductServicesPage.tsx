@@ -641,6 +641,7 @@ export function ProductServicesPage() {
                                 {store.widgetDetail ? (
                                   <Typography variant="body2" color="text.secondary">
                                     Widget {store.widgetDetail.status.toLowerCase()} · channel {detailValue(store.widgetDetail.channel)}
+                                    {store.widgetDetail.settings?.launcherLabel ? ` · launcher ${store.widgetDetail.settings.launcherLabel}` : ''}
                                   </Typography>
                                 ) : null}
                                 {store.readiness?.nextActions?.length ? (

@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStore
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightCategorySummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -233,6 +234,25 @@ class PlatformShopifyStoreClientTest {
         );
 
         assertThat(response.widgetStatus()).isEqualTo("ENABLED");
+        server.verify();
+    }
+
+    @Test
+    void updateWidgetSettingsUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/widget-settings"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("READY", "SYNCED", "ENABLED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.updateWidgetSettings(
+            "alpha.myshopify.com",
+            new ShopifyBridgeUpdateWidgetSettingsRequest(
+                "Need help?",
+                "Ask me about products and policies."
+            )
+        );
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         server.verify();
     }
 

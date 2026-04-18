@@ -46,6 +46,8 @@ class ShopifyStorefrontControllerTest {
             "dep-1",
             "ENABLED",
             "READY",
+            "Need help?",
+            "Ask me about products and policies.",
             "PRIVATE_RUNTIME_BACKEND_MEDIATED",
             "SIGNED_PRIVATE_RUNTIME",
             "/api/storefront/shops/alpha.myshopify.com/chat/query",

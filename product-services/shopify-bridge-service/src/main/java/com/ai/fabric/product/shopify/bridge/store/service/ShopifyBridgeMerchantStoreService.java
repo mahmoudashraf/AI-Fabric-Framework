@@ -10,6 +10,7 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecord
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
@@ -88,6 +89,11 @@ public class ShopifyBridgeMerchantStoreService {
 
     public ShopifyStorefrontPreviewResponse storefrontPreview(ShopifyMerchantSession merchantSession) {
         return storefrontPreviewService.preview(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgeStoreSummary updateWidgetSettings(ShopifyMerchantSession merchantSession,
+                                                          ShopifyBridgeUpdateWidgetSettingsRequest request) {
+        return platformShopifyStoreClient.updateWidgetSettings(merchantSession.shopDomain(), request);
     }
 
     public ShopifyBridgeStoreSummary updateSourceSettings(ShopifyMerchantSession merchantSession,
