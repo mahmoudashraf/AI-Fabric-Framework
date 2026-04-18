@@ -531,6 +531,151 @@ Important boundary:
 
 That mapping remains separate product-domain data which the platform surfaces through related APIs and operator views.
 
+### 7.2.6 Recommended code hierarchy
+
+Use three explicit code boundaries from the start:
+
+1. platform control plane
+2. Shopify product backend
+3. runtime and infrastructure
+
+The platform control plane should remain generic and own:
+
+- `PlatformManagedProductService`
+- deployment composition and publish/apply/verify
+- marketplace bundle installation
+- operator APIs and operator UI
+
+Recommended platform backend hierarchy:
+
+```text
+Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/
+  productservice/
+    entity/
+    model/
+    repository/
+    service/
+    web/
+  shopify/
+    entity/
+    model/
+    repository/
+    service/
+    web/
+```
+
+Use `productservice/` for generic shared product-service lifecycle.
+
+Use `shopify/` for Shopify-specific platform domain data and APIs such as:
+
+- shop install records
+- store-to-customer mappings
+- store-to-deployment mappings
+- `consumerId` binding views
+- per-store sync-state summaries
+
+Do not bury Shopify product-domain logic inside:
+
+- `marketplace/`
+- `deployment/`
+- `ai-infrastructure-module/`
+
+The Shopify product backend should be a separate deployable service.
+
+Recommended service hierarchy:
+
+```text
+product-services/
+  shopify-bridge-service/
+    pom.xml
+    src/main/java/com/ai/fabric/product/shopify/bridge/
+      auth/
+      install/
+      shop/
+      mapping/
+      sync/
+      webhook/
+      storefront/
+      diagnostics/
+      client/
+        platform/
+        shopify/
+      config/
+      web/
+```
+
+Use feature-first packages inside the Shopify Bridge Service because it owns real product flows, not just generic CRUD.
+
+### 7.2.7 UI split rule
+
+There should be two distinct UIs.
+
+#### Platform UI
+
+The existing platform UI is the operator/admin surface.
+
+Location:
+
+```text
+Platfrom/ui/
+```
+
+Purpose:
+
+- manage `PlatformManagedProductService`
+- inspect Shopify Bridge health, drift, activity, and dependents
+- inspect store/customer/deployment/consumer mappings
+- perform operator recovery and diagnostics
+
+Recommended platform UI hierarchy:
+
+```text
+Platfrom/ui/src/
+  api/
+    productServicesApi.ts
+    shopifyAdminApi.ts
+  pages/
+    ProductServicesPage.tsx
+    ShopifyBridgeServicePage.tsx
+    ShopifyStoresPage.tsx
+  components/
+    product-services/
+    shopify/
+```
+
+#### Shopify merchant UI
+
+The real merchant-facing Shopify app UI should live with the Shopify Bridge Service, not inside `Platfrom/ui`.
+
+Recommended location:
+
+```text
+product-services/shopify-bridge-service/ui/
+```
+
+Purpose:
+
+- embedded admin onboarding
+- source preflight
+- sync controls
+- storefront enablement
+- merchant diagnostics
+- merchant playground
+
+Recommended merchant UI stack:
+
+- React
+- TypeScript
+- Shopify Polaris
+- Shopify App Bridge
+
+Important boundary:
+
+- `Platfrom/ui` is the operator console
+- `product-services/shopify-bridge-service/ui` is the merchant product UI
+
+Do not mix those surfaces into one application.
+
 ### 7.3 Runtime traffic rule
 
 The Shopify app backend should own:
