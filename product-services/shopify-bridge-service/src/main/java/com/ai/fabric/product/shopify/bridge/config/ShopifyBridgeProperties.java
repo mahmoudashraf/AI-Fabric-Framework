@@ -11,6 +11,8 @@ public record ShopifyBridgeProperties(
     String environmentScope,
     String publicBaseUrl,
     String platformBaseUrl,
+    String platformAdminApiKey,
+    String platformAdminApiKeyHeader,
     String adminApiKey,
     String adminApiKeyHeader
 ) {
@@ -23,6 +25,8 @@ public record ShopifyBridgeProperties(
         environmentScope = normalize(environmentScope, "local");
         publicBaseUrl = normalize(publicBaseUrl, "");
         platformBaseUrl = normalize(platformBaseUrl, "");
+        platformAdminApiKey = normalize(platformAdminApiKey, "");
+        platformAdminApiKeyHeader = normalize(platformAdminApiKeyHeader, "X-PLATFORM-API-KEY");
         adminApiKey = normalize(adminApiKey, "");
         adminApiKeyHeader = normalize(adminApiKeyHeader, "X-BRIDGE-API-KEY");
     }

@@ -26,6 +26,8 @@ shopify:
     environment-scope: ${SHOPIFY_BRIDGE_ENVIRONMENT_SCOPE:local}
     public-base-url: ${SHOPIFY_BRIDGE_PUBLIC_BASE_URL:}
     platform-base-url: ${SHOPIFY_BRIDGE_PLATFORM_BASE_URL:}
+    platform-admin-api-key: ${SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY:}
+    platform-admin-api-key-header: ${SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY_HEADER:X-PLATFORM-API-KEY}
     admin-api-key: ${SHOPIFY_BRIDGE_SHARED_SECRET:}
     admin-api-key-header: ${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER:X-BRIDGE-API-KEY}
 

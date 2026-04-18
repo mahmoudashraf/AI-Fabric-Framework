@@ -1,25 +1,38 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
+import java.util.List;
+
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
     "shopify.bridge.admin-api-key=test-admin-key",
     "shopify.bridge.service-ref=shopify-bridge-test",
-    "shopify.bridge.platform-base-url=https://platform.example.com"
+    "shopify.bridge.platform-base-url=https://platform.example.com",
+    "shopify.bridge.platform-admin-api-key=platform-admin-key"
 })
 @AutoConfigureMockMvc
 class ShopifyBridgeAdminControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private ShopifyBridgeStoreAdminService storeAdminService;
 
     @Test
     void healthIsPublic() throws Exception {
@@ -42,5 +55,68 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.platformBaseUrl").value("https://platform.example.com"))
             .andExpect(jsonPath("$.adminApiKeyConfigured").value(true))
             .andExpect(jsonPath("$.status").value("READY"));
+    }
+
+    @Test
+    void adminStoresAreReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.listStores()).thenReturn(List.of(sampleStore()));
+
+        mockMvc.perform(get("/api/admin/stores").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$[0].productServiceRef").value("shopify-bridge-test"));
+    }
+
+    @Test
+    void adminBootstrapUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.bootstrap("alpha.myshopify.com")).thenReturn(new ShopifyBridgeStoreBootstrapResponse(
+            "alpha.myshopify.com",
+            "cust-1",
+            "dep-1",
+            "consumer-1",
+            true,
+            true,
+            true,
+            List.of("mkp-template-commerce-shell"),
+            sampleStore()
+        ));
+
+        mockMvc.perform(post("/api/admin/stores/alpha.myshopify.com/bootstrap").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.createdDeployment").value(true))
+            .andExpect(jsonPath("$.store.consumerId").value("consumer-1"));
+    }
+
+    private ShopifyBridgeStoreSummary sampleStore() {
+        return new ShopifyBridgeStoreSummary(
+            "shp-1",
+            "alpha.myshopify.com",
+            "Alpha",
+            "shopify-bridge-test",
+            "Shopify Bridge Test",
+            "cust-1",
+            "Alpha Customer",
+            "dep-1",
+            "Alpha Deployment",
+            "DRAFT",
+            "consumer-1",
+            "Alpha Storefront",
+            "INSTALLED",
+            "NOT_SYNCED",
+            "NOT_RUN",
+            "NOT_ENABLED",
+            "PLATFORM_BOOTSTRAPPED",
+            true,
+            true,
+            true,
+            true,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z")
+        );
     }
 }

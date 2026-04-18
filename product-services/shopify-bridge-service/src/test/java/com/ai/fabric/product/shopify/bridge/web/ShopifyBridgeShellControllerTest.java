@@ -14,7 +14,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "shopify.bridge.app-name=Companion Shopify Bridge",
     "shopify.bridge.service-ref=shopify-bridge-test",
     "shopify.bridge.environment-scope=staging",
-    "shopify.bridge.admin-api-key=test-admin-key"
+    "shopify.bridge.admin-api-key=test-admin-key",
+    "shopify.bridge.platform-base-url=https://platform.example.com",
+    "shopify.bridge.platform-admin-api-key=platform-admin-key"
 })
 @AutoConfigureMockMvc
 class ShopifyBridgeShellControllerTest {
