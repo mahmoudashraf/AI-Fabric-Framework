@@ -256,6 +256,67 @@ The dedicated bundle may internally reuse existing manifest fragments and code p
 
 But the product surface should still be packaged as one opinionated Shopify Companion bundle.
 
+### 5.4 Configuration boundary rule
+
+The Shopify product must keep three different configuration layers separate.
+
+#### 5.4.1 What plugins define
+
+Plugins define reusable product capabilities.
+
+That includes:
+
+- default `DATA` capabilities
+- default `ACTION` capabilities
+- default template and shell behavior
+- default inference posture
+
+For Shopify Companion, this means the canonical bundle owns:
+
+- what knowledge-source categories exist
+- what actions exist
+- what deployment config is compiled
+- what the product can do by default
+
+#### 5.4.2 What the Shopify admin app defines
+
+The Shopify embedded admin app defines per-store usage of those capabilities.
+
+That includes:
+
+- which Shopify store is connected
+- Shopify install and token state
+- which approved source categories are enabled for this store
+- sync triggers and sync status
+- storefront widget settings
+- merchant-facing product settings
+
+The admin app should not become a generic capability-authoring console.
+
+It should choose from bounded product options, not redefine the plugin contract itself.
+
+#### 5.4.3 What managed services define
+
+Managed services define the shared infrastructure that runs the product.
+
+That includes:
+
+- the Shopify Bridge Service
+- shared inference services
+- service scaling, restart, recreate, decommission, and diagnostics
+
+Managed services are not the place to store merchant or store-specific product state.
+
+#### 5.4.4 Default rule
+
+Use this rule throughout the product:
+
+- plugins define what the product can do
+- Shopify admin defines how one store uses it
+- managed services define what infrastructure runs it
+
+This boundary should remain explicit in implementation, UI, and operations.
+
 ---
 
 ## 6) Launch Scope
@@ -553,6 +614,20 @@ Required merchant UI:
 - environments
 - diagnostics
 - billing if paid launch
+
+The embedded admin app should surface bounded product controls such as:
+
+- enable or disable approved source categories
+- run initial sync or manual resync
+- view action and knowledge-source status
+- configure storefront presentation settings
+
+It should not surface:
+
+- arbitrary plugin editing
+- arbitrary action authoring
+- arbitrary dataset schema mapping
+- low-level vectorization controls
 
 ### 9.2 Onboarding flow
 

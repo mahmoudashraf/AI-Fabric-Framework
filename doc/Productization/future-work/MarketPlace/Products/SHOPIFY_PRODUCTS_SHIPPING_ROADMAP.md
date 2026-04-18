@@ -284,6 +284,39 @@ Recommended default bundle:
 
 This keeps the product aligned with the current supported public plugin types.
 
+### 6.1 Configuration boundary
+
+The product should not treat every store-level setting as a plugin concern.
+
+Use this boundary:
+
+- plugins define reusable capabilities
+- the Shopify admin app defines per-store usage and settings
+- managed services define the shared infrastructure
+
+#### Plugins define
+
+- default data capabilities
+- default action capabilities
+- template and shell defaults
+- default inference posture
+
+#### Shopify admin app defines
+
+- store connection and install state
+- approved source-category toggles
+- sync operations and sync visibility
+- storefront/widget settings
+- merchant-facing product settings
+
+#### Managed services define
+
+- Shopify Bridge Service lifecycle
+- shared inference service lifecycle
+- scaling, restart, recreate, decommission, and diagnostics
+
+This keeps the app opinionated while still allowing bounded merchant control.
+
 ---
 
 ## 7) Shopify Platform Constraints That Change The Plan
