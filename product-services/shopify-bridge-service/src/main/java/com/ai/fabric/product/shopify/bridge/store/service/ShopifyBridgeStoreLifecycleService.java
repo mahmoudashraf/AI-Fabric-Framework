@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWebhookEventRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import org.springframework.stereotype.Service;
@@ -41,5 +42,17 @@ public class ShopifyBridgeStoreLifecycleService {
             }
             throw ex;
         }
+    }
+
+    public ShopifyBridgeStoreSummary recordWebhookEvent(String shopDomain,
+                                                        String topic,
+                                                        String eventType,
+                                                        String sourceCategory,
+                                                        String message,
+                                                        boolean invalidateSync) {
+        return platformShopifyStoreClient.recordWebhookEvent(
+            shopDomain,
+            new ShopifyBridgeRecordWebhookEventRequest(topic, eventType, sourceCategory, message, invalidateSync)
+        );
     }
 }

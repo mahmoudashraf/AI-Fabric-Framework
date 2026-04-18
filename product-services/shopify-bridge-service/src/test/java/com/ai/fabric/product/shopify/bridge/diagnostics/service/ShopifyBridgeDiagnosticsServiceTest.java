@@ -130,6 +130,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
             null,
             null,
             null,
+            null,
             new ShopifyBridgeStoreReadinessSummary(
                 storefrontReady ? "STOREFRONT_READY" : goLiveEligible ? "READY_FOR_GO_LIVE" : "BLOCKED",
                 goLiveEligible,

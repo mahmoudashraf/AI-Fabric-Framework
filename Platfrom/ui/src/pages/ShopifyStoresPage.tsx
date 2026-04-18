@@ -600,6 +600,35 @@ export function ShopifyStoresPage() {
                     </Card>
                   ) : null}
 
+                  {selectedStore.webhookDetail ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Latest webhook</Typography>
+                            <Chip
+                              size="small"
+                              label={selectedStore.webhookDetail.eventType ?? 'RECEIVED'}
+                              color={chipColor(selectedStore.webhookDetail.eventType ?? 'UNKNOWN')}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                              Received {formatTimestamp(selectedStore.webhookDetail.receivedAt)}
+                            </Typography>
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Topic {selectedStore.webhookDetail.topic ?? '—'} · Source {selectedStore.webhookDetail.sourceCategory ?? '—'}
+                            {selectedStore.webhookDetail.invalidateSync ? ' · Sync invalidated' : ''}
+                          </Typography>
+                          {selectedStore.webhookDetail.message ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {selectedStore.webhookDetail.message}
+                            </Typography>
+                          ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
                   {selectedStore.latestRelease ? (
                     <Card variant="outlined">
                       <CardContent>

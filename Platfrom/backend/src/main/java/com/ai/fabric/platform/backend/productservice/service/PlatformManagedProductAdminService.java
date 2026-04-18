@@ -299,6 +299,7 @@ public class PlatformManagedProductAdminService {
         var credentials = sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson());
         var sourcePreflight = sourcePreflightSupport.summarize(entity.getDetailsJson());
         var syncDetail = sourcePreflightSupport.summarizeSync(entity.getDetailsJson());
+        var webhookDetail = sourcePreflightSupport.summarizeWebhook(entity.getDetailsJson());
         var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
         var latestReleaseSummary = toReleaseSummary(latestRelease);
         return new ShopifyStoreConnectionSummary(
@@ -327,6 +328,7 @@ public class PlatformManagedProductAdminService {
             credentials,
             sourcePreflight,
             syncDetail,
+            webhookDetail,
             widgetDetail,
             readinessEvaluator.evaluate(entity, credentials, sourcePreflight, syncDetail, widgetDetail, latestReleaseSummary),
             toVersionSummary(latestVersion),

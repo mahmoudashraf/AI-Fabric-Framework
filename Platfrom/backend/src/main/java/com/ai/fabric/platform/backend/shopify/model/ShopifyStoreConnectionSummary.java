@@ -31,6 +31,7 @@ public record ShopifyStoreConnectionSummary(
     ShopifyStoreCredentialSummary credentials,
     ShopifyStoreSourcePreflightSummary sourcePreflight,
     ShopifyStoreSyncSummary syncDetail,
+    ShopifyStoreWebhookSummary webhookDetail,
     ShopifyStoreWidgetSummary widgetDetail,
     ShopifyStoreReadinessSummary readiness,
     DeploymentVersionSummary latestVersion,

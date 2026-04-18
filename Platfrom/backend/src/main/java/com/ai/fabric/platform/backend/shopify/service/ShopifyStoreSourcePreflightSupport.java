@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightC
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCredentialSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSyncSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWebhookSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWidgetSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -90,6 +91,29 @@ public class ShopifyStoreSourcePreflightSupport {
                 parseInstant(text(widget, "checkedAt")),
                 text(widget, "channel"),
                 text(widget, "message")
+            );
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    public ShopifyStoreWebhookSummary summarizeWebhook(String detailsJson) {
+        if (!hasText(detailsJson)) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode webhook = root.path("webhook");
+            if (!webhook.isObject()) {
+                return null;
+            }
+            return new ShopifyStoreWebhookSummary(
+                text(webhook, "topic"),
+                text(webhook, "eventType"),
+                text(webhook, "sourceCategory"),
+                parseInstant(text(webhook, "receivedAt")),
+                webhook.path("invalidateSync").asBoolean(false),
+                text(webhook, "message")
             );
         } catch (Exception ex) {
             return null;

@@ -632,6 +632,12 @@ export function ProductServicesPage() {
                                     Sync {store.syncDetail.status.toLowerCase()} · mode {detailValue(store.syncDetail.mode)} · documents {store.syncDetail.documentCount}
                                   </Typography>
                                 ) : null}
+                                {store.webhookDetail ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Webhook {detailValue(store.webhookDetail.topic)} · event {detailValue(store.webhookDetail.eventType)} · source {detailValue(store.webhookDetail.sourceCategory)}
+                                    {store.webhookDetail.invalidateSync ? ' · sync invalidated' : ''}
+                                  </Typography>
+                                ) : null}
                                 {store.widgetDetail ? (
                                   <Typography variant="body2" color="text.secondary">
                                     Widget {store.widgetDetail.status.toLowerCase()} · channel {detailValue(store.widgetDetail.channel)}
@@ -643,7 +649,7 @@ export function ProductServicesPage() {
                                   </Typography>
                                 ) : null}
                                 <Typography variant="caption" color="text.secondary">
-                                  Last preflight {formatTimestamp(store.lastSourcePreflightAt)} · Last sync {formatTimestamp(store.lastSyncAt)}
+                                  Last preflight {formatTimestamp(store.lastSourcePreflightAt)} · Last sync {formatTimestamp(store.lastSyncAt)} · Last webhook {formatTimestamp(store.lastWebhookAt)}
                                 </Typography>
                               </Stack>
                             </CardContent>

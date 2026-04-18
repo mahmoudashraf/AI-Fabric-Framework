@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.client.platform;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWebhookEventRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
@@ -219,6 +220,28 @@ class PlatformShopifyStoreClientTest {
         );
 
         assertThat(response.widgetStatus()).isEqualTo("ENABLED");
+        server.verify();
+    }
+
+    @Test
+    void recordWebhookUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/webhook-events"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("READY", "NOT_SYNCED", "ENABLED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.recordWebhookEvent(
+            "alpha.myshopify.com",
+            new ShopifyBridgeRecordWebhookEventRequest(
+                "products/update",
+                "CONTENT_CHANGED",
+                "products",
+                "Shopify product content changed. Incremental sync is required.",
+                true
+            )
+        );
+
+        assertThat(response.syncStatus()).isEqualTo("NOT_SYNCED");
         server.verify();
     }
 

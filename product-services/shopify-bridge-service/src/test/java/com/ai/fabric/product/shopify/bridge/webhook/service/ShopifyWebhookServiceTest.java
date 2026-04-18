@@ -6,6 +6,7 @@ import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreLife
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -24,6 +25,35 @@ class ShopifyWebhookServiceTest {
         verify(lifecycleService).markUninstalled("alpha.myshopify.com");
         verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
         verify(installRecordService).markUninstalled("alpha.myshopify.com");
+        verify(lifecycleService).recordWebhookEvent(
+            "alpha.myshopify.com",
+            "app/uninstalled",
+            "UNINSTALLED",
+            null,
+            "Shopify reported app uninstall.",
+            false
+        );
+    }
+
+    @Test
+    void contentChangeWebhookInvalidatesSync() {
+        ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, new ObjectMapper());
+
+        service.handle("products/update", "alpha.myshopify.com", "{}");
+
+        verify(lifecycleService).recordWebhookEvent(
+            eq("alpha.myshopify.com"),
+            eq("products/update"),
+            eq("CONTENT_CHANGED"),
+            eq("products"),
+            eq("Shopify product content changed. Incremental sync is required."),
+            eq(true)
+        );
+        verifyNoInteractions(installCredentialService);
+        verifyNoInteractions(installRecordService);
     }
 
     @Test
@@ -33,7 +63,7 @@ class ShopifyWebhookServiceTest {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, new ObjectMapper());
 
-        service.handle("products/update", "alpha.myshopify.com", "{}");
+        service.handle("orders/paid", "alpha.myshopify.com", "{}");
 
         verifyNoInteractions(lifecycleService);
         verifyNoInteractions(installCredentialService);

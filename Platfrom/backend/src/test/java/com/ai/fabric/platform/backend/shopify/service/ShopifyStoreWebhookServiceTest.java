@@ -2,7 +2,7 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
-import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSyncStatusRequest;
+import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWebhookEventRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,59 +16,74 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class ShopifyStoreSyncServiceTest {
+class ShopifyStoreWebhookServiceTest {
 
     @Test
-    void recordWritesSyncDetailAndTimestamp() {
+    void recordWebhookInvalidatesSyncWhenRequested() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
 
         ShopifyStoreConnectionEntity store = store();
-        ShopifyStoreConnectionSummary summary = summary("PREFLIGHT_READY", "SYNCED");
+        ShopifyStoreConnectionSummary summary = summary("NOT_SYNCED", "PLATFORM_BOOTSTRAPPED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary);
 
-        ShopifyStoreSyncService service = new ShopifyStoreSyncService(repository, connectionService, auditService, support);
+        ShopifyStoreWebhookService service = new ShopifyStoreWebhookService(repository, connectionService, support, auditService);
 
         ShopifyStoreConnectionSummary result = service.record(
             "demo.myshopify.com",
-            new RecordShopifyStoreSyncStatusRequest("SYNCED", "FULL", 128, "Initial import completed")
+            new RecordShopifyStoreWebhookEventRequest(
+                "products/update",
+                "CONTENT_CHANGED",
+                "products",
+                "Shopify product content changed. Incremental sync is required.",
+                true
+            )
+        );
+
+        assertThat(result.syncStatus()).isEqualTo("NOT_SYNCED");
+        assertThat(store.getSyncStatus()).isEqualTo("NOT_SYNCED");
+        assertThat(store.getLastWebhookAt()).isNotNull();
+        assertThat(store.getDetailsJson()).contains("\"webhook\"");
+        assertThat(store.getDetailsJson()).contains("\"products/update\"");
+        assertThat(store.getDetailsJson()).contains("\"invalidateSync\":true");
+    }
+
+    @Test
+    void recordWebhookCanPreserveSyncWhenNoInvalidationRequested() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
+
+        ShopifyStoreConnectionEntity store = store();
+        store.setSyncStatus("SYNCED");
+        ShopifyStoreConnectionSummary summary = summary("SYNCED", "LIVE");
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary);
+
+        ShopifyStoreWebhookService service = new ShopifyStoreWebhookService(repository, connectionService, support, auditService);
+
+        ShopifyStoreConnectionSummary result = service.record(
+            "demo.myshopify.com",
+            new RecordShopifyStoreWebhookEventRequest(
+                "app/uninstalled",
+                "UNINSTALLED",
+                null,
+                "Shopify reported app uninstall.",
+                false
+            )
         );
 
         assertThat(result.syncStatus()).isEqualTo("SYNCED");
         assertThat(store.getSyncStatus()).isEqualTo("SYNCED");
-        assertThat(store.getLastSyncAt()).isNotNull();
-        assertThat(store.getDetailsJson()).contains("\"sync\"");
-        assertThat(store.getDetailsJson()).contains("\"documentCount\":128");
-    }
-
-    @Test
-    void recordMarksBlockedWhenSyncFails() {
-        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
-        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
-        PlatformAuditService auditService = mock(PlatformAuditService.class);
-        ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
-
-        ShopifyStoreConnectionEntity store = store();
-        ShopifyStoreConnectionSummary summary = summary("BLOCKED", "FAILED");
-
-        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary);
-
-        ShopifyStoreSyncService service = new ShopifyStoreSyncService(repository, connectionService, auditService, support);
-
-        ShopifyStoreConnectionSummary result = service.record(
-            "demo.myshopify.com",
-            new RecordShopifyStoreSyncStatusRequest("FAILED", "DELTA", 0, "Shopify API throttled")
-        );
-
-        assertThat(result.syncStatus()).isEqualTo("FAILED");
-        assertThat(store.getOnboardingStatus()).isEqualTo("BLOCKED");
+        assertThat(store.getLastWebhookAt()).isNotNull();
     }
 
     private ShopifyStoreConnectionEntity store() {
@@ -78,10 +93,10 @@ class ShopifyStoreSyncServiceTest {
         entity.setDisplayName("Demo Shop");
         entity.setProductServiceId("psv-123");
         entity.setInstallStatus("INSTALLED");
-        entity.setSyncStatus("NOT_SYNCED");
+        entity.setSyncStatus("SYNCED");
         entity.setSourceReadinessStatus("READY");
         entity.setWidgetStatus("NOT_ENABLED");
-        entity.setOnboardingStatus("PREFLIGHT_READY");
+        entity.setOnboardingStatus("LIVE");
         entity.setProductsEnabled(true);
         entity.setCollectionsEnabled(true);
         entity.setPagesEnabled(true);
@@ -91,7 +106,7 @@ class ShopifyStoreSyncServiceTest {
         return entity;
     }
 
-    private ShopifyStoreConnectionSummary summary(String onboardingStatus, String syncStatus) {
+    private ShopifyStoreConnectionSummary summary(String syncStatus, String onboardingStatus) {
         return new ShopifyStoreConnectionSummary(
             "shp-123",
             "demo.myshopify.com",
@@ -103,7 +118,7 @@ class ShopifyStoreSyncServiceTest {
             "Demo Customer",
             "dep-123",
             "Shopify Companion demo.myshopify.com",
-            "DRAFT",
+            "ACTIVE",
             "shopify-demo",
             "Demo Shop",
             "INSTALLED",
@@ -124,8 +139,8 @@ class ShopifyStoreSyncServiceTest {
             null,
             null,
             Instant.now(),
-            null,
-            null,
+            Instant.now(),
+            Instant.now(),
             Instant.now(),
             Instant.now()
         );

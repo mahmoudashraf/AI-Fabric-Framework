@@ -81,6 +81,14 @@ export type ShopifyBridgeStoreSummary = {
     documentCount: number
     message: string | null
   } | null
+  webhookDetail: {
+    topic: string | null
+    eventType: string | null
+    sourceCategory: string | null
+    receivedAt: string | null
+    invalidateSync: boolean
+    message: string | null
+  } | null
   widgetDetail: {
     status: string
     checkedAt: string | null

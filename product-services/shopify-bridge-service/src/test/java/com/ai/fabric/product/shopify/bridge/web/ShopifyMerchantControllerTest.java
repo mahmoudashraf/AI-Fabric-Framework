@@ -168,6 +168,7 @@ class ShopifyMerchantControllerTest {
             null,
             null,
             null,
+            null,
             new ShopifyBridgeStoreReadinessSummary(
                 "BLOCKED",
                 false,

@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWebhookEventRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -66,6 +67,35 @@ class ShopifyBridgeStoreLifecycleServiceTest {
         assertThat(service.markUninstalled("missing.myshopify.com")).isNull();
     }
 
+    @Test
+    void recordWebhookEventDelegatesToPlatform() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeStoreLifecycleService service = new ShopifyBridgeStoreLifecycleService(client);
+
+        when(client.recordWebhookEvent(any(), any())).thenReturn(store("INSTALLED", "NOT_SYNCED", "NOT_ENABLED", "PLATFORM_BOOTSTRAPPED"));
+
+        ShopifyBridgeStoreSummary result = service.recordWebhookEvent(
+            "alpha.myshopify.com",
+            "products/update",
+            "CONTENT_CHANGED",
+            "products",
+            "Shopify product content changed. Incremental sync is required.",
+            true
+        );
+
+        assertThat(result.syncStatus()).isEqualTo("NOT_SYNCED");
+        verify(client).recordWebhookEvent(
+            "alpha.myshopify.com",
+            new ShopifyBridgeRecordWebhookEventRequest(
+                "products/update",
+                "CONTENT_CHANGED",
+                "products",
+                "Shopify product content changed. Incremental sync is required.",
+                true
+            )
+        );
+    }
+
     private ShopifyBridgeStoreSummary store(String installStatus, String syncStatus, String widgetStatus, String onboardingStatus) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
@@ -101,6 +131,7 @@ class ShopifyBridgeStoreLifecycleServiceTest {
                 "read_products",
                 true
             ),
+            null,
             null,
             null,
             null,

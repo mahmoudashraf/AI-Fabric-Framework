@@ -532,6 +532,15 @@ export type ShopifyStoreCredentialSummary = {
   expiring: boolean
 }
 
+export type ShopifyStoreWebhookSummary = {
+  topic: string | null
+  eventType: string | null
+  sourceCategory: string | null
+  receivedAt: string | null
+  invalidateSync: boolean
+  message: string | null
+}
+
 export type ShopifyStoreConnectionSummary = {
   id: string
   shopDomain: string
@@ -558,6 +567,7 @@ export type ShopifyStoreConnectionSummary = {
   credentials: ShopifyStoreCredentialSummary | null
   sourcePreflight: ShopifyStoreSourcePreflightSummary | null
   syncDetail: ShopifyStoreSyncSummary | null
+  webhookDetail: ShopifyStoreWebhookSummary | null
   widgetDetail: ShopifyStoreWidgetSummary | null
   readiness: {
     overallStatus: string

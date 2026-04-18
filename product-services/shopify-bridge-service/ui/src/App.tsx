@@ -414,6 +414,20 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
             .join(' · ')}
         </Text>
       ) : null}
+      {store.syncDetail ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          Sync {store.syncDetail.status} · mode {store.syncDetail.mode ?? '—'} · documents {store.syncDetail.documentCount}
+          {store.syncDetail.message ? ` · ${store.syncDetail.message}` : ''}
+        </Text>
+      ) : null}
+      {store.webhookDetail ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          Last webhook {store.webhookDetail.topic ?? '—'} · event {store.webhookDetail.eventType ?? '—'} · source {store.webhookDetail.sourceCategory ?? '—'} · received{' '}
+          {store.webhookDetail.receivedAt ? new Date(store.webhookDetail.receivedAt).toLocaleString() : '—'}
+          {store.webhookDetail.invalidateSync ? ' · sync invalidated' : ''}
+          {store.webhookDetail.message ? ` · ${store.webhookDetail.message}` : ''}
+        </Text>
+      ) : null}
       {store.latestRelease ? (
         <Text as="p" variant="bodySm" tone="subdued">
           Release step {store.latestRelease.currentStepKey ?? '—'} · provisioning {store.latestRelease.provisioningStatus} · updated{' '}
