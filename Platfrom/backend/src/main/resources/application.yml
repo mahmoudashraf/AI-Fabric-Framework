@@ -150,15 +150,17 @@ shopify:
   companion:
     bootstrap:
       default-environment: ${SHOPIFY_COMPANION_DEFAULT_ENVIRONMENT:dev}
-      default-template-id: ${SHOPIFY_COMPANION_DEFAULT_TEMPLATE_ID:custom-start-from-scratch}
+      default-template-id: ${SHOPIFY_COMPANION_DEFAULT_TEMPLATE_ID:dev-openai-qdrant}
       default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:}
+      default-qdrant-host: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_HOST:}
+      default-qdrant-source-deployment-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_SOURCE_DEPLOYMENT_ID:}
       template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
       template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
       default-plugin-ids:
         - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-companion-read}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_2:mkp-data-shopify-catalog}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_3:mkp-data-shopify-policies}
-        - ${SHOPIFY_COMPANION_PLUGIN_ID_4:mkp-inference-shopify-companion-default}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_4:mkp-inference-shared-embeddings}
 
 logging:
   level:

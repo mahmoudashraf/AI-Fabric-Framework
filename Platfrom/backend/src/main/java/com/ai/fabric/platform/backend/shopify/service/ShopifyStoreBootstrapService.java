@@ -3,11 +3,13 @@ package com.ai.fabric.platform.backend.shopify.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
@@ -56,12 +58,16 @@ public class ShopifyStoreBootstrapService {
     private static final String CANONICAL_TEMPLATE_ID = "dev-openai-qdrant";
     private static final String LEGACY_SHOPIFY_INFERENCE_PLUGIN_ID = "mkp-inference-shopify-companion-default";
     private static final String CANONICAL_SHOPIFY_INFERENCE_PLUGIN_ID = "mkp-inference-shared-embeddings";
+    private static final String ACTIVE_RESOURCE_STATUS = "ACTIVE";
+    private static final String QDRANT_VENDOR = "qdrant";
+    private static final String QDRANT_CLUSTER_RESOURCE_TYPE = "CLUSTER";
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     private final ShopifyStoreConnectionRepository repository;
     private final PlatformCustomerRepository customerRepository;
     private final PlatformConsumerRepository consumerRepository;
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository;
     private final PlatformCustomerTenantService platformCustomerTenantService;
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final DeploymentService deploymentService;
@@ -76,6 +82,7 @@ public class ShopifyStoreBootstrapService {
                                         PlatformCustomerRepository customerRepository,
                                         PlatformConsumerRepository consumerRepository,
                                         DeploymentRepository deploymentRepository,
+                                        DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository,
                                         PlatformCustomerTenantService platformCustomerTenantService,
                                         PlatformCustomerConsumerService platformCustomerConsumerService,
                                         DeploymentService deploymentService,
@@ -89,6 +96,7 @@ public class ShopifyStoreBootstrapService {
         this.customerRepository = customerRepository;
         this.consumerRepository = consumerRepository;
         this.deploymentRepository = deploymentRepository;
+        this.deploymentManagedVectorResourceRepository = deploymentManagedVectorResourceRepository;
         this.platformCustomerTenantService = platformCustomerTenantService;
         this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.deploymentService = deploymentService;
@@ -347,11 +355,29 @@ public class ShopifyStoreBootstrapService {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode providerConfig = ensureObject(draft.providerConfig());
         boolean changed = false;
-        changed |= putText(providerConfig, "vectorProvisioningMode", properties.defaultVectorProvisioningMode());
-        changed |= putText(providerConfig, "vectorStoragePosture", properties.defaultVectorStoragePosture());
-        changed |= putBoolean(providerConfig, "qdrantManagedCollectionsEnabled", properties.defaultQdrantManagedCollectionsEnabled());
-        changed |= putText(providerConfig, "qdrantCloudProviderId", properties.defaultQdrantCloudProviderId());
-        changed |= putText(providerConfig, "qdrantCloudRegionId", properties.defaultQdrantCloudRegionId());
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+        if (!ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equalsIgnoreCase(vectorStrategy)) {
+            return;
+        }
+
+        String sharedQdrantHost = resolveSharedQdrantHost();
+        if (hasText(sharedQdrantHost)) {
+            changed |= putText(providerConfig, "vectorProvisioningMode", ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING);
+            changed |= putText(providerConfig, "vectorStoragePosture", properties.defaultVectorStoragePosture());
+            changed |= putBoolean(providerConfig, "qdrantManagedCollectionsEnabled", properties.defaultQdrantManagedCollectionsEnabled());
+            changed |= putText(providerConfig, "qdrantHost", sharedQdrantHost);
+            changed |= removeIfPresent(providerConfig, "qdrantCloudProviderId");
+            changed |= removeIfPresent(providerConfig, "qdrantCloudRegionId");
+            changed |= removeIfPresent(providerConfig, "qdrantCloudPackageId");
+            changed |= removeIfPresent(providerConfig, "qdrantCloudClusterNameOverride");
+            changed |= removeIfPresent(providerConfig, "qdrantRuntimeApiKeySecretName");
+        } else {
+            changed |= putText(providerConfig, "vectorProvisioningMode", properties.defaultVectorProvisioningMode());
+            changed |= putText(providerConfig, "vectorStoragePosture", properties.defaultVectorStoragePosture());
+            changed |= putBoolean(providerConfig, "qdrantManagedCollectionsEnabled", properties.defaultQdrantManagedCollectionsEnabled());
+            changed |= putText(providerConfig, "qdrantCloudProviderId", properties.defaultQdrantCloudProviderId());
+            changed |= putText(providerConfig, "qdrantCloudRegionId", properties.defaultQdrantCloudRegionId());
+        }
         if (!changed) {
             return;
         }
@@ -369,6 +395,38 @@ public class ShopifyStoreBootstrapService {
                 null
             )
         );
+    }
+
+    private String resolveSharedQdrantHost() {
+        String configuredHost = blankToNull(properties.defaultQdrantHost());
+        if (configuredHost != null) {
+            return configuredHost;
+        }
+
+        String configuredSourceDeploymentId = blankToNull(properties.defaultQdrantSourceDeploymentId());
+        if (configuredSourceDeploymentId != null) {
+            return resolveActiveManagedQdrantEndpoint(configuredSourceDeploymentId);
+        }
+
+        return deploymentRepository.findByCustomerIdAndArchivedAtIsNullOrderByUpdatedAtDesc(PlatformCustomerTenantService.INTERNAL_CUSTOMER_ID)
+            .stream()
+            .filter(candidate -> hasText(candidate.getActiveVersionId()))
+            .map(candidate -> resolveActiveManagedQdrantEndpoint(candidate.getId()))
+            .filter(this::hasText)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private String resolveActiveManagedQdrantEndpoint(String deploymentId) {
+        return deploymentManagedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId)
+            .stream()
+            .filter(resource -> ACTIVE_RESOURCE_STATUS.equalsIgnoreCase(resource.getResourceStatus()))
+            .filter(resource -> QDRANT_VENDOR.equalsIgnoreCase(resource.getVendor()))
+            .filter(resource -> QDRANT_CLUSTER_RESOURCE_TYPE.equalsIgnoreCase(resource.getResourceType()))
+            .map(DeploymentManagedVectorResourceEntity::getEndpoint)
+            .filter(this::hasText)
+            .findFirst()
+            .orElse(null);
     }
 
     private String canonicalizeBootstrapPluginId(String pluginId) {
@@ -477,6 +535,14 @@ public class ShopifyStoreBootstrapService {
             return false;
         }
         node.put(field, value);
+        return true;
+    }
+
+    private boolean removeIfPresent(ObjectNode node, String field) {
+        if (node == null || !node.has(field)) {
+            return false;
+        }
+        node.remove(field);
         return true;
     }
 

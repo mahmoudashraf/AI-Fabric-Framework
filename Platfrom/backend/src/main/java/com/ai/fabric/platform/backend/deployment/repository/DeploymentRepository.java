@@ -15,6 +15,8 @@ public interface DeploymentRepository extends JpaRepository<DeploymentEntity, St
 
     List<DeploymentEntity> findByArchivedAtIsNullOrderByCreatedAtDesc();
 
+    List<DeploymentEntity> findByCustomerIdAndArchivedAtIsNullOrderByUpdatedAtDesc(String customerId);
+
     Optional<DeploymentEntity> findByNameIgnoreCaseAndEnvironmentNameIgnoreCaseAndArchivedAtIsNull(String name,
                                                                                                     String environmentName);
 
