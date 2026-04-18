@@ -695,6 +695,7 @@ public class DeploymentTenantScopedVectorRegistryService {
         if (summary == null
             || !summary.sharedStorage()
             || !"READY".equalsIgnoreCase(summary.status())
+            || !requiresCustomerBoundaryIsolation(summary)
             || !StringUtils.hasText(summary.rootResourceValue())) {
             return null;
         }
@@ -716,6 +717,10 @@ public class DeploymentTenantScopedVectorRegistryService {
                     + ". Shared vector infrastructure must not cross customer boundaries."
             ))
             .orElse(null);
+    }
+
+    private boolean requiresCustomerBoundaryIsolation(DeploymentTenantScopedVectorSummary summary) {
+        return "customer_managed_external_resource".equals(normalize(summary.lifecycleOwner()));
     }
 
     private String vendorFor(String vectorStrategy) {

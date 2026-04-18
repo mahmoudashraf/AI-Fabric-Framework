@@ -315,7 +315,7 @@ public class DeploymentReleaseVerificationService {
             checks,
             "tenant_scoped_shared_storage_boundary",
             "PASSED",
-            "Tenant-scoped shared storage is bound to a valid customer-owned provider root and is ready for rollout.",
+            "Tenant-scoped shared storage is bound to a valid scoped provider root and is ready for rollout.",
             null
         );
     }

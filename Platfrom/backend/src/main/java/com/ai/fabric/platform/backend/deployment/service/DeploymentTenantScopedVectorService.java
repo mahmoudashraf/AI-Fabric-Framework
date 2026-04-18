@@ -361,7 +361,9 @@ public class DeploymentTenantScopedVectorService {
             return "RUNTIME_LOCAL_STORAGE";
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_SHARED.equals(vectorStoragePosture)) {
-            return "CUSTOMER_MANAGED_EXTERNAL_RESOURCE";
+            return ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode)
+                ? "PLATFORM_MANAGED_SHARED_RESOURCE"
+                : "CUSTOMER_MANAGED_EXTERNAL_RESOURCE";
         }
         return ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode)
             ? "PLATFORM_MANAGED_RESOURCE"
@@ -373,6 +375,9 @@ public class DeploymentTenantScopedVectorService {
             return "Embedded runtime storage follows deployment lifecycle and is not suitable for enterprise shared-storage backup posture.";
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_SHARED.equals(vectorStoragePosture)) {
+            if (ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode)) {
+                return "The platform manages the shared vector root, while tenant isolation is enforced through scoped handles beneath that shared service.";
+            }
             return "Backup and restore posture remains provider-owned outside the platform. The platform tracks tenant binding and scoped handle resolution.";
         }
         return ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode)

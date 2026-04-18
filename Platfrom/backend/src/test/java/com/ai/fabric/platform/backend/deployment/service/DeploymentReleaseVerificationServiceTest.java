@@ -1441,6 +1441,123 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
+    void verifyPreApplyAllowsPlatformManagedSharedStorageRootReuseAcrossCustomers() throws Exception {
+        HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            artifactServer.createContext("/artifacts/ai-actions.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.start();
+
+            String baseUrl = "http://127.0.0.1:" + artifactServer.getAddress().getPort();
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                baseUrl + "/artifacts/ai-actions.yml",
+                baseUrl + "/artifacts/ai-entity-config.yml",
+                baseUrl + "/artifacts/actions-routing.yml",
+                baseUrl + "/artifacts/ai-prompt-config.json",
+                null,
+                null,
+                baseUrl + "/artifacts/deployment-manifest.json"
+            );
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
+
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
+                "RAILWAY_API",
+                true,
+                Instant.parse("2026-03-31T00:00:00Z").toString(),
+                "https://platform.example",
+                "workspace-123",
+                "AI Fabric",
+                "mahmoudashraf/AI-Fabric-Framework",
+                "Platform-V5",
+                List.of(new RailwayPreflightCheckSummary("provisioning_mode", "PASSED", "Provisioning mode is ready.", "RAILWAY_API"))
+            ));
+
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "qdrant",
+                    "PLATFORM_MANAGED",
+                    true,
+                    "MANAGED_CLOUD_CLUSTER",
+                    List.of(),
+                    "Shared endpoint already exists.",
+                    List.of(),
+                    "1 ready, 0 blocked, 0 failed, 0 skipped.",
+                    List.of()
+                )
+            );
+
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(platformManagedSharedSummary());
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(notConfiguredVectorizationSummary());
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                verificationProperties(Duration.ofSeconds(2)),
+                platformSecretService,
+                new DeploymentConfigCompiler(objectMapper),
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment("https://runtime.example", "https://connector.example"),
+                version("""
+                    {
+                      "llmProvider": "openai",
+                      "embeddingProvider": "openai",
+                      "vectorStrategy": "qdrant",
+                      "vectorProvisioningMode": "PLATFORM_MANAGED",
+                      "vectorStoragePosture": "SHARED"
+                    }
+                    """),
+                release(),
+                "PRE_APPLY"
+            );
+
+            JsonNode checks = objectMapper.readTree(run.getChecksJson());
+            Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
+                .collect(Collectors.toMap(
+                    check -> check.path("name").asText(),
+                    check -> check.path("status").asText(),
+                    (left, right) -> right,
+                    LinkedHashMap::new
+                ));
+
+            assertThat(statuses).containsEntry("tenant_scoped_shared_storage_boundary", "PASSED");
+            assertThat(checks.toString()).doesNotContain("must not cross customer boundaries");
+        } finally {
+            artifactServer.stop(0);
+        }
+    }
+
+    @Test
     void verifyPreApplyAllowsPlatformManagedVectorizationRunnerProvisioningBeforeRegistration() throws Exception {
         HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
         try {
@@ -2369,6 +2486,41 @@ class DeploymentReleaseVerificationServiceTest {
                 "BLOCKED",
                 "Customer boundary conflict.",
                 "Shared index 'shared-index' is already active for customer cust-other. Shared vector infrastructure must not cross customer boundaries."
+            ),
+            "Shared storage is configured."
+        );
+    }
+
+    private DeploymentTenantScopedVectorSummary platformManagedSharedSummary() {
+        return new DeploymentTenantScopedVectorSummary(
+            "READY",
+            "qdrant",
+            "PLATFORM_MANAGED",
+            "SHARED",
+            true,
+            "PLATFORM_MANAGED_SHARED_RESOURCE",
+            "cust-acme",
+            "Acme",
+            "ten-retail",
+            "Retail",
+            "COLLECTION_PREFIX",
+            "Endpoint",
+            "shared-qdrant.platform.internal",
+            "cust-acme--ten-retail",
+            null,
+            "cust-acme--ten-retail__<entity-type>",
+            false,
+            "editable",
+            "platform-managed shared backup posture",
+            new DeploymentTenantScopedVectorRegistrySummary(
+                "WARNING",
+                null,
+                0,
+                0,
+                Instant.parse("2026-04-03T00:00:00Z"),
+                "INFO",
+                "No shared handles.",
+                "The tenant-scoped shared handle resolves cleanly, but no registry record exists yet. Apply the deployment to register or reconcile it."
             ),
             "Shared storage is configured."
         );

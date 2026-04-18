@@ -232,6 +232,59 @@ class DeploymentTenantScopedVectorServiceTest {
     }
 
     @Test
+    void buildPlatformManagedSharedQdrantSummaryUsesPlatformManagedLifecycle() throws Exception {
+        PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
+        DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentEntity deployment = deployment("cust-acme", "ten-retail");
+        when(tenantService.summarizeBinding(deployment)).thenReturn(
+            new DeploymentTenantBindingSummary(
+                "cust-acme",
+                "Acme Corp",
+                "acme",
+                "ACTIVE",
+                false,
+                "ten-retail",
+                "Retail",
+                "retail",
+                "ACTIVE",
+                false,
+                true,
+                0,
+                0,
+                "EDITABLE",
+                "editable"
+            )
+        );
+        when(registryService.summarizeForDeployment(any(), any())).thenReturn(registrySummary("WARNING"));
+
+        DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
+            tenantService,
+            new TenantScopedVectorHandleResolver(),
+            registryService
+        );
+
+        DeploymentTenantScopedVectorSummary summary = service.build(
+            deployment,
+            objectMapper.readTree("""
+                {
+                  "vectorStrategy": "qdrant",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "vectorStoragePosture": "SHARED",
+                  "qdrantHost": "shared-qdrant.platform.internal"
+                }
+                """)
+        );
+
+        assertThat(summary.status()).isEqualTo("READY");
+        assertThat(summary.sharedStorage()).isTrue();
+        assertThat(summary.lifecycleOwner()).isEqualTo("PLATFORM_MANAGED_SHARED_RESOURCE");
+        assertThat(summary.backupRestorePosture()).contains("platform manages the shared vector root");
+        assertThat(summary.rootResourceValue()).isEqualTo("shared-qdrant.platform.internal");
+        assertThat(summary.registry()).isNotNull();
+        assertThat(summary.registry().status()).isEqualTo("WARNING");
+    }
+
+    @Test
     void buildSharedMilvusSummaryUsesCustomerBoundHostAsRoot() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);

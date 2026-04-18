@@ -310,6 +310,40 @@ class DeploymentTenantScopedVectorRegistryServiceTest {
             .hasMessageContaining("must not cross customer boundaries");
     }
 
+    @Test
+    void summarizeForDeploymentAllowsPlatformManagedSharedRootReuseAcrossCustomers() {
+        TenantScopedVectorResourceRepository repository = mock(TenantScopedVectorResourceRepository.class);
+        DeploymentTenantScopedVectorRegistryService service = new DeploymentTenantScopedVectorRegistryService(
+            repository,
+            mock(PlatformAuditService.class),
+            new ObjectMapper()
+        );
+        DeploymentEntity deployment = deployment();
+
+        TenantScopedVectorResourceEntity foreignActive = new TenantScopedVectorResourceEntity();
+        foreignActive.setId("tsv-foreign");
+        foreignActive.setCustomerId("cust-other");
+        foreignActive.setDeploymentId("dep-other");
+        foreignActive.setResourceStatus("ACTIVE");
+
+        when(repository.findByTenantIdOrderByUpdatedAtDesc("ten-retail")).thenReturn(List.of());
+        when(repository.findByVectorStrategyIgnoreCaseAndRootResourceValueIgnoreCaseAndResourceStatusIgnoreCase(
+            "pinecone",
+            "shared-index",
+            "ACTIVE"
+        )).thenReturn(List.of(foreignActive));
+        when(repository.findByTenantIdAndRegistryKeyIgnoreCase("ten-retail", "pinecone|namespace_prefix|shared-index|cust-acme--ten-retail|"))
+            .thenReturn(Optional.empty());
+
+        DeploymentTenantScopedVectorRegistrySummary registry = service.summarizeForDeployment(
+            deployment,
+            platformManagedSharedSummary()
+        );
+
+        assertThat(registry.status()).isEqualTo("WARNING");
+        assertThat(registry.message()).contains("no registry record exists yet");
+    }
+
     private DeploymentEntity deployment() {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-12345678");
@@ -351,6 +385,32 @@ class DeploymentTenantScopedVectorRegistryServiceTest {
             true,
             "Migration requires governance.",
             "Provider-owned backup posture.",
+            null,
+            "Tenant scope is enforced through Pinecone namespaces."
+        );
+    }
+
+    private DeploymentTenantScopedVectorSummary platformManagedSharedSummary() {
+        return new DeploymentTenantScopedVectorSummary(
+            "READY",
+            "pinecone",
+            "PLATFORM_MANAGED",
+            "SHARED",
+            true,
+            "PLATFORM_MANAGED_SHARED_RESOURCE",
+            "cust-acme",
+            "Acme Corp",
+            "ten-retail",
+            "Retail",
+            "NAMESPACE_PREFIX",
+            "Index",
+            "shared-index",
+            "cust-acme--ten-retail",
+            null,
+            "cust-acme--ten-retail__<entity-type>",
+            true,
+            "Migration requires governance.",
+            "Platform-managed shared backup posture.",
             null,
             "Tenant scope is enforced through Pinecone namespaces."
         );
