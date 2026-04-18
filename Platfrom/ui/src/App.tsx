@@ -12,6 +12,7 @@ import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
 import { MarketplacePage } from './pages/MarketplacePage'
 import { InferenceServicesPage } from './pages/InferenceServicesPage'
+import { ProductServicesPage } from './pages/ProductServicesPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { PocPage } from './pages/PocPage'
@@ -21,6 +22,7 @@ import { RevisionsPage } from './pages/RevisionsPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
+import { ShopifyStoresPage } from './pages/ShopifyStoresPage'
 import { UsersPage } from './pages/UsersPage'
 import { VectorizationPage } from './pages/VectorizationPage'
 import { VerificationPage } from './pages/VerificationPage'
@@ -78,6 +80,8 @@ export default function App() {
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/inference-services" element={<InferenceServicesPage />} />
+          <Route path="/product-services" element={<ProductServicesPage />} />
+          <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />
           <Route path="/prompts" element={<PromptsPage />} />

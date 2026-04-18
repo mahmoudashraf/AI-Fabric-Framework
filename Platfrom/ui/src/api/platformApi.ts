@@ -359,6 +359,141 @@ export type PlatformManagedInferenceDependentDeploymentSummary = {
   usages: string[]
 }
 
+export type PlatformManagedProductServiceSummary = {
+  id: string
+  serviceRef: string
+  displayName: string
+  productFamily: string
+  serviceKind: string
+  deploymentMode: string
+  tenantMode: string
+  environmentScope: string | null
+  deploymentId: string | null
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  railwayServiceId: string | null
+  desiredReplicas: number | null
+  actualReplicas: number | null
+  minReplicas: number | null
+  maxReplicas: number | null
+  baseUrl: string | null
+  privateNetworkUrl: string | null
+  healthPath: string | null
+  serviceRoot: string | null
+  dockerfilePath: string | null
+  secretName: string | null
+  status: string
+  secretConfigured: boolean
+  lastDeploymentId: string | null
+  lastReconciledAt: string | null
+  lastReconcileStatus: string | null
+  lastReconcileMessage: string | null
+  lastHealthyAt: string | null
+  lastProbeAt: string | null
+  lastSuccessfulProbeAt: string | null
+  lastFailedProbeAt: string | null
+  lastProbeStatus: string | null
+  lastProbeMessage: string | null
+  lastVerifiedOperation: string | null
+  lastVerifiedAt: string | null
+  lastVerifiedStatus: string | null
+  lastVerifiedMessage: string | null
+  driftStatus: string | null
+  driftMessage: string | null
+  dependentStoresCount: number
+  activeDependentStoresCount: number
+}
+
+export type PlatformManagedProductServiceProbeSummary = {
+  status: string
+  method: string
+  endpoint: string | null
+  statusCode: number
+  message: string
+  checkedAt: string
+}
+
+export type PlatformManagedProductServiceHealthSummary = {
+  serviceRef: string
+  status: string
+  railwayLifecycleManaged: boolean
+  secretConfigured: boolean
+  driftStatus: string
+  driftMessage: string
+  lastHealthyAt: string | null
+  lastProbeAt: string | null
+  lastSuccessfulProbeAt: string | null
+  lastFailedProbeAt: string | null
+  lastProbeStatus: string | null
+  lastProbeMessage: string | null
+  healthProbe: PlatformManagedProductServiceProbeSummary
+}
+
+export type CreatePlatformManagedProductServiceRequest = {
+  serviceRef: string
+  displayName: string
+  productFamily: string
+  serviceKind: string
+  deploymentMode: string
+  tenantMode: string
+  environmentScope: string | null
+  deploymentId: string | null
+  desiredReplicas: number | null
+  minReplicas: number | null
+  maxReplicas: number | null
+  baseUrl: string | null
+  healthPath: string | null
+  serviceRoot: string | null
+  dockerfilePath: string | null
+  secretName: string | null
+}
+
+export type UpdatePlatformManagedProductServiceScaleRequest = {
+  desiredReplicas: number
+}
+
+export type RotatePlatformManagedProductServiceSecretRequest = {
+  value: string
+}
+
+export type ShopifyStoreConnectionSummary = {
+  id: string
+  shopDomain: string
+  displayName: string | null
+  productServiceId: string
+  productServiceRef: string
+  productServiceDisplayName: string
+  customerId: string | null
+  customerName: string | null
+  deploymentId: string | null
+  deploymentName: string | null
+  deploymentStatus: string | null
+  consumerId: string | null
+  consumerDisplayName: string | null
+  installStatus: string
+  syncStatus: string
+  sourceReadinessStatus: string
+  widgetStatus: string
+  lastSourcePreflightAt: string | null
+  lastSyncAt: string | null
+  lastWebhookAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpsertShopifyStoreConnectionRequest = {
+  shopDomain: string
+  displayName: string | null
+  productServiceRef: string
+  customerId: string | null
+  deploymentId: string | null
+  consumerId: string | null
+  installStatus: string | null
+  syncStatus: string | null
+  sourceReadinessStatus: string | null
+  widgetStatus: string | null
+}
+
 export type MarketplacePluginPricingSummary = {
   pricingModel: string
   amount: number | null
@@ -2561,6 +2696,83 @@ export function rotateMarketplaceInferenceServiceSecret(
       body: JSON.stringify(payload),
     },
   )
+}
+
+export function fetchProductServices() {
+  return request<PlatformManagedProductServiceSummary[]>('/api/product-services')
+}
+
+export function createProductService(payload: CreatePlatformManagedProductServiceRequest) {
+  return request<PlatformManagedProductServiceSummary>('/api/product-services', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}`)
+}
+
+export function fetchProductServiceDependents(serviceRef: string) {
+  return request<ShopifyStoreConnectionSummary[]>(`/api/product-services/${encodeURIComponent(serviceRef)}/dependents`)
+}
+
+export function fetchProductServiceActivity(serviceRef: string) {
+  return request<PlatformAuditEventSummary[]>(`/api/product-services/${encodeURIComponent(serviceRef)}/activity`)
+}
+
+export function fetchProductServiceHealth(serviceRef: string) {
+  return request<PlatformManagedProductServiceHealthSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/health`)
+}
+
+export function reconcileProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/reconcile`, {
+    method: 'POST',
+  })
+}
+
+export function scaleProductService(serviceRef: string, payload: UpdatePlatformManagedProductServiceScaleRequest) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/scale`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function restartProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/restart`, {
+    method: 'POST',
+  })
+}
+
+export function forceRecreateProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/force-recreate`, {
+    method: 'POST',
+  })
+}
+
+export function rotateProductServiceSecret(
+  serviceRef: string,
+  payload: RotatePlatformManagedProductServiceSecretRequest,
+) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/rotate-secret`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchShopifyStores() {
+  return request<ShopifyStoreConnectionSummary[]>('/api/shopify/stores')
+}
+
+export function fetchShopifyStore(shopDomain: string) {
+  return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}`)
+}
+
+export function upsertShopifyStore(payload: UpsertShopifyStoreConnectionRequest) {
+  return request<ShopifyStoreConnectionSummary>('/api/shopify/stores', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function createMarketplacePublisher(payload: CreateMarketplacePublisherRequest) {
