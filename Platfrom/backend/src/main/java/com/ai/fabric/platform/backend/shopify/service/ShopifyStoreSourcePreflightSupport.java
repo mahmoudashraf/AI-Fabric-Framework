@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightCategorySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSyncSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWidgetSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -44,6 +46,49 @@ public class ShopifyStoreSourcePreflightSupport {
                 sourcePreflight.path("overallStatus").asText("UNKNOWN"),
                 parseInstant(text(sourcePreflight, "checkedAt")),
                 categories
+            );
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    public ShopifyStoreSyncSummary summarizeSync(String detailsJson) {
+        if (!hasText(detailsJson)) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode sync = root.path("sync");
+            if (!sync.isObject()) {
+                return null;
+            }
+            return new ShopifyStoreSyncSummary(
+                sync.path("status").asText("UNKNOWN"),
+                parseInstant(text(sync, "checkedAt")),
+                text(sync, "mode"),
+                sync.path("documentCount").asInt(0),
+                text(sync, "message")
+            );
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    public ShopifyStoreWidgetSummary summarizeWidget(String detailsJson) {
+        if (!hasText(detailsJson)) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode widget = root.path("widget");
+            if (!widget.isObject()) {
+                return null;
+            }
+            return new ShopifyStoreWidgetSummary(
+                widget.path("status").asText("UNKNOWN"),
+                parseInstant(text(widget, "checkedAt")),
+                text(widget, "channel"),
+                text(widget, "message")
             );
         } catch (Exception ex) {
             return null;

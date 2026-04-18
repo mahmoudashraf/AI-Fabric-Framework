@@ -535,6 +535,16 @@ export function ProductServicesPage() {
                                       .join(' · ')}
                                   </Typography>
                                 ) : null}
+                                {store.syncDetail ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Sync {store.syncDetail.status.toLowerCase()} · mode {detailValue(store.syncDetail.mode)} · documents {store.syncDetail.documentCount}
+                                  </Typography>
+                                ) : null}
+                                {store.widgetDetail ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Widget {store.widgetDetail.status.toLowerCase()} · channel {detailValue(store.widgetDetail.channel)}
+                                  </Typography>
+                                ) : null}
                                 <Typography variant="caption" color="text.secondary">
                                   Last preflight {formatTimestamp(store.lastSourcePreflightAt)} · Last sync {formatTimestamp(store.lastSyncAt)}
                                 </Typography>

@@ -26,6 +26,8 @@ public record ShopifyStoreConnectionSummary(
     boolean pagesEnabled,
     boolean policiesEnabled,
     ShopifyStoreSourcePreflightSummary sourcePreflight,
+    ShopifyStoreSyncSummary syncDetail,
+    ShopifyStoreWidgetSummary widgetDetail,
     Instant lastSourcePreflightAt,
     Instant lastSyncAt,
     Instant lastWebhookAt,

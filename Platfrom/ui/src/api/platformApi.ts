@@ -470,6 +470,21 @@ export type ShopifyStoreSourcePreflightSummary = {
   categories: ShopifyStoreSourcePreflightCategorySummary[]
 }
 
+export type ShopifyStoreSyncSummary = {
+  status: string
+  checkedAt: string | null
+  mode: string | null
+  documentCount: number
+  message: string | null
+}
+
+export type ShopifyStoreWidgetSummary = {
+  status: string
+  checkedAt: string | null
+  channel: string | null
+  message: string | null
+}
+
 export type ShopifyStoreConnectionSummary = {
   id: string
   shopDomain: string
@@ -494,6 +509,8 @@ export type ShopifyStoreConnectionSummary = {
   pagesEnabled: boolean
   policiesEnabled: boolean
   sourcePreflight: ShopifyStoreSourcePreflightSummary | null
+  syncDetail: ShopifyStoreSyncSummary | null
+  widgetDetail: ShopifyStoreWidgetSummary | null
   lastSourcePreflightAt: string | null
   lastSyncAt: string | null
   lastWebhookAt: string | null

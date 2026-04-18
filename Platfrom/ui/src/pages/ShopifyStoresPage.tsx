@@ -402,6 +402,54 @@ export function ShopifyStoresPage() {
                       </CardContent>
                     </Card>
                   ) : null}
+
+                  {selectedStore.syncDetail ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Latest sync</Typography>
+                            <Chip size="small" label={selectedStore.syncDetail.status} color={chipColor(selectedStore.syncDetail.status)} />
+                            <Typography variant="caption" color="text.secondary">
+                              Checked {formatTimestamp(selectedStore.syncDetail.checkedAt)}
+                            </Typography>
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Mode {selectedStore.syncDetail.mode ?? '—'} · Documents {selectedStore.syncDetail.documentCount}
+                          </Typography>
+                          {selectedStore.syncDetail.message ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {selectedStore.syncDetail.message}
+                            </Typography>
+                          ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  {selectedStore.widgetDetail ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Storefront widget</Typography>
+                            <Chip size="small" label={selectedStore.widgetDetail.status} color={chipColor(selectedStore.widgetDetail.status)} />
+                            <Typography variant="caption" color="text.secondary">
+                              Checked {formatTimestamp(selectedStore.widgetDetail.checkedAt)}
+                            </Typography>
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Channel {selectedStore.widgetDetail.channel ?? '—'}
+                          </Typography>
+                          {selectedStore.widgetDetail.message ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {selectedStore.widgetDetail.message}
+                            </Typography>
+                          ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
                 </Stack>
               </CardContent>
             </Card>

@@ -163,6 +163,8 @@ public class ShopifyStoreConnectionService {
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
             sourcePreflightSupport.summarize(entity.getDetailsJson()),
+            sourcePreflightSupport.summarizeSync(entity.getDetailsJson()),
+            sourcePreflightSupport.summarizeWidget(entity.getDetailsJson()),
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),
