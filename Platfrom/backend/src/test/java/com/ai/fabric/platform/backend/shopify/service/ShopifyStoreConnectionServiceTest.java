@@ -594,4 +594,106 @@ class ShopifyStoreConnectionServiceTest {
         assertThat(summary.lastSyncAt()).isEqualTo(Instant.parse("2026-04-18T12:03:00Z"));
         verify(repository, times(1)).save(entity);
     }
+
+    @Test
+    void getConnectionDoesNotResurrectApplyTimeSyncForUninstalledStore() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository = mock(MarketplaceDatasetHandleRepository.class);
+        MarketplaceDatasetDocumentRepository marketplaceDatasetDocumentRepository = mock(MarketplaceDatasetDocumentRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("psv-123");
+        service.setServiceRef("shopify-bridge-prod");
+        service.setDisplayName("Shopify Bridge Service");
+        service.setProductFamily("SHOPIFY");
+        service.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("demo.myshopify.com");
+        entity.setProductServiceId("psv-123");
+        entity.setDeploymentId("dep-123");
+        entity.setInstallStatus("UNINSTALLED");
+        entity.setSyncStatus("NOT_SYNCED");
+        entity.setSourceReadinessStatus("NOT_RUN");
+        entity.setWidgetStatus("NOT_ENABLED");
+        entity.setOnboardingStatus("BLOCKED");
+        entity.setProductsEnabled(true);
+        entity.setCollectionsEnabled(false);
+        entity.setPagesEnabled(false);
+        entity.setPoliciesEnabled(true);
+        entity.setDetailsJson("""
+            {
+              "credentials":{"status":"MISSING","checkedAt":"2026-04-18T12:04:00Z","expiring":false},
+              "sync":{"status":"CLEARED","checkedAt":"2026-04-18T12:05:00Z","mode":"UNINSTALL_CLEANUP","documentCount":2,"message":"Cleared 2 synced Shopify documents."}
+            }
+            """);
+        entity.setCreatedAt(Instant.parse("2026-04-18T11:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-04-18T12:05:00Z"));
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setName("Shopify Companion");
+        deployment.setStatus("ACTIVE");
+        deployment.setTenantId("tenant-123");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+        release.setAppliedAt(Instant.parse("2026-04-18T12:00:00Z"));
+        release.setUpdatedAt(Instant.parse("2026-04-18T12:01:00Z"));
+
+        MarketplaceDatasetHandleEntity catalogHandle = new MarketplaceDatasetHandleEntity();
+        catalogHandle.setId("mdh-cat");
+        catalogHandle.setDatasetId("shopify-catalog");
+        catalogHandle.setStatus("READY");
+        catalogHandle.setLastSyncAt(Instant.parse("2026-04-18T12:02:00Z"));
+
+        MarketplaceDatasetHandleEntity policiesHandle = new MarketplaceDatasetHandleEntity();
+        policiesHandle.setId("mdh-pol");
+        policiesHandle.setDatasetId("shopify-policies");
+        policiesHandle.setStatus("READY");
+        policiesHandle.setLastSyncAt(Instant.parse("2026-04-18T12:03:00Z"));
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
+        when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
+        when(marketplaceDatasetHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123"))
+            .thenReturn(java.util.List.of(catalogHandle, policiesHandle));
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            marketplaceDatasetHandleRepository,
+            marketplaceDatasetDocumentRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
+        );
+
+        ShopifyStoreConnectionSummary summary = connectionService.getConnection("demo.myshopify.com");
+
+        assertThat(summary.installStatus()).isEqualTo("UNINSTALLED");
+        assertThat(summary.syncStatus()).isEqualTo("NOT_SYNCED");
+        assertThat(summary.syncDetail()).isNotNull();
+        assertThat(summary.syncDetail().status()).isEqualTo("CLEARED");
+        assertThat(summary.syncDetail().mode()).isEqualTo("UNINSTALL_CLEANUP");
+        assertThat(summary.syncDetail().documentCount()).isEqualTo(2);
+        verify(repository, times(0)).save(entity);
+    }
 }

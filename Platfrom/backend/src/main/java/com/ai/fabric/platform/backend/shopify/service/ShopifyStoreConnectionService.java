@@ -298,6 +298,9 @@ public class ShopifyStoreConnectionService {
         if (entity == null || !hasText(entity.getDeploymentId()) || marketplaceDatasetHandleRepository == null) {
             return;
         }
+        if (!"INSTALLED".equalsIgnoreCase(entity.getInstallStatus())) {
+            return;
+        }
 
         boolean latestReleaseVerified = latestRelease != null
             && "APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())
