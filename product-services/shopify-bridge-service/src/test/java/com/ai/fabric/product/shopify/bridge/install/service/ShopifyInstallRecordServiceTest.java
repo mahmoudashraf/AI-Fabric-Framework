@@ -54,6 +54,23 @@ class ShopifyInstallRecordServiceTest {
     }
 
     @Test
+    void recordAuthenticatedSessionPreservesUninstalledStatus() {
+        ShopifyMerchantSession session = new ShopifyMerchantSession(
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "gid://shopify/User/1",
+            Instant.parse("2026-04-18T12:00:00Z")
+        );
+        service.recordAuthenticatedSession(session, "embedded-host");
+        service.markUninstalled("alpha.myshopify.com");
+
+        ShopifyInstallRecordSummary summary = service.recordAuthenticatedSession(session, "embedded-host");
+
+        assertThat(summary.status()).isEqualTo("UNINSTALLED");
+        assertThat(summary.lastAuthenticatedAt()).isNotNull();
+    }
+
+    @Test
     void recordCredentialsUpdatesSecretRefsAndExpiryMetadata() {
         ShopifyMerchantSession session = new ShopifyMerchantSession(
             "alpha.myshopify.com",
@@ -76,6 +93,32 @@ class ShopifyInstallRecordServiceTest {
         assertThat(summary.refreshTokenSecretRef()).isEqualTo("MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB");
         assertThat(summary.scopesText()).isEqualTo("read_products");
         assertThat(summary.accessTokenExpiresAt()).isEqualTo(Instant.parse("2026-04-18T01:00:00Z"));
+        assertThat(summary.status()).isEqualTo("INSTALLED");
+        assertThat(summary.lastUninstalledAt()).isNull();
+    }
+
+    @Test
+    void recordCredentialsRestoresInstalledStateAfterUninstall() {
+        ShopifyMerchantSession session = new ShopifyMerchantSession(
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "gid://shopify/User/1",
+            Instant.parse("2026-04-18T12:00:00Z")
+        );
+        service.recordAuthenticatedSession(session, "embedded-host");
+        service.markUninstalled("alpha.myshopify.com");
+
+        ShopifyInstallRecordSummary summary = service.recordCredentials(
+            "alpha.myshopify.com",
+            "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+            "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+            Instant.parse("2026-04-18T01:00:00Z"),
+            Instant.parse("2026-07-18T00:00:00Z"),
+            "read_products"
+        ).orElseThrow();
+
+        assertThat(summary.status()).isEqualTo("INSTALLED");
+        assertThat(summary.lastUninstalledAt()).isNull();
     }
 
     @Test

@@ -368,14 +368,18 @@ export default function App() {
   const storefrontPreview = state.storefrontPreview
   const usageSummary = state.usageSummary
   const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary)
+  const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
+  const installRecoveryUrl = session?.installRecoveryUrl ?? null
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
+    !installRecoveryRequired &&
     Boolean(store?.readiness?.goLiveEligible) &&
     !isReleaseInProgress(store?.latestRelease?.status)
   const canSyncNow =
     Boolean(session) &&
     Boolean(store?.deploymentId) &&
+    !installRecoveryRequired &&
     !isReleaseInProgress(store?.latestRelease?.status)
   const sourceSettingsDirty =
     !!store &&
@@ -461,13 +465,31 @@ export default function App() {
                     Merchant session
                   </Text>
                   {session ? (
-                    <List type="bullet">
-                      <List.Item>Shop: {session.shopDomain}</List.Item>
-                      <List.Item>User: {session.userId}</List.Item>
-                      <List.Item>Expires: {new Date(session.expiresAt).toLocaleString()}</List.Item>
-                      <List.Item>Install record: {session.installRecord?.status ?? 'MISSING'}</List.Item>
-                      <List.Item>Credential refs: {session.installRecord?.accessTokenSecretRef ? 'present' : 'missing'}</List.Item>
-                    </List>
+                    <BlockStack gap="200">
+                      <List type="bullet">
+                        <List.Item>Shop: {session.shopDomain}</List.Item>
+                        <List.Item>User: {session.userId}</List.Item>
+                        <List.Item>Expires: {new Date(session.expiresAt).toLocaleString()}</List.Item>
+                        <List.Item>Install record: {session.installRecord?.status ?? 'MISSING'}</List.Item>
+                        <List.Item>Credential refs: {session.installRecord?.accessTokenSecretRef ? 'present' : 'missing'}</List.Item>
+                      </List>
+                      {installRecoveryRequired ? (
+                        <Banner tone="warning">
+                          <BlockStack gap="200">
+                            <Text as="p" variant="bodyMd">
+                              {session.installRecoveryMessage ?? 'This shop must complete the Shopify install flow again before Companion can continue onboarding.'}
+                            </Text>
+                            {installRecoveryUrl ? (
+                              <InlineStack gap="200">
+                                <Button url={installRecoveryUrl} target="_top" variant="primary">
+                                  Reconnect Shopify app
+                                </Button>
+                              </InlineStack>
+                            ) : null}
+                          </BlockStack>
+                        </Banner>
+                      ) : null}
+                    </BlockStack>
                   ) : (
                     <Text as="p" variant="bodyMd" tone="subdued">
                       No authenticated Shopify merchant session is available yet.
@@ -510,7 +532,7 @@ export default function App() {
                     <Button
                       onClick={() => void handleSourceSettingsSave()}
                       loading={busyAction === 'source-settings'}
-                      disabled={!session || !sourceSettingsDirty}
+                      disabled={!session || installRecoveryRequired || !sourceSettingsDirty}
                     >
                       Save source settings
                     </Button>
@@ -689,7 +711,7 @@ export default function App() {
                     <Button
                       onClick={() => void handleWidgetSettingsSave()}
                       loading={busyWidgetSettings}
-                      disabled={!session || !widgetSettingsDirty}
+                      disabled={!session || installRecoveryRequired || !widgetSettingsDirty}
                     >
                       Save widget settings
                     </Button>
@@ -811,6 +833,22 @@ export default function App() {
               <Text as="p" variant="bodyMd" tone="subdued">
                 Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability. After bootstrap, use sync now to push enabled Shopify content into the bound deployment runtime. Go live only after the source readiness checks are clean.
               </Text>
+              {installRecoveryRequired ? (
+                <Banner tone="warning">
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd">
+                      Shopify marked this installation as uninstalled. Re-run the Shopify install flow before using connect, preflight, sync, or go-live actions.
+                    </Text>
+                    {installRecoveryUrl ? (
+                      <InlineStack gap="200">
+                        <Button url={installRecoveryUrl} target="_top" variant="primary">
+                          Reconnect Shopify app
+                        </Button>
+                      </InlineStack>
+                    ) : null}
+                  </BlockStack>
+                </Banner>
+              ) : null}
               {store?.readiness ? (
                 <List type="bullet">
                   <List.Item>Readiness: {store.readiness.overallStatus}</List.Item>
@@ -838,21 +876,21 @@ export default function App() {
                   variant="primary"
                   onClick={() => void handleConnect()}
                   loading={busyAction === 'connect'}
-                  disabled={!session}
+                  disabled={!session || installRecoveryRequired}
                 >
                   Connect current shop
                 </Button>
                 <Button
                   onClick={() => void handleSourcePreflight()}
                   loading={busyAction === 'preflight'}
-                  disabled={!session}
+                  disabled={!session || installRecoveryRequired}
                 >
                   Run source preflight
                 </Button>
                 <Button
                   onClick={() => void handleBootstrap()}
                   loading={busyAction === 'bootstrap'}
-                  disabled={!session}
+                  disabled={!session || installRecoveryRequired}
                 >
                   Bootstrap deployment
                 </Button>

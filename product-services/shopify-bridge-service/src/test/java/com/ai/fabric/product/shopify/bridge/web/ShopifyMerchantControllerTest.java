@@ -74,6 +74,9 @@ class ShopifyMerchantControllerTest {
             "https://alpha.myshopify.com",
             "gid://shopify/User/1",
             Instant.parse("2026-04-18T12:00:00Z"),
+            false,
+            null,
+            null,
             new ShopifyInstallRecordSummary(
                 "alpha.myshopify.com",
                 "INSTALLED",

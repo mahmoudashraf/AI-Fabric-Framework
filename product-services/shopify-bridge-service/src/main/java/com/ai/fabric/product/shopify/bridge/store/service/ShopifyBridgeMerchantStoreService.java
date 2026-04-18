@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class ShopifyBridgeMerchantStoreService {
@@ -50,13 +51,18 @@ public class ShopifyBridgeMerchantStoreService {
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
                                                         String appBridgeHost) {
         ShopifyInstallRecordSummary installRecord = installRecordService.recordAuthenticatedSession(merchantSession, appBridgeHost);
+        ShopifyBridgeStoreSummary store = findStoreOrNull(merchantSession.shopDomain());
+        boolean installRecoveryRequired = installRecoveryRequired(installRecord, store);
         return new ShopifyBridgeMerchantSessionResponse(
             merchantSession.shopDomain(),
             merchantSession.destination(),
             merchantSession.userId(),
             merchantSession.expiresAt(),
+            installRecoveryRequired,
+            installRecoveryRequired ? "This shop must complete the Shopify install flow again before Companion can continue onboarding." : null,
+            installRecoveryRequired ? buildInstallUrl(merchantSession.shopDomain()) : null,
             installRecord,
-            findStoreOrNull(merchantSession.shopDomain())
+            store
         );
     }
 
@@ -200,5 +206,22 @@ public class ShopifyBridgeMerchantStoreService {
         return store.customerId() != null && !store.customerId().isBlank()
             && store.deploymentId() != null && !store.deploymentId().isBlank()
             && store.consumerId() != null && !store.consumerId().isBlank();
+    }
+
+    private boolean installRecoveryRequired(ShopifyInstallRecordSummary installRecord,
+                                            ShopifyBridgeStoreSummary store) {
+        return "UNINSTALLED".equalsIgnoreCase(installRecord == null ? null : installRecord.status())
+            || "UNINSTALLED".equalsIgnoreCase(store == null ? null : store.installStatus());
+    }
+
+    private String buildInstallUrl(String shopDomain) {
+        String baseUrl = properties.publicBaseUrl();
+        String normalizedBaseUrl = (baseUrl == null || baseUrl.isBlank())
+            ? ""
+            : (baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
+        return UriComponentsBuilder.fromUriString(normalizedBaseUrl + "/auth/shopify/install")
+            .queryParam("shop", shopDomain)
+            .build(true)
+            .toUriString();
     }
 }

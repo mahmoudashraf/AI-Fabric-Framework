@@ -121,6 +121,9 @@ export type ShopifyBridgeMerchantSessionResponse = {
   destination: string
   userId: string
   expiresAt: string
+  installRecoveryRequired: boolean
+  installRecoveryMessage: string | null
+  installRecoveryUrl: string | null
   installRecord: {
     status: string
     accessTokenSecretRef: string | null

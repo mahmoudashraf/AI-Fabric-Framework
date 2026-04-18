@@ -67,7 +67,45 @@ class ShopifyBridgeMerchantStoreServiceTest {
 
         assertThat(response.installRecord()).isNotNull();
         assertThat(response.store()).isNotNull();
+        assertThat(response.installRecoveryRequired()).isFalse();
         assertThat(response.store().shopDomain()).isEqualTo("alpha.myshopify.com");
+    }
+
+    @Test
+    void sessionFlagsInstallRecoveryWhenShopWasUninstalled() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            installRecordService,
+            mock(ShopifyBridgeInstallCredentialService.class),
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class),
+            mock(ShopifyStorefrontPreviewService.class)
+        );
+        when(client.getStore("alpha.myshopify.com")).thenReturn(uninstalledStore("alpha.myshopify.com"));
+        when(installRecordService.recordAuthenticatedSession(session(), "host-token")).thenReturn(new ShopifyInstallRecordSummary(
+            "alpha.myshopify.com",
+            "UNINSTALLED",
+            "https://alpha.myshopify.com",
+            "gid://shopify/User/1",
+            "host-token",
+            null,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T11:00:00Z")
+        ));
+
+        var response = service.session(session(), "host-token");
+
+        assertThat(response.installRecoveryRequired()).isTrue();
+        assertThat(response.installRecoveryUrl()).isEqualTo("https://bridge.example.com/auth/shopify/install?shop=alpha.myshopify.com");
+        assertThat(response.installRecoveryMessage()).contains("complete the Shopify install flow again");
     }
 
     @Test
@@ -382,6 +420,47 @@ class ShopifyBridgeMerchantStoreServiceTest {
             null,
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z")
+        );
+    }
+
+    private ShopifyBridgeStoreSummary uninstalledStore(String shopDomain) {
+        ShopifyBridgeStoreSummary base = store(shopDomain);
+        return new ShopifyBridgeStoreSummary(
+            base.id(),
+            base.shopDomain(),
+            base.displayName(),
+            base.productServiceRef(),
+            base.productServiceDisplayName(),
+            base.customerId(),
+            base.customerName(),
+            base.deploymentId(),
+            base.deploymentName(),
+            base.deploymentStatus(),
+            base.consumerId(),
+            base.consumerDisplayName(),
+            "UNINSTALLED",
+            "NOT_SYNCED",
+            "NOT_RUN",
+            "NOT_ENABLED",
+            "BLOCKED",
+            base.productsEnabled(),
+            base.collectionsEnabled(),
+            base.pagesEnabled(),
+            base.policiesEnabled(),
+            null,
+            base.sourcePreflight(),
+            base.syncDetail(),
+            base.webhookDetail(),
+            base.widgetDetail(),
+            base.capabilities(),
+            base.readiness(),
+            base.latestVersion(),
+            base.latestRelease(),
+            base.lastSourcePreflightAt(),
+            base.lastSyncAt(),
+            base.lastWebhookAt(),
+            base.createdAt(),
+            base.updatedAt()
         );
     }
 

@@ -32,7 +32,9 @@ public class ShopifyInstallRecordService {
             entity.setInstalledAt(now);
         }
         entity.setShopDomain(normalizeShopDomain(session.shopDomain()));
-        entity.setStatus("INSTALLED");
+        if (entity.getStatus() == null || entity.getStatus().isBlank()) {
+            entity.setStatus("INSTALLED");
+        }
         entity.setShopUrl(session.destination());
         entity.setUserId(session.userId());
         entity.setAppBridgeHost(blankToNull(appBridgeHost));
@@ -88,11 +90,13 @@ public class ShopifyInstallRecordService {
                                                                    String scopesText) {
         return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
             .map(entity -> {
+                entity.setStatus("INSTALLED");
                 entity.setAccessTokenSecretRef(blankToNull(accessTokenSecretRef));
                 entity.setRefreshTokenSecretRef(blankToNull(refreshTokenSecretRef));
                 entity.setAccessTokenExpiresAt(accessTokenExpiresAt);
                 entity.setRefreshTokenExpiresAt(refreshTokenExpiresAt);
                 entity.setScopesText(blankToNull(scopesText));
+                entity.setLastUninstalledAt(null);
                 entity.setUpdatedAt(Instant.now());
                 return toSummary(repository.save(entity));
             });
