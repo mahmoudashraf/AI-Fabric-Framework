@@ -8,6 +8,7 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMa
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -19,13 +20,16 @@ public class ShopifyBridgeInstallCredentialService {
     private final ShopifyTokenExchangeService tokenExchangeService;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyInstallRecordService installRecordService;
+    private final ShopifyWebhookSubscriptionService webhookSubscriptionService;
 
     public ShopifyBridgeInstallCredentialService(ShopifyTokenExchangeService tokenExchangeService,
                                                  PlatformShopifyStoreClient platformShopifyStoreClient,
-                                                 ShopifyInstallRecordService installRecordService) {
+                                                 ShopifyInstallRecordService installRecordService,
+                                                 ShopifyWebhookSubscriptionService webhookSubscriptionService) {
         this.tokenExchangeService = tokenExchangeService;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installRecordService = installRecordService;
+        this.webhookSubscriptionService = webhookSubscriptionService;
     }
 
     public ShopifyBridgeStoreSummary acquireAndPersist(ShopifyMerchantSession merchantSession,
@@ -57,6 +61,7 @@ public class ShopifyBridgeInstallCredentialService {
                 store.credentials().scopesText()
             );
         }
+        webhookSubscriptionService.reconcileContentSubscriptions(merchantSession.shopDomain(), exchanged.accessToken());
         return new ShopifyBridgeCredentialAcquisition(store, exchanged);
     }
 

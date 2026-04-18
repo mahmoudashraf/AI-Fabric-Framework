@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -39,6 +40,7 @@ class ShopifyInstallFlowServiceTest {
     private PlatformShopifyStoreClient platformShopifyStoreClient;
     private ShopifyInstallRecordService installRecordService;
     private ShopifyInstallStateService installStateService;
+    private ShopifyWebhookSubscriptionService webhookSubscriptionService;
     private ShopifyInstallFlowService service;
 
     @BeforeEach
@@ -48,11 +50,13 @@ class ShopifyInstallFlowServiceTest {
         platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
         installRecordService = mock(ShopifyInstallRecordService.class);
         installStateService = new ShopifyInstallStateService(properties());
+        webhookSubscriptionService = mock(ShopifyWebhookSubscriptionService.class);
         service = new ShopifyInstallFlowService(
             properties(),
             installStateService,
             platformShopifyStoreClient,
             installRecordService,
+            webhookSubscriptionService,
             builder
         );
     }
@@ -102,6 +106,7 @@ class ShopifyInstallFlowServiceTest {
         assertThat(redirect.toString()).isEqualTo("https://bridge.example.com?shop=alpha.myshopify.com&host=admin.shopify.com/store/alpha");
         verify(platformShopifyStoreClient).upsertStore(any());
         verify(platformShopifyStoreClient).upsertCredentials(eq("alpha.myshopify.com"), any());
+        verify(webhookSubscriptionService).reconcileContentSubscriptions("alpha.myshopify.com", "shopify-offline-token");
         verify(installRecordService).recordInstall(
             eq("alpha.myshopify.com"),
             eq("https://alpha.myshopify.com"),

@@ -5,6 +5,9 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -33,22 +36,26 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 public class ShopifyInstallFlowService {
 
     private static final String DEFAULT_APP_SCOPES = "read_products,read_content";
+    private static final Logger log = LoggerFactory.getLogger(ShopifyInstallFlowService.class);
 
     private final ShopifyBridgeProperties properties;
     private final ShopifyInstallStateService installStateService;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyInstallRecordService installRecordService;
+    private final ShopifyWebhookSubscriptionService webhookSubscriptionService;
     private final RestClient restClient;
 
     public ShopifyInstallFlowService(ShopifyBridgeProperties properties,
                                      ShopifyInstallStateService installStateService,
                                      PlatformShopifyStoreClient platformShopifyStoreClient,
                                      ShopifyInstallRecordService installRecordService,
+                                     ShopifyWebhookSubscriptionService webhookSubscriptionService,
                                      RestClient.Builder restClientBuilder) {
         this.properties = properties;
         this.installStateService = installStateService;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installRecordService = installRecordService;
+        this.webhookSubscriptionService = webhookSubscriptionService;
         this.restClient = restClientBuilder.build();
     }
 
@@ -102,8 +109,17 @@ public class ShopifyInstallFlowService {
             store.credentials() == null ? null : store.credentials().accessTokenExpiresAt(),
             store.credentials() == null ? null : store.credentials().refreshTokenExpiresAt()
         );
+        reconcileSubscriptionsSafely(normalizedShop, accessToken);
 
         return embeddedAppUrl(normalizedShop, host);
+    }
+
+    private void reconcileSubscriptionsSafely(String shopDomain, String accessToken) {
+        try {
+            webhookSubscriptionService.reconcileContentSubscriptions(shopDomain, accessToken);
+        } catch (RuntimeException ex) {
+            log.warn("Shopify webhook subscription reconciliation failed for shop={}", shopDomain, ex);
+        }
     }
 
     private void ensurePlatformStore(String shopDomain) {

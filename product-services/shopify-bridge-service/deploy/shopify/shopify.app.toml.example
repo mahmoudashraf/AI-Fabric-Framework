@@ -1,0 +1,34 @@
+client_id = "REPLACE_WITH_SHOPIFY_API_KEY"
+name = "Loom Companion"
+handle = "loom-companion"
+application_url = "https://replace-with-shopify-bridge.example.com"
+embedded = true
+
+[access_scopes]
+scopes = "read_products,read_content"
+
+[auth]
+redirect_urls = [
+  "https://replace-with-shopify-bridge.example.com/auth/shopify/callback"
+]
+
+[webhooks]
+api_version = "2026-04"
+
+[[webhooks.subscriptions]]
+name = "loom-companion-compliance"
+compliance_topics = [
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact"
+]
+uri = "/api/webhooks/shopify"
+
+# Non-compliance topics are reconciled programmatically by the bridge service
+# per installed shop to avoid duplicate deliveries between app-wide and shop-
+# specific subscriptions.
+
+[app_proxy]
+url = "https://replace-with-shopify-bridge.example.com"
+subpath = "loom-companion"
+prefix = "apps"
