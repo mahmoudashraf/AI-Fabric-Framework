@@ -194,6 +194,12 @@ export type ShopifyBridgeBillingSummary = {
   message: string
 }
 
+export type ShopifyBridgeBillingApprovalResponse = {
+  status: string
+  confirmationUrl: string | null
+  message: string
+}
+
 export type ShopifyWebhookSubscriptionStatusSummary = {
   shopDomain: string
   status: string
@@ -256,6 +262,10 @@ export async function fetchUsageSummary(): Promise<ShopifyBridgeUsageSummary> {
 
 export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary> {
   return authenticatedFetchJson('/api/app/store/billing-summary', { method: 'GET' })
+}
+
+export async function requestBillingApproval(): Promise<ShopifyBridgeBillingApprovalResponse> {
+  return authenticatedFetchJson('/api/app/store/billing/approval', { method: 'POST' })
 }
 
 export async function fetchWebhookSubscriptions(): Promise<ShopifyWebhookSubscriptionStatusSummary> {

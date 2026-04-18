@@ -6,13 +6,22 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record ShopifyBridgeBillingProperties(
     String mode,
     String planName,
-    String appSubscriptionPlanHandle
+    String appSubscriptionPlanHandle,
+    String appSubscriptionAmount,
+    String appSubscriptionCurrencyCode,
+    String appSubscriptionInterval,
+    Integer appSubscriptionTrialDays,
+    boolean appSubscriptionTest
 ) {
 
     public ShopifyBridgeBillingProperties {
         mode = normalize(mode, "FREE");
         planName = normalize(planName, "Companion Free");
         appSubscriptionPlanHandle = normalize(appSubscriptionPlanHandle, "");
+        appSubscriptionAmount = normalize(appSubscriptionAmount, "");
+        appSubscriptionCurrencyCode = normalize(appSubscriptionCurrencyCode, "USD");
+        appSubscriptionInterval = normalize(appSubscriptionInterval, "EVERY_30_DAYS");
+        appSubscriptionTrialDays = appSubscriptionTrialDays == null || appSubscriptionTrialDays < 0 ? 0 : appSubscriptionTrialDays;
     }
 
     private static String normalize(String value, String fallback) {

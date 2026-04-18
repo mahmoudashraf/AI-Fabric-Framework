@@ -53,6 +53,11 @@ shopify:
       mode: ${SHOPIFY_BRIDGE_BILLING_MODE:FREE}
       plan-name: ${SHOPIFY_BRIDGE_BILLING_PLAN_NAME:Companion Free}
       app-subscription-plan-handle: ${SHOPIFY_BRIDGE_BILLING_PLAN_HANDLE:}
+      app-subscription-amount: ${SHOPIFY_BRIDGE_BILLING_AMOUNT:}
+      app-subscription-currency-code: ${SHOPIFY_BRIDGE_BILLING_CURRENCY_CODE:USD}
+      app-subscription-interval: ${SHOPIFY_BRIDGE_BILLING_INTERVAL:EVERY_30_DAYS}
+      app-subscription-trial-days: ${SHOPIFY_BRIDGE_BILLING_TRIAL_DAYS:0}
+      app-subscription-test: ${SHOPIFY_BRIDGE_BILLING_TEST:false}
 
 logging:
   level:

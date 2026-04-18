@@ -4,8 +4,8 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
-import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabilitySummary;
@@ -64,9 +64,6 @@ class ShopifyMerchantControllerTest {
 
     @MockBean
     private ShopifyBridgeUsageService usageService;
-
-    @MockBean
-    private ShopifyBridgeBillingService billingService;
 
     @Test
     void sessionRequiresBearerToken() throws Exception {
@@ -238,7 +235,7 @@ class ShopifyMerchantControllerTest {
 
     @Test
     void billingSummaryUsesMerchantSessionContext() throws Exception {
-        when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
+        when(merchantStoreService.billingSummary(any())).thenReturn(new ShopifyBridgeBillingSummary(
             "FREE",
             "Companion Free",
             "ACTIVE",
@@ -253,7 +250,23 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.status").value("ACTIVE"))
             .andExpect(jsonPath("$.launchBlocked").value(false));
 
-        verify(billingService).summarize();
+        verify(merchantStoreService).billingSummary(any());
+    }
+
+    @Test
+    void billingApprovalUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.requestBillingApproval(any(), anyString())).thenReturn(new ShopifyBridgeBillingApprovalResponse(
+            "READY_FOR_APPROVAL",
+            "https://alpha.myshopify.com/admin/charges/confirm",
+            "Redirect the merchant to Shopify to approve the app subscription."
+        ));
+
+        mockMvc.perform(post("/api/app/store/billing/approval").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("READY_FOR_APPROVAL"))
+            .andExpect(jsonPath("$.confirmationUrl").value("https://alpha.myshopify.com/admin/charges/confirm"));
+
+        verify(merchantStoreService).requestBillingApproval(any(), anyString());
     }
 
     @Test

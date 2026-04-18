@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
@@ -102,10 +103,30 @@ public class ShopifyBridgeMerchantStoreService {
         return response;
     }
 
+    public ShopifyBridgeBillingSummary billingSummary(ShopifyMerchantSession merchantSession) {
+        return installCredentialService.resolvePersistedMaterial(merchantSession.shopDomain())
+            .map(acquisition -> billingService.summarizeForShop(merchantSession.shopDomain(), acquisition.tokenExchangeMaterial().accessToken()))
+            .orElseGet(() -> billingService.summarizeForShop(merchantSession.shopDomain(), null));
+    }
+
+    public ShopifyBridgeBillingApprovalResponse requestBillingApproval(ShopifyMerchantSession merchantSession,
+                                                                       String authorizationHeader) {
+        ShopifyBridgeCredentialAcquisition acquisition = acquireConnectedCredentials(merchantSession, authorizationHeader);
+        ShopifyBridgeBillingApprovalResponse response = billingService.createApproval(
+            merchantSession.shopDomain(),
+            acquisition.tokenExchangeMaterial().accessToken()
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_BILLING_APPROVAL_REQUESTED");
+        return response;
+    }
+
     public ShopifyBridgeStoreSummary goLive(ShopifyMerchantSession merchantSession,
                                             String authorizationHeader) {
-        acquireConnectedCredentials(merchantSession, authorizationHeader);
-        ShopifyBridgeBillingSummary billingSummary = billingService.summarize();
+        ShopifyBridgeCredentialAcquisition acquisition = acquireConnectedCredentials(merchantSession, authorizationHeader);
+        ShopifyBridgeBillingSummary billingSummary = billingService.summarizeForShop(
+            merchantSession.shopDomain(),
+            acquisition.tokenExchangeMaterial().accessToken()
+        );
         if (billingSummary.launchBlocked()) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,

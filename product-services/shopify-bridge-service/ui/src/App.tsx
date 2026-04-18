@@ -20,6 +20,7 @@ import enTranslations from '@shopify/polaris/locales/en.json'
 import {
   bootstrapStore,
   fetchBillingSummary,
+  requestBillingApproval,
   connectStore,
   fetchWebhookSubscriptions,
   fetchUsageSummary,
@@ -35,6 +36,7 @@ import {
   updateWidgetSettings,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeBillingSummary,
+  type ShopifyBridgeBillingApprovalResponse,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
@@ -110,7 +112,7 @@ export default function App() {
   })
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'sync' | 'go-live' | 'source-settings' | null>(null)
+  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'sync' | 'go-live' | 'source-settings' | 'billing-approval' | null>(null)
   const [widgetSettings, setWidgetSettings] = useState({
     launcherLabel: 'Ask the store assistant',
     welcomeMessage: 'Store assistant is ready. Ask about products, policies, or collections.',
@@ -287,6 +289,25 @@ export default function App() {
     }
   }
 
+  async function handleBillingApproval() {
+    setBusyAction('billing-approval')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const response = await requestBillingApproval()
+      if (response.confirmationUrl) {
+        redirectTopLevel(response.confirmationUrl)
+        return
+      }
+      setActionMessage(response.message)
+      await refresh()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to request Shopify billing approval.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   async function handleSyncNow() {
     setBusyAction('sync')
     setActionError(null)
@@ -414,6 +435,9 @@ export default function App() {
   const storefrontPreview = state.storefrontPreview
   const usageSummary = state.usageSummary
   const billingSummary = state.billingSummary
+  const billingApprovalRequired = Boolean(
+    billingSummary?.merchantApprovalRequired && billingSummary?.status === 'READY_FOR_APPROVAL',
+  )
   const webhookSubscriptions = state.webhookSubscriptions
   const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary, billingSummary, webhookSubscriptions)
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
@@ -768,9 +792,22 @@ export default function App() {
                     </Text>
                   ) : null}
                   {billingSummary ? (
-                    <Text as="p" variant="bodySm" tone={billingSummary.launchBlocked ? 'critical' : 'subdued'}>
-                      Billing {billingSummary.mode} / {billingSummary.status} · {billingSummary.message}
-                    </Text>
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone={billingSummary.launchBlocked ? 'critical' : 'subdued'}>
+                        Billing {billingSummary.mode} / {billingSummary.status} · {billingSummary.message}
+                      </Text>
+                      {billingApprovalRequired ? (
+                        <InlineStack gap="200">
+                          <Button
+                            variant="primary"
+                            onClick={() => void handleBillingApproval()}
+                            loading={busyAction === 'billing-approval'}
+                          >
+                            Approve Shopify billing
+                          </Button>
+                        </InlineStack>
+                      ) : null}
+                    </BlockStack>
                   ) : null}
                   {webhookSubscriptions ? (
                     <Text as="p" variant="bodySm" tone={webhookSubscriptions.status === 'READY' ? 'subdued' : 'critical'}>
@@ -1050,7 +1087,22 @@ export default function App() {
               ) : null}
               {billingLaunchBlocked ? (
                 <Banner tone="critical">
-                  {billingSummary?.message ?? 'Billing setup is incomplete. Shopify Companion go-live is blocked until billing is configured.'}
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd">
+                      {billingSummary?.message ?? 'Billing setup is incomplete. Shopify Companion go-live is blocked until billing is configured.'}
+                    </Text>
+                    {billingApprovalRequired ? (
+                      <InlineStack gap="200">
+                        <Button
+                          variant="primary"
+                          onClick={() => void handleBillingApproval()}
+                          loading={busyAction === 'billing-approval'}
+                        >
+                          Approve Shopify billing
+                        </Button>
+                      </InlineStack>
+                    ) : null}
+                  </BlockStack>
                 </Banner>
               ) : null}
               {store?.readiness ? (
@@ -1396,6 +1448,14 @@ function buildSupportBundle(
     null,
     2
   )
+}
+
+function redirectTopLevel(url: string) {
+  if (window.top && window.top !== window) {
+    window.top.location.assign(url)
+    return
+  }
+  window.location.assign(url)
 }
 
 function formatUsageBreakdown(entries: Array<{ eventType: string; count: number }>): string {

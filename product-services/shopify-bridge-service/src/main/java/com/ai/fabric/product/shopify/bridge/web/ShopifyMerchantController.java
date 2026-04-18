@@ -3,8 +3,8 @@ package com.ai.fabric.product.shopify.bridge.web;
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
-import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -30,16 +30,13 @@ public class ShopifyMerchantController {
     private final ShopifyBridgeMerchantStoreService merchantStoreService;
     private final ShopifyMerchantPlaygroundService merchantPlaygroundService;
     private final ShopifyBridgeUsageService usageService;
-    private final ShopifyBridgeBillingService billingService;
 
     public ShopifyMerchantController(ShopifyBridgeMerchantStoreService merchantStoreService,
                                      ShopifyMerchantPlaygroundService merchantPlaygroundService,
-                                     ShopifyBridgeUsageService usageService,
-                                     ShopifyBridgeBillingService billingService) {
+                                     ShopifyBridgeUsageService usageService) {
         this.merchantStoreService = merchantStoreService;
         this.merchantPlaygroundService = merchantPlaygroundService;
         this.usageService = usageService;
-        this.billingService = billingService;
     }
 
     @GetMapping("/session")
@@ -90,8 +87,13 @@ public class ShopifyMerchantController {
 
     @GetMapping("/store/billing-summary")
     public ShopifyBridgeBillingSummary billingSummary(Authentication authentication) {
-        requireMerchant(authentication);
-        return billingService.summarize();
+        return merchantStoreService.billingSummary(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/billing/approval")
+    public ShopifyBridgeBillingApprovalResponse billingApproval(Authentication authentication,
+                                                                @RequestHeader("Authorization") String authorizationHeader) {
+        return merchantStoreService.requestBillingApproval(requireMerchant(authentication), authorizationHeader);
     }
 
     @GetMapping("/store/webhook-subscriptions")

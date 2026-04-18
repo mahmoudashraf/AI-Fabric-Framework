@@ -95,6 +95,29 @@ class ShopifyWebhookServiceTest {
     }
 
     @Test
+    void appSubscriptionsUpdateRecordsBillingEvent() {
+        ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
+        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, storeSyncService, new ObjectMapper());
+
+        service.handle("app_subscriptions/update", "alpha.myshopify.com", "{}");
+
+        verify(lifecycleService).recordWebhookEvent(
+            "alpha.myshopify.com",
+            "app_subscriptions/update",
+            "BILLING_CHANGED",
+            "billing",
+            "Shopify app subscription billing changed. Review merchant billing status before go-live.",
+            false
+        );
+        verifyNoInteractions(installCredentialService);
+        verifyNoInteractions(installRecordService);
+        verifyNoInteractions(storeSyncService);
+    }
+
+    @Test
     void shopRedactWebhookTriggersCleanup() {
         ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
