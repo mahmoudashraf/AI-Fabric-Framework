@@ -2,9 +2,13 @@ package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,5 +48,23 @@ public class ShopifyBridgeAdminController {
     @PostMapping("/stores/{shopDomain}/bootstrap")
     public ShopifyBridgeStoreBootstrapResponse bootstrap(@PathVariable String shopDomain) {
         return storeAdminService.bootstrap(shopDomain);
+    }
+
+    @PostMapping("/stores/{shopDomain}/source-preflight")
+    public ShopifyBridgeStoreSummary recordSourcePreflight(@PathVariable String shopDomain,
+                                                           @RequestBody ShopifyBridgeRecordSourcePreflightRequest request) {
+        return storeAdminService.recordSourcePreflight(shopDomain, request);
+    }
+
+    @PostMapping("/stores/{shopDomain}/sync-status")
+    public ShopifyBridgeStoreSummary recordSyncStatus(@PathVariable String shopDomain,
+                                                      @RequestBody ShopifyBridgeRecordSyncStatusRequest request) {
+        return storeAdminService.recordSyncStatus(shopDomain, request);
+    }
+
+    @PostMapping("/stores/{shopDomain}/widget-status")
+    public ShopifyBridgeStoreSummary recordWidgetStatus(@PathVariable String shopDomain,
+                                                        @RequestBody ShopifyBridgeRecordWidgetStatusRequest request) {
+        return storeAdminService.recordWidgetStatus(shopDomain, request);
     }
 }

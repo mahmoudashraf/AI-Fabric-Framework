@@ -1,11 +1,14 @@
 package com.ai.fabric.product.shopify.bridge.client.platform;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightCategorySummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -147,5 +150,91 @@ class PlatformShopifyStoreClientTest {
         assertThat(response.createdDeployment()).isTrue();
         assertThat(response.installedPluginIds()).contains("mkp-action-shopify-admin");
         server.verify();
+    }
+
+    @Test
+    void recordSourcePreflightUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/source-preflight"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("READY", "NOT_SYNCED", "NOT_ENABLED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.recordSourcePreflight(
+            "alpha.myshopify.com",
+            new ShopifyBridgeRecordSourcePreflightRequest(List.of(
+                new ShopifyBridgeStoreSourcePreflightCategorySummary("products", true, "READY", 120, "Products reachable")
+            ))
+        );
+
+        assertThat(response.sourceReadinessStatus()).isEqualTo("READY");
+        server.verify();
+    }
+
+    @Test
+    void recordSyncUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/sync-status"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("READY", "SYNCED", "NOT_ENABLED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.recordSyncStatus(
+            "alpha.myshopify.com",
+            new ShopifyBridgeRecordSyncStatusRequest("SYNCED", "FULL", 128, "Initial import completed")
+        );
+
+        assertThat(response.syncStatus()).isEqualTo("SYNCED");
+        server.verify();
+    }
+
+    @Test
+    void recordWidgetUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/widget-status"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("READY", "SYNCED", "ENABLED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.recordWidgetStatus(
+            "alpha.myshopify.com",
+            new ShopifyBridgeRecordWidgetStatusRequest("ENABLED", "THEME_APP_EXTENSION", "Theme embed enabled")
+        );
+
+        assertThat(response.widgetStatus()).isEqualTo("ENABLED");
+        server.verify();
+    }
+
+    private String storeBody(String sourceReadinessStatus, String syncStatus, String widgetStatus) {
+        return """
+            {
+              "id":"shp-1",
+              "shopDomain":"alpha.myshopify.com",
+              "displayName":"Alpha",
+              "productServiceRef":"shopify-bridge-prod",
+              "productServiceDisplayName":"Shopify Bridge Prod",
+              "customerId":"cust-1",
+              "customerName":"Alpha Customer",
+              "deploymentId":"dep-1",
+              "deploymentName":"Alpha Deployment",
+              "deploymentStatus":"DRAFT",
+              "consumerId":"consumer-alpha",
+              "consumerDisplayName":"Alpha Storefront",
+              "installStatus":"INSTALLED",
+              "syncStatus":"%s",
+              "sourceReadinessStatus":"%s",
+              "widgetStatus":"%s",
+              "onboardingStatus":"PLATFORM_BOOTSTRAPPED",
+              "productsEnabled":true,
+              "collectionsEnabled":true,
+              "pagesEnabled":false,
+              "policiesEnabled":true,
+              "sourcePreflight":null,
+              "syncDetail":null,
+              "widgetDetail":null,
+              "lastSourcePreflightAt":null,
+              "lastSyncAt":null,
+              "lastWebhookAt":null,
+              "createdAt":"2026-04-18T00:00:00Z",
+              "updatedAt":"2026-04-18T00:00:00Z"
+            }
+            """.formatted(syncStatus, sourceReadinessStatus, widgetStatus);
     }
 }

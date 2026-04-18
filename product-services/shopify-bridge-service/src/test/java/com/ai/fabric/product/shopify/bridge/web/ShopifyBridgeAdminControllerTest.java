@@ -1,6 +1,9 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
 import org.junit.jupiter.api.Test;
@@ -88,6 +91,63 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.store.consumerId").value("consumer-1"));
     }
 
+    @Test
+    void adminSourcePreflightUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.recordSourcePreflight(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any(ShopifyBridgeRecordSourcePreflightRequest.class)
+        )).thenReturn(sampleStore());
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/source-preflight")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"categories":[{"category":"products","enabled":true,"status":"READY","itemCount":120,"message":"Products reachable"}]}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+    }
+
+    @Test
+    void adminSyncStatusUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.recordSyncStatus(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any(ShopifyBridgeRecordSyncStatusRequest.class)
+        )).thenReturn(sampleStore());
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/sync-status")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"status":"SYNCED","mode":"FULL","documentCount":128,"message":"Initial import completed"}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+    }
+
+    @Test
+    void adminWidgetStatusUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.recordWidgetStatus(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any(ShopifyBridgeRecordWidgetStatusRequest.class)
+        )).thenReturn(sampleStore());
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/widget-status")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"status":"ENABLED","channel":"THEME_APP_EXTENSION","message":"Theme embed enabled"}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+    }
+
     private ShopifyBridgeStoreSummary sampleStore() {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
@@ -111,6 +171,8 @@ class ShopifyBridgeAdminControllerTest {
             true,
             true,
             true,
+            null,
+            null,
             null,
             null,
             null,

@@ -25,6 +25,8 @@ public record ShopifyBridgeStoreSummary(
     boolean pagesEnabled,
     boolean policiesEnabled,
     ShopifyBridgeStoreSourcePreflightSummary sourcePreflight,
+    ShopifyBridgeStoreSyncSummary syncDetail,
+    ShopifyBridgeStoreWidgetSummary widgetDetail,
     Instant lastSourcePreflightAt,
     Instant lastSyncAt,
     Instant lastWebhookAt,

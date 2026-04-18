@@ -1,6 +1,9 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import org.springframework.stereotype.Service;
@@ -26,5 +29,20 @@ public class ShopifyBridgeStoreAdminService {
 
     public ShopifyBridgeStoreBootstrapResponse bootstrap(String shopDomain) {
         return platformShopifyStoreClient.bootstrap(shopDomain);
+    }
+
+    public ShopifyBridgeStoreSummary recordSourcePreflight(String shopDomain,
+                                                           ShopifyBridgeRecordSourcePreflightRequest request) {
+        return platformShopifyStoreClient.recordSourcePreflight(shopDomain, request);
+    }
+
+    public ShopifyBridgeStoreSummary recordSyncStatus(String shopDomain,
+                                                      ShopifyBridgeRecordSyncStatusRequest request) {
+        return platformShopifyStoreClient.recordSyncStatus(shopDomain, request);
+    }
+
+    public ShopifyBridgeStoreSummary recordWidgetStatus(String shopDomain,
+                                                        ShopifyBridgeRecordWidgetStatusRequest request) {
+        return platformShopifyStoreClient.recordWidgetStatus(shopDomain, request);
     }
 }

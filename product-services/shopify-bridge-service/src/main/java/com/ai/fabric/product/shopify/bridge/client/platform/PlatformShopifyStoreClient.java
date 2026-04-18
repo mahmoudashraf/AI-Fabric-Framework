@@ -2,6 +2,9 @@ package com.ai.fabric.product.shopify.bridge.client.platform;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -51,6 +54,33 @@ public class PlatformShopifyStoreClient {
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .retrieve()
             .body(ShopifyBridgeStoreBootstrapResponse.class);
+    }
+
+    public ShopifyBridgeStoreSummary recordSourcePreflight(String shopDomain, ShopifyBridgeRecordSourcePreflightRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/source-preflight")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public ShopifyBridgeStoreSummary recordSyncStatus(String shopDomain, ShopifyBridgeRecordSyncStatusRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/sync-status")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public ShopifyBridgeStoreSummary recordWidgetStatus(String shopDomain, ShopifyBridgeRecordWidgetStatusRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/widget-status")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
     }
 
     private String requirePlatformBaseUrl() {
