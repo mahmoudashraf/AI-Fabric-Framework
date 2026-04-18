@@ -61,6 +61,7 @@ EXPECT_WEBHOOK_STATUS="${EXPECT_WEBHOOK_STATUS:-}"
 EXPECT_BILLING_STATUS="${EXPECT_BILLING_STATUS:-}"
 EXPECT_BILLING_LAUNCH_BLOCKED="${EXPECT_BILLING_LAUNCH_BLOCKED:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
+SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
@@ -157,6 +158,23 @@ assert_optional_equals() {
   local label="$3"
   if [[ -n "${expected}" ]]; then
     assert_equals "${actual}" "${expected}" "${label}"
+  fi
+}
+
+resolve_shopify_admin_access_token() {
+  if [[ -n "${SHOPIFY_ADMIN_ACCESS_TOKEN}" ]]; then
+    SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="explicit"
+    return
+  fi
+  platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/credentials/material" "" "${platform_headers[@]-}"
+  if [[ "${HTTP_STATUS}" != "200" ]]; then
+    return
+  fi
+  local resolved_access_token
+  resolved_access_token="$(json_get "${HTTP_BODY}" "accessToken")"
+  if [[ -n "${resolved_access_token}" ]]; then
+    SHOPIFY_ADMIN_ACCESS_TOKEN="${resolved_access_token}"
+    SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="resolved"
   fi
 }
 
@@ -284,6 +302,8 @@ if [[ -z "${PLATFORM_API_KEY}" && -z "${PLATFORM_SESSION_COOKIE_JAR}" ]]; then
   echo "Missing required auth: set PLATFORM_API_KEY or PLATFORM_SESSION_COOKIE_JAR"
   exit 2
 fi
+
+resolve_shopify_admin_access_token
 
 echo "== Platform product service summary =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}" "" "${platform_headers[@]-}"
@@ -419,8 +439,13 @@ if [[ -n "${SHOPIFY_ADMIN_ACCESS_TOKEN}" ]]; then
   echo "== Shopify webhook subscriptions =="
   webhook_query='{"query":"query ShopifyBridgeWebhookSubscriptions { webhookSubscriptions(first: 50) { edges { node { topic uri name } } } }"}'
   http_request POST "https://${SHOP_DOMAIN}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json" "${webhook_query}" "X-Shopify-Access-Token: ${SHOPIFY_ADMIN_ACCESS_TOKEN}"
-  assert_equals "${HTTP_STATUS}" "200" "shopify webhook subscription query status"
-  assert_shopify_webhook_subscriptions "${HTTP_BODY}" "${bridge_base}/api/webhooks/shopify"
+  if [[ "${HTTP_STATUS}" == "200" ]]; then
+    assert_shopify_webhook_subscriptions "${HTTP_BODY}" "${bridge_base}/api/webhooks/shopify"
+  elif [[ "${SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE}" == "explicit" ]]; then
+    assert_equals "${HTTP_STATUS}" "200" "shopify webhook subscription query status"
+  else
+    echo "Skipping Shopify webhook subscription verification because resolved store credentials are not valid for Shopify Admin GraphQL (HTTP ${HTTP_STATUS})."
+  fi
 else
   echo "Skipping Shopify webhook subscription verification because SHOPIFY_ADMIN_ACCESS_TOKEN is not configured."
 fi
