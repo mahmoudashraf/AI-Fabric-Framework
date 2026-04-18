@@ -30,6 +30,8 @@ set -euo pipefail
 #   EXPECT_WIDGET_STATUS=ENABLED
 #   EXPECT_STOREFRONT_READY=true
 #   EXPECT_GO_LIVE_ELIGIBLE=true
+#   SHOPIFY_ADMIN_ACCESS_TOKEN=<offline-access-token>
+#   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
 
@@ -50,6 +52,8 @@ EXPECT_SOURCE_READINESS_STATUS="${EXPECT_SOURCE_READINESS_STATUS:-READY}"
 EXPECT_WIDGET_STATUS="${EXPECT_WIDGET_STATUS:-ENABLED}"
 EXPECT_STOREFRONT_READY="${EXPECT_STOREFRONT_READY:-true}"
 EXPECT_GO_LIVE_ELIGIBLE="${EXPECT_GO_LIVE_ELIGIBLE:-true}"
+SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
+SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
 
@@ -180,6 +184,63 @@ PY
   HTTP_STATUS="${response##*$'\n'}"
 }
 
+assert_shopify_webhook_subscriptions() {
+  local payload="$1"
+  local expected_uri="$2"
+  JSON_PAYLOAD="${payload}" EXPECTED_URI="${expected_uri}" python3 - <<'PY'
+import json
+import os
+import sys
+
+required = {
+    "loom-app-uninstalled": "APP_UNINSTALLED",
+    "loom-products-create": "PRODUCTS_CREATE",
+    "loom-products-update": "PRODUCTS_UPDATE",
+    "loom-products-delete": "PRODUCTS_DELETE",
+    "loom-collections-create": "COLLECTIONS_CREATE",
+    "loom-collections-update": "COLLECTIONS_UPDATE",
+    "loom-collections-delete": "COLLECTIONS_DELETE",
+    "loom-pages-create": "PAGES_CREATE",
+    "loom-pages-update": "PAGES_UPDATE",
+    "loom-pages-delete": "PAGES_DELETE",
+    "loom-shop-update": "SHOP_UPDATE",
+}
+
+payload = json.loads(os.environ["JSON_PAYLOAD"])
+expected_uri = os.environ["EXPECTED_URI"]
+edges = (((payload.get("data") or {}).get("webhookSubscriptions") or {}).get("edges")) or []
+subscriptions = {}
+for edge in edges:
+    node = (edge or {}).get("node") or {}
+    name = (node.get("name") or "").strip()
+    if not name:
+        continue
+    subscriptions[name] = {
+        "topic": (node.get("topic") or "").strip(),
+        "uri": (node.get("uri") or "").strip(),
+    }
+
+missing = []
+wrong = []
+for name, topic in required.items():
+    current = subscriptions.get(name)
+    if not current:
+        missing.append(name)
+        continue
+    if current["topic"] != topic or current["uri"] != expected_uri:
+        wrong.append(f"{name}=>topic={current['topic']} uri={current['uri']}")
+
+if missing or wrong:
+    details = []
+    if missing:
+        details.append("missing=" + ",".join(missing))
+    if wrong:
+        details.append("wrong=" + ",".join(wrong))
+    print("Shopify webhook subscriptions are not fully configured: " + " ".join(details), file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
 platform_headers=("${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
 bridge_base="$(trim_slash "${SHOPIFY_BRIDGE_BASE_URL}")"
 platform_base="$(trim_slash "${PLATFORM_BASE_URL}")"
@@ -241,6 +302,16 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   assert_nonempty "$(json_get "${admin_overview_json}" "serviceRef")" "bridge admin overview serviceRef"
 else
   echo "Skipping bridge admin overview because SHOPIFY_BRIDGE_ADMIN_API_KEY is not configured."
+fi
+
+if [[ -n "${SHOPIFY_ADMIN_ACCESS_TOKEN}" ]]; then
+  echo "== Shopify webhook subscriptions =="
+  webhook_query='{"query":"query ShopifyBridgeWebhookSubscriptions { webhookSubscriptions(first: 50) { edges { node { topic uri name } } } }"}'
+  http_request POST "https://${SHOP_DOMAIN}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json" "${webhook_query}" "X-Shopify-Access-Token: ${SHOPIFY_ADMIN_ACCESS_TOKEN}"
+  assert_equals "${HTTP_STATUS}" "200" "shopify webhook subscription query status"
+  assert_shopify_webhook_subscriptions "${HTTP_BODY}" "${bridge_base}/api/webhooks/shopify"
+else
+  echo "Skipping Shopify webhook subscription verification because SHOPIFY_ADMIN_ACCESS_TOKEN is not configured."
 fi
 
 echo "== Storefront bootstrap =="
