@@ -109,6 +109,46 @@
   border-bottom-right-radius: 0.35rem;
 }
 
+.loom-companion-card-group {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.loom-companion-card-group__title {
+  font-size: 0.74rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.loom-companion-card {
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #dbe2ea;
+}
+
+.loom-companion-card__title {
+  font-weight: 600;
+  color: #111827;
+}
+
+.loom-companion-card__meta {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.loom-companion-card__link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
 .loom-companion-suggestions {
   display: flex;
   flex-wrap: wrap;

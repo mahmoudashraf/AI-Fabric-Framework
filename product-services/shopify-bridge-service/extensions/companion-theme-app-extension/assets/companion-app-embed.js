@@ -178,7 +178,15 @@
       state.messages.forEach(function (message) {
         var row = document.createElement('div')
         row.className = 'loom-companion-message loom-companion-message--' + message.role
-        row.textContent = message.content
+        var content = document.createElement('div')
+        content.textContent = message.content
+        row.appendChild(content)
+        if (message.role === 'assistant' && Array.isArray(message.products) && message.products.length > 0) {
+          row.appendChild(renderCardGroup('Matched products', message.products, 'Open product'))
+        }
+        if (message.role === 'assistant' && Array.isArray(message.sources) && message.sources.length > 0) {
+          row.appendChild(renderCardGroup('Grounding sources', message.sources, 'Open source'))
+        }
         messages.appendChild(row)
       })
       messages.scrollTop = messages.scrollHeight
@@ -263,6 +271,8 @@
           state.messages.push({
             role: 'assistant',
             content: extractAssistantMessage(response),
+            products: extractProductCards(response),
+            sources: extractSourceCards(response),
           })
           var nextSuggestions = extractSuggestions(response)
           if (nextSuggestions.length > 0) {
@@ -451,6 +461,61 @@
     })
   }
 
+  function renderCardGroup(title, items, linkLabel) {
+    var group = document.createElement('div')
+    group.className = 'loom-companion-card-group'
+
+    var heading = document.createElement('div')
+    heading.className = 'loom-companion-card-group__title'
+    heading.textContent = title
+    group.appendChild(heading)
+
+    items.forEach(function (item) {
+      var card = document.createElement('div')
+      card.className = 'loom-companion-card'
+
+      var cardTitle = document.createElement('div')
+      cardTitle.className = 'loom-companion-card__title'
+      cardTitle.textContent = item.title || item.label || 'Item'
+      card.appendChild(cardTitle)
+
+      if (item.subtitle) {
+        var subtitle = document.createElement('div')
+        subtitle.className = 'loom-companion-card__meta'
+        subtitle.textContent = item.subtitle
+        card.appendChild(subtitle)
+      }
+
+      if (item.detail) {
+        var detail = document.createElement('div')
+        detail.className = 'loom-companion-card__meta'
+        detail.textContent = item.detail
+        card.appendChild(detail)
+      }
+
+      if (item.excerpt) {
+        var excerpt = document.createElement('div')
+        excerpt.className = 'loom-companion-card__meta'
+        excerpt.textContent = item.excerpt
+        card.appendChild(excerpt)
+      }
+
+      if (item.url) {
+        var link = document.createElement('a')
+        link.className = 'loom-companion-card__link'
+        link.href = item.url
+        link.target = '_blank'
+        link.rel = 'noreferrer'
+        link.textContent = linkLabel
+        card.appendChild(link)
+      }
+
+      group.appendChild(card)
+    })
+
+    return group
+  }
+
   function extractAssistantMessage(payload) {
     if (!payload || typeof payload !== 'object') {
       return 'I could not process that request.'
@@ -501,6 +566,27 @@
       .slice(0, 4)
   }
 
+  function extractProductCards(payload) {
+    var candidates =
+      firstArray(
+        readPath(payload, 'result', 'sanitizedPayload', 'products'),
+        readPath(payload, 'result', 'products'),
+        readPath(payload, 'products'),
+        readPath(payload, 'result', 'sanitizedPayload', 'items')
+      ) || []
+    return candidates.map(normalizeProductCard).filter(Boolean).slice(0, 4)
+  }
+
+  function extractSourceCards(payload) {
+    var candidates =
+      firstArray(
+        readPath(payload, 'result', 'sanitizedPayload', 'sources'),
+        readPath(payload, 'result', 'sources'),
+        readPath(payload, 'sources')
+      ) || []
+    return candidates.map(normalizeSourceCard).filter(Boolean).slice(0, 4)
+  }
+
   function getOrCreateShopperSessionId(shopDomain) {
     var storageKey = 'loom-companion-shopper-session:' + shopDomain
     try {
@@ -534,6 +620,109 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;')
+  }
+
+  function readPath(root) {
+    var current = root
+    for (var i = 1; i < arguments.length; i += 1) {
+      var segment = arguments[i]
+      if (!current || typeof current !== 'object' || !(segment in current)) {
+        return undefined
+      }
+      current = current[segment]
+    }
+    return current
+  }
+
+  function firstArray() {
+    for (var i = 0; i < arguments.length; i += 1) {
+      if (Array.isArray(arguments[i])) {
+        return arguments[i]
+      }
+    }
+    return null
+  }
+
+  function normalizeProductCard(candidate) {
+    if (!candidate || typeof candidate !== 'object') {
+      return null
+    }
+    var title = firstText(candidate.title, candidate.name, candidate.label)
+    if (!title) {
+      return null
+    }
+    return {
+      title: title,
+      subtitle: joinText(firstText(candidate.vendor, candidate.brand), firstText(candidate.type, candidate.subtitle)),
+      detail: joinText(
+        firstText(candidate.formattedPrice, candidate.priceText, scalarText(candidate.price)),
+        firstText(candidate.availability, candidate.status)
+      ),
+      url: firstText(candidate.url, candidate.href),
+    }
+  }
+
+  function normalizeSourceCard(candidate) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return {
+        label: candidate.trim(),
+        excerpt: null,
+        url: null,
+      }
+    }
+    if (!candidate || typeof candidate !== 'object') {
+      return null
+    }
+    var label = firstText(candidate.title, candidate.label, candidate.name, candidate.id)
+    if (!label) {
+      return null
+    }
+    return {
+      label: label,
+      excerpt: truncateText(firstText(candidate.snippet, candidate.summary, candidate.excerpt, candidate.text, candidate.content), 220),
+      url: firstText(candidate.url, candidate.href),
+    }
+  }
+
+  function firstText() {
+    for (var i = 0; i < arguments.length; i += 1) {
+      var normalized = scalarText(arguments[i])
+      if (normalized) {
+        return normalized
+      }
+    }
+    return null
+  }
+
+  function scalarText(value) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value)
+    }
+    return null
+  }
+
+  function joinText() {
+    var parts = []
+    for (var i = 0; i < arguments.length; i += 1) {
+      var value = arguments[i]
+      if (typeof value === 'string' && value.trim()) {
+        parts.push(value.trim())
+      }
+    }
+    return parts.length ? parts.join(' · ') : null
+  }
+
+  function truncateText(value, maxLength) {
+    if (!value) {
+      return null
+    }
+    if (value.length <= maxLength) {
+      return value
+    }
+    return value.slice(0, maxLength - 1).trimEnd() + '…'
   }
 
   if (document.readyState === 'loading') {

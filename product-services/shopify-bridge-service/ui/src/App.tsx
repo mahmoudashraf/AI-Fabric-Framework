@@ -10,6 +10,7 @@ import {
   Checkbox,
   Divider,
   InlineStack,
+  Link,
   List,
   Page,
   Text,
@@ -76,6 +77,21 @@ type LoadState = {
 type PlaygroundMessage = {
   role: 'assistant' | 'user'
   content: string
+  products?: PlaygroundProductCard[]
+  sources?: PlaygroundSourceCard[]
+}
+
+type PlaygroundProductCard = {
+  title: string
+  subtitle: string | null
+  detail: string | null
+  url: string | null
+}
+
+type PlaygroundSourceCard = {
+  label: string
+  excerpt: string | null
+  url: string | null
 }
 
 export default function App() {
@@ -327,7 +343,15 @@ export default function App() {
       })
       const assistantMessage = extractAssistantMessage(payload)
       setPlaygroundConversationId(extractConversationId(payload) ?? playgroundConversationId)
-      setPlaygroundMessages((current) => [...current, { role: 'assistant', content: assistantMessage }])
+      setPlaygroundMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          content: assistantMessage,
+          products: extractProductCards(payload),
+          sources: extractSourceCards(payload),
+        },
+      ])
       const nextSuggestions = extractSuggestions(payload)
       if (nextSuggestions.length > 0) {
         setPlaygroundSuggestions(nextSuggestions)
@@ -768,9 +792,78 @@ export default function App() {
                           borderRadius="200"
                           background={message.role === 'assistant' ? 'bg-surface' : 'bg-fill-brand-selected'}
                         >
-                          <Text as="p" variant="bodyMd">
-                            <strong>{message.role === 'assistant' ? 'Assistant' : 'You'}:</strong> {message.content}
-                          </Text>
+                          <BlockStack gap="200">
+                            <Text as="p" variant="bodyMd">
+                              <strong>{message.role === 'assistant' ? 'Assistant' : 'You'}:</strong> {message.content}
+                            </Text>
+                            {message.role === 'assistant' && message.products?.length ? (
+                              <BlockStack gap="150">
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  Matched products
+                                </Text>
+                                {message.products.map((product) => (
+                                  <Box
+                                    key={`${product.title}-${product.url ?? product.detail ?? 'product'}`}
+                                    padding="200"
+                                    borderRadius="200"
+                                    background="bg-surface-secondary"
+                                  >
+                                    <BlockStack gap="100">
+                                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                        {product.title}
+                                      </Text>
+                                      {product.subtitle ? (
+                                        <Text as="p" variant="bodySm" tone="subdued">
+                                          {product.subtitle}
+                                        </Text>
+                                      ) : null}
+                                      {product.detail ? (
+                                        <Text as="p" variant="bodySm" tone="subdued">
+                                          {product.detail}
+                                        </Text>
+                                      ) : null}
+                                      {product.url ? (
+                                        <Link url={product.url} target="_blank" removeUnderline>
+                                          Open product
+                                        </Link>
+                                      ) : null}
+                                    </BlockStack>
+                                  </Box>
+                                ))}
+                              </BlockStack>
+                            ) : null}
+                            {message.role === 'assistant' && message.sources?.length ? (
+                              <BlockStack gap="150">
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  Grounding sources
+                                </Text>
+                                {message.sources.map((source) => (
+                                  <Box
+                                    key={`${source.label}-${source.url ?? source.excerpt ?? 'source'}`}
+                                    padding="200"
+                                    borderRadius="200"
+                                    background="bg-surface-secondary"
+                                  >
+                                    <BlockStack gap="100">
+                                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                        {source.label}
+                                      </Text>
+                                      {source.excerpt ? (
+                                        <Text as="p" variant="bodySm" tone="subdued">
+                                          {source.excerpt}
+                                        </Text>
+                                      ) : null}
+                                      {source.url ? (
+                                        <Link url={source.url} target="_blank" removeUnderline>
+                                          Open source
+                                        </Link>
+                                      ) : null}
+                                    </BlockStack>
+                                  </Box>
+                                ))}
+                              </BlockStack>
+                            ) : null}
+                          </BlockStack>
                         </Box>
                       ))}
                     </BlockStack>
@@ -1101,6 +1194,27 @@ function extractSuggestions(payload: unknown): string[] {
     .slice(0, 4)
 }
 
+function extractProductCards(payload: unknown): PlaygroundProductCard[] {
+  const candidates =
+    firstArray(
+      readPath(payload, 'result', 'sanitizedPayload', 'products'),
+      readPath(payload, 'result', 'products'),
+      readPath(payload, 'products'),
+      readPath(payload, 'result', 'sanitizedPayload', 'items')
+    ) ?? []
+  return candidates.map(normalizeProductCard).filter((value): value is PlaygroundProductCard => value != null).slice(0, 4)
+}
+
+function extractSourceCards(payload: unknown): PlaygroundSourceCard[] {
+  const candidates =
+    firstArray(
+      readPath(payload, 'result', 'sanitizedPayload', 'sources'),
+      readPath(payload, 'result', 'sources'),
+      readPath(payload, 'sources')
+    ) ?? []
+  return candidates.map(normalizeSourceCard).filter((value): value is PlaygroundSourceCard => value != null).slice(0, 4)
+}
+
 function formatTimestamp(value: string | null | undefined): string {
   if (!value) {
     return '—'
@@ -1246,4 +1360,95 @@ function describeUsageEvent(eventType: string): string {
     default:
       return normalized.toLowerCase().replace(/_/g, ' ')
   }
+}
+
+function readPath(root: unknown, ...segments: string[]): unknown {
+  let current: unknown = root
+  for (const segment of segments) {
+    if (!current || typeof current !== 'object' || !(segment in current)) {
+      return undefined
+    }
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
+}
+
+function firstArray(...values: unknown[]): unknown[] | null {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      return value
+    }
+  }
+  return null
+}
+
+function normalizeProductCard(candidate: unknown): PlaygroundProductCard | null {
+  if (!candidate || typeof candidate !== 'object') {
+    return null
+  }
+  const record = candidate as Record<string, unknown>
+  const title = firstText(record.title, record.name, record.label)
+  if (!title) {
+    return null
+  }
+  return {
+    title,
+    subtitle: joinText(firstText(record.vendor, record.brand), firstText(record.type, record.subtitle)),
+    detail: joinText(
+      firstText(record.formattedPrice, record.priceText, scalarText(record.price)),
+      firstText(record.availability, record.status)
+    ),
+    url: firstText(record.url, record.href),
+  }
+}
+
+function normalizeSourceCard(candidate: unknown): PlaygroundSourceCard | null {
+  if (typeof candidate === 'string' && candidate.trim()) {
+    return { label: candidate.trim(), excerpt: null, url: null }
+  }
+  if (!candidate || typeof candidate !== 'object') {
+    return null
+  }
+  const record = candidate as Record<string, unknown>
+  const label = firstText(record.title, record.label, record.name, record.id)
+  if (!label) {
+    return null
+  }
+  return {
+    label,
+    excerpt: truncateText(firstText(record.snippet, record.summary, record.excerpt, record.text, record.content), 220),
+    url: firstText(record.url, record.href),
+  }
+}
+
+function firstText(...values: unknown[]): string | null {
+  for (const value of values) {
+    const normalized = scalarText(value)
+    if (normalized) {
+      return normalized
+    }
+  }
+  return null
+}
+
+function scalarText(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim()
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  return null
+}
+
+function joinText(...values: Array<string | null | undefined>): string | null {
+  const parts = values.map((value) => (value ?? '').trim()).filter(Boolean)
+  return parts.length ? parts.join(' · ') : null
+}
+
+function truncateText(value: string | null, maxLength: number): string | null {
+  if (!value) {
+    return null
+  }
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1).trimEnd()}…`
 }
