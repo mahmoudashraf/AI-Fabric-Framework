@@ -63,6 +63,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.launcherLabel()).isEqualTo("Need help?");
         assertThat(response.welcomeMessage()).isEqualTo("Ask me about products and store policies.");
         assertThat(response.bridgeQueryUrl()).isEqualTo("/api/storefront/shops/alpha.myshopify.com/chat/query");
+        assertThat(response.bridgeEventUrl()).isEqualTo("/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
         verify(platformClient).getConsumerCredentials("consumer-alpha");
     }

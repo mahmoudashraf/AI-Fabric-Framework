@@ -1,9 +1,11 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEngagementEventRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
+import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontEngagementService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +42,9 @@ class ShopifyStorefrontControllerTest {
     private ShopifyStorefrontChatService storefrontChatService;
 
     @MockBean
+    private ShopifyStorefrontEngagementService storefrontEngagementService;
+
+    @MockBean
     private ShopifyBridgeUsageService usageService;
 
     @Test
@@ -57,6 +62,7 @@ class ShopifyStorefrontControllerTest {
             "SIGNED_PRIVATE_RUNTIME",
             "/api/storefront/shops/alpha.myshopify.com/chat/query",
             "/api/storefront/shops/alpha.myshopify.com/chat/suggestions",
+            "/api/storefront/shops/alpha.myshopify.com/events",
             "Route storefront traffic through the Shopify Bridge backend.",
             "Storefront bootstrap resolved."
         ));
@@ -65,7 +71,8 @@ class ShopifyStorefrontControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.available").value(true))
             .andExpect(jsonPath("$.consumerId").value("consumer-alpha"))
-            .andExpect(jsonPath("$.bridgeQueryUrl").value("/api/storefront/shops/alpha.myshopify.com/chat/query"));
+            .andExpect(jsonPath("$.bridgeQueryUrl").value("/api/storefront/shops/alpha.myshopify.com/chat/query"))
+            .andExpect(jsonPath("$.bridgeEventUrl").value("/api/storefront/shops/alpha.myshopify.com/events"));
 
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_BOOTSTRAP");
     }
@@ -88,5 +95,22 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.conversationId").value("conv-1"));
 
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_QUERY");
+    }
+
+    @Test
+    void eventEndpointRecordsBoundedStorefrontEngagementEvent() throws Exception {
+        mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/events")
+                .header("X-AI-FABRIC-SHOPPER-SESSION-ID", "shopper-session-1")
+                .contentType("application/json")
+                .content("""
+                    {"eventType":"WIDGET_OPENED","pageType":"product"}
+                    """))
+            .andExpect(status().isAccepted());
+
+        verify(storefrontEngagementService).record(
+            eq("alpha.myshopify.com"),
+            eq(new ShopifyStorefrontEngagementEventRequest("WIDGET_OPENED", "product")),
+            eq("shopper-session-1")
+        );
     }
 }

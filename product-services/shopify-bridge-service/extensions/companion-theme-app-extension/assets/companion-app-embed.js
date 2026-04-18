@@ -124,6 +124,9 @@
       if (state.isOpen && !state.suggestionsLoaded) {
         loadSuggestions()
       }
+      if (state.isOpen) {
+        recordEvent('WIDGET_OPENED')
+      }
     })
 
     closeButton.addEventListener('click', function () {
@@ -144,6 +147,7 @@
       state.suggestions = []
       render()
       loadSuggestions()
+      recordEvent('CHAT_RESET')
     })
 
     composer.addEventListener('submit', function (event) {
@@ -183,6 +187,7 @@
             if (state.isLoading) {
               return
             }
+            recordEvent('SUGGESTION_CLICKED')
             state.messages.push({ role: 'user', content: suggestionText })
             render()
             sendQuery(suggestionText)
@@ -275,6 +280,22 @@
         'Content-Type': 'application/json',
         'X-AI-FABRIC-SHOPPER-SESSION-ID': state.shopperSessionId,
       }
+    }
+
+    function recordEvent(eventType) {
+      if (!payload.bridgeEventUrl) {
+        return
+      }
+      fetch(payload.bridgeEventUrl, {
+        method: 'POST',
+        headers: shopperHeaders(),
+        body: JSON.stringify({
+          eventType: eventType,
+          pageType: (root.dataset.pageType || '').trim() || 'unknown',
+        }),
+      }).catch(function () {
+        return null
+      })
     }
   }
 

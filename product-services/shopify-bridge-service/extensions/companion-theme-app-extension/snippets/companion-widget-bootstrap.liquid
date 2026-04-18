@@ -4,4 +4,5 @@
   data-bridge-base-url="{{ bridge_base_url | escape }}"
   data-launcher-label="{{ launcher_label | default: 'Ask the store assistant' | escape }}"
   data-shop-domain="{{ shop.permanent_domain | escape }}"
+  data-page-type="{{ request.page_type | default: 'unknown' | escape }}"
 ></div>

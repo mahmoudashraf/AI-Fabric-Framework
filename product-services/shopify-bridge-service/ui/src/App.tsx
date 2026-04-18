@@ -1192,5 +1192,51 @@ function formatUsageBreakdown(entries: Array<{ eventType: string; count: number 
   if (!entries.length) {
     return 'No events recorded'
   }
-  return entries.map((entry) => `${entry.eventType.toLowerCase()} ${entry.count}`).join(' · ')
+  return entries.map((entry) => `${describeUsageEvent(entry.eventType)} ${entry.count}`).join(' · ')
+}
+
+function describeUsageEvent(eventType: string): string {
+  const normalized = (eventType || '').trim().toUpperCase()
+  switch (normalized) {
+    case 'MERCHANT_CONNECT':
+      return 'merchant connect'
+    case 'MERCHANT_SOURCE_PREFLIGHT':
+      return 'merchant source preflight'
+    case 'MERCHANT_BOOTSTRAP':
+      return 'merchant bootstrap'
+    case 'MERCHANT_GO_LIVE':
+      return 'merchant go-live'
+    case 'MERCHANT_SYNC_NOW':
+      return 'merchant sync'
+    case 'MERCHANT_WIDGET_SETTINGS_UPDATED':
+      return 'widget settings updates'
+    case 'MERCHANT_SOURCE_SETTINGS_UPDATED':
+      return 'source setting updates'
+    case 'MERCHANT_PLAYGROUND_QUERY':
+      return 'merchant playground queries'
+    case 'MERCHANT_PLAYGROUND_SUGGESTIONS':
+      return 'merchant playground suggestions'
+    case 'STOREFRONT_BOOTSTRAP':
+      return 'storefront bootstraps'
+    case 'STOREFRONT_QUERY':
+      return 'shopper queries'
+    case 'STOREFRONT_SUGGESTIONS':
+      return 'shopper suggestions'
+    case 'STOREFRONT_SUGGESTION_CLICKED':
+      return 'shopper suggestion clicks'
+    case 'STOREFRONT_CHAT_RESET':
+      return 'shopper chat resets'
+    case 'STOREFRONT_WIDGET_OPENED_PRODUCT_PAGE':
+      return 'widget opens on product pages'
+    case 'STOREFRONT_WIDGET_OPENED_COLLECTION_PAGE':
+      return 'widget opens on collection pages'
+    case 'STOREFRONT_WIDGET_OPENED_HOME_PAGE':
+      return 'widget opens on home page'
+    case 'STOREFRONT_WIDGET_OPENED_CONTENT_PAGE':
+      return 'widget opens on content pages'
+    case 'STOREFRONT_WIDGET_OPENED_GENERIC_PAGE':
+      return 'widget opens on other pages'
+    default:
+      return normalized.toLowerCase().replace(/_/g, ' ')
+  }
 }

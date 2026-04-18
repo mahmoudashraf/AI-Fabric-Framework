@@ -42,6 +42,7 @@ public class ShopifyStorefrontBootstrapService {
 
         String bridgeQueryUrl = "/api/storefront/shops/" + encodePathSegment(updated.shopDomain()) + "/chat/query";
         String bridgeSuggestionsUrl = "/api/storefront/shops/" + encodePathSegment(updated.shopDomain()) + "/chat/suggestions";
+        String bridgeEventUrl = "/api/storefront/shops/" + encodePathSegment(updated.shopDomain()) + "/events";
         String preferredIntegrationMode = credentials.integration() == null ? null : credentials.integration().preferredIntegrationMode();
         String runtimeAuthMode = credentials.integration() == null || credentials.integration().posture() == null
             ? null
@@ -69,6 +70,7 @@ public class ShopifyStorefrontBootstrapService {
             runtimeAuthMode,
             bridgeQueryUrl,
             bridgeSuggestionsUrl,
+            bridgeEventUrl,
             guidance,
             "Storefront bootstrap resolved. Theme app extension can now call the bridge-backed shopper endpoints."
         );
@@ -84,6 +86,7 @@ public class ShopifyStorefrontBootstrapService {
             store.sourceReadinessStatus(),
             DEFAULT_LAUNCHER_LABEL,
             DEFAULT_WELCOME_MESSAGE,
+            null,
             null,
             null,
             null,

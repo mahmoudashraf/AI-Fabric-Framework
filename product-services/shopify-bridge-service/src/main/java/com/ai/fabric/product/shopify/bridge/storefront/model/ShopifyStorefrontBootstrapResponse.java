@@ -13,6 +13,7 @@ public record ShopifyStorefrontBootstrapResponse(
     String runtimeAuthMode,
     String bridgeQueryUrl,
     String bridgeSuggestionsUrl,
+    String bridgeEventUrl,
     String guidance,
     String message
 ) {

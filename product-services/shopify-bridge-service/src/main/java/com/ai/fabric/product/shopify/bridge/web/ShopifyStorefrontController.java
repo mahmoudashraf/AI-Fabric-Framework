@@ -1,10 +1,13 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEngagementEventRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
+import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontEngagementService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,13 +24,16 @@ public class ShopifyStorefrontController {
 
     private final ShopifyStorefrontBootstrapService storefrontBootstrapService;
     private final ShopifyStorefrontChatService storefrontChatService;
+    private final ShopifyStorefrontEngagementService storefrontEngagementService;
     private final ShopifyBridgeUsageService usageService;
 
     public ShopifyStorefrontController(ShopifyStorefrontBootstrapService storefrontBootstrapService,
                                        ShopifyStorefrontChatService storefrontChatService,
+                                       ShopifyStorefrontEngagementService storefrontEngagementService,
                                        ShopifyBridgeUsageService usageService) {
         this.storefrontBootstrapService = storefrontBootstrapService;
         this.storefrontChatService = storefrontChatService;
+        this.storefrontEngagementService = storefrontEngagementService;
         this.usageService = usageService;
     }
 
@@ -58,5 +64,14 @@ public class ShopifyStorefrontController {
         JsonNode response = storefrontChatService.suggestions(shopDomain, request, shopperSessionId);
         usageService.recordEvent(shopDomain, "STOREFRONT_SUGGESTIONS");
         return response;
+    }
+
+    @PostMapping("/{shopDomain}/events")
+    public ResponseEntity<Void> event(@PathVariable String shopDomain,
+                                      @RequestBody(required = false) ShopifyStorefrontEngagementEventRequest request,
+                                      @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
+                                      String shopperSessionId) {
+        storefrontEngagementService.record(shopDomain, request, shopperSessionId);
+        return ResponseEntity.accepted().build();
     }
 }
