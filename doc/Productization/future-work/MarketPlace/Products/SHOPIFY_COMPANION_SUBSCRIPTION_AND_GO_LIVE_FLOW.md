@@ -31,7 +31,7 @@ It should execute a controlled flow:
 3. create the Shopify Companion deployment bundle
 4. install and compile the default companion capabilities
 5. create and bind a stable `consumerId`
-6. run initial data sync
+6. run source preflight and readiness checks
 7. publish, apply, and verify the deployment
 8. enable the theme app extension
 9. go live on the storefront
@@ -71,9 +71,11 @@ The full lifecycle has seven phases:
 
 1. `Install and identity`
 2. `Product provisioning`
-3. `Data readiness`
-4. `Go-live enablement`
-5. `Ongoing operation`
+3. `Source readiness and preflight`
+4. `Publish, apply, sync, and verify`
+5. `Storefront enablement`
+6. `Live shopper use`
+7. `Ongoing operation`
 
 ---
 
@@ -178,19 +180,20 @@ At this point, the system is provisioned, but not ready for storefront exposure 
 
 ---
 
-## 6) Phase 3: Data Readiness
+## 6) Phase 3: Source Readiness And Preflight
 
 ### 6.1 Goal
 
-Populate the deployment’s knowledge sources so the companion is actually useful.
+Validate source availability, source coverage, and sync prerequisites before publish/apply.
 
 ### 6.2 Expected result
 
 After this phase:
 
-- initial sync has succeeded
-- the deployment has real product/policy data
-- the merchant can test in playground
+- source preflight has succeeded
+- blocking source or connector issues are visible before publish/apply
+- the merchant can see source counts and readiness by category
+- the deployment is ready to enter publish/apply
 
 ### 6.3 Sequence
 
@@ -200,34 +203,33 @@ sequenceDiagram
     participant AB as Shopify App Backend
     participant SA as Shopify Admin APIs
     participant CP as Platform Control Plane
-    participant RT as Deployment Runtime
 
-    AF->>AB: Run initial sync
-    AB->>SA: Fetch products, collections, pages, policies
-    SA-->>AB: Source data
-    AB->>CP: Push or reconcile data into Companion deployment datasets
-    CP->>RT: Apply dataset updates through runtime-backed data path
-    RT-->>CP: Ingestion/sync result
-    CP-->>AB: Sync status and counts
-    AB-->>AF: Show progress and completion
+    AF->>AB: Run source preflight
+    AB->>SA: Fetch source metadata and readiness inputs
+    SA-->>AB: Source counts and connectivity status
+    AB->>CP: Validate Companion dataset and sync prerequisites
+    CP-->>AB: Preflight result and blocking issues
+    AB-->>AF: Show source readiness and publish/apply readiness
 ```
 
 ### 6.4 Merchant experience
 
 The merchant should see:
 
-- sync progress
-- indexed item counts
+- source counts by category
+- provider/connectivity readiness
 - errors by source category if any
-- a clear "ready to test" state
+- a clear "ready to publish/apply" state
 
 ### 6.5 Important rule
 
-The companion should not be considered production-ready if the initial sync has failed or is materially incomplete.
+Source readiness is not the same as live vectorized data.
+
+Real dataset sync, vectorization, and live retrieval readiness happen during apply-time release execution.
 
 ---
 
-## 7) Phase 4: Publish, Apply, Verify
+## 7) Phase 4: Publish, Apply, Sync, Verify
 
 ### 7.1 Goal
 
@@ -238,8 +240,10 @@ Turn the drafted Companion configuration into a real live deployment version.
 After this phase:
 
 - a version is published
+- apply-time dataset sync and vectorization have succeeded
 - that version is applied
 - verification passes
+- the merchant can test against real live companion data
 - the deployment is safe to expose to storefront traffic
 
 ### 7.3 Sequence
@@ -255,15 +259,15 @@ sequenceDiagram
     CP->>MC: Finalize resolved deployment config
     MC-->>CP: Final compiled draft
     CP->>CP: Publish deployment version
-    CP->>RT: Apply published version
-    RT-->>CP: Runtime active
+    CP->>RT: Apply published version and run dataset sync/vectorization
+    RT-->>CP: Runtime active and dataset sync complete
     CP->>CP: Run post-apply verification
-    CP-->>AB: Verification result
+    CP-->>AB: Verification result and live readiness summary
 ```
 
 ### 7.4 Hard rule
 
-If verification fails:
+If apply-time sync or verification fails:
 
 - storefront go-live must remain blocked
 - the merchant stays in repair/onboarding flow
@@ -495,11 +499,11 @@ sequenceDiagram
     CP->>MC: Install companion bundle into draft
     MC-->>CP: Draft contributions compiled
     AB->>CP: Create and bind consumerId
-    AF->>AB: Start initial sync
-    AB->>SA: Fetch Shopify data
-    AB->>CP: Reconcile datasets
+    AF->>AB: Run source preflight
+    AB->>SA: Fetch Shopify source metadata
+    AB->>CP: Validate source readiness
     AB->>CP: Publish/apply deployment
-    CP->>RT: Apply version
+    CP->>RT: Apply version and sync/vectorize datasets
     CP->>CP: Verify release
     AF->>SA: Enable theme app extension
     TE->>AB: Load storefront bootstrap

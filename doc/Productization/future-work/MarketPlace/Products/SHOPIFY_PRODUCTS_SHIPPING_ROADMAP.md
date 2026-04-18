@@ -208,10 +208,7 @@ Start with:
 - collections
 - pages
 - store policies
-
-Add next:
-
-- reviews, if available through supported review-app integrations
+- reviews through one bounded supported review-app integration path
 
 Optional later:
 
@@ -412,6 +409,7 @@ Build:
 - embedded admin app
 - theme app extension with shopper companion
 - catalog + policy sync
+- one bounded supported review-provider sync path
 - read-only action set
 - shopper conversation UX
 - diagnostics and sync status
@@ -422,6 +420,7 @@ Exit criteria:
 - no broken install or auth paths
 - storefront widget works without manual theme edits
 - answers are grounded in real store data
+- review-backed answers work on stores using the supported provider path
 
 ### Phase 2: Loom Companion Review-Ready Public App
 

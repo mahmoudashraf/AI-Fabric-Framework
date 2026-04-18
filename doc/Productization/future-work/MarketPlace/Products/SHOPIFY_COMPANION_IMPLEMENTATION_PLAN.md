@@ -230,7 +230,7 @@ Recommended first-party bundle:
 - `mkp-action-shopify-companion-read`
 - `mkp-data-shopify-catalog`
 - `mkp-data-shopify-policies`
-- `mkp-data-shopify-reviews` later or beta
+- `mkp-data-shopify-reviews`
 - `mkp-inference-shopify-companion-default`
 
 ### 5.2 Why a dedicated bundle is needed
@@ -329,10 +329,7 @@ Required at launch:
 - collections
 - pages
 - store policies
-
-Target next:
-
-- review data from supported review-app integrations
+- review data through one bounded supported review-provider path
 
 Possible later:
 
@@ -358,9 +355,12 @@ Required launch actions:
 - `explain_policy`
 - `get_size_guide` if product data supports it
 
+V1 conditional action:
+
+- `lookup_reviews` when a supported review provider is connected
+
 Optional beta actions:
 
-- `lookup_reviews`
 - `lookup_collection`
 
 Do not ship at launch:
@@ -385,6 +385,7 @@ Required launch UI work:
 
 - one comparison card or comparison panel
 - shopper-safe product detail rendering
+- review-aware empty-state or fallback behavior when no supported review provider is connected
 - evidence/source rendering for product, review, and policy answers
 
 ---
@@ -622,7 +623,8 @@ Review sources should not expand Shopify scopes unless truly necessary.
 Preferred approach:
 
 - integrate supported review providers through their own bounded connector path
-- keep review support optional or beta until one review-provider path is stable
+- ship one bounded supported review-provider path in V1
+- do not broaden the review-provider matrix until that first path is stable
 
 ---
 
@@ -646,7 +648,7 @@ Required merchant UI:
 The embedded admin app should surface bounded product controls such as:
 
 - enable or disable approved source categories
-- run initial sync or manual resync
+- run source preflight or manual resync
 - view action and knowledge-source status
 - configure storefront presentation settings
 
@@ -665,10 +667,10 @@ Required steps:
 2. create or bind customer/deployment
 3. install Shopify Companion bundle
 4. create consumer binding
-5. run initial sync
-6. enable theme app extension
-7. validate playground
-8. validate storefront preview
+5. run source preflight
+6. publish/apply and complete apply-time sync
+7. enable theme app extension
+8. validate playground and storefront preview
 
 ### 9.3 Merchant-facing diagnostics
 
@@ -741,11 +743,17 @@ The Shopify app backend should:
 - transform it into the platform's data/plugin ingestion shape
 - push or reconcile it into the deployment's data-plugin-backed dataset path
 
+Use a two-stage model:
+
+- source preflight before publish/apply
+- real dataset sync and vectorization during apply-time release execution
+
 ### 11.2 Launch ingestion strategy
 
 Use:
 
-- full initial sync
+- source preflight and readiness checks before publish/apply
+- apply-time dataset sync and vectorization for live readiness
 - webhook-driven incremental updates
 - manual resync from merchant UI
 
@@ -767,6 +775,7 @@ This keeps Shopify sync aligned with:
 
 - install records
 - dataset lifecycle
+- apply-time dataset readiness
 - release verification
 - tenant/customer-safe shared storage rules
 
@@ -883,17 +892,19 @@ Required:
 
 1. install app on dev store
 2. complete embedded admin onboarding
-3. run initial sync
+3. run source preflight and confirm readiness by category
 4. confirm deployment bundle installs and compiles correctly
-5. confirm consumer binding resolves correctly
-6. enable theme app extension
-7. validate storefront widget on product page and generic page
-8. validate grounded answer quality for:
+5. publish/apply and confirm apply-time dataset sync and verification succeed
+6. confirm consumer binding resolves correctly
+7. enable theme app extension
+8. validate storefront widget on product page and generic page
+9. validate grounded answer quality for:
    - product search
    - product comparison
    - policy answer
-9. validate resync and webhook update path
-10. validate uninstall and cleanup posture
+   - review answer on stores using the supported review provider path
+10. validate resync and webhook update path
+11. validate uninstall and cleanup posture
 
 ### 15.3 Review-readiness verification
 
@@ -932,6 +943,11 @@ Build:
 - `PlatformManagedProductService` contract for product backends
 - `SHOPIFY_BRIDGE_SERVICE` as the first product service kind
 - Railway provisioning path for the Shopify Bridge Service
+- managed product service read APIs:
+  - summary
+  - health
+  - activity
+  - basic dependents
 - Partner App configuration
 - embedded admin app shell using React + TypeScript + Polaris + App Bridge
 - Shopify auth/session-token path
@@ -945,6 +961,7 @@ Acceptance:
 - embedded admin shell loads reliably
 - auth works in normal and incognito browser conditions
 - the Shopify Bridge Service can be reconciled as a separate Railway service
+- operators can inspect service summary, health, activity, and basic dependents through platform APIs
 - the operator model does not depend on per-store backend deployments
 
 ### Wave 2: Platform Bootstrap And Consumer Binding
@@ -955,6 +972,11 @@ Build:
 - deployment creation from Shopify Companion bundle
 - consumer creation and binding
 - deployment status and credentials lookup for the product
+- drill-through platform APIs for:
+  - store-to-customer mapping
+  - store-to-deployment mapping
+  - `consumerId` binding inspection
+  - per-store sync-state summaries
 - platform UI operations for the Shopify Bridge Service:
   - reconcile
   - scale
@@ -969,6 +991,7 @@ Acceptance:
 - app install can create a real platform deployment
 - storefront identity can resolve through a stable `consumerId`
 - deployment replacement does not require storefront code changes
+- operators can inspect store, customer, deployment, and consumer drill-through data through platform APIs
 - operators can diagnose and recover the shared Shopify Bridge Service from platform UI
 
 ### Wave 3: Data Plugins And Sync
@@ -976,14 +999,16 @@ Acceptance:
 Build:
 
 - Shopify source readers for products, collections, pages, policies
-- initial sync pipeline
+- one bounded supported review-provider integration path
+- source preflight pipeline
+- apply-time dataset sync and vectorization path
 - incremental update pipeline
 - merchant sync controls and diagnostics
-- optional review-provider integration design or beta path
 
 Acceptance:
 
 - indexed source counts are correct
+- review content syncs correctly when the supported provider is connected
 - resync works
 - incremental updates land correctly
 - diagnostics are merchant-readable
@@ -1109,8 +1134,8 @@ Risk:
 
 Mitigation:
 
-- ship without review-provider breadth if necessary
-- support one bounded provider path first or defer to beta
+- support one bounded provider path first
+- do not broaden provider coverage before launch
 
 ### 18.4 App review failure
 
