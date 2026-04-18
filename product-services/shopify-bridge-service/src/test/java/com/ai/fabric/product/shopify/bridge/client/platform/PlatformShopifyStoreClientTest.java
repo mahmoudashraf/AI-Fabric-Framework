@@ -120,7 +120,7 @@ class PlatformShopifyStoreClientTest {
                   "createdCustomer":true,
                   "createdDeployment":true,
                   "createdConsumer":true,
-                  "installedPluginIds":["mkp-template-commerce-shell","mkp-action-shopify-admin"],
+                  "installedPluginIds":["mkp-template-shopify-companion","mkp-action-shopify-companion-read","mkp-data-shopify-catalog","mkp-data-shopify-policies","mkp-inference-shopify-companion-default"],
                   "store":{
                     "id":"shp-1",
                     "shopDomain":"alpha.myshopify.com",
@@ -157,7 +157,7 @@ class PlatformShopifyStoreClientTest {
 
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         assertThat(response.createdDeployment()).isTrue();
-        assertThat(response.installedPluginIds()).contains("mkp-action-shopify-admin");
+        assertThat(response.installedPluginIds()).contains("mkp-action-shopify-companion-read");
         server.verify();
     }
 

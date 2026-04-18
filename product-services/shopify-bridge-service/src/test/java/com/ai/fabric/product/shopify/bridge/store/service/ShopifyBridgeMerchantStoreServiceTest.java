@@ -191,7 +191,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
             false,
             false,
             false,
-            List.of("mkp-template-commerce-shell"),
+            List.of("mkp-template-shopify-companion"),
             store("alpha.myshopify.com")
         ));
 

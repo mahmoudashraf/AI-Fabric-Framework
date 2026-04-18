@@ -112,7 +112,7 @@ class ShopifyBridgeAdminControllerTest {
             true,
             true,
             true,
-            List.of("mkp-template-commerce-shell"),
+            List.of("mkp-template-shopify-companion"),
             sampleStore()
         ));
 

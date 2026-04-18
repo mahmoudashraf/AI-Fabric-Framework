@@ -89,12 +89,17 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='mkp-template-commerce-shell')].pluginType", is(List.of("TEMPLATE"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-template-support-desk-shell')].pluginType", is(List.of("TEMPLATE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-template-shopify-companion')].pluginType", is(List.of("TEMPLATE"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-admin')].latestVersion", is(List.of("1.0.0"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-action-notifications')].latestVersion", is(List.of("1.0.0"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-companion-read')].pricing.pricingModel", is(List.of("FREE"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-admin')].pricing.pricingModel", is(List.of("ONE_OFF"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].pricing.pricingModel", is(List.of("SUBSCRIPTION"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-help-center')].pricing.pricingModel", is(List.of("FREE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-data-shopify-catalog')].pricing.pricingModel", is(List.of("FREE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-data-shopify-policies')].pricing.pricingModel", is(List.of("FREE"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-inference-local-embeddings')].pluginType", is(List.of("INFERENCE_PROFILE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-inference-shopify-companion-default')].pluginType", is(List.of("INFERENCE_PROFILE"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-inference-optimized-orchestration')].pricing.pricingModel", is(List.of("SUBSCRIPTION"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-policy-folder')].pluginType", is(List.of("DATA"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].contributions.knowledgeSourceIds[0]", is(List.of("commerce-catalog"))));
@@ -136,12 +141,19 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-action-shopify-admin")))
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-commerce-catalog")));
 
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-shopify-companion")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-action-shopify-companion-read")))
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-shopify-catalog")))
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-shopify-policies")))
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-inference-shopify-companion-default")));
+
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(2))))
-            .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(2))))
-            .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(3))))
-            .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(7))));
+            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(3))))
+            .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(3))))
+            .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(5))))
+            .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(8))));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-inference-shared-embeddings")))
             .andExpect(status().isOk())

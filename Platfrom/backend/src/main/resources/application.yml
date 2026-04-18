@@ -152,11 +152,13 @@ shopify:
       default-environment: ${SHOPIFY_COMPANION_DEFAULT_ENVIRONMENT:dev}
       default-template-id: ${SHOPIFY_COMPANION_DEFAULT_TEMPLATE_ID:custom-start-from-scratch}
       default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:}
-      template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-commerce-shell}
+      template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
       template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
       default-plugin-ids:
-        - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-admin}
-        - ${SHOPIFY_COMPANION_PLUGIN_ID_2:mkp-data-commerce-catalog}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-companion-read}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_2:mkp-data-shopify-catalog}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_3:mkp-data-shopify-policies}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_4:mkp-inference-shopify-companion-default}
 
 logging:
   level:

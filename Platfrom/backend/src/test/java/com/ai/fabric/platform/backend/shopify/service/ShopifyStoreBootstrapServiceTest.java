@@ -69,12 +69,14 @@ class ShopifyStoreBootstrapServiceTest {
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
         when(customerTenantService.createCustomer(any())).thenReturn(customerSummary);
         when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
-        when(templateBootstrapService.bootstrap(eq("mkp-template-commerce-shell"), any(CreateMarketplaceTemplateBootstrapRequest.class))).thenReturn(deployment);
+        when(templateBootstrapService.bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class))).thenReturn(deployment);
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.empty());
         when(customerConsumerService.createConsumer(eq("cus-123"), any())).thenReturn(consumer);
         when(installService.listInstalls("dep-123")).thenReturn(List.of());
-        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-action-shopify-admin")).thenReturn("1.0.0");
-        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-commerce-catalog")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-action-shopify-companion-read")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-catalog")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shopify-companion-default")).thenReturn("1.0.0");
         when(installService.createInstall(eq("dep-123"), any(CreateDeploymentMarketplaceInstallRequest.class))).thenReturn(mock(DeploymentMarketplaceInstallSummary.class));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
@@ -91,7 +93,19 @@ class ShopifyStoreBootstrapServiceTest {
             installService,
             marketplaceCatalogService,
             connectionService,
-            new ShopifyCompanionBootstrapProperties("dev", "custom-start-from-scratch", "", "mkp-template-commerce-shell", "", List.of("mkp-action-shopify-admin", "mkp-data-commerce-catalog")),
+            new ShopifyCompanionBootstrapProperties(
+                "dev",
+                "custom-start-from-scratch",
+                "",
+                "mkp-template-shopify-companion",
+                "",
+                List.of(
+                    "mkp-action-shopify-companion-read",
+                    "mkp-data-shopify-catalog",
+                    "mkp-data-shopify-policies",
+                    "mkp-inference-shopify-companion-default"
+                )
+            ),
             auditService
         );
 
@@ -103,8 +117,14 @@ class ShopifyStoreBootstrapServiceTest {
         assertThat(summary.customerId()).isEqualTo("cus-123");
         assertThat(summary.deploymentId()).isEqualTo("dep-123");
         assertThat(summary.consumerId()).isEqualTo("shopify-demo");
-        assertThat(summary.installedPluginIds()).containsExactly("mkp-template-commerce-shell", "mkp-action-shopify-admin", "mkp-data-commerce-catalog");
-        verify(templateBootstrapService).bootstrap(eq("mkp-template-commerce-shell"), any(CreateMarketplaceTemplateBootstrapRequest.class));
+        assertThat(summary.installedPluginIds()).containsExactly(
+            "mkp-template-shopify-companion",
+            "mkp-action-shopify-companion-read",
+            "mkp-data-shopify-catalog",
+            "mkp-data-shopify-policies",
+            "mkp-inference-shopify-companion-default"
+        );
+        verify(templateBootstrapService).bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class));
         verify(customerConsumerService, never()).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
     }
 
@@ -150,8 +170,10 @@ class ShopifyStoreBootstrapServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deploymentEntity));
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.of(consumerEntity));
         when(customerConsumerService.updateBinding(eq("cus-123"), eq("shopify-demo"), any())).thenReturn(reboundConsumer);
-        when(installService.listInstalls("dep-123")).thenReturn(List.of(installSummary("mkp-action-shopify-admin")));
-        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-commerce-catalog")).thenReturn("1.0.0");
+        when(installService.listInstalls("dep-123")).thenReturn(List.of(installSummary("mkp-action-shopify-companion-read")));
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-catalog")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shopify-companion-default")).thenReturn("1.0.0");
         when(installService.createInstall(eq("dep-123"), any(CreateDeploymentMarketplaceInstallRequest.class))).thenReturn(mock(DeploymentMarketplaceInstallSummary.class));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
@@ -168,7 +190,19 @@ class ShopifyStoreBootstrapServiceTest {
             installService,
             marketplaceCatalogService,
             connectionService,
-            new ShopifyCompanionBootstrapProperties("dev", "custom-start-from-scratch", "", "mkp-template-commerce-shell", "", List.of("mkp-action-shopify-admin", "mkp-data-commerce-catalog")),
+            new ShopifyCompanionBootstrapProperties(
+                "dev",
+                "custom-start-from-scratch",
+                "",
+                "mkp-template-shopify-companion",
+                "",
+                List.of(
+                    "mkp-action-shopify-companion-read",
+                    "mkp-data-shopify-catalog",
+                    "mkp-data-shopify-policies",
+                    "mkp-inference-shopify-companion-default"
+                )
+            ),
             auditService
         );
 
@@ -177,7 +211,12 @@ class ShopifyStoreBootstrapServiceTest {
         assertThat(summary.createdCustomer()).isFalse();
         assertThat(summary.createdDeployment()).isFalse();
         assertThat(summary.createdConsumer()).isFalse();
-        assertThat(summary.installedPluginIds()).containsExactly("mkp-action-shopify-admin", "mkp-data-commerce-catalog");
+        assertThat(summary.installedPluginIds()).containsExactly(
+            "mkp-action-shopify-companion-read",
+            "mkp-data-shopify-catalog",
+            "mkp-data-shopify-policies",
+            "mkp-inference-shopify-companion-default"
+        );
         verify(customerTenantService, never()).createCustomer(any());
         verify(templateBootstrapService, never()).bootstrap(any(), any());
         verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
@@ -243,7 +282,7 @@ class ShopifyStoreBootstrapServiceTest {
             installService,
             marketplaceCatalogService,
             connectionService,
-            new ShopifyCompanionBootstrapProperties("dev", "custom-start-from-scratch", "", "mkp-template-commerce-shell", "", List.of()),
+            new ShopifyCompanionBootstrapProperties("dev", "custom-start-from-scratch", "", "mkp-template-shopify-companion", "", List.of()),
             auditService
         );
 

@@ -18,10 +18,15 @@ public record ShopifyCompanionBootstrapProperties(
         defaultEnvironment = normalize(defaultEnvironment, "dev");
         defaultTemplateId = normalize(defaultTemplateId, "custom-start-from-scratch");
         defaultVectorProvisioningMode = normalize(defaultVectorProvisioningMode, "");
-        templatePluginId = normalize(templatePluginId, "mkp-template-commerce-shell");
+        templatePluginId = normalize(templatePluginId, "mkp-template-shopify-companion");
         templatePluginVersion = normalize(templatePluginVersion, "");
         defaultPluginIds = defaultPluginIds == null
-            ? List.of("mkp-action-shopify-admin", "mkp-data-commerce-catalog")
+            ? List.of(
+                "mkp-action-shopify-companion-read",
+                "mkp-data-shopify-catalog",
+                "mkp-data-shopify-policies",
+                "mkp-inference-shopify-companion-default"
+            )
             : defaultPluginIds.stream()
                 .filter(value -> value != null && !value.isBlank())
                 .map(String::trim)
