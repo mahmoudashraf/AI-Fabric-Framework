@@ -166,7 +166,8 @@ select
           "dev-openai-pinecone",
           "dev-openai-weaviate",
           "dev-openai-milvus"
-        ]
+        ],
+        "supportedProviderModes": ["llm:openai", "embedding:onnx"]
       },
       "pricing": {
         "pricingModel": "FREE"
