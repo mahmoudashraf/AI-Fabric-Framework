@@ -45,7 +45,7 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (!apiKeyAuthAvailable() || PlatformSecurityContext.isAuthenticated()) {
+        if (PlatformSecurityContext.isAuthenticated() || !authAttemptAllowed(request.getRequestURI())) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -73,7 +73,7 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private PlatformPrincipal matchPrincipal(String presentedKey, String requestPath) {
-        if (matches(resolveAdminApiKey(), presentedKey)) {
+        if (properties.apiKeyEnabled() && matches(resolveAdminApiKey(), presentedKey)) {
             return new PlatformPrincipal(
                 "platform-admin",
                 PlatformRole.PLATFORM_ADMIN,
@@ -81,7 +81,7 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 "API_KEY"
             );
         }
-        if (matches(resolveOperatorApiKey(), presentedKey)) {
+        if (properties.apiKeyEnabled() && matches(resolveOperatorApiKey(), presentedKey)) {
             return new PlatformPrincipal(
                 "platform-operator",
                 PlatformRole.PLATFORM_OPERATOR,
@@ -115,9 +115,10 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
             || requestPath.startsWith("/api/public/consumers/");
     }
 
-    private boolean apiKeyAuthAvailable() {
-        return properties.apiKeyEnabled()
+    private boolean authAttemptAllowed(String requestPath) {
+        boolean adminOrOperatorAuthEnabled = properties.apiKeyEnabled()
             && (hasText(resolveAdminApiKey()) || hasText(resolveOperatorApiKey()));
+        return adminOrOperatorAuthEnabled || supportsProductServiceAuth(requestPath);
     }
 
     private String resolveAdminApiKey() {
