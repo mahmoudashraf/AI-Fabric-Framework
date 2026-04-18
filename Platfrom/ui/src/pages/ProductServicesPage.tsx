@@ -37,6 +37,7 @@ import {
   fetchProductServiceDependents,
   fetchProductServiceHealth,
   fetchProductServiceOverview,
+  fetchProductServiceStoreBinding,
   fetchProductServiceStoreBillingSummary,
   fetchProductServiceWebhookSubscriptions,
   fetchProductServices,
@@ -232,6 +233,7 @@ export function ProductServicesPage() {
   const [decommissionDialogOpen, setDecommissionDialogOpen] = useState(false)
   const [webhookDialogStore, setWebhookDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
   const [billingDialogStore, setBillingDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
+  const [bindingDialogStore, setBindingDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
   const [rotateSecretValue, setRotateSecretValue] = useState('')
   const [forceRecreateConfirmation, setForceRecreateConfirmation] = useState('')
   const [decommissionConfirmation, setDecommissionConfirmation] = useState('')
@@ -313,6 +315,12 @@ export function ProductServicesPage() {
     enabled: selectedServiceRef.length > 0 && billingDialogStore != null,
   })
 
+  const storeBindingQuery = useQuery({
+    queryKey: ['product-services', selectedServiceRef, 'store-binding', bindingDialogStore?.shopDomain ?? ''],
+    queryFn: () => fetchProductServiceStoreBinding(selectedServiceRef, bindingDialogStore?.shopDomain ?? ''),
+    enabled: selectedServiceRef.length > 0 && bindingDialogStore != null,
+  })
+
   const refreshSelected = async (serviceRef: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['product-services'] }),
@@ -323,6 +331,7 @@ export function ProductServicesPage() {
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'overview'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'webhook-subscriptions'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'store-billing-summary'] }),
+      queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'store-binding'] }),
       queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
     ])
   }
@@ -782,6 +791,9 @@ export function ProductServicesPage() {
                                   </Typography>
                                 ) : null}
                                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Button size="small" onClick={() => setBindingDialogStore(store)}>
+                                    Inspect platform bindings
+                                  </Button>
                                   <Button size="small" onClick={() => setBillingDialogStore(store)}>
                                     Inspect billing posture
                                   </Button>
@@ -988,6 +1000,123 @@ export function ProductServicesPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBillingDialogStore(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={bindingDialogStore != null} onClose={() => setBindingDialogStore(null)} fullWidth maxWidth="md">
+        <DialogTitle>Platform Binding Inspection</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Store {detailValue(bindingDialogStore?.shopDomain)} · Service {detailValue(selectedServiceRef)}
+            </Typography>
+            {storeBindingQuery.isLoading ? (
+              <Alert severity="info">Loading platform binding inspection…</Alert>
+            ) : storeBindingQuery.isError ? (
+              <Alert severity="error">
+                {storeBindingQuery.error instanceof Error ? storeBindingQuery.error.message : 'Failed to load platform binding inspection.'}
+              </Alert>
+            ) : storeBindingQuery.data ? (
+              <Stack spacing={1.5}>
+                {storeBindingQuery.data.warnings.length > 0 ? (
+                  <Alert severity="warning">
+                    <strong>Binding warnings</strong>
+                    <List dense>
+                      {storeBindingQuery.data.warnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </List>
+                  </Alert>
+                ) : (
+                  <Alert severity="success">Customer, deployment, and consumer bindings are aligned.</Alert>
+                )}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography sx={{ fontWeight: 700 }}>Customer</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {detailValue(storeBindingQuery.data.customer?.name)} · {detailValue(storeBindingQuery.data.customer?.id)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Slug {detailValue(storeBindingQuery.data.customer?.slug)} · status {detailValue(storeBindingQuery.data.customer?.status)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Platform managed {storeBindingQuery.data.customer?.platformManaged ? 'yes' : 'no'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Created {formatTimestamp(storeBindingQuery.data.customer?.createdAt)} · Updated {formatTimestamp(storeBindingQuery.data.customer?.updatedAt)}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography sx={{ fontWeight: 700 }}>Deployment</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {detailValue(storeBindingQuery.data.deployment?.name)} · {detailValue(storeBindingQuery.data.deployment?.id)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Env {detailValue(storeBindingQuery.data.deployment?.environment)} · status {detailValue(storeBindingQuery.data.deployment?.status)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Active version {detailValue(storeBindingQuery.data.deployment?.activeVersionId)} · template {detailValue(storeBindingQuery.data.deployment?.templateId)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Runtime {detailValue(storeBindingQuery.data.deployment?.runtimeBaseUrl)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Connector {detailValue(storeBindingQuery.data.deployment?.connectorBaseUrl)}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Created {formatTimestamp(storeBindingQuery.data.deployment?.createdAt)} · Updated {formatTimestamp(storeBindingQuery.data.deployment?.updatedAt)}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography sx={{ fontWeight: 700 }}>Consumer</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {detailValue(storeBindingQuery.data.consumer?.displayName)} · {detailValue(storeBindingQuery.data.consumer?.consumerId)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Status {detailValue(storeBindingQuery.data.consumer?.status)} · customer {detailValue(storeBindingQuery.data.consumer?.customerId)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Bound deployment {detailValue(storeBindingQuery.data.consumer?.boundDeploymentName)} · {detailValue(storeBindingQuery.data.consumer?.boundDeploymentId)}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Last bound {formatTimestamp(storeBindingQuery.data.consumer?.lastBoundAt)} · Updated {formatTimestamp(storeBindingQuery.data.consumer?.updatedAt)}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+                <Typography variant="body2" color="text.secondary">
+                  Latest version {detailValue(storeBindingQuery.data.latestVersion?.versionLabel)} · status {detailValue(storeBindingQuery.data.latestVersion?.status)} · published{' '}
+                  {formatTimestamp(storeBindingQuery.data.latestVersion?.publishedAt)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Latest release {detailValue(storeBindingQuery.data.latestRelease?.status)} · verification {detailValue(storeBindingQuery.data.latestRelease?.verificationStatus)} · provisioning{' '}
+                  {detailValue(storeBindingQuery.data.latestRelease?.provisioningStatus)}
+                </Typography>
+              </Stack>
+            ) : (
+              <Alert severity="info">Platform binding inspection is not available for this store yet.</Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBindingDialogStore(null)}>Close</Button>
         </DialogActions>
       </Dialog>
 

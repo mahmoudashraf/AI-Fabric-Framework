@@ -31,6 +31,7 @@ import {
   bootstrapShopifyStore,
   deleteShopifyStore,
   fetchProductServices,
+  fetchShopifyStoreBinding,
   fetchShopifyStore,
   fetchShopifyStores,
   goLiveShopifyStore,
@@ -127,6 +128,7 @@ export function ShopifyStoresPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [preflightDialogOpen, setPreflightDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [deleteForce, setDeleteForce] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -178,6 +180,12 @@ export function ShopifyStoresPage() {
   })
 
   const selectedStore = selectedStoreQuery.data ?? selectedSummary
+
+  const bindingQuery = useQuery({
+    queryKey: ['shopify-stores', selectedShopDomain, 'binding'],
+    queryFn: () => fetchShopifyStoreBinding(selectedShopDomain),
+    enabled: bindingDialogOpen && selectedShopDomain.length > 0,
+  })
 
   useEffect(() => {
     if (selectedStore && preflightDialogOpen) {
@@ -335,6 +343,9 @@ export function ShopifyStoresPage() {
                 disabled={goLiveMutation.isPending || !selectedStore.readiness?.goLiveEligible || isReleaseInProgress(selectedStore.latestRelease?.status)}
               >
                 Publish and apply
+              </Button>
+              <Button variant="outlined" onClick={() => setBindingDialogOpen(true)} disabled={!selectedStore}>
+                Inspect platform bindings
               </Button>
               <Button
                 variant="outlined"
@@ -931,6 +942,123 @@ export function ShopifyStoresPage() {
           >
             Delete mapping
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={bindingDialogOpen} onClose={() => setBindingDialogOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Platform Binding Inspection</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Store {selectedStore?.shopDomain ?? '—'}
+            </Typography>
+            {bindingQuery.isLoading ? (
+              <Alert severity="info">Loading platform binding inspection…</Alert>
+            ) : bindingQuery.isError ? (
+              <Alert severity="error">
+                {bindingQuery.error instanceof Error ? bindingQuery.error.message : 'Failed to load platform binding inspection.'}
+              </Alert>
+            ) : bindingQuery.data ? (
+              <Stack spacing={1.5}>
+                {bindingQuery.data.warnings.length > 0 ? (
+                  <Alert severity="warning">
+                    <strong>Binding warnings</strong>
+                    <List dense>
+                      {bindingQuery.data.warnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </List>
+                  </Alert>
+                ) : (
+                  <Alert severity="success">Customer, deployment, and consumer bindings are aligned.</Alert>
+                )}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography sx={{ fontWeight: 700 }}>Customer</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {bindingQuery.data.customer?.name ?? '—'} · {bindingQuery.data.customer?.id ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Slug {bindingQuery.data.customer?.slug ?? '—'} · status {bindingQuery.data.customer?.status ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Platform managed {bindingQuery.data.customer?.platformManaged ? 'yes' : 'no'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Created {formatTimestamp(bindingQuery.data.customer?.createdAt)} · Updated {formatTimestamp(bindingQuery.data.customer?.updatedAt)}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography sx={{ fontWeight: 700 }}>Deployment</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {bindingQuery.data.deployment?.name ?? '—'} · {bindingQuery.data.deployment?.id ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Env {bindingQuery.data.deployment?.environment ?? '—'} · status {bindingQuery.data.deployment?.status ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Active version {bindingQuery.data.deployment?.activeVersionId ?? '—'} · template {bindingQuery.data.deployment?.templateId ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Runtime {bindingQuery.data.deployment?.runtimeBaseUrl ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Connector {bindingQuery.data.deployment?.connectorBaseUrl ?? '—'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Created {formatTimestamp(bindingQuery.data.deployment?.createdAt)} · Updated {formatTimestamp(bindingQuery.data.deployment?.updatedAt)}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography sx={{ fontWeight: 700 }}>Consumer</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {bindingQuery.data.consumer?.displayName ?? '—'} · {bindingQuery.data.consumer?.consumerId ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Status {bindingQuery.data.consumer?.status ?? '—'} · customer {bindingQuery.data.consumer?.customerId ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Bound deployment {bindingQuery.data.consumer?.boundDeploymentName ?? '—'} · {bindingQuery.data.consumer?.boundDeploymentId ?? '—'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Last bound {formatTimestamp(bindingQuery.data.consumer?.lastBoundAt)} · Updated {formatTimestamp(bindingQuery.data.consumer?.updatedAt)}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+                <Typography variant="body2" color="text.secondary">
+                  Latest version {bindingQuery.data.latestVersion?.versionLabel ?? '—'} · status {bindingQuery.data.latestVersion?.status ?? '—'} · published{' '}
+                  {formatTimestamp(bindingQuery.data.latestVersion?.publishedAt)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Latest release {bindingQuery.data.latestRelease?.status ?? '—'} · verification {bindingQuery.data.latestRelease?.verificationStatus ?? '—'} · provisioning{' '}
+                  {bindingQuery.data.latestRelease?.provisioningStatus ?? '—'}
+                </Typography>
+              </Stack>
+            ) : (
+              <Alert severity="info">Platform binding inspection is not available for this store yet.</Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBindingDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Stack>

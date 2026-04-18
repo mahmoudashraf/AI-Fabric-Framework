@@ -16,7 +16,11 @@ import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCapabilitySummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedConsumerSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedCustomerSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedDeploymentSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
@@ -89,6 +93,21 @@ public class ShopifyStoreConnectionService {
 
     public ShopifyStoreConnectionSummary getConnection(String shopDomain) {
         return toSummary(requireConnection(shopDomain));
+    }
+
+    public ShopifyStoreBindingInspectionSummary inspectBinding(String shopDomain) {
+        ShopifyStoreConnectionEntity entity = requireConnection(shopDomain);
+        ResolvedStoreContext context = resolveStoreContext(entity);
+        return new ShopifyStoreBindingInspectionSummary(
+            entity.getShopDomain(),
+            context.productService().getServiceRef(),
+            toLinkedCustomerSummary(context.customer()),
+            toLinkedDeploymentSummary(context.deployment()),
+            toLinkedConsumerSummary(context.consumer(), context.deployment()),
+            toVersionSummary(context.latestVersion()),
+            toReleaseSummary(context.latestRelease()),
+            buildBindingWarnings(entity, context.customer(), context.deployment(), context.consumer())
+        );
     }
 
     @Transactional
@@ -186,37 +205,28 @@ public class ShopifyStoreConnectionService {
     }
 
     private ShopifyStoreConnectionSummary toSummary(ShopifyStoreConnectionEntity entity) {
-        PlatformManagedProductServiceEntity productService = productServiceService.requireServiceById(entity.getProductServiceId());
-        PlatformCustomerEntity customer = entity.getCustomerId() == null ? null : customerRepository.findById(entity.getCustomerId()).orElse(null);
-        DeploymentEntity deployment = entity.getDeploymentId() == null ? null : deploymentRepository.findById(entity.getDeploymentId()).orElse(null);
-        DeploymentVersionEntity latestVersion = deployment == null
-            ? null
-            : deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deployment.getId()).stream().findFirst().orElse(null);
-        DeploymentReleaseEntity latestRelease = deployment == null
-            ? null
-            : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
-        PlatformConsumerEntity consumer = entity.getConsumerId() == null ? null : consumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null);
+        ResolvedStoreContext context = resolveStoreContext(entity);
         var credentials = sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson());
         var sourcePreflight = sourcePreflightSupport.summarize(entity.getDetailsJson());
         var syncDetail = sourcePreflightSupport.summarizeSync(entity.getDetailsJson());
         var webhookDetail = sourcePreflightSupport.summarizeWebhook(entity.getDetailsJson());
         var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
-        var capabilities = summarizeCapabilities(latestVersion);
-        var latestReleaseSummary = toReleaseSummary(latestRelease);
+        var capabilities = summarizeCapabilities(context.latestVersion());
+        var latestReleaseSummary = toReleaseSummary(context.latestRelease());
         return new ShopifyStoreConnectionSummary(
             entity.getId(),
             entity.getShopDomain(),
             entity.getDisplayName(),
-            productService.getId(),
-            productService.getServiceRef(),
-            productService.getDisplayName(),
+            context.productService().getId(),
+            context.productService().getServiceRef(),
+            context.productService().getDisplayName(),
             entity.getCustomerId(),
-            customer == null ? null : customer.getName(),
+            context.customer() == null ? null : context.customer().getName(),
             entity.getDeploymentId(),
-            deployment == null ? null : deployment.getName(),
-            deployment == null ? null : deployment.getStatus(),
+            context.deployment() == null ? null : context.deployment().getName(),
+            context.deployment() == null ? null : context.deployment().getStatus(),
             entity.getConsumerId(),
-            consumer == null ? null : consumer.getDisplayName(),
+            context.consumer() == null ? null : context.consumer().getDisplayName(),
             entity.getInstallStatus(),
             entity.getSyncStatus(),
             entity.getSourceReadinessStatus(),
@@ -233,7 +243,7 @@ public class ShopifyStoreConnectionService {
             widgetDetail,
             capabilities,
             readinessEvaluator.evaluate(entity, credentials, sourcePreflight, syncDetail, widgetDetail, latestReleaseSummary),
-            toVersionSummary(latestVersion),
+            toVersionSummary(context.latestVersion()),
             latestReleaseSummary,
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
@@ -241,6 +251,20 @@ public class ShopifyStoreConnectionService {
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
+    }
+
+    private ResolvedStoreContext resolveStoreContext(ShopifyStoreConnectionEntity entity) {
+        PlatformManagedProductServiceEntity productService = productServiceService.requireServiceById(entity.getProductServiceId());
+        PlatformCustomerEntity customer = entity.getCustomerId() == null ? null : customerRepository.findById(entity.getCustomerId()).orElse(null);
+        DeploymentEntity deployment = entity.getDeploymentId() == null ? null : deploymentRepository.findById(entity.getDeploymentId()).orElse(null);
+        DeploymentVersionEntity latestVersion = deployment == null
+            ? null
+            : deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deployment.getId()).stream().findFirst().orElse(null);
+        DeploymentReleaseEntity latestRelease = deployment == null
+            ? null
+            : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
+        PlatformConsumerEntity consumer = entity.getConsumerId() == null ? null : consumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null);
+        return new ResolvedStoreContext(productService, customer, deployment, latestVersion, latestRelease, consumer);
     }
 
     private ShopifyStoreCapabilitySummary summarizeCapabilities(DeploymentVersionEntity version) {
@@ -314,6 +338,99 @@ public class ShopifyStoreConnectionService {
             release.getAppliedAt(),
             release.getUpdatedAt()
         );
+    }
+
+    private ShopifyStoreLinkedCustomerSummary toLinkedCustomerSummary(PlatformCustomerEntity customer) {
+        if (customer == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedCustomerSummary(
+            customer.getId(),
+            customer.getName(),
+            customer.getSlug(),
+            customer.getStatus(),
+            customer.isPlatformManaged(),
+            customer.getCreatedAt(),
+            customer.getUpdatedAt()
+        );
+    }
+
+    private ShopifyStoreLinkedDeploymentSummary toLinkedDeploymentSummary(DeploymentEntity deployment) {
+        if (deployment == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedDeploymentSummary(
+            deployment.getId(),
+            deployment.getName(),
+            deployment.getEnvironmentName(),
+            deployment.getTemplateId(),
+            deployment.getStatus(),
+            deployment.getCustomerId(),
+            deployment.getTenantId(),
+            deployment.getActiveVersionId(),
+            deployment.getRuntimeBaseUrl(),
+            deployment.getConnectorBaseUrl(),
+            deployment.isApprovalRequiredForApply(),
+            deployment.isApprovalRequiredForDelete(),
+            deployment.getCreatedAt(),
+            deployment.getUpdatedAt()
+        );
+    }
+
+    private ShopifyStoreLinkedConsumerSummary toLinkedConsumerSummary(PlatformConsumerEntity consumer,
+                                                                     DeploymentEntity deployment) {
+        if (consumer == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedConsumerSummary(
+            consumer.getConsumerId(),
+            consumer.getCustomerId(),
+            consumer.getDisplayName(),
+            consumer.getStatus(),
+            consumer.getBoundDeploymentId(),
+            deployment == null ? null : deployment.getName(),
+            deployment == null ? null : deployment.getEnvironmentName(),
+            deployment == null ? null : deployment.getStatus(),
+            consumer.getLastBoundAt(),
+            consumer.getCreatedAt(),
+            consumer.getUpdatedAt()
+        );
+    }
+
+    private List<String> buildBindingWarnings(ShopifyStoreConnectionEntity entity,
+                                              PlatformCustomerEntity customer,
+                                              DeploymentEntity deployment,
+                                              PlatformConsumerEntity consumer) {
+        List<String> warnings = new java.util.ArrayList<>();
+        if (!hasText(entity.getCustomerId())) {
+            warnings.add("No platform customer is currently bound.");
+        } else if (customer == null) {
+            warnings.add("Bound customer " + entity.getCustomerId() + " no longer exists.");
+        }
+
+        if (!hasText(entity.getDeploymentId())) {
+            warnings.add("No deployment is currently bound.");
+        } else if (deployment == null) {
+            warnings.add("Bound deployment " + entity.getDeploymentId() + " no longer exists.");
+        }
+
+        if (!hasText(entity.getConsumerId())) {
+            warnings.add("No consumerId is currently bound.");
+        } else if (consumer == null) {
+            warnings.add("Bound consumer " + entity.getConsumerId() + " no longer exists.");
+        }
+
+        if (customer != null && deployment != null && !customer.getId().equals(deployment.getCustomerId())) {
+            warnings.add("Bound deployment belongs to a different customer.");
+        }
+        if (customer != null && consumer != null && !customer.getId().equals(consumer.getCustomerId())) {
+            warnings.add("Bound consumer belongs to a different customer.");
+        }
+        if (deployment != null && consumer != null && hasText(consumer.getBoundDeploymentId())
+            && !deployment.getId().equals(consumer.getBoundDeploymentId())) {
+            warnings.add("Bound consumer points to a different deployment.");
+        }
+        return List.copyOf(warnings);
     }
 
     private PlatformCustomerEntity resolveCustomer(String customerId, String deploymentId, String consumerId) {
@@ -390,5 +507,15 @@ public class ShopifyStoreConnectionService {
 
     private String generateId(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private record ResolvedStoreContext(
+        PlatformManagedProductServiceEntity productService,
+        PlatformCustomerEntity customer,
+        DeploymentEntity deployment,
+        DeploymentVersionEntity latestVersion,
+        DeploymentReleaseEntity latestRelease,
+        PlatformConsumerEntity consumer
+    ) {
     }
 }

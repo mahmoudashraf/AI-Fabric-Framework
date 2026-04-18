@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSourcePref
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSyncStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWebhookEventRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStatusRequest;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
@@ -90,6 +91,12 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary getStore(@PathVariable String shopDomain) {
         return shopifyStoreConnectionService.getConnection(shopDomain);
+    }
+
+    @GetMapping("/{shopDomain}/binding")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreBindingInspectionSummary inspectBinding(@PathVariable String shopDomain) {
+        return shopifyStoreConnectionService.inspectBinding(shopDomain);
     }
 
     @DeleteMapping("/{shopDomain}")

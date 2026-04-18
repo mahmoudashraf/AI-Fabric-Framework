@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -9,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
@@ -357,5 +359,128 @@ class ShopifyStoreConnectionServiceTest {
         } finally {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    @Test
+    void inspectBindingReturnsResolvedCustomerDeploymentAndConsumerDetails() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("psv-123");
+        service.setServiceRef("shopify-bridge-prod");
+        service.setDisplayName("Shopify Bridge Service");
+        service.setProductFamily("SHOPIFY");
+        service.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("demo.myshopify.com");
+        entity.setProductServiceId("psv-123");
+        entity.setCustomerId("cus-123");
+        entity.setDeploymentId("dep-123");
+        entity.setConsumerId("demo-storefront");
+        entity.setCreatedAt(Instant.parse("2026-04-18T10:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-04-18T10:05:00Z"));
+
+        PlatformCustomerEntity customer = new PlatformCustomerEntity();
+        customer.setId("cus-123");
+        customer.setName("Demo Customer");
+        customer.setSlug("demo-customer");
+        customer.setStatus("ACTIVE");
+        customer.setPlatformManaged(true);
+        customer.setCreatedAt(Instant.parse("2026-04-18T09:00:00Z"));
+        customer.setUpdatedAt(Instant.parse("2026-04-18T09:05:00Z"));
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setCustomerId("cus-123");
+        deployment.setName("Shopify Companion");
+        deployment.setEnvironmentName("dev");
+        deployment.setTemplateId("tpl-shopify");
+        deployment.setStatus("ACTIVE");
+        deployment.setTenantId("tenant-123");
+        deployment.setActiveVersionId("ver-123");
+        deployment.setRuntimeBaseUrl("https://runtime.example.com");
+        deployment.setConnectorBaseUrl("https://connector.example.com");
+        deployment.setApprovalRequiredForApply(false);
+        deployment.setApprovalRequiredForDelete(true);
+        deployment.setCreatedAt(Instant.parse("2026-04-18T09:10:00Z"));
+        deployment.setUpdatedAt(Instant.parse("2026-04-18T09:15:00Z"));
+
+        PlatformConsumerEntity consumer = new PlatformConsumerEntity();
+        consumer.setId("con-123");
+        consumer.setConsumerId("demo-storefront");
+        consumer.setCustomerId("cus-123");
+        consumer.setDisplayName("Demo Storefront");
+        consumer.setStatus("ACTIVE");
+        consumer.setBoundDeploymentId("dep-123");
+        consumer.setLastBoundAt(Instant.parse("2026-04-18T09:20:00Z"));
+        consumer.setCreatedAt(Instant.parse("2026-04-18T09:18:00Z"));
+        consumer.setUpdatedAt(Instant.parse("2026-04-18T09:21:00Z"));
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-123");
+        version.setDeploymentId("dep-123");
+        version.setSourceDraftId("drf-123");
+        version.setVersionLabel("v1");
+        version.setStatus("PUBLISHED");
+        version.setConfigHash("hash-123");
+        version.setPublishedAt(Instant.parse("2026-04-18T09:30:00Z"));
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-123");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+        release.setProvisioningStatus("SUCCEEDED");
+        release.setProvisioningTarget("RAILWAY");
+        release.setCurrentStepKey("completed");
+        release.setCurrentStepDescription("Release applied and verified.");
+        release.setCreatedAt(Instant.parse("2026-04-18T09:35:00Z"));
+        release.setAppliedAt(Instant.parse("2026-04-18T09:36:00Z"));
+        release.setUpdatedAt(Instant.parse("2026-04-18T09:37:00Z"));
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
+        when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
+        when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(consumerRepository.findByConsumerIdIgnoreCase("demo-storefront")).thenReturn(Optional.of(consumer));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123")).thenReturn(java.util.List.of(version));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
+        );
+
+        ShopifyStoreBindingInspectionSummary summary = connectionService.inspectBinding("demo.myshopify.com");
+
+        assertThat(summary.shopDomain()).isEqualTo("demo.myshopify.com");
+        assertThat(summary.productServiceRef()).isEqualTo("shopify-bridge-prod");
+        assertThat(summary.customer()).isNotNull();
+        assertThat(summary.customer().name()).isEqualTo("Demo Customer");
+        assertThat(summary.deployment()).isNotNull();
+        assertThat(summary.deployment().name()).isEqualTo("Shopify Companion");
+        assertThat(summary.consumer()).isNotNull();
+        assertThat(summary.consumer().displayName()).isEqualTo("Demo Storefront");
+        assertThat(summary.latestVersion()).isNotNull();
+        assertThat(summary.latestRelease()).isNotNull();
+        assertThat(summary.warnings()).isEmpty();
     }
 }

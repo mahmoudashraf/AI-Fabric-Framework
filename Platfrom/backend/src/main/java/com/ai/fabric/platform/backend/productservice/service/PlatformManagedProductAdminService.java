@@ -29,9 +29,11 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCapabilitySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreReadinessEvaluator;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightSupport;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
@@ -80,6 +82,7 @@ public class PlatformManagedProductAdminService {
     private final PlatformManagedProductProvisioningService provisioningService;
     private final PlatformAuditService platformAuditService;
     private final RailwayGraphqlClient railwayGraphqlClient;
+    private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ShopifyStoreReadinessEvaluator readinessEvaluator;
     private final ObjectMapper objectMapper;
@@ -97,6 +100,7 @@ public class PlatformManagedProductAdminService {
                                               PlatformManagedProductProvisioningService provisioningService,
                                               PlatformAuditService platformAuditService,
                                               RailwayGraphqlClient railwayGraphqlClient,
+                                              ShopifyStoreConnectionService shopifyStoreConnectionService,
                                               ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
                                               ShopifyStoreReadinessEvaluator readinessEvaluator,
                                               ObjectMapper objectMapper) {
@@ -112,6 +116,7 @@ public class PlatformManagedProductAdminService {
         this.provisioningService = provisioningService;
         this.platformAuditService = platformAuditService;
         this.railwayGraphqlClient = railwayGraphqlClient;
+        this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
         this.objectMapper = objectMapper;
@@ -128,6 +133,16 @@ public class PlatformManagedProductAdminService {
     public List<PlatformAuditEventSummary> listActivity(String serviceRef) {
         serviceService.requireService(serviceRef);
         return platformAuditService.listRecentEventsForTarget(TARGET_TYPE, serviceRef, 100);
+    }
+
+    public ShopifyStoreBindingInspectionSummary getStoreBinding(String serviceRef, String shopDomain) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+            ));
+        return shopifyStoreConnectionService.inspectBinding(shopDomain);
     }
 
     @Transactional

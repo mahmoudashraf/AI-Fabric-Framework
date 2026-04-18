@@ -621,6 +621,58 @@ export type ShopifyStoreCapabilitySummary = {
   marketplaceDatasetIds: string[]
 }
 
+export type ShopifyStoreLinkedCustomerSummary = {
+  id: string
+  name: string | null
+  slug: string | null
+  status: string | null
+  platformManaged: boolean
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyStoreLinkedDeploymentSummary = {
+  id: string
+  name: string | null
+  environment: string | null
+  templateId: string | null
+  status: string | null
+  customerId: string | null
+  tenantId: string | null
+  activeVersionId: string | null
+  runtimeBaseUrl: string | null
+  connectorBaseUrl: string | null
+  approvalRequiredForApply: boolean
+  approvalRequiredForDelete: boolean
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyStoreLinkedConsumerSummary = {
+  consumerId: string
+  customerId: string | null
+  displayName: string | null
+  status: string | null
+  boundDeploymentId: string | null
+  boundDeploymentName: string | null
+  boundDeploymentEnvironment: string | null
+  boundDeploymentStatus: string | null
+  lastBoundAt: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyStoreBindingInspectionSummary = {
+  shopDomain: string
+  productServiceRef: string
+  customer: ShopifyStoreLinkedCustomerSummary | null
+  deployment: ShopifyStoreLinkedDeploymentSummary | null
+  consumer: ShopifyStoreLinkedConsumerSummary | null
+  latestVersion: DeploymentVersionSummary | null
+  latestRelease: DeploymentReleaseSummary | null
+  warnings: string[]
+}
+
 export type ShopifyStoreConnectionSummary = {
   id: string
   shopDomain: string
@@ -2958,6 +3010,12 @@ export function fetchProductServiceStoreBillingSummary(serviceRef: string, shopD
   )
 }
 
+export function fetchProductServiceStoreBinding(serviceRef: string, shopDomain: string) {
+  return request<ShopifyStoreBindingInspectionSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/binding`,
+  )
+}
+
 export function reconcileProductService(serviceRef: string) {
   return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/reconcile`, {
     method: 'POST',
@@ -3005,6 +3063,10 @@ export function fetchShopifyStores() {
 
 export function fetchShopifyStore(shopDomain: string) {
   return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}`)
+}
+
+export function fetchShopifyStoreBinding(shopDomain: string) {
+  return request<ShopifyStoreBindingInspectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/binding`)
 }
 
 export function deleteShopifyStore(shopDomain: string, force = false) {

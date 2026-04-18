@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.productservice.model.RotatePlatformManaged
 import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceScaleRequest;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -59,6 +60,12 @@ public class ProductServiceController {
     @GetMapping("/{serviceRef}/dependents")
     public List<ShopifyStoreConnectionSummary> listDependents(@PathVariable String serviceRef) {
         return adminService.listDependents(serviceRef);
+    }
+
+    @GetMapping("/{serviceRef}/stores/{shopDomain}/binding")
+    public ShopifyStoreBindingInspectionSummary getStoreBinding(@PathVariable String serviceRef,
+                                                                @PathVariable String shopDomain) {
+        return adminService.getStoreBinding(serviceRef, shopDomain);
     }
 
     @GetMapping("/{serviceRef}/activity")
