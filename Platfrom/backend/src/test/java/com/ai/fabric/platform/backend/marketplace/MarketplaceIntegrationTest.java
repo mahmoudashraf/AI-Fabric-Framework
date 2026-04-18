@@ -146,7 +146,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-action-shopify-companion-read")))
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-shopify-catalog")))
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-shopify-policies")))
-            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-inference-shopify-companion-default")));
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-inference-shared-embeddings")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-companion-read")))
             .andExpect(status().isOk())

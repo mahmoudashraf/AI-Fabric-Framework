@@ -4,7 +4,9 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
@@ -30,7 +32,9 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerReposito
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -112,6 +116,7 @@ public class ShopifyStoreBootstrapService {
                 existingDeployment.getEnvironmentName(),
                 existingDeployment.getStatus()
             );
+        ensureSharedVectorBootstrapDefaults(deployment.id());
 
         PlatformConsumerEntity existingConsumer = resolveConsumer(store.getConsumerId());
         boolean createdConsumer = existingConsumer == null;
@@ -308,6 +313,34 @@ public class ShopifyStoreBootstrapService {
         return ensured;
     }
 
+    private void ensureSharedVectorBootstrapDefaults(String deploymentId) {
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        ObjectNode providerConfig = ensureObject(draft.providerConfig());
+        boolean changed = false;
+        changed |= putText(providerConfig, "vectorProvisioningMode", properties.defaultVectorProvisioningMode());
+        changed |= putText(providerConfig, "vectorStoragePosture", properties.defaultVectorStoragePosture());
+        changed |= putBoolean(providerConfig, "qdrantManagedCollectionsEnabled", properties.defaultQdrantManagedCollectionsEnabled());
+        changed |= putText(providerConfig, "qdrantCloudProviderId", properties.defaultQdrantCloudProviderId());
+        changed |= putText(providerConfig, "qdrantCloudRegionId", properties.defaultQdrantCloudRegionId());
+        if (!changed) {
+            return;
+        }
+        deploymentService.updateDraft(
+            draft.id(),
+            new UpdateDeploymentDraftRequest(
+                null,
+                null,
+                null,
+                providerConfig,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+    }
+
     private DeploymentEntity resolveDeployment(String deploymentId) {
         return hasText(deploymentId) ? deploymentRepository.findById(deploymentId).orElse(null) : null;
     }
@@ -377,6 +410,38 @@ public class ShopifyStoreBootstrapService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private ObjectNode ensureObject(JsonNode node) {
+        if (node instanceof ObjectNode objectNode) {
+            return objectNode.deepCopy();
+        }
+        return JSON.objectNode();
+    }
+
+    private boolean putText(ObjectNode node, String field, String value) {
+        String normalized = blankToNull(value);
+        String existing = blankToNull(node.path(field).asText(null));
+        if (java.util.Objects.equals(existing, normalized)) {
+            return false;
+        }
+        if (normalized == null) {
+            node.remove(field);
+        } else {
+            node.put(field, normalized);
+        }
+        return true;
+    }
+
+    private boolean putBoolean(ObjectNode node, String field, Boolean value) {
+        if (value == null) {
+            return false;
+        }
+        if (!node.path(field).isMissingNode() && node.path(field).isBoolean() && node.path(field).booleanValue() == value) {
+            return false;
+        }
+        node.put(field, value);
+        return true;
     }
 
     private record BootstrapDeployment(

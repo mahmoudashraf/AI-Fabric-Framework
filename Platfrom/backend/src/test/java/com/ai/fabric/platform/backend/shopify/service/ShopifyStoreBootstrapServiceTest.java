@@ -3,9 +3,11 @@ package com.ai.fabric.platform.backend.shopify.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantBindingSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
@@ -28,6 +30,8 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerReposito
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -36,6 +40,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -62,7 +67,7 @@ class ShopifyStoreBootstrapServiceTest {
         ShopifyStoreConnectionEntity store = store("demo.myshopify.com");
         PlatformCustomerEntity customer = customerEntity("cus-123");
         PlatformCustomerSummary customerSummary = new PlatformCustomerSummary("cus-123", "Shopify Store demo.myshopify.com", "shopify-store-demo", null, "ACTIVE", false, 0, 0, 0, Instant.now(), Instant.now(), List.of(), List.of());
-        DeploymentSummary deployment = deploymentSummary("dep-123", "Shopify Companion demo.myshopify.com", "dev");
+        DeploymentSummary deployment = deploymentSummary("dep-123", "Shopify Companion demo.myshopify.com", "dev", "dev-openai-qdrant");
         PlatformConsumerSummary consumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
@@ -70,13 +75,14 @@ class ShopifyStoreBootstrapServiceTest {
         when(customerTenantService.createCustomer(any())).thenReturn(customerSummary);
         when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
         when(templateBootstrapService.bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class))).thenReturn(deployment);
+        when(deploymentService.getActiveDraftForDeployment("dep-123")).thenReturn(draftResponse("dep-123"));
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.empty());
         when(customerConsumerService.createConsumer(eq("cus-123"), any())).thenReturn(consumer);
         when(installService.listInstalls("dep-123")).thenReturn(List.of());
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-action-shopify-companion-read")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-catalog")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
-        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shopify-companion-default")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shared-embeddings")).thenReturn("1.0.0");
         when(installService.createInstall(eq("dep-123"), any(CreateDeploymentMarketplaceInstallRequest.class))).thenReturn(mock(DeploymentMarketplaceInstallSummary.class));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
@@ -95,15 +101,19 @@ class ShopifyStoreBootstrapServiceTest {
             connectionService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
-                "custom-start-from-scratch",
-                "",
+                "dev-openai-qdrant",
+                "PLATFORM_MANAGED",
+                "SHARED",
+                "aws",
+                "eu-west-1",
+                true,
                 "mkp-template-shopify-companion",
                 "",
                 List.of(
                     "mkp-action-shopify-companion-read",
                     "mkp-data-shopify-catalog",
                     "mkp-data-shopify-policies",
-                    "mkp-inference-shopify-companion-default"
+                    "mkp-inference-shared-embeddings"
                 )
             ),
             auditService
@@ -122,9 +132,10 @@ class ShopifyStoreBootstrapServiceTest {
             "mkp-action-shopify-companion-read",
             "mkp-data-shopify-catalog",
             "mkp-data-shopify-policies",
-            "mkp-inference-shopify-companion-default"
+            "mkp-inference-shared-embeddings"
         );
         verify(templateBootstrapService).bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
         verify(customerConsumerService, never()).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
     }
 
@@ -161,19 +172,20 @@ class ShopifyStoreBootstrapServiceTest {
         consumerEntity.setCreatedAt(Instant.now());
         consumerEntity.setUpdatedAt(Instant.now());
 
-        DeploymentSummary deployment = deploymentSummary("dep-123", "Shopify Companion demo.myshopify.com", "dev");
+        DeploymentSummary deployment = deploymentSummary("dep-123", "Shopify Companion demo.myshopify.com", "dev", "dev-openai-qdrant");
         PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
         when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deploymentEntity));
+        when(deploymentService.getActiveDraftForDeployment("dep-123")).thenReturn(draftResponse("dep-123"));
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.of(consumerEntity));
         when(customerConsumerService.updateBinding(eq("cus-123"), eq("shopify-demo"), any())).thenReturn(reboundConsumer);
         when(installService.listInstalls("dep-123")).thenReturn(List.of(installSummary("mkp-action-shopify-companion-read")));
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-catalog")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
-        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shopify-companion-default")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shared-embeddings")).thenReturn("1.0.0");
         when(installService.createInstall(eq("dep-123"), any(CreateDeploymentMarketplaceInstallRequest.class))).thenReturn(mock(DeploymentMarketplaceInstallSummary.class));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
@@ -192,15 +204,19 @@ class ShopifyStoreBootstrapServiceTest {
             connectionService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
-                "custom-start-from-scratch",
-                "",
+                "dev-openai-qdrant",
+                "PLATFORM_MANAGED",
+                "SHARED",
+                "aws",
+                "eu-west-1",
+                true,
                 "mkp-template-shopify-companion",
                 "",
                 List.of(
                     "mkp-action-shopify-companion-read",
                     "mkp-data-shopify-catalog",
                     "mkp-data-shopify-policies",
-                    "mkp-inference-shopify-companion-default"
+                    "mkp-inference-shared-embeddings"
                 )
             ),
             auditService
@@ -215,10 +231,11 @@ class ShopifyStoreBootstrapServiceTest {
             "mkp-action-shopify-companion-read",
             "mkp-data-shopify-catalog",
             "mkp-data-shopify-policies",
-            "mkp-inference-shopify-companion-default"
+            "mkp-inference-shared-embeddings"
         );
         verify(customerTenantService, never()).createCustomer(any());
         verify(templateBootstrapService, never()).bootstrap(any(), any());
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
         verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
     }
 
@@ -263,6 +280,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
         when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deploymentEntity));
+        when(deploymentService.getActiveDraftForDeployment("dep-123")).thenReturn(draftResponse("dep-123"));
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.of(consumerEntity));
         when(customerConsumerService.updateBinding(eq("cus-123"), eq("shopify-demo"), any())).thenReturn(reboundConsumer);
         when(customerConsumerService.updateConsumer(eq("cus-123"), eq("shopify-demo"), any(UpdatePlatformConsumerRequest.class))).thenReturn(activeConsumer);
@@ -282,15 +300,27 @@ class ShopifyStoreBootstrapServiceTest {
             installService,
             marketplaceCatalogService,
             connectionService,
-            new ShopifyCompanionBootstrapProperties("dev", "custom-start-from-scratch", "", "mkp-template-shopify-companion", "", List.of()),
+            new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", List.of()),
             auditService
         );
 
         ShopifyStoreBootstrapSummary summary = service.bootstrap("demo.myshopify.com", new BootstrapShopifyStoreRequest(null, null, null, null, null, null, null));
 
         assertThat(summary.consumerId()).isEqualTo("shopify-demo");
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
         verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
         verify(customerConsumerService).updateConsumer(eq("cus-123"), eq("shopify-demo"), any(UpdatePlatformConsumerRequest.class));
+    }
+
+    private boolean matchesSharedQdrantDefaults(UpdateDeploymentDraftRequest request) {
+        if (request == null || !(request.providerConfig() instanceof ObjectNode provider)) {
+            return false;
+        }
+        return "PLATFORM_MANAGED".equals(provider.path("vectorProvisioningMode").asText())
+            && "SHARED".equals(provider.path("vectorStoragePosture").asText())
+            && provider.path("qdrantManagedCollectionsEnabled").asBoolean(false)
+            && "aws".equals(provider.path("qdrantCloudProviderId").asText())
+            && "eu-west-1".equals(provider.path("qdrantCloudRegionId").asText());
     }
 
     private ShopifyStoreConnectionEntity store(String shopDomain) {
@@ -324,12 +354,33 @@ class ShopifyStoreBootstrapServiceTest {
         return customer;
     }
 
-    private DeploymentSummary deploymentSummary(String deploymentId, String name, String environment) {
+    private DeploymentDraftResponse draftResponse(String deploymentId) {
+        ObjectNode provider = JsonNodeFactory.instance.objectNode();
+        provider.put("llmProvider", "openai");
+        provider.put("embeddingProvider", "openai");
+        provider.put("vectorStrategy", "qdrant");
+        return new DeploymentDraftResponse(
+            "drf-123",
+            deploymentId,
+            1,
+            "ACTIVE",
+            JsonNodeFactory.instance.objectNode(),
+            JsonNodeFactory.instance.objectNode(),
+            JsonNodeFactory.instance.objectNode(),
+            provider,
+            JsonNodeFactory.instance.objectNode(),
+            JsonNodeFactory.instance.objectNode(),
+            Instant.now(),
+            Instant.now()
+        );
+    }
+
+    private DeploymentSummary deploymentSummary(String deploymentId, String name, String environment, String templateId) {
         return new DeploymentSummary(
             deploymentId,
             name,
             environment,
-            "custom-start-from-scratch",
+            templateId,
             new DeploymentTenantBindingSummary(
                 "cus-123",
                 "Shopify Store demo.myshopify.com",

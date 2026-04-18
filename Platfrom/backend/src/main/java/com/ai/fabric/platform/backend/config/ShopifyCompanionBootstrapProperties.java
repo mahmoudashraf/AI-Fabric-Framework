@@ -9,6 +9,10 @@ public record ShopifyCompanionBootstrapProperties(
     String defaultEnvironment,
     String defaultTemplateId,
     String defaultVectorProvisioningMode,
+    String defaultVectorStoragePosture,
+    String defaultQdrantCloudProviderId,
+    String defaultQdrantCloudRegionId,
+    Boolean defaultQdrantManagedCollectionsEnabled,
     String templatePluginId,
     String templatePluginVersion,
     List<String> defaultPluginIds
@@ -16,8 +20,14 @@ public record ShopifyCompanionBootstrapProperties(
 
     public ShopifyCompanionBootstrapProperties {
         defaultEnvironment = normalize(defaultEnvironment, "dev");
-        defaultTemplateId = normalize(defaultTemplateId, "custom-start-from-scratch");
-        defaultVectorProvisioningMode = normalize(defaultVectorProvisioningMode, "");
+        defaultTemplateId = normalize(defaultTemplateId, "dev-openai-qdrant");
+        defaultVectorProvisioningMode = normalize(defaultVectorProvisioningMode, "PLATFORM_MANAGED");
+        defaultVectorStoragePosture = normalize(defaultVectorStoragePosture, "SHARED");
+        defaultQdrantCloudProviderId = normalize(defaultQdrantCloudProviderId, "aws");
+        defaultQdrantCloudRegionId = normalize(defaultQdrantCloudRegionId, "eu-west-1");
+        defaultQdrantManagedCollectionsEnabled = defaultQdrantManagedCollectionsEnabled == null
+            ? Boolean.TRUE
+            : defaultQdrantManagedCollectionsEnabled;
         templatePluginId = normalize(templatePluginId, "mkp-template-shopify-companion");
         templatePluginVersion = normalize(templatePluginVersion, "");
         defaultPluginIds = defaultPluginIds == null
@@ -25,7 +35,7 @@ public record ShopifyCompanionBootstrapProperties(
                 "mkp-action-shopify-companion-read",
                 "mkp-data-shopify-catalog",
                 "mkp-data-shopify-policies",
-                "mkp-inference-shopify-companion-default"
+                "mkp-inference-shared-embeddings"
             )
             : defaultPluginIds.stream()
                 .filter(value -> value != null && !value.isBlank())
