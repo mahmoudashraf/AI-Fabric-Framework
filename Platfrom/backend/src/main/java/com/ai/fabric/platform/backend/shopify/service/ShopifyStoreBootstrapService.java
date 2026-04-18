@@ -6,9 +6,11 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplaceTemplateBootstrapRequest;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallSummary;
@@ -51,6 +53,9 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class ShopifyStoreBootstrapService {
 
+    private static final String CANONICAL_TEMPLATE_ID = "dev-openai-qdrant";
+    private static final String LEGACY_SHOPIFY_INFERENCE_PLUGIN_ID = "mkp-inference-shopify-companion-default";
+    private static final String CANONICAL_SHOPIFY_INFERENCE_PLUGIN_ID = "mkp-inference-shared-embeddings";
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     private final ShopifyStoreConnectionRepository repository;
@@ -182,6 +187,7 @@ public class ShopifyStoreBootstrapService {
                                                  BootstrapShopifyStoreRequest request) {
         String deploymentName = hasText(request.deploymentName()) ? request.deploymentName().trim() : defaultDeploymentName(store);
         String environment = hasText(request.environment()) ? request.environment().trim() : properties.defaultEnvironment();
+        String templateId = resolveBootstrapTemplateId();
         String templatePluginId = hasText(request.templatePluginId()) ? request.templatePluginId().trim() : properties.templatePluginId();
         String templatePluginVersion = hasText(request.templatePluginVersion()) ? request.templatePluginVersion().trim() : properties.templatePluginVersion();
         if (hasText(templatePluginId)) {
@@ -191,7 +197,7 @@ public class ShopifyStoreBootstrapService {
                     hasText(templatePluginVersion) ? templatePluginVersion : null,
                     deploymentName,
                     environment,
-                    properties.defaultTemplateId(),
+                    templateId,
                     blankToNull(properties.defaultVectorProvisioningMode()),
                     customer.getId(),
                     null
@@ -203,7 +209,7 @@ public class ShopifyStoreBootstrapService {
             new CreateDeploymentRequest(
                 deploymentName,
                 environment,
-                properties.defaultTemplateId(),
+                templateId,
                 null,
                 blankToNull(properties.defaultVectorProvisioningMode()),
                 customer.getId(),
@@ -280,9 +286,12 @@ public class ShopifyStoreBootstrapService {
             request.pluginIds().stream()
                 .filter(value -> value != null && !value.isBlank())
                 .map(String::trim)
+                .map(this::canonicalizeBootstrapPluginId)
                 .forEach(desiredPluginIds::add);
         } else {
-            properties.defaultPluginIds().forEach(desiredPluginIds::add);
+            properties.defaultPluginIds().stream()
+                .map(this::canonicalizeBootstrapPluginId)
+                .forEach(desiredPluginIds::add);
         }
 
         LinkedHashSet<String> installed = deploymentMarketplaceInstallService.listInstalls(deploymentId).stream()
@@ -313,6 +322,27 @@ public class ShopifyStoreBootstrapService {
         return ensured;
     }
 
+    private String resolveBootstrapTemplateId() {
+        String configuredTemplateId = blankToNull(properties.defaultTemplateId());
+        String configuredProvisioningMode = blankToNull(properties.defaultVectorProvisioningMode());
+        if (!ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equalsIgnoreCase(configuredProvisioningMode)) {
+            return configuredTemplateId == null ? CANONICAL_TEMPLATE_ID : configuredTemplateId;
+        }
+        if (configuredTemplateId == null) {
+            return CANONICAL_TEMPLATE_ID;
+        }
+        DeploymentTemplateSummary template = deploymentService.listTemplates().stream()
+            .filter(candidate -> candidate.id().equalsIgnoreCase(configuredTemplateId))
+            .findFirst()
+            .orElse(null);
+        if (template == null) {
+            return CANONICAL_TEMPLATE_ID;
+        }
+        return ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equalsIgnoreCase(template.vectorStrategy())
+            ? template.id()
+            : CANONICAL_TEMPLATE_ID;
+    }
+
     private void ensureSharedVectorBootstrapDefaults(String deploymentId) {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode providerConfig = ensureObject(draft.providerConfig());
@@ -339,6 +369,12 @@ public class ShopifyStoreBootstrapService {
                 null
             )
         );
+    }
+
+    private String canonicalizeBootstrapPluginId(String pluginId) {
+        return LEGACY_SHOPIFY_INFERENCE_PLUGIN_ID.equalsIgnoreCase(pluginId)
+            ? CANONICAL_SHOPIFY_INFERENCE_PLUGIN_ID
+            : pluginId;
     }
 
     private DeploymentEntity resolveDeployment(String deploymentId) {
