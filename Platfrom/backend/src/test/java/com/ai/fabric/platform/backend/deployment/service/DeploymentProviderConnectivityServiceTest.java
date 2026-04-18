@@ -78,7 +78,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksQdrantCollectionsApiReadyWhenClusterResponds() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("QDRANT_API_KEY")).thenReturn("qdrant-secret");
+        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED")).thenReturn("qdrant-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -102,7 +102,8 @@ class DeploymentProviderConnectivityServiceTest {
                   "llmProvider": "openai",
                   "embeddingProvider": "openai",
                   "vectorStrategy": "qdrant",
-                  "qdrantHost": "https://cluster.example"
+                  "qdrantHost": "https://cluster.example",
+                  "qdrantRuntimeApiKeySecretName": "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED"
                 }
                 """)
         );

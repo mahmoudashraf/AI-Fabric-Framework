@@ -154,6 +154,7 @@ shopify:
       default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:}
       default-qdrant-host: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_HOST:}
       default-qdrant-source-deployment-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_SOURCE_DEPLOYMENT_ID:}
+      default-qdrant-runtime-api-key-secret-name: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_RUNTIME_API_KEY_SECRET_NAME:}
       template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
       template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
       default-plugin-ids:

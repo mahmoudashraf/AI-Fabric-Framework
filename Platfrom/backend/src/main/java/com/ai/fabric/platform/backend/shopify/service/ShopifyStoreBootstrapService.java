@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceIns
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.BootstrapShopifyStoreRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
@@ -360,23 +361,28 @@ public class ShopifyStoreBootstrapService {
             return;
         }
 
-        String sharedQdrantHost = resolveSharedQdrantHost();
-        if (hasText(sharedQdrantHost)) {
+        ResolvedSharedQdrantRoot sharedQdrantRoot = resolveSharedQdrantRoot();
+        if (sharedQdrantRoot != null && hasText(sharedQdrantRoot.host())) {
             changed |= putText(providerConfig, "vectorProvisioningMode", ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING);
             changed |= putText(providerConfig, "vectorStoragePosture", properties.defaultVectorStoragePosture());
             changed |= putBoolean(providerConfig, "qdrantManagedCollectionsEnabled", properties.defaultQdrantManagedCollectionsEnabled());
-            changed |= putText(providerConfig, "qdrantHost", sharedQdrantHost);
+            changed |= putText(providerConfig, "qdrantHost", sharedQdrantRoot.host());
+            if (hasText(sharedQdrantRoot.runtimeApiKeySecretName())) {
+                changed |= putText(providerConfig, "qdrantRuntimeApiKeySecretName", sharedQdrantRoot.runtimeApiKeySecretName());
+            } else {
+                changed |= removeIfPresent(providerConfig, "qdrantRuntimeApiKeySecretName");
+            }
             changed |= removeIfPresent(providerConfig, "qdrantCloudProviderId");
             changed |= removeIfPresent(providerConfig, "qdrantCloudRegionId");
             changed |= removeIfPresent(providerConfig, "qdrantCloudPackageId");
             changed |= removeIfPresent(providerConfig, "qdrantCloudClusterNameOverride");
-            changed |= removeIfPresent(providerConfig, "qdrantRuntimeApiKeySecretName");
         } else {
             changed |= putText(providerConfig, "vectorProvisioningMode", properties.defaultVectorProvisioningMode());
             changed |= putText(providerConfig, "vectorStoragePosture", properties.defaultVectorStoragePosture());
             changed |= putBoolean(providerConfig, "qdrantManagedCollectionsEnabled", properties.defaultQdrantManagedCollectionsEnabled());
             changed |= putText(providerConfig, "qdrantCloudProviderId", properties.defaultQdrantCloudProviderId());
             changed |= putText(providerConfig, "qdrantCloudRegionId", properties.defaultQdrantCloudRegionId());
+            changed |= removeIfPresent(providerConfig, "qdrantRuntimeApiKeySecretName");
         }
         if (!changed) {
             return;
@@ -397,28 +403,32 @@ public class ShopifyStoreBootstrapService {
         );
     }
 
-    private String resolveSharedQdrantHost() {
+    private ResolvedSharedQdrantRoot resolveSharedQdrantRoot() {
         String configuredHost = blankToNull(properties.defaultQdrantHost());
+        String configuredSourceDeploymentId = blankToNull(properties.defaultQdrantSourceDeploymentId());
         if (configuredHost != null) {
-            return configuredHost;
+            String runtimeSecretName = blankToNull(properties.defaultQdrantRuntimeApiKeySecretName());
+            if (runtimeSecretName == null && configuredSourceDeploymentId != null) {
+                runtimeSecretName = managedQdrantRuntimeSecretName(configuredSourceDeploymentId);
+            }
+            return new ResolvedSharedQdrantRoot(configuredHost, runtimeSecretName);
         }
 
-        String configuredSourceDeploymentId = blankToNull(properties.defaultQdrantSourceDeploymentId());
         if (configuredSourceDeploymentId != null) {
-            return resolveActiveManagedQdrantEndpoint(configuredSourceDeploymentId);
+            return resolveActiveManagedQdrantRoot(configuredSourceDeploymentId);
         }
 
         return deploymentRepository.findByCustomerIdAndArchivedAtIsNullOrderByUpdatedAtDesc(PlatformCustomerTenantService.INTERNAL_CUSTOMER_ID)
             .stream()
             .filter(candidate -> hasText(candidate.getActiveVersionId()))
-            .map(candidate -> resolveActiveManagedQdrantEndpoint(candidate.getId()))
-            .filter(this::hasText)
+            .map(candidate -> resolveActiveManagedQdrantRoot(candidate.getId()))
+            .filter(root -> root != null && hasText(root.host()))
             .findFirst()
             .orElse(null);
     }
 
-    private String resolveActiveManagedQdrantEndpoint(String deploymentId) {
-        return deploymentManagedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId)
+    private ResolvedSharedQdrantRoot resolveActiveManagedQdrantRoot(String deploymentId) {
+        String endpoint = deploymentManagedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId)
             .stream()
             .filter(resource -> ACTIVE_RESOURCE_STATUS.equalsIgnoreCase(resource.getResourceStatus()))
             .filter(resource -> QDRANT_VENDOR.equalsIgnoreCase(resource.getVendor()))
@@ -427,6 +437,16 @@ public class ShopifyStoreBootstrapService {
             .filter(this::hasText)
             .findFirst()
             .orElse(null);
+        if (!hasText(endpoint)) {
+            return null;
+        }
+        return new ResolvedSharedQdrantRoot(endpoint, managedQdrantRuntimeSecretName(deploymentId));
+    }
+
+    private String managedQdrantRuntimeSecretName(String deploymentId) {
+        return PlatformSecretService.MANAGED_SECRET_PREFIX
+            + "QDRANT_DB_API_KEY_DEP_"
+            + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
     }
 
     private String canonicalizeBootstrapPluginId(String pluginId) {
@@ -551,6 +571,12 @@ public class ShopifyStoreBootstrapService {
         String name,
         String environment,
         String status
+    ) {
+    }
+
+    private record ResolvedSharedQdrantRoot(
+        String host,
+        String runtimeApiKeySecretName
     ) {
     }
 }

@@ -337,8 +337,9 @@ public class DeploymentProviderConnectivityService {
                 "qdrantHost is missing, so the platform cannot verify Qdrant connectivity."
             );
         }
+        String runtimeSecretName = ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig);
         DeploymentProviderSecretResolutionService.ResolvedSecretValue resolution =
-            deploymentProviderSecretResolutionService.resolve(deploymentId, "QDRANT_API_KEY", null);
+            deploymentProviderSecretResolutionService.resolve(deploymentId, "QDRANT_API_KEY", runtimeSecretName);
         if (overrideRequiredButMissing(resolution.summary())) {
             return new DeploymentProviderConnectivityProbeSummary(
                 "qdrant_collections_api",
@@ -1108,7 +1109,13 @@ public class DeploymentProviderConnectivityService {
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         switch (vectorStrategy) {
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "PINECONE_API_KEY", null);
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "QDRANT_API_KEY", null);
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT -> addResolvedSecretSummary(
+                summaries,
+                dedupe,
+                deploymentId,
+                "QDRANT_API_KEY",
+                ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig)
+            );
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "WEAVIATE_API_KEY", null);
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> addResolvedSecretSummary(summaries, dedupe, deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null);
             default -> {

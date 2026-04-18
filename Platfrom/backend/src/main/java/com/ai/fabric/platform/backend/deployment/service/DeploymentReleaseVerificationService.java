@@ -1330,7 +1330,7 @@ public class DeploymentReleaseVerificationService {
         }
         for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
             DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
-                resolveOptionalProviderSecret(deployment.getId(), optionalVectorSecretName);
+                resolveOptionalVectorSecret(deployment.getId(), optionalVectorSecretName, providerConfig);
             if (resolved.resolved()) {
                 addProviderSecretCheck(
                     checks,
@@ -1816,6 +1816,19 @@ public class DeploymentReleaseVerificationService {
             case "MILVUS_USERNAME", "MILVUS_PASSWORD", "MILVUS_RUNTIME_CREDENTIALS" ->
                 deploymentProviderSecretResolutionService.resolve(deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null, null);
             default -> deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+        };
+    }
+
+    private DeploymentProviderSecretResolutionService.ResolvedSecretValue resolveOptionalVectorSecret(String deploymentId,
+                                                                                                      String secretPurpose,
+                                                                                                      JsonNode providerConfig) {
+        return switch (secretPurpose) {
+            case "QDRANT_API_KEY" -> deploymentProviderSecretResolutionService.resolve(
+                deploymentId,
+                "QDRANT_API_KEY",
+                ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig)
+            );
+            default -> resolveOptionalProviderSecret(deploymentId, secretPurpose);
         };
     }
 

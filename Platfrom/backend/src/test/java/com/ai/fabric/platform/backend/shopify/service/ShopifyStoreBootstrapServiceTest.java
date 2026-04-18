@@ -112,6 +112,7 @@ class ShopifyStoreBootstrapServiceTest {
                 "SHARED",
                 "https://shared-qdrant.example",
                 "",
+                "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED",
                 "aws",
                 "eu-west-1",
                 true,
@@ -220,6 +221,7 @@ class ShopifyStoreBootstrapServiceTest {
                 "SHARED",
                 "https://shared-qdrant.example",
                 "",
+                "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED",
                 "aws",
                 "eu-west-1",
                 true,
@@ -316,7 +318,7 @@ class ShopifyStoreBootstrapServiceTest {
             installService,
             marketplaceCatalogService,
             connectionService,
-            new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", List.of()),
+            new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", List.of()),
             auditService
         );
 
@@ -391,6 +393,7 @@ class ShopifyStoreBootstrapServiceTest {
                 "SHARED",
                 "https://shared-qdrant.example",
                 "",
+                "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED",
                 "aws",
                 "eu-west-1",
                 true,
@@ -488,6 +491,7 @@ class ShopifyStoreBootstrapServiceTest {
                 "SHARED",
                 "",
                 "",
+                "",
                 "aws",
                 "eu-west-1",
                 true,
@@ -514,6 +518,7 @@ class ShopifyStoreBootstrapServiceTest {
             && "SHARED".equals(provider.path("vectorStoragePosture").asText())
             && provider.path("qdrantManagedCollectionsEnabled").asBoolean(false)
             && !provider.path("qdrantHost").asText("").isBlank()
+            && !provider.path("qdrantRuntimeApiKeySecretName").asText("").isBlank()
             && provider.path("qdrantCloudProviderId").asText("").isBlank()
             && provider.path("qdrantCloudRegionId").asText("").isBlank();
     }

@@ -293,7 +293,11 @@ public class DeploymentManagedVectorProvisioningService {
                                                 ObjectNode details) {
         String baseUrl = buildQdrantBaseUrl(effectiveProviderConfig);
         int vectorDimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
-        String apiKey = resolveOptionalProviderSecret(deploymentId, "QDRANT_API_KEY");
+        String apiKey = resolveOptionalProviderSecret(
+            deploymentId,
+            "QDRANT_API_KEY",
+            ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(effectiveProviderConfig)
+        );
         ArrayNode collections = reconcileQdrantCollections(baseUrl, resolveEntityTypes(entityConfig), vectorDimensions, apiKey);
 
         details.put("mode", "MANAGED_COLLECTIONS");
@@ -1002,8 +1006,14 @@ public class DeploymentManagedVectorProvisioningService {
     }
 
     private String resolveOptionalProviderSecret(String deploymentId, String secretPurpose) {
+        return resolveOptionalProviderSecret(deploymentId, secretPurpose, null);
+    }
+
+    private String resolveOptionalProviderSecret(String deploymentId,
+                                                 String secretPurpose,
+                                                 String managedSecretName) {
         DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
-            deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+            deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, managedSecretName);
         return resolved.resolved() ? resolved.value() : null;
     }
 

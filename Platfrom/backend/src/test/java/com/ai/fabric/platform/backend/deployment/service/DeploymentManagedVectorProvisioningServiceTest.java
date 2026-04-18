@@ -162,6 +162,70 @@ class DeploymentManagedVectorProvisioningServiceTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void ensureProvisionedUsesConfiguredSharedQdrantRuntimeSecretForManagedCollections() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED")).thenReturn("shared-qdrant-secret");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> missing = mock(HttpResponse.class);
+        when(missing.statusCode()).thenReturn(404);
+        HttpResponse<String> created = mock(HttpResponse.class);
+        when(created.statusCode()).thenReturn(200);
+        when(created.body()).thenReturn("{\"status\":\"ok\"}");
+
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().contains("/collections/")
+                && "shared-qdrant-secret".equals(request.headers().firstValue("api-key").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(missing);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "PUT".equals(request.method())
+                && request.uri().toString().contains("/collections/")
+                && "shared-qdrant-secret".equals(request.headers().firstValue("api-key").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(created);
+
+        DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        JsonNode providerConfig = objectMapper.readTree("""
+            {
+              "embeddingProvider": "openai",
+              "vectorStrategy": "qdrant",
+              "vectorProvisioningMode": "EXTERNAL_EXISTING",
+              "vectorStoragePosture": "SHARED",
+              "qdrantHost": "https://cluster.example",
+              "qdrantManagedCollectionsEnabled": true,
+              "qdrantRuntimeApiKeySecretName": "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED"
+            }
+            """);
+        JsonNode entityConfig = objectMapper.readTree("""
+            {
+              "ai-config": { "vector-dimensions": 1536 },
+              "ai-entities": { "product": {} }
+            }
+            """);
+
+        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+
+        assertThat(result.details().path("collections")).hasSize(1);
+        assertThat(result.details().path("collections").get(0).path("state").asText()).isEqualTo("CREATED");
+        verify(httpClient).send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && "shared-qdrant-secret".equals(request.headers().firstValue("api-key").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void ensureProvisionedCreatesManagedQdrantCloudClusterAndStoresRuntimeKey() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");

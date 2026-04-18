@@ -12,6 +12,7 @@ public record ShopifyCompanionBootstrapProperties(
     String defaultVectorStoragePosture,
     String defaultQdrantHost,
     String defaultQdrantSourceDeploymentId,
+    String defaultQdrantRuntimeApiKeySecretName,
     String defaultQdrantCloudProviderId,
     String defaultQdrantCloudRegionId,
     Boolean defaultQdrantManagedCollectionsEnabled,
@@ -27,6 +28,7 @@ public record ShopifyCompanionBootstrapProperties(
         defaultVectorStoragePosture = normalize(defaultVectorStoragePosture, "SHARED");
         defaultQdrantHost = normalize(defaultQdrantHost, "");
         defaultQdrantSourceDeploymentId = normalize(defaultQdrantSourceDeploymentId, "");
+        defaultQdrantRuntimeApiKeySecretName = normalize(defaultQdrantRuntimeApiKeySecretName, "");
         defaultQdrantCloudProviderId = normalize(defaultQdrantCloudProviderId, "aws");
         defaultQdrantCloudRegionId = normalize(defaultQdrantCloudRegionId, "eu-west-1");
         defaultQdrantManagedCollectionsEnabled = defaultQdrantManagedCollectionsEnabled == null
