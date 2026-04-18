@@ -64,7 +64,7 @@ Core user value:
 - help shoppers find products
 - compare options
 - understand policies
-- learn from reviews and product details
+- understand product details
 - stay in control of purchase decisions
 
 ### 2.2 Merchant value
@@ -208,7 +208,7 @@ Purpose:
 
 - shopper conversation
 - product context attachment
-- comparison and review surfaces
+- comparison surfaces
 - policy answers
 
 Delivered through:
@@ -230,7 +230,6 @@ Recommended first-party bundle:
 - `mkp-action-shopify-companion-read`
 - `mkp-data-shopify-catalog`
 - `mkp-data-shopify-policies`
-- `mkp-data-shopify-reviews`
 - `mkp-inference-shopify-companion-default`
 
 ### 5.2 Why a dedicated bundle is needed
@@ -242,7 +241,7 @@ We need:
 - Shopify Companion naming and posture
 - shopper-facing shell defaults
 - read-first action defaults
-- product/review/policy knowledge defaults
+- product/policy knowledge defaults
 - a predictable install and verification path
 
 ### 5.3 Reuse rule
@@ -329,10 +328,10 @@ Required at launch:
 - collections
 - pages
 - store policies
-- review data through one bounded supported review-provider path
 
 Possible later:
 
+- review data through one bounded supported review-provider path
 - buying guides
 - FAQs
 - size guides
@@ -355,13 +354,10 @@ Required launch actions:
 - `explain_policy`
 - `get_size_guide` if product data supports it
 
-V1 conditional action:
-
-- `lookup_reviews` when a supported review provider is connected
-
 Optional beta actions:
 
 - `lookup_collection`
+- `lookup_reviews` once a bounded supported review-provider path exists
 
 Do not ship at launch:
 
@@ -377,7 +373,6 @@ Required launch modules:
 
 - products
 - details
-- reviews
 - compare
 - policies
 
@@ -385,8 +380,7 @@ Required launch UI work:
 
 - one comparison card or comparison panel
 - shopper-safe product detail rendering
-- review-aware empty-state or fallback behavior when no supported review provider is connected
-- evidence/source rendering for product, review, and policy answers
+- evidence/source rendering for product and policy answers
 
 ---
 
@@ -618,12 +612,12 @@ Use optional or later expansion for:
 
 ### 8.3 Review integration rule
 
-Review sources should not expand Shopify scopes unless truly necessary.
+Review sources are out of V1 launch scope.
 
-Preferred approach:
+If introduced later:
 
 - integrate supported review providers through their own bounded connector path
-- ship one bounded supported review-provider path in V1
+- ship one bounded supported review-provider path first
 - do not broaden the review-provider matrix until that first path is stable
 
 ---
@@ -765,7 +759,6 @@ Priority order:
 2. collections
 3. pages
 4. policies
-5. reviews
 
 ### 11.4 Dataset packaging
 
@@ -902,7 +895,6 @@ Required:
    - product search
    - product comparison
    - policy answer
-   - review answer on stores using the supported review provider path
 10. validate resync and webhook update path
 11. validate uninstall and cleanup posture
 
@@ -999,7 +991,6 @@ Acceptance:
 Build:
 
 - Shopify source readers for products, collections, pages, policies
-- one bounded supported review-provider integration path
 - source preflight pipeline
 - apply-time dataset sync and vectorization path
 - incremental update pipeline
@@ -1008,7 +999,6 @@ Build:
 Acceptance:
 
 - indexed source counts are correct
-- review content syncs correctly when the supported provider is connected
 - resync works
 - incremental updates land correctly
 - diagnostics are merchant-readable
@@ -1049,8 +1039,6 @@ Acceptance:
 Build:
 
 - comparison card/panel
-- review-grounded rendering
-- review-aware empty-state and fallback behavior
 - policy answer UX
 - shopper-safe sources rendering
 - merchant playground improvements
@@ -1133,7 +1121,6 @@ Required outputs:
 
 - source readers
 - source preflight pipeline
-- approved review-provider readiness checks
 - merchant readiness diagnostics
 
 #### Phase 4: Publish, apply, sync, and verify
@@ -1149,7 +1136,6 @@ Required outputs:
 - apply-time dataset sync and vectorization
 - consumer binding verification
 - knowledge-source verification
-- review-provider sync verification where supported
 
 #### Phase 5: Storefront enablement
 
@@ -1176,7 +1162,6 @@ Required outputs:
 - read-first action catalog
 - grounded shopper answer flows
 - comparison UX
-- review-aware rendering and fallback behavior
 - policy answer UX
 
 #### Phase 7: Ongoing operation
@@ -1243,12 +1228,12 @@ Mitigation:
 
 Risk:
 
-- too many review-app integrations block launch
+- later review-app integrations can sprawl and destabilize product scope
 
 Mitigation:
 
-- support one bounded provider path first
-- do not broaden provider coverage before launch
+- keep review-provider work out of V1 launch scope
+- if added later, support one bounded provider path first
 
 ### 18.4 App review failure
 

@@ -347,7 +347,7 @@ sequenceDiagram
     S->>TE: Open companion and ask question
     TE->>AB: Send shopper query
     AB->>RT: Forward query using private-runtime posture
-    RT-->>AB: Grounded product/review/policy response
+    RT-->>AB: Grounded product/policy response
     AB-->>TE: Response payload
     TE-->>S: Render companion answer
 ```

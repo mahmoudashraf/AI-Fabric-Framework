@@ -109,7 +109,6 @@ Primary capabilities:
 
 - product search and filtering
 - product details
-- review-grounded answers
 - policy Q&A
 - product comparison
 - similar-product discovery
@@ -208,10 +207,10 @@ Start with:
 - collections
 - pages
 - store policies
-- reviews through one bounded supported review-app integration path
 
 Optional later:
 
+- reviews through one bounded supported review-app integration path
 - size guides
 - buying guides
 - FAQs
@@ -252,7 +251,6 @@ Start with:
 
 - products
 - details
-- reviews
 - compare
 - policies
 
@@ -273,7 +271,6 @@ Recommended default bundle:
 - `DATA`
   - commerce catalog data
   - policy data
-  - review data where available
 - `ACTION`
   - read-only Shopify commerce actions
 - `INFERENCE_PROFILE`
@@ -409,7 +406,6 @@ Build:
 - embedded admin app
 - theme app extension with shopper companion
 - catalog + policy sync
-- one bounded supported review-provider sync path
 - read-only action set
 - shopper conversation UX
 - diagnostics and sync status
@@ -420,7 +416,6 @@ Exit criteria:
 - no broken install or auth paths
 - storefront widget works without manual theme edits
 - answers are grounded in real store data
-- review-backed answers work on stores using the supported provider path
 
 ### Phase 2: Loom Companion Review-Ready Public App
 
@@ -453,6 +448,7 @@ Build:
 
 - configurable prompt/tone and branding
 - additional approved knowledge sources
+- one bounded supported review-provider integration path
 - richer analytics
 - merchant-level controls for quick actions and surfaces
 
