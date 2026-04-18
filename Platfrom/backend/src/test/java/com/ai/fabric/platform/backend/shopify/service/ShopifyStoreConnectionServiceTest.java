@@ -7,6 +7,9 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetDocumentRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetHandleRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -31,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -482,5 +486,112 @@ class ShopifyStoreConnectionServiceTest {
         assertThat(summary.latestVersion()).isNotNull();
         assertThat(summary.latestRelease()).isNotNull();
         assertThat(summary.warnings()).isEmpty();
+    }
+
+    @Test
+    void getConnectionReconcilesApplyTimeShopifyDatasetSyncFromVerifiedRelease() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository = mock(MarketplaceDatasetHandleRepository.class);
+        MarketplaceDatasetDocumentRepository marketplaceDatasetDocumentRepository = mock(MarketplaceDatasetDocumentRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("psv-123");
+        service.setServiceRef("shopify-bridge-prod");
+        service.setDisplayName("Shopify Bridge Service");
+        service.setProductFamily("SHOPIFY");
+        service.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("demo.myshopify.com");
+        entity.setProductServiceId("psv-123");
+        entity.setDeploymentId("dep-123");
+        entity.setInstallStatus("INSTALLED");
+        entity.setSyncStatus("NOT_SYNCED");
+        entity.setSourceReadinessStatus("READY");
+        entity.setWidgetStatus("NOT_ENABLED");
+        entity.setOnboardingStatus("PLATFORM_BOOTSTRAPPED");
+        entity.setProductsEnabled(true);
+        entity.setCollectionsEnabled(false);
+        entity.setPagesEnabled(false);
+        entity.setPoliciesEnabled(true);
+        entity.setDetailsJson("""
+            {"credentials":{"status":"READY","accessTokenSecretRef":"secret/access","checkedAt":"2026-04-18T11:59:00Z"}}
+            """);
+        entity.setCreatedAt(Instant.parse("2026-04-18T11:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-04-18T11:05:00Z"));
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setName("Shopify Companion");
+        deployment.setStatus("ACTIVE");
+        deployment.setTenantId("tenant-123");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+        release.setAppliedAt(Instant.parse("2026-04-18T12:00:00Z"));
+        release.setUpdatedAt(Instant.parse("2026-04-18T12:01:00Z"));
+
+        MarketplaceDatasetHandleEntity catalogHandle = new MarketplaceDatasetHandleEntity();
+        catalogHandle.setId("mdh-cat");
+        catalogHandle.setDatasetId("shopify-catalog");
+        catalogHandle.setStatus("READY");
+        catalogHandle.setLastSyncAt(Instant.parse("2026-04-18T12:02:00Z"));
+
+        MarketplaceDatasetHandleEntity policiesHandle = new MarketplaceDatasetHandleEntity();
+        policiesHandle.setId("mdh-pol");
+        policiesHandle.setDatasetId("shopify-policies");
+        policiesHandle.setStatus("READY");
+        policiesHandle.setLastSyncAt(Instant.parse("2026-04-18T12:03:00Z"));
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
+        when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
+        when(marketplaceDatasetHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123"))
+            .thenReturn(java.util.List.of(catalogHandle, policiesHandle));
+        when(marketplaceDatasetDocumentRepository.findByDatasetHandleIdOrderByDocumentIdAsc("mdh-cat"))
+            .thenReturn(java.util.List.of(new com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetDocumentEntity()));
+        when(marketplaceDatasetDocumentRepository.findByDatasetHandleIdOrderByDocumentIdAsc("mdh-pol"))
+            .thenReturn(java.util.List.of(
+                new com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetDocumentEntity(),
+                new com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetDocumentEntity()
+            ));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            marketplaceDatasetHandleRepository,
+            marketplaceDatasetDocumentRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
+        );
+
+        ShopifyStoreConnectionSummary summary = connectionService.getConnection("demo.myshopify.com");
+
+        assertThat(summary.syncStatus()).isEqualTo("SYNCED");
+        assertThat(summary.syncDetail()).isNotNull();
+        assertThat(summary.syncDetail().status()).isEqualTo("SYNCED");
+        assertThat(summary.syncDetail().mode()).isEqualTo("APPLY_RELEASE");
+        assertThat(summary.syncDetail().documentCount()).isEqualTo(3);
+        assertThat(summary.lastSyncAt()).isEqualTo(Instant.parse("2026-04-18T12:03:00Z"));
+        verify(repository, times(1)).save(entity);
     }
 }

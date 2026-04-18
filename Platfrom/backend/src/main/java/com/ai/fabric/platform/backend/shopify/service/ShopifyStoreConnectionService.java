@@ -9,6 +9,9 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetDocumentRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetHandleRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
@@ -32,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -50,6 +55,8 @@ public class ShopifyStoreConnectionService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentReleaseRepository deploymentReleaseRepository;
+    private final MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository;
+    private final MarketplaceDatasetDocumentRepository marketplaceDatasetDocumentRepository;
     private final PlatformConsumerRepository consumerRepository;
     private final PlatformAuditService platformAuditService;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
@@ -61,6 +68,8 @@ public class ShopifyStoreConnectionService {
                                          DeploymentRepository deploymentRepository,
                                          DeploymentVersionRepository deploymentVersionRepository,
                                          DeploymentReleaseRepository deploymentReleaseRepository,
+                                         MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository,
+                                         MarketplaceDatasetDocumentRepository marketplaceDatasetDocumentRepository,
                                          PlatformConsumerRepository consumerRepository,
                                          PlatformAuditService platformAuditService,
                                          ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
@@ -71,10 +80,38 @@ public class ShopifyStoreConnectionService {
         this.deploymentRepository = deploymentRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
+        this.marketplaceDatasetHandleRepository = marketplaceDatasetHandleRepository;
+        this.marketplaceDatasetDocumentRepository = marketplaceDatasetDocumentRepository;
         this.consumerRepository = consumerRepository;
         this.platformAuditService = platformAuditService;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
+    }
+
+    ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
+                                  PlatformManagedProductServiceService productServiceService,
+                                  PlatformCustomerRepository customerRepository,
+                                  DeploymentRepository deploymentRepository,
+                                  DeploymentVersionRepository deploymentVersionRepository,
+                                  DeploymentReleaseRepository deploymentReleaseRepository,
+                                  PlatformConsumerRepository consumerRepository,
+                                  PlatformAuditService platformAuditService,
+                                  ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                  ShopifyStoreReadinessEvaluator readinessEvaluator) {
+        this(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            null,
+            null,
+            consumerRepository,
+            platformAuditService,
+            sourcePreflightSupport,
+            readinessEvaluator
+        );
     }
 
     public List<ShopifyStoreConnectionSummary> listConnections() {
@@ -206,6 +243,7 @@ public class ShopifyStoreConnectionService {
 
     private ShopifyStoreConnectionSummary toSummary(ShopifyStoreConnectionEntity entity) {
         ResolvedStoreContext context = resolveStoreContext(entity);
+        reconcileApplyTimeShopifySync(entity, context.latestRelease());
         var credentials = sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson());
         var sourcePreflight = sourcePreflightSupport.summarize(entity.getDetailsJson());
         var syncDetail = sourcePreflightSupport.summarizeSync(entity.getDetailsJson());
@@ -251,6 +289,146 @@ public class ShopifyStoreConnectionService {
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
+    }
+
+    private void reconcileApplyTimeShopifySync(ShopifyStoreConnectionEntity entity,
+                                               DeploymentReleaseEntity latestRelease) {
+        if (entity == null || !hasText(entity.getDeploymentId()) || marketplaceDatasetHandleRepository == null) {
+            return;
+        }
+
+        boolean latestReleaseVerified = latestRelease != null
+            && "APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())
+            && "PASSED".equalsIgnoreCase(latestRelease.getVerificationStatus());
+        if (!latestReleaseVerified) {
+            return;
+        }
+
+        boolean catalogRequired = entity.isProductsEnabled() || entity.isCollectionsEnabled();
+        boolean policiesRequired = entity.isPagesEnabled() || entity.isPoliciesEnabled();
+        if (!catalogRequired && !policiesRequired) {
+            return;
+        }
+
+        LinkedHashMap<String, MarketplaceDatasetHandleEntity> handlesByDatasetId = marketplaceDatasetHandleRepository
+            .findByDeploymentIdOrderByUpdatedAtDesc(entity.getDeploymentId()).stream()
+            .collect(java.util.stream.Collectors.toMap(
+                handle -> normalizeDatasetId(handle.getDatasetId()),
+                handle -> handle,
+                (left, right) -> left,
+                LinkedHashMap::new
+            ));
+
+        List<MarketplaceDatasetHandleEntity> relevantHandles = new java.util.ArrayList<>();
+        if (catalogRequired) {
+            MarketplaceDatasetHandleEntity catalog = handlesByDatasetId.get("shopify-catalog");
+            if (catalog == null) {
+                return;
+            }
+            relevantHandles.add(catalog);
+        }
+        if (policiesRequired) {
+            MarketplaceDatasetHandleEntity policies = handlesByDatasetId.get("shopify-policies");
+            if (policies == null) {
+                return;
+            }
+            relevantHandles.add(policies);
+        }
+
+        Instant reconciledAt = relevantHandles.stream()
+            .map(MarketplaceDatasetHandleEntity::getLastSyncAt)
+            .filter(java.util.Objects::nonNull)
+            .max(Comparator.naturalOrder())
+            .orElse(latestRelease.getAppliedAt() != null ? latestRelease.getAppliedAt() : latestRelease.getUpdatedAt());
+        if (relevantHandles.stream().allMatch(this::isReadyHandle)) {
+            long documentCount = estimateDocumentCount(relevantHandles);
+            persistDerivedSyncState(entity, "SYNCED", reconciledAt, documentCount, buildDerivedSyncMessage(documentCount));
+            return;
+        }
+
+        MarketplaceDatasetHandleEntity failedHandle = relevantHandles.stream()
+            .filter(handle -> "FAILED".equalsIgnoreCase(handle.getStatus()))
+            .findFirst()
+            .orElse(null);
+        if (failedHandle != null) {
+            String message = hasText(failedHandle.getLastError())
+                ? failedHandle.getLastError().trim()
+                : "Apply-time Shopify data sync failed for dataset " + failedHandle.getDatasetId() + ".";
+            persistDerivedSyncState(entity, "FAILED", reconciledAt, 0, message);
+        }
+    }
+
+    private void persistDerivedSyncState(ShopifyStoreConnectionEntity entity,
+                                         String status,
+                                         Instant checkedAt,
+                                         long documentCount,
+                                         String message) {
+        Instant resolvedCheckedAt = checkedAt != null ? checkedAt : Instant.now();
+        String normalizedStatus = normalizeStatus(status, entity.getSyncStatus());
+        String resolvedMessage = trimToNull(message);
+
+        var current = sourcePreflightSupport.summarizeSync(entity.getDetailsJson());
+        boolean unchanged = equalsIgnoreCase(entity.getSyncStatus(), normalizedStatus)
+            && java.util.Objects.equals(entity.getLastSyncAt(), resolvedCheckedAt)
+            && current != null
+            && equalsIgnoreCase(current.status(), normalizedStatus)
+            && java.util.Objects.equals(current.checkedAt(), resolvedCheckedAt)
+            && "APPLY_RELEASE".equalsIgnoreCase(current.mode())
+            && current.documentCount() == Math.toIntExact(Math.max(documentCount, 0))
+            && java.util.Objects.equals(trimToNull(current.message()), resolvedMessage);
+        if (unchanged) {
+            return;
+        }
+
+        var details = sourcePreflightSupport.mutableDetails(entity.getDetailsJson());
+        var sync = details.putObject("sync");
+        sync.put("status", normalizedStatus);
+        sync.put("checkedAt", resolvedCheckedAt.toString());
+        sync.put("mode", "APPLY_RELEASE");
+        sync.put("documentCount", Math.toIntExact(Math.max(documentCount, 0)));
+        if (resolvedMessage != null) {
+            sync.put("message", resolvedMessage);
+        } else {
+            sync.remove("message");
+        }
+
+        entity.setSyncStatus(normalizedStatus);
+        entity.setLastSyncAt(resolvedCheckedAt);
+        if ("FAILED".equalsIgnoreCase(normalizedStatus)) {
+            entity.setOnboardingStatus("BLOCKED");
+        } else if ("BLOCKED".equalsIgnoreCase(entity.getOnboardingStatus())) {
+            entity.setOnboardingStatus("PLATFORM_BOOTSTRAPPED");
+        }
+        entity.setDetailsJson(sourcePreflightSupport.writeJson(details));
+        entity.setUpdatedAt(Instant.now());
+        repository.save(entity);
+    }
+
+    private long estimateDocumentCount(List<MarketplaceDatasetHandleEntity> relevantHandles) {
+        if (marketplaceDatasetDocumentRepository == null) {
+            return 0;
+        }
+        long total = 0;
+        for (MarketplaceDatasetHandleEntity handle : relevantHandles) {
+            total += marketplaceDatasetDocumentRepository.findByDatasetHandleIdOrderByDocumentIdAsc(handle.getId()).size();
+        }
+        return total;
+    }
+
+    private String buildDerivedSyncMessage(long documentCount) {
+        return documentCount > 0
+            ? "Apply-time Shopify dataset sync verified " + documentCount + " documents in the deployment runtime."
+            : "Apply-time Shopify dataset sync completed for the deployment runtime.";
+    }
+
+    private boolean isReadyHandle(MarketplaceDatasetHandleEntity handle) {
+        return handle != null
+            && "READY".equalsIgnoreCase(handle.getStatus())
+            && handle.getLastSyncAt() != null;
+    }
+
+    private String normalizeDatasetId(String datasetId) {
+        return datasetId == null ? "" : datasetId.trim().toLowerCase(Locale.ROOT);
     }
 
     private ResolvedStoreContext resolveStoreContext(ShopifyStoreConnectionEntity entity) {
@@ -503,6 +681,10 @@ public class ShopifyStoreConnectionService {
 
     private String trimToNull(String value) {
         return hasText(value) ? value.trim() : null;
+    }
+
+    private boolean equalsIgnoreCase(String left, String right) {
+        return left != null && right != null && left.equalsIgnoreCase(right);
     }
 
     private String generateId(String prefix) {
