@@ -156,6 +156,21 @@ export async function goLiveStore(): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/go-live', { method: 'POST' })
 }
 
+export async function updateSourceSettings(settings: {
+  productsEnabled: boolean
+  collectionsEnabled: boolean
+  pagesEnabled: boolean
+  policiesEnabled: boolean
+}): Promise<ShopifyBridgeStoreSummary> {
+  return authenticatedFetchJson('/api/app/store/source-settings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(settings),
+  })
+}
+
 async function authenticatedFetchJson<T>(input: string, init: RequestInit): Promise<T> {
   const token = await resolveSessionToken()
   return fetchJson<T>(input, {

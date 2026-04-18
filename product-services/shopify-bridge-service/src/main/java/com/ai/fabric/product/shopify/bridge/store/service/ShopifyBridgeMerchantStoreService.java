@@ -10,6 +10,7 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecord
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -72,6 +73,62 @@ public class ShopifyBridgeMerchantStoreService {
         return platformShopifyStoreClient.goLive(merchantSession.shopDomain());
     }
 
+    public ShopifyBridgeStoreSummary updateSourceSettings(ShopifyMerchantSession merchantSession,
+                                                          ShopifyBridgeUpdateSourceSettingsRequest request) {
+        ShopifyBridgeStoreSummary current = findStoreOrNull(merchantSession.shopDomain());
+        boolean productsEnabled = request.productsEnabled() == null || request.productsEnabled();
+        boolean collectionsEnabled = request.collectionsEnabled() == null || request.collectionsEnabled();
+        boolean pagesEnabled = request.pagesEnabled() == null || request.pagesEnabled();
+        boolean policiesEnabled = request.policiesEnabled() == null || request.policiesEnabled();
+
+        if (current == null) {
+            return platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
+                merchantSession.shopDomain(),
+                defaultDisplayName(merchantSession.shopDomain()),
+                properties.serviceRef(),
+                null,
+                null,
+                null,
+                "INSTALLED",
+                "NOT_SYNCED",
+                "NOT_RUN",
+                "NOT_ENABLED",
+                "CONNECTED",
+                productsEnabled,
+                collectionsEnabled,
+                pagesEnabled,
+                policiesEnabled
+            ));
+        }
+
+        boolean togglesChanged = current.productsEnabled() != productsEnabled
+            || current.collectionsEnabled() != collectionsEnabled
+            || current.pagesEnabled() != pagesEnabled
+            || current.policiesEnabled() != policiesEnabled;
+
+        if (!togglesChanged) {
+            return current;
+        }
+
+        return platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
+            current.shopDomain(),
+            current.displayName(),
+            current.productServiceRef(),
+            current.customerId(),
+            current.deploymentId(),
+            current.consumerId(),
+            current.installStatus(),
+            "NOT_SYNCED",
+            "NOT_RUN",
+            current.widgetStatus(),
+            hasPlatformBindings(current) ? "PLATFORM_BOOTSTRAPPED" : "CONNECTED",
+            productsEnabled,
+            collectionsEnabled,
+            pagesEnabled,
+            policiesEnabled
+        ));
+    }
+
     private ShopifyBridgeCredentialAcquisition acquireConnectedCredentials(ShopifyMerchantSession merchantSession,
                                                                            String authorizationHeader) {
         ShopifyBridgeStoreSummary current = findStoreOrNull(merchantSession.shopDomain());
@@ -114,5 +171,11 @@ public class ShopifyBridgeMerchantStoreService {
             return "Shopify store";
         }
         return shopDomain.trim().toLowerCase();
+    }
+
+    private boolean hasPlatformBindings(ShopifyBridgeStoreSummary store) {
+        return store.customerId() != null && !store.customerId().isBlank()
+            && store.deploymentId() != null && !store.deploymentId().isBlank()
+            && store.consumerId() != null && !store.consumerId().isBlank();
     }
 }

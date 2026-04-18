@@ -7,6 +7,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   Divider,
   InlineStack,
   List,
@@ -21,6 +22,7 @@ import {
   fetchShell,
   goLiveStore,
   runSourcePreflight,
+  updateSourceSettings,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
@@ -66,7 +68,13 @@ export default function App() {
   })
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'go-live' | null>(null)
+  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'go-live' | 'source-settings' | null>(null)
+  const [sourceSettings, setSourceSettings] = useState({
+    productsEnabled: true,
+    collectionsEnabled: true,
+    pagesEnabled: true,
+    policiesEnabled: true,
+  })
 
   useEffect(() => {
     void refresh()
@@ -105,6 +113,14 @@ export default function App() {
         loading: false,
         error: null,
       })
+      if (session?.store) {
+        setSourceSettings({
+          productsEnabled: session.store.productsEnabled,
+          collectionsEnabled: session.store.collectionsEnabled,
+          pagesEnabled: session.store.pagesEnabled,
+          policiesEnabled: session.store.policiesEnabled,
+        })
+      }
     } catch (error) {
       setState({
         shell: null,
@@ -184,6 +200,24 @@ export default function App() {
     }
   }
 
+  async function handleSourceSettingsSave() {
+    setBusyAction('source-settings')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const store = await updateSourceSettings(sourceSettings)
+      setState((current) => ({
+        ...current,
+        session: current.session ? { ...current.session, store } : current.session,
+      }))
+      setActionMessage(`Updated source categories for ${store.shopDomain}. Run source preflight again before go-live.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to update source settings.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   function applyBootstrapResult(result: ShopifyBridgeStoreBootstrapResponse) {
     setState((current) => ({
       ...current,
@@ -199,6 +233,12 @@ export default function App() {
     Boolean(store) &&
     Boolean(store?.readiness?.goLiveEligible) &&
     !isReleaseInProgress(store?.latestRelease?.status)
+  const sourceSettingsDirty =
+    !!store &&
+    (store.productsEnabled !== sourceSettings.productsEnabled ||
+      store.collectionsEnabled !== sourceSettings.collectionsEnabled ||
+      store.pagesEnabled !== sourceSettings.pagesEnabled ||
+      store.policiesEnabled !== sourceSettings.policiesEnabled)
 
   return (
     <AppProvider i18n={enTranslations}>
@@ -253,6 +293,48 @@ export default function App() {
                       No authenticated Shopify merchant session is available yet.
                     </Text>
                   )}
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Source categories
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Choose the bounded Shopify source categories that should flow into Companion knowledge. Changing these toggles resets source readiness and requires a fresh preflight and apply-time sync.
+                  </Text>
+                  <Checkbox
+                    label="Products"
+                    checked={sourceSettings.productsEnabled}
+                    onChange={(checked) => setSourceSettings((current) => ({ ...current, productsEnabled: checked }))}
+                  />
+                  <Checkbox
+                    label="Collections"
+                    checked={sourceSettings.collectionsEnabled}
+                    onChange={(checked) => setSourceSettings((current) => ({ ...current, collectionsEnabled: checked }))}
+                  />
+                  <Checkbox
+                    label="Pages"
+                    checked={sourceSettings.pagesEnabled}
+                    onChange={(checked) => setSourceSettings((current) => ({ ...current, pagesEnabled: checked }))}
+                  />
+                  <Checkbox
+                    label="Policies"
+                    checked={sourceSettings.policiesEnabled}
+                    onChange={(checked) => setSourceSettings((current) => ({ ...current, policiesEnabled: checked }))}
+                  />
+                  <InlineStack gap="200">
+                    <Button
+                      onClick={() => void handleSourceSettingsSave()}
+                      loading={busyAction === 'source-settings'}
+                      disabled={!session || !sourceSettingsDirty}
+                    >
+                      Save source settings
+                    </Button>
+                  </InlineStack>
                 </BlockStack>
               </Card>
             </Box>

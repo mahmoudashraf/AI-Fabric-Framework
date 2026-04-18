@@ -11,6 +11,7 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMa
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -182,6 +183,44 @@ class ShopifyBridgeMerchantStoreServiceTest {
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         verify(installCredentialService).acquireAndPersistMaterial(session(), "Bearer session-token");
         verify(sourcePreflightService).run(acquisition);
+    }
+
+    @Test
+    void updateSourceSettingsResetsReadinessAndSyncWhenTogglesChange() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            mock(ShopifyBridgeInstallCredentialService.class),
+            mock(ShopifyBridgeSourcePreflightService.class)
+        );
+        when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
+        when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));
+
+        ShopifyBridgeStoreSummary response = service.updateSourceSettings(
+            session(),
+            new ShopifyBridgeUpdateSourceSettingsRequest(true, false, true, false)
+        );
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        verify(client).upsertStore(new ShopifyBridgeUpsertStoreRequest(
+            "alpha.myshopify.com",
+            "Alpha",
+            "shopify-bridge-prod",
+            "cust-1",
+            "dep-1",
+            "consumer-1",
+            "INSTALLED",
+            "NOT_SYNCED",
+            "NOT_RUN",
+            "NOT_ENABLED",
+            "PLATFORM_BOOTSTRAPPED",
+            true,
+            false,
+            true,
+            false
+        ));
     }
 
     private ShopifyMerchantSession session() {

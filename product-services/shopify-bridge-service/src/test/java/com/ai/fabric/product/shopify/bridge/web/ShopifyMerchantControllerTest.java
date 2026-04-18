@@ -130,6 +130,27 @@ class ShopifyMerchantControllerTest {
         verify(merchantStoreService).goLive(any(), anyString());
     }
 
+    @Test
+    void updateSourceSettingsUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.updateSourceSettings(any(), any())).thenReturn(store());
+
+        mockMvc.perform(post("/api/app/store/source-settings")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "productsEnabled": true,
+                      "collectionsEnabled": false,
+                      "pagesEnabled": true,
+                      "policiesEnabled": false
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+
+        verify(merchantStoreService).updateSourceSettings(any(), any());
+    }
+
     private ShopifyBridgeStoreSummary store() {
         return new ShopifyBridgeStoreSummary(
             "shp-1",

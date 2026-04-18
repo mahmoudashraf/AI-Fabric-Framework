@@ -4,10 +4,12 @@ import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
@@ -50,6 +52,15 @@ public class ShopifyMerchantController {
     public ShopifyBridgeStoreSummary goLive(Authentication authentication,
                                             @RequestHeader("Authorization") String authorizationHeader) {
         return merchantStoreService.goLive(requireMerchant(authentication), authorizationHeader);
+    }
+
+    @PostMapping("/store/source-settings")
+    public ShopifyBridgeStoreSummary updateSourceSettings(Authentication authentication,
+                                                          @RequestBody(required = false) ShopifyBridgeUpdateSourceSettingsRequest request) {
+        return merchantStoreService.updateSourceSettings(
+            requireMerchant(authentication),
+            request == null ? new ShopifyBridgeUpdateSourceSettingsRequest(null, null, null, null) : request
+        );
     }
 
     private ShopifyMerchantSession requireMerchant(Authentication authentication) {
