@@ -550,6 +550,34 @@ Build:
 - QA matrix
 - review package
 - support and install docs
+- uninstall and cleanup posture
+
+### 10.1 Sequence coverage rule
+
+The roadmap must cover the same sequence defined in the Companion subscription flow:
+
+1. install and identity
+2. product provisioning
+3. source readiness and preflight
+4. publish, apply, sync, and verify
+5. storefront enablement
+6. live shopper use
+7. ongoing operation
+
+For Shopify Companion, those sequence phases map to the roadmap as follows:
+
+- Phase 0 readiness:
+  - platform capability lock
+  - Shopify Bridge service APIs and operations
+  - sync and verification foundations
+- Phase 1 internal beta:
+  - install, provisioning, source preflight, apply-time sync, storefront enablement, and live shopper proof
+- Phase 2 review-ready public app:
+  - merchant-facing completion, review package, billing posture, and submission readiness
+- later product phases:
+  - bounded expansion, not architectural redefinition
+
+If a roadmap phase does not clearly advance one or more sequence phases, it should be reworked or removed.
 
 ---
 

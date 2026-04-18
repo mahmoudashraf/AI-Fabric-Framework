@@ -1050,6 +1050,7 @@ Build:
 
 - comparison card/panel
 - review-grounded rendering
+- review-aware empty-state and fallback behavior
 - policy answer UX
 - shopper-safe sources rendering
 - merchant playground improvements
@@ -1081,6 +1082,7 @@ Build:
 - pilot merchant rollout
 - support runbooks
 - reliability fixes from real store testing
+- uninstall and cleanup implementation
 - uninstall and cleanup verification
 
 Acceptance:
@@ -1088,6 +1090,117 @@ Acceptance:
 - multiple real stores complete onboarding
 - launch blockers from real store behavior are resolved
 - support burden is manageable
+
+### 16.1 Sequence-To-Wave Traceability
+
+Implementation should follow the product sequence explicitly rather than treating waves as isolated work buckets.
+
+#### Phase 1: Install and identity
+
+Owned by:
+
+- Wave 1
+
+Required outputs:
+
+- Partner App configuration
+- embedded admin shell
+- Shopify auth/session-token path
+- merchant install record and shop identity persistence
+
+#### Phase 2: Product provisioning
+
+Owned by:
+
+- Wave 0
+- Wave 2
+
+Required outputs:
+
+- canonical Shopify Companion bundle
+- customer creation or selection rule
+- deployment creation from bundle
+- consumer creation and binding
+- deployment status lookup
+
+#### Phase 3: Source readiness and preflight
+
+Owned by:
+
+- Wave 3
+
+Required outputs:
+
+- source readers
+- source preflight pipeline
+- approved review-provider readiness checks
+- merchant readiness diagnostics
+
+#### Phase 4: Publish, apply, sync, and verify
+
+Owned by:
+
+- Wave 2
+- Wave 3
+
+Required outputs:
+
+- publish/apply trigger from the product path
+- apply-time dataset sync and vectorization
+- consumer binding verification
+- knowledge-source verification
+- review-provider sync verification where supported
+
+#### Phase 5: Storefront enablement
+
+Owned by:
+
+- Wave 4
+
+Required outputs:
+
+- theme app extension
+- app embed activation flow
+- storefront bootstrap/config contract
+- preview and activation guidance
+
+#### Phase 6: Live shopper use
+
+Owned by:
+
+- Wave 5
+- Wave 6
+
+Required outputs:
+
+- read-first action catalog
+- grounded shopper answer flows
+- comparison UX
+- review-aware rendering and fallback behavior
+- policy answer UX
+
+#### Phase 7: Ongoing operation
+
+Owned by:
+
+- Wave 1
+- Wave 2
+- Wave 3
+- Wave 7
+- Wave 8
+
+Required outputs:
+
+- Shopify Bridge service operations and diagnostics
+- service-understanding APIs
+- sync health and resync
+- billing and analytics
+- support runbooks
+- uninstall and cleanup posture
+
+Important rule:
+
+- if a sequence phase has no owning wave and no defined outputs, the plan is incomplete
 
 ---
 
