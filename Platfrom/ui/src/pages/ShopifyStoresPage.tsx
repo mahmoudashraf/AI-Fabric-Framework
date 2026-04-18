@@ -29,6 +29,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   bootstrapShopifyStore,
+  deleteShopifyStore,
   fetchProductServices,
   fetchShopifyStore,
   fetchShopifyStores,
@@ -119,6 +120,9 @@ export function ShopifyStoresPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [preflightDialogOpen, setPreflightDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deleteForce, setDeleteForce] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [form, setForm] = useState<StoreFormState>(emptyForm)
   const [preflightCategories, setPreflightCategories] = useState<PreflightFormCategory[]>([])
@@ -230,6 +234,24 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: ({ shopDomain, force }: { shopDomain: string; force: boolean }) => deleteShopifyStore(shopDomain, force),
+    onSuccess: async (_, variables) => {
+      setMessage({ type: 'success', text: `Removed Shopify store mapping ${variables.shopDomain}.` })
+      setDeleteDialogOpen(false)
+      setDeleteConfirmation('')
+      setDeleteForce(false)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+      ])
+      setSearchParams({}, { replace: true })
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to delete Shopify store mapping.' })
+    },
+  })
+
   const submitPreflight = () => {
     if (!selectedStore) {
       return
@@ -278,6 +300,14 @@ export function ShopifyStoresPage() {
                 disabled={bootstrapMutation.isPending}
               >
                 Bootstrap platform
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={() => setDeleteDialogOpen(true)}
+                disabled={deleteMutation.isPending}
+              >
+                Delete mapping
               </Button>
             </>
           ) : null}
@@ -619,6 +649,43 @@ export function ShopifyStoresPage() {
           <Button onClick={() => setPreflightDialogOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={submitPreflight} disabled={preflightMutation.isPending || preflightCategories.length === 0}>
             Save preflight
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Delete Shopify Store Mapping</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="warning">
+              This removes the platform mapping record only. It does not delete the underlying customer, deployment, or consumer objects.
+            </Alert>
+            {selectedStore ? (
+              <Typography variant="body2">
+                Type <strong>{selectedStore.shopDomain}</strong> to confirm deletion.
+              </Typography>
+            ) : null}
+            <TextField
+              label="Shop domain confirmation"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              fullWidth
+            />
+            <FormControlLabel
+              control={<Checkbox checked={deleteForce} onChange={(event) => setDeleteForce(event.target.checked)} />}
+              label="Force delete even if customer, deployment, or consumer bindings still exist"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => selectedStore && deleteMutation.mutate({ shopDomain: selectedStore.shopDomain, force: deleteForce })}
+            disabled={!selectedStore || deleteConfirmation.trim().toLowerCase() !== selectedStore.shopDomain.toLowerCase() || deleteMutation.isPending}
+          >
+            Delete mapping
           </Button>
         </DialogActions>
       </Dialog>

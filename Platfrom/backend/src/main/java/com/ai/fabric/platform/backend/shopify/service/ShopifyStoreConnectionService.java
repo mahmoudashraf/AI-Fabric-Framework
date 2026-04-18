@@ -63,6 +63,28 @@ public class ShopifyStoreConnectionService {
     }
 
     @Transactional
+    public void deleteConnection(String shopDomain, boolean force) {
+        ShopifyStoreConnectionEntity entity = requireConnection(shopDomain);
+        if (!force && (hasText(entity.getDeploymentId()) || hasText(entity.getConsumerId()) || "LIVE".equalsIgnoreCase(entity.getOnboardingStatus()))) {
+            throw new ResponseStatusException(CONFLICT,
+                "Shopify store mapping still has active platform bindings. Re-run deletion with force=true after reviewing the linked customer, deployment, and consumer.");
+        }
+        repository.delete(entity);
+        platformAuditService.record(
+            "SHOPIFY_STORE_CONNECTION_DELETED",
+            "SHOPIFY_STORE_CONNECTION",
+            entity.getShopDomain(),
+            java.util.Map.of(
+                "shopDomain", entity.getShopDomain(),
+                "force", Boolean.toString(force),
+                "customerId", entity.getCustomerId() == null ? "" : entity.getCustomerId(),
+                "deploymentId", entity.getDeploymentId() == null ? "" : entity.getDeploymentId(),
+                "consumerId", entity.getConsumerId() == null ? "" : entity.getConsumerId()
+            )
+        );
+    }
+
+    @Transactional
     public ShopifyStoreConnectionSummary upsertConnection(UpsertShopifyStoreConnectionRequest request) {
         String normalizedShopDomain = normalizeShopDomain(request.shopDomain());
         PlatformManagedProductServiceEntity productService = productServiceService.requireService(request.productServiceRef());

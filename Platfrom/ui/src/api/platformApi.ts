@@ -2842,6 +2842,12 @@ export function fetchShopifyStore(shopDomain: string) {
   return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}`)
 }
 
+export function deleteShopifyStore(shopDomain: string, force = false) {
+  return request<void>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}?force=${force ? 'true' : 'false'}`, {
+    method: 'DELETE',
+  })
+}
+
 export function upsertShopifyStore(payload: UpsertShopifyStoreConnectionRequest) {
   return request<ShopifyStoreConnectionSummary>('/api/shopify/stores', {
     method: 'POST',
