@@ -28,4 +28,5 @@ Current docs:
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_DESIGN_PARTNER_ROLLOUT_CHECKLIST.md`
 - `doc/Productization/future-work/MarketPlace/Products/PRODUCT_FACTORY_FACTORIZATION_CONSIDERATIONS.md`
