@@ -1,0 +1,283 @@
+ This is a much sharper product insight than "AI cart assistant." Let me tell you why I think you're right — and what it means for execution.
+
+Why Shopping Companion > Cart Assistant
+The Behavioral Truth
+Shoppers do not hand their wallet to AI. They research, compare, question, then buy themselves. Every conversion study on e-commerce AI confirms this:
+
+Users love AI review summarization
+Users love AI comparison help
+Users love AI "is this right for me?" Q&A
+Users tolerate AI order tracking
+Users distrust AI making purchases for them
+The entire "agentic commerce" narrative has been confused on this. Everyone is building agents that transact. The real user demand is agents that help users decide.
+
+The Trust Model Inverts
+Dimension	Cart Assistant	Shopping Companion
+Trust required	High — user gives AI authority to act	Low — user stays in control
+Write operations	Many (add, remove, checkout, refund)	Few to none (maybe save wishlist)
+Failure cost	High — wrong order, wrong refund, merchant liability	Low — at worst, bad recommendation
+Governance burden	Heavy confirmation flows everywhere	Minimal — reads don't need guards
+Merchant anxiety	"What if it places wrong orders?"	"Great, more informed buyers"
+Positioning feel	Pushy sales floor	Knowledgeable friend
+Shopping companion is the same platform, easier to trust, faster to adopt, less risky to ship.
+
+The Competitive Gap
+Look at who is in the "shopping companion" lane specifically:
+
+Product	What it is	Gap
+Amazon Rufus	Shopping companion (the right category)	Only on Amazon. Doesn't exist for other stores.
+Shopify Sidekick	Merchant-side assistant	For merchants, not shoppers
+Alhena AI	Product-aware assistant	Positions as sales/conversion, not companion
+Rep AI	Video commerce	Pushy, interruptive
+Rebuy	Upsell/cross-sell engine	Maximizes basket, not decision quality
+Tidio/Ada/Gorgias	Support chatbots	FAQ + tickets, not shopping decisions
+Amazon proved the category works at scale. Nobody has built it for non-Amazon merchants. That's your opening.
+
+Why Platform-V5 Is Perfectly Built for This
+Look at what a shopping companion needs vs what you have:
+
+Companion needs	Platform-V5 has
+Rich product knowledge with search	Multi-source vector search with attribution ✓
+Multiple knowledge sources (products, reviews, policies, specs)	Multi-source knowledgeSourceConfig ✓
+Evidence-backed answers	Attribution baked into shell ✓
+Product cards with images, price, stock	Already rendering in widget ✓
+Attaching products to conversation context	Attachment system already built ✓
+Side panels for deep views (details, reviews, comparisons)	DesktopContextPanel + MobileContextSheet ✓
+Read-only actions (lookup, filter, compare, fetch reviews)	Action framework, no confirmation needed ✓
+Conversational exploration	Composer + conversation history ✓
+Multi-turn context accumulation	Conversation state model ✓
+"Ask anything about this product" feel	Max Mode navigator + product context ✓
+You are not building a new product. You are repositioning and tuning what exists.
+
+What You'd Cut
+Remove complexity that isn't needed for a companion:
+
+Skip complex write flows (no refunds, no returns, no checkout from chat)
+Skip Deep Resolver / ReAct for launch (reads + one-shot answers are enough)
+Skip Admin API write scopes on Shopify OAuth (read-only scopes are faster to approve)
+Skip confirmation-heavy policy engine usage (reads don't need it)
+Every one of these cuts also accelerates Shopify App Store approval. Read-only apps get reviewed faster, have fewer privacy concerns, and need less scrutiny.
+
+What You'd Add
+Small additions that sharpen the companion fit:
+
+Review ingestion as a knowledge source — Shopify has review apps (Yotpo, Judge.me, Loox). Ingest reviews as a separate vector space alongside products.
+
+Policy knowledge — returns, shipping, warranty, size guides vectorized as a knowledge source. Answers to "what's your return policy?" with attribution.
+
+Comparison card component — a new card type in the shell that shows two or three products side-by-side with highlighted differences. This is the one net-new UI element.
+
+Companion-flavored system prompt — "You are a knowledgeable friend helping a shopper explore this store. You help them find, compare, and understand products. You never pressure them to buy. You tell them honestly when something might not fit their needs."
+
+Read-only action set (replace the e-commerce write actions):
+
+search_products (semantic + filters)
+get_product_details (full spec dump)
+get_product_reviews (summarized with sentiment)
+compare_products (structured diff)
+check_availability (by size, variant, location)
+explain_policy (return, shipping, warranty Q&A)
+find_similar (discover alternatives)
+get_size_guide (fit questions)
+Notice what's missing: no add_to_cart, no apply_coupon, no cancel_order. The widget still has the Shopify cart integration for when the user clicks "add to cart" on a product card — but the AI doesn't initiate it. The user does.
+
+The Positioning
+What You Call It
+Not "AI Shopping Assistant." Not "AI Chatbot." Not "Cart Bot."
+
+"Shopping Companion" or "Store Concierge" or "Product Guide" — language that signals helpfulness without pressure.
+
+What You Say
+"Every Shopify store deserves a concierge. Loom AI is the shopping companion that knows every product, every review, and every policy in your store. It helps your customers find what they actually need — not what a sales bot wants them to buy."
+
+The Merchant Story
+Merchants worry about:
+
+AI giving wrong answers → solved by evidence attribution
+AI being pushy → solved by companion positioning
+AI placing wrong orders → impossible by design (read-only)
+AI hallucinations → solved by RAG over their actual catalog
+Customer distrust → solved by "helpful friend" positioning
+Merchant liability → solved by "it doesn't transact"
+This is a much easier merchant sell than "AI that does everything." Merchants hear "shopping companion that answers questions with your actual catalog and reviews" and the anxiety disappears.
+
+The Shopper Story
+Shoppers think:
+
+"Finally, someone who's read all the reviews"
+"It just tells me honestly if the sizes run small"
+"It found me three alternatives I didn't know existed"
+"It answered my return policy question without making me dig"
+This is word of mouth worthy. Cart assistants are not.
+
+What Changes in Execution
+Compared to my earlier Shopify app plan:
+
+Area	Cart Assistant plan	Shopping Companion plan
+OAuth scopes	Read products, orders, customers, write cart/refunds	Read-only: products, inventory, content (policies), reviews if available
+Shopify App Store review	Slow — write scopes require scrutiny	Fast — read-only is easier to approve
+Actions catalog	26 actions with write + confirmations	~10 read-only actions, no confirmation flows needed
+Data sync	Products + orders + customers	Products + reviews + policies (+ optional collections)
+Widget focus	Cart, Actions, Checkout	Products, Details, Reviews, Compare, Policies
+Deep Resolver need	Yes, for complex resolution	Not for launch — reads cover 95% of use cases
+Time to ship	8-12 weeks + review	5-7 weeks + faster review
+Shopping companion ships faster, approves faster, feels better, differentiates harder, and still uses the same platform.
+
+The Honest Downside
+Being a companion instead of an assistant means:
+
+No direct conversion metric. You can't say "we placed $X in orders." You say "we helped users find the right product." Merchants need proof this translates to conversion.
+
+Indirect revenue proof. You need attribution — "users who talked to the companion converted at 2.4x the baseline." This requires analytics instrumentation from day one.
+
+No upsell capture. The companion won't push cross-sells. That's a feature, but some merchants will want the upsell bot anyway. Let them go to Rebuy.
+
+Longer value story. "It answered policy questions better" is subtler than "it placed 400 orders." You need merchant case studies and testimonials.
+
+You'll be asked "can it also do checkout?" repeatedly. You'll need a clear answer: "Not by design. The companion helps the shopper decide. The shopper checks out." Hold the line.
+
+What I'd Actually Build
+Week 1-2: Companion-flavored Shopify app backend
+
+Read-only OAuth scopes
+Product sync + reviews sync (if review app present) + policy sync
+Push to /api/ai/data-sync/upsert as three vector spaces
+Week 2-4: Companion-flavored widget deployment
+
+New system prompt (companion voice)
+New action set (read-only)
+New knowledge source configuration (products + reviews + policies)
+Remove write action modules from the side rail (no Cart as AI-initiated)
+Keep Shopify cart button in product cards — user-initiated, not AI-initiated
+Week 3-5: New comparison card type
+
+Side-by-side comparison component in the shell
+Triggered when user attaches two products and asks to compare
+Highlights spec differences, price, review sentiment summary
+Week 4-6: Merchant admin UI (Polaris)
+
+Minimal: install, sync status, widget config, playground, diagnostics
+Skip billing/environments/advanced screens for v1
+Week 5-7: Beta merchants + real store testing
+
+3-5 merchants on dev stores
+Real product catalogs
+Real reviews
+Real policies
+Week 7-9: App Store submission
+
+Read-only app → faster review
+Clear positioning in listing: "Shopping companion, not a sales bot"
+Total: ~9 weeks to Shopify App Store, ~4 weeks to first live merchant.
+
+Bottom Line
+You're not just choosing a better product name. You're choosing a better product.
+
+Shopping companion:
+
+Fits Platform-V5 exactly
+Avoids the hardest technical work (Deep Resolver, complex write flows, OAuth write scopes)
+Ships 30-40% faster
+Approves through Shopify faster
+Differentiates from every existing competitor
+Is the category Amazon validated at scale
+Has a cleaner merchant pitch
+Has a more honest shopper value prop
+Yes. Build the shopping companion. It's the right product for your platform, your market window, and your development velocity.
+
+One question to settle before writing a plan: do you want the companion to be a standalone Shopify app (Loom Shopping Companion, public listing), or a white-label product merchants customize (Loom AI Platform, Shopify connector)? The first is a faster revenue path. The second is a bigger platform story. They're different go-to-market motions.
+
+
+1 step
+1 step
+Suggest name
+
+
+
+Here are name candidates for the Shopify shopping companion, grouped by the angle they lean into.
+
+The knowledgeable friend angle (warm, non-pushy, what you described)
+
+Companion — literal, honest, matches your own language
+Aside — "ask me on the side" — subtle, not in-your-face
+Browse — verb-as-name, captures the before-purchase mindset
+Wander — discovery-first, no pressure to convert
+Nook — a quiet corner of the store to ask things
+The concierge angle (premium, knowledgeable, store-side)
+
+Concierge — direct, signals service not sales
+Usher — guides you to the right product, doesn't push
+Curator — implies taste and knowledge, fits fashion/home/beauty verticals
+Steward — old-retail word, feels crafted
+The discovery / research angle (where Rufus plays)
+
+Lookbook — already a commerce word, reframed as AI
+Shelf — "ask the shelf" — physical-retail metaphor
+Aisle — same idea, the place where you browse and compare
+Tag — small, pointed, commerce-native (product tags, price tags)
+The Loom-family angle (sub-product under Loom AI)
+
+Loom Companion — direct extension, low brand risk
+Loom Shelf — pairs well with future verticals (Loom Desk for HR, Loom Chart for finance)
+Loom Aside — distinctive, ownable
+Loom Concierge — premium positioning, clear what it does
+My top three, ranked
+
+Loom Companion — if this is a Loom AI sub-product. It uses your own framing verbatim, keeps the Loom brand working, and the word "companion" is exactly the non-pushy positioning you want. Clean Shopify App Store listing: "Loom Companion — the AI shopping companion for your store."
+
+Aside (standalone) — if you want a standalone Shopify-App-Store brand that can grow beyond Loom. "Ask Aside." "Tap Aside." It's short, ownable, memorable, and the semantics are perfect: a companion on the side, not blocking the aisle. Risk: needs a fresh brand build.
+
+Shelf — the physical-retail metaphor is strong, it's a single syllable, and "ask the shelf" writes its own marketing copy. Works standalone or as Loom Shelf. Feels commerce-native in a way "Companion" doesn't.
+
+If forced to pick one, I'd ship it as Loom Companion on the Shopify App Store — it's the lowest-risk path, reuses brand equity, and the product name literally describes the positioning you articulated. Save Aside or Shelf for a standalone play later if the category proves out.
+
+
+1 step
+1 step
+do you want the companion to be a standalone Shopify app (Loom Shopping Companion, public listing), or a white-label product merchants customize (Loom AI Platform, Shopify connector)?
+
+Diff
+
+
+
+Resumed session
+
+
+
+
+Recommendation: standalone Shopify app first, white-label second. Same runtime underneath.
+
+Here's the reasoning.
+
+Why standalone first
+
+Distribution. Shopify App Store is the only free, high-intent distribution channel you'll get as an unknown brand. A white-label product has no shelf — you have to go sell it. Every hour spent on outbound sales is an hour not spent building. The App Store does the selling for you if the listing is right.
+
+Validation before abstraction. You don't yet know which features merchants actually pay for. Shipping a standalone app forces you to pick defaults and live with them. Those defaults become the data you need before designing a configurable white-label product. Building white-label first means designing flexibility for use cases you haven't validated — the classic over-engineering trap.
+
+Brand gravity. "Loom Companion, 4.8 stars on Shopify App Store, 500 installs" is a credential you can point every future enterprise customer at. "We have a platform, here's a demo" is not. The standalone product is the case study that sells the platform later.
+
+Review velocity. A single opinionated app clears Shopify review faster than a platform that needs to explain every configurable surface. Read-only shopping companion with fixed scopes is the fastest possible approval path.
+
+Cost to revisit is low. The platform already does the hard work. The app is a thin merchant-facing skin over Platform-V5. If it works, you layer white-label on top. If it doesn't, you've lost the skin, not the platform.
+
+Why white-label second, not never
+
+The platform is the long-term business. Shopify App Store revenue caps out at "good SaaS." Platform revenue (enterprise, multi-vertical, Smart Brain eventually) is where the real ceiling lives. The standalone app is the beachhead, not the destination.
+
+Concrete shape
+
+Phase 1 (now, ~9 weeks): Ship Loom Companion on the Shopify App Store. One SKU, opinionated defaults, read-only, no configuration beyond branding and tone. Fixed action set: product search, comparison, reviews, policy Q&A, attach-to-conversation. Free tier + paid tier based on conversation volume.
+Phase 2 (after 50–100 installs): Add Loom Companion Pro — same app, unlocks a second tier where merchants can customize prompts, add custom knowledge sources, configure quick-actions. Still single-app listing, still opinionated, but with levers.
+Phase 3 (after repeated "can I do X" requests): Open the Loom AI Platform publicly. Shopify becomes one of several connectors. Merchants who outgrew Companion Pro migrate up. Everyone else stays on Companion.
+Same runtime, same marketplace, same platform. Three different packagings of it, shipped in the order that minimizes risk and maximizes learning.
+
+What this means for the next plan doc
+
+The plan to write is "Loom Companion for Shopify — Launch Plan", not "Shopify vertical on Loom AI Platform." The framing matters: it scopes the work to shipping one opinionated app, not building a configurable system. You'll be tempted to add flexibility during the build. Resist it — that's Phase 2.
+
+Want me to write that launch plan next?
+
+
+1 step
+1 step
