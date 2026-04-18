@@ -38,6 +38,7 @@ import static org.mockito.Mockito.when;
 class PublicConsumerBridgeChatServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final String LONG_CONTEXT_TEXT = "X".repeat(300);
 
     @Test
     void queryPrefersPrivateRuntimeHeadersForBridgeTraffic() throws Exception {
@@ -73,8 +74,30 @@ class PublicConsumerBridgeChatServiceTest {
             JsonNode response = service.query(
                 "consumer-alpha",
                 objectMapper.readTree("""
-                    {"query":"Find laptop bags","conversationId":"conv-1","promptPreview":{"systemPrompt":"skip"}}
-                    """),
+                    {
+                      "query":"Find laptop bags",
+                      "conversationId":"conv-1",
+                      "promptPreview":{"systemPrompt":"skip"},
+                      "storefrontContext":{
+                        "pageType":"product",
+                        "pageTitle":"Laptop Bags Collection",
+                        "ignoredField":"skip-me",
+                        "product":{
+                          "handle":"laptop-bag-pro",
+                          "title":"%s",
+                          "vendor":"Loom",
+                          "type":"bags",
+                          "priceCents":"12900",
+                          "secretNote":"skip-me"
+                        },
+                        "collection":{
+                          "handle":"laptop-bags",
+                          "title":"Laptop Bags",
+                          "ignored":"skip-me"
+                        }
+                      }
+                    }
+                    """.formatted(LONG_CONTEXT_TEXT)),
                 "shopper-session-alpha"
             );
 
@@ -85,6 +108,18 @@ class PublicConsumerBridgeChatServiceTest {
             assertThat(requestBody.path("query").asText()).isEqualTo("Find laptop bags");
             assertThat(requestBody.path("conversationId").asText()).isEqualTo("conv-1");
             assertThat(requestBody.has("promptPreview")).isFalse();
+            assertThat(requestBody.path("storefrontContext").path("pageType").asText()).isEqualTo("product");
+            assertThat(requestBody.path("storefrontContext").path("pageTitle").asText()).isEqualTo("Laptop Bags Collection");
+            assertThat(requestBody.path("storefrontContext").path("ignoredField").isMissingNode()).isTrue();
+            assertThat(requestBody.path("storefrontContext").path("product").path("handle").asText()).isEqualTo("laptop-bag-pro");
+            assertThat(requestBody.path("storefrontContext").path("product").path("title").asText()).hasSize(240);
+            assertThat(requestBody.path("storefrontContext").path("product").path("vendor").asText()).isEqualTo("Loom");
+            assertThat(requestBody.path("storefrontContext").path("product").path("type").asText()).isEqualTo("bags");
+            assertThat(requestBody.path("storefrontContext").path("product").path("priceCents").asText()).isEqualTo("12900");
+            assertThat(requestBody.path("storefrontContext").path("product").path("secretNote").isMissingNode()).isTrue();
+            assertThat(requestBody.path("storefrontContext").path("collection").path("handle").asText()).isEqualTo("laptop-bags");
+            assertThat(requestBody.path("storefrontContext").path("collection").path("title").asText()).isEqualTo("Laptop Bags");
+            assertThat(requestBody.path("storefrontContext").path("collection").path("ignored").isMissingNode()).isTrue();
             Map<String, Object> assertion = decodeTokenPayload(capturedPrivateAuthorization.get());
             assertThat(assertion).containsEntry("authMode", "PRIVATE_RUNTIME_BACKEND_MEDIATED");
             assertThat(assertion).containsEntry("callerType", "SHOPIFY_BRIDGE_SERVICE");
@@ -98,7 +133,7 @@ class PublicConsumerBridgeChatServiceTest {
     }
 
     @Test
-    void suggestionsFallsBackToSignedPublicTokenWhenPrivateRuntimeIsUnavailable() throws Exception {
+    void suggestionsPreservesSanitizedStorefrontContextWhenUsingPublicRuntimeToken() throws Exception {
         AtomicReference<String> capturedAuthorization = new AtomicReference<>();
         AtomicReference<String> capturedBody = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
@@ -126,12 +161,45 @@ class PublicConsumerBridgeChatServiceTest {
                 objectMapper
             );
 
-            JsonNode response = service.suggestions("consumer-alpha", objectMapper.createObjectNode(), "shopper-session-beta");
+            JsonNode response = service.suggestions(
+                "consumer-alpha",
+                objectMapper.readTree("""
+                    {
+                      "content":"What should I compare here?",
+                      "maxSuggestions":9,
+                      "storefrontContext":{
+                        "pageType":"collection",
+                        "pageTitle":"Backpacks",
+                        "collection":{
+                          "id":"gid://shopify/Collection/1",
+                          "handle":"backpacks",
+                          "title":"Backpacks",
+                          "merchandisingTag":"ignore-me"
+                        },
+                        "product":{
+                          "handle":"travel-pack",
+                          "title":"Travel Pack",
+                          "extra":"ignore-me"
+                        }
+                      }
+                    }
+                    """),
+                "shopper-session-beta"
+            );
 
             assertThat(response.path("suggestions")).hasSize(2);
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
-            assertThat(requestBody.path("content").asText()).isEmpty();
-            assertThat(requestBody.path("maxSuggestions").asInt()).isEqualTo(4);
+            assertThat(requestBody.path("content").asText()).isEqualTo("What should I compare here?");
+            assertThat(requestBody.path("maxSuggestions").asInt()).isEqualTo(6);
+            assertThat(requestBody.path("storefrontContext").path("pageType").asText()).isEqualTo("collection");
+            assertThat(requestBody.path("storefrontContext").path("pageTitle").asText()).isEqualTo("Backpacks");
+            assertThat(requestBody.path("storefrontContext").path("collection").path("id").asText()).isEqualTo("gid://shopify/Collection/1");
+            assertThat(requestBody.path("storefrontContext").path("collection").path("handle").asText()).isEqualTo("backpacks");
+            assertThat(requestBody.path("storefrontContext").path("collection").path("title").asText()).isEqualTo("Backpacks");
+            assertThat(requestBody.path("storefrontContext").path("collection").path("merchandisingTag").isMissingNode()).isTrue();
+            assertThat(requestBody.path("storefrontContext").path("product").path("handle").asText()).isEqualTo("travel-pack");
+            assertThat(requestBody.path("storefrontContext").path("product").path("title").asText()).isEqualTo("Travel Pack");
+            assertThat(requestBody.path("storefrontContext").path("product").path("extra").isMissingNode()).isTrue();
             Map<String, Object> token = decodeTokenPayload(capturedAuthorization.get());
             assertThat(token).containsEntry("authMode", "PUBLIC_RUNTIME_BRIDGE_TOKEN");
             assertThat(token).containsEntry("callerType", "SHOPIFY_BRIDGE_SERVICE");

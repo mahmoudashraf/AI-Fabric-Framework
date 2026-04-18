@@ -42,6 +42,7 @@ public class PublicConsumerBridgeChatService {
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
     private static final Duration RUNTIME_TIMEOUT = Duration.ofSeconds(30);
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
+    private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
 
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PublicProvisioningApiService publicProvisioningApiService;
@@ -290,6 +291,7 @@ public class PublicConsumerBridgeChatService {
             copyTextField(request, body, "conversationId");
             copyTextField(request, body, "mode");
             copyTextField(request, body, "position");
+            copyStorefrontContext(request, body);
         }
         return body;
     }
@@ -303,6 +305,7 @@ public class PublicConsumerBridgeChatService {
                 int value = Math.max(1, Math.min(maxSuggestions.asInt(), 6));
                 body.put("maxSuggestions", value);
             }
+            copyStorefrontContext(request, body);
         }
         if (!body.has("content")) {
             body.put("content", "");
@@ -318,6 +321,59 @@ public class PublicConsumerBridgeChatService {
         if (value != null) {
             target.put(field, value);
         }
+    }
+
+    private void copyStorefrontContext(JsonNode source, ObjectNode target) {
+        if (source == null || !source.isObject()) {
+            return;
+        }
+        JsonNode rawContext = source.get("storefrontContext");
+        if (rawContext == null || !rawContext.isObject()) {
+            return;
+        }
+        ObjectNode normalized = objectMapper.createObjectNode();
+        copyLimitedTextField(rawContext, normalized, "pageType");
+        copyLimitedTextField(rawContext, normalized, "pageTitle");
+
+        JsonNode rawProduct = rawContext.get("product");
+        if (rawProduct != null && rawProduct.isObject()) {
+            ObjectNode product = objectMapper.createObjectNode();
+            copyLimitedTextField(rawProduct, product, "id");
+            copyLimitedTextField(rawProduct, product, "handle");
+            copyLimitedTextField(rawProduct, product, "title");
+            copyLimitedTextField(rawProduct, product, "vendor");
+            copyLimitedTextField(rawProduct, product, "type");
+            copyLimitedTextField(rawProduct, product, "priceCents");
+            if (!product.isEmpty()) {
+                normalized.set("product", product);
+            }
+        }
+
+        JsonNode rawCollection = rawContext.get("collection");
+        if (rawCollection != null && rawCollection.isObject()) {
+            ObjectNode collection = objectMapper.createObjectNode();
+            copyLimitedTextField(rawCollection, collection, "id");
+            copyLimitedTextField(rawCollection, collection, "handle");
+            copyLimitedTextField(rawCollection, collection, "title");
+            if (!collection.isEmpty()) {
+                normalized.set("collection", collection);
+            }
+        }
+
+        if (!normalized.isEmpty()) {
+            target.set("storefrontContext", normalized);
+        }
+    }
+
+    private void copyLimitedTextField(JsonNode source, ObjectNode target, String field) {
+        String value = trimToNull(textOrNull(source, field));
+        if (value == null) {
+            return;
+        }
+        if (value.length() > MAX_CONTEXT_TEXT_LENGTH) {
+            value = value.substring(0, MAX_CONTEXT_TEXT_LENGTH);
+        }
+        target.put(field, value);
     }
 
     private URI runtimeUri(String runtimeBaseUrl, String path) {
