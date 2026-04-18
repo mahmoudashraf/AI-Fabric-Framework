@@ -474,6 +474,11 @@ export type ShopifyStoreConnectionSummary = {
   syncStatus: string
   sourceReadinessStatus: string
   widgetStatus: string
+  onboardingStatus: string
+  productsEnabled: boolean
+  collectionsEnabled: boolean
+  pagesEnabled: boolean
+  policiesEnabled: boolean
   lastSourcePreflightAt: string | null
   lastSyncAt: string | null
   lastWebhookAt: string | null
@@ -492,6 +497,11 @@ export type UpsertShopifyStoreConnectionRequest = {
   syncStatus: string | null
   sourceReadinessStatus: string | null
   widgetStatus: string | null
+  onboardingStatus: string | null
+  productsEnabled: boolean | null
+  collectionsEnabled: boolean | null
+  pagesEnabled: boolean | null
+  policiesEnabled: boolean | null
 }
 
 export type MarketplacePluginPricingSummary = {

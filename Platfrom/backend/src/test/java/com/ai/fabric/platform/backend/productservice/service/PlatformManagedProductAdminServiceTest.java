@@ -180,6 +180,11 @@ class PlatformManagedProductAdminServiceTest {
         entity.setSyncStatus("SYNCED");
         entity.setSourceReadinessStatus("READY");
         entity.setWidgetStatus("ENABLED");
+        entity.setOnboardingStatus("LIVE");
+        entity.setProductsEnabled(true);
+        entity.setCollectionsEnabled(true);
+        entity.setPagesEnabled(true);
+        entity.setPoliciesEnabled(true);
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         return entity;

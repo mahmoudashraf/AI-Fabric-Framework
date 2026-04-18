@@ -83,13 +83,21 @@ class ShopifyStoreConnectionServiceTest {
                 "INSTALLED",
                 "NOT_SYNCED",
                 "NOT_RUN",
-                "NOT_ENABLED"
+                "NOT_ENABLED",
+                "NOT_STARTED",
+                null,
+                null,
+                null,
+                null
             )
         );
 
         assertThat(summary.customerId()).isEqualTo("cus-123");
         assertThat(summary.deploymentId()).isEqualTo("dep-123");
         assertThat(summary.productServiceRef()).isEqualTo("shopify-bridge-prod");
+        assertThat(summary.onboardingStatus()).isEqualTo("NOT_STARTED");
+        assertThat(summary.productsEnabled()).isTrue();
+        assertThat(summary.collectionsEnabled()).isTrue();
     }
 
     @Test
@@ -145,7 +153,12 @@ class ShopifyStoreConnectionServiceTest {
                 "INSTALLED",
                 "NOT_SYNCED",
                 "NOT_RUN",
-                "NOT_ENABLED"
+                "NOT_ENABLED",
+                "NOT_STARTED",
+                true,
+                true,
+                true,
+                true
             )
         ))
             .isInstanceOf(ResponseStatusException.class)

@@ -101,6 +101,11 @@ public class ShopifyStoreConnectionService {
         entity.setSyncStatus(normalizeStatus(request.syncStatus(), "NOT_SYNCED"));
         entity.setSourceReadinessStatus(normalizeStatus(request.sourceReadinessStatus(), "NOT_RUN"));
         entity.setWidgetStatus(normalizeStatus(request.widgetStatus(), "NOT_ENABLED"));
+        entity.setOnboardingStatus(normalizeStatus(request.onboardingStatus(), "NOT_STARTED"));
+        entity.setProductsEnabled(request.productsEnabled() == null || request.productsEnabled());
+        entity.setCollectionsEnabled(request.collectionsEnabled() == null || request.collectionsEnabled());
+        entity.setPagesEnabled(request.pagesEnabled() == null || request.pagesEnabled());
+        entity.setPoliciesEnabled(request.policiesEnabled() == null || request.policiesEnabled());
         entity.setUpdatedAt(Instant.now());
         repository.save(entity);
 
@@ -113,7 +118,8 @@ public class ShopifyStoreConnectionService {
                 "serviceRef", productService.getServiceRef(),
                 "customerId", resolvedCustomerId == null ? "" : resolvedCustomerId,
                 "deploymentId", entity.getDeploymentId() == null ? "" : entity.getDeploymentId(),
-                "consumerId", entity.getConsumerId() == null ? "" : entity.getConsumerId()
+                "consumerId", entity.getConsumerId() == null ? "" : entity.getConsumerId(),
+                "onboardingStatus", entity.getOnboardingStatus()
             )
         );
 
@@ -148,6 +154,11 @@ public class ShopifyStoreConnectionService {
             entity.getSyncStatus(),
             entity.getSourceReadinessStatus(),
             entity.getWidgetStatus(),
+            entity.getOnboardingStatus(),
+            entity.isProductsEnabled(),
+            entity.isCollectionsEnabled(),
+            entity.isPagesEnabled(),
+            entity.isPoliciesEnabled(),
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),

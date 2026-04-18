@@ -44,6 +44,21 @@ public class ShopifyStoreConnectionEntity {
     @Column(nullable = false)
     private String widgetStatus;
 
+    @Column(nullable = false)
+    private String onboardingStatus;
+
+    @Column(nullable = false)
+    private boolean productsEnabled;
+
+    @Column(nullable = false)
+    private boolean collectionsEnabled;
+
+    @Column(nullable = false)
+    private boolean pagesEnabled;
+
+    @Column(nullable = false)
+    private boolean policiesEnabled;
+
     @Column
     private Instant lastSourcePreflightAt;
 
@@ -150,6 +165,46 @@ public class ShopifyStoreConnectionEntity {
         this.widgetStatus = widgetStatus;
     }
 
+    public String getOnboardingStatus() {
+        return onboardingStatus;
+    }
+
+    public void setOnboardingStatus(String onboardingStatus) {
+        this.onboardingStatus = onboardingStatus;
+    }
+
+    public boolean isProductsEnabled() {
+        return productsEnabled;
+    }
+
+    public void setProductsEnabled(boolean productsEnabled) {
+        this.productsEnabled = productsEnabled;
+    }
+
+    public boolean isCollectionsEnabled() {
+        return collectionsEnabled;
+    }
+
+    public void setCollectionsEnabled(boolean collectionsEnabled) {
+        this.collectionsEnabled = collectionsEnabled;
+    }
+
+    public boolean isPagesEnabled() {
+        return pagesEnabled;
+    }
+
+    public void setPagesEnabled(boolean pagesEnabled) {
+        this.pagesEnabled = pagesEnabled;
+    }
+
+    public boolean isPoliciesEnabled() {
+        return policiesEnabled;
+    }
+
+    public void setPoliciesEnabled(boolean policiesEnabled) {
+        this.policiesEnabled = policiesEnabled;
+    }
+
     public Instant getLastSourcePreflightAt() {
         return lastSourcePreflightAt;
     }
@@ -198,4 +253,3 @@ public class ShopifyStoreConnectionEntity {
         this.updatedAt = updatedAt;
     }
 }
-

@@ -20,6 +20,11 @@ public record ShopifyStoreConnectionSummary(
     String syncStatus,
     String sourceReadinessStatus,
     String widgetStatus,
+    String onboardingStatus,
+    boolean productsEnabled,
+    boolean collectionsEnabled,
+    boolean pagesEnabled,
+    boolean policiesEnabled,
     Instant lastSourcePreflightAt,
     Instant lastSyncAt,
     Instant lastWebhookAt,
@@ -27,4 +32,3 @@ public record ShopifyStoreConnectionSummary(
     Instant updatedAt
 ) {
 }
-

@@ -13,6 +13,11 @@ public record UpsertShopifyStoreConnectionRequest(
     @Size(max = 64) String installStatus,
     @Size(max = 64) String syncStatus,
     @Size(max = 64) String sourceReadinessStatus,
-    @Size(max = 64) String widgetStatus
+    @Size(max = 64) String widgetStatus,
+    @Size(max = 64) String onboardingStatus,
+    Boolean productsEnabled,
+    Boolean collectionsEnabled,
+    Boolean pagesEnabled,
+    Boolean policiesEnabled
 ) {
 }

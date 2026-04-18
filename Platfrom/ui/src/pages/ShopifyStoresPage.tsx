@@ -5,11 +5,14 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
+  FormGroup,
   Grid,
   List,
   ListItemButton,
@@ -41,6 +44,8 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'SYNCED':
     case 'READY':
     case 'ENABLED':
+    case 'LIVE':
+    case 'PREFLIGHT_READY':
       return 'success'
     case 'FAILED':
     case 'BLOCKED':
@@ -49,6 +54,9 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'NOT_SYNCED':
     case 'NOT_ENABLED':
     case 'NOT_RUN':
+    case 'NOT_STARTED':
+    case 'INSTALL_IDENTITY_READY':
+    case 'PLATFORM_BOOTSTRAPPED':
       return 'warning'
     default:
       return 'default'
@@ -68,6 +76,11 @@ const emptyForm: StoreFormState = {
   syncStatus: 'NOT_SYNCED',
   sourceReadinessStatus: 'NOT_RUN',
   widgetStatus: 'NOT_ENABLED',
+  onboardingStatus: 'NOT_STARTED',
+  productsEnabled: true,
+  collectionsEnabled: true,
+  pagesEnabled: true,
+  policiesEnabled: true,
 }
 
 export function ShopifyStoresPage() {
@@ -198,6 +211,7 @@ export function ShopifyStoresPage() {
                     <Typography variant="h5" sx={{ fontWeight: 700 }}>
                       {selectedStore.shopDomain}
                     </Typography>
+                    <Chip size="small" label={selectedStore.onboardingStatus} color={chipColor(selectedStore.onboardingStatus)} />
                     <Chip size="small" label={selectedStore.installStatus} color={chipColor(selectedStore.installStatus)} />
                     <Chip size="small" label={selectedStore.syncStatus} color={chipColor(selectedStore.syncStatus)} />
                     <Chip size="small" label={selectedStore.sourceReadinessStatus} color={chipColor(selectedStore.sourceReadinessStatus)} />
@@ -212,6 +226,11 @@ export function ShopifyStoresPage() {
                       ['Deployment', selectedStore.deploymentName ?? selectedStore.deploymentId],
                       ['Deployment status', selectedStore.deploymentStatus],
                       ['Consumer', selectedStore.consumerDisplayName ?? selectedStore.consumerId],
+                      ['Onboarding', selectedStore.onboardingStatus],
+                      ['Products enabled', selectedStore.productsEnabled ? 'Yes' : 'No'],
+                      ['Collections enabled', selectedStore.collectionsEnabled ? 'Yes' : 'No'],
+                      ['Pages enabled', selectedStore.pagesEnabled ? 'Yes' : 'No'],
+                      ['Policies enabled', selectedStore.policiesEnabled ? 'Yes' : 'No'],
                       ['Last preflight', formatTimestamp(selectedStore.lastSourcePreflightAt)],
                       ['Last sync', formatTimestamp(selectedStore.lastSyncAt)],
                       ['Last webhook', formatTimestamp(selectedStore.lastWebhookAt)],
@@ -279,6 +298,38 @@ export function ShopifyStoresPage() {
                 <MenuItem value="FAILED">FAILED</MenuItem>
               </TextField>
             </Stack>
+            <TextField
+              select
+              label="Onboarding status"
+              value={form.onboardingStatus ?? 'NOT_STARTED'}
+              onChange={(event) => setForm((current) => ({ ...current, onboardingStatus: event.target.value }))}
+              fullWidth
+            >
+              <MenuItem value="NOT_STARTED">NOT_STARTED</MenuItem>
+              <MenuItem value="INSTALL_IDENTITY_READY">INSTALL_IDENTITY_READY</MenuItem>
+              <MenuItem value="PLATFORM_BOOTSTRAPPED">PLATFORM_BOOTSTRAPPED</MenuItem>
+              <MenuItem value="PREFLIGHT_READY">PREFLIGHT_READY</MenuItem>
+              <MenuItem value="LIVE">LIVE</MenuItem>
+              <MenuItem value="BLOCKED">BLOCKED</MenuItem>
+            </TextField>
+            <FormGroup row>
+              <FormControlLabel
+                control={<Checkbox checked={Boolean(form.productsEnabled)} onChange={(event) => setForm((current) => ({ ...current, productsEnabled: event.target.checked }))} />}
+                label="Products"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={Boolean(form.collectionsEnabled)} onChange={(event) => setForm((current) => ({ ...current, collectionsEnabled: event.target.checked }))} />}
+                label="Collections"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={Boolean(form.pagesEnabled)} onChange={(event) => setForm((current) => ({ ...current, pagesEnabled: event.target.checked }))} />}
+                label="Pages"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={Boolean(form.policiesEnabled)} onChange={(event) => setForm((current) => ({ ...current, policiesEnabled: event.target.checked }))} />}
+                label="Policies"
+              />
+            </FormGroup>
           </Stack>
         </DialogContent>
         <DialogActions>

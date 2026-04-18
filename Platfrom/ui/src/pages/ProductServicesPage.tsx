@@ -61,6 +61,8 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'NO_DRIFT':
     case 'INSTALLED':
     case 'SYNCED':
+    case 'LIVE':
+    case 'PREFLIGHT_READY':
       return 'success'
     case 'FAILED':
     case 'BLOCKED':
@@ -73,6 +75,9 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'DEGRADED':
     case 'NOT_SYNCED':
     case 'NOT_RUN':
+    case 'NOT_STARTED':
+    case 'INSTALL_IDENTITY_READY':
+    case 'PLATFORM_BOOTSTRAPPED':
       return 'warning'
     default:
       return 'default'
@@ -510,12 +515,16 @@ export function ProductServicesPage() {
                               <Stack spacing={1.25}>
                                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                                   <Typography sx={{ fontWeight: 700 }}>{store.shopDomain}</Typography>
+                                  <Chip size="small" label={store.onboardingStatus} color={chipColor(store.onboardingStatus)} />
                                   <Chip size="small" label={store.installStatus} color={chipColor(store.installStatus)} />
                                   <Chip size="small" label={store.syncStatus} color={chipColor(store.syncStatus)} />
                                   <Chip size="small" label={store.widgetStatus} color={chipColor(store.widgetStatus)} />
                                 </Stack>
                                 <Typography variant="body2" color="text.secondary">
                                   Customer {detailValue(store.customerName)} · Deployment {detailValue(store.deploymentName)} · Consumer {detailValue(store.consumerId)}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Sources: products {store.productsEnabled ? 'on' : 'off'} · collections {store.collectionsEnabled ? 'on' : 'off'} · pages {store.pagesEnabled ? 'on' : 'off'} · policies {store.policiesEnabled ? 'on' : 'off'}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary">
                                   Last preflight {formatTimestamp(store.lastSourcePreflightAt)} · Last sync {formatTimestamp(store.lastSyncAt)}
