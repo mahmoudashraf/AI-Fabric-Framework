@@ -451,7 +451,7 @@ query_json="${HTTP_BODY}"
 assert_nonempty "$(json_get "${query_json}" "conversationId")" "storefront query conversationId"
 
 echo "== Storefront event =="
-http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/events" '{"eventType":"VERIFICATION_SMOKE","pageType":"verification"}' "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
+http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/events" '{"eventType":"WIDGET_OPENED","pageType":"product","pageTitle":"Verification product page"}' "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
 assert_equals "${HTTP_STATUS}" "202" "storefront event status"
 
 if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
