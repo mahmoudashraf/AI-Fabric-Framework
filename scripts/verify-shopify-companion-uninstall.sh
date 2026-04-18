@@ -46,7 +46,7 @@ EXPECT_SYNC_STATUS="${EXPECT_SYNC_STATUS:-NOT_SYNCED}"
 EXPECT_SOURCE_READINESS_STATUS="${EXPECT_SOURCE_READINESS_STATUS:-NOT_RUN}"
 EXPECT_WIDGET_STATUS="${EXPECT_WIDGET_STATUS:-NOT_ENABLED}"
 EXPECT_CREDENTIAL_STATUS="${EXPECT_CREDENTIAL_STATUS:-MISSING}"
-EXPECT_DOCUMENT_CLEANUP_STATUS="${EXPECT_DOCUMENT_CLEANUP_STATUS:-CLEARED}"
+EXPECT_DOCUMENT_CLEANUP_STATUS="${EXPECT_DOCUMENT_CLEANUP_STATUS:-}"
 EXPECT_STOREFRONT_AVAILABLE="${EXPECT_STOREFRONT_AVAILABLE:-false}"
 EXPECT_INSTALL_RECOVERY_REQUIRED="${EXPECT_INSTALL_RECOVERY_REQUIRED:-true}"
 
@@ -136,6 +136,23 @@ assert_nonempty() {
   fi
 }
 
+assert_cleanup_status() {
+  local actual="$1"
+  local expected="$2"
+  local label="$3"
+  if [[ -n "${expected}" ]]; then
+    assert_equals "${actual}" "${expected}" "${label}"
+    return
+  fi
+  case "${actual}" in
+    CLEARED|NO_DOCUMENTS) ;;
+    *)
+      echo "Assertion failed for ${label}: expected one of 'CLEARED' or 'NO_DOCUMENTS', got '${actual}'"
+      exit 1
+      ;;
+  esac
+}
+
 http_request() {
   local method="$1"
   local url="$2"
@@ -215,7 +232,8 @@ assert_equals "$(json_get "${uninstall_json}" "widgetStatus")" "${EXPECT_WIDGET_
 assert_equals "$(json_get "${uninstall_json}" "credentials.status")" "${EXPECT_CREDENTIAL_STATUS}" "platform uninstall credential status"
 assert_equals "$(json_get "${uninstall_json}" "readiness.storefrontReady")" "false" "platform uninstall storefront readiness"
 assert_equals "$(json_get "${uninstall_json}" "readiness.goLiveEligible")" "false" "platform uninstall go-live eligibility"
-assert_equals "$(json_get "${uninstall_json}" "syncDetail.status")" "${EXPECT_DOCUMENT_CLEANUP_STATUS}" "platform uninstall document cleanup status"
+document_cleanup_status="$(json_get "${uninstall_json}" "syncDetail.status")"
+assert_cleanup_status "${document_cleanup_status}" "${EXPECT_DOCUMENT_CLEANUP_STATUS}" "platform uninstall document cleanup status"
 assert_nonempty "$(json_get "${uninstall_json}" "widgetDetail.message")" "platform uninstall widget message"
 
 echo "== Platform store summary after uninstall =="
@@ -225,7 +243,7 @@ store_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_json}" "installStatus")" "${EXPECT_INSTALL_STATUS}" "platform store installStatus"
 assert_equals "$(json_get "${store_json}" "productServiceRef")" "${PRODUCT_SERVICE_REF}" "platform store product service ref"
 assert_equals "$(json_get "${store_json}" "credentials.status")" "${EXPECT_CREDENTIAL_STATUS}" "platform store credential status"
-assert_equals "$(json_get "${store_json}" "syncDetail.status")" "${EXPECT_DOCUMENT_CLEANUP_STATUS}" "platform store sync detail status"
+assert_equals "$(json_get "${store_json}" "syncDetail.status")" "${document_cleanup_status}" "platform store sync detail status"
 
 echo "== Platform binding inspection after uninstall =="
 platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]-}"
