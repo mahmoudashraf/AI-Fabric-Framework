@@ -7,6 +7,7 @@ set -euo pipefail
 # - platform uninstall path marks the store UNINSTALLED
 # - platform credentials are cleared
 # - synced Shopify documents are cleaned up or explicitly reported
+# - platform binding inspection still explains the linked customer/deployment/consumer state
 # - storefront bootstrap becomes unavailable
 # - optional merchant session reports install recovery is required
 #
@@ -17,6 +18,7 @@ set -euo pipefail
 #   SHOP_DOMAIN
 #
 # Optional env:
+#   PRODUCT_SERVICE_REF=shopify-bridge-prod
 #   PLATFORM_API_KEY_HEADER=X-PLATFORM-API-KEY
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
@@ -34,6 +36,7 @@ PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_API_KEY_HEADER="${PLATFORM_API_KEY_HEADER:-X-PLATFORM-API-KEY}"
 SHOPIFY_BRIDGE_BASE_URL="${SHOPIFY_BRIDGE_BASE_URL:-}"
 SHOP_DOMAIN="${SHOP_DOMAIN:-}"
+PRODUCT_SERVICE_REF="${PRODUCT_SERVICE_REF:-shopify-bridge-prod}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
 EXPECT_INSTALL_STATUS="${EXPECT_INSTALL_STATUS:-UNINSTALLED}"
@@ -202,8 +205,28 @@ http_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${plat
 assert_equals "${HTTP_STATUS}" "200" "platform store summary after uninstall status"
 store_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_json}" "installStatus")" "${EXPECT_INSTALL_STATUS}" "platform store installStatus"
+assert_equals "$(json_get "${store_json}" "productServiceRef")" "${PRODUCT_SERVICE_REF}" "platform store product service ref"
 assert_equals "$(json_get "${store_json}" "credentials.status")" "${EXPECT_CREDENTIAL_STATUS}" "platform store credential status"
 assert_equals "$(json_get "${store_json}" "syncDetail.status")" "${EXPECT_DOCUMENT_CLEANUP_STATUS}" "platform store sync detail status"
+
+echo "== Platform binding inspection after uninstall =="
+http_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+assert_equals "${HTTP_STATUS}" "200" "platform binding inspection after uninstall status"
+binding_json="${HTTP_BODY}"
+assert_equals "$(json_get "${binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform binding shopDomain after uninstall"
+assert_equals "$(json_get "${binding_json}" "productServiceRef")" "${PRODUCT_SERVICE_REF}" "platform binding serviceRef after uninstall"
+assert_nonempty "$(json_get "${binding_json}" "customer.id")" "platform binding customer id after uninstall"
+assert_nonempty "$(json_get "${binding_json}" "deployment.id")" "platform binding deployment id after uninstall"
+assert_nonempty "$(json_get "${binding_json}" "consumer.consumerId")" "platform binding consumer id after uninstall"
+
+echo "== Product service binding inspection after uninstall =="
+http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+assert_equals "${HTTP_STATUS}" "200" "product service binding inspection after uninstall status"
+service_binding_json="${HTTP_BODY}"
+assert_equals "$(json_get "${service_binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "product service binding shopDomain after uninstall"
+assert_equals "$(json_get "${service_binding_json}" "productServiceRef")" "${PRODUCT_SERVICE_REF}" "product service binding serviceRef after uninstall"
+assert_equals "$(json_get "${service_binding_json}" "deployment.id")" "$(json_get "${binding_json}" "deployment.id")" "product service binding deployment id after uninstall"
+assert_equals "$(json_get "${service_binding_json}" "consumer.consumerId")" "$(json_get "${binding_json}" "consumer.consumerId")" "product service binding consumer id after uninstall"
 
 echo "== Storefront bootstrap after uninstall =="
 http_request GET "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/bootstrap"
