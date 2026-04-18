@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
@@ -61,9 +62,32 @@ class ShopifyStoreConnectionServiceTest {
         deployment.setStatus("ACTIVE");
         deployment.setCustomerId("cus-123");
 
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-123");
+        version.setDeploymentId("dep-123");
+        version.setSourceDraftId("draft-123");
+        version.setVersionLabel("v1");
+        version.setStatus("PUBLISHED");
+        version.setConfigHash("hash-123");
+        version.setReindexRequired(false);
+        version.setActionsConfigJson("""
+            {"actions":[{"name":"list_products"},{"name":"get_policy"}]}
+            """);
+        version.setKnowledgeSourceConfigJson("""
+            {"sources":[{"id":"shopify-catalog"},{"id":"shopify-policies"}]}
+            """);
+        version.setShellConfigJson("""
+            {"modules":[{"id":"search"},{"id":"support"}]}
+            """);
+        version.setMarketplaceDatasetConfigJson("""
+            {"datasets":[{"datasetId":"shopify-products"}]}
+            """);
+        version.setPublishedAt(Instant.parse("2026-04-18T00:00:00Z"));
+
         when(productServiceService.requireService("shopify-bridge-prod")).thenReturn(service);
         when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123")).thenReturn(java.util.List.of(version));
         when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -107,6 +131,11 @@ class ShopifyStoreConnectionServiceTest {
         assertThat(summary.onboardingStatus()).isEqualTo("NOT_STARTED");
         assertThat(summary.productsEnabled()).isTrue();
         assertThat(summary.collectionsEnabled()).isTrue();
+        assertThat(summary.capabilities()).isNotNull();
+        assertThat(summary.capabilities().actionNames()).containsExactly("list_products", "get_policy");
+        assertThat(summary.capabilities().knowledgeSourceIds()).containsExactly("shopify-catalog", "shopify-policies");
+        assertThat(summary.capabilities().shellModuleIds()).containsExactly("search", "support");
+        assertThat(summary.capabilities().marketplaceDatasetIds()).containsExactly("shopify-products");
         assertThat(summary.readiness()).isNotNull();
     }
 

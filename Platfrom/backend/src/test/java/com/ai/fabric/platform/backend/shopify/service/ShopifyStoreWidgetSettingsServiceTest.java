@@ -100,6 +100,7 @@ class ShopifyStoreWidgetSettingsServiceTest {
             null,
             null,
             null,
+            null,
             Instant.now(),
             null,
             null,

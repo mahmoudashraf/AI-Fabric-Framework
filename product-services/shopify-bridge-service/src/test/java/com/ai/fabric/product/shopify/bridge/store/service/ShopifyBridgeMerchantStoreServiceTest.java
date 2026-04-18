@@ -8,6 +8,7 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabilitySummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -363,6 +364,16 @@ class ShopifyBridgeMerchantStoreServiceTest {
             null,
             null,
             null,
+            new ShopifyBridgeStoreCapabilitySummary(
+                2,
+                2,
+                2,
+                1,
+                List.of("list_products", "get_policy"),
+                List.of("shopify-catalog", "shopify-policies"),
+                List.of("search", "support"),
+                List.of("shopify-products")
+            ),
             null,
             null,
             null,

@@ -33,6 +33,7 @@ public record ShopifyStoreConnectionSummary(
     ShopifyStoreSyncSummary syncDetail,
     ShopifyStoreWebhookSummary webhookDetail,
     ShopifyStoreWidgetSummary widgetDetail,
+    ShopifyStoreCapabilitySummary capabilities,
     ShopifyStoreReadinessSummary readiness,
     DeploymentVersionSummary latestVersion,
     DeploymentReleaseSummary latestRelease,

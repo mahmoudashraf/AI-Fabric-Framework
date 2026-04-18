@@ -235,6 +235,7 @@ class ShopifyStoreDocumentSyncServiceTest {
             null,
             null,
             null,
+            null,
             Instant.now(),
             Instant.now(),
             Instant.now(),

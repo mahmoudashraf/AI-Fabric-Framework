@@ -430,6 +430,10 @@ export function ShopifyStoresPage() {
                       ['Collections enabled', selectedStore.collectionsEnabled ? 'Yes' : 'No'],
                       ['Pages enabled', selectedStore.pagesEnabled ? 'Yes' : 'No'],
                       ['Policies enabled', selectedStore.policiesEnabled ? 'Yes' : 'No'],
+                      ['Actions', selectedStore.capabilities ? `${selectedStore.capabilities.actionCount}` : null],
+                      ['Knowledge sources', selectedStore.capabilities ? `${selectedStore.capabilities.knowledgeSourceCount}` : null],
+                      ['Datasets', selectedStore.capabilities ? `${selectedStore.capabilities.marketplaceDatasetCount}` : null],
+                      ['Shell modules', selectedStore.capabilities ? `${selectedStore.capabilities.shellModuleCount}` : null],
                       ['Last preflight', formatTimestamp(selectedStore.lastSourcePreflightAt)],
                       ['Last sync', formatTimestamp(selectedStore.lastSyncAt)],
                       ['Last webhook', formatTimestamp(selectedStore.lastWebhookAt)],
@@ -595,6 +599,32 @@ export function ShopifyStoresPage() {
                               {selectedStore.syncDetail.message}
                             </Typography>
                           ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  {selectedStore.capabilities ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Deployment capabilities</Typography>
+                            <Chip size="small" label={`${selectedStore.capabilities.actionCount} actions`} />
+                            <Chip size="small" label={`${selectedStore.capabilities.knowledgeSourceCount} knowledge sources`} />
+                            <Chip size="small" label={`${selectedStore.capabilities.marketplaceDatasetCount} datasets`} />
+                            <Chip size="small" label={`${selectedStore.capabilities.shellModuleCount} shell modules`} />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Action names {selectedStore.capabilities.actionNames.join(' · ') || '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Knowledge sources {selectedStore.capabilities.knowledgeSourceIds.join(' · ') || '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Shell modules {selectedStore.capabilities.shellModuleIds.join(' · ') || '—'} · Marketplace datasets{' '}
+                            {selectedStore.capabilities.marketplaceDatasetIds.join(' · ') || '—'}
+                          </Typography>
                         </Stack>
                       </CardContent>
                     </Card>

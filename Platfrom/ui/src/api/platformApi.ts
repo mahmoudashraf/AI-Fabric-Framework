@@ -545,6 +545,17 @@ export type ShopifyStoreWebhookSummary = {
   message: string | null
 }
 
+export type ShopifyStoreCapabilitySummary = {
+  actionCount: number
+  knowledgeSourceCount: number
+  shellModuleCount: number
+  marketplaceDatasetCount: number
+  actionNames: string[]
+  knowledgeSourceIds: string[]
+  shellModuleIds: string[]
+  marketplaceDatasetIds: string[]
+}
+
 export type ShopifyStoreConnectionSummary = {
   id: string
   shopDomain: string
@@ -573,6 +584,7 @@ export type ShopifyStoreConnectionSummary = {
   syncDetail: ShopifyStoreSyncSummary | null
   webhookDetail: ShopifyStoreWebhookSummary | null
   widgetDetail: ShopifyStoreWidgetSummary | null
+  capabilities: ShopifyStoreCapabilitySummary | null
   readiness: {
     overallStatus: string
     goLiveEligible: boolean

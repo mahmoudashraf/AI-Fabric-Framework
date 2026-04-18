@@ -137,6 +137,7 @@ class ShopifyStorefrontPreviewServiceTest {
                     "Ask me about products and store policies."
                 )
             ),
+            null,
             ready
                 ? new ShopifyBridgeStoreReadinessSummary("STOREFRONT_READY", true, true, List.of(), List.of(), List.of())
                 : new ShopifyBridgeStoreReadinessSummary(

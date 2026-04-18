@@ -132,6 +132,7 @@ class ShopifyStorefrontBootstrapServiceTest {
                     "Ask me about products and store policies."
                 )
             ),
+            null,
             readiness(sourceReadinessStatus),
             new ShopifyBridgeStoreDeploymentVersionSummary(
                 "ver-1",

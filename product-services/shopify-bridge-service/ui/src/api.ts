@@ -39,6 +39,9 @@ export type ShopifyBridgeStoreSummary = {
   sourceReadinessStatus: string
   widgetStatus: string
   onboardingStatus: string
+  lastSourcePreflightAt: string | null
+  lastSyncAt: string | null
+  lastWebhookAt: string | null
   productsEnabled: boolean
   collectionsEnabled: boolean
   pagesEnabled: boolean
@@ -65,6 +68,16 @@ export type ShopifyBridgeStoreSummary = {
       itemCount: number
       message: string | null
     }>
+  } | null
+  capabilities: {
+    actionCount: number
+    knowledgeSourceCount: number
+    shellModuleCount: number
+    marketplaceDatasetCount: number
+    actionNames: string[]
+    knowledgeSourceIds: string[]
+    shellModuleIds: string[]
+    marketplaceDatasetIds: string[]
   } | null
   readiness: {
     overallStatus: string
@@ -99,6 +112,8 @@ export type ShopifyBridgeStoreSummary = {
       welcomeMessage: string | null
     } | null
   } | null
+  createdAt: string
+  updatedAt: string
 }
 
 export type ShopifyBridgeMerchantSessionResponse = {

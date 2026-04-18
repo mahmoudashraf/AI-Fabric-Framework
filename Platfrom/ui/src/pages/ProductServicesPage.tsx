@@ -632,6 +632,11 @@ export function ProductServicesPage() {
                                     Sync {store.syncDetail.status.toLowerCase()} · mode {detailValue(store.syncDetail.mode)} · documents {store.syncDetail.documentCount}
                                   </Typography>
                                 ) : null}
+                                {store.capabilities ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Deployment capabilities {store.capabilities.actionCount} actions · {store.capabilities.knowledgeSourceCount} knowledge sources · {store.capabilities.marketplaceDatasetCount} datasets · {store.capabilities.shellModuleCount} shell modules
+                                  </Typography>
+                                ) : null}
                                 {store.webhookDetail ? (
                                   <Typography variant="body2" color="text.secondary">
                                     Webhook {detailValue(store.webhookDetail.topic)} · event {detailValue(store.webhookDetail.eventType)} · source {detailValue(store.webhookDetail.sourceCategory)}

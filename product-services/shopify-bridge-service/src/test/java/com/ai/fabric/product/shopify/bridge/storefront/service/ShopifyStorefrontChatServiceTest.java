@@ -99,6 +99,7 @@ class ShopifyStorefrontChatServiceTest {
             null,
             null,
             null,
+            null,
             readiness(sourceReadinessStatus),
             new ShopifyBridgeStoreDeploymentVersionSummary(
                 "ver-1",

@@ -143,6 +143,7 @@ class ShopifyStoreSourcePreflightServiceTest {
             null,
             null,
             null,
+            null,
             Instant.now(),
             null,
             null,

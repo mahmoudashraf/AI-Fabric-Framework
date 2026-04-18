@@ -29,6 +29,7 @@ public record ShopifyBridgeStoreSummary(
     ShopifyBridgeStoreSyncSummary syncDetail,
     ShopifyBridgeStoreWebhookSummary webhookDetail,
     ShopifyBridgeStoreWidgetSummary widgetDetail,
+    ShopifyBridgeStoreCapabilitySummary capabilities,
     ShopifyBridgeStoreReadinessSummary readiness,
     ShopifyBridgeStoreDeploymentVersionSummary latestVersion,
     ShopifyBridgeStoreDeploymentReleaseSummary latestRelease,

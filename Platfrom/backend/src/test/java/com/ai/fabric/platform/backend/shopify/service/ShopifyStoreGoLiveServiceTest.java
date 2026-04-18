@@ -189,6 +189,7 @@ class ShopifyStoreGoLiveServiceTest {
             null,
             null,
             null,
+            null,
             readiness,
             null,
             null,

@@ -22,6 +22,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCapabilitySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreReadinessEvaluator;
@@ -43,8 +44,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 
@@ -301,6 +304,7 @@ public class PlatformManagedProductAdminService {
         var syncDetail = sourcePreflightSupport.summarizeSync(entity.getDetailsJson());
         var webhookDetail = sourcePreflightSupport.summarizeWebhook(entity.getDetailsJson());
         var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
+        var capabilities = summarizeCapabilities(latestVersion);
         var latestReleaseSummary = toReleaseSummary(latestRelease);
         return new ShopifyStoreConnectionSummary(
             entity.getId(),
@@ -330,6 +334,7 @@ public class PlatformManagedProductAdminService {
             syncDetail,
             webhookDetail,
             widgetDetail,
+            capabilities,
             readinessEvaluator.evaluate(entity, credentials, sourcePreflight, syncDetail, widgetDetail, latestReleaseSummary),
             toVersionSummary(latestVersion),
             latestReleaseSummary,
@@ -339,6 +344,40 @@ public class PlatformManagedProductAdminService {
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
+    }
+
+    private ShopifyStoreCapabilitySummary summarizeCapabilities(DeploymentVersionEntity version) {
+        if (version == null) {
+            return null;
+        }
+        Set<String> actionNames = textSet(sourcePreflightSupport.readJsonNode(version.getActionsConfigJson()), "actions", "name");
+        Set<String> knowledgeSourceIds = textSet(sourcePreflightSupport.readJsonNode(version.getKnowledgeSourceConfigJson()), "sources", "id");
+        Set<String> shellModuleIds = textSet(sourcePreflightSupport.readJsonNode(version.getShellConfigJson()), "modules", "id");
+        Set<String> marketplaceDatasetIds = textSet(sourcePreflightSupport.readJsonNode(version.getMarketplaceDatasetConfigJson()), "datasets", "datasetId");
+        return new ShopifyStoreCapabilitySummary(
+            actionNames.size(),
+            knowledgeSourceIds.size(),
+            shellModuleIds.size(),
+            marketplaceDatasetIds.size(),
+            List.copyOf(actionNames),
+            List.copyOf(knowledgeSourceIds),
+            List.copyOf(shellModuleIds),
+            List.copyOf(marketplaceDatasetIds)
+        );
+    }
+
+    private Set<String> textSet(JsonNode root, String arrayField, String valueField) {
+        if (root == null || !root.path(arrayField).isArray()) {
+            return Set.of();
+        }
+        Set<String> values = new LinkedHashSet<>();
+        for (JsonNode node : root.path(arrayField)) {
+            String value = node.path(valueField).asText("").trim();
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+        return values;
     }
 
     private DeploymentVersionSummary toVersionSummary(DeploymentVersionEntity version) {

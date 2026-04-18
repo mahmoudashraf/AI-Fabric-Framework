@@ -138,6 +138,7 @@ class ShopifyStoreWebhookServiceTest {
             null,
             null,
             null,
+            null,
             Instant.now(),
             Instant.now(),
             Instant.now(),

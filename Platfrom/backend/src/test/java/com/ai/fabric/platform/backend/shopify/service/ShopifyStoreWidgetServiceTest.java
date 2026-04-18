@@ -128,6 +128,7 @@ class ShopifyStoreWidgetServiceTest {
             null,
             null,
             null,
+            null,
             Instant.now(),
             null,
             null,

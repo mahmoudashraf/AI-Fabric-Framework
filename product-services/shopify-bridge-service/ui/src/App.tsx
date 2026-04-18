@@ -357,6 +357,7 @@ export default function App() {
   const session = state.session
   const store = session?.store ?? null
   const storefrontPreview = state.storefrontPreview
+  const supportBundleText = buildSupportBundle(shell, session, storefrontPreview)
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
@@ -398,6 +399,16 @@ export default function App() {
         setPlaygroundSuggestions([])
       })
   }, [store?.shopDomain])
+
+  async function handleCopySupportBundle() {
+    try {
+      await navigator.clipboard.writeText(supportBundleText)
+      setActionError(null)
+      setActionMessage('Copied Shopify Companion support bundle to the clipboard.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to copy the support bundle.')
+    }
+  }
 
   return (
     <AppProvider i18n={enTranslations}>
@@ -574,6 +585,52 @@ export default function App() {
                       Storefront activation preview is unavailable until the merchant session resolves.
                     </Text>
                   )}
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Diagnostics and support bundle
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    This is the bounded merchant-facing diagnostic view. It exposes store readiness and deployment capability status without exposing secret material.
+                  </Text>
+                  {store ? (
+                    <List type="bullet">
+                      <List.Item>Deployment health: {store.deploymentStatus ?? 'UNBOUND'}</List.Item>
+                      <List.Item>Sync status: {store.syncDetail?.status ?? store.syncStatus}</List.Item>
+                      <List.Item>Last successful sync: {formatTimestamp(store.lastSyncAt)}</List.Item>
+                      <List.Item>Widget status: {store.widgetDetail?.status ?? store.widgetStatus}</List.Item>
+                      <List.Item>Actions: {store.capabilities?.actionCount ?? 0}</List.Item>
+                      <List.Item>Knowledge sources: {store.capabilities?.knowledgeSourceCount ?? 0}</List.Item>
+                      <List.Item>Datasets: {store.capabilities?.marketplaceDatasetCount ?? 0}</List.Item>
+                      <List.Item>Shell modules: {store.capabilities?.shellModuleCount ?? 0}</List.Item>
+                    </List>
+                  ) : (
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Support diagnostics appear after the current merchant session resolves and the store is connected.
+                    </Text>
+                  )}
+                  {store?.capabilities ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Actions {store.capabilities.actionNames.join(' · ') || '—'} · Knowledge {store.capabilities.knowledgeSourceIds.join(' · ') || '—'}
+                    </Text>
+                  ) : null}
+                  <TextField
+                    label="Support bundle"
+                    autoComplete="off"
+                    multiline={12}
+                    value={supportBundleText}
+                    readOnly
+                  />
+                  <InlineStack gap="200">
+                    <Button onClick={() => void handleCopySupportBundle()} disabled={!session}>
+                      Copy support bundle
+                    </Button>
+                  </InlineStack>
                 </BlockStack>
               </Card>
             </Box>
@@ -845,6 +902,11 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
           {store.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'}
         </Text>
       ) : null}
+      {store.capabilities ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          Capabilities: {store.capabilities.actionCount} actions, {store.capabilities.knowledgeSourceCount} knowledge sources, {store.capabilities.marketplaceDatasetCount} datasets, {store.capabilities.shellModuleCount} shell modules
+        </Text>
+      ) : null}
       {store.syncDetail ? (
         <Text as="p" variant="bodySm" tone="subdued">
           Sync {store.syncDetail.status} · mode {store.syncDetail.mode ?? '—'} · documents {store.syncDetail.documentCount}
@@ -952,4 +1014,91 @@ function extractSuggestions(payload: unknown): string[] {
     })
     .filter((value, index, all) => value && all.indexOf(value) === index)
     .slice(0, 4)
+}
+
+function formatTimestamp(value: string | null | undefined): string {
+  if (!value) {
+    return '—'
+  }
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString()
+}
+
+function buildSupportBundle(
+  shell: ShopifyBridgeShellResponse | null,
+  session: ShopifyBridgeMerchantSessionResponse | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null
+): string {
+  const store = session?.store ?? null
+  return JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      app: shell
+        ? {
+            appName: shell.appName,
+            serviceRef: shell.serviceRef,
+            environmentScope: shell.environmentScope,
+            status: shell.status,
+            merchantSessionAuthConfigured: shell.merchantSessionAuthConfigured,
+          }
+        : null,
+      merchantSession: session
+        ? {
+            shopDomain: session.shopDomain,
+            userId: session.userId,
+            expiresAt: session.expiresAt,
+            installRecordStatus: session.installRecord?.status ?? null,
+            accessTokenConfigured: Boolean(session.installRecord?.accessTokenSecretRef),
+            refreshTokenConfigured: Boolean(session.installRecord?.refreshTokenSecretRef),
+            scopesText: session.installRecord?.scopesText ?? null,
+            lastAuthenticatedAt: session.installRecord?.lastAuthenticatedAt ?? null,
+            lastUninstalledAt: session.installRecord?.lastUninstalledAt ?? null,
+          }
+        : null,
+      store: store
+        ? {
+            shopDomain: store.shopDomain,
+            displayName: store.displayName,
+            deploymentId: store.deploymentId,
+            deploymentName: store.deploymentName,
+            deploymentStatus: store.deploymentStatus,
+            consumerId: store.consumerId,
+            installStatus: store.installStatus,
+            onboardingStatus: store.onboardingStatus,
+            syncStatus: store.syncStatus,
+            sourceReadinessStatus: store.sourceReadinessStatus,
+            widgetStatus: store.widgetStatus,
+            documentCount: store.syncDetail?.documentCount ?? 0,
+            lastSourcePreflightAt: store.sourcePreflight?.checkedAt ?? null,
+            lastSyncAt: store.syncDetail?.checkedAt ?? store.lastSyncAt,
+            lastWebhookAt: store.webhookDetail?.receivedAt ?? store.lastWebhookAt,
+            sourceCategories: {
+              productsEnabled: store.productsEnabled,
+              collectionsEnabled: store.collectionsEnabled,
+              pagesEnabled: store.pagesEnabled,
+              policiesEnabled: store.policiesEnabled,
+            },
+            capabilities: store.capabilities,
+            readiness: store.readiness,
+            latestVersion: store.latestVersion,
+            latestRelease: store.latestRelease,
+          }
+        : null,
+      storefrontPreview: storefrontPreview
+        ? {
+            ready: storefrontPreview.ready,
+            widgetStatus: storefrontPreview.widgetStatus,
+            onboardingStatus: storefrontPreview.onboardingStatus,
+            extensionHandle: storefrontPreview.extensionHandle,
+            storefrontBaseUrl: storefrontPreview.storefrontBaseUrl,
+            bridgeBaseUrl: storefrontPreview.bridgeBaseUrl,
+            themeEditorActivationUrl: storefrontPreview.themeEditorActivationUrl,
+            activationSteps: storefrontPreview.activationSteps,
+            blockingReasons: storefrontPreview.blockingReasons,
+          }
+        : null,
+    },
+    null,
+    2
+  )
 }
