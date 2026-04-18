@@ -194,6 +194,27 @@ export type ShopifyBridgeBillingSummary = {
   message: string
 }
 
+export type ShopifyWebhookSubscriptionStatusSummary = {
+  shopDomain: string
+  status: string
+  message: string
+  webhookUri: string | null
+  expectedCount: number
+  readyCount: number
+  missingCount: number
+  driftedCount: number
+  checkedAt: string | null
+  topics: Array<{
+    topic: string
+    expectedName: string | null
+    status: string
+    subscriptionId: string | null
+    subscriptionName: string | null
+    subscriptionUri: string | null
+    message: string | null
+  }>
+}
+
 export async function fetchShell(): Promise<ShopifyBridgeShellResponse> {
   return fetchJson('/api/app/shell')
 }
@@ -235,6 +256,10 @@ export async function fetchUsageSummary(): Promise<ShopifyBridgeUsageSummary> {
 
 export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary> {
   return authenticatedFetchJson('/api/app/store/billing-summary', { method: 'GET' })
+}
+
+export async function fetchWebhookSubscriptions(): Promise<ShopifyWebhookSubscriptionStatusSummary> {
+  return authenticatedFetchJson('/api/app/store/webhook-subscriptions', { method: 'GET' })
 }
 
 export async function updateSourceSettings(settings: {

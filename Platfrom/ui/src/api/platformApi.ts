@@ -459,6 +459,13 @@ export type PlatformManagedProductServiceOverviewSummary = {
     blockedCount: number
     lastWebhookAt: string | null
   }
+  webhookSubscriptions: {
+    status: string
+    message: string
+    webhookUri: string | null
+    expectedCount: number
+    expectedTopics: string[]
+  }
   billing: {
     mode: string | null
     planName: string | null
@@ -485,6 +492,27 @@ export type PlatformManagedProductServiceOverviewSummary = {
   } | null
   capabilities: string[]
   notYetImplemented: string[]
+}
+
+export type PlatformManagedProductServiceWebhookSubscriptionSummary = {
+  shopDomain: string | null
+  status: string
+  message: string
+  webhookUri: string | null
+  expectedCount: number
+  readyCount: number
+  missingCount: number
+  driftedCount: number
+  checkedAt: string | null
+  topics: Array<{
+    topic: string | null
+    expectedName: string | null
+    status: string
+    subscriptionId: string | null
+    subscriptionName: string | null
+    subscriptionUri: string | null
+    message: string | null
+  }>
 }
 
 export type CreatePlatformManagedProductServiceRequest = {
@@ -2903,6 +2931,12 @@ export function fetchProductServiceHealth(serviceRef: string) {
 
 export function fetchProductServiceOverview(serviceRef: string) {
   return request<PlatformManagedProductServiceOverviewSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/overview`)
+}
+
+export function fetchProductServiceWebhookSubscriptions(serviceRef: string, shopDomain: string) {
+  return request<PlatformManagedProductServiceWebhookSubscriptionSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/webhook-subscriptions`,
+  )
 }
 
 export function reconcileProductService(serviceRef: string) {

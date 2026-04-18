@@ -20,6 +20,9 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceProbeSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionOverview;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionTopicSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceUsageEventSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceUsageSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
@@ -40,11 +43,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriUtils;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -220,6 +225,7 @@ public class PlatformManagedProductAdminService {
                 text(body, "serverStartedAt", null),
                 parseInstallOverview(body.path("installs")),
                 parseStoreOverview(body.path("stores")),
+                parseWebhookSubscriptionOverview(body.path("webhookSubscriptions")),
                 parseBillingOverview(body.path("billing")),
                 parseUsageOverview(body.path("usage")),
                 stringList(body.path("capabilities")),
@@ -277,6 +283,45 @@ public class PlatformManagedProductAdminService {
     @Transactional
     public PlatformManagedProductServiceSummary restart(String serviceRef) {
         return provisioningService.restart(serviceRef);
+    }
+
+    public PlatformManagedProductServiceWebhookSubscriptionSummary getStoreWebhookSubscriptions(String serviceRef, String shopDomain) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (!hasText(service.getBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
+        }
+        if (!hasText(service.getSecretName())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
+        }
+        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+            ));
+
+        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
+        if (!hasText(apiKey)) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
+        }
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/webhook-subscriptions")))
+                .timeout(HTTP_TIMEOUT)
+                .header("Accept", "application/json")
+                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .GET()
+                .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ResponseStatusException(CONFLICT, "Managed product webhook subscription request failed with HTTP " + response.statusCode() + ".");
+            }
+            return parseWebhookSubscriptionSummary(objectMapper.readTree(response.body()));
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product webhook subscription request failed."), ex);
+        }
     }
 
     @Transactional
@@ -489,6 +534,7 @@ public class PlatformManagedProductAdminService {
             null,
             new PlatformManagedProductServiceInstallOverview(0, 0, 0, 0, null, null),
             new PlatformManagedProductServiceStoreOverview("FAILED", message, 0, 0, 0, 0, 0, null),
+            new PlatformManagedProductServiceWebhookSubscriptionOverview("BLOCKED", message, null, 0, List.of()),
             null,
             null,
             List.of(),
@@ -520,6 +566,25 @@ public class PlatformManagedProductAdminService {
         );
     }
 
+    private PlatformManagedProductServiceWebhookSubscriptionOverview parseWebhookSubscriptionOverview(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) {
+            return new PlatformManagedProductServiceWebhookSubscriptionOverview(
+                "UNKNOWN",
+                "Managed product service did not return webhook subscription overview data.",
+                null,
+                0,
+                List.of()
+            );
+        }
+        return new PlatformManagedProductServiceWebhookSubscriptionOverview(
+            text(node, "status", "UNKNOWN"),
+            text(node, "message", "Managed product service did not return webhook subscription overview data."),
+            text(node, "webhookUri", null),
+            node.path("expectedCount").asInt(0),
+            stringList(node.path("expectedTopics"))
+        );
+    }
+
     private PlatformManagedProductServiceBillingSummary parseBillingOverview(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) {
             return null;
@@ -547,6 +612,36 @@ public class PlatformManagedProductAdminService {
             node.path("totalLast7Days").asLong(0L),
             parseUsageBreakdown(node.path("todayBreakdown")),
             parseUsageBreakdown(node.path("last7DayBreakdown"))
+        );
+    }
+
+    private PlatformManagedProductServiceWebhookSubscriptionSummary parseWebhookSubscriptionSummary(JsonNode node) {
+        List<PlatformManagedProductServiceWebhookSubscriptionTopicSummary> topics = new ArrayList<>();
+        JsonNode topicNodes = node.path("topics");
+        if (topicNodes.isArray()) {
+            for (JsonNode topic : topicNodes) {
+                topics.add(new PlatformManagedProductServiceWebhookSubscriptionTopicSummary(
+                    text(topic, "topic", null),
+                    text(topic, "expectedName", null),
+                    text(topic, "status", "UNKNOWN"),
+                    text(topic, "subscriptionId", null),
+                    text(topic, "subscriptionName", null),
+                    text(topic, "subscriptionUri", null),
+                    text(topic, "message", null)
+                ));
+            }
+        }
+        return new PlatformManagedProductServiceWebhookSubscriptionSummary(
+            text(node, "shopDomain", null),
+            text(node, "status", "FAILED"),
+            text(node, "message", "Managed product service did not return webhook subscription diagnostics."),
+            text(node, "webhookUri", null),
+            node.path("expectedCount").asInt(0),
+            node.path("readyCount").asInt(0),
+            node.path("missingCount").asInt(0),
+            node.path("driftedCount").asInt(0),
+            text(node, "checkedAt", null),
+            List.copyOf(topics)
         );
     }
 
@@ -646,6 +741,10 @@ public class PlatformManagedProductAdminService {
         String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String suffix = path.startsWith("/") ? path : "/" + path;
         return base + suffix;
+    }
+
+    private String encodePath(String value) {
+        return UriUtils.encodePathSegment(value == null ? "" : value.trim(), StandardCharsets.UTF_8);
     }
 
     private String blankToFallback(String value, String fallback) {

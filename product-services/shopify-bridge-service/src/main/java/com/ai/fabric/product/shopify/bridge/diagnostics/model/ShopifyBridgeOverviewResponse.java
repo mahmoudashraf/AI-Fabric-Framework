@@ -19,6 +19,7 @@ public record ShopifyBridgeOverviewResponse(
     Instant serverStartedAt,
     ShopifyBridgeInstallOverview installs,
     ShopifyBridgeStoreOverview stores,
+    ShopifyBridgeWebhookSubscriptionOverview webhookSubscriptions,
     ShopifyBridgeBillingSummary billing,
     ShopifyBridgeUsageOverview usage,
     List<String> capabilities,

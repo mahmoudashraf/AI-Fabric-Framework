@@ -37,6 +37,7 @@ import {
   fetchProductServiceDependents,
   fetchProductServiceHealth,
   fetchProductServiceOverview,
+  fetchProductServiceWebhookSubscriptions,
   fetchProductServices,
   forceRecreateProductService,
   reconcileProductService,
@@ -217,6 +218,7 @@ export function ProductServicesPage() {
   const [rotateDialogOpen, setRotateDialogOpen] = useState(false)
   const [forceRecreateDialogOpen, setForceRecreateDialogOpen] = useState(false)
   const [decommissionDialogOpen, setDecommissionDialogOpen] = useState(false)
+  const [webhookDialogStore, setWebhookDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
   const [rotateSecretValue, setRotateSecretValue] = useState('')
   const [forceRecreateConfirmation, setForceRecreateConfirmation] = useState('')
   const [decommissionConfirmation, setDecommissionConfirmation] = useState('')
@@ -286,6 +288,12 @@ export function ProductServicesPage() {
     enabled: selectedServiceRef.length > 0,
   })
 
+  const webhookSubscriptionsQuery = useQuery({
+    queryKey: ['product-services', selectedServiceRef, 'webhook-subscriptions', webhookDialogStore?.shopDomain ?? ''],
+    queryFn: () => fetchProductServiceWebhookSubscriptions(selectedServiceRef, webhookDialogStore?.shopDomain ?? ''),
+    enabled: selectedServiceRef.length > 0 && webhookDialogStore != null,
+  })
+
   const refreshSelected = async (serviceRef: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['product-services'] }),
@@ -294,6 +302,7 @@ export function ProductServicesPage() {
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'activity'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'health'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'overview'] }),
+      queryClient.invalidateQueries({ queryKey: ['product-services', serviceRef, 'webhook-subscriptions'] }),
       queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
     ])
   }
@@ -614,6 +623,15 @@ export function ProductServicesPage() {
                       Last authenticated {formatTimestamp(overviewQuery.data?.installs.lastAuthenticatedAt)} · Last uninstall{' '}
                       {formatTimestamp(overviewQuery.data?.installs.lastUninstalledAt)} · Last webhook {formatTimestamp(overviewQuery.data?.stores.lastWebhookAt)}
                     </Typography>
+                    {overviewQuery.data?.webhookSubscriptions ? (
+                      <Alert severity={overviewQuery.data.webhookSubscriptions.status === 'READY' ? 'info' : 'warning'}>
+                        Webhook subscriptions {detailValue(overviewQuery.data.webhookSubscriptions.status)} · expected{' '}
+                        {overviewQuery.data.webhookSubscriptions.expectedCount}. {detailValue(overviewQuery.data.webhookSubscriptions.message)}
+                        {overviewQuery.data.webhookSubscriptions.webhookUri
+                          ? ` Endpoint ${overviewQuery.data.webhookSubscriptions.webhookUri}.`
+                          : ''}
+                      </Alert>
+                    ) : null}
                     {overviewQuery.data?.billing ? (
                       <Alert severity={overviewQuery.data.billing.launchBlocked ? 'warning' : 'info'}>
                         Billing {detailValue(overviewQuery.data.billing.mode)} · {detailValue(overviewQuery.data.billing.status)} · plan{' '}
@@ -743,6 +761,11 @@ export function ProductServicesPage() {
                                     {store.webhookDetail.invalidateSync ? ' · sync invalidated' : ''}
                                   </Typography>
                                 ) : null}
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Button size="small" onClick={() => setWebhookDialogStore(store)}>
+                                    Inspect webhook subscriptions
+                                  </Button>
+                                </Stack>
                                 {store.widgetDetail ? (
                                   <Typography variant="body2" color="text.secondary">
                                     Widget {store.widgetDetail.status.toLowerCase()} · channel {detailValue(store.widgetDetail.channel)}
@@ -834,6 +857,66 @@ export function ProductServicesPage() {
           <Button variant="contained" onClick={() => createMutation.mutate(form)} disabled={createMutation.isPending}>
             Register
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={webhookDialogStore != null} onClose={() => setWebhookDialogStore(null)} fullWidth maxWidth="md">
+        <DialogTitle>Webhook Subscription Diagnostics</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Store {detailValue(webhookDialogStore?.shopDomain)} · Service {detailValue(selectedServiceRef)}
+            </Typography>
+            {webhookSubscriptionsQuery.isLoading ? (
+              <Alert severity="info">Loading webhook subscription diagnostics…</Alert>
+            ) : webhookSubscriptionsQuery.isError ? (
+              <Alert severity="error">
+                {webhookSubscriptionsQuery.error instanceof Error
+                  ? webhookSubscriptionsQuery.error.message
+                  : 'Failed to load webhook subscription diagnostics.'}
+              </Alert>
+            ) : webhookSubscriptionsQuery.data ? (
+              <Stack spacing={1.5}>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Chip label={webhookSubscriptionsQuery.data.status} color={chipColor(webhookSubscriptionsQuery.data.status)} />
+                  <Chip label={`${webhookSubscriptionsQuery.data.readyCount}/${webhookSubscriptionsQuery.data.expectedCount} ready`} variant="outlined" />
+                  <Chip label={`${webhookSubscriptionsQuery.data.missingCount} missing`} color={chipColor(webhookSubscriptionsQuery.data.missingCount > 0 ? 'DEGRADED' : 'READY')} />
+                  <Chip label={`${webhookSubscriptionsQuery.data.driftedCount} drifted`} color={chipColor(webhookSubscriptionsQuery.data.driftedCount > 0 ? 'DEGRADED' : 'READY')} />
+                </Stack>
+                <Typography variant="body2">{detailValue(webhookSubscriptionsQuery.data.message)}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Webhook URI {detailValue(webhookSubscriptionsQuery.data.webhookUri)} · Checked {formatTimestamp(webhookSubscriptionsQuery.data.checkedAt)}
+                </Typography>
+                <Stack spacing={1}>
+                  {webhookSubscriptionsQuery.data.topics.map((topic) => (
+                    <Card key={`${topic.topic ?? 'topic'}-${topic.expectedName ?? 'expected'}`} variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>{detailValue(topic.topic)}</Typography>
+                            <Chip size="small" label={topic.status} color={chipColor(topic.status)} />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Expected name {detailValue(topic.expectedName)} · subscription {detailValue(topic.subscriptionName)} · URI {detailValue(topic.subscriptionUri)}
+                          </Typography>
+                          {topic.message ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {topic.message}
+                            </Typography>
+                          ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+              </Stack>
+            ) : (
+              <Alert severity="info">Webhook subscription diagnostics have not been loaded yet.</Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWebhookDialogStore(null)}>Close</Button>
         </DialogActions>
       </Dialog>
 

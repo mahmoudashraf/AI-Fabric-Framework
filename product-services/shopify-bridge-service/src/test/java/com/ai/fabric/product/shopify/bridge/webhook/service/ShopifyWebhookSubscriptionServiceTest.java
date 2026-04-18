@@ -14,6 +14,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ShopifyWebhookSubscriptionServiceTest {
 
@@ -67,6 +68,35 @@ class ShopifyWebhookSubscriptionServiceTest {
         verify(client, times(11)).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
     }
 
+    @Test
+    void inspectMarksMissingAndDriftedTopics() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
+
+        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap()))
+            .thenAnswer(invocation -> {
+                Map<String, Object> variables = invocation.getArgument(3);
+                String topic = String.valueOf(variables.get("topic"));
+                if ("APP_UNINSTALLED".equals(topic)) {
+                    return driftedListResponse();
+                }
+                if ("PRODUCTS_CREATE".equals(topic)) {
+                    return matchingListResponse("PRODUCTS_CREATE", "loom-products-create");
+                }
+                return emptyListResponse();
+            });
+
+        var summary = service.inspectContentSubscriptions("alpha.myshopify.com", "token");
+
+        assertThat(summary.status()).isEqualTo("DEGRADED");
+        assertThat(summary.expectedCount()).isEqualTo(11);
+        assertThat(summary.readyCount()).isEqualTo(1);
+        assertThat(summary.missingCount()).isEqualTo(9);
+        assertThat(summary.driftedCount()).isEqualTo(1);
+        assertThat(summary.topics()).anyMatch(topic -> "APP_UNINSTALLED".equals(topic.topic()) && "DRIFTED".equals(topic.status()));
+        assertThat(summary.topics()).anyMatch(topic -> "PRODUCTS_CREATE".equals(topic.topic()) && "READY".equals(topic.status()));
+    }
+
     private ShopifyBridgeProperties properties() {
         return new ShopifyBridgeProperties(
             "Loom Companion",
@@ -98,6 +128,10 @@ class ShopifyWebhookSubscriptionServiceTest {
     }
 
     private Map<String, Object> matchingListResponse() {
+        return matchingListResponse("APP_UNINSTALLED", "loom-app-uninstalled");
+    }
+
+    private Map<String, Object> matchingListResponse(String topic, String name) {
         return Map.of(
             "data", Map.of(
                 "webhookSubscriptions", Map.of(
@@ -105,9 +139,9 @@ class ShopifyWebhookSubscriptionServiceTest {
                         Map.of(
                             "node", Map.of(
                                 "id", "gid://shopify/WebhookSubscription/1",
-                                "topic", "APP_UNINSTALLED",
+                                "topic", topic,
                                 "uri", "https://bridge.example.com/api/webhooks/shopify",
-                                "name", "loom-app-uninstalled"
+                                "name", name
                             )
                         )
                     )

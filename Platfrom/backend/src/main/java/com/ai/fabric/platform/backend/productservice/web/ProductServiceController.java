@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.productservice.model.CreatePlatformManaged
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionSummary;
 import com.ai.fabric.platform.backend.productservice.model.RotatePlatformManagedProductServiceSecretRequest;
 import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceScaleRequest;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
@@ -72,6 +73,12 @@ public class ProductServiceController {
     @GetMapping("/{serviceRef}/overview")
     public PlatformManagedProductServiceOverviewSummary getOverview(@PathVariable String serviceRef) {
         return adminService.getOverview(serviceRef);
+    }
+
+    @GetMapping("/{serviceRef}/stores/{shopDomain}/webhook-subscriptions")
+    public PlatformManagedProductServiceWebhookSubscriptionSummary getStoreWebhookSubscriptions(@PathVariable String serviceRef,
+                                                                                                 @PathVariable String shopDomain) {
+        return adminService.getStoreWebhookSubscriptions(serviceRef, shopDomain);
     }
 
     @PostMapping("/{serviceRef}/reconcile")

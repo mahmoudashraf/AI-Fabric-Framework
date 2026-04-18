@@ -21,6 +21,7 @@ import {
   bootstrapStore,
   fetchBillingSummary,
   connectStore,
+  fetchWebhookSubscriptions,
   fetchUsageSummary,
   fetchStorefrontPreview,
   fetchSession,
@@ -38,6 +39,7 @@ import {
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
   type ShopifyBridgeUsageSummary,
+  type ShopifyWebhookSubscriptionStatusSummary,
   type ShopifyStorefrontPreviewResponse,
 } from './api'
 
@@ -70,6 +72,7 @@ type LoadState = {
   storefrontPreview: ShopifyStorefrontPreviewResponse | null
   usageSummary: ShopifyBridgeUsageSummary | null
   billingSummary: ShopifyBridgeBillingSummary | null
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null
   loading: boolean
   error: string | null
 }
@@ -101,6 +104,7 @@ export default function App() {
     storefrontPreview: null,
     usageSummary: null,
     billingSummary: null,
+    webhookSubscriptions: null,
     loading: true,
     error: null,
   })
@@ -151,6 +155,7 @@ export default function App() {
       let storefrontPreview: ShopifyStorefrontPreviewResponse | null = null
       let usageSummary: ShopifyBridgeUsageSummary | null = null
       let billingSummary: ShopifyBridgeBillingSummary | null = null
+      let webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null = null
       try {
         session = await fetchSession()
         storefrontPreview = await fetchStorefrontPreview()
@@ -164,10 +169,16 @@ export default function App() {
           storefrontPreview: null,
           usageSummary: null,
           billingSummary: null,
+          webhookSubscriptions: null,
           loading: false,
           error: sessionError instanceof Error ? sessionError.message : 'Failed to resolve merchant session.',
         })
         return
+      }
+      try {
+        webhookSubscriptions = await fetchWebhookSubscriptions()
+      } catch {
+        webhookSubscriptions = null
       }
       setState({
         shell,
@@ -175,6 +186,7 @@ export default function App() {
         storefrontPreview,
         usageSummary,
         billingSummary,
+        webhookSubscriptions,
         loading: false,
         error: null,
       })
@@ -199,6 +211,7 @@ export default function App() {
         storefrontPreview: null,
         usageSummary: null,
         billingSummary: null,
+        webhookSubscriptions: null,
         loading: false,
         error: error instanceof Error ? error.message : 'Unknown bridge shell failure.',
       })
@@ -401,7 +414,8 @@ export default function App() {
   const storefrontPreview = state.storefrontPreview
   const usageSummary = state.usageSummary
   const billingSummary = state.billingSummary
-  const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary, billingSummary)
+  const webhookSubscriptions = state.webhookSubscriptions
+  const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary, billingSummary, webhookSubscriptions)
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
   const billingLaunchBlocked = Boolean(billingSummary?.launchBlocked)
@@ -680,6 +694,50 @@ export default function App() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
+                    Webhook subscriptions
+                  </Text>
+                  {webhookSubscriptions ? (
+                    <BlockStack gap="200">
+                      <InlineStack gap="200" align="start">
+                        <Badge tone={badgeTone(webhookSubscriptions.status)}>{webhookSubscriptions.status}</Badge>
+                        <Badge tone={webhookSubscriptions.missingCount > 0 || webhookSubscriptions.driftedCount > 0 ? 'attention' : 'success'}>
+                          {`${webhookSubscriptions.readyCount}/${webhookSubscriptions.expectedCount} ready`}
+                        </Badge>
+                      </InlineStack>
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        {webhookSubscriptions.message}
+                      </Text>
+                      <List type="bullet">
+                        <List.Item>Webhook URI: {webhookSubscriptions.webhookUri ?? 'Not configured'}</List.Item>
+                        <List.Item>Missing topics: {webhookSubscriptions.missingCount}</List.Item>
+                        <List.Item>Drifted topics: {webhookSubscriptions.driftedCount}</List.Item>
+                        <List.Item>Checked: {formatTimestamp(webhookSubscriptions.checkedAt)}</List.Item>
+                      </List>
+                      {webhookSubscriptions.topics.length ? (
+                        <BlockStack gap="100">
+                          {webhookSubscriptions.topics.map((topic) => (
+                            <Text key={topic.topic} as="p" variant="bodySm" tone={topic.status === 'READY' ? 'subdued' : 'critical'}>
+                              {topic.topic} · {topic.status}
+                              {topic.subscriptionName ? ` · ${topic.subscriptionName}` : ''}
+                              {topic.message ? ` · ${topic.message}` : ''}
+                            </Text>
+                          ))}
+                        </BlockStack>
+                      ) : null}
+                    </BlockStack>
+                  ) : (
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Webhook subscription diagnostics are unavailable until the merchant session resolves.
+                    </Text>
+                  )}
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
                     Diagnostics and support bundle
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
@@ -693,6 +751,7 @@ export default function App() {
                       <List.Item>Widget status: {store.widgetDetail?.status ?? store.widgetStatus}</List.Item>
                       <List.Item>Billing mode: {billingSummary?.mode ?? 'UNKNOWN'}</List.Item>
                       <List.Item>Billing status: {billingSummary?.status ?? 'UNKNOWN'}</List.Item>
+                      <List.Item>Webhook subscriptions: {webhookSubscriptions?.status ?? 'UNKNOWN'}</List.Item>
                       <List.Item>Actions: {store.capabilities?.actionCount ?? 0}</List.Item>
                       <List.Item>Knowledge sources: {store.capabilities?.knowledgeSourceCount ?? 0}</List.Item>
                       <List.Item>Datasets: {store.capabilities?.marketplaceDatasetCount ?? 0}</List.Item>
@@ -711,6 +770,12 @@ export default function App() {
                   {billingSummary ? (
                     <Text as="p" variant="bodySm" tone={billingSummary.launchBlocked ? 'critical' : 'subdued'}>
                       Billing {billingSummary.mode} / {billingSummary.status} · {billingSummary.message}
+                    </Text>
+                  ) : null}
+                  {webhookSubscriptions ? (
+                    <Text as="p" variant="bodySm" tone={webhookSubscriptions.status === 'READY' ? 'subdued' : 'critical'}>
+                      Webhooks {webhookSubscriptions.status} · ready {webhookSubscriptions.readyCount}/{webhookSubscriptions.expectedCount} ·
+                      {' '}{webhookSubscriptions.message}
                     </Text>
                   ) : null}
                   {usageSummary ? (
@@ -1250,7 +1315,8 @@ function buildSupportBundle(
   session: ShopifyBridgeMerchantSessionResponse | null,
   storefrontPreview: ShopifyStorefrontPreviewResponse | null,
   usageSummary: ShopifyBridgeUsageSummary | null,
-  billingSummary: ShopifyBridgeBillingSummary | null
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null
 ): string {
   const store = session?.store ?? null
   return JSON.stringify(
@@ -1311,6 +1377,7 @@ function buildSupportBundle(
           }
         : null,
       billingSummary,
+      webhookSubscriptions,
       storefrontPreview: storefrontPreview
         ? {
             ready: storefrontPreview.ready,

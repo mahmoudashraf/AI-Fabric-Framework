@@ -225,12 +225,71 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(overview.status()).isEqualTo("READY");
         assertThat(overview.installs().totalCount()).isEqualTo(5);
         assertThat(overview.stores().storefrontReadyCount()).isEqualTo(1);
+        assertThat(overview.webhookSubscriptions()).isNotNull();
+        assertThat(overview.webhookSubscriptions().expectedCount()).isEqualTo(11);
         assertThat(overview.billing()).isNotNull();
         assertThat(overview.billing().mode()).isEqualTo("FREE");
         assertThat(overview.usage()).isNotNull();
         assertThat(overview.usage().activeShopsLast7Days()).isEqualTo(2);
         assertThat(overview.usage().totalToday()).isEqualTo(4);
         assertThat(overview.summaryMessage()).contains("Platform store mappings resolved successfully");
+    }
+
+    @Test
+    void storeWebhookSubscriptionsAreFetchedThroughBridgeAdminApi() throws Exception {
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/api/admin/stores/demo.myshopify.com/webhook-subscriptions", this::handleWebhookSubscriptionsRequest);
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setBaseUrl(baseUrl);
+        service.setSecretName("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY");
+
+        ShopifyStoreConnectionEntity connection = storeConnection(service.getId(), "demo.myshopify.com");
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), "demo.myshopify.com"))
+            .thenReturn(java.util.Optional.of(connection));
+        when(platformSecretService.resolveSecret("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY")).thenReturn("bridge-admin-key");
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        var summary = adminService.getStoreWebhookSubscriptions("shopify-bridge-prod", "demo.myshopify.com");
+
+        assertThat(summary.shopDomain()).isEqualTo("demo.myshopify.com");
+        assertThat(summary.status()).isEqualTo("DEGRADED");
+        assertThat(summary.missingCount()).isEqualTo(1);
+        assertThat(summary.topics()).hasSize(1);
     }
 
     @Test
@@ -422,6 +481,13 @@ class PlatformManagedProductAdminServiceTest {
                 "blockedCount": 1,
                 "lastWebhookAt": "2026-04-18T10:15:00Z"
               },
+              "webhookSubscriptions": {
+                "status": "READY",
+                "message": "Diagnostics available.",
+                "webhookUri": "https://bridge.example.com/api/webhooks/shopify",
+                "expectedCount": 11,
+                "expectedTopics": ["APP_UNINSTALLED", "PRODUCTS_CREATE"]
+              },
               "billing": {
                 "mode": "FREE",
                 "planName": "Companion Free",
@@ -454,6 +520,43 @@ class PlatformManagedProductAdminServiceTest {
         exchange.sendResponseHeaders(200, payload.length);
         try (OutputStream outputStream = exchange.getResponseBody()) {
             outputStream.write(payload);
+        }
+    }
+
+    private void handleWebhookSubscriptionsRequest(HttpExchange exchange) throws IOException {
+        String apiKey = exchange.getRequestHeaders().getFirst("X-BRIDGE-API-KEY");
+        if (!"bridge-admin-key".equals(apiKey)) {
+            exchange.sendResponseHeaders(401, -1);
+            return;
+        }
+        byte[] payload = """
+            {
+              "shopDomain": "demo.myshopify.com",
+              "status": "DEGRADED",
+              "message": "One topic is missing.",
+              "webhookUri": "https://bridge.example.com/api/webhooks/shopify",
+              "expectedCount": 11,
+              "readyCount": 10,
+              "missingCount": 1,
+              "driftedCount": 0,
+              "checkedAt": "2026-04-18T10:25:00Z",
+              "topics": [
+                {
+                  "topic": "PRODUCTS_UPDATE",
+                  "expectedName": "loom-products-update",
+                  "status": "MISSING",
+                  "subscriptionId": null,
+                  "subscriptionName": null,
+                  "subscriptionUri": null,
+                  "message": "Required Shopify webhook subscription is missing."
+                }
+              ]
+            }
+            """.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, payload.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+          outputStream.write(payload);
         }
     }
 }

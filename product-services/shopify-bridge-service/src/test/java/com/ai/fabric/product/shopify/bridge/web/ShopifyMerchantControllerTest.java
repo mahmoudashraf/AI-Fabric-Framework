@@ -15,6 +15,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import com.ai.fabric.product.shopify.bridge.playground.service.ShopifyMerchantPlaygroundService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -252,6 +254,38 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.launchBlocked").value(false));
 
         verify(billingService).summarize();
+    }
+
+    @Test
+    void webhookSubscriptionsUseMerchantSessionContext() throws Exception {
+        when(merchantStoreService.webhookSubscriptions(any())).thenReturn(new ShopifyWebhookSubscriptionStatusSummary(
+            "alpha.myshopify.com",
+            "READY",
+            "All required Shopify webhook subscriptions are present.",
+            "https://bridge.example.com/api/webhooks/shopify",
+            11,
+            11,
+            0,
+            0,
+            Instant.parse("2026-04-18T12:05:00Z"),
+            List.of(new ShopifyWebhookSubscriptionTopicStatusSummary(
+                "APP_UNINSTALLED",
+                "loom-app-uninstalled",
+                "READY",
+                "gid://shopify/WebhookSubscription/1",
+                "loom-app-uninstalled",
+                "https://bridge.example.com/api/webhooks/shopify",
+                "Expected subscription is present."
+            ))
+        ));
+
+        mockMvc.perform(get("/api/app/store/webhook-subscriptions").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.status").value("READY"))
+            .andExpect(jsonPath("$.topics[0].topic").value("APP_UNINSTALLED"));
+
+        verify(merchantStoreService).webhookSubscriptions(any());
     }
 
     @Test

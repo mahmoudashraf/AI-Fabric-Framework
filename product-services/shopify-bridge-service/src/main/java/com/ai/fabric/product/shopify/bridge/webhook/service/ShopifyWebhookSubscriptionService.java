@@ -2,9 +2,12 @@ package com.ai.fabric.product.shopify.bridge.webhook.service;
 
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -89,6 +92,44 @@ public class ShopifyWebhookSubscriptionService {
         }
     }
 
+    public ShopifyWebhookSubscriptionStatusSummary inspectContentSubscriptions(String shopDomain, String accessToken) {
+        String webhookUri = webhookUri();
+        List<ShopifyWebhookSubscriptionTopicStatusSummary> topics = DESIRED_SUBSCRIPTIONS.stream()
+            .map(desired -> inspectTopic(shopDomain, accessToken, desired, webhookUri))
+            .toList();
+        int readyCount = (int) topics.stream().filter(topic -> "READY".equalsIgnoreCase(topic.status())).count();
+        int missingCount = (int) topics.stream().filter(topic -> "MISSING".equalsIgnoreCase(topic.status())).count();
+        int driftedCount = (int) topics.stream().filter(topic -> "DRIFTED".equalsIgnoreCase(topic.status())).count();
+        String status = driftedCount > 0 || missingCount > 0 ? "DEGRADED" : "READY";
+        String message = "READY".equals(status)
+            ? "All required Shopify webhook subscriptions are present."
+            : "Some required Shopify webhook subscriptions are missing or drifted.";
+        return new ShopifyWebhookSubscriptionStatusSummary(
+            normalizeShopDomain(shopDomain),
+            status,
+            message,
+            webhookUri,
+            DESIRED_SUBSCRIPTIONS.size(),
+            readyCount,
+            missingCount,
+            driftedCount,
+            Instant.now(),
+            topics
+        );
+    }
+
+    public int expectedSubscriptionCount() {
+        return DESIRED_SUBSCRIPTIONS.size();
+    }
+
+    public List<String> expectedTopics() {
+        return DESIRED_SUBSCRIPTIONS.stream().map(DesiredWebhookSubscription::topic).toList();
+    }
+
+    public String expectedWebhookUri() {
+        return webhookUri();
+    }
+
     private void reconcileTopic(String shopDomain,
                                 String accessToken,
                                 DesiredWebhookSubscription desired,
@@ -115,6 +156,72 @@ public class ShopifyWebhookSubscriptionService {
         }
 
         createSubscription(shopDomain, accessToken, desired, webhookUri);
+    }
+
+    private ShopifyWebhookSubscriptionTopicStatusSummary inspectTopic(String shopDomain,
+                                                                      String accessToken,
+                                                                      DesiredWebhookSubscription desired,
+                                                                      String webhookUri) {
+        List<ExistingWebhookSubscription> existing = listSubscriptions(shopDomain, accessToken, desired.topic());
+        ExistingWebhookSubscription exactMatch = existing.stream()
+            .filter(subscription -> same(subscription.name(), desired.name()) && same(subscription.uri(), webhookUri))
+            .findFirst()
+            .orElse(null);
+        if (exactMatch != null) {
+            return new ShopifyWebhookSubscriptionTopicStatusSummary(
+                desired.topic(),
+                desired.name(),
+                "READY",
+                exactMatch.id(),
+                exactMatch.name(),
+                exactMatch.uri(),
+                "Expected subscription is present."
+            );
+        }
+
+        ExistingWebhookSubscription compatibleUri = existing.stream()
+            .filter(subscription -> same(subscription.uri(), webhookUri))
+            .findFirst()
+            .orElse(null);
+        if (compatibleUri != null) {
+            return new ShopifyWebhookSubscriptionTopicStatusSummary(
+                desired.topic(),
+                desired.name(),
+                "READY",
+                compatibleUri.id(),
+                compatibleUri.name(),
+                compatibleUri.uri(),
+                compatibleUri.name() == null || compatibleUri.name().isBlank()
+                    ? "Compatible unnamed subscription is present."
+                    : "Compatible subscription is present."
+            );
+        }
+
+        ExistingWebhookSubscription namedDrift = existing.stream()
+            .filter(subscription -> same(subscription.name(), desired.name()))
+            .findFirst()
+            .orElse(null);
+        if (namedDrift != null) {
+            return new ShopifyWebhookSubscriptionTopicStatusSummary(
+                desired.topic(),
+                desired.name(),
+                "DRIFTED",
+                namedDrift.id(),
+                namedDrift.name(),
+                namedDrift.uri(),
+                "Subscription name matches, but the webhook URI does not."
+            );
+        }
+
+        return new ShopifyWebhookSubscriptionTopicStatusSummary(
+            desired.topic(),
+            desired.name(),
+            "MISSING",
+            null,
+            null,
+            null,
+            "Required Shopify webhook subscription is missing."
+        );
     }
 
     private List<ExistingWebhookSubscription> listSubscriptions(String shopDomain,
@@ -282,6 +389,10 @@ public class ShopifyWebhookSubscriptionService {
             return false;
         }
         return normalizedLeft.toLowerCase(Locale.ROOT).equals(normalizedRight.toLowerCase(Locale.ROOT));
+    }
+
+    private String normalizeShopDomain(String shopDomain) {
+        return shopDomain == null ? "" : shopDomain.trim().toLowerCase(Locale.ROOT);
     }
 
     private record DesiredWebhookSubscription(

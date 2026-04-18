@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeWebhookSubscriptionOverview;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInstallOverview;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeStoreOverview;
@@ -13,6 +14,9 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -47,6 +51,9 @@ class ShopifyBridgeAdminControllerTest {
     @MockBean
     private ShopifyBridgeStoreAdminService storeAdminService;
 
+    @MockBean
+    private ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
+
     @Test
     void healthIsPublic() throws Exception {
         mockMvc.perform(get("/actuator/health"))
@@ -75,6 +82,7 @@ class ShopifyBridgeAdminControllerTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             new ShopifyBridgeInstallOverview(10, 8, 2, 7, Instant.parse("2026-04-18T10:10:00Z"), Instant.parse("2026-04-18T09:00:00Z")),
             new ShopifyBridgeStoreOverview("READY", "Platform store mappings resolved successfully.", 6, 3, 2, 1, 1, Instant.parse("2026-04-18T10:15:00Z")),
+            new ShopifyBridgeWebhookSubscriptionOverview("READY", "Diagnostics available.", "https://bridge.example.com/api/webhooks/shopify", 11, List.of("APP_UNINSTALLED")),
             new ShopifyBridgeBillingSummary("FREE", "Companion Free", "ACTIVE", false, false, "Free mode."),
             new ShopifyBridgeUsageOverview(Instant.parse("2026-04-18T10:20:00Z"), Instant.parse("2026-04-18T10:18:00Z"), 1, 2, 4, 9, List.of(), List.of()),
             List.of("managed-service-health"),
@@ -88,8 +96,39 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.status").value("READY"))
             .andExpect(jsonPath("$.installs.totalCount").value(10))
             .andExpect(jsonPath("$.stores.readyForGoLiveCount").value(3))
+            .andExpect(jsonPath("$.webhookSubscriptions.expectedCount").value(11))
             .andExpect(jsonPath("$.billing.mode").value("FREE"))
             .andExpect(jsonPath("$.usage.totalToday").value(4));
+    }
+
+    @Test
+    void adminWebhookSubscriptionsAreReturnedWhenApiKeyMatches() throws Exception {
+        when(webhookSubscriptionDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(new ShopifyWebhookSubscriptionStatusSummary(
+            "alpha.myshopify.com",
+            "DEGRADED",
+            "One topic is missing.",
+            "https://bridge.example.com/api/webhooks/shopify",
+            11,
+            10,
+            1,
+            0,
+            Instant.parse("2026-04-18T10:25:00Z"),
+            List.of(new ShopifyWebhookSubscriptionTopicStatusSummary(
+                "PRODUCTS_UPDATE",
+                "loom-products-update",
+                "MISSING",
+                null,
+                null,
+                null,
+                "Required Shopify webhook subscription is missing."
+            ))
+        ));
+
+        mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/webhook-subscriptions").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.status").value("DEGRADED"))
+            .andExpect(jsonPath("$.topics[0].topic").value("PRODUCTS_UPDATE"));
     }
 
     @Test

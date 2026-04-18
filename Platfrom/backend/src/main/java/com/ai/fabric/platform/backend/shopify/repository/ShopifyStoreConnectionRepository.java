@@ -12,6 +12,8 @@ public interface ShopifyStoreConnectionRepository extends JpaRepository<ShopifyS
 
     List<ShopifyStoreConnectionEntity> findAllByProductServiceIdOrderByShopDomainAsc(String productServiceId);
 
+    Optional<ShopifyStoreConnectionEntity> findByProductServiceIdAndShopDomainIgnoreCase(String productServiceId, String shopDomain);
+
     Optional<ShopifyStoreConnectionEntity> findByShopDomainIgnoreCase(String shopDomain);
 
     Optional<ShopifyStoreConnectionEntity> findByConsumerIdIgnoreCase(String consumerId);

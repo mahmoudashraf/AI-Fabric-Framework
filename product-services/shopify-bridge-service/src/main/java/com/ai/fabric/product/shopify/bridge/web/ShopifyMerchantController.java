@@ -13,6 +13,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidge
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import com.ai.fabric.product.shopify.bridge.playground.service.ShopifyMerchantPlaygroundService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -91,6 +92,11 @@ public class ShopifyMerchantController {
     public ShopifyBridgeBillingSummary billingSummary(Authentication authentication) {
         requireMerchant(authentication);
         return billingService.summarize();
+    }
+
+    @GetMapping("/store/webhook-subscriptions")
+    public ShopifyWebhookSubscriptionStatusSummary webhookSubscriptions(Authentication authentication) {
+        return merchantStoreService.webhookSubscriptions(requireMerchant(authentication));
     }
 
     @PostMapping("/store/source-settings")

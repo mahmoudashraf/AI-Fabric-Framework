@@ -8,6 +8,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,11 +25,14 @@ public class ShopifyBridgeAdminController {
 
     private final ShopifyBridgeDiagnosticsService diagnosticsService;
     private final ShopifyBridgeStoreAdminService storeAdminService;
+    private final ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
 
     public ShopifyBridgeAdminController(ShopifyBridgeDiagnosticsService diagnosticsService,
-                                        ShopifyBridgeStoreAdminService storeAdminService) {
+                                        ShopifyBridgeStoreAdminService storeAdminService,
+                                        ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService) {
         this.diagnosticsService = diagnosticsService;
         this.storeAdminService = storeAdminService;
+        this.webhookSubscriptionDiagnosticsService = webhookSubscriptionDiagnosticsService;
     }
 
     @GetMapping("/overview")
@@ -43,6 +48,11 @@ public class ShopifyBridgeAdminController {
     @GetMapping("/stores/{shopDomain}")
     public ShopifyBridgeStoreSummary getStore(@PathVariable String shopDomain) {
         return storeAdminService.getStore(shopDomain);
+    }
+
+    @GetMapping("/stores/{shopDomain}/webhook-subscriptions")
+    public ShopifyWebhookSubscriptionStatusSummary webhookSubscriptions(@PathVariable String shopDomain) {
+        return webhookSubscriptionDiagnosticsService.forShop(shopDomain);
     }
 
     @PostMapping("/stores/{shopDomain}/bootstrap")

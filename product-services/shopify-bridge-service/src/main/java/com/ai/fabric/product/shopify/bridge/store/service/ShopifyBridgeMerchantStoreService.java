@@ -18,6 +18,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourc
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontPreviewService;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -36,6 +38,7 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyStorefrontPreviewService storefrontPreviewService;
     private final ShopifyBridgeUsageService usageService;
     private final ShopifyBridgeBillingService billingService;
+    private final ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
@@ -45,7 +48,8 @@ public class ShopifyBridgeMerchantStoreService {
                                              ShopifyBridgeStoreSyncService storeSyncService,
                                              ShopifyStorefrontPreviewService storefrontPreviewService,
                                              ShopifyBridgeUsageService usageService,
-                                             ShopifyBridgeBillingService billingService) {
+                                             ShopifyBridgeBillingService billingService,
+                                             ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
@@ -55,6 +59,7 @@ public class ShopifyBridgeMerchantStoreService {
         this.storefrontPreviewService = storefrontPreviewService;
         this.usageService = usageService;
         this.billingService = billingService;
+        this.webhookSubscriptionDiagnosticsService = webhookSubscriptionDiagnosticsService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -119,6 +124,10 @@ public class ShopifyBridgeMerchantStoreService {
         ShopifyBridgeStoreSummary store = storeSyncService.sync(acquireConnectedCredentials(merchantSession, authorizationHeader));
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SYNC_NOW");
         return store;
+    }
+
+    public ShopifyWebhookSubscriptionStatusSummary webhookSubscriptions(ShopifyMerchantSession merchantSession) {
+        return webhookSubscriptionDiagnosticsService.forShop(merchantSession.shopDomain());
     }
 
     public ShopifyStorefrontPreviewResponse storefrontPreview(ShopifyMerchantSession merchantSession) {

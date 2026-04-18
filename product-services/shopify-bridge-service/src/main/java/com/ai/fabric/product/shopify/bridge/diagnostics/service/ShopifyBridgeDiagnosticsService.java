@@ -9,9 +9,12 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInstallOverview;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeStoreOverview;
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeWebhookSubscriptionOverview;
 import com.ai.fabric.product.shopify.bridge.install.repository.ShopifyInstallRecordRepository;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.management.ManagementFactory;
 import java.time.Instant;
@@ -26,18 +29,21 @@ public class ShopifyBridgeDiagnosticsService {
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyBridgeUsageService usageService;
+    private final ShopifyWebhookSubscriptionService webhookSubscriptionService;
     private final Instant serverStartedAt;
 
     public ShopifyBridgeDiagnosticsService(ShopifyBridgeProperties properties,
                                           ShopifyInstallRecordRepository installRecordRepository,
                                           PlatformShopifyStoreClient platformShopifyStoreClient,
                                           ShopifyBridgeBillingService billingService,
-                                          ShopifyBridgeUsageService usageService) {
+                                          ShopifyBridgeUsageService usageService,
+                                          ShopifyWebhookSubscriptionService webhookSubscriptionService) {
         this.properties = properties;
         this.installRecordRepository = installRecordRepository;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.billingService = billingService;
         this.usageService = usageService;
+        this.webhookSubscriptionService = webhookSubscriptionService;
         this.serverStartedAt = Instant.ofEpochMilli(ManagementFactory.getRuntimeMXBean().getStartTime());
     }
 
@@ -61,9 +67,12 @@ public class ShopifyBridgeDiagnosticsService {
         );
 
         ShopifyBridgeStoreOverview stores = buildStoreOverview();
+        ShopifyBridgeWebhookSubscriptionOverview webhookSubscriptions = buildWebhookSubscriptionOverview();
         ShopifyBridgeBillingSummary billing = billingService.summarize();
         ShopifyBridgeUsageOverview usage = usageService.summarizeAllShops();
-        String status = !properties.adminApiKey().isBlank() && "READY".equalsIgnoreCase(stores.platformAccessStatus())
+        String status = !properties.adminApiKey().isBlank()
+            && "READY".equalsIgnoreCase(stores.platformAccessStatus())
+            && "READY".equalsIgnoreCase(webhookSubscriptions.status())
             ? "READY"
             : "DEGRADED";
 
@@ -80,6 +89,7 @@ public class ShopifyBridgeDiagnosticsService {
             serverStartedAt,
             installs,
             stores,
+            webhookSubscriptions,
             billing,
             usage,
             List.of(
@@ -127,6 +137,26 @@ public class ShopifyBridgeDiagnosticsService {
                 0,
                 0,
                 null
+            );
+        }
+    }
+
+    private ShopifyBridgeWebhookSubscriptionOverview buildWebhookSubscriptionOverview() {
+        try {
+            return new ShopifyBridgeWebhookSubscriptionOverview(
+                "READY",
+                "Per-store webhook subscription diagnostics are available through the bridge admin and merchant APIs.",
+                webhookSubscriptionService.expectedWebhookUri(),
+                webhookSubscriptionService.expectedSubscriptionCount(),
+                webhookSubscriptionService.expectedTopics()
+            );
+        } catch (ResponseStatusException ex) {
+            return new ShopifyBridgeWebhookSubscriptionOverview(
+                "BLOCKED",
+                Optional.ofNullable(ex.getReason()).filter(message -> !message.isBlank()).orElse("Shopify webhook subscription diagnostics are not configured."),
+                null,
+                webhookSubscriptionService.expectedSubscriptionCount(),
+                webhookSubscriptionService.expectedTopics()
             );
         }
     }

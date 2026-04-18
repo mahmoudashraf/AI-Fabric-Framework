@@ -16,6 +16,7 @@ public record PlatformManagedProductServiceOverviewSummary(
     String serverStartedAt,
     PlatformManagedProductServiceInstallOverview installs,
     PlatformManagedProductServiceStoreOverview stores,
+    PlatformManagedProductServiceWebhookSubscriptionOverview webhookSubscriptions,
     PlatformManagedProductServiceBillingSummary billing,
     PlatformManagedProductServiceUsageSummary usage,
     List<String> capabilities,

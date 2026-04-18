@@ -11,6 +11,7 @@ import com.ai.fabric.product.shopify.bridge.install.entity.ShopifyInstallRecordE
 import com.ai.fabric.product.shopify.bridge.install.repository.ShopifyInstallRecordRepository;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -28,6 +29,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
         PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyWebhookSubscriptionService webhookSubscriptionService = mock(ShopifyWebhookSubscriptionService.class);
         when(installRecordRepository.findAll()).thenReturn(List.of(
             install("alpha.myshopify.com", "INSTALLED", true),
             install("beta.myshopify.com", "UNINSTALLED", false)
@@ -54,13 +56,17 @@ class ShopifyBridgeDiagnosticsServiceTest {
             List.of(new ShopifyBridgeUsageEventCountSummary("MERCHANT_GO_LIVE", 2)),
             List.of(new ShopifyBridgeUsageEventCountSummary("STOREFRONT_WIDGET_OPENED_HOME_PAGE", 4))
         ));
+        when(webhookSubscriptionService.expectedWebhookUri()).thenReturn("https://bridge.example.com/api/webhooks/shopify");
+        when(webhookSubscriptionService.expectedSubscriptionCount()).thenReturn(11);
+        when(webhookSubscriptionService.expectedTopics()).thenReturn(List.of("APP_UNINSTALLED", "PRODUCTS_CREATE"));
 
         ShopifyBridgeDiagnosticsService service = new ShopifyBridgeDiagnosticsService(
             properties(),
             installRecordRepository,
             platformShopifyStoreClient,
             billingService,
-            usageService
+            usageService,
+            webhookSubscriptionService
         );
 
         var overview = service.overview();
@@ -71,6 +77,8 @@ class ShopifyBridgeDiagnosticsServiceTest {
         assertThat(overview.stores().totalCount()).isEqualTo(2);
         assertThat(overview.stores().readyForGoLiveCount()).isEqualTo(1);
         assertThat(overview.stores().blockedCount()).isEqualTo(1);
+        assertThat(overview.webhookSubscriptions().status()).isEqualTo("READY");
+        assertThat(overview.webhookSubscriptions().expectedCount()).isEqualTo(11);
         assertThat(overview.billing().mode()).isEqualTo("FREE");
         assertThat(overview.usage().activeShopsLast7Days()).isEqualTo(2);
         assertThat(overview.usage().totalToday()).isEqualTo(5);
@@ -83,6 +91,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
         PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyWebhookSubscriptionService webhookSubscriptionService = mock(ShopifyWebhookSubscriptionService.class);
         when(installRecordRepository.findAll()).thenReturn(List.of());
         when(platformShopifyStoreClient.listStores()).thenThrow(new IllegalStateException("Platform store API unavailable"));
         when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
@@ -103,13 +112,20 @@ class ShopifyBridgeDiagnosticsServiceTest {
             List.of(),
             List.of()
         ));
+        when(webhookSubscriptionService.expectedSubscriptionCount()).thenReturn(11);
+        when(webhookSubscriptionService.expectedTopics()).thenReturn(List.of("APP_UNINSTALLED"));
+        when(webhookSubscriptionService.expectedWebhookUri()).thenThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+            "Shopify Bridge public base URL is not configured."
+        ));
 
         ShopifyBridgeDiagnosticsService service = new ShopifyBridgeDiagnosticsService(
             properties(),
             installRecordRepository,
             platformShopifyStoreClient,
             billingService,
-            usageService
+            usageService,
+            webhookSubscriptionService
         );
 
         var overview = service.overview();
@@ -117,6 +133,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
         assertThat(overview.status()).isEqualTo("DEGRADED");
         assertThat(overview.stores().platformAccessStatus()).isEqualTo("FAILED");
         assertThat(overview.stores().platformAccessMessage()).contains("Platform store API unavailable");
+        assertThat(overview.webhookSubscriptions().status()).isEqualTo("BLOCKED");
     }
 
     private ShopifyBridgeProperties properties() {
