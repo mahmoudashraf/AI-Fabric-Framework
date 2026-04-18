@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -18,6 +19,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,20 +50,33 @@ class ShopifyMerchantControllerTest {
 
     @Test
     void sessionReturnsMerchantScopedStoreContext() throws Exception {
-        when(merchantStoreService.session(any())).thenReturn(new ShopifyBridgeMerchantSessionResponse(
+        when(merchantStoreService.session(any(), anyString())).thenReturn(new ShopifyBridgeMerchantSessionResponse(
             "alpha.myshopify.com",
             "https://alpha.myshopify.com",
             "gid://shopify/User/1",
             Instant.parse("2026-04-18T12:00:00Z"),
+            new ShopifyInstallRecordSummary(
+                "alpha.myshopify.com",
+                "INSTALLED",
+                "https://alpha.myshopify.com",
+                "gid://shopify/User/1",
+                "embedded-host",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T00:00:00Z"),
+                null
+            ),
             store()
         ));
 
-        mockMvc.perform(get("/api/app/session").header("Authorization", "Bearer " + token()))
+        mockMvc.perform(get("/api/app/session")
+                .header("Authorization", "Bearer " + token())
+                .header("X-Shopify-Embedded-Host", "embedded-host"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.installRecord.status").value("INSTALLED"))
             .andExpect(jsonPath("$.store.shopDomain").value("alpha.myshopify.com"));
 
-        verify(merchantStoreService).session(any());
+        verify(merchantStoreService).session(any(), anyString());
     }
 
     @Test

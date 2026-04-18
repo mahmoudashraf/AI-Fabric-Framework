@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,8 +23,9 @@ public class ShopifyMerchantController {
     }
 
     @GetMapping("/session")
-    public ShopifyBridgeMerchantSessionResponse session(Authentication authentication) {
-        return merchantStoreService.session(requireMerchant(authentication));
+    public ShopifyBridgeMerchantSessionResponse session(Authentication authentication,
+                                                        @RequestHeader(name = "X-Shopify-Embedded-Host", required = false) String embeddedHost) {
+        return merchantStoreService.session(requireMerchant(authentication), embeddedHost);
     }
 
     @PostMapping("/store/connect")

@@ -3,6 +3,8 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -17,19 +19,25 @@ public class ShopifyBridgeMerchantStoreService {
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeProperties properties;
+    private final ShopifyInstallRecordService installRecordService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
-                                             ShopifyBridgeProperties properties) {
+                                             ShopifyBridgeProperties properties,
+                                             ShopifyInstallRecordService installRecordService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
+        this.installRecordService = installRecordService;
     }
 
-    public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession) {
+    public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
+                                                        String appBridgeHost) {
+        ShopifyInstallRecordSummary installRecord = installRecordService.recordAuthenticatedSession(merchantSession, appBridgeHost);
         return new ShopifyBridgeMerchantSessionResponse(
             merchantSession.shopDomain(),
             merchantSession.destination(),
             merchantSession.userId(),
             merchantSession.expiresAt(),
+            installRecord,
             findStoreOrNull(merchantSession.shopDomain())
         );
     }

@@ -188,6 +188,7 @@ export default function App() {
                       <List.Item>Shop: {session.shopDomain}</List.Item>
                       <List.Item>User: {session.userId}</List.Item>
                       <List.Item>Expires: {new Date(session.expiresAt).toLocaleString()}</List.Item>
+                      <List.Item>Install record: {session.installRecord?.status ?? 'MISSING'}</List.Item>
                     </List>
                   ) : (
                     <Text as="p" variant="bodyMd" tone="subdued">

@@ -31,6 +31,13 @@ export type ShopifyBridgeMerchantSessionResponse = {
   destination: string
   userId: string
   expiresAt: string
+  installRecord: {
+    status: string
+    installedAt: string | null
+    lastAuthenticatedAt: string | null
+    lastUninstalledAt: string | null
+    appBridgeHost: string | null
+  } | null
   store: ShopifyBridgeStoreSummary | null
 }
 
@@ -51,7 +58,10 @@ export async function fetchShell(): Promise<ShopifyBridgeShellResponse> {
 }
 
 export async function fetchSession(): Promise<ShopifyBridgeMerchantSessionResponse> {
-  return authenticatedFetchJson('/api/app/session', { method: 'GET' })
+  return authenticatedFetchJson('/api/app/session', {
+    method: 'GET',
+    headers: hostHeader(),
+  })
 }
 
 export async function connectStore(): Promise<ShopifyBridgeStoreSummary> {
@@ -105,4 +115,9 @@ async function safeReadText(response: Response): Promise<string> {
   } catch {
     return ''
   }
+}
+
+function hostHeader(): Record<string, string> {
+  const host = new URLSearchParams(window.location.search).get('host')
+  return host && host.trim() ? { 'X-Shopify-Embedded-Host': host.trim() } : {}
 }

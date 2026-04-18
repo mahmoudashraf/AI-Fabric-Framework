@@ -6,6 +6,21 @@ server:
 spring:
   application:
     name: shopify-bridge-service
+  datasource:
+    url: ${SHOPIFY_BRIDGE_DATASOURCE_URL:jdbc:h2:mem:shopifybridge;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE}
+    username: ${SHOPIFY_BRIDGE_DATASOURCE_USERNAME:sa}
+    password: ${SHOPIFY_BRIDGE_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SHOPIFY_BRIDGE_DATASOURCE_DRIVER:org.h2.Driver}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
 
 management:
   endpoints:

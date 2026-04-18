@@ -3,6 +3,8 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -26,11 +28,23 @@ class ShopifyBridgeMerchantStoreServiceTest {
     @Test
     void sessionReturnsStoreWhenPresent() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties());
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties(), installRecordService);
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
+        when(installRecordService.recordAuthenticatedSession(session(), "host-token")).thenReturn(new ShopifyInstallRecordSummary(
+            "alpha.myshopify.com",
+            "INSTALLED",
+            "https://alpha.myshopify.com",
+            "gid://shopify/User/1",
+            "host-token",
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z"),
+            null
+        ));
 
-        var response = service.session(session());
+        var response = service.session(session(), "host-token");
 
+        assertThat(response.installRecord()).isNotNull();
         assertThat(response.store()).isNotNull();
         assertThat(response.store().shopDomain()).isEqualTo("alpha.myshopify.com");
     }
@@ -38,7 +52,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
     @Test
     void connectUpsertsWhenStoreDoesNotExist() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties());
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties(), mock(ShopifyInstallRecordService.class));
         when(client.getStore("alpha.myshopify.com")).thenThrow(notFound());
         when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));
 
@@ -67,7 +81,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
     @Test
     void bootstrapReusesExistingStoreWhenAlreadyConnected() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties());
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties(), mock(ShopifyInstallRecordService.class));
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(client.bootstrap("alpha.myshopify.com")).thenReturn(new ShopifyBridgeStoreBootstrapResponse(
             "alpha.myshopify.com",
