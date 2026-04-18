@@ -268,7 +268,7 @@ if missing or wrong:
 PY
 }
 
-platform_headers=()
+declare -a platform_headers=()
 if [[ -n "${PLATFORM_API_KEY}" ]]; then
   platform_headers=("${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
 fi
@@ -286,7 +286,7 @@ if [[ -z "${PLATFORM_API_KEY}" && -z "${PLATFORM_SESSION_COOKIE_JAR}" ]]; then
 fi
 
 echo "== Platform product service summary =="
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "product service summary status"
 product_service_json="${HTTP_BODY}"
 assert_equals "$(json_get "${product_service_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "product service ref"
@@ -294,22 +294,24 @@ assert_equals "$(json_get "${product_service_json}" "status")" "${EXPECT_PRODUCT
 assert_nonempty "$(json_get "${product_service_json}" "baseUrl")" "product service baseUrl"
 
 echo "== Platform product service health =="
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/health" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/health" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "product service health status"
 health_json="${HTTP_BODY}"
-assert_nonempty "$(json_get "${health_json}" "overallStatus")" "product service overallStatus"
+assert_nonempty "$(json_get "${health_json}" "status")" "product service health status value"
+assert_nonempty "$(json_get "${health_json}" "lastProbeStatus")" "product service last probe status"
 
 echo "== Platform product service overview =="
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/overview" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/overview" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "product service overview status"
 overview_json="${HTTP_BODY}"
-assert_nonempty "$(json_get "${overview_json}" "storeOverview.totalCount")" "overview store total count"
+assert_nonempty "$(json_get "${overview_json}" "stores.totalCount")" "overview store total count"
+assert_nonempty "$(json_get "${overview_json}" "stores.platformAccessStatus")" "overview store platform access status"
 assert_nonempty "$(json_get "${overview_json}" "usage.totalToday")" "overview usage total today"
 assert_nonempty "$(json_get "${overview_json}" "usage.totalLast7Days")" "overview usage total last 7 days"
 assert_nonempty "$(json_get "${overview_json}" "billing.mode")" "overview billing mode"
 
 echo "== Platform product service Railway deployments =="
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/deployments?limit=5" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/deployments?limit=5" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "product service Railway deployments status"
 product_service_deployments_json="${HTTP_BODY}"
 assert_equals "$(json_get "${product_service_deployments_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "product service deployment history serviceRef"
@@ -319,7 +321,7 @@ assert_nonempty "$(json_get "${product_service_deployments_json}" "deployments.0
 
 echo "== Platform product service Railway logs =="
 latest_product_service_deployment_id="$(json_get "${product_service_deployments_json}" "deployments.0.id")"
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/logs?source=deployment&deploymentId=${latest_product_service_deployment_id}&limit=50" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/logs?source=deployment&deploymentId=${latest_product_service_deployment_id}&limit=50" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "product service Railway logs status"
 product_service_logs_json="${HTTP_BODY}"
 assert_equals "$(json_get "${product_service_logs_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "product service Railway logs serviceRef"
@@ -328,7 +330,7 @@ assert_equals "$(json_get "${product_service_logs_json}" "railwayDeploymentId")"
 assert_nonempty "$(json_get "${product_service_logs_json}" "queriedAt")" "product service Railway logs queriedAt"
 
 echo "== Platform store summary =="
-platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store summary status"
 store_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store shopDomain"
@@ -346,7 +348,7 @@ assert_nonempty "$(json_get "${store_json}" "syncDetail.checkedAt")" "platform s
 assert_nonempty "$(json_get "${store_json}" "widgetDetail.message")" "platform widget message"
 
 echo "== Platform store binding inspection =="
-platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store binding status"
 store_binding_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store binding shopDomain"
@@ -358,7 +360,7 @@ assert_nonempty "$(json_get "${store_binding_json}" "latestVersion.id")" "platfo
 assert_nonempty "$(json_get "${store_binding_json}" "latestRelease.id")" "platform store binding latest release id"
 
 echo "== Platform store binding inspection via product service =="
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "product service store binding status"
 service_store_binding_json="${HTTP_BODY}"
 assert_equals "$(json_get "${service_store_binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "product service store binding shopDomain"
@@ -367,7 +369,7 @@ assert_equals "$(json_get "${service_store_binding_json}" "deployment.id")" "$(j
 assert_equals "$(json_get "${service_store_binding_json}" "consumer.consumerId")" "$(json_get "${store_binding_json}" "consumer.consumerId")" "product service store binding consumer id"
 
 echo "== Platform store billing posture =="
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/billing-summary" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/billing-summary" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store billing summary status"
 platform_store_billing_json="${HTTP_BODY}"
 assert_equals "$(json_get "${platform_store_billing_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store billing shopDomain"
@@ -376,7 +378,7 @@ assert_optional_equals "$(json_get "${platform_store_billing_json}" "status")" "
 assert_optional_equals "$(json_get "${platform_store_billing_json}" "launchBlocked")" "${EXPECT_BILLING_LAUNCH_BLOCKED}" "platform store billing launchBlocked"
 
 echo "== Platform store webhook diagnostics =="
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store webhook diagnostics status"
 platform_store_webhook_json="${HTTP_BODY}"
 assert_equals "$(json_get "${platform_store_webhook_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store webhook shopDomain"
@@ -454,18 +456,18 @@ assert_equals "${HTTP_STATUS}" "202" "storefront event status"
 
 if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   echo "== Merchant session =="
-  merchant_headers=("Authorization: ${SHOPIFY_MERCHANT_AUTHORIZATION}")
+  declare -a merchant_headers=("Authorization: ${SHOPIFY_MERCHANT_AUTHORIZATION}")
   if [[ -n "${SHOPIFY_EMBEDDED_HOST}" ]]; then
     merchant_headers+=("X-Shopify-Embedded-Host: ${SHOPIFY_EMBEDDED_HOST}")
   fi
-  http_request GET "${bridge_base}/api/app/session" "" "${merchant_headers[@]}"
+  http_request GET "${bridge_base}/api/app/session" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant session status"
   merchant_session_json="${HTTP_BODY}"
   assert_equals "$(json_get "${merchant_session_json}" "shopDomain")" "${SHOP_DOMAIN}" "merchant session shopDomain"
   assert_nonempty "$(json_get "${merchant_session_json}" "userId")" "merchant session userId"
 
   echo "== Merchant billing summary =="
-  http_request GET "${bridge_base}/api/app/store/billing-summary" "" "${merchant_headers[@]}"
+  http_request GET "${bridge_base}/api/app/store/billing-summary" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant billing summary status"
   merchant_billing_json="${HTTP_BODY}"
   assert_nonempty "$(json_get "${merchant_billing_json}" "mode")" "merchant billing mode"
@@ -473,14 +475,14 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_optional_equals "$(json_get "${merchant_billing_json}" "launchBlocked")" "${EXPECT_BILLING_LAUNCH_BLOCKED}" "merchant billing launchBlocked"
 
   echo "== Merchant webhook diagnostics =="
-  http_request GET "${bridge_base}/api/app/store/webhook-subscriptions" "" "${merchant_headers[@]}"
+  http_request GET "${bridge_base}/api/app/store/webhook-subscriptions" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant webhook diagnostics status"
   merchant_webhook_json="${HTTP_BODY}"
   assert_nonempty "$(json_get "${merchant_webhook_json}" "expectedCount")" "merchant webhook expectedCount"
   assert_optional_equals "$(json_get "${merchant_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "merchant webhook status"
 
   echo "== Merchant usage summary =="
-  http_request GET "${bridge_base}/api/app/store/usage-summary" "" "${merchant_headers[@]}"
+  http_request GET "${bridge_base}/api/app/store/usage-summary" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant usage summary status"
   merchant_usage_json="${HTTP_BODY}"
   assert_equals "$(json_get "${merchant_usage_json}" "shopDomain")" "${SHOP_DOMAIN}" "merchant usage shopDomain"

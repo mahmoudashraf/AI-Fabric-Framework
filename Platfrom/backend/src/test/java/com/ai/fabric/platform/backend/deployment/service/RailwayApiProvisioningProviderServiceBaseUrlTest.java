@@ -16,6 +16,15 @@ class RailwayApiProvisioningProviderServiceBaseUrlTest {
     }
 
     @Test
+    void resolveServiceBaseUrlUsesConnectorPublicUrlForRuntimeAuthzBaseUrl() {
+        assertThat(RailwayApiProvisioningProvider.resolveServiceBaseUrl(
+            "AUTHZ_BASE_URL",
+            "https://runtime.example",
+            "https://connector.example"
+        )).isEqualTo("https://connector.example");
+    }
+
+    @Test
     void resolveServiceBaseUrlUsesRuntimePublicUrlForConnectorRuntimeProxy() {
         assertThat(RailwayApiProvisioningProvider.resolveServiceBaseUrl(
             "REST_CONNECTOR_RUNTIME_PROXY_BASE_URL",

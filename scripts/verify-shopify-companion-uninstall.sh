@@ -188,7 +188,7 @@ platform_request() {
 
 platform_base="$(trim_slash "${PLATFORM_BASE_URL}")"
 bridge_base="$(trim_slash "${SHOPIFY_BRIDGE_BASE_URL}")"
-platform_headers=()
+declare -a platform_headers=()
 if [[ -n "${PLATFORM_API_KEY}" ]]; then
   platform_headers=("${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
 fi
@@ -204,7 +204,7 @@ if [[ -z "${PLATFORM_API_KEY}" && -z "${PLATFORM_SESSION_COOKIE_JAR}" ]]; then
 fi
 
 echo "== Platform uninstall =="
-platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/uninstall" "" "${platform_headers[@]}"
+platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/uninstall" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform uninstall status"
 uninstall_json="${HTTP_BODY}"
 assert_equals "$(json_get "${uninstall_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform uninstall shopDomain"
@@ -219,7 +219,7 @@ assert_equals "$(json_get "${uninstall_json}" "syncDetail.status")" "${EXPECT_DO
 assert_nonempty "$(json_get "${uninstall_json}" "widgetDetail.message")" "platform uninstall widget message"
 
 echo "== Platform store summary after uninstall =="
-platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store summary after uninstall status"
 store_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_json}" "installStatus")" "${EXPECT_INSTALL_STATUS}" "platform store installStatus"
@@ -228,7 +228,7 @@ assert_equals "$(json_get "${store_json}" "credentials.status")" "${EXPECT_CREDE
 assert_equals "$(json_get "${store_json}" "syncDetail.status")" "${EXPECT_DOCUMENT_CLEANUP_STATUS}" "platform store sync detail status"
 
 echo "== Platform binding inspection after uninstall =="
-platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform binding inspection after uninstall status"
 binding_json="${HTTP_BODY}"
 assert_equals "$(json_get "${binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform binding shopDomain after uninstall"
@@ -238,7 +238,7 @@ assert_nonempty "$(json_get "${binding_json}" "deployment.id")" "platform bindin
 assert_nonempty "$(json_get "${binding_json}" "consumer.consumerId")" "platform binding consumer id after uninstall"
 
 echo "== Product service binding inspection after uninstall =="
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]}"
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "product service binding inspection after uninstall status"
 service_binding_json="${HTTP_BODY}"
 assert_equals "$(json_get "${service_binding_json}" "shopDomain")" "${SHOP_DOMAIN}" "product service binding shopDomain after uninstall"
@@ -255,11 +255,11 @@ assert_nonempty "$(json_get "${bootstrap_json}" "message")" "storefront bootstra
 
 if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   echo "== Merchant session after uninstall =="
-  merchant_headers=("Authorization: ${SHOPIFY_MERCHANT_AUTHORIZATION}")
+  declare -a merchant_headers=("Authorization: ${SHOPIFY_MERCHANT_AUTHORIZATION}")
   if [[ -n "${SHOPIFY_EMBEDDED_HOST}" ]]; then
     merchant_headers+=("X-Shopify-Embedded-Host: ${SHOPIFY_EMBEDDED_HOST}")
   fi
-  http_request GET "${bridge_base}/api/app/session" "" "${merchant_headers[@]}"
+  http_request GET "${bridge_base}/api/app/session" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant session after uninstall status"
   merchant_session_json="${HTTP_BODY}"
   assert_equals "$(json_get "${merchant_session_json}" "installRecoveryRequired")" "${EXPECT_INSTALL_RECOVERY_REQUIRED}" "merchant install recovery required"

@@ -1033,7 +1033,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     }
 
     static String resolveServiceBaseUrl(String envKey, String runtimeBaseUrl, String connectorBaseUrl) {
-        if ("ACTIONS_CONNECTOR_BASE_URL".equals(envKey)) {
+        if ("ACTIONS_CONNECTOR_BASE_URL".equals(envKey)
+            || "AUTHZ_BASE_URL".equals(envKey)) {
             return connectorBaseUrl;
         }
         if ("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL".equals(envKey)) {
