@@ -1,4 +1,5 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import StoreRoundedIcon from '@mui/icons-material/StoreRounded'
 import {
   Alert,
@@ -26,9 +27,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
+  bootstrapShopifyStore,
   fetchProductServices,
   fetchShopifyStore,
   fetchShopifyStores,
+  type ShopifyStoreBootstrapSummary,
   upsertShopifyStore,
   type ShopifyStoreConnectionSummary,
   type UpsertShopifyStoreConnectionRequest,
@@ -150,6 +153,30 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const bootstrapMutation = useMutation({
+    mutationFn: (shopDomain: string) => bootstrapShopifyStore(shopDomain, {}),
+    onSuccess: async (result: ShopifyStoreBootstrapSummary) => {
+      const created: string[] = []
+      if (result.createdCustomer) created.push('customer')
+      if (result.createdDeployment) created.push('deployment')
+      if (result.createdConsumer) created.push('consumer')
+      const createdSummary = created.length > 0 ? ` Created ${created.join(', ')}.` : ' Reused existing platform objects.'
+      setMessage({
+        type: 'success',
+        text: `Bootstrapped ${result.shopDomain}.${createdSummary} Installed/ensured plugins: ${result.installedPluginIds.join(', ') || 'none'}.`,
+      })
+      setSearchParams({ shop: result.shopDomain }, { replace: true })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', result.shopDomain] }),
+        queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+      ])
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to bootstrap Shopify store.' })
+    },
+  })
+
   return (
     <Stack spacing={3}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
@@ -161,9 +188,21 @@ export function ShopifyStoresPage() {
             Platform drill-through for shop, customer, deployment, consumer, and sync-state mappings.
           </Typography>
         </div>
-        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDialogOpen(true)}>
-          Register store mapping
-        </Button>
+        <Stack direction="row" spacing={1}>
+          {selectedStore ? (
+            <Button
+              variant="outlined"
+              startIcon={<AutoFixHighRoundedIcon />}
+              onClick={() => bootstrapMutation.mutate(selectedStore.shopDomain)}
+              disabled={bootstrapMutation.isPending}
+            >
+              Bootstrap platform
+            </Button>
+          ) : null}
+          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDialogOpen(true)}>
+            Register store mapping
+          </Button>
+        </Stack>
       </Stack>
 
       {message ? <Alert severity={message.type}>{message.text}</Alert> : null}

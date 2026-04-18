@@ -146,6 +146,18 @@ platform:
       poll-interval: ${PLATFORM_PRODUCT_PROVISIONING_POLL_INTERVAL:15s}
       request-timeout: ${PLATFORM_PRODUCT_PROVISIONING_REQUEST_TIMEOUT:5m}
 
+shopify:
+  companion:
+    bootstrap:
+      default-environment: ${SHOPIFY_COMPANION_DEFAULT_ENVIRONMENT:dev}
+      default-template-id: ${SHOPIFY_COMPANION_DEFAULT_TEMPLATE_ID:custom-start-from-scratch}
+      default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:}
+      template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-commerce-shell}
+      template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
+      default-plugin-ids:
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-admin}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_2:mkp-data-commerce-catalog}
+
 logging:
   level:
     com.ai.fabric.platform: INFO

@@ -1,7 +1,10 @@
 package com.ai.fabric.platform.backend.shopify.web;
 
+import com.ai.fabric.platform.backend.shopify.model.BootstrapShopifyStoreRequest;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreBootstrapService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,9 +25,12 @@ import java.util.List;
 public class ShopifyAdminController {
 
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
+    private final ShopifyStoreBootstrapService shopifyStoreBootstrapService;
 
-    public ShopifyAdminController(ShopifyStoreConnectionService shopifyStoreConnectionService) {
+    public ShopifyAdminController(ShopifyStoreConnectionService shopifyStoreConnectionService,
+                                  ShopifyStoreBootstrapService shopifyStoreBootstrapService) {
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
+        this.shopifyStoreBootstrapService = shopifyStoreBootstrapService;
     }
 
     @GetMapping
@@ -41,5 +47,12 @@ public class ShopifyAdminController {
     @ResponseStatus(HttpStatus.CREATED)
     public ShopifyStoreConnectionSummary upsertStore(@Valid @RequestBody UpsertShopifyStoreConnectionRequest request) {
         return shopifyStoreConnectionService.upsertConnection(request);
+    }
+
+    @PostMapping("/{shopDomain}/bootstrap")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ShopifyStoreBootstrapSummary bootstrapStore(@PathVariable String shopDomain,
+                                                       @RequestBody(required = false) BootstrapShopifyStoreRequest request) {
+        return shopifyStoreBootstrapService.bootstrap(shopDomain, request);
     }
 }

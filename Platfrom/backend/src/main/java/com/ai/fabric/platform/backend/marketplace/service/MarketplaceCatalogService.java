@@ -85,6 +85,11 @@ public class MarketplaceCatalogService {
         return toVersionSummary(plugin, version);
     }
 
+    public String resolveLatestPublishedVersionLabel(String pluginIdOrSlug) {
+        MarketplacePluginEntity plugin = requirePlugin(pluginIdOrSlug);
+        return requireLatestPublishedVersionEntity(plugin.getId()).getVersion();
+    }
+
     public List<MarketplaceCategorySummary> listCategories() {
         Map<String, Long> counts = pluginRepository.findAll().stream()
             .collect(Collectors.groupingBy(

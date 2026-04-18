@@ -504,6 +504,28 @@ export type UpsertShopifyStoreConnectionRequest = {
   policiesEnabled: boolean | null
 }
 
+export type BootstrapShopifyStoreRequest = {
+  customerName?: string | null
+  deploymentName?: string | null
+  environment?: string | null
+  consumerId?: string | null
+  templatePluginId?: string | null
+  templatePluginVersion?: string | null
+  pluginIds?: string[] | null
+}
+
+export type ShopifyStoreBootstrapSummary = {
+  shopDomain: string
+  customerId: string
+  deploymentId: string
+  consumerId: string
+  createdCustomer: boolean
+  createdDeployment: boolean
+  createdConsumer: boolean
+  installedPluginIds: string[]
+  store: ShopifyStoreConnectionSummary
+}
+
 export type MarketplacePluginPricingSummary = {
   pricingModel: string
   amount: number | null
@@ -2786,6 +2808,13 @@ export function fetchShopifyStore(shopDomain: string) {
 
 export function upsertShopifyStore(payload: UpsertShopifyStoreConnectionRequest) {
   return request<ShopifyStoreConnectionSummary>('/api/shopify/stores', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function bootstrapShopifyStore(shopDomain: string, payload: BootstrapShopifyStoreRequest = {}) {
+  return request<ShopifyStoreBootstrapSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/bootstrap`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
