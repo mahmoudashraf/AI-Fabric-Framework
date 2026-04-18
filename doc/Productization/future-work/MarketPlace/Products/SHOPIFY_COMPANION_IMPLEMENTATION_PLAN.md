@@ -184,6 +184,12 @@ Purpose:
 
 This backend is the Shopify-specific control surface, not a replacement runtime.
 
+It should be deployed as:
+
+- a separate Railway service
+- not merged into the core platform backend
+- not hosted "inside Shopify"
+
 ### 4.3 Platform deployment bundle
 
 Purpose:
@@ -341,7 +347,105 @@ The platform side consists of:
 - deployment record
 - consumer binding
 - marketplace-backed bundle installation
+- platform-managed Shopify bridge service
 - normal publish/apply lifecycle
+
+### 7.2.1 Technical stack and hosting
+
+Use the existing backend stack where it fits, and Shopify-native frontend conventions where Shopify expects them.
+
+Recommended stack:
+
+- Shopify app backend: Java 21 + Spring Boot
+- merchant embedded admin frontend: React + TypeScript
+- merchant embedded admin UI framework: Shopify Polaris + App Bridge
+- storefront delivery: Shopify theme app extension
+- hosting target for Shopify backend: Railway
+
+Do not use:
+
+- a second Shopify-specific runtime stack
+- a separate Node/Remix backend only because Shopify examples lean that way
+- the platform MUI shell as the primary embedded Shopify admin UI surface
+
+The core platform remains:
+
+- Spring Boot control plane
+- React + TypeScript + Vite platform UI
+- normal runtime, connector, and deployment lifecycle
+
+### 7.2.2 Managed product service model
+
+The Shopify backend should be managed by the platform using a generalized product-service abstraction from the start.
+
+Use:
+
+- `PlatformManagedProductService`
+
+Shopify service kind:
+
+- `SHOPIFY_BRIDGE_SERVICE`
+
+Future WooCommerce service kind:
+
+- `WOOCOMMERCE_BRIDGE_SERVICE`
+
+Operator-facing display name for Shopify:
+
+- `Shopify Bridge Service`
+
+This should not be modeled as:
+
+- an inference service
+- a connector
+- a per-store deployment service
+
+### 7.2.3 Service topology rule
+
+Launch topology should be:
+
+- one shared Shopify Bridge Service per product/environment
+
+Examples:
+
+- `shopify-bridge-staging`
+- `shopify-bridge-production`
+
+Do not create:
+
+- one Shopify backend deployment per store
+
+Per-store concerns remain domain data, not managed service instances:
+
+- store install state
+- Shopify tokens
+- merchant-to-customer mapping
+- merchant-to-deployment mapping
+- `consumerId` binding
+- sync state
+- merchant billing state
+
+### 7.2.4 Platform UI operations rule
+
+The platform UI should manage the Shopify Bridge Service using the same operator discipline already used for managed inference services.
+
+Required lifecycle operations:
+
+- create
+- reconcile
+- scale replicas
+- restart
+- rotate secrets
+- force recreate
+- decommission
+- health diagnostics
+- Railway drift detection
+- logs and deployment history
+- dependency visibility
+
+This operator surface belongs in the platform UI because the Shopify Bridge Service is shared product infrastructure.
+
+Store-specific lifecycle remains in the Shopify embedded admin app.
 
 ### 7.3 Runtime traffic rule
 
@@ -722,10 +826,14 @@ Acceptance:
 
 Build:
 
+- `PlatformManagedProductService` contract for product backends
+- `SHOPIFY_BRIDGE_SERVICE` as the first product service kind
+- Railway provisioning path for the Shopify Bridge Service
 - Partner App configuration
-- embedded admin app shell
+- embedded admin app shell using React + TypeScript + Polaris + App Bridge
 - Shopify auth/session-token path
-- Shopify app backend shell
+- Shopify app backend shell using Java 21 + Spring Boot
+- theme app extension scaffold
 - merchant install record and shop identity persistence
 
 Acceptance:
@@ -733,6 +841,8 @@ Acceptance:
 - merchants can install the app on a dev store
 - embedded admin shell loads reliably
 - auth works in normal and incognito browser conditions
+- the Shopify Bridge Service can be reconciled as a separate Railway service
+- the operator model does not depend on per-store backend deployments
 
 ### Wave 2: Platform Bootstrap And Consumer Binding
 
@@ -742,12 +852,21 @@ Build:
 - deployment creation from Shopify Companion bundle
 - consumer creation and binding
 - deployment status and credentials lookup for the product
+- platform UI operations for the Shopify Bridge Service:
+  - reconcile
+  - scale
+  - restart
+  - rotate secrets
+  - force recreate
+  - decommission
+  - diagnostics
 
 Acceptance:
 
 - app install can create a real platform deployment
 - storefront identity can resolve through a stable `consumerId`
 - deployment replacement does not require storefront code changes
+- operators can diagnose and recover the shared Shopify Bridge Service from platform UI
 
 ### Wave 3: Data Plugins And Sync
 
