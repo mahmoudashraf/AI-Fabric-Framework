@@ -1199,7 +1199,8 @@ public class DeploymentDraftValidationService {
                     "Shared vector storage requires a shared-storage-capable provider and supported provisioning mode."
                 ));
             }
-            if (ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerNode)
+            if (ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(effectiveVectorProvisioningMode)
+                && ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerNode)
                 && !ManagedDeploymentProfileCatalog.supportsPlatformManagedSharedVectorStorage(
                     vectorStrategy,
                     effectiveVectorProvisioningMode

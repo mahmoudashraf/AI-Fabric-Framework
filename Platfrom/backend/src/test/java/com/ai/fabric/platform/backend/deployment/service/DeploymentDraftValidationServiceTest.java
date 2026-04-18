@@ -1715,6 +1715,69 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsExternalExistingSharedQdrantWithManagedCollections() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 1536 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "qdrant",
+                  "vectorProvisioningMode": "EXTERNAL_EXISTING",
+                  "vectorStoragePosture": "SHARED",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "qdrantManagedCollectionsEnabled": true,
+                  "qdrantHost": "https://shared-qdrant.example"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+    }
+
+    @Test
     void validateRejectsPlatformManagedMilvusWithoutZillizProjectAndRegion() {
         DraftValidationResponse response = service.validate(draft(
             """
