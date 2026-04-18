@@ -25,6 +25,7 @@ public record ShopifyStoreConnectionSummary(
     boolean collectionsEnabled,
     boolean pagesEnabled,
     boolean policiesEnabled,
+    ShopifyStoreSourcePreflightSummary sourcePreflight,
     Instant lastSourcePreflightAt,
     Instant lastSyncAt,
     Instant lastWebhookAt,

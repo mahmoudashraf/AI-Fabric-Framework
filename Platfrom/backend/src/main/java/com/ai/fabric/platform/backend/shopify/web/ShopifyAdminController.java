@@ -1,11 +1,13 @@
 package com.ai.fabric.platform.backend.shopify.web;
 
 import com.ai.fabric.platform.backend.shopify.model.BootstrapShopifyStoreRequest;
+import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSourcePreflightRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreBootstrapService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,11 +28,14 @@ public class ShopifyAdminController {
 
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreBootstrapService shopifyStoreBootstrapService;
+    private final ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService;
 
     public ShopifyAdminController(ShopifyStoreConnectionService shopifyStoreConnectionService,
-                                  ShopifyStoreBootstrapService shopifyStoreBootstrapService) {
+                                  ShopifyStoreBootstrapService shopifyStoreBootstrapService,
+                                  ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService) {
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.shopifyStoreBootstrapService = shopifyStoreBootstrapService;
+        this.shopifyStoreSourcePreflightService = shopifyStoreSourcePreflightService;
     }
 
     @GetMapping
@@ -54,5 +59,11 @@ public class ShopifyAdminController {
     public ShopifyStoreBootstrapSummary bootstrapStore(@PathVariable String shopDomain,
                                                        @RequestBody(required = false) BootstrapShopifyStoreRequest request) {
         return shopifyStoreBootstrapService.bootstrap(shopDomain, request);
+    }
+
+    @PostMapping("/{shopDomain}/source-preflight")
+    public ShopifyStoreConnectionSummary recordSourcePreflight(@PathVariable String shopDomain,
+                                                               @RequestBody RecordShopifyStoreSourcePreflightRequest request) {
+        return shopifyStoreSourcePreflightService.record(shopDomain, request);
     }
 }

@@ -1,5 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
+import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import StoreRoundedIcon from '@mui/icons-material/StoreRounded'
 import {
   Alert,
@@ -31,7 +32,10 @@ import {
   fetchProductServices,
   fetchShopifyStore,
   fetchShopifyStores,
+  recordShopifyStoreSourcePreflight,
+  type RecordShopifyStoreSourcePreflightRequest,
   type ShopifyStoreBootstrapSummary,
+  type ShopifyStoreSourcePreflightCategorySummary,
   upsertShopifyStore,
   type ShopifyStoreConnectionSummary,
   type UpsertShopifyStoreConnectionRequest,
@@ -67,6 +71,8 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
 }
 
 type StoreFormState = UpsertShopifyStoreConnectionRequest
+type PreflightCategoryStatus = 'READY' | 'PENDING' | 'BLOCKED' | 'FAILED'
+type PreflightFormCategory = ShopifyStoreSourcePreflightCategorySummary & { itemCountText: string }
 
 const emptyForm: StoreFormState = {
   shopDomain: '',
@@ -86,12 +92,36 @@ const emptyForm: StoreFormState = {
   policiesEnabled: true,
 }
 
+function buildPreflightCategories(store: ShopifyStoreConnectionSummary): PreflightFormCategory[] {
+  const existing = new Map((store.sourcePreflight?.categories ?? []).map((category) => [category.category, category]))
+  return [
+    { category: 'products', enabled: store.productsEnabled },
+    { category: 'collections', enabled: store.collectionsEnabled },
+    { category: 'pages', enabled: store.pagesEnabled },
+    { category: 'policies', enabled: store.policiesEnabled },
+  ]
+    .filter((entry) => entry.enabled)
+    .map((entry) => {
+      const current = existing.get(entry.category)
+      return {
+        category: entry.category,
+        enabled: true,
+        status: ((current?.status ?? 'PENDING').toUpperCase() as PreflightCategoryStatus),
+        itemCount: current?.itemCount ?? 0,
+        itemCountText: `${current?.itemCount ?? 0}`,
+        message: current?.message ?? null,
+      }
+    })
+}
+
 export function ShopifyStoresPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [preflightDialogOpen, setPreflightDialogOpen] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [form, setForm] = useState<StoreFormState>(emptyForm)
+  const [preflightCategories, setPreflightCategories] = useState<PreflightFormCategory[]>([])
 
   const servicesQuery = useQuery({
     queryKey: ['product-services'],
@@ -135,6 +165,12 @@ export function ShopifyStoresPage() {
 
   const selectedStore = selectedStoreQuery.data ?? selectedSummary
 
+  useEffect(() => {
+    if (selectedStore && preflightDialogOpen) {
+      setPreflightCategories(buildPreflightCategories(selectedStore))
+    }
+  }, [preflightDialogOpen, selectedStore])
+
   const upsertMutation = useMutation({
     mutationFn: upsertShopifyStore,
     onSuccess: async (store) => {
@@ -177,6 +213,39 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const preflightMutation = useMutation({
+    mutationFn: ({ shopDomain, payload }: { shopDomain: string; payload: RecordShopifyStoreSourcePreflightRequest }) =>
+      recordShopifyStoreSourcePreflight(shopDomain, payload),
+    onSuccess: async (store) => {
+      setMessage({ type: 'success', text: `Recorded source preflight for ${store.shopDomain}.` })
+      setPreflightDialogOpen(false)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', store.shopDomain] }),
+        queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+      ])
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to record Shopify source preflight.' })
+    },
+  })
+
+  const submitPreflight = () => {
+    if (!selectedStore) {
+      return
+    }
+    const payload: RecordShopifyStoreSourcePreflightRequest = {
+      categories: preflightCategories.map((category) => ({
+        category: category.category,
+        enabled: category.enabled,
+        status: category.status,
+        itemCount: Math.max(Number.parseInt(category.itemCountText || '0', 10) || 0, 0),
+        message: category.message?.trim() ? category.message.trim() : null,
+      })),
+    }
+    preflightMutation.mutate({ shopDomain: selectedStore.shopDomain, payload })
+  }
+
   return (
     <Stack spacing={3}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
@@ -190,14 +259,27 @@ export function ShopifyStoresPage() {
         </div>
         <Stack direction="row" spacing={1}>
           {selectedStore ? (
-            <Button
-              variant="outlined"
-              startIcon={<AutoFixHighRoundedIcon />}
-              onClick={() => bootstrapMutation.mutate(selectedStore.shopDomain)}
-              disabled={bootstrapMutation.isPending}
-            >
-              Bootstrap platform
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<FactCheckRoundedIcon />}
+                onClick={() => {
+                  setPreflightCategories(buildPreflightCategories(selectedStore))
+                  setPreflightDialogOpen(true)
+                }}
+                disabled={preflightMutation.isPending}
+              >
+                Record source preflight
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<AutoFixHighRoundedIcon />}
+                onClick={() => bootstrapMutation.mutate(selectedStore.shopDomain)}
+                disabled={bootstrapMutation.isPending}
+              >
+                Bootstrap platform
+              </Button>
+            </>
           ) : null}
           <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDialogOpen(true)}>
             Register store mapping
@@ -282,6 +364,44 @@ export function ShopifyStoresPage() {
                       </Grid>
                     ))}
                   </Grid>
+
+                  {selectedStore.sourcePreflight ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Source preflight</Typography>
+                            <Chip size="small" label={selectedStore.sourcePreflight.overallStatus} color={chipColor(selectedStore.sourcePreflight.overallStatus)} />
+                            <Typography variant="caption" color="text.secondary">
+                              Checked {formatTimestamp(selectedStore.sourcePreflight.checkedAt)}
+                            </Typography>
+                          </Stack>
+                          <Grid container spacing={1.5}>
+                            {selectedStore.sourcePreflight.categories.map((category) => (
+                              <Grid item xs={12} md={6} key={category.category}>
+                                <Card variant="outlined">
+                                  <CardContent>
+                                    <Stack spacing={1}>
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        <Typography sx={{ fontWeight: 700, textTransform: 'capitalize' }}>{category.category}</Typography>
+                                        <Chip size="small" label={category.status} color={chipColor(category.status)} />
+                                        <Chip size="small" variant="outlined" label={`${category.itemCount} items`} />
+                                      </Stack>
+                                      {category.message ? (
+                                        <Typography variant="body2" color="text.secondary">
+                                          {category.message}
+                                        </Typography>
+                                      ) : null}
+                                    </Stack>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
                 </Stack>
               </CardContent>
             </Card>
@@ -375,6 +495,82 @@ export function ShopifyStoresPage() {
           <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => upsertMutation.mutate(form)} disabled={upsertMutation.isPending}>
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={preflightDialogOpen} onClose={() => setPreflightDialogOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Record Source Preflight</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            {selectedStore ? (
+              <Alert severity="info">
+                Record preflight results for enabled Shopify sources on <strong>{selectedStore.shopDomain}</strong>. This is source readiness only; real vectorized
+                readiness still happens during publish/apply.
+              </Alert>
+            ) : null}
+            {preflightCategories.length === 0 ? (
+              <Alert severity="warning">No enabled source categories are currently configured for this store.</Alert>
+            ) : (
+              preflightCategories.map((category, index) => (
+                <Card key={category.category} variant="outlined">
+                  <CardContent>
+                    <Stack spacing={2}>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <Typography sx={{ fontWeight: 700, textTransform: 'capitalize' }}>{category.category}</Typography>
+                        <Chip size="small" label={category.enabled ? 'Enabled' : 'Disabled'} color={category.enabled ? 'success' : 'default'} />
+                      </Stack>
+                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                        <TextField
+                          select
+                          label="Status"
+                          value={category.status}
+                          onChange={(event) =>
+                            setPreflightCategories((current) =>
+                              current.map((item, itemIndex) => (itemIndex === index ? { ...item, status: event.target.value as PreflightCategoryStatus } : item)),
+                            )
+                          }
+                          fullWidth
+                        >
+                          <MenuItem value="PENDING">PENDING</MenuItem>
+                          <MenuItem value="READY">READY</MenuItem>
+                          <MenuItem value="BLOCKED">BLOCKED</MenuItem>
+                          <MenuItem value="FAILED">FAILED</MenuItem>
+                        </TextField>
+                        <TextField
+                          label="Item count"
+                          value={category.itemCountText}
+                          onChange={(event) =>
+                            setPreflightCategories((current) =>
+                              current.map((item, itemIndex) => (itemIndex === index ? { ...item, itemCountText: event.target.value } : item)),
+                            )
+                          }
+                          fullWidth
+                        />
+                      </Stack>
+                      <TextField
+                        label="Message"
+                        value={category.message ?? ''}
+                        onChange={(event) =>
+                          setPreflightCategories((current) =>
+                            current.map((item, itemIndex) => (itemIndex === index ? { ...item, message: event.target.value || null } : item)),
+                          )
+                        }
+                        fullWidth
+                        multiline
+                        minRows={2}
+                      />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreflightDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={submitPreflight} disabled={preflightMutation.isPending || preflightCategories.length === 0}>
+            Save preflight
           </Button>
         </DialogActions>
       </Dialog>

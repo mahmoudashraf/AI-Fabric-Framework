@@ -456,6 +456,20 @@ export type RotatePlatformManagedProductServiceSecretRequest = {
   value: string
 }
 
+export type ShopifyStoreSourcePreflightCategorySummary = {
+  category: string
+  enabled: boolean
+  status: string
+  itemCount: number
+  message: string | null
+}
+
+export type ShopifyStoreSourcePreflightSummary = {
+  overallStatus: string
+  checkedAt: string | null
+  categories: ShopifyStoreSourcePreflightCategorySummary[]
+}
+
 export type ShopifyStoreConnectionSummary = {
   id: string
   shopDomain: string
@@ -479,6 +493,7 @@ export type ShopifyStoreConnectionSummary = {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  sourcePreflight: ShopifyStoreSourcePreflightSummary | null
   lastSourcePreflightAt: string | null
   lastSyncAt: string | null
   lastWebhookAt: string | null
@@ -524,6 +539,10 @@ export type ShopifyStoreBootstrapSummary = {
   createdConsumer: boolean
   installedPluginIds: string[]
   store: ShopifyStoreConnectionSummary
+}
+
+export type RecordShopifyStoreSourcePreflightRequest = {
+  categories: ShopifyStoreSourcePreflightCategorySummary[]
 }
 
 export type MarketplacePluginPricingSummary = {
@@ -2815,6 +2834,13 @@ export function upsertShopifyStore(payload: UpsertShopifyStoreConnectionRequest)
 
 export function bootstrapShopifyStore(shopDomain: string, payload: BootstrapShopifyStoreRequest = {}) {
   return request<ShopifyStoreBootstrapSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/bootstrap`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function recordShopifyStoreSourcePreflight(shopDomain: string, payload: RecordShopifyStoreSourcePreflightRequest) {
+  return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/source-preflight`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

@@ -12,6 +12,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightSupport;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -90,6 +91,7 @@ class PlatformManagedProductAdminServiceTest {
             provisioningService,
             platformAuditService,
             railwayGraphqlClient,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
             new ObjectMapper()
         );
 
@@ -136,6 +138,7 @@ class PlatformManagedProductAdminServiceTest {
             provisioningService,
             platformAuditService,
             railwayGraphqlClient,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
             new ObjectMapper()
         );
 

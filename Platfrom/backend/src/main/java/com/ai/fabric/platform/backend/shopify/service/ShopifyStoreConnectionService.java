@@ -34,19 +34,22 @@ public class ShopifyStoreConnectionService {
     private final DeploymentRepository deploymentRepository;
     private final PlatformConsumerRepository consumerRepository;
     private final PlatformAuditService platformAuditService;
+    private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
 
     public ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
                                          PlatformManagedProductServiceService productServiceService,
                                          PlatformCustomerRepository customerRepository,
                                          DeploymentRepository deploymentRepository,
                                          PlatformConsumerRepository consumerRepository,
-                                         PlatformAuditService platformAuditService) {
+                                         PlatformAuditService platformAuditService,
+                                         ShopifyStoreSourcePreflightSupport sourcePreflightSupport) {
         this.repository = repository;
         this.productServiceService = productServiceService;
         this.customerRepository = customerRepository;
         this.deploymentRepository = deploymentRepository;
         this.consumerRepository = consumerRepository;
         this.platformAuditService = platformAuditService;
+        this.sourcePreflightSupport = sourcePreflightSupport;
     }
 
     public List<ShopifyStoreConnectionSummary> listConnections() {
@@ -159,6 +162,7 @@ public class ShopifyStoreConnectionService {
             entity.isCollectionsEnabled(),
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
+            sourcePreflightSupport.summarize(entity.getDetailsJson()),
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),

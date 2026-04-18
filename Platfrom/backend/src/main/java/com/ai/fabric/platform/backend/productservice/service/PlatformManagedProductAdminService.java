@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightSupport;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
@@ -53,6 +54,7 @@ public class PlatformManagedProductAdminService {
     private final PlatformManagedProductProvisioningService provisioningService;
     private final PlatformAuditService platformAuditService;
     private final RailwayGraphqlClient railwayGraphqlClient;
+    private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -66,6 +68,7 @@ public class PlatformManagedProductAdminService {
                                               PlatformManagedProductProvisioningService provisioningService,
                                               PlatformAuditService platformAuditService,
                                               RailwayGraphqlClient railwayGraphqlClient,
+                                              ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
                                               ObjectMapper objectMapper) {
         this.serviceService = serviceService;
         this.serviceRepository = serviceRepository;
@@ -77,6 +80,7 @@ public class PlatformManagedProductAdminService {
         this.provisioningService = provisioningService;
         this.platformAuditService = platformAuditService;
         this.railwayGraphqlClient = railwayGraphqlClient;
+        this.sourcePreflightSupport = sourcePreflightSupport;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder().connectTimeout(HTTP_TIMEOUT).build();
     }
@@ -241,6 +245,7 @@ public class PlatformManagedProductAdminService {
             entity.isCollectionsEnabled(),
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
+            sourcePreflightSupport.summarize(entity.getDetailsJson()),
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),

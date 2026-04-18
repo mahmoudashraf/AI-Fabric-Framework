@@ -518,6 +518,7 @@ export function ProductServicesPage() {
                                   <Chip size="small" label={store.onboardingStatus} color={chipColor(store.onboardingStatus)} />
                                   <Chip size="small" label={store.installStatus} color={chipColor(store.installStatus)} />
                                   <Chip size="small" label={store.syncStatus} color={chipColor(store.syncStatus)} />
+                                  <Chip size="small" label={store.sourceReadinessStatus} color={chipColor(store.sourceReadinessStatus)} />
                                   <Chip size="small" label={store.widgetStatus} color={chipColor(store.widgetStatus)} />
                                 </Stack>
                                 <Typography variant="body2" color="text.secondary">
@@ -526,6 +527,14 @@ export function ProductServicesPage() {
                                 <Typography variant="body2" color="text.secondary">
                                   Sources: products {store.productsEnabled ? 'on' : 'off'} · collections {store.collectionsEnabled ? 'on' : 'off'} · pages {store.pagesEnabled ? 'on' : 'off'} · policies {store.policiesEnabled ? 'on' : 'off'}
                                 </Typography>
+                                {store.sourcePreflight ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Preflight {store.sourcePreflight.overallStatus.toLowerCase()} ·{' '}
+                                    {store.sourcePreflight.categories
+                                      .map((category) => `${category.category} ${category.status.toLowerCase()} (${category.itemCount})`)
+                                      .join(' · ')}
+                                  </Typography>
+                                ) : null}
                                 <Typography variant="caption" color="text.secondary">
                                   Last preflight {formatTimestamp(store.lastSourcePreflightAt)} · Last sync {formatTimestamp(store.lastSyncAt)}
                                 </Typography>

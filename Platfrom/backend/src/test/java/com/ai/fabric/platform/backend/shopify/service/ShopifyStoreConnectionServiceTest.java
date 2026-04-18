@@ -69,7 +69,8 @@ class ShopifyStoreConnectionServiceTest {
             customerRepository,
             deploymentRepository,
             consumerRepository,
-            platformAuditService
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         ShopifyStoreConnectionSummary summary = connectionService.upsertConnection(
@@ -139,7 +140,8 @@ class ShopifyStoreConnectionServiceTest {
             customerRepository,
             deploymentRepository,
             consumerRepository,
-            platformAuditService
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         assertThatThrownBy(() -> connectionService.upsertConnection(
