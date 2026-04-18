@@ -380,10 +380,12 @@ export default function App() {
   const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary, billingSummary)
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
+  const billingLaunchBlocked = Boolean(billingSummary?.launchBlocked)
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
     !installRecoveryRequired &&
+    !billingLaunchBlocked &&
     Boolean(store?.readiness?.goLiveEligible) &&
     !isReleaseInProgress(store?.latestRelease?.status)
   const canSyncNow =
@@ -864,6 +866,11 @@ export default function App() {
                       </InlineStack>
                     ) : null}
                   </BlockStack>
+                </Banner>
+              ) : null}
+              {billingLaunchBlocked ? (
+                <Banner tone="critical">
+                  {billingSummary?.message ?? 'Billing setup is incomplete. Shopify Companion go-live is blocked until billing is configured.'}
                 </Banner>
               ) : null}
               {store?.readiness ? (

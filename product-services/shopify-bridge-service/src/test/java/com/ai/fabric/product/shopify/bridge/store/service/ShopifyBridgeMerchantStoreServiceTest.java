@@ -2,6 +2,8 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -21,11 +23,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -46,7 +50,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             mock(ShopifyBridgeSourcePreflightService.class),
             mock(ShopifyBridgeStoreSyncService.class),
             mock(ShopifyStorefrontPreviewService.class),
-            mock(ShopifyBridgeUsageService.class)
+            mock(ShopifyBridgeUsageService.class),
+            mock(ShopifyBridgeBillingService.class)
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(installRecordService.recordAuthenticatedSession(session(), "host-token")).thenReturn(new ShopifyInstallRecordSummary(
@@ -85,7 +90,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             mock(ShopifyBridgeSourcePreflightService.class),
             mock(ShopifyBridgeStoreSyncService.class),
             mock(ShopifyStorefrontPreviewService.class),
-            mock(ShopifyBridgeUsageService.class)
+            mock(ShopifyBridgeUsageService.class),
+            mock(ShopifyBridgeBillingService.class)
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(uninstalledStore("alpha.myshopify.com"));
         when(installRecordService.recordAuthenticatedSession(session(), "host-token")).thenReturn(new ShopifyInstallRecordSummary(
@@ -116,6 +122,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
             client,
             properties(),
@@ -124,7 +131,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             mock(ShopifyBridgeSourcePreflightService.class),
             mock(ShopifyBridgeStoreSyncService.class),
             mock(ShopifyStorefrontPreviewService.class),
-            usageService
+            usageService,
+            billingService
         );
         when(client.getStore("alpha.myshopify.com")).thenThrow(notFound());
         when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));
@@ -160,6 +168,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
             client,
             properties(),
@@ -168,7 +177,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             mock(ShopifyBridgeSourcePreflightService.class),
             mock(ShopifyBridgeStoreSyncService.class),
             mock(ShopifyStorefrontPreviewService.class),
-            usageService
+            usageService,
+            billingService
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(installCredentialService.acquireAndPersistMaterial(session(), "Bearer session-token"))
@@ -199,6 +209,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
             client,
             properties(),
@@ -207,11 +218,20 @@ class ShopifyBridgeMerchantStoreServiceTest {
             mock(ShopifyBridgeSourcePreflightService.class),
             mock(ShopifyBridgeStoreSyncService.class),
             mock(ShopifyStorefrontPreviewService.class),
-            usageService
+            usageService,
+            billingService
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(installCredentialService.acquireAndPersistMaterial(session(), "Bearer session-token"))
             .thenReturn(acquisition(store("alpha.myshopify.com")));
+        when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
+            "FREE",
+            "Companion Free",
+            "ACTIVE",
+            false,
+            false,
+            "Companion launch is available."
+        ));
         when(client.goLive("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
 
         ShopifyBridgeStoreSummary response = service.goLive(session(), "Bearer session-token");
@@ -220,6 +240,43 @@ class ShopifyBridgeMerchantStoreServiceTest {
         verify(installCredentialService).acquireAndPersistMaterial(session(), "Bearer session-token");
         verify(client).goLive("alpha.myshopify.com");
         verify(usageService).recordEvent("alpha.myshopify.com", "MERCHANT_GO_LIVE");
+    }
+
+    @Test
+    void goLiveRejectsWhenBillingLaunchIsBlocked() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            installCredentialService,
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class),
+            mock(ShopifyStorefrontPreviewService.class),
+            usageService,
+            billingService
+        );
+        when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
+        when(installCredentialService.acquireAndPersistMaterial(session(), "Bearer session-token"))
+            .thenReturn(acquisition(store("alpha.myshopify.com")));
+        when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
+            "SHOPIFY_APP_SUBSCRIPTION",
+            "Companion Pro",
+            "SETUP_REQUIRED",
+            true,
+            true,
+            "Shopify billing setup is incomplete for this bridge environment."
+        ));
+
+        assertThatThrownBy(() -> service.goLive(session(), "Bearer session-token"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Shopify billing setup is incomplete");
+
+        verify(client, never()).goLive("alpha.myshopify.com");
+        verify(usageService, never()).recordEvent("alpha.myshopify.com", "MERCHANT_GO_LIVE");
     }
 
     @Test
@@ -235,7 +292,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             sourcePreflightService,
             mock(ShopifyBridgeStoreSyncService.class),
             mock(ShopifyStorefrontPreviewService.class),
-            mock(ShopifyBridgeUsageService.class)
+            mock(ShopifyBridgeUsageService.class),
+            mock(ShopifyBridgeBillingService.class)
         );
         ShopifyBridgeCredentialAcquisition acquisition = acquisition(store("alpha.myshopify.com"));
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
@@ -262,7 +320,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             mock(ShopifyBridgeSourcePreflightService.class),
             storeSyncService,
             mock(ShopifyStorefrontPreviewService.class),
-            mock(ShopifyBridgeUsageService.class)
+            mock(ShopifyBridgeUsageService.class),
+            mock(ShopifyBridgeBillingService.class)
         );
         ShopifyBridgeCredentialAcquisition acquisition = acquisition(store("alpha.myshopify.com"));
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
@@ -287,7 +346,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             mock(ShopifyBridgeSourcePreflightService.class),
             mock(ShopifyBridgeStoreSyncService.class),
             mock(ShopifyStorefrontPreviewService.class),
-            mock(ShopifyBridgeUsageService.class)
+            mock(ShopifyBridgeUsageService.class),
+            mock(ShopifyBridgeBillingService.class)
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));
@@ -328,7 +388,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             mock(ShopifyBridgeSourcePreflightService.class),
             mock(ShopifyBridgeStoreSyncService.class),
             mock(ShopifyStorefrontPreviewService.class),
-            mock(ShopifyBridgeUsageService.class)
+            mock(ShopifyBridgeUsageService.class),
+            mock(ShopifyBridgeBillingService.class)
         );
         when(client.updateWidgetSettings("alpha.myshopify.com", new ShopifyBridgeUpdateWidgetSettingsRequest(
             "Need help?",

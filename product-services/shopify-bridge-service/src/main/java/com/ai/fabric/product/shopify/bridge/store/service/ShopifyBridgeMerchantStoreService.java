@@ -2,6 +2,8 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -33,6 +35,7 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyBridgeStoreSyncService storeSyncService;
     private final ShopifyStorefrontPreviewService storefrontPreviewService;
     private final ShopifyBridgeUsageService usageService;
+    private final ShopifyBridgeBillingService billingService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
@@ -41,7 +44,8 @@ public class ShopifyBridgeMerchantStoreService {
                                              ShopifyBridgeSourcePreflightService sourcePreflightService,
                                              ShopifyBridgeStoreSyncService storeSyncService,
                                              ShopifyStorefrontPreviewService storefrontPreviewService,
-                                             ShopifyBridgeUsageService usageService) {
+                                             ShopifyBridgeUsageService usageService,
+                                             ShopifyBridgeBillingService billingService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
@@ -50,6 +54,7 @@ public class ShopifyBridgeMerchantStoreService {
         this.storeSyncService = storeSyncService;
         this.storefrontPreviewService = storefrontPreviewService;
         this.usageService = usageService;
+        this.billingService = billingService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -95,6 +100,15 @@ public class ShopifyBridgeMerchantStoreService {
     public ShopifyBridgeStoreSummary goLive(ShopifyMerchantSession merchantSession,
                                             String authorizationHeader) {
         acquireConnectedCredentials(merchantSession, authorizationHeader);
+        ShopifyBridgeBillingSummary billingSummary = billingService.summarize();
+        if (billingSummary.launchBlocked()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                billingSummary.message() == null || billingSummary.message().isBlank()
+                    ? "Shopify Companion go-live is blocked until billing setup is complete."
+                    : billingSummary.message()
+            );
+        }
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.goLive(merchantSession.shopDomain());
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_GO_LIVE");
         return store;
