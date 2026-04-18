@@ -2,7 +2,9 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceDatasetRuntimeSyncClient;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceDatasetSyncService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -12,6 +14,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSyncDocument;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreDocumentRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
@@ -39,12 +42,15 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class ShopifyStoreDocumentSyncService {
 
     private static final int MAX_DOCUMENTS_PER_SYNC = 5000;
-    private static final String HANDLE_PREFIX = "shopify-store:";
-    private static final String DATASET_PREFIX = "shopify-storefront:";
+    private static final String LEGACY_HANDLE_PREFIX = "shopify-store:";
+    private static final String LEGACY_DATASET_PREFIX = "shopify-storefront:";
+    private static final String SHOPIFY_CATALOG_DATASET_ID = "shopify-catalog";
+    private static final String SHOPIFY_POLICIES_DATASET_ID = "shopify-policies";
 
     private final ShopifyStoreConnectionRepository storeRepository;
     private final ShopifyStoreDocumentRepository documentRepository;
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentVersionRepository deploymentVersionRepository;
     private final MarketplaceDatasetRuntimeSyncClient runtimeSyncClient;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreSourcePreflightSupport support;
@@ -53,6 +59,7 @@ public class ShopifyStoreDocumentSyncService {
     public ShopifyStoreDocumentSyncService(ShopifyStoreConnectionRepository storeRepository,
                                            ShopifyStoreDocumentRepository documentRepository,
                                            DeploymentRepository deploymentRepository,
+                                           DeploymentVersionRepository deploymentVersionRepository,
                                            MarketplaceDatasetRuntimeSyncClient runtimeSyncClient,
                                            ShopifyStoreConnectionService shopifyStoreConnectionService,
                                            ShopifyStoreSourcePreflightSupport support,
@@ -60,6 +67,7 @@ public class ShopifyStoreDocumentSyncService {
         this.storeRepository = storeRepository;
         this.documentRepository = documentRepository;
         this.deploymentRepository = deploymentRepository;
+        this.deploymentVersionRepository = deploymentVersionRepository;
         this.runtimeSyncClient = runtimeSyncClient;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.support = support;
@@ -85,9 +93,10 @@ public class ShopifyStoreDocumentSyncService {
         }
 
         List<ShopifyStoreSyncDocument> documents = normalizeDocuments(incoming);
-        String datasetId = DATASET_PREFIX + store.getShopDomain();
-        String handleRef = HANDLE_PREFIX + store.getShopDomain();
-        String datasetHash = hashDocuments(documents);
+        String legacyDatasetId = LEGACY_DATASET_PREFIX + store.getShopDomain();
+        String legacyHandleRef = LEGACY_HANDLE_PREFIX + store.getShopDomain();
+        String documentHash = hashDocuments(documents);
+        Map<String, ResolvedDatasetTarget> datasetTargets = resolveDatasetTargets(deployment, legacyDatasetId, legacyHandleRef, documentHash);
 
         Map<String, ShopifyStoreDocumentEntity> existing = documentRepository.findByStoreConnectionIdOrderByDocumentIdAsc(store.getId())
             .stream()
@@ -99,9 +108,9 @@ public class ShopifyStoreDocumentSyncService {
             ));
 
         try {
-            syncEntityTypeGroups(deployment, datasetId, handleRef, datasetHash, documents, existing.values());
-            persistTrackedDocuments(store, datasetHash, documents, existing);
-            updateSyncSuccess(store, request.mode(), documents.size(), datasetHash);
+            syncEntityTypeGroups(deployment, datasetTargets, documents, existing.values());
+            persistTrackedDocuments(store, documents, existing);
+            updateSyncSuccess(store, request.mode(), documents.size(), documentHash);
         } catch (RuntimeException ex) {
             updateSyncFailure(store, request.mode(), ex);
             throw ex;
@@ -115,59 +124,82 @@ public class ShopifyStoreDocumentSyncService {
                 "shopDomain", store.getShopDomain(),
                 "deploymentId", deployment.getId(),
                 "documentCount", Integer.toString(documents.size()),
-                "datasetHash", datasetHash
+                "datasetHash", documentHash
             )
         );
         return shopifyStoreConnectionService.getConnection(store.getShopDomain());
     }
 
     private void syncEntityTypeGroups(DeploymentEntity deployment,
-                                      String datasetId,
-                                      String handleRef,
-                                      String datasetHash,
+                                      Map<String, ResolvedDatasetTarget> datasetTargets,
                                       List<ShopifyStoreSyncDocument> documents,
                                       Collection<ShopifyStoreDocumentEntity> existingDocuments) {
-        Map<String, List<ShopifyStoreSyncDocument>> incomingByType = documents.stream()
-            .collect(Collectors.groupingBy(document -> document.entityType().trim().toLowerCase(Locale.ROOT), LinkedHashMap::new, Collectors.toList()));
-        Map<String, List<ShopifyStoreDocumentEntity>> existingByType = existingDocuments.stream()
-            .collect(Collectors.groupingBy(document -> document.getEntityType().trim().toLowerCase(Locale.ROOT), LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<ShopifyStoreSyncDocument>> incomingByDataset = documents.stream()
+            .collect(Collectors.groupingBy(
+                document -> datasetIdForDocument(document.sourceCategory(), document.entityType()),
+                LinkedHashMap::new,
+                Collectors.toList()
+            ));
+        Map<String, List<ShopifyStoreDocumentEntity>> existingByDataset = existingDocuments.stream()
+            .collect(Collectors.groupingBy(
+                document -> datasetIdForDocument(document.getSourceCategory(), document.getEntityType()),
+                LinkedHashMap::new,
+                Collectors.toList()
+            ));
 
-        LinkedHashSet<String> entityTypes = new LinkedHashSet<>();
-        entityTypes.addAll(existingByType.keySet());
-        entityTypes.addAll(incomingByType.keySet());
+        LinkedHashSet<String> datasetIds = new LinkedHashSet<>();
+        datasetIds.addAll(existingByDataset.keySet());
+        datasetIds.addAll(incomingByDataset.keySet());
 
-        for (String entityType : entityTypes) {
-            List<ShopifyStoreSyncDocument> incomingGroup = incomingByType.getOrDefault(entityType, List.of());
+        for (String datasetId : datasetIds) {
+            ResolvedDatasetTarget target = datasetTargets.get(datasetId);
+            if (target == null) {
+                throw new ResponseStatusException(CONFLICT, "Shopify sync dataset target is not configured for datasetId: " + datasetId);
+            }
+            List<ShopifyStoreSyncDocument> incomingGroup = incomingByDataset.getOrDefault(datasetId, List.of());
             List<MarketplaceDatasetSyncService.DatasetDocument> upserts = incomingGroup.stream()
                 .map(document -> new MarketplaceDatasetSyncService.DatasetDocument(
                     document.documentId(),
                     buildDocumentContent(document),
                     mergeMetadata(document.metadata(), Map.of(
-                        "knowledgeSourceHandleRef", handleRef,
-                        "marketplaceDatasetId", datasetId,
-                        "marketplaceDatasetHash", datasetHash,
+                        "knowledgeSourceHandleRef", target.handleRef(),
+                        "marketplaceDatasetId", target.datasetId(),
+                        "marketplaceDatasetHash", target.datasetHash(),
                         "sourceCategory", document.sourceCategory(),
                         "shopifyDocumentTitle", document.title()
                     ))
                 ))
                 .toList();
-            runtimeSyncClient.upsertDocuments(deployment, entityType, datasetId, handleRef, datasetHash, upserts);
+            runtimeSyncClient.upsertDocuments(
+                deployment,
+                target.entityType(),
+                target.datasetId(),
+                target.handleRef(),
+                target.datasetHash(),
+                upserts
+            );
 
             LinkedHashSet<String> incomingIds = incomingGroup.stream()
                 .map(ShopifyStoreSyncDocument::documentId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-            List<String> staleIds = existingByType.getOrDefault(entityType, List.of()).stream()
+            List<String> staleIds = existingByDataset.getOrDefault(datasetId, List.of()).stream()
                 .map(ShopifyStoreDocumentEntity::getDocumentId)
                 .filter(existingId -> !incomingIds.contains(existingId))
                 .toList();
             if (!staleIds.isEmpty()) {
-                runtimeSyncClient.deleteDocuments(deployment, entityType, datasetId, handleRef, datasetHash, staleIds);
+                runtimeSyncClient.deleteDocuments(
+                    deployment,
+                    target.entityType(),
+                    target.datasetId(),
+                    target.handleRef(),
+                    target.datasetHash(),
+                    staleIds
+                );
             }
         }
     }
 
     private void persistTrackedDocuments(ShopifyStoreConnectionEntity store,
-                                         String datasetHash,
                                          List<ShopifyStoreSyncDocument> documents,
                                          Map<String, ShopifyStoreDocumentEntity> existing) {
         Instant now = Instant.now();
@@ -320,6 +352,64 @@ public class ShopifyStoreDocumentSyncService {
         return hasText(mode) ? mode.trim().toUpperCase(Locale.ROOT) : "FULL";
     }
 
+    private Map<String, ResolvedDatasetTarget> resolveDatasetTargets(DeploymentEntity deployment,
+                                                                     String legacyDatasetId,
+                                                                     String legacyHandleRef,
+                                                                     String legacyDatasetHash) {
+        LinkedHashMap<String, ResolvedDatasetTarget> targets = new LinkedHashMap<>();
+        DeploymentVersionEntity activeVersion = resolveActiveVersion(deployment);
+        JsonNode root = activeVersion == null ? null : support.readJsonNode(activeVersion.getMarketplaceDatasetConfigJson());
+        JsonNode datasets = root == null ? null : root.path("datasets");
+        if (datasets != null && datasets.isArray()) {
+            for (JsonNode dataset : datasets) {
+                String datasetId = lowerTrimToNull(dataset.path("datasetId").asText(""));
+                if (!SHOPIFY_CATALOG_DATASET_ID.equals(datasetId) && !SHOPIFY_POLICIES_DATASET_ID.equals(datasetId)) {
+                    continue;
+                }
+                String handleRef = trimToNull(dataset.path("handleRef").asText(""));
+                String datasetHash = trimToNull(dataset.path("datasetHash").asText(""));
+                String entityType = trimToNull(dataset.path("entityType").asText(""));
+                if (handleRef == null || datasetHash == null || entityType == null) {
+                    continue;
+                }
+                targets.put(datasetId, new ResolvedDatasetTarget(datasetId, handleRef, datasetHash, entityType));
+            }
+        }
+        targets.putIfAbsent(
+            SHOPIFY_CATALOG_DATASET_ID,
+            new ResolvedDatasetTarget(legacyDatasetId, legacyHandleRef, legacyDatasetHash, "product")
+        );
+        targets.putIfAbsent(
+            SHOPIFY_POLICIES_DATASET_ID,
+            new ResolvedDatasetTarget(legacyDatasetId, legacyHandleRef, legacyDatasetHash, "support-policy")
+        );
+        return Map.copyOf(targets);
+    }
+
+    private DeploymentVersionEntity resolveActiveVersion(DeploymentEntity deployment) {
+        if (deployment == null) {
+            return null;
+        }
+        if (hasText(deployment.getActiveVersionId())) {
+            return deploymentVersionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        }
+        return deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deployment.getId()).stream()
+            .findFirst()
+            .orElse(null);
+    }
+
+    private String datasetIdForDocument(String sourceCategory, String entityType) {
+        String normalizedCategory = lowerTrimToNull(sourceCategory);
+        if ("products".equals(normalizedCategory) || "collections".equals(normalizedCategory)) {
+            return SHOPIFY_CATALOG_DATASET_ID;
+        }
+        if ("policies".equals(normalizedCategory) || "pages".equals(normalizedCategory)) {
+            return SHOPIFY_POLICIES_DATASET_ID;
+        }
+        String normalizedEntityType = lowerTrimToNull(entityType);
+        return "product".equals(normalizedEntityType) ? SHOPIFY_CATALOG_DATASET_ID : SHOPIFY_POLICIES_DATASET_ID;
+    }
+
     private String firstMessage(RuntimeException ex) {
         if (ex instanceof ResponseStatusException responseStatusException && hasText(responseStatusException.getReason())) {
             return responseStatusException.getReason().trim();
@@ -327,11 +417,23 @@ public class ShopifyStoreDocumentSyncService {
         return hasText(ex.getMessage()) ? ex.getMessage().trim() : "Shopify document sync failed.";
     }
 
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private String trimToNull(String value) {
         return hasText(value) ? value.trim() : null;
     }
 
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
+    private String lowerTrimToNull(String value) {
+        return hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : null;
+    }
+
+    private record ResolvedDatasetTarget(
+        String datasetId,
+        String handleRef,
+        String datasetHash,
+        String entityType
+    ) {
     }
 }

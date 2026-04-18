@@ -2,7 +2,9 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceDatasetRuntimeSyncClient;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceDatasetSyncService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -35,6 +37,7 @@ class ShopifyStoreDocumentSyncServiceTest {
         ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
         ShopifyStoreDocumentRepository documentRepository = mock(ShopifyStoreDocumentRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         MarketplaceDatasetRuntimeSyncClient runtimeSyncClient = mock(MarketplaceDatasetRuntimeSyncClient.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
@@ -42,11 +45,13 @@ class ShopifyStoreDocumentSyncServiceTest {
 
         ShopifyStoreConnectionEntity store = store();
         DeploymentEntity deployment = deployment();
+        DeploymentVersionEntity activeVersion = activeVersion();
         ShopifyStoreDocumentEntity stalePolicy = tracked("doc-policy", "support-policy", "policies");
         ShopifyStoreConnectionSummary summary = summary("SYNCED", "PLATFORM_BOOTSTRAPPED");
 
         when(storeRepository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(activeVersion));
         when(documentRepository.findByStoreConnectionIdOrderByDocumentIdAsc("shp-123")).thenReturn(List.of(stalePolicy));
         when(storeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary);
@@ -55,6 +60,7 @@ class ShopifyStoreDocumentSyncServiceTest {
             storeRepository,
             documentRepository,
             deploymentRepository,
+            deploymentVersionRepository,
             runtimeSyncClient,
             connectionService,
             support,
@@ -81,9 +87,9 @@ class ShopifyStoreDocumentSyncServiceTest {
         verify(runtimeSyncClient).upsertDocuments(
             eq(deployment),
             eq("product"),
-            eq("shopify-storefront:demo.myshopify.com"),
-            eq("shopify-store:demo.myshopify.com"),
-            any(),
+            eq("shopify-catalog"),
+            eq("plugin/mkp-data-shopify-catalog/tenant/tenant-123/shopify-catalog/hash/product"),
+            eq("hash-catalog"),
             any()
         );
         verify(runtimeSyncClient, never()).deleteDocuments(
@@ -97,9 +103,9 @@ class ShopifyStoreDocumentSyncServiceTest {
         verify(runtimeSyncClient).deleteDocuments(
             eq(deployment),
             eq("support-policy"),
-            eq("shopify-storefront:demo.myshopify.com"),
-            eq("shopify-store:demo.myshopify.com"),
-            any(),
+            eq("shopify-policies"),
+            eq("plugin/mkp-data-shopify-policies/tenant/tenant-123/shopify-policies/hash/support-policy"),
+            eq("hash-policies"),
             eq(List.of("doc-policy"))
         );
         verify(documentRepository).saveAll(any());
@@ -114,6 +120,7 @@ class ShopifyStoreDocumentSyncServiceTest {
         ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
         ShopifyStoreDocumentRepository documentRepository = mock(ShopifyStoreDocumentRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         MarketplaceDatasetRuntimeSyncClient runtimeSyncClient = mock(MarketplaceDatasetRuntimeSyncClient.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
@@ -133,6 +140,7 @@ class ShopifyStoreDocumentSyncServiceTest {
             storeRepository,
             documentRepository,
             deploymentRepository,
+            deploymentVersionRepository,
             runtimeSyncClient,
             connectionService,
             support,
@@ -154,6 +162,115 @@ class ShopifyStoreDocumentSyncServiceTest {
         assertThat(store.getSyncStatus()).isEqualTo("FAILED");
         assertThat(store.getOnboardingStatus()).isEqualTo("BLOCKED");
         assertThat(store.getDetailsJson()).contains("Runtime data sync failed.");
+    }
+
+    @Test
+    void syncFallsBackToLegacyDatasetIdentifiersWhenDeploymentHasNoActiveVersion() {
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        ShopifyStoreDocumentRepository documentRepository = mock(ShopifyStoreDocumentRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        MarketplaceDatasetRuntimeSyncClient runtimeSyncClient = mock(MarketplaceDatasetRuntimeSyncClient.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
+
+        ShopifyStoreConnectionEntity store = store();
+        DeploymentEntity deployment = deployment();
+        deployment.setActiveVersionId(null);
+
+        when(storeRepository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123")).thenReturn(List.of());
+        when(documentRepository.findByStoreConnectionIdOrderByDocumentIdAsc("shp-123")).thenReturn(List.of());
+        when(storeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary("SYNCED", "PLATFORM_BOOTSTRAPPED"));
+
+        ShopifyStoreDocumentSyncService service = new ShopifyStoreDocumentSyncService(
+            storeRepository,
+            documentRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            runtimeSyncClient,
+            connectionService,
+            support,
+            auditService
+        );
+
+        service.sync(
+            "demo.myshopify.com",
+            new SyncShopifyStoreDocumentsRequest(
+                "FULL",
+                List.of(new ShopifyStoreSyncDocument("doc-product", "products", "product", "Travel Backpack", "Travel backpack", Map.of()))
+            )
+        );
+
+        verify(runtimeSyncClient).upsertDocuments(
+            eq(deployment),
+            eq("product"),
+            eq("shopify-storefront:demo.myshopify.com"),
+            eq("shopify-store:demo.myshopify.com"),
+            any(),
+            any()
+        );
+    }
+
+    @Test
+    void syncRoutesPagesIntoPoliciesDatasetWhenCompanionDatasetsAreConfigured() {
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        ShopifyStoreDocumentRepository documentRepository = mock(ShopifyStoreDocumentRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        MarketplaceDatasetRuntimeSyncClient runtimeSyncClient = mock(MarketplaceDatasetRuntimeSyncClient.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
+
+        ShopifyStoreConnectionEntity store = store();
+        DeploymentEntity deployment = deployment();
+        DeploymentVersionEntity activeVersion = activeVersion();
+
+        when(storeRepository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(activeVersion));
+        when(documentRepository.findByStoreConnectionIdOrderByDocumentIdAsc("shp-123")).thenReturn(List.of());
+        when(storeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary("SYNCED", "PLATFORM_BOOTSTRAPPED"));
+
+        ShopifyStoreDocumentSyncService service = new ShopifyStoreDocumentSyncService(
+            storeRepository,
+            documentRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            runtimeSyncClient,
+            connectionService,
+            support,
+            auditService
+        );
+
+        service.sync(
+            "demo.myshopify.com",
+            new SyncShopifyStoreDocumentsRequest(
+                "FULL",
+                List.of(new ShopifyStoreSyncDocument(
+                    "doc-page",
+                    "pages",
+                    "support-policy",
+                    "Shipping FAQ",
+                    "Shipping takes 3 to 5 business days.",
+                    Map.of("handle", "shipping-faq")
+                ))
+            )
+        );
+
+        verify(runtimeSyncClient).upsertDocuments(
+            eq(deployment),
+            eq("support-policy"),
+            eq("shopify-policies"),
+            eq("plugin/mkp-data-shopify-policies/tenant/tenant-123/shopify-policies/hash/support-policy"),
+            eq("hash-policies"),
+            any()
+        );
     }
 
     private ShopifyStoreConnectionEntity store() {
@@ -184,8 +301,35 @@ class ShopifyStoreDocumentSyncServiceTest {
         deployment.setId("dep-123");
         deployment.setCustomerId("cus-123");
         deployment.setTenantId("tenant-123");
+        deployment.setActiveVersionId("ver-123");
         deployment.setRuntimeBaseUrl("https://runtime.example.com");
         return deployment;
+    }
+
+    private DeploymentVersionEntity activeVersion() {
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-123");
+        version.setDeploymentId("dep-123");
+        version.setMarketplaceDatasetConfigJson("""
+            {
+              "contractVersion":"MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets":[
+                {
+                  "datasetId":"shopify-catalog",
+                  "entityType":"product",
+                  "handleRef":"plugin/mkp-data-shopify-catalog/tenant/tenant-123/shopify-catalog/hash/product",
+                  "datasetHash":"hash-catalog"
+                },
+                {
+                  "datasetId":"shopify-policies",
+                  "entityType":"support-policy",
+                  "handleRef":"plugin/mkp-data-shopify-policies/tenant/tenant-123/shopify-policies/hash/support-policy",
+                  "datasetHash":"hash-policies"
+                }
+              ]
+            }
+            """);
+        return version;
     }
 
     private ShopifyStoreDocumentEntity tracked(String documentId, String entityType, String sourceCategory) {

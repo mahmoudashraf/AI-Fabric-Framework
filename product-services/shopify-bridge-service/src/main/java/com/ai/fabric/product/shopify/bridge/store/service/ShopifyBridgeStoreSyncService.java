@@ -203,7 +203,7 @@ public class ShopifyBridgeStoreSyncService {
             .map(node -> new ShopifyBridgeStoreSyncDocument(
                 requiredText(node, "id"),
                 "pages",
-                "faq-article",
+                "support-policy",
                 text(node, "title"),
                 joinContent(
                     text(node, "title"),

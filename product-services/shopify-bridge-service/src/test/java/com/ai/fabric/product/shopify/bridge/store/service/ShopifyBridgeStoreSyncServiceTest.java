@@ -117,6 +117,57 @@ class ShopifyBridgeStoreSyncServiceTest {
         assertThat(statusCaptor.getValue().documentCount()).isEqualTo(2);
     }
 
+    @Test
+    void syncMapsPagesIntoSupportPolicyDocuments() {
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient);
+
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
+        query ShopifyCompanionPagesSync($cursor: String) {
+          pages(first: 50, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                title
+                handle
+                body
+                updatedAt
+              }
+            }
+          }
+        }
+        """), eq(cursorVariables(null)))).thenReturn(Map.of(
+            "data", Map.of(
+                "pages", Map.of(
+                    "pageInfo", pageInfo(false, null),
+                    "edges", List.of(Map.of("node", Map.of(
+                        "id", "gid://shopify/Page/1",
+                        "title", "Shipping FAQ",
+                        "handle", "shipping-faq",
+                        "body", "<p>Shipping takes 3 to 5 business days.</p>",
+                        "updatedAt", "2026-04-18T12:00:00Z"
+                    )))
+                )
+            )
+        ));
+        when(platformClient.syncDocuments(eq("alpha.myshopify.com"), any())).thenReturn(store(false, false, true, false));
+        when(platformClient.recordSyncStatus(eq("alpha.myshopify.com"), any())).thenReturn(store(false, false, true, false));
+
+        service.sync(acquisition(store(false, false, true, false)));
+
+        ArgumentCaptor<ShopifyBridgeSyncStoreDocumentsRequest> syncCaptor =
+            ArgumentCaptor.forClass(ShopifyBridgeSyncStoreDocumentsRequest.class);
+        verify(platformClient).syncDocuments(eq("alpha.myshopify.com"), syncCaptor.capture());
+        assertThat(syncCaptor.getValue().documents()).hasSize(1);
+        assertThat(syncCaptor.getValue().documents().getFirst().sourceCategory()).isEqualTo("pages");
+        assertThat(syncCaptor.getValue().documents().getFirst().entityType()).isEqualTo("support-policy");
+    }
+
     private Map<String, Object> cursorVariables(String cursor) {
         LinkedHashMap<String, Object> variables = new LinkedHashMap<>();
         variables.put("cursor", cursor);
