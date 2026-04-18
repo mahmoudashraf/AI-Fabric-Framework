@@ -49,6 +49,10 @@ shopify:
     webhook-shared-secret: ${SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET:}
     admin-api-key: ${SHOPIFY_BRIDGE_SHARED_SECRET:}
     admin-api-key-header: ${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER:X-BRIDGE-API-KEY}
+    billing:
+      mode: ${SHOPIFY_BRIDGE_BILLING_MODE:FREE}
+      plan-name: ${SHOPIFY_BRIDGE_BILLING_PLAN_NAME:Companion Free}
+      app-subscription-plan-handle: ${SHOPIFY_BRIDGE_BILLING_PLAN_HANDLE:}
 
 logging:
   level:

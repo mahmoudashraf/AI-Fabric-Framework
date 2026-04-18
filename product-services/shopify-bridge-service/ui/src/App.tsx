@@ -18,6 +18,7 @@ import {
 import enTranslations from '@shopify/polaris/locales/en.json'
 import {
   bootstrapStore,
+  fetchBillingSummary,
   connectStore,
   fetchUsageSummary,
   fetchStorefrontPreview,
@@ -31,6 +32,7 @@ import {
   updateSourceSettings,
   updateWidgetSettings,
   type ShopifyBridgeMerchantSessionResponse,
+  type ShopifyBridgeBillingSummary,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
@@ -66,6 +68,7 @@ type LoadState = {
   session: ShopifyBridgeMerchantSessionResponse | null
   storefrontPreview: ShopifyStorefrontPreviewResponse | null
   usageSummary: ShopifyBridgeUsageSummary | null
+  billingSummary: ShopifyBridgeBillingSummary | null
   loading: boolean
   error: string | null
 }
@@ -81,6 +84,7 @@ export default function App() {
     session: null,
     storefrontPreview: null,
     usageSummary: null,
+    billingSummary: null,
     loading: true,
     error: null,
   })
@@ -130,10 +134,12 @@ export default function App() {
       let session: ShopifyBridgeMerchantSessionResponse | null = null
       let storefrontPreview: ShopifyStorefrontPreviewResponse | null = null
       let usageSummary: ShopifyBridgeUsageSummary | null = null
+      let billingSummary: ShopifyBridgeBillingSummary | null = null
       try {
         session = await fetchSession()
         storefrontPreview = await fetchStorefrontPreview()
         usageSummary = await fetchUsageSummary()
+        billingSummary = await fetchBillingSummary()
       } catch (sessionError) {
         session = null
         setState({
@@ -141,6 +147,7 @@ export default function App() {
           session: null,
           storefrontPreview: null,
           usageSummary: null,
+          billingSummary: null,
           loading: false,
           error: sessionError instanceof Error ? sessionError.message : 'Failed to resolve merchant session.',
         })
@@ -151,6 +158,7 @@ export default function App() {
         session,
         storefrontPreview,
         usageSummary,
+        billingSummary,
         loading: false,
         error: null,
       })
@@ -174,6 +182,7 @@ export default function App() {
         session: null,
         storefrontPreview: null,
         usageSummary: null,
+        billingSummary: null,
         loading: false,
         error: error instanceof Error ? error.message : 'Unknown bridge shell failure.',
       })
@@ -367,7 +376,8 @@ export default function App() {
   const store = session?.store ?? null
   const storefrontPreview = state.storefrontPreview
   const usageSummary = state.usageSummary
-  const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary)
+  const billingSummary = state.billingSummary
+  const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary, billingSummary)
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
   const canGoLive =
@@ -636,6 +646,8 @@ export default function App() {
                       <List.Item>Sync status: {store.syncDetail?.status ?? store.syncStatus}</List.Item>
                       <List.Item>Last successful sync: {formatTimestamp(store.lastSyncAt)}</List.Item>
                       <List.Item>Widget status: {store.widgetDetail?.status ?? store.widgetStatus}</List.Item>
+                      <List.Item>Billing mode: {billingSummary?.mode ?? 'UNKNOWN'}</List.Item>
+                      <List.Item>Billing status: {billingSummary?.status ?? 'UNKNOWN'}</List.Item>
                       <List.Item>Actions: {store.capabilities?.actionCount ?? 0}</List.Item>
                       <List.Item>Knowledge sources: {store.capabilities?.knowledgeSourceCount ?? 0}</List.Item>
                       <List.Item>Datasets: {store.capabilities?.marketplaceDatasetCount ?? 0}</List.Item>
@@ -649,6 +661,11 @@ export default function App() {
                   {store?.capabilities ? (
                     <Text as="p" variant="bodySm" tone="subdued">
                       Actions {store.capabilities.actionNames.join(' · ') || '—'} · Knowledge {store.capabilities.knowledgeSourceIds.join(' · ') || '—'}
+                    </Text>
+                  ) : null}
+                  {billingSummary ? (
+                    <Text as="p" variant="bodySm" tone={billingSummary.launchBlocked ? 'critical' : 'subdued'}>
+                      Billing {billingSummary.mode} / {billingSummary.status} · {billingSummary.message}
                     </Text>
                   ) : null}
                   {usageSummary ? (
@@ -1089,7 +1106,8 @@ function buildSupportBundle(
   shell: ShopifyBridgeShellResponse | null,
   session: ShopifyBridgeMerchantSessionResponse | null,
   storefrontPreview: ShopifyStorefrontPreviewResponse | null,
-  usageSummary: ShopifyBridgeUsageSummary | null
+  usageSummary: ShopifyBridgeUsageSummary | null,
+  billingSummary: ShopifyBridgeBillingSummary | null
 ): string {
   const store = session?.store ?? null
   return JSON.stringify(
@@ -1109,6 +1127,9 @@ function buildSupportBundle(
             shopDomain: session.shopDomain,
             userId: session.userId,
             expiresAt: session.expiresAt,
+            installRecoveryRequired: session.installRecoveryRequired,
+            installRecoveryMessage: session.installRecoveryMessage,
+            installRecoveryUrl: session.installRecoveryUrl,
             installRecordStatus: session.installRecord?.status ?? null,
             accessTokenConfigured: Boolean(session.installRecord?.accessTokenSecretRef),
             refreshTokenConfigured: Boolean(session.installRecord?.refreshTokenSecretRef),
@@ -1146,6 +1167,7 @@ function buildSupportBundle(
             latestRelease: store.latestRelease,
           }
         : null,
+      billingSummary,
       storefrontPreview: storefrontPreview
         ? {
             ready: storefrontPreview.ready,

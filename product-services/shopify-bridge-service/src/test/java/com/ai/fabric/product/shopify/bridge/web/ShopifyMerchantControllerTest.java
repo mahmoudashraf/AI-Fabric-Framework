@@ -4,6 +4,8 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabilitySummary;
@@ -60,6 +62,9 @@ class ShopifyMerchantControllerTest {
 
     @MockBean
     private ShopifyBridgeUsageService usageService;
+
+    @MockBean
+    private ShopifyBridgeBillingService billingService;
 
     @Test
     void sessionRequiresBearerToken() throws Exception {
@@ -227,6 +232,26 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.last7DayBreakdown[0].eventType").value("STOREFRONT_QUERY"));
 
         verify(usageService).summarize("alpha.myshopify.com");
+    }
+
+    @Test
+    void billingSummaryUsesMerchantSessionContext() throws Exception {
+        when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
+            "FREE",
+            "Companion Free",
+            "ACTIVE",
+            false,
+            false,
+            "The Shopify Companion app is currently running in free mode. No merchant billing approval is required."
+        ));
+
+        mockMvc.perform(get("/api/app/store/billing-summary").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.mode").value("FREE"))
+            .andExpect(jsonPath("$.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.launchBlocked").value(false));
+
+        verify(billingService).summarize();
     }
 
     @Test

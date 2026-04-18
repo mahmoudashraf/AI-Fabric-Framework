@@ -185,6 +185,15 @@ export type ShopifyBridgeUsageSummary = {
   }>
 }
 
+export type ShopifyBridgeBillingSummary = {
+  mode: string
+  planName: string
+  status: string
+  merchantApprovalRequired: boolean
+  launchBlocked: boolean
+  message: string
+}
+
 export async function fetchShell(): Promise<ShopifyBridgeShellResponse> {
   return fetchJson('/api/app/shell')
 }
@@ -222,6 +231,10 @@ export async function fetchStorefrontPreview(): Promise<ShopifyStorefrontPreview
 
 export async function fetchUsageSummary(): Promise<ShopifyBridgeUsageSummary> {
   return authenticatedFetchJson('/api/app/store/usage-summary', { method: 'GET' })
+}
+
+export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary> {
+  return authenticatedFetchJson('/api/app/store/billing-summary', { method: 'GET' })
 }
 
 export async function updateSourceSettings(settings: {

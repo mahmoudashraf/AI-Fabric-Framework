@@ -3,6 +3,8 @@ package com.ai.fabric.product.shopify.bridge.web;
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -27,13 +29,16 @@ public class ShopifyMerchantController {
     private final ShopifyBridgeMerchantStoreService merchantStoreService;
     private final ShopifyMerchantPlaygroundService merchantPlaygroundService;
     private final ShopifyBridgeUsageService usageService;
+    private final ShopifyBridgeBillingService billingService;
 
     public ShopifyMerchantController(ShopifyBridgeMerchantStoreService merchantStoreService,
                                      ShopifyMerchantPlaygroundService merchantPlaygroundService,
-                                     ShopifyBridgeUsageService usageService) {
+                                     ShopifyBridgeUsageService usageService,
+                                     ShopifyBridgeBillingService billingService) {
         this.merchantStoreService = merchantStoreService;
         this.merchantPlaygroundService = merchantPlaygroundService;
         this.usageService = usageService;
+        this.billingService = billingService;
     }
 
     @GetMapping("/session")
@@ -80,6 +85,12 @@ public class ShopifyMerchantController {
     @GetMapping("/store/usage-summary")
     public ShopifyBridgeUsageSummary usageSummary(Authentication authentication) {
         return usageService.summarize(requireMerchant(authentication).shopDomain());
+    }
+
+    @GetMapping("/store/billing-summary")
+    public ShopifyBridgeBillingSummary billingSummary(Authentication authentication) {
+        requireMerchant(authentication);
+        return billingService.summarize();
     }
 
     @PostMapping("/store/source-settings")
