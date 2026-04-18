@@ -15,6 +15,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "shopify.bridge.service-ref=shopify-bridge-test",
     "shopify.bridge.environment-scope=staging",
     "shopify.bridge.admin-api-key=test-admin-key",
+    "shopify.bridge.shopify-api-key=test-shopify-api-key",
+    "shopify.bridge.shopify-api-secret=test-shopify-secret",
     "shopify.bridge.platform-base-url=https://platform.example.com",
     "shopify.bridge.platform-admin-api-key=platform-admin-key"
 })
@@ -32,6 +34,7 @@ class ShopifyBridgeShellControllerTest {
             .andExpect(jsonPath("$.serviceRef").value("shopify-bridge-test"))
             .andExpect(jsonPath("$.environmentScope").value("staging"))
             .andExpect(jsonPath("$.status").value("READY_FOR_ONBOARDING"))
+            .andExpect(jsonPath("$.merchantSessionAuthConfigured").value(true))
             .andExpect(jsonPath("$.onboardingPhases[0]").value("Install and identity"))
             .andExpect(jsonPath("$.launchCapabilities[0]").value("Shopify embedded admin shell"));
     }

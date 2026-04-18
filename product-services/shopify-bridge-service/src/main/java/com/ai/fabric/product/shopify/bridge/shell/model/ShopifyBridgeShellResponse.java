@@ -7,6 +7,7 @@ public record ShopifyBridgeShellResponse(
     String serviceRef,
     String environmentScope,
     String status,
+    boolean merchantSessionAuthConfigured,
     List<String> onboardingPhases,
     List<String> launchCapabilities
 ) {

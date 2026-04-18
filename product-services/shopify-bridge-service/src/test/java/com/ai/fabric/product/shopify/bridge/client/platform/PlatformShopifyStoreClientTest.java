@@ -42,6 +42,8 @@ class PlatformShopifyStoreClientTest {
                 "SHOPIFY_BRIDGE_SERVICE",
                 "test",
                 "https://bridge.example.com",
+                "shopify-api-key",
+                "shopify-api-secret",
                 "https://platform.example.com",
                 "platform-admin-key",
                 "X-PLATFORM-API-KEY",

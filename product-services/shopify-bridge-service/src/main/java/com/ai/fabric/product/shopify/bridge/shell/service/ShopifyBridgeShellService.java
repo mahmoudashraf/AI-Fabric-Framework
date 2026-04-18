@@ -18,11 +18,13 @@ public class ShopifyBridgeShellService {
     public ShopifyBridgeShellResponse shell() {
         boolean bridgeConfigured = !properties.adminApiKey().isBlank();
         boolean platformConfigured = !properties.platformBaseUrl().isBlank() && !properties.platformAdminApiKey().isBlank();
+        boolean merchantAuthConfigured = !properties.shopifyApiKey().isBlank() && !properties.shopifyApiSecret().isBlank();
         return new ShopifyBridgeShellResponse(
             properties.appName(),
             properties.serviceRef(),
             properties.environmentScope(),
-            bridgeConfigured && platformConfigured ? "READY_FOR_ONBOARDING" : "SETUP_REQUIRED",
+            bridgeConfigured && platformConfigured && merchantAuthConfigured ? "READY_FOR_ONBOARDING" : "SETUP_REQUIRED",
+            merchantAuthConfigured,
             List.of(
                 "Install and identity",
                 "Product provisioning",

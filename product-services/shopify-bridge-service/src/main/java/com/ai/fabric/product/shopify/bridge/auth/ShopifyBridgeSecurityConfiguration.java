@@ -16,6 +16,7 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -25,18 +26,59 @@ public class ShopifyBridgeSecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                            ShopifyBridgeProperties properties) throws Exception {
+                                            ShopifyBridgeProperties properties,
+                                            ShopifyMerchantSessionTokenService merchantSessionTokenService) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                .requestMatchers("/api/webhooks/shopify").permitAll()
+                .requestMatchers("/api/app/shell").permitAll()
+                .requestMatchers("/api/app/**").authenticated()
                 .requestMatchers("/api/admin/**").authenticated()
                 .anyRequest().permitAll()
             )
+            .addFilterBefore(new MerchantSessionFilter(merchantSessionTokenService), UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(new AdminApiKeyFilter(properties), UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    private static final class MerchantSessionFilter extends OncePerRequestFilter {
+
+        private final ShopifyMerchantSessionTokenService sessionTokenService;
+
+        private MerchantSessionFilter(ShopifyMerchantSessionTokenService sessionTokenService) {
+            this.sessionTokenService = sessionTokenService;
+        }
+
+        @Override
+        protected void doFilterInternal(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        FilterChain filterChain) throws ServletException, IOException {
+            if (!request.getRequestURI().startsWith("/api/app/") || "/api/app/shell".equals(request.getRequestURI())) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            try {
+                ShopifyMerchantSession session = sessionTokenService.verify(request.getHeader("Authorization"));
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                    session,
+                    "N/A",
+                    AuthorityUtils.createAuthorityList("ROLE_SHOPIFY_MERCHANT")
+                );
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+                try {
+                    filterChain.doFilter(request, response);
+                } finally {
+                    SecurityContextHolder.clearContext();
+                }
+            } catch (ResponseStatusException ex) {
+                response.sendError(ex.getStatusCode().value(), ex.getReason());
+            }
+        }
     }
 
     private static final class AdminApiKeyFilter extends OncePerRequestFilter {

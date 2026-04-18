@@ -3,18 +3,106 @@ export type ShopifyBridgeShellResponse = {
   serviceRef: string
   environmentScope: string
   status: string
+  merchantSessionAuthConfigured: boolean
   onboardingPhases: string[]
   launchCapabilities: string[]
 }
 
+export type ShopifyBridgeStoreSummary = {
+  shopDomain: string
+  displayName: string
+  deploymentId: string | null
+  deploymentName: string | null
+  deploymentStatus: string | null
+  consumerId: string | null
+  installStatus: string
+  syncStatus: string
+  sourceReadinessStatus: string
+  widgetStatus: string
+  onboardingStatus: string
+  productsEnabled: boolean
+  collectionsEnabled: boolean
+  pagesEnabled: boolean
+  policiesEnabled: boolean
+}
+
+export type ShopifyBridgeMerchantSessionResponse = {
+  shopDomain: string
+  destination: string
+  userId: string
+  expiresAt: string
+  store: ShopifyBridgeStoreSummary | null
+}
+
+export type ShopifyBridgeStoreBootstrapResponse = {
+  shopDomain: string
+  customerId: string | null
+  deploymentId: string | null
+  consumerId: string | null
+  createdCustomer: boolean
+  createdDeployment: boolean
+  createdConsumer: boolean
+  installedPluginIds: string[]
+  store: ShopifyBridgeStoreSummary
+}
+
 export async function fetchShell(): Promise<ShopifyBridgeShellResponse> {
-  const response = await fetch('/api/app/shell', {
+  return fetchJson('/api/app/shell')
+}
+
+export async function fetchSession(): Promise<ShopifyBridgeMerchantSessionResponse> {
+  return authenticatedFetchJson('/api/app/session', { method: 'GET' })
+}
+
+export async function connectStore(): Promise<ShopifyBridgeStoreSummary> {
+  return authenticatedFetchJson('/api/app/store/connect', { method: 'POST' })
+}
+
+export async function bootstrapStore(): Promise<ShopifyBridgeStoreBootstrapResponse> {
+  return authenticatedFetchJson('/api/app/store/bootstrap', { method: 'POST' })
+}
+
+async function authenticatedFetchJson<T>(input: string, init: RequestInit): Promise<T> {
+  const token = await resolveSessionToken()
+  return fetchJson<T>(input, {
+    ...init,
     headers: {
       Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(init.headers ?? {}),
     },
   })
+}
+
+async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, init)
   if (!response.ok) {
-    throw new Error(`Failed to load bridge shell: HTTP ${response.status}`)
+    const errorText = await safeReadText(response)
+    throw new Error(errorText || `Request failed: HTTP ${response.status}`)
   }
-  return response.json() as Promise<ShopifyBridgeShellResponse>
+  return response.json() as Promise<T>
+}
+
+async function resolveSessionToken(): Promise<string> {
+  if (typeof window !== 'undefined' && typeof window.shopify?.idToken === 'function') {
+    return window.shopify.idToken()
+  }
+
+  if (import.meta.env.DEV) {
+    const params = new URLSearchParams(window.location.search)
+    const devToken = params.get('dev_session_token') ?? params.get('session_token')
+    if (devToken && devToken.trim()) {
+      return devToken.trim()
+    }
+  }
+
+  throw new Error('Shopify session token is unavailable. Open the embedded app inside Shopify admin or provide a dev_session_token query parameter in local development.')
+}
+
+async function safeReadText(response: Response): Promise<string> {
+  try {
+    return (await response.text()).trim()
+  } catch {
+    return ''
+  }
 }
