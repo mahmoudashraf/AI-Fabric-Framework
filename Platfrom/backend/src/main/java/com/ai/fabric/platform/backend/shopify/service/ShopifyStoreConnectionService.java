@@ -30,6 +30,7 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -62,6 +63,7 @@ public class ShopifyStoreConnectionService {
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ShopifyStoreReadinessEvaluator readinessEvaluator;
 
+    @Autowired
     public ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
                                          PlatformManagedProductServiceService productServiceService,
                                          PlatformCustomerRepository customerRepository,
