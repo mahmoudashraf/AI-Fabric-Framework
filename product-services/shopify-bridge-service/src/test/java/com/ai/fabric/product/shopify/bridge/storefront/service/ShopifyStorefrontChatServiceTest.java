@@ -1,0 +1,105 @@
+package com.ai.fabric.product.shopify.bridge.storefront.service;
+
+import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.Instant;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class ShopifyStorefrontChatServiceTest {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void queryForwardsReadyStoreTrafficToPlatformConsumerBridge() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {"query":"Show me backpacks"}
+            """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Here are some backpacks."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {"query":"Show me backpacks"}
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        verify(platformClient).queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {"query":"Show me backpacks"}
+            """), "shopper-session-1");
+    }
+
+    @Test
+    void suggestionsRejectsStoreWhenSourceReadinessIsNotReady() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "PENDING"));
+
+        assertThatThrownBy(() -> service.suggestions("alpha.myshopify.com", objectMapper.createObjectNode(), null))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Store data is not ready yet");
+    }
+
+    private ShopifyBridgeStoreSummary store(String installStatus,
+                                            String sourceReadinessStatus) {
+        return new ShopifyBridgeStoreSummary(
+            "shp-1",
+            "alpha.myshopify.com",
+            "Alpha",
+            "shopify-bridge-prod",
+            "Shopify Bridge Prod",
+            "cust-1",
+            "Alpha Customer",
+            "dep-1",
+            "Alpha Deployment",
+            "APPLIED_VERIFIED",
+            "consumer-alpha",
+            "Alpha Storefront",
+            installStatus,
+            "SYNCED",
+            sourceReadinessStatus,
+            "ENABLED",
+            "PREFLIGHT_READY",
+            true,
+            true,
+            true,
+            true,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products,read_content",
+                true
+            ),
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z")
+        );
+    }
+}

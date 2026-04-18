@@ -7,7 +7,7 @@
 }
 
 .loom-companion-embed-root[data-status="configuration-required"]::before {
-  content: "Companion embed requires bridge_base_url and consumer_id settings.";
+  content: "Companion embed requires a bridge_base_url setting.";
   display: block;
   max-width: 18rem;
   padding: 0.75rem 1rem;
@@ -31,7 +31,10 @@
 
 .loom-companion-panel {
   margin-top: 0.75rem;
-  width: min(24rem, calc(100vw - 2rem));
+  width: min(25rem, calc(100vw - 2rem));
+  max-height: min(36rem, calc(100vh - 6rem));
+  display: flex;
+  flex-direction: column;
   border-radius: 1.2rem;
   background: #ffffff;
   color: #111827;
@@ -43,18 +46,131 @@
   padding: 0.85rem 1rem;
   background: #f3f4f6;
   border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.loom-companion-panel__body {
+.loom-companion-panel__subhead {
+  margin-top: 0.2rem;
+  color: #6b7280;
+  font-size: 0.78rem;
+}
+
+.loom-companion-close,
+.loom-companion-reset {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.84rem;
+  padding: 0;
+}
+
+.loom-companion-messages {
+  flex: 1 1 auto;
+  min-height: 12rem;
+  max-height: 20rem;
+  overflow-y: auto;
   padding: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
 }
 
-.loom-companion-panel__body p {
-  margin: 0 0 0.75rem;
+.loom-companion-message {
+  max-width: 85%;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 1rem;
   font-size: 0.92rem;
   line-height: 1.45;
+  white-space: pre-wrap;
 }
 
-.loom-companion-panel__body p:last-child {
-  margin-bottom: 0;
+.loom-companion-message--assistant {
+  background: #eef2ff;
+  color: #1f2937;
+  border-bottom-left-radius: 0.35rem;
+}
+
+.loom-companion-message--user {
+  margin-left: auto;
+  background: #111827;
+  color: #ffffff;
+  border-bottom-right-radius: 0.35rem;
+}
+
+.loom-companion-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 1rem 0.75rem;
+}
+
+.loom-companion-suggestion {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.loom-companion-status {
+  padding: 0 1rem 0.75rem;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+.loom-companion-composer {
+  border-top: 1px solid #e5e7eb;
+  padding: 0.9rem 1rem 1rem;
+  background: #ffffff;
+}
+
+.loom-companion-input {
+  width: 100%;
+  resize: none;
+  border: 1px solid #d1d5db;
+  border-radius: 0.9rem;
+  padding: 0.75rem 0.85rem;
+  font: inherit;
+  color: #111827;
+  background: #ffffff;
+}
+
+.loom-companion-composer__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.loom-companion-send {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  background: #111827;
+  color: #ffffff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.loom-companion-send:disabled,
+.loom-companion-input:disabled {
+  opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+  .loom-companion-embed-root {
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  .loom-companion-panel {
+    width: min(22rem, calc(100vw - 1.5rem));
+    max-height: calc(100vh - 4rem);
+  }
 }

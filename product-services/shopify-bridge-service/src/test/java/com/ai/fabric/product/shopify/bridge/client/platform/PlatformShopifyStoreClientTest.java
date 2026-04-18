@@ -300,6 +300,37 @@ class PlatformShopifyStoreClientTest {
         server.verify();
     }
 
+    @Test
+    void queryConsumerBridgeChatUsesPlatformAdminApiKeyAndShopperSessionHeader() {
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andExpect(header("X-AI-FABRIC-SHOPPER-SESSION-ID", "shopper-session-1"))
+            .andRespond(withSuccess("""
+                {"success":true,"conversationId":"conv-1","result":{"message":"Hello from runtime"}}
+                """, MediaType.APPLICATION_JSON));
+
+        var response = client.queryConsumerBridgeChat("consumer-alpha", null, "shopper-session-1");
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        server.verify();
+    }
+
+    @Test
+    void suggestConsumerBridgeChatUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/suggestions"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {"success":true,"suggestions":["Show me backpacks","What is your return policy?"]}
+                """, MediaType.APPLICATION_JSON));
+
+        var response = client.suggestConsumerBridgeChat("consumer-alpha", null, null);
+
+        assertThat(response.path("suggestions")).hasSize(2);
+        server.verify();
+    }
+
     private String storeBody(String sourceReadinessStatus, String syncStatus, String widgetStatus) {
         return """
             {

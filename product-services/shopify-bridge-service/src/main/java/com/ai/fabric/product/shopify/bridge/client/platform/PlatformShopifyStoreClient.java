@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -17,6 +18,7 @@ import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
@@ -118,6 +120,34 @@ public class PlatformShopifyStoreClient {
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .retrieve()
             .body(PlatformPublicConsumerDeploymentCredentialsResponse.class);
+    }
+
+    public JsonNode queryConsumerBridgeChat(String consumerId, JsonNode request, String shopperSessionId) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/public/consumers/" + encodePath(consumerId) + "/bridge/chat/query")
+            .headers(headers -> {
+                headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey());
+                if (shopperSessionId != null && !shopperSessionId.isBlank()) {
+                    headers.set("X-AI-FABRIC-SHOPPER-SESSION-ID", shopperSessionId.trim());
+                }
+            })
+            .body(request == null ? Map.of() : request)
+            .retrieve()
+            .body(JsonNode.class);
+    }
+
+    public JsonNode suggestConsumerBridgeChat(String consumerId, JsonNode request, String shopperSessionId) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/public/consumers/" + encodePath(consumerId) + "/bridge/chat/suggestions")
+            .headers(headers -> {
+                headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey());
+                if (shopperSessionId != null && !shopperSessionId.isBlank()) {
+                    headers.set("X-AI-FABRIC-SHOPPER-SESSION-ID", shopperSessionId.trim());
+                }
+            })
+            .body(request == null ? Map.of() : request)
+            .retrieve()
+            .body(JsonNode.class);
     }
 
     private String requirePlatformBaseUrl() {

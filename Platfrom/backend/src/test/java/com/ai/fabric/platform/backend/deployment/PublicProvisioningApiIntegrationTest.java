@@ -272,6 +272,18 @@ class PublicProvisioningApiIntegrationTest {
     }
 
     @Test
+    void publicClientCannotUsePlatformMediatedConsumerBridgeChatEndpoints() throws Exception {
+        mockMvc.perform(post("/api/public/consumers/{consumerId}/bridge/chat/query", "storefront-main")
+                .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
+                .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"query":"hello"}
+                    """))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void publicConsumerRoutesRequireAuthenticationAndResolveCurrentDeployment() throws Exception {
         var customer = platformCustomerTenantService.createCustomer(
             new CreatePlatformCustomerRequest("Consumer Contract", "Customer for consumer resolution")
