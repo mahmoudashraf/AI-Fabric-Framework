@@ -1,0 +1,60 @@
+.loom-companion-embed-root {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 9999;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.loom-companion-embed-root[data-status="configuration-required"]::before {
+  content: "Companion embed requires bridge_base_url and consumer_id settings.";
+  display: block;
+  max-width: 18rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  background: #fff8dc;
+  color: #49370d;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.loom-companion-launcher {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.85rem 1.15rem;
+  background: #111827;
+  color: #ffffff;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 14px 36px rgba(17, 24, 39, 0.32);
+}
+
+.loom-companion-panel {
+  margin-top: 0.75rem;
+  width: min(24rem, calc(100vw - 2rem));
+  border-radius: 1.2rem;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2);
+  overflow: hidden;
+}
+
+.loom-companion-panel__header {
+  padding: 0.85rem 1rem;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.loom-companion-panel__body {
+  padding: 1rem;
+}
+
+.loom-companion-panel__body p {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.loom-companion-panel__body p:last-child {
+  margin-bottom: 0;
+}
