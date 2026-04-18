@@ -317,6 +317,13 @@ Use this boundary:
 
 This keeps the app opinionated while still allowing bounded merchant control.
 
+The platform should also expose service-understanding APIs around that boundary:
+
+- managed service APIs for health, drift, replicas, logs, activity, and high-level dependents
+- separate drill-through APIs for shop/customer/deployment/consumer mappings and sync-state summaries
+
+The service should expose understanding of dependent usage without owning that store-domain data itself.
+
 ---
 
 ## 7) Shopify Platform Constraints That Change The Plan
@@ -384,10 +391,15 @@ Required outcomes:
 - runtime/source attribution working cleanly
 - theme-injected widget integration stable
 - default companion template and plugins packaged
+- platform APIs exist for:
+  - Shopify Bridge Service health, drift, activity, and dependents
+  - store-to-customer/deployment/consumer mapping inspection
+  - per-store sync-state visibility
 
 Exit criteria:
 
 - one internal Shopify-shaped deployment can be provisioned, rebound, and verified end to end
+- operators can understand both the shared Shopify Bridge and the stores bound through it from platform APIs and views
 
 ### Phase 1: Loom Companion Internal Beta
 

@@ -508,6 +508,34 @@ This operator surface belongs in the platform UI because the Shopify Bridge Serv
 
 Store-specific lifecycle remains in the Shopify embedded admin app.
 
+### 7.2.5 Platform API understanding rule
+
+The platform must expose enough API surface for operators to understand the Shopify Bridge Service and its dependents without collapsing store domain data into the managed service object itself.
+
+The managed product service API should expose:
+
+- service summary and status
+- health and drift diagnostics
+- replica state
+- Railway linkage
+- logs, deployment history, and recent activity
+- high-level dependent counts
+
+The platform must also expose drill-through APIs for dependent domain state such as:
+
+- which shops use this Shopify Bridge Service
+- which platform customers and deployments those shops map to
+- which `consumerId` bindings are active
+- sync status summaries per store
+- install-state summaries per store
+
+Important boundary:
+
+- the managed service should expose understanding
+- it should not own or persist merchant/store mapping data as service-local state
+
+That mapping remains separate product-domain data which the platform surfaces through related APIs and operator views.
+
 ### 7.3 Runtime traffic rule
 
 The Shopify app backend should own:
