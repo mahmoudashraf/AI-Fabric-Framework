@@ -9,7 +9,9 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
+import com.ai.fabric.product.shopify.bridge.playground.service.ShopifyMerchantPlaygroundService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -41,11 +43,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ShopifyMerchantControllerTest {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
     private ShopifyBridgeMerchantStoreService merchantStoreService;
+
+    @MockBean
+    private ShopifyMerchantPlaygroundService merchantPlaygroundService;
 
     @Test
     void sessionRequiresBearerToken() throws Exception {
@@ -189,6 +196,51 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
 
         verify(merchantStoreService).updateWidgetSettings(any(), any());
+    }
+
+    @Test
+    void playgroundQueryUsesMerchantSessionContext() throws Exception {
+        when(merchantPlaygroundService.query(any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "conversationId":"conv-1",
+              "result":{"sanitizedPayload":{"message":"Here are some backpacks.","suggestions":["Show me policy details"]}}
+            }
+            """));
+
+        mockMvc.perform(post("/api/app/store/playground/query")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "query":"Show me backpacks"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.conversationId").value("conv-1"));
+
+        verify(merchantPlaygroundService).query(any(), any());
+    }
+
+    @Test
+    void playgroundSuggestionsUsesMerchantSessionContext() throws Exception {
+        when(merchantPlaygroundService.suggestions(any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "suggestions":["Show me best sellers","What is your shipping policy?"]
+            }
+            """));
+
+        mockMvc.perform(post("/api/app/store/playground/suggestions")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "content":"bags"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.suggestions[0]").value("Show me best sellers"));
+
+        verify(merchantPlaygroundService).suggestions(any(), any());
     }
 
     @Test

@@ -23,7 +23,9 @@ import {
   fetchSession,
   fetchShell,
   goLiveStore,
+  queryMerchantPlayground,
   runSourcePreflight,
+  suggestMerchantPlayground,
   syncNowStore,
   updateSourceSettings,
   updateWidgetSettings,
@@ -65,6 +67,11 @@ type LoadState = {
   error: string | null
 }
 
+type PlaygroundMessage = {
+  role: 'assistant' | 'user'
+  content: string
+}
+
 export default function App() {
   const [state, setState] = useState<LoadState>({
     shell: null,
@@ -81,6 +88,16 @@ export default function App() {
     welcomeMessage: 'Store assistant is ready. Ask about products, policies, or collections.',
   })
   const [busyWidgetSettings, setBusyWidgetSettings] = useState(false)
+  const [playgroundConversationId, setPlaygroundConversationId] = useState<string | null>(null)
+  const [playgroundMessages, setPlaygroundMessages] = useState<PlaygroundMessage[]>([
+    {
+      role: 'assistant',
+      content: 'Store assistant is ready. Ask about products, policies, or collections.',
+    },
+  ])
+  const [playgroundInput, setPlaygroundInput] = useState('')
+  const [playgroundSuggestions, setPlaygroundSuggestions] = useState<string[]>([])
+  const [playgroundLoading, setPlaygroundLoading] = useState(false)
   const [sourceSettings, setSourceSettings] = useState({
     productsEnabled: true,
     collectionsEnabled: true,
@@ -274,6 +291,61 @@ export default function App() {
     }
   }
 
+  async function handlePlaygroundSend(content: string) {
+    const query = content.trim()
+    if (!query || playgroundLoading || !store) {
+      return
+    }
+
+    setPlaygroundLoading(true)
+    setActionError(null)
+    setPlaygroundInput('')
+    setPlaygroundMessages((current) => [...current, { role: 'user', content: query }])
+
+    try {
+      const payload = await queryMerchantPlayground({
+        query,
+        conversationId: playgroundConversationId,
+      })
+      const assistantMessage = extractAssistantMessage(payload)
+      setPlaygroundConversationId(extractConversationId(payload) ?? playgroundConversationId)
+      setPlaygroundMessages((current) => [...current, { role: 'assistant', content: assistantMessage }])
+      const nextSuggestions = extractSuggestions(payload)
+      if (nextSuggestions.length > 0) {
+        setPlaygroundSuggestions(nextSuggestions)
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Merchant playground query failed.')
+      setPlaygroundMessages((current) => [
+        ...current,
+        { role: 'assistant', content: error instanceof Error ? error.message : 'Merchant playground query failed.' },
+      ])
+    } finally {
+      setPlaygroundLoading(false)
+    }
+  }
+
+  async function handlePlaygroundReset() {
+    setPlaygroundConversationId(null)
+    setPlaygroundMessages([
+      {
+        role: 'assistant',
+        content: widgetSettings.welcomeMessage,
+      },
+    ])
+    setPlaygroundSuggestions([])
+    if (!store) {
+      return
+    }
+    try {
+      const payload = await suggestMerchantPlayground({ content: '', maxSuggestions: 4 })
+      const nextSuggestions = extractSuggestions(payload)
+      setPlaygroundSuggestions(nextSuggestions)
+    } catch {
+      setPlaygroundSuggestions([])
+    }
+  }
+
   function applyBootstrapResult(result: ShopifyBridgeStoreBootstrapResponse) {
     setState((current) => ({
       ...current,
@@ -305,6 +377,27 @@ export default function App() {
     ((store.widgetDetail?.settings?.launcherLabel ?? 'Ask the store assistant') !== widgetSettings.launcherLabel ||
       (store.widgetDetail?.settings?.welcomeMessage ??
         'Store assistant is ready. Ask about products, policies, or collections.') !== widgetSettings.welcomeMessage)
+
+  useEffect(() => {
+    if (!store) {
+      return
+    }
+    setPlaygroundMessages([
+      {
+        role: 'assistant',
+        content: store.widgetDetail?.settings?.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.',
+      },
+    ])
+    setPlaygroundConversationId(null)
+    setPlaygroundSuggestions([])
+    void suggestMerchantPlayground({ content: '', maxSuggestions: 4 })
+      .then((payload) => {
+        setPlaygroundSuggestions(extractSuggestions(payload))
+      })
+      .catch(() => {
+        setPlaygroundSuggestions([])
+      })
+  }, [store?.shopDomain])
 
   return (
     <AppProvider i18n={enTranslations}>
@@ -529,6 +622,80 @@ export default function App() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
+                    Merchant playground
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Test the live Companion behavior from the embedded app using the same bridge-backed runtime contract as the storefront widget.
+                  </Text>
+                  {!store?.readiness?.storefrontReady ? (
+                    <Banner tone="warning">
+                      Complete publish/apply/verify and storefront readiness before using the merchant playground.
+                    </Banner>
+                  ) : null}
+                  <Box
+                    padding="300"
+                    borderColor="border"
+                    borderWidth="025"
+                    borderRadius="200"
+                    background="bg-surface-secondary"
+                  >
+                    <BlockStack gap="200">
+                      {playgroundMessages.map((message, index) => (
+                        <Box
+                          key={`${message.role}-${index}`}
+                          padding="200"
+                          borderRadius="200"
+                          background={message.role === 'assistant' ? 'bg-surface' : 'bg-fill-brand-selected'}
+                        >
+                          <Text as="p" variant="bodyMd">
+                            <strong>{message.role === 'assistant' ? 'Assistant' : 'You'}:</strong> {message.content}
+                          </Text>
+                        </Box>
+                      ))}
+                    </BlockStack>
+                  </Box>
+                  {playgroundSuggestions.length ? (
+                    <InlineStack gap="200" wrap>
+                      {playgroundSuggestions.map((suggestion) => (
+                        <Button
+                          key={suggestion}
+                          onClick={() => void handlePlaygroundSend(suggestion)}
+                          disabled={playgroundLoading || !store?.readiness?.storefrontReady}
+                        >
+                          {suggestion}
+                        </Button>
+                      ))}
+                    </InlineStack>
+                  ) : null}
+                  <TextField
+                    label="Playground prompt"
+                    autoComplete="off"
+                    multiline={3}
+                    value={playgroundInput}
+                    onChange={setPlaygroundInput}
+                    placeholder="Ask about products, collections, shipping, or policies"
+                  />
+                  <InlineStack gap="200">
+                    <Button
+                      variant="primary"
+                      onClick={() => void handlePlaygroundSend(playgroundInput)}
+                      loading={playgroundLoading}
+                      disabled={!store?.readiness?.storefrontReady || !playgroundInput.trim()}
+                    >
+                      Send prompt
+                    </Button>
+                    <Button onClick={() => void handlePlaygroundReset()} disabled={playgroundLoading || !store}>
+                      Reset playground
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
                     Onboarding sequence
                   </Text>
                   <List type="number">
@@ -731,4 +898,58 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
       </Text>
     </BlockStack>
   )
+}
+
+function extractAssistantMessage(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') {
+    return 'I could not process that request.'
+  }
+  const result = (payload as { result?: { sanitizedPayload?: { message?: unknown }; message?: unknown } }).result
+  if (typeof result?.sanitizedPayload?.message === 'string' && result.sanitizedPayload.message.trim()) {
+    return result.sanitizedPayload.message.trim()
+  }
+  if (typeof result?.message === 'string' && result.message.trim()) {
+    return result.message.trim()
+  }
+  const response = (payload as { response?: unknown }).response
+  if (typeof response === 'string' && response.trim()) {
+    return response.trim()
+  }
+  const message = (payload as { message?: unknown }).message
+  if (typeof message === 'string' && message.trim()) {
+    return message.trim()
+  }
+  return 'I processed your request.'
+}
+
+function extractConversationId(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+  const value = (payload as { conversationId?: unknown }).conversationId
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function extractSuggestions(payload: unknown): string[] {
+  if (!payload || typeof payload !== 'object') {
+    return []
+  }
+  const rootSuggestions = (payload as { suggestions?: unknown }).suggestions
+  const nestedSuggestions = (payload as { result?: { sanitizedPayload?: { suggestions?: unknown } } }).result?.sanitizedPayload?.suggestions
+  const candidates = Array.isArray(rootSuggestions) ? rootSuggestions : Array.isArray(nestedSuggestions) ? nestedSuggestions : []
+  return candidates
+    .map((value) => {
+      if (typeof value === 'string') {
+        return value.trim()
+      }
+      if (value && typeof value === 'object' && 'text' in value && typeof (value as { text?: unknown }).text === 'string') {
+        return (value as { text: string }).text.trim()
+      }
+      if (value && typeof value === 'object' && 'label' in value && typeof (value as { label?: unknown }).label === 'string') {
+        return (value as { label: string }).label.trim()
+      }
+      return ''
+    })
+    .filter((value, index, all) => value && all.indexOf(value) === index)
+    .slice(0, 4)
 }

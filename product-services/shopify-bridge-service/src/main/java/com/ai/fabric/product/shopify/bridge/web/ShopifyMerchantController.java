@@ -7,7 +7,9 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
+import com.ai.fabric.product.shopify.bridge.playground.service.ShopifyMerchantPlaygroundService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,9 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class ShopifyMerchantController {
 
     private final ShopifyBridgeMerchantStoreService merchantStoreService;
+    private final ShopifyMerchantPlaygroundService merchantPlaygroundService;
 
-    public ShopifyMerchantController(ShopifyBridgeMerchantStoreService merchantStoreService) {
+    public ShopifyMerchantController(ShopifyBridgeMerchantStoreService merchantStoreService,
+                                     ShopifyMerchantPlaygroundService merchantPlaygroundService) {
         this.merchantStoreService = merchantStoreService;
+        this.merchantPlaygroundService = merchantPlaygroundService;
     }
 
     @GetMapping("/session")
@@ -83,6 +88,18 @@ public class ShopifyMerchantController {
             requireMerchant(authentication),
             request == null ? new ShopifyBridgeUpdateWidgetSettingsRequest(null, null) : request
         );
+    }
+
+    @PostMapping("/store/playground/query")
+    public JsonNode queryPlayground(Authentication authentication,
+                                    @RequestBody(required = false) JsonNode request) {
+        return merchantPlaygroundService.query(requireMerchant(authentication), request);
+    }
+
+    @PostMapping("/store/playground/suggestions")
+    public JsonNode suggestPlayground(Authentication authentication,
+                                      @RequestBody(required = false) JsonNode request) {
+        return merchantPlaygroundService.suggestions(requireMerchant(authentication), request);
     }
 
     private ShopifyMerchantSession requireMerchant(Authentication authentication) {

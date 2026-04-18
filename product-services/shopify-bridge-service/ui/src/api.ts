@@ -214,6 +214,32 @@ export async function updateWidgetSettings(settings: {
   })
 }
 
+export async function queryMerchantPlayground(request: {
+  query: string
+  conversationId?: string | null
+}): Promise<unknown> {
+  return authenticatedFetchJson('/api/app/store/playground/query', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function suggestMerchantPlayground(request: {
+  content?: string
+  maxSuggestions?: number
+}): Promise<unknown> {
+  return authenticatedFetchJson('/api/app/store/playground/suggestions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
 async function authenticatedFetchJson<T>(input: string, init: RequestInit): Promise<T> {
   const token = await resolveSessionToken()
   return fetchJson<T>(input, {
