@@ -33,8 +33,17 @@ public class ShopifyInstallRecordEntity {
     @Column(name = "access_token_secret_ref", length = 255)
     private String accessTokenSecretRef;
 
+    @Column(name = "refresh_token_secret_ref", length = 255)
+    private String refreshTokenSecretRef;
+
     @Column(name = "scopes_text", columnDefinition = "text")
     private String scopesText;
+
+    @Column(name = "access_token_expires_at")
+    private Instant accessTokenExpiresAt;
+
+    @Column(name = "refresh_token_expires_at")
+    private Instant refreshTokenExpiresAt;
 
     @Column(name = "installed_at")
     private Instant installedAt;
@@ -113,6 +122,30 @@ public class ShopifyInstallRecordEntity {
 
     public void setScopesText(String scopesText) {
         this.scopesText = scopesText;
+    }
+
+    public String getRefreshTokenSecretRef() {
+        return refreshTokenSecretRef;
+    }
+
+    public void setRefreshTokenSecretRef(String refreshTokenSecretRef) {
+        this.refreshTokenSecretRef = refreshTokenSecretRef;
+    }
+
+    public Instant getAccessTokenExpiresAt() {
+        return accessTokenExpiresAt;
+    }
+
+    public void setAccessTokenExpiresAt(Instant accessTokenExpiresAt) {
+        this.accessTokenExpiresAt = accessTokenExpiresAt;
+    }
+
+    public Instant getRefreshTokenExpiresAt() {
+        return refreshTokenExpiresAt;
+    }
+
+    public void setRefreshTokenExpiresAt(Instant refreshTokenExpiresAt) {
+        this.refreshTokenExpiresAt = refreshTokenExpiresAt;
     }
 
     public Instant getInstalledAt() {

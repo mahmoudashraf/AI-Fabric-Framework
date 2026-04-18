@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.web;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,11 @@ class ShopifyMerchantControllerTest {
                 "https://alpha.myshopify.com",
                 "gid://shopify/User/1",
                 "embedded-host",
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+                "read_products",
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
                 Instant.parse("2026-04-18T00:00:00Z"),
                 Instant.parse("2026-04-18T00:00:00Z"),
                 null
@@ -74,6 +80,7 @@ class ShopifyMerchantControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
             .andExpect(jsonPath("$.installRecord.status").value("INSTALLED"))
+            .andExpect(jsonPath("$.installRecord.accessTokenSecretRef").value("MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA"))
             .andExpect(jsonPath("$.store.shopDomain").value("alpha.myshopify.com"));
 
         verify(merchantStoreService).session(any(), anyString());
@@ -81,7 +88,7 @@ class ShopifyMerchantControllerTest {
 
     @Test
     void bootstrapUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.bootstrap(any())).thenReturn(new ShopifyBridgeStoreBootstrapResponse(
+        when(merchantStoreService.bootstrap(any(), anyString())).thenReturn(new ShopifyBridgeStoreBootstrapResponse(
             "alpha.myshopify.com",
             "cust-1",
             "dep-1",
@@ -97,7 +104,7 @@ class ShopifyMerchantControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId").value("dep-1"));
 
-        verify(merchantStoreService).bootstrap(any());
+        verify(merchantStoreService).bootstrap(any(), anyString());
     }
 
     private ShopifyBridgeStoreSummary store() {
@@ -123,6 +130,18 @@ class ShopifyMerchantControllerTest {
             true,
             true,
             true,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products",
+                true
+            ),
             null,
             null,
             null,

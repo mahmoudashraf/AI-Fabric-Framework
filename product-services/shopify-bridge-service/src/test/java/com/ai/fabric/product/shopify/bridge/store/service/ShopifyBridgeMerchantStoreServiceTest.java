@@ -4,8 +4,10 @@ import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import org.junit.jupiter.api.Test;
@@ -29,7 +31,12 @@ class ShopifyBridgeMerchantStoreServiceTest {
     void sessionReturnsStoreWhenPresent() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
-        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties(), installRecordService);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            installRecordService,
+            mock(ShopifyBridgeInstallCredentialService.class)
+        );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(installRecordService.recordAuthenticatedSession(session(), "host-token")).thenReturn(new ShopifyInstallRecordSummary(
             "alpha.myshopify.com",
@@ -37,6 +44,11 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "https://alpha.myshopify.com",
             "gid://shopify/User/1",
             "host-token",
+            "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+            "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+            "read_products",
+            Instant.parse("2026-04-18T01:00:00Z"),
+            Instant.parse("2026-07-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),
             null
@@ -52,11 +64,18 @@ class ShopifyBridgeMerchantStoreServiceTest {
     @Test
     void connectUpsertsWhenStoreDoesNotExist() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties(), mock(ShopifyInstallRecordService.class));
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            installCredentialService
+        );
         when(client.getStore("alpha.myshopify.com")).thenThrow(notFound());
         when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));
+        when(installCredentialService.acquireAndPersist(session(), "Bearer session-token")).thenReturn(store("alpha.myshopify.com"));
 
-        ShopifyBridgeStoreSummary response = service.connect(session());
+        ShopifyBridgeStoreSummary response = service.connect(session(), "Bearer session-token");
 
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         verify(client).upsertStore(new ShopifyBridgeUpsertStoreRequest(
@@ -76,13 +95,21 @@ class ShopifyBridgeMerchantStoreServiceTest {
             true,
             true
         ));
+        verify(installCredentialService).acquireAndPersist(session(), "Bearer session-token");
     }
 
     @Test
     void bootstrapReusesExistingStoreWhenAlreadyConnected() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(client, properties(), mock(ShopifyInstallRecordService.class));
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            installCredentialService
+        );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
+        when(installCredentialService.acquireAndPersist(session(), "Bearer session-token")).thenReturn(store("alpha.myshopify.com"));
         when(client.bootstrap("alpha.myshopify.com")).thenReturn(new ShopifyBridgeStoreBootstrapResponse(
             "alpha.myshopify.com",
             "cust-1",
@@ -95,10 +122,11 @@ class ShopifyBridgeMerchantStoreServiceTest {
             store("alpha.myshopify.com")
         ));
 
-        ShopifyBridgeStoreBootstrapResponse response = service.bootstrap(session());
+        ShopifyBridgeStoreBootstrapResponse response = service.bootstrap(session(), "Bearer session-token");
 
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         verify(client, never()).upsertStore(any());
+        verify(installCredentialService).acquireAndPersist(session(), "Bearer session-token");
         verify(client).bootstrap("alpha.myshopify.com");
     }
 
@@ -153,6 +181,18 @@ class ShopifyBridgeMerchantStoreServiceTest {
             true,
             true,
             true,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products",
+                true
+            ),
             null,
             null,
             null,

@@ -527,6 +527,15 @@ export function ProductServicesPage() {
                                 <Typography variant="body2" color="text.secondary">
                                   Sources: products {store.productsEnabled ? 'on' : 'off'} · collections {store.collectionsEnabled ? 'on' : 'off'} · pages {store.pagesEnabled ? 'on' : 'off'} · policies {store.policiesEnabled ? 'on' : 'off'}
                                 </Typography>
+                                {store.credentials ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Credentials {store.credentials.status.toLowerCase()} · access {store.credentials.accessTokenPresent ? 'ready' : 'missing'} · refresh {store.credentials.refreshTokenPresent ? 'ready' : 'missing'} · scope {detailValue(store.credentials.scopesText)}
+                                  </Typography>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Credentials missing.
+                                  </Typography>
+                                )}
                                 {store.sourcePreflight ? (
                                   <Typography variant="body2" color="text.secondary">
                                     Preflight {store.sourcePreflight.overallStatus.toLowerCase()} ·{' '}

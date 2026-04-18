@@ -485,6 +485,19 @@ export type ShopifyStoreWidgetSummary = {
   message: string | null
 }
 
+export type ShopifyStoreCredentialSummary = {
+  status: string
+  accessTokenPresent: boolean
+  refreshTokenPresent: boolean
+  accessTokenSecretRef: string | null
+  refreshTokenSecretRef: string | null
+  checkedAt: string | null
+  accessTokenExpiresAt: string | null
+  refreshTokenExpiresAt: string | null
+  scopesText: string | null
+  expiring: boolean
+}
+
 export type ShopifyStoreConnectionSummary = {
   id: string
   shopDomain: string
@@ -508,6 +521,7 @@ export type ShopifyStoreConnectionSummary = {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  credentials: ShopifyStoreCredentialSummary | null
   sourcePreflight: ShopifyStoreSourcePreflightSummary | null
   syncDetail: ShopifyStoreSyncSummary | null
   widgetDetail: ShopifyStoreWidgetSummary | null

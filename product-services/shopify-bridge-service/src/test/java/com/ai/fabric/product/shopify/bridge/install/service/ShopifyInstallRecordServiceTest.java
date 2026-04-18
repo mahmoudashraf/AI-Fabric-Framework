@@ -34,6 +34,7 @@ class ShopifyInstallRecordServiceTest {
         assertThat(updated.shopDomain()).isEqualTo("alpha.myshopify.com");
         assertThat(updated.appBridgeHost()).isEqualTo("embedded-host");
         assertThat(updated.lastAuthenticatedAt()).isNotNull();
+        assertThat(updated.accessTokenSecretRef()).isNull();
     }
 
     @Test
@@ -50,5 +51,30 @@ class ShopifyInstallRecordServiceTest {
 
         assertThat(summary.status()).isEqualTo("UNINSTALLED");
         assertThat(summary.lastUninstalledAt()).isNotNull();
+    }
+
+    @Test
+    void recordCredentialsUpdatesSecretRefsAndExpiryMetadata() {
+        ShopifyMerchantSession session = new ShopifyMerchantSession(
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "gid://shopify/User/1",
+            Instant.parse("2026-04-18T12:00:00Z")
+        );
+        service.recordAuthenticatedSession(session, "embedded-host");
+
+        ShopifyInstallRecordSummary summary = service.recordCredentials(
+            "alpha.myshopify.com",
+            "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+            "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+            Instant.parse("2026-04-18T01:00:00Z"),
+            Instant.parse("2026-07-18T00:00:00Z"),
+            "read_products"
+        ).orElseThrow();
+
+        assertThat(summary.accessTokenSecretRef()).isEqualTo("MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA");
+        assertThat(summary.refreshTokenSecretRef()).isEqualTo("MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB");
+        assertThat(summary.scopesText()).isEqualTo("read_products");
+        assertThat(summary.accessTokenExpiresAt()).isEqualTo(Instant.parse("2026-04-18T01:00:00Z"));
     }
 }

@@ -24,6 +24,18 @@ export type ShopifyBridgeStoreSummary = {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  credentials: {
+    status: string
+    accessTokenPresent: boolean
+    refreshTokenPresent: boolean
+    accessTokenSecretRef: string | null
+    refreshTokenSecretRef: string | null
+    checkedAt: string | null
+    accessTokenExpiresAt: string | null
+    refreshTokenExpiresAt: string | null
+    scopesText: string | null
+    expiring: boolean
+  } | null
 }
 
 export type ShopifyBridgeMerchantSessionResponse = {
@@ -33,6 +45,11 @@ export type ShopifyBridgeMerchantSessionResponse = {
   expiresAt: string
   installRecord: {
     status: string
+    accessTokenSecretRef: string | null
+    refreshTokenSecretRef: string | null
+    scopesText: string | null
+    accessTokenExpiresAt: string | null
+    refreshTokenExpiresAt: string | null
     installedAt: string | null
     lastAuthenticatedAt: string | null
     lastUninstalledAt: string | null

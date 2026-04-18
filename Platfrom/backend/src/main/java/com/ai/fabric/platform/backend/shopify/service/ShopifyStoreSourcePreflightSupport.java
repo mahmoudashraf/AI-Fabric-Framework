@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightCategorySummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCredentialSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSyncSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWidgetSummary;
@@ -89,6 +90,33 @@ public class ShopifyStoreSourcePreflightSupport {
                 parseInstant(text(widget, "checkedAt")),
                 text(widget, "channel"),
                 text(widget, "message")
+            );
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    public ShopifyStoreCredentialSummary summarizeCredentials(String detailsJson) {
+        if (!hasText(detailsJson)) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode credentials = root.path("credentials");
+            if (!credentials.isObject()) {
+                return null;
+            }
+            return new ShopifyStoreCredentialSummary(
+                credentials.path("status").asText("UNKNOWN"),
+                hasText(text(credentials, "accessTokenSecretRef")),
+                hasText(text(credentials, "refreshTokenSecretRef")),
+                text(credentials, "accessTokenSecretRef"),
+                text(credentials, "refreshTokenSecretRef"),
+                parseInstant(text(credentials, "checkedAt")),
+                parseInstant(text(credentials, "accessTokenExpiresAt")),
+                parseInstant(text(credentials, "refreshTokenExpiresAt")),
+                text(credentials, "scopesText"),
+                credentials.path("expiring").asBoolean(false)
             );
         } catch (Exception ex) {
             return null;

@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import org.junit.jupiter.api.Test;
@@ -88,6 +89,18 @@ class ShopifyBridgeStoreLifecycleServiceTest {
             true,
             false,
             true,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products",
+                true
+            ),
             null,
             null,
             null,

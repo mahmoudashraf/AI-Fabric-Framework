@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightCategorySummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -15,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -235,6 +237,30 @@ class PlatformShopifyStoreClientTest {
         server.verify();
     }
 
+    @Test
+    void upsertCredentialsUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/credentials"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("READY", "NOT_SYNCED", "NOT_ENABLED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.upsertCredentials(
+            "alpha.myshopify.com",
+            new ShopifyBridgeUpsertStoreCredentialsRequest(
+                "shpat_access",
+                "shprt_refresh",
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products",
+                true
+            )
+        );
+
+        assertThat(response.credentials()).isNotNull();
+        assertThat(response.credentials().status()).isEqualTo("READY");
+        server.verify();
+    }
+
     private String storeBody(String sourceReadinessStatus, String syncStatus, String widgetStatus) {
         return """
             {
@@ -259,6 +285,18 @@ class PlatformShopifyStoreClientTest {
               "collectionsEnabled":true,
               "pagesEnabled":false,
               "policiesEnabled":true,
+              "credentials":{
+                "status":"READY",
+                "accessTokenPresent":true,
+                "refreshTokenPresent":true,
+                "accessTokenSecretRef":"MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+                "refreshTokenSecretRef":"MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+                "checkedAt":"2026-04-18T00:00:00Z",
+                "accessTokenExpiresAt":"2026-04-18T01:00:00Z",
+                "refreshTokenExpiresAt":"2026-07-18T00:00:00Z",
+                "scopesText":"read_products",
+                "expiring":true
+              },
               "sourcePreflight":null,
               "syncDetail":null,
               "widgetDetail":null,

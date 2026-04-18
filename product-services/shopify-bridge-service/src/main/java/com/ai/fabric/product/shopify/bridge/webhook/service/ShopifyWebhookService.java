@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.webhook.service;
 
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreLifecycleService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,13 +12,16 @@ public class ShopifyWebhookService {
 
     private final ShopifyBridgeStoreLifecycleService storeLifecycleService;
     private final ShopifyInstallRecordService installRecordService;
+    private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ObjectMapper objectMapper;
 
     public ShopifyWebhookService(ShopifyBridgeStoreLifecycleService storeLifecycleService,
                                  ShopifyInstallRecordService installRecordService,
+                                 ShopifyBridgeInstallCredentialService installCredentialService,
                                  ObjectMapper objectMapper) {
         this.storeLifecycleService = storeLifecycleService;
         this.installRecordService = installRecordService;
+        this.installCredentialService = installCredentialService;
         this.objectMapper = objectMapper;
     }
 
@@ -26,6 +30,7 @@ public class ShopifyWebhookService {
             String shopDomain = extractShopDomain(shopDomainHeader, rawBody);
             if (shopDomain != null && !shopDomain.isBlank()) {
                 storeLifecycleService.markUninstalled(shopDomain);
+                installCredentialService.clearPersistedCredentials(shopDomain);
                 installRecordService.markUninstalled(shopDomain);
             }
         }

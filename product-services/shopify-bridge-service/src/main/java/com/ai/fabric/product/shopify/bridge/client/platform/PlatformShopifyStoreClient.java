@@ -7,6 +7,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncS
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -54,6 +55,23 @@ public class PlatformShopifyStoreClient {
             .uri(requirePlatformBaseUrl() + "/api/shopify/stores")
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public ShopifyBridgeStoreSummary upsertCredentials(String shopDomain, ShopifyBridgeUpsertStoreCredentialsRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/credentials")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public ShopifyBridgeStoreSummary clearCredentials(String shopDomain) {
+        return restClient.delete()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/credentials")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .retrieve()
             .body(ShopifyBridgeStoreSummary.class);
     }

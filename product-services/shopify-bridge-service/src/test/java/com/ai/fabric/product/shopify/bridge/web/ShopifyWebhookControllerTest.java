@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreLifecycleService;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookVerificationService;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,9 @@ class ShopifyWebhookControllerTest {
 
     @MockBean
     private ShopifyBridgeStoreLifecycleService lifecycleService;
+
+    @MockBean
+    private ShopifyBridgeInstallCredentialService installCredentialService;
 
     @Test
     void invalidWebhookHmacReturnsUnauthorized() throws Exception {
@@ -61,5 +65,6 @@ class ShopifyWebhookControllerTest {
             .andExpect(status().isOk());
 
         verify(lifecycleService).markUninstalled("alpha.myshopify.com");
+        verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
     }
 }

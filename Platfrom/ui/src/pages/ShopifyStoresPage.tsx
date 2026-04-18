@@ -378,6 +378,7 @@ export function ShopifyStoresPage() {
                       ['Deployment status', selectedStore.deploymentStatus],
                       ['Consumer', selectedStore.consumerDisplayName ?? selectedStore.consumerId],
                       ['Onboarding', selectedStore.onboardingStatus],
+                      ['Credentials', selectedStore.credentials?.status],
                       ['Products enabled', selectedStore.productsEnabled ? 'Yes' : 'No'],
                       ['Collections enabled', selectedStore.collectionsEnabled ? 'Yes' : 'No'],
                       ['Pages enabled', selectedStore.pagesEnabled ? 'Yes' : 'No'],
@@ -432,6 +433,46 @@ export function ShopifyStoresPage() {
                       </CardContent>
                     </Card>
                   ) : null}
+
+                  {selectedStore.credentials ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Stored credentials</Typography>
+                            <Chip size="small" label={selectedStore.credentials.status} color={chipColor(selectedStore.credentials.status)} />
+                            <Typography variant="caption" color="text.secondary">
+                              Checked {formatTimestamp(selectedStore.credentials.checkedAt)}
+                            </Typography>
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Access token {selectedStore.credentials.accessTokenPresent ? 'ready' : 'missing'} · Refresh token{' '}
+                            {selectedStore.credentials.refreshTokenPresent ? 'ready' : 'missing'} · Expiring{' '}
+                            {selectedStore.credentials.expiring ? 'yes' : 'no'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Scope {selectedStore.credentials.scopesText ?? '—'} · Access secret {selectedStore.credentials.accessTokenSecretRef ?? '—'} · Refresh secret{' '}
+                            {selectedStore.credentials.refreshTokenSecretRef ?? '—'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Access expiry {formatTimestamp(selectedStore.credentials.accessTokenExpiresAt)} · Refresh expiry{' '}
+                            {formatTimestamp(selectedStore.credentials.refreshTokenExpiresAt)}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography sx={{ fontWeight: 700 }}>Stored credentials</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            No Shopify credentials have been persisted for this store yet.
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {selectedStore.syncDetail ? (
                     <Card variant="outlined">

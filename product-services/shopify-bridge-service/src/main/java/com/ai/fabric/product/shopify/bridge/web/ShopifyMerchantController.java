@@ -29,13 +29,15 @@ public class ShopifyMerchantController {
     }
 
     @PostMapping("/store/connect")
-    public ShopifyBridgeStoreSummary connect(Authentication authentication) {
-        return merchantStoreService.connect(requireMerchant(authentication));
+    public ShopifyBridgeStoreSummary connect(Authentication authentication,
+                                             @RequestHeader("Authorization") String authorizationHeader) {
+        return merchantStoreService.connect(requireMerchant(authentication), authorizationHeader);
     }
 
     @PostMapping("/store/bootstrap")
-    public ShopifyBridgeStoreBootstrapResponse bootstrap(Authentication authentication) {
-        return merchantStoreService.bootstrap(requireMerchant(authentication));
+    public ShopifyBridgeStoreBootstrapResponse bootstrap(Authentication authentication,
+                                                         @RequestHeader("Authorization") String authorizationHeader) {
+        return merchantStoreService.bootstrap(requireMerchant(authentication), authorizationHeader);
     }
 
     private ShopifyMerchantSession requireMerchant(Authentication authentication) {

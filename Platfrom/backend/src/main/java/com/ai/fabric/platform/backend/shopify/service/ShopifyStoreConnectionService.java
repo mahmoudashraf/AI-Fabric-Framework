@@ -184,6 +184,7 @@ public class ShopifyStoreConnectionService {
             entity.isCollectionsEnabled(),
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
+            sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson()),
             sourcePreflightSupport.summarize(entity.getDetailsJson()),
             sourcePreflightSupport.summarizeSync(entity.getDetailsJson()),
             sourcePreflightSupport.summarizeWidget(entity.getDetailsJson()),

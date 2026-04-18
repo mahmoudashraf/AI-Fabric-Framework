@@ -6,9 +6,11 @@ import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSyncStatus
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreBootstrapService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreCredentialService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetService;
@@ -34,17 +36,20 @@ public class ShopifyAdminController {
 
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreBootstrapService shopifyStoreBootstrapService;
+    private final ShopifyStoreCredentialService shopifyStoreCredentialService;
     private final ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService;
     private final ShopifyStoreSyncService shopifyStoreSyncService;
     private final ShopifyStoreWidgetService shopifyStoreWidgetService;
 
     public ShopifyAdminController(ShopifyStoreConnectionService shopifyStoreConnectionService,
                                   ShopifyStoreBootstrapService shopifyStoreBootstrapService,
+                                  ShopifyStoreCredentialService shopifyStoreCredentialService,
                                   ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService,
                                   ShopifyStoreSyncService shopifyStoreSyncService,
                                   ShopifyStoreWidgetService shopifyStoreWidgetService) {
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.shopifyStoreBootstrapService = shopifyStoreBootstrapService;
+        this.shopifyStoreCredentialService = shopifyStoreCredentialService;
         this.shopifyStoreSourcePreflightService = shopifyStoreSourcePreflightService;
         this.shopifyStoreSyncService = shopifyStoreSyncService;
         this.shopifyStoreWidgetService = shopifyStoreWidgetService;
@@ -72,6 +77,20 @@ public class ShopifyAdminController {
     @ResponseStatus(HttpStatus.CREATED)
     public ShopifyStoreConnectionSummary upsertStore(@Valid @RequestBody UpsertShopifyStoreConnectionRequest request) {
         return shopifyStoreConnectionService.upsertConnection(request);
+    }
+
+    @PostMapping("/{shopDomain}/credentials")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ShopifyStoreConnectionSummary upsertCredentials(@PathVariable String shopDomain,
+                                                           @Valid @RequestBody UpsertShopifyStoreCredentialsRequest request) {
+        return shopifyStoreCredentialService.upsert(shopDomain, request);
+    }
+
+    @DeleteMapping("/{shopDomain}/credentials")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @ResponseStatus(HttpStatus.OK)
+    public ShopifyStoreConnectionSummary clearCredentials(@PathVariable String shopDomain) {
+        return shopifyStoreCredentialService.clear(shopDomain);
     }
 
     @PostMapping("/{shopDomain}/bootstrap")

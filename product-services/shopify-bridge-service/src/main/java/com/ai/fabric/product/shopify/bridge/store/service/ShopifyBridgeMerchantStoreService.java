@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
@@ -20,13 +21,16 @@ public class ShopifyBridgeMerchantStoreService {
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeProperties properties;
     private final ShopifyInstallRecordService installRecordService;
+    private final ShopifyBridgeInstallCredentialService installCredentialService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
-                                             ShopifyInstallRecordService installRecordService) {
+                                             ShopifyInstallRecordService installRecordService,
+                                             ShopifyBridgeInstallCredentialService installCredentialService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
+        this.installCredentialService = installCredentialService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -42,32 +46,34 @@ public class ShopifyBridgeMerchantStoreService {
         );
     }
 
-    public ShopifyBridgeStoreSummary connect(ShopifyMerchantSession merchantSession) {
+    public ShopifyBridgeStoreSummary connect(ShopifyMerchantSession merchantSession,
+                                             String authorizationHeader) {
         ShopifyBridgeStoreSummary current = findStoreOrNull(merchantSession.shopDomain());
-        if (current != null) {
-            return current;
+        if (current == null) {
+            platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
+                merchantSession.shopDomain(),
+                defaultDisplayName(merchantSession.shopDomain()),
+                properties.serviceRef(),
+                null,
+                null,
+                null,
+                "INSTALLED",
+                "NOT_SYNCED",
+                "NOT_RUN",
+                "NOT_ENABLED",
+                "CONNECTED",
+                true,
+                true,
+                true,
+                true
+            ));
         }
-        return platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
-            merchantSession.shopDomain(),
-            defaultDisplayName(merchantSession.shopDomain()),
-            properties.serviceRef(),
-            null,
-            null,
-            null,
-            "INSTALLED",
-            "NOT_SYNCED",
-            "NOT_RUN",
-            "NOT_ENABLED",
-            "CONNECTED",
-            true,
-            true,
-            true,
-            true
-        ));
+        return installCredentialService.acquireAndPersist(merchantSession, authorizationHeader);
     }
 
-    public ShopifyBridgeStoreBootstrapResponse bootstrap(ShopifyMerchantSession merchantSession) {
-        connect(merchantSession);
+    public ShopifyBridgeStoreBootstrapResponse bootstrap(ShopifyMerchantSession merchantSession,
+                                                         String authorizationHeader) {
+        connect(merchantSession, authorizationHeader);
         return platformShopifyStoreClient.bootstrap(merchantSession.shopDomain());
     }
 

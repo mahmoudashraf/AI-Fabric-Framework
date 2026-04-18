@@ -189,6 +189,7 @@ export default function App() {
                       <List.Item>User: {session.userId}</List.Item>
                       <List.Item>Expires: {new Date(session.expiresAt).toLocaleString()}</List.Item>
                       <List.Item>Install record: {session.installRecord?.status ?? 'MISSING'}</List.Item>
+                      <List.Item>Credential refs: {session.installRecord?.accessTokenSecretRef ? 'present' : 'missing'}</List.Item>
                     </List>
                   ) : (
                     <Text as="p" variant="bodyMd" tone="subdued">
@@ -295,9 +296,15 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
         <List.Item>Data sync: {store.syncStatus}</List.Item>
         <List.Item>Source readiness: {store.sourceReadinessStatus}</List.Item>
         <List.Item>Widget: {store.widgetStatus}</List.Item>
+        <List.Item>Credentials: {store.credentials?.status ?? 'MISSING'}</List.Item>
         <List.Item>Deployment: {store.deploymentName ?? '—'} ({store.deploymentStatus ?? '—'})</List.Item>
         <List.Item>Consumer: {store.consumerId ?? '—'}</List.Item>
       </List>
+      {store.credentials ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          Token refs {store.credentials.accessTokenPresent ? 'ready' : 'missing'} / {store.credentials.refreshTokenPresent ? 'refresh ready' : 'refresh missing'} · Scope {store.credentials.scopesText ?? '—'}
+        </Text>
+      ) : null}
       <Text as="p" variant="bodySm" tone="subdued">
         Sources: products {store.productsEnabled ? 'on' : 'off'}, collections {store.collectionsEnabled ? 'on' : 'off'}, pages {store.pagesEnabled ? 'on' : 'off'}, policies {store.policiesEnabled ? 'on' : 'off'}
       </Text>

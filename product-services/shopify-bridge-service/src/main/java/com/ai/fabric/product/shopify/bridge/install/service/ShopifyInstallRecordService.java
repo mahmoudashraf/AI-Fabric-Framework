@@ -47,11 +47,49 @@ public class ShopifyInstallRecordService {
     }
 
     @Transactional
+    public Optional<ShopifyInstallRecordSummary> recordCredentials(String shopDomain,
+                                                                   String accessTokenSecretRef,
+                                                                   String refreshTokenSecretRef,
+                                                                   Instant accessTokenExpiresAt,
+                                                                   Instant refreshTokenExpiresAt,
+                                                                   String scopesText) {
+        return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
+            .map(entity -> {
+                entity.setAccessTokenSecretRef(blankToNull(accessTokenSecretRef));
+                entity.setRefreshTokenSecretRef(blankToNull(refreshTokenSecretRef));
+                entity.setAccessTokenExpiresAt(accessTokenExpiresAt);
+                entity.setRefreshTokenExpiresAt(refreshTokenExpiresAt);
+                entity.setScopesText(blankToNull(scopesText));
+                entity.setUpdatedAt(Instant.now());
+                return toSummary(repository.save(entity));
+            });
+    }
+
+    @Transactional
+    public Optional<ShopifyInstallRecordSummary> clearCredentials(String shopDomain) {
+        return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
+            .map(entity -> {
+                entity.setAccessTokenSecretRef(null);
+                entity.setRefreshTokenSecretRef(null);
+                entity.setAccessTokenExpiresAt(null);
+                entity.setRefreshTokenExpiresAt(null);
+                entity.setScopesText(null);
+                entity.setUpdatedAt(Instant.now());
+                return toSummary(repository.save(entity));
+            });
+    }
+
+    @Transactional
     public Optional<ShopifyInstallRecordSummary> markUninstalled(String shopDomain) {
         return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
             .map(entity -> {
                 Instant now = Instant.now();
                 entity.setStatus("UNINSTALLED");
+                entity.setAccessTokenSecretRef(null);
+                entity.setRefreshTokenSecretRef(null);
+                entity.setAccessTokenExpiresAt(null);
+                entity.setRefreshTokenExpiresAt(null);
+                entity.setScopesText(null);
                 entity.setLastUninstalledAt(now);
                 entity.setUpdatedAt(now);
                 return toSummary(repository.save(entity));
@@ -65,6 +103,11 @@ public class ShopifyInstallRecordService {
             entity.getShopUrl(),
             entity.getUserId(),
             entity.getAppBridgeHost(),
+            entity.getAccessTokenSecretRef(),
+            entity.getRefreshTokenSecretRef(),
+            entity.getScopesText(),
+            entity.getAccessTokenExpiresAt(),
+            entity.getRefreshTokenExpiresAt(),
             entity.getInstalledAt(),
             entity.getLastAuthenticatedAt(),
             entity.getLastUninstalledAt()

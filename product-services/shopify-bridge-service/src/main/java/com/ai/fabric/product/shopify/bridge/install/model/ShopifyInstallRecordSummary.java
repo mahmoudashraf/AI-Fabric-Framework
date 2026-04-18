@@ -8,6 +8,11 @@ public record ShopifyInstallRecordSummary(
     String shopUrl,
     String userId,
     String appBridgeHost,
+    String accessTokenSecretRef,
+    String refreshTokenSecretRef,
+    String scopesText,
+    Instant accessTokenExpiresAt,
+    Instant refreshTokenExpiresAt,
     Instant installedAt,
     Instant lastAuthenticatedAt,
     Instant lastUninstalledAt
