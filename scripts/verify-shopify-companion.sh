@@ -30,6 +30,9 @@ set -euo pipefail
 #   EXPECT_WIDGET_STATUS=ENABLED
 #   EXPECT_STOREFRONT_READY=true
 #   EXPECT_GO_LIVE_ELIGIBLE=true
+#   EXPECT_WEBHOOK_STATUS=READY
+#   EXPECT_BILLING_STATUS=ACTIVE
+#   EXPECT_BILLING_LAUNCH_BLOCKED=false
 #   SHOPIFY_ADMIN_ACCESS_TOKEN=<offline-access-token>
 #   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
@@ -52,6 +55,9 @@ EXPECT_SOURCE_READINESS_STATUS="${EXPECT_SOURCE_READINESS_STATUS:-READY}"
 EXPECT_WIDGET_STATUS="${EXPECT_WIDGET_STATUS:-ENABLED}"
 EXPECT_STOREFRONT_READY="${EXPECT_STOREFRONT_READY:-true}"
 EXPECT_GO_LIVE_ELIGIBLE="${EXPECT_GO_LIVE_ELIGIBLE:-true}"
+EXPECT_WEBHOOK_STATUS="${EXPECT_WEBHOOK_STATUS:-}"
+EXPECT_BILLING_STATUS="${EXPECT_BILLING_STATUS:-}"
+EXPECT_BILLING_LAUNCH_BLOCKED="${EXPECT_BILLING_LAUNCH_BLOCKED:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
@@ -140,6 +146,15 @@ assert_nonempty() {
   if [[ -z "${value}" ]]; then
     echo "Assertion failed for ${label}: value is empty"
     exit 1
+  fi
+}
+
+assert_optional_equals() {
+  local actual="$1"
+  local expected="$2"
+  local label="$3"
+  if [[ -n "${expected}" ]]; then
+    assert_equals "${actual}" "${expected}" "${label}"
   fi
 }
 
@@ -271,6 +286,9 @@ http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/o
 assert_equals "${HTTP_STATUS}" "200" "product service overview status"
 overview_json="${HTTP_BODY}"
 assert_nonempty "$(json_get "${overview_json}" "storeOverview.totalCount")" "overview store total count"
+assert_nonempty "$(json_get "${overview_json}" "usage.totalToday")" "overview usage total today"
+assert_nonempty "$(json_get "${overview_json}" "usage.totalLast7Days")" "overview usage total last 7 days"
+assert_nonempty "$(json_get "${overview_json}" "billing.mode")" "overview billing mode"
 
 echo "== Platform store summary =="
 http_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]}"
@@ -286,6 +304,27 @@ assert_equals "$(json_get "${store_json}" "readiness.storefrontReady")" "${EXPEC
 assert_equals "$(json_get "${store_json}" "readiness.goLiveEligible")" "${EXPECT_GO_LIVE_ELIGIBLE}" "platform go-live eligibility"
 assert_nonempty "$(json_get "${store_json}" "deploymentId")" "platform deploymentId"
 assert_nonempty "$(json_get "${store_json}" "consumerId")" "platform consumerId"
+assert_nonempty "$(json_get "${store_json}" "sourcePreflight.checkedAt")" "platform source preflight checkedAt"
+assert_nonempty "$(json_get "${store_json}" "syncDetail.checkedAt")" "platform sync checkedAt"
+assert_nonempty "$(json_get "${store_json}" "widgetDetail.message")" "platform widget message"
+
+echo "== Platform store billing posture =="
+http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/billing-summary" "" "${platform_headers[@]}"
+assert_equals "${HTTP_STATUS}" "200" "platform store billing summary status"
+platform_store_billing_json="${HTTP_BODY}"
+assert_equals "$(json_get "${platform_store_billing_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store billing shopDomain"
+assert_nonempty "$(json_get "${platform_store_billing_json}" "mode")" "platform store billing mode"
+assert_optional_equals "$(json_get "${platform_store_billing_json}" "status")" "${EXPECT_BILLING_STATUS}" "platform store billing status"
+assert_optional_equals "$(json_get "${platform_store_billing_json}" "launchBlocked")" "${EXPECT_BILLING_LAUNCH_BLOCKED}" "platform store billing launchBlocked"
+
+echo "== Platform store webhook diagnostics =="
+http_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]}"
+assert_equals "${HTTP_STATUS}" "200" "platform store webhook diagnostics status"
+platform_store_webhook_json="${HTTP_BODY}"
+assert_equals "$(json_get "${platform_store_webhook_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store webhook shopDomain"
+assert_nonempty "$(json_get "${platform_store_webhook_json}" "webhookUri")" "platform store webhook uri"
+assert_nonempty "$(json_get "${platform_store_webhook_json}" "expectedCount")" "platform store webhook expectedCount"
+assert_optional_equals "$(json_get "${platform_store_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "platform store webhook status"
 
 echo "== Bridge shell =="
 http_request GET "${bridge_base}/api/app/shell"
@@ -300,6 +339,18 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   assert_equals "${HTTP_STATUS}" "200" "bridge admin overview status"
   admin_overview_json="${HTTP_BODY}"
   assert_nonempty "$(json_get "${admin_overview_json}" "serviceRef")" "bridge admin overview serviceRef"
+
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/billing-summary" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge admin store billing status"
+  bridge_admin_billing_json="${HTTP_BODY}"
+  assert_nonempty "$(json_get "${bridge_admin_billing_json}" "mode")" "bridge admin store billing mode"
+  assert_optional_equals "$(json_get "${bridge_admin_billing_json}" "status")" "${EXPECT_BILLING_STATUS}" "bridge admin store billing status"
+
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge admin store webhook diagnostics status"
+  bridge_admin_webhook_json="${HTTP_BODY}"
+  assert_nonempty "$(json_get "${bridge_admin_webhook_json}" "expectedCount")" "bridge admin store webhook expectedCount"
+  assert_optional_equals "$(json_get "${bridge_admin_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "bridge admin store webhook status"
 else
   echo "Skipping bridge admin overview because SHOPIFY_BRIDGE_ADMIN_API_KEY is not configured."
 fi
@@ -354,6 +405,29 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   merchant_session_json="${HTTP_BODY}"
   assert_equals "$(json_get "${merchant_session_json}" "shopDomain")" "${SHOP_DOMAIN}" "merchant session shopDomain"
   assert_nonempty "$(json_get "${merchant_session_json}" "userId")" "merchant session userId"
+
+  echo "== Merchant billing summary =="
+  http_request GET "${bridge_base}/api/app/store/billing-summary" "" "${merchant_headers[@]}"
+  assert_equals "${HTTP_STATUS}" "200" "merchant billing summary status"
+  merchant_billing_json="${HTTP_BODY}"
+  assert_nonempty "$(json_get "${merchant_billing_json}" "mode")" "merchant billing mode"
+  assert_optional_equals "$(json_get "${merchant_billing_json}" "status")" "${EXPECT_BILLING_STATUS}" "merchant billing status"
+  assert_optional_equals "$(json_get "${merchant_billing_json}" "launchBlocked")" "${EXPECT_BILLING_LAUNCH_BLOCKED}" "merchant billing launchBlocked"
+
+  echo "== Merchant webhook diagnostics =="
+  http_request GET "${bridge_base}/api/app/store/webhook-subscriptions" "" "${merchant_headers[@]}"
+  assert_equals "${HTTP_STATUS}" "200" "merchant webhook diagnostics status"
+  merchant_webhook_json="${HTTP_BODY}"
+  assert_nonempty "$(json_get "${merchant_webhook_json}" "expectedCount")" "merchant webhook expectedCount"
+  assert_optional_equals "$(json_get "${merchant_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "merchant webhook status"
+
+  echo "== Merchant usage summary =="
+  http_request GET "${bridge_base}/api/app/store/usage-summary" "" "${merchant_headers[@]}"
+  assert_equals "${HTTP_STATUS}" "200" "merchant usage summary status"
+  merchant_usage_json="${HTTP_BODY}"
+  assert_equals "$(json_get "${merchant_usage_json}" "shopDomain")" "${SHOP_DOMAIN}" "merchant usage shopDomain"
+  assert_nonempty "$(json_get "${merchant_usage_json}" "generatedAt")" "merchant usage generatedAt"
+  assert_nonempty "$(json_get "${merchant_usage_json}" "totalToday")" "merchant usage totalToday"
 fi
 
 echo "Shopify Companion verification passed for ${SHOP_DOMAIN}"
