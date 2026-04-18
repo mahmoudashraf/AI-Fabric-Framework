@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -31,6 +32,7 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyBridgeSourcePreflightService sourcePreflightService;
     private final ShopifyBridgeStoreSyncService storeSyncService;
     private final ShopifyStorefrontPreviewService storefrontPreviewService;
+    private final ShopifyBridgeUsageService usageService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
@@ -38,7 +40,8 @@ public class ShopifyBridgeMerchantStoreService {
                                              ShopifyBridgeInstallCredentialService installCredentialService,
                                              ShopifyBridgeSourcePreflightService sourcePreflightService,
                                              ShopifyBridgeStoreSyncService storeSyncService,
-                                             ShopifyStorefrontPreviewService storefrontPreviewService) {
+                                             ShopifyStorefrontPreviewService storefrontPreviewService,
+                                             ShopifyBridgeUsageService usageService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
@@ -46,6 +49,7 @@ public class ShopifyBridgeMerchantStoreService {
         this.sourcePreflightService = sourcePreflightService;
         this.storeSyncService = storeSyncService;
         this.storefrontPreviewService = storefrontPreviewService;
+        this.usageService = usageService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -68,29 +72,39 @@ public class ShopifyBridgeMerchantStoreService {
 
     public ShopifyBridgeStoreSummary connect(ShopifyMerchantSession merchantSession,
                                              String authorizationHeader) {
-        return acquireConnectedCredentials(merchantSession, authorizationHeader).store();
+        ShopifyBridgeStoreSummary store = acquireConnectedCredentials(merchantSession, authorizationHeader).store();
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_CONNECT");
+        return store;
     }
 
     public ShopifyBridgeStoreSummary runSourcePreflight(ShopifyMerchantSession merchantSession,
                                                         String authorizationHeader) {
-        return sourcePreflightService.run(acquireConnectedCredentials(merchantSession, authorizationHeader));
+        ShopifyBridgeStoreSummary store = sourcePreflightService.run(acquireConnectedCredentials(merchantSession, authorizationHeader));
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SOURCE_PREFLIGHT");
+        return store;
     }
 
     public ShopifyBridgeStoreBootstrapResponse bootstrap(ShopifyMerchantSession merchantSession,
                                                          String authorizationHeader) {
         acquireConnectedCredentials(merchantSession, authorizationHeader);
-        return platformShopifyStoreClient.bootstrap(merchantSession.shopDomain());
+        ShopifyBridgeStoreBootstrapResponse response = platformShopifyStoreClient.bootstrap(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_BOOTSTRAP");
+        return response;
     }
 
     public ShopifyBridgeStoreSummary goLive(ShopifyMerchantSession merchantSession,
                                             String authorizationHeader) {
         acquireConnectedCredentials(merchantSession, authorizationHeader);
-        return platformShopifyStoreClient.goLive(merchantSession.shopDomain());
+        ShopifyBridgeStoreSummary store = platformShopifyStoreClient.goLive(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_GO_LIVE");
+        return store;
     }
 
     public ShopifyBridgeStoreSummary syncNow(ShopifyMerchantSession merchantSession,
                                              String authorizationHeader) {
-        return storeSyncService.sync(acquireConnectedCredentials(merchantSession, authorizationHeader));
+        ShopifyBridgeStoreSummary store = storeSyncService.sync(acquireConnectedCredentials(merchantSession, authorizationHeader));
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SYNC_NOW");
+        return store;
     }
 
     public ShopifyStorefrontPreviewResponse storefrontPreview(ShopifyMerchantSession merchantSession) {
@@ -99,7 +113,9 @@ public class ShopifyBridgeMerchantStoreService {
 
     public ShopifyBridgeStoreSummary updateWidgetSettings(ShopifyMerchantSession merchantSession,
                                                           ShopifyBridgeUpdateWidgetSettingsRequest request) {
-        return platformShopifyStoreClient.updateWidgetSettings(merchantSession.shopDomain(), request);
+        ShopifyBridgeStoreSummary store = platformShopifyStoreClient.updateWidgetSettings(merchantSession.shopDomain(), request);
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_WIDGET_SETTINGS_UPDATED");
+        return store;
     }
 
     public ShopifyBridgeStoreSummary updateSourceSettings(ShopifyMerchantSession merchantSession,
@@ -111,7 +127,7 @@ public class ShopifyBridgeMerchantStoreService {
         boolean policiesEnabled = request.policiesEnabled() == null || request.policiesEnabled();
 
         if (current == null) {
-            return platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
+            ShopifyBridgeStoreSummary store = platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
                 merchantSession.shopDomain(),
                 defaultDisplayName(merchantSession.shopDomain()),
                 properties.serviceRef(),
@@ -128,6 +144,8 @@ public class ShopifyBridgeMerchantStoreService {
                 pagesEnabled,
                 policiesEnabled
             ));
+            usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SOURCE_SETTINGS_UPDATED");
+            return store;
         }
 
         boolean togglesChanged = current.productsEnabled() != productsEnabled
@@ -139,7 +157,7 @@ public class ShopifyBridgeMerchantStoreService {
             return current;
         }
 
-        return platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
+        ShopifyBridgeStoreSummary store = platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
             current.shopDomain(),
             current.displayName(),
             current.productServiceRef(),
@@ -156,6 +174,8 @@ public class ShopifyBridgeMerchantStoreService {
             pagesEnabled,
             policiesEnabled
         ));
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SOURCE_SETTINGS_UPDATED");
+        return store;
     }
 
     private ShopifyBridgeCredentialAcquisition acquireConnectedCredentials(ShopifyMerchantSession merchantSession,
