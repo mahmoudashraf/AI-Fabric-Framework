@@ -223,9 +223,9 @@ public class PublicConsumerBridgeChatService {
         String authorization = runtimePrivateAssertionSigningService.toAuthorizationHeaderValue(
             new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
                 identity.subjectId(),
-                "STOREFRONT_SESSION",
+                "END_USER",
                 "PRIVATE_RUNTIME_BACKEND_MEDIATED",
-                "SHOPIFY_BRIDGE_SERVICE",
+                "TRUSTED_BACKEND",
                 identity.sessionId(),
                 resolved.deployment().getId(),
                 trimToNull(resolved.deployment().getCustomerId()),
@@ -251,9 +251,9 @@ public class PublicConsumerBridgeChatService {
         String authorization = runtimePublicTokenSigningService.toAuthorizationHeaderValue(
             new RuntimePublicTokenSigningService.RuntimePublicTokenClaims(
                 identity.subjectId(),
-                "STOREFRONT_SESSION",
-                "PUBLIC_RUNTIME_BRIDGE_TOKEN",
-                "SHOPIFY_BRIDGE_SERVICE",
+                "END_USER",
+                "PUBLIC_RUNTIME_AUTHENTICATED",
+                "PUBLIC_BROWSER",
                 identity.sessionId(),
                 resolved.deployment().getId(),
                 trimToNull(resolved.deployment().getCustomerId()),

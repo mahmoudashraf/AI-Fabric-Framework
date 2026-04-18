@@ -122,7 +122,8 @@ class PublicConsumerBridgeChatServiceTest {
             assertThat(requestBody.path("storefrontContext").path("collection").path("ignored").isMissingNode()).isTrue();
             Map<String, Object> assertion = decodeTokenPayload(capturedPrivateAuthorization.get());
             assertThat(assertion).containsEntry("authMode", "PRIVATE_RUNTIME_BACKEND_MEDIATED");
-            assertThat(assertion).containsEntry("callerType", "SHOPIFY_BRIDGE_SERVICE");
+            assertThat(assertion).containsEntry("subjectType", "END_USER");
+            assertThat(assertion).containsEntry("callerType", "TRUSTED_BACKEND");
             assertThat(assertion).containsEntry("deploymentId", "dep-1");
             assertThat(assertion).containsEntry("iss", "platform-consumer-bridge");
             assertThat(assertion.get("sessionId")).isEqualTo("shopper-session-alpha");
@@ -201,8 +202,9 @@ class PublicConsumerBridgeChatServiceTest {
             assertThat(requestBody.path("storefrontContext").path("product").path("title").asText()).isEqualTo("Travel Pack");
             assertThat(requestBody.path("storefrontContext").path("product").path("extra").isMissingNode()).isTrue();
             Map<String, Object> token = decodeTokenPayload(capturedAuthorization.get());
-            assertThat(token).containsEntry("authMode", "PUBLIC_RUNTIME_BRIDGE_TOKEN");
-            assertThat(token).containsEntry("callerType", "SHOPIFY_BRIDGE_SERVICE");
+            assertThat(token).containsEntry("subjectType", "END_USER");
+            assertThat(token).containsEntry("authMode", "PUBLIC_RUNTIME_AUTHENTICATED");
+            assertThat(token).containsEntry("callerType", "PUBLIC_BROWSER");
             assertThat(token).containsEntry("iss", "shopify-bridge");
             assertThat(token).containsEntry("aud", "storefront-chat");
             assertThat(token.get("sessionId")).isEqualTo("shopper-session-beta");
