@@ -148,6 +148,15 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-shopify-policies")))
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-inference-shopify-companion-default")));
 
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-companion-read")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-companion-read")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("list_products")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("search_products")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_product_details")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("check_availability")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_policy")));
+
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(3))))

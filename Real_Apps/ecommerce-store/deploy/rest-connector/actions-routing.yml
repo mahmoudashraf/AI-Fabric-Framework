@@ -167,6 +167,36 @@ actions:
       resourceId: action:get_product_details
       operationType: EXECUTE_ACTION
 
+  check_availability:
+    method: GET
+    path: /api/products/by-sku
+    request:
+      query:
+        sku: "{{params.sku}}"
+    response:
+      success-http-status: [200]
+      message: "Availability"
+    authz:
+      enabled: true
+      resourceId: action:check_availability
+      operationType: EXECUTE_ACTION
+
+  get_policy:
+    method: GET
+    path: /api/policies/search
+    request:
+      query:
+        q: "{{params.query}}"
+        limit: 5
+        threshold: 0.3
+    response:
+      success-http-status: [200]
+      message: "Policies"
+    authz:
+      enabled: true
+      resourceId: action:get_policy
+      operationType: EXECUTE_ACTION
+
   checkout_cart:
     method: POST
     path: /api/carts/active/checkout

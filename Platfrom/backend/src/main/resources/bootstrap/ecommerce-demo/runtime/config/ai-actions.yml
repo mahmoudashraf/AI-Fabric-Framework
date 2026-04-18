@@ -35,6 +35,30 @@ actions:
         type: STRING
         required: true
 
+  - name: check_availability
+    description: Check live product availability and stock status by SKU
+    category: commerce
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    params:
+      - name: sku
+        description: Product SKU
+        type: STRING
+        required: true
+
+  - name: get_policy
+    description: Search store policies by topic or shopper question
+    category: commerce
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    params:
+      - name: query
+        description: Policy topic or shopper question
+        type: STRING
+        required: true
+
   - name: view_cart
     description: View my current active cart and its items
     category: commerce
