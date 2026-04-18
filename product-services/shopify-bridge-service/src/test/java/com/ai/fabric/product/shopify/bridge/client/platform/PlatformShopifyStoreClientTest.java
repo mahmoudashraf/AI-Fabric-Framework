@@ -262,6 +262,44 @@ class PlatformShopifyStoreClientTest {
         server.verify();
     }
 
+    @Test
+    void getConsumerCredentialsUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/credentials"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "consumerId":"consumer-alpha",
+                  "deploymentId":"dep-1",
+                  "runtimeBaseUrl":"https://runtime.example.com",
+                  "integration":{
+                    "preferredIntegrationMode":"PRIVATE_RUNTIME_BACKEND_MEDIATED",
+                    "posture":{
+                      "runtimeAuthMode":"SIGNED_PRIVATE_RUNTIME",
+                      "verifiedAuthContextRequired":true,
+                      "hostBackedRuntimeRequired":true,
+                      "directConnectorAccessSupported":false
+                    },
+                    "runtime":{
+                      "chatBaseUrl":"https://runtime.example.com/api/chat/me",
+                      "chatQueryUrl":"https://runtime.example.com/api/chat/me/query",
+                      "suggestionsUrl":"https://runtime.example.com/api/chat/me/suggestions",
+                      "conversationsUrl":"https://runtime.example.com/api/chat/me/conversations",
+                      "authContextUrl":"https://runtime.example.com/api/chat/me/auth-context"
+                    },
+                    "guidance":"Route customer traffic through your host or storefront backend."
+                  }
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        var response = client.getConsumerCredentials("consumer-alpha");
+
+        assertThat(response.consumerId()).isEqualTo("consumer-alpha");
+        assertThat(response.integration()).isNotNull();
+        assertThat(response.integration().preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        server.verify();
+    }
+
     private String storeBody(String sourceReadinessStatus, String syncStatus, String widgetStatus) {
         return """
             {

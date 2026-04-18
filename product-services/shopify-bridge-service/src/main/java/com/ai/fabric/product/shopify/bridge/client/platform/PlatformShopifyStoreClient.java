@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.client.platform;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicConsumerDeploymentCredentialsResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
@@ -109,6 +110,14 @@ public class PlatformShopifyStoreClient {
             .body(request)
             .retrieve()
             .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public PlatformPublicConsumerDeploymentCredentialsResponse getConsumerCredentials(String consumerId) {
+        return restClient.get()
+            .uri(requirePlatformBaseUrl() + "/api/public/consumers/" + encodePath(consumerId) + "/credentials")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(PlatformPublicConsumerDeploymentCredentialsResponse.class);
     }
 
     private String requirePlatformBaseUrl() {

@@ -6,15 +6,49 @@
     }
 
     var bridgeBaseUrl = (root.dataset.bridgeBaseUrl || '').trim()
-    var consumerId = (root.dataset.consumerId || '').trim()
+    var shopDomain = (root.dataset.shopDomain || '').trim()
     var launcherLabel = (root.dataset.launcherLabel || 'Ask the store assistant').trim()
 
-    if (!bridgeBaseUrl || !consumerId) {
+    if (!bridgeBaseUrl || !shopDomain) {
       root.dataset.status = 'configuration-required'
       return
     }
 
+    resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel)
+  }
+
+  function resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel) {
+    root.dataset.status = 'loading'
+    fetch(joinUrl(bridgeBaseUrl, '/api/storefront/shops/' + encodeURIComponent(shopDomain) + '/bootstrap'), {
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          return response.text().then(function (message) {
+            throw new Error(message || 'Widget bootstrap failed with HTTP ' + response.status)
+          })
+        }
+        return response.json()
+      })
+      .then(function (payload) {
+        if (!payload || !payload.available) {
+          root.dataset.status = 'unavailable'
+          root.textContent = payload && payload.message ? payload.message : 'Store assistant is not ready yet.'
+          return
+        }
+        renderLauncher(root, bridgeBaseUrl, launcherLabel, payload)
+      })
+      .catch(function (error) {
+        root.dataset.status = 'failed'
+        root.textContent = error && error.message ? error.message : 'Store assistant bootstrap failed.'
+      })
+  }
+
+  function renderLauncher(root, bridgeBaseUrl, launcherLabel, payload) {
     root.dataset.status = 'ready'
+    root.textContent = ''
 
     var button = document.createElement('button')
     button.type = 'button'
@@ -29,8 +63,10 @@
       '<header class="loom-companion-panel__header"><strong>Store assistant</strong></header>' +
       '<div class="loom-companion-panel__body">' +
       '<p>Bridge: ' + escapeHtml(bridgeBaseUrl) + '</p>' +
-      '<p>Consumer: ' + escapeHtml(consumerId) + '</p>' +
-      '<p>This scaffold reserves the embed surface for the Companion shopper experience. Runtime chat bootstrap is wired later through the bridge-backed storefront flow.</p>' +
+      '<p>Consumer: ' + escapeHtml(payload.consumerId || '—') + '</p>' +
+      '<p>Deployment: ' + escapeHtml(payload.deploymentId || '—') + '</p>' +
+      '<p>Query path: ' + escapeHtml(payload.bridgeQueryUrl || '—') + '</p>' +
+      '<p>' + escapeHtml(payload.message || 'Storefront bootstrap resolved.') + '</p>' +
       '</div>'
 
     button.addEventListener('click', function () {
@@ -42,8 +78,12 @@
     root.appendChild(panel)
   }
 
+  function joinUrl(baseUrl, suffix) {
+    return baseUrl.replace(/\/+$/, '') + suffix
+  }
+
   function escapeHtml(value) {
-    return value
+    return String(value || '')
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;')
