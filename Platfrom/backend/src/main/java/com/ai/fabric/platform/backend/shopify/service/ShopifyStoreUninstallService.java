@@ -27,6 +27,8 @@ public class ShopifyStoreUninstallService {
     private final ShopifyStoreConnectionRepository repository;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreSourcePreflightSupport support;
+    private final ShopifyStoreCredentialService shopifyStoreCredentialService;
+    private final ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService;
     private final PlatformConsumerRepository consumerRepository;
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PlatformAuditService platformAuditService;
@@ -34,12 +36,16 @@ public class ShopifyStoreUninstallService {
     public ShopifyStoreUninstallService(ShopifyStoreConnectionRepository repository,
                                         ShopifyStoreConnectionService shopifyStoreConnectionService,
                                         ShopifyStoreSourcePreflightSupport support,
+                                        ShopifyStoreCredentialService shopifyStoreCredentialService,
+                                        ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService,
                                         PlatformConsumerRepository consumerRepository,
                                         PlatformCustomerConsumerService platformCustomerConsumerService,
                                         PlatformAuditService platformAuditService) {
         this.repository = repository;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.support = support;
+        this.shopifyStoreCredentialService = shopifyStoreCredentialService;
+        this.shopifyStoreDocumentSyncService = shopifyStoreDocumentSyncService;
         this.consumerRepository = consumerRepository;
         this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.platformAuditService = platformAuditService;
@@ -55,6 +61,9 @@ public class ShopifyStoreUninstallService {
         PlatformConsumerEntity consumer = hasText(store.getConsumerId())
             ? consumerRepository.findByConsumerIdIgnoreCase(store.getConsumerId()).orElse(null)
             : null;
+        CleanupStatus credentialCleanup = clearCredentialsSafely(store.getShopDomain());
+        ShopifyStoreDocumentSyncService.DocumentCleanupResult documentCleanup =
+            shopifyStoreDocumentSyncService.cleanupTrackedDocuments(store, resolvedReason);
 
         boolean consumerUnbound = false;
         boolean consumerDisabled = false;
@@ -86,6 +95,11 @@ public class ShopifyStoreUninstallService {
         uninstall.put("reason", resolvedReason);
         uninstall.put("consumerUnbound", consumerUnbound);
         uninstall.put("consumerDisabled", consumerDisabled);
+        uninstall.put("credentialCleanupStatus", credentialCleanup.status());
+        uninstall.put("credentialCleanupMessage", credentialCleanup.message());
+        uninstall.put("documentCleanupStatus", documentCleanup.status());
+        uninstall.put("documentCleanupMessage", documentCleanup.message());
+        uninstall.put("clearedDocumentCount", documentCleanup.deletedDocumentCount());
 
         ObjectNode widget = details.with("widget");
         widget.put("status", "NOT_ENABLED");
@@ -94,7 +108,7 @@ public class ShopifyStoreUninstallService {
         widget.put("message", "Storefront widget disabled because the Shopify app was uninstalled.");
 
         store.setInstallStatus("UNINSTALLED");
-        store.setSyncStatus("NOT_SYNCED");
+        store.setSyncStatus("FAILED".equalsIgnoreCase(documentCleanup.status()) ? "FAILED" : "NOT_SYNCED");
         store.setSourceReadinessStatus("NOT_RUN");
         store.setWidgetStatus("NOT_ENABLED");
         store.setOnboardingStatus("BLOCKED");
@@ -111,6 +125,9 @@ public class ShopifyStoreUninstallService {
                 "shopDomain", store.getShopDomain(),
                 "consumerId", blankToEmpty(store.getConsumerId()),
                 "deploymentId", blankToEmpty(store.getDeploymentId()),
+                "credentialCleanupStatus", credentialCleanup.status(),
+                "documentCleanupStatus", documentCleanup.status(),
+                "clearedDocumentCount", Integer.toString(documentCleanup.deletedDocumentCount()),
                 "consumerUnbound", Boolean.toString(consumerUnbound),
                 "consumerDisabled", Boolean.toString(consumerDisabled),
                 "reason", resolvedReason
@@ -133,5 +150,24 @@ public class ShopifyStoreUninstallService {
 
     private String blankToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private CleanupStatus clearCredentialsSafely(String shopDomain) {
+        try {
+            shopifyStoreCredentialService.clear(shopDomain);
+            return new CleanupStatus("CLEARED", "Shopify access credentials were cleared.");
+        } catch (RuntimeException ex) {
+            return new CleanupStatus("FAILED", firstMessage(ex, "Shopify access credentials could not be cleared."));
+        }
+    }
+
+    private String firstMessage(RuntimeException ex, String fallback) {
+        if (ex instanceof ResponseStatusException responseStatusException && hasText(responseStatusException.getReason())) {
+            return responseStatusException.getReason().trim();
+        }
+        return hasText(ex.getMessage()) ? ex.getMessage().trim() : fallback;
+    }
+
+    private record CleanupStatus(String status, String message) {
     }
 }

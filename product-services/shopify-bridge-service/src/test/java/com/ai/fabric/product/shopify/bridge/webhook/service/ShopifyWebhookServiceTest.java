@@ -33,7 +33,7 @@ class ShopifyWebhookServiceTest {
         service.handle("app/uninstalled", "alpha.myshopify.com", "{\"myshopify_domain\":\"ignored.myshopify.com\"}");
 
         verify(lifecycleService).markUninstalled("alpha.myshopify.com");
-        verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
+        verify(installCredentialService).clearLocalPersistedCredentials("alpha.myshopify.com");
         verify(installRecordService).markUninstalled("alpha.myshopify.com");
         verify(lifecycleService).recordWebhookEvent(
             "alpha.myshopify.com",
@@ -105,7 +105,7 @@ class ShopifyWebhookServiceTest {
         service.handle("shop/redact", "alpha.myshopify.com", "{}");
 
         verify(lifecycleService).markUninstalled("alpha.myshopify.com");
-        verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
+        verify(installCredentialService).clearLocalPersistedCredentials("alpha.myshopify.com");
         verify(installRecordService).markUninstalled("alpha.myshopify.com");
         verify(lifecycleService).recordWebhookEvent(
             "alpha.myshopify.com",

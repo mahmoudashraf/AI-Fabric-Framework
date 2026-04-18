@@ -39,7 +39,7 @@ public class ShopifyWebhookService {
 
         if ("app/uninstalled".equals(normalizedTopic)) {
             storeLifecycleService.markUninstalled(shopDomain);
-            installCredentialService.clearPersistedCredentials(shopDomain);
+            installCredentialService.clearLocalPersistedCredentials(shopDomain);
             installRecordService.markUninstalled(shopDomain);
             recordWebhookSafely(shopDomain, normalizedTopic, "UNINSTALLED", null, "Shopify reported app uninstall.", false);
             return;
@@ -71,7 +71,7 @@ public class ShopifyWebhookService {
 
         if ("shop/redact".equals(normalizedTopic)) {
             storeLifecycleService.markUninstalled(shopDomain);
-            installCredentialService.clearPersistedCredentials(shopDomain);
+            installCredentialService.clearLocalPersistedCredentials(shopDomain);
             installRecordService.markUninstalled(shopDomain);
             recordWebhookSafely(
                 shopDomain,

@@ -40,6 +40,8 @@ class ShopifyStoreUninstallServiceTest {
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         PlatformCustomerConsumerService customerConsumerService = mock(PlatformCustomerConsumerService.class);
+        ShopifyStoreCredentialService credentialService = mock(ShopifyStoreCredentialService.class);
+        ShopifyStoreDocumentSyncService documentSyncService = mock(ShopifyStoreDocumentSyncService.class);
 
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(objectMapper);
@@ -86,6 +88,38 @@ class ShopifyStoreUninstallServiceTest {
         when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(entity));
         when(consumerRepository.findByConsumerIdIgnoreCase("consumer-alpha")).thenReturn(Optional.of(consumer));
         when(repository.save(any(ShopifyStoreConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(credentialService.clear("alpha.myshopify.com")).thenAnswer(invocation -> {
+            entity.setDetailsJson("""
+                {
+                  "credentials": {
+                    "status": "MISSING",
+                    "checkedAt": "2026-04-18T10:05:00Z",
+                    "expiring": false
+                  }
+                }
+                """);
+            return summary("alpha.myshopify.com", "MISSING", "NOT_SYNCED");
+        });
+        when(documentSyncService.cleanupTrackedDocuments(any(), eq("Shopify app uninstall cleanup.")))
+            .thenAnswer(invocation -> {
+                entity.setDetailsJson("""
+                    {
+                      "credentials": {
+                        "status": "MISSING",
+                        "checkedAt": "2026-04-18T10:05:00Z",
+                        "expiring": false
+                      },
+                      "sync": {
+                        "status": "CLEARED",
+                        "checkedAt": "2026-04-18T10:06:00Z",
+                        "mode": "UNINSTALL_CLEANUP",
+                        "documentCount": 3,
+                        "message": "Cleared 3 synced Shopify documents."
+                      }
+                    }
+                    """);
+                return new ShopifyStoreDocumentSyncService.DocumentCleanupResult("CLEARED", 3, "Cleared 3 synced Shopify documents.");
+            });
         doNothing().when(platformAuditService).record(any(), any(), any(), any());
 
         ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
@@ -105,6 +139,8 @@ class ShopifyStoreUninstallServiceTest {
             repository,
             connectionService,
             support,
+            credentialService,
+            documentSyncService,
             consumerRepository,
             customerConsumerService,
             platformAuditService
@@ -117,7 +153,71 @@ class ShopifyStoreUninstallServiceTest {
         assertThat(summary.sourceReadinessStatus()).isEqualTo("NOT_RUN");
         assertThat(summary.widgetStatus()).isEqualTo("NOT_ENABLED");
         assertThat(summary.onboardingStatus()).isEqualTo("BLOCKED");
+        assertThat(summary.credentials()).isNotNull();
+        assertThat(summary.credentials().status()).isEqualTo("MISSING");
+        assertThat(summary.syncDetail()).isNotNull();
+        assertThat(summary.syncDetail().status()).isEqualTo("CLEARED");
         verify(customerConsumerService).updateBinding(eq("cust-1"), eq("consumer-alpha"), any());
         verify(customerConsumerService).updateConsumer(eq("cust-1"), eq("consumer-alpha"), any());
+        verify(credentialService).clear("alpha.myshopify.com");
+        verify(documentSyncService).cleanupTrackedDocuments(any(), eq("Shopify app uninstall cleanup."));
+    }
+
+    private ShopifyStoreConnectionSummary summary(String shopDomain, String credentialStatus, String syncStatus) {
+        return new ShopifyStoreConnectionSummary(
+            "shp-1",
+            shopDomain,
+            "Alpha",
+            "ps-1",
+            "shopify-bridge-prod",
+            "Shopify Bridge",
+            "cust-1",
+            "Alpha Customer",
+            "dep-1",
+            "Alpha Deployment",
+            "ACTIVE",
+            "consumer-alpha",
+            "Alpha Storefront",
+            "INSTALLED",
+            syncStatus,
+            "READY",
+            "ENABLED",
+            "LIVE",
+            true,
+            true,
+            true,
+            true,
+            new com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCredentialSummary(
+                credentialStatus,
+                "READY".equalsIgnoreCase(credentialStatus),
+                "READY".equalsIgnoreCase(credentialStatus),
+                "READY".equalsIgnoreCase(credentialStatus) ? "ACCESS" : null,
+                "READY".equalsIgnoreCase(credentialStatus) ? "REFRESH" : null,
+                Instant.parse("2026-04-18T10:00:00Z"),
+                null,
+                null,
+                null,
+                false
+            ),
+            null,
+            new com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSyncSummary(
+                syncStatus,
+                Instant.parse("2026-04-18T10:00:00Z"),
+                "UNINSTALL_CLEANUP",
+                0,
+                "Cleanup state"
+            ),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T10:00:00Z"),
+            Instant.parse("2026-04-18T10:00:00Z"),
+            Instant.parse("2026-04-18T10:00:00Z"),
+            Instant.parse("2026-04-18T10:00:00Z"),
+            Instant.parse("2026-04-18T10:00:00Z")
+        );
     }
 }

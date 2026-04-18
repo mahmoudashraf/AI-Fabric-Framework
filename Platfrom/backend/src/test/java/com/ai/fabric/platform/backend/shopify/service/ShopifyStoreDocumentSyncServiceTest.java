@@ -273,6 +273,66 @@ class ShopifyStoreDocumentSyncServiceTest {
         );
     }
 
+    @Test
+    void cleanupTrackedDocumentsDeletesRuntimeDocumentsAndResetsLocalTracking() {
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        ShopifyStoreDocumentRepository documentRepository = mock(ShopifyStoreDocumentRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        MarketplaceDatasetRuntimeSyncClient runtimeSyncClient = mock(MarketplaceDatasetRuntimeSyncClient.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
+
+        ShopifyStoreConnectionEntity store = store();
+        DeploymentEntity deployment = deployment();
+        DeploymentVersionEntity activeVersion = activeVersion();
+        ShopifyStoreDocumentEntity product = tracked("doc-product", "product", "products");
+        ShopifyStoreDocumentEntity page = tracked("doc-page", "support-policy", "pages");
+
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(activeVersion));
+        when(documentRepository.findByStoreConnectionIdOrderByDocumentIdAsc("shp-123")).thenReturn(List.of(product, page));
+        when(storeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ShopifyStoreDocumentSyncService service = new ShopifyStoreDocumentSyncService(
+            storeRepository,
+            documentRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            runtimeSyncClient,
+            connectionService,
+            support,
+            auditService
+        );
+
+        ShopifyStoreDocumentSyncService.DocumentCleanupResult result =
+            service.cleanupTrackedDocuments(store, "Shopify app uninstall cleanup.");
+
+        assertThat(result.status()).isEqualTo("CLEARED");
+        assertThat(result.deletedDocumentCount()).isEqualTo(2);
+        verify(runtimeSyncClient).deleteDocuments(
+            eq(deployment),
+            eq("product"),
+            eq("shopify-catalog"),
+            eq("plugin/mkp-data-shopify-catalog/tenant/tenant-123/shopify-catalog/hash/product"),
+            eq("hash-catalog"),
+            eq(List.of("doc-product"))
+        );
+        verify(runtimeSyncClient).deleteDocuments(
+            eq(deployment),
+            eq("support-policy"),
+            eq("shopify-policies"),
+            eq("plugin/mkp-data-shopify-policies/tenant/tenant-123/shopify-policies/hash/support-policy"),
+            eq("hash-policies"),
+            eq(List.of("doc-page"))
+        );
+        verify(documentRepository).deleteByStoreConnectionIdAndDocumentIdIn("shp-123", List.of("doc-product", "doc-page"));
+        assertThat(store.getDetailsJson()).contains("\"mode\":\"UNINSTALL_CLEANUP\"");
+        assertThat(store.getDetailsJson()).contains("\"status\":\"CLEARED\"");
+        assertThat(store.getDetailsJson()).contains("\"documentCount\":2");
+    }
+
     private ShopifyStoreConnectionEntity store() {
         ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
         entity.setId("shp-123");

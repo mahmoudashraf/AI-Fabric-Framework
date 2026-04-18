@@ -62,6 +62,10 @@ public class ShopifyBridgeInstallCredentialService {
 
     public ShopifyInstallRecordSummary clearPersistedCredentials(String shopDomain) {
         platformShopifyStoreClient.clearCredentials(shopDomain);
+        return clearLocalPersistedCredentials(shopDomain);
+    }
+
+    public ShopifyInstallRecordSummary clearLocalPersistedCredentials(String shopDomain) {
         return installRecordService.clearCredentials(shopDomain).orElse(null);
     }
 

@@ -130,6 +130,88 @@ public class ShopifyStoreDocumentSyncService {
         return shopifyStoreConnectionService.getConnection(store.getShopDomain());
     }
 
+    @Transactional
+    public DocumentCleanupResult cleanupTrackedDocuments(ShopifyStoreConnectionEntity store, String reason) {
+        if (store == null || !hasText(store.getId())) {
+            return new DocumentCleanupResult("NO_STORE", 0, "Shopify store cleanup skipped because no store connection was available.");
+        }
+
+        List<ShopifyStoreDocumentEntity> trackedDocuments = documentRepository.findByStoreConnectionIdOrderByDocumentIdAsc(store.getId());
+        if (trackedDocuments.isEmpty()) {
+            recordCleanupSyncStatus(store, "NO_DOCUMENTS", 0, normalizedCleanupMessage(reason, 0, false));
+            return new DocumentCleanupResult("NO_DOCUMENTS", 0, "No synced Shopify documents remained to clear.");
+        }
+
+        DeploymentEntity deployment = hasText(store.getDeploymentId())
+            ? deploymentRepository.findById(store.getDeploymentId()).orElse(null)
+            : null;
+        String legacyDatasetId = LEGACY_DATASET_PREFIX + store.getShopDomain();
+        String legacyHandleRef = LEGACY_HANDLE_PREFIX + store.getShopDomain();
+        String cleanupHash = DigestUtils.md5DigestAsHex((trimToNull(reason) == null ? "cleanup" : trimToNull(reason))
+            .getBytes(StandardCharsets.UTF_8));
+
+        try {
+            if (deployment != null && StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
+                Map<String, ResolvedDatasetTarget> datasetTargets = resolveDatasetTargets(deployment, legacyDatasetId, legacyHandleRef, cleanupHash);
+                Map<String, List<ShopifyStoreDocumentEntity>> existingByDataset = trackedDocuments.stream()
+                    .collect(Collectors.groupingBy(
+                        document -> datasetIdForDocument(document.getSourceCategory(), document.getEntityType()),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                    ));
+                for (Map.Entry<String, List<ShopifyStoreDocumentEntity>> entry : existingByDataset.entrySet()) {
+                    ResolvedDatasetTarget target = datasetTargets.get(entry.getKey());
+                    if (target == null) {
+                        continue;
+                    }
+                    runtimeSyncClient.deleteDocuments(
+                        deployment,
+                        target.entityType(),
+                        target.datasetId(),
+                        target.handleRef(),
+                        target.datasetHash(),
+                        entry.getValue().stream()
+                            .map(ShopifyStoreDocumentEntity::getDocumentId)
+                            .toList()
+                    );
+                }
+            }
+
+            documentRepository.deleteByStoreConnectionIdAndDocumentIdIn(
+                store.getId(),
+                trackedDocuments.stream().map(ShopifyStoreDocumentEntity::getDocumentId).toList()
+            );
+            recordCleanupSyncStatus(store, "CLEARED", trackedDocuments.size(), normalizedCleanupMessage(reason, trackedDocuments.size(), deployment != null && StringUtils.hasText(deployment.getRuntimeBaseUrl())));
+            platformAuditService.record(
+                "SHOPIFY_STORE_DOCUMENTS_CLEARED",
+                "SHOPIFY_STORE_CONNECTION",
+                store.getShopDomain(),
+                Map.of(
+                    "shopDomain", store.getShopDomain(),
+                    "deploymentId", blankToEmpty(store.getDeploymentId()),
+                    "documentCount", Integer.toString(trackedDocuments.size()),
+                    "reason", blankToEmpty(trimToNull(reason))
+                )
+            );
+            return new DocumentCleanupResult("CLEARED", trackedDocuments.size(), "Cleared " + trackedDocuments.size() + " synced Shopify documents.");
+        } catch (RuntimeException ex) {
+            recordCleanupSyncStatus(store, "FAILED", trackedDocuments.size(), "Shopify cleanup could not remove synced documents: " + firstMessage(ex));
+            platformAuditService.record(
+                "SHOPIFY_STORE_DOCUMENT_CLEANUP_FAILED",
+                "SHOPIFY_STORE_CONNECTION",
+                store.getShopDomain(),
+                Map.of(
+                    "shopDomain", store.getShopDomain(),
+                    "deploymentId", blankToEmpty(store.getDeploymentId()),
+                    "documentCount", Integer.toString(trackedDocuments.size()),
+                    "reason", blankToEmpty(trimToNull(reason)),
+                    "message", blankToEmpty(firstMessage(ex))
+                )
+            );
+            return new DocumentCleanupResult("FAILED", trackedDocuments.size(), firstMessage(ex));
+        }
+    }
+
     private void syncEntityTypeGroups(DeploymentEntity deployment,
                                       Map<String, ResolvedDatasetTarget> datasetTargets,
                                       List<ShopifyStoreSyncDocument> documents,
@@ -278,6 +360,24 @@ public class ShopifyStoreDocumentSyncService {
         storeRepository.save(store);
     }
 
+    private void recordCleanupSyncStatus(ShopifyStoreConnectionEntity store,
+                                         String status,
+                                         int documentCount,
+                                         String message) {
+        Instant now = Instant.now();
+        ObjectNode details = support.mutableDetails(store.getDetailsJson());
+        ObjectNode sync = details.putObject("sync");
+        sync.put("status", status);
+        sync.put("checkedAt", now.toString());
+        sync.put("mode", "UNINSTALL_CLEANUP");
+        sync.put("documentCount", Math.max(documentCount, 0));
+        sync.put("message", message);
+        store.setDetailsJson(support.writeJson(details));
+        store.setLastSyncAt(now);
+        store.setUpdatedAt(now);
+        storeRepository.save(store);
+    }
+
     private List<ShopifyStoreSyncDocument> normalizeDocuments(List<ShopifyStoreSyncDocument> incoming) {
         LinkedHashMap<String, ShopifyStoreSyncDocument> byId = new LinkedHashMap<>();
         for (ShopifyStoreSyncDocument document : incoming) {
@@ -421,6 +521,23 @@ public class ShopifyStoreDocumentSyncService {
         return value != null && !value.isBlank();
     }
 
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String normalizedCleanupMessage(String reason, int documentCount, boolean runtimeCleanupAttempted) {
+        String baseReason = trimToNull(reason);
+        if (documentCount <= 0) {
+            return baseReason == null
+                ? "No synced Shopify documents remained to clear."
+                : baseReason + " No synced Shopify documents remained to clear.";
+        }
+        String action = runtimeCleanupAttempted
+            ? "Removed " + documentCount + " synced Shopify documents from the runtime and local tracking."
+            : "Removed " + documentCount + " locally tracked Shopify documents.";
+        return baseReason == null ? action : baseReason + " " + action;
+    }
+
     private String trimToNull(String value) {
         return hasText(value) ? value.trim() : null;
     }
@@ -434,6 +551,13 @@ public class ShopifyStoreDocumentSyncService {
         String handleRef,
         String datasetHash,
         String entityType
+    ) {
+    }
+
+    public record DocumentCleanupResult(
+        String status,
+        int deletedDocumentCount,
+        String message
     ) {
     }
 }

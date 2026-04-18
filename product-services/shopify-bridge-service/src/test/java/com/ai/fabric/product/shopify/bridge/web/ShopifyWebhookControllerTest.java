@@ -65,7 +65,7 @@ class ShopifyWebhookControllerTest {
             .andExpect(status().isOk());
 
         verify(lifecycleService).markUninstalled("alpha.myshopify.com");
-        verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
+        verify(installCredentialService).clearLocalPersistedCredentials("alpha.myshopify.com");
     }
 
     @Test
@@ -84,6 +84,6 @@ class ShopifyWebhookControllerTest {
             .andExpect(status().isOk());
 
         verify(lifecycleService).markUninstalled("alpha.myshopify.com");
-        verify(installCredentialService).clearPersistedCredentials("alpha.myshopify.com");
+        verify(installCredentialService).clearLocalPersistedCredentials("alpha.myshopify.com");
     }
 }
