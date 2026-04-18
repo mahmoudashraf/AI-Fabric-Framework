@@ -10,8 +10,6 @@ import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
 
-import static org.springframework.util.StringUtils.hasText;
-
 @Service
 public class ShopifyStorefrontBootstrapService {
 
@@ -23,19 +21,8 @@ public class ShopifyStorefrontBootstrapService {
 
     public ShopifyStorefrontBootstrapResponse bootstrap(String shopDomain) {
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(shopDomain);
-        if (!"INSTALLED".equalsIgnoreCase(store.installStatus())) {
-            return unavailable(store, "Shopify Companion is not currently installed for this store.");
-        }
-        if (!hasText(store.consumerId()) || !hasText(store.deploymentId())) {
-            return unavailable(store, "Shopify Companion provisioning is incomplete. Finish merchant bootstrap first.");
-        }
-        if (!"READY".equalsIgnoreCase(store.sourceReadinessStatus())) {
-            return unavailable(store, "Store data is not ready yet. Run source preflight and complete publish/apply/verify before enabling the widget.");
-        }
-        if (store.latestRelease() == null
-            || !"APPLIED_VERIFIED".equalsIgnoreCase(store.latestRelease().status())
-            || !"PASSED".equalsIgnoreCase(store.latestRelease().verificationStatus())) {
-            return unavailable(store, "Store deployment is not live yet. Wait for publish/apply/verify to finish before enabling the widget.");
+        if (store.readiness() == null || !store.readiness().storefrontReady()) {
+            return unavailable(store, firstStorefrontBlockingReason(store));
         }
 
         PlatformPublicConsumerDeploymentCredentialsResponse credentials =
@@ -88,6 +75,13 @@ public class ShopifyStorefrontBootstrapService {
             null,
             message
         );
+    }
+
+    private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {
+        if (store.readiness() != null && !store.readiness().storefrontBlockingReasons().isEmpty()) {
+            return store.readiness().storefrontBlockingReasons().get(0);
+        }
+        return "Storefront bootstrap is not available for this store yet.";
     }
 
     private String encodePathSegment(String value) {

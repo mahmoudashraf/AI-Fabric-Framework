@@ -5,7 +5,6 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -29,21 +28,17 @@ public class ShopifyStorefrontChatService {
 
     private ShopifyBridgeStoreSummary requireReadyStore(String shopDomain) {
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(shopDomain);
-        if (!"INSTALLED".equalsIgnoreCase(store.installStatus())) {
-            throw unavailable("Store assistant is not installed for " + store.shopDomain() + ".");
-        }
-        if (!"READY".equalsIgnoreCase(store.sourceReadinessStatus())) {
-            throw unavailable("Store data is not ready yet for " + store.shopDomain() + ". Complete source preflight and apply-time sync first.");
-        }
-        if (!StringUtils.hasText(store.consumerId()) || !StringUtils.hasText(store.deploymentId())) {
-            throw unavailable("Store assistant mapping is incomplete for " + store.shopDomain() + ".");
-        }
-        if (store.latestRelease() == null
-            || !"APPLIED_VERIFIED".equalsIgnoreCase(store.latestRelease().status())
-            || !"PASSED".equalsIgnoreCase(store.latestRelease().verificationStatus())) {
-            throw unavailable("Store assistant is not live yet for " + store.shopDomain() + ". Wait for publish/apply/verify to complete.");
+        if (store.readiness() == null || !store.readiness().storefrontReady()) {
+            throw unavailable(firstStorefrontBlockingReason(store));
         }
         return store;
+    }
+
+    private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {
+        if (store.readiness() != null && !store.readiness().storefrontBlockingReasons().isEmpty()) {
+            return store.readiness().storefrontBlockingReasons().get(0);
+        }
+        return "Store assistant is not live yet for " + store.shopDomain() + ".";
     }
 
     private ResponseStatusException unavailable(String message) {

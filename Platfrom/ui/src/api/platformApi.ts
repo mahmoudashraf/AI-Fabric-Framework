@@ -525,6 +525,14 @@ export type ShopifyStoreConnectionSummary = {
   sourcePreflight: ShopifyStoreSourcePreflightSummary | null
   syncDetail: ShopifyStoreSyncSummary | null
   widgetDetail: ShopifyStoreWidgetSummary | null
+  readiness: {
+    overallStatus: string
+    goLiveEligible: boolean
+    storefrontReady: boolean
+    goLiveBlockingReasons: string[]
+    storefrontBlockingReasons: string[]
+    nextActions: string[]
+  } | null
   latestVersion: DeploymentVersionSummary | null
   latestRelease: DeploymentReleaseSummary | null
   lastSourcePreflightAt: string | null

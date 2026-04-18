@@ -66,6 +66,27 @@ export type ShopifyBridgeStoreSummary = {
       message: string | null
     }>
   } | null
+  readiness: {
+    overallStatus: string
+    goLiveEligible: boolean
+    storefrontReady: boolean
+    goLiveBlockingReasons: string[]
+    storefrontBlockingReasons: string[]
+    nextActions: string[]
+  } | null
+  syncDetail: {
+    status: string
+    checkedAt: string | null
+    mode: string | null
+    documentCount: number
+    message: string | null
+  } | null
+  widgetDetail: {
+    status: string
+    checkedAt: string | null
+    channel: string | null
+    message: string | null
+  } | null
 }
 
 export type ShopifyBridgeMerchantSessionResponse = {

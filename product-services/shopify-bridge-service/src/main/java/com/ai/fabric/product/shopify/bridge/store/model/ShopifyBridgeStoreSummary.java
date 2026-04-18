@@ -28,6 +28,7 @@ public record ShopifyBridgeStoreSummary(
     ShopifyBridgeStoreSourcePreflightSummary sourcePreflight,
     ShopifyBridgeStoreSyncSummary syncDetail,
     ShopifyBridgeStoreWidgetSummary widgetDetail,
+    ShopifyBridgeStoreReadinessSummary readiness,
     ShopifyBridgeStoreDeploymentVersionSummary latestVersion,
     ShopifyBridgeStoreDeploymentReleaseSummary latestRelease,
     Instant lastSourcePreflightAt,

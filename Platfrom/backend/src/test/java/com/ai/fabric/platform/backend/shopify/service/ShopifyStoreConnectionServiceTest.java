@@ -77,7 +77,8 @@ class ShopifyStoreConnectionServiceTest {
             deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
-            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
         );
 
         ShopifyStoreConnectionSummary summary = connectionService.upsertConnection(
@@ -106,6 +107,7 @@ class ShopifyStoreConnectionServiceTest {
         assertThat(summary.onboardingStatus()).isEqualTo("NOT_STARTED");
         assertThat(summary.productsEnabled()).isTrue();
         assertThat(summary.collectionsEnabled()).isTrue();
+        assertThat(summary.readiness()).isNotNull();
     }
 
     @Test
@@ -152,7 +154,8 @@ class ShopifyStoreConnectionServiceTest {
             deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
-            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
         );
 
         assertThatThrownBy(() -> connectionService.upsertConnection(
@@ -207,7 +210,8 @@ class ShopifyStoreConnectionServiceTest {
             deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
-            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
         );
 
         assertThatThrownBy(() -> connectionService.deleteConnection("demo.myshopify.com", false))
@@ -244,7 +248,8 @@ class ShopifyStoreConnectionServiceTest {
             deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
-            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
         );
 
         connectionService.deleteConnection("demo.myshopify.com", true);

@@ -521,6 +521,9 @@ export function ProductServicesPage() {
                               <Stack spacing={1.25}>
                                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                                   <Typography sx={{ fontWeight: 700 }}>{store.shopDomain}</Typography>
+                                  {store.readiness ? (
+                                    <Chip size="small" label={store.readiness.overallStatus} color={chipColor(store.readiness.overallStatus)} />
+                                  ) : null}
                                   <Chip size="small" label={store.onboardingStatus} color={chipColor(store.onboardingStatus)} />
                                   <Chip size="small" label={store.installStatus} color={chipColor(store.installStatus)} />
                                   <Chip size="small" label={store.syncStatus} color={chipColor(store.syncStatus)} />
@@ -568,6 +571,11 @@ export function ProductServicesPage() {
                                 {store.widgetDetail ? (
                                   <Typography variant="body2" color="text.secondary">
                                     Widget {store.widgetDetail.status.toLowerCase()} · channel {detailValue(store.widgetDetail.channel)}
+                                  </Typography>
+                                ) : null}
+                                {store.readiness?.nextActions?.length ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Next: {store.readiness.nextActions.join(' · ')}
                                   </Typography>
                                 ) : null}
                                 <Typography variant="caption" color="text.secondary">

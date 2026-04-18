@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreReadinessEvaluator;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightSupport;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
@@ -102,6 +103,7 @@ class PlatformManagedProductAdminServiceTest {
             platformAuditService,
             railwayGraphqlClient,
             new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
             new ObjectMapper()
         );
 
@@ -113,6 +115,8 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(dependents.get(0).consumerDisplayName()).isEqualTo("Demo Storefront");
         assertThat(dependents.get(0).latestVersion()).isNotNull();
         assertThat(dependents.get(0).latestRelease()).isNotNull();
+        assertThat(dependents.get(0).readiness()).isNotNull();
+        assertThat(dependents.get(0).readiness().overallStatus()).isEqualTo("STOREFRONT_READY");
     }
 
     @Test
@@ -155,6 +159,7 @@ class PlatformManagedProductAdminServiceTest {
             platformAuditService,
             railwayGraphqlClient,
             new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
             new ObjectMapper()
         );
 
@@ -204,6 +209,33 @@ class PlatformManagedProductAdminServiceTest {
         entity.setCollectionsEnabled(true);
         entity.setPagesEnabled(true);
         entity.setPoliciesEnabled(true);
+        entity.setDetailsJson("""
+            {
+              "credentials": {
+                "status": "READY",
+                "checkedAt": "2026-04-18T10:00:00Z",
+                "accessTokenSecretRef": "MANAGED_SHOPIFY_ACCESS_TOKEN_DEMO_AAAAAA",
+                "refreshTokenSecretRef": "MANAGED_SHOPIFY_REFRESH_TOKEN_DEMO_BBBBBB",
+                "accessTokenExpiresAt": "2026-04-18T11:00:00Z",
+                "refreshTokenExpiresAt": "2026-07-18T10:00:00Z",
+                "scopesText": "read_products,read_content",
+                "expiring": false
+              },
+              "widget": {
+                "status": "ENABLED",
+                "checkedAt": "2026-04-18T10:05:00Z",
+                "channel": "THEME_APP_EXTENSION",
+                "message": "Theme app extension enabled."
+              },
+              "sync": {
+                "status": "SYNCED",
+                "checkedAt": "2026-04-18T10:04:00Z",
+                "mode": "FULL",
+                "documentCount": 128,
+                "message": "Initial import completed."
+              }
+            }
+            """);
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         return entity;

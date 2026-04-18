@@ -82,7 +82,8 @@ class ShopifyStoreCredentialServiceTest {
             deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
-            support
+            support,
+            new ShopifyStoreReadinessEvaluator()
         );
         ShopifyStoreCredentialService credentialService = new ShopifyStoreCredentialService(
             repository,
@@ -189,7 +190,8 @@ class ShopifyStoreCredentialServiceTest {
             deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
-            support
+            support,
+            new ShopifyStoreReadinessEvaluator()
         );
         ShopifyStoreCredentialService credentialService = new ShopifyStoreCredentialService(
             repository,

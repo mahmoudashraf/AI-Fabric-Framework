@@ -332,7 +332,7 @@ export function ShopifyStoresPage() {
               <Button
                 variant="outlined"
                 onClick={() => goLiveMutation.mutate(selectedStore.shopDomain)}
-                disabled={goLiveMutation.isPending}
+                disabled={goLiveMutation.isPending || !selectedStore.readiness?.goLiveEligible || isReleaseInProgress(selectedStore.latestRelease?.status)}
               >
                 Publish and apply
               </Button>
@@ -397,6 +397,9 @@ export function ShopifyStoresPage() {
                     <Typography variant="h5" sx={{ fontWeight: 700 }}>
                       {selectedStore.shopDomain}
                     </Typography>
+                    {selectedStore.readiness ? (
+                      <Chip size="small" label={selectedStore.readiness.overallStatus} color={chipColor(selectedStore.readiness.overallStatus)} />
+                    ) : null}
                     <Chip size="small" label={selectedStore.onboardingStatus} color={chipColor(selectedStore.onboardingStatus)} />
                     <Chip size="small" label={selectedStore.installStatus} color={chipColor(selectedStore.installStatus)} />
                     <Chip size="small" label={selectedStore.syncStatus} color={chipColor(selectedStore.syncStatus)} />
@@ -418,6 +421,8 @@ export function ShopifyStoresPage() {
                           ? `${selectedStore.latestRelease.status} / ${selectedStore.latestRelease.verificationStatus}`
                           : null,
                       ],
+                      ['Go-live eligible', selectedStore.readiness ? (selectedStore.readiness.goLiveEligible ? 'Yes' : 'No') : null],
+                      ['Storefront ready', selectedStore.readiness ? (selectedStore.readiness.storefrontReady ? 'Yes' : 'No') : null],
                       ['Consumer', selectedStore.consumerDisplayName ?? selectedStore.consumerId],
                       ['Onboarding', selectedStore.onboardingStatus],
                       ['Credentials', selectedStore.credentials?.status],
@@ -437,6 +442,61 @@ export function ShopifyStoresPage() {
                       </Grid>
                     ))}
                   </Grid>
+
+                  {selectedStore.readiness ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Readiness</Typography>
+                            <Chip size="small" label={selectedStore.readiness.overallStatus} color={chipColor(selectedStore.readiness.overallStatus)} />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Go-live ${selectedStore.readiness.goLiveEligible ? 'ready' : 'blocked'}`}
+                              color={selectedStore.readiness.goLiveEligible ? 'success' : 'warning'}
+                            />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Storefront ${selectedStore.readiness.storefrontReady ? 'ready' : 'not ready'}`}
+                              color={selectedStore.readiness.storefrontReady ? 'success' : 'warning'}
+                            />
+                          </Stack>
+                          {selectedStore.readiness.goLiveBlockingReasons.length > 0 ? (
+                            <Alert severity="warning">
+                              <strong>Go-live blockers</strong>
+                              <List dense>
+                                {selectedStore.readiness.goLiveBlockingReasons.map((reason) => (
+                                  <li key={reason}>{reason}</li>
+                                ))}
+                              </List>
+                            </Alert>
+                          ) : null}
+                          {selectedStore.readiness.storefrontBlockingReasons.length > 0 ? (
+                            <Alert severity="error">
+                              <strong>Storefront blockers</strong>
+                              <List dense>
+                                {selectedStore.readiness.storefrontBlockingReasons.map((reason) => (
+                                  <li key={reason}>{reason}</li>
+                                ))}
+                              </List>
+                            </Alert>
+                          ) : null}
+                          {selectedStore.readiness.nextActions.length > 0 ? (
+                            <Alert severity="info">
+                              <strong>Next actions</strong>
+                              <List dense>
+                                {selectedStore.readiness.nextActions.map((action) => (
+                                  <li key={action}>{action}</li>
+                                ))}
+                              </List>
+                            </Alert>
+                          ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
 
                   {selectedStore.sourcePreflight ? (
                     <Card variant="outlined">

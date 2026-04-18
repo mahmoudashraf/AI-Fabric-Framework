@@ -40,7 +40,8 @@ public class ShopifyStoreGoLiveService {
     public ShopifyStoreConnectionSummary goLive(String shopDomain) {
         ShopifyStoreConnectionEntity store = repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Shopify store connection not found: " + shopDomain));
-        validateReadyForGoLive(store);
+        ShopifyStoreConnectionSummary summary = shopifyStoreConnectionService.getConnection(store.getShopDomain());
+        validateReadyForGoLive(summary);
 
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(store.getDeploymentId());
         DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
@@ -66,29 +67,20 @@ public class ShopifyStoreGoLiveService {
         return shopifyStoreConnectionService.getConnection(store.getShopDomain());
     }
 
-    private void validateReadyForGoLive(ShopifyStoreConnectionEntity store) {
-        if (!"INSTALLED".equalsIgnoreCase(store.getInstallStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Shopify store must be installed before go-live can be requested.");
-        }
-        if (!hasText(store.getCustomerId()) || !hasText(store.getDeploymentId()) || !hasText(store.getConsumerId())) {
-            throw new ResponseStatusException(CONFLICT, "Shopify store must be bootstrapped to a customer, deployment, and consumer before go-live can be requested.");
-        }
-        if (!"READY".equalsIgnoreCase(store.getSourceReadinessStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Shopify store source readiness must be READY before go-live can be requested.");
-        }
-        if ("BLOCKED".equalsIgnoreCase(store.getOnboardingStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Shopify store is currently BLOCKED and cannot go live until the blocking issue is resolved.");
+    private void validateReadyForGoLive(ShopifyStoreConnectionSummary store) {
+        if (store.readiness() == null || !store.readiness().goLiveEligible()) {
+            String message = store.readiness() == null || store.readiness().goLiveBlockingReasons().isEmpty()
+                ? "Shopify store is not ready for go-live yet."
+                : store.readiness().goLiveBlockingReasons().get(0);
+            throw new ResponseStatusException(CONFLICT, message);
         }
     }
 
     private String normalizeShopDomain(String shopDomain) {
-        if (!hasText(shopDomain)) {
+        if (shopDomain == null || shopDomain.isBlank()) {
             throw new ResponseStatusException(CONFLICT, "shopDomain is required.");
         }
         return shopDomain.trim().toLowerCase();
     }
 
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
 }

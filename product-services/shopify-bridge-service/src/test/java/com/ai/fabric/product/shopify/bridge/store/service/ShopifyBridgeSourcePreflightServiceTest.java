@@ -157,6 +157,7 @@ class ShopifyBridgeSourcePreflightServiceTest {
             null,
             null,
             null,
+            null,
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z")
         );

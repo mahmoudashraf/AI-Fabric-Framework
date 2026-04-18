@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
@@ -102,6 +103,18 @@ class ShopifyStoreGoLiveServiceTest {
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store("BLOCKED")));
+        when(connectionService.getConnection("alpha.myshopify.com")).thenReturn(summary(
+            "alpha.myshopify.com",
+            "PREFLIGHT_READY",
+            new ShopifyStoreReadinessSummary(
+                "BLOCKED",
+                false,
+                false,
+                java.util.List.of("Shopify source readiness is not READY yet."),
+                java.util.List.of("Shopify source readiness is not READY yet."),
+                java.util.List.of("Run source preflight and resolve any blocked Shopify source categories.")
+            )
+        ));
 
         ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
             repository,
@@ -112,7 +125,7 @@ class ShopifyStoreGoLiveServiceTest {
 
         assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
             .isInstanceOf(ResponseStatusException.class)
-            .hasMessageContaining("source readiness must be READY");
+            .hasMessageContaining("source readiness is not READY");
     }
 
     private ShopifyStoreConnectionEntity store(String sourceReadinessStatus) {
@@ -131,6 +144,23 @@ class ShopifyStoreGoLiveServiceTest {
     }
 
     private ShopifyStoreConnectionSummary summary(String shopDomain, String onboardingStatus) {
+        return summary(
+            shopDomain,
+            onboardingStatus,
+            new ShopifyStoreReadinessSummary(
+                "READY_FOR_GO_LIVE",
+                true,
+                false,
+                java.util.List.of(),
+                java.util.List.of("No verified deployment release exists yet."),
+                java.util.List.of("Request go-live to publish, apply, and verify the deployment.")
+            )
+        );
+    }
+
+    private ShopifyStoreConnectionSummary summary(String shopDomain,
+                                                  String onboardingStatus,
+                                                  ShopifyStoreReadinessSummary readiness) {
         return new ShopifyStoreConnectionSummary(
             "shp-1",
             shopDomain,
@@ -158,6 +188,7 @@ class ShopifyStoreGoLiveServiceTest {
             null,
             null,
             null,
+            readiness,
             null,
             null,
             Instant.parse("2026-04-18T10:00:00Z"),

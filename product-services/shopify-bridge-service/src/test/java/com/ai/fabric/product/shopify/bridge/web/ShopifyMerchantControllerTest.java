@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
 import org.junit.jupiter.api.Test;
@@ -167,6 +168,14 @@ class ShopifyMerchantControllerTest {
             null,
             null,
             null,
+            new ShopifyBridgeStoreReadinessSummary(
+                "BLOCKED",
+                false,
+                false,
+                List.of("Shopify source readiness is not READY yet."),
+                List.of("Shopify source readiness is not READY yet."),
+                List.of("Run source preflight and resolve any blocked Shopify source categories.")
+            ),
             null,
             null,
             null,

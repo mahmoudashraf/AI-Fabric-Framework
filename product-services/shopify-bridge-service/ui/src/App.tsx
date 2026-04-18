@@ -197,10 +197,7 @@ export default function App() {
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
-    store?.installStatus === 'INSTALLED' &&
-    store?.sourceReadinessStatus === 'READY' &&
-    Boolean(store?.deploymentId) &&
-    Boolean(store?.consumerId) &&
+    Boolean(store?.readiness?.goLiveEligible) &&
     !isReleaseInProgress(store?.latestRelease?.status)
 
   return (
@@ -316,11 +313,27 @@ export default function App() {
               <Text as="p" variant="bodyMd" tone="subdued">
                 Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability. Go live only after the source readiness checks are clean.
               </Text>
+              {store?.readiness ? (
+                <List type="bullet">
+                  <List.Item>Readiness: {store.readiness.overallStatus}</List.Item>
+                  <List.Item>Go-live eligible: {store.readiness.goLiveEligible ? 'yes' : 'no'}</List.Item>
+                  <List.Item>Storefront ready: {store.readiness.storefrontReady ? 'yes' : 'no'}</List.Item>
+                </List>
+              ) : null}
               <Divider />
               {store?.latestRelease ? (
                 <Text as="p" variant="bodySm" tone="subdued">
                   Latest release {store.latestRelease.status} / verification {store.latestRelease.verificationStatus}. The page will auto-refresh while go-live is still running.
                 </Text>
+              ) : null}
+              {store?.readiness?.nextActions?.length ? (
+                <Banner tone="info">
+                  <List type="bullet">
+                    {store.readiness.nextActions.map((action) => (
+                      <List.Item key={action}>{action}</List.Item>
+                    ))}
+                  </List>
+                </Banner>
               ) : null}
               <InlineStack gap="300" align="start">
                 <Button
@@ -370,6 +383,13 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
         </Text>
         <Badge tone={badgeTone(store.onboardingStatus)}>{store.onboardingStatus}</Badge>
       </InlineStack>
+      {store.readiness ? (
+        <InlineStack gap="200" align="start">
+          <Badge tone={badgeTone(store.readiness.overallStatus)}>{store.readiness.overallStatus}</Badge>
+          <Badge tone={store.readiness.goLiveEligible ? 'success' : 'attention'}>{`Go-live ${store.readiness.goLiveEligible ? 'ready' : 'blocked'}`}</Badge>
+          <Badge tone={store.readiness.storefrontReady ? 'success' : 'attention'}>{`Storefront ${store.readiness.storefrontReady ? 'ready' : 'not ready'}`}</Badge>
+        </InlineStack>
+      ) : null}
       <List type="bullet">
         <List.Item>Install: {store.installStatus}</List.Item>
         <List.Item>Data sync: {store.syncStatus}</List.Item>
@@ -400,6 +420,33 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
           {store.latestRelease.updatedAt ? new Date(store.latestRelease.updatedAt).toLocaleString() : '—'}
           {store.latestRelease.errorMessage ? ` · ${store.latestRelease.errorMessage}` : ''}
         </Text>
+      ) : null}
+      {store.readiness?.goLiveBlockingReasons?.length ? (
+        <Banner tone="warning">
+          <List type="bullet">
+            {store.readiness.goLiveBlockingReasons.map((reason) => (
+              <List.Item key={reason}>{reason}</List.Item>
+            ))}
+          </List>
+        </Banner>
+      ) : null}
+      {store.readiness?.storefrontBlockingReasons?.length ? (
+        <Banner tone="critical">
+          <List type="bullet">
+            {store.readiness.storefrontBlockingReasons.map((reason) => (
+              <List.Item key={reason}>{reason}</List.Item>
+            ))}
+          </List>
+        </Banner>
+      ) : null}
+      {store.readiness?.nextActions?.length ? (
+        <Banner tone="info">
+          <List type="bullet">
+            {store.readiness.nextActions.map((action) => (
+              <List.Item key={action}>{action}</List.Item>
+            ))}
+          </List>
+        </Banner>
       ) : null}
       <Text as="p" variant="bodySm" tone="subdued">
         Sources: products {store.productsEnabled ? 'on' : 'off'}, collections {store.collectionsEnabled ? 'on' : 'off'}, pages {store.pagesEnabled ? 'on' : 'off'}, policies {store.policiesEnabled ? 'on' : 'off'}

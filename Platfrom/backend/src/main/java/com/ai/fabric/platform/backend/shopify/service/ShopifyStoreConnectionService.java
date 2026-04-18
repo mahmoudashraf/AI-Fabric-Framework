@@ -43,6 +43,7 @@ public class ShopifyStoreConnectionService {
     private final PlatformConsumerRepository consumerRepository;
     private final PlatformAuditService platformAuditService;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
+    private final ShopifyStoreReadinessEvaluator readinessEvaluator;
 
     public ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
                                          PlatformManagedProductServiceService productServiceService,
@@ -52,7 +53,8 @@ public class ShopifyStoreConnectionService {
                                          DeploymentReleaseRepository deploymentReleaseRepository,
                                          PlatformConsumerRepository consumerRepository,
                                          PlatformAuditService platformAuditService,
-                                         ShopifyStoreSourcePreflightSupport sourcePreflightSupport) {
+                                         ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                         ShopifyStoreReadinessEvaluator readinessEvaluator) {
         this.repository = repository;
         this.productServiceService = productServiceService;
         this.customerRepository = customerRepository;
@@ -62,6 +64,7 @@ public class ShopifyStoreConnectionService {
         this.consumerRepository = consumerRepository;
         this.platformAuditService = platformAuditService;
         this.sourcePreflightSupport = sourcePreflightSupport;
+        this.readinessEvaluator = readinessEvaluator;
     }
 
     public List<ShopifyStoreConnectionSummary> listConnections() {
@@ -179,6 +182,11 @@ public class ShopifyStoreConnectionService {
             ? null
             : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
         PlatformConsumerEntity consumer = entity.getConsumerId() == null ? null : consumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null);
+        var credentials = sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson());
+        var sourcePreflight = sourcePreflightSupport.summarize(entity.getDetailsJson());
+        var syncDetail = sourcePreflightSupport.summarizeSync(entity.getDetailsJson());
+        var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
+        var latestReleaseSummary = toReleaseSummary(latestRelease);
         return new ShopifyStoreConnectionSummary(
             entity.getId(),
             entity.getShopDomain(),
@@ -202,12 +210,13 @@ public class ShopifyStoreConnectionService {
             entity.isCollectionsEnabled(),
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
-            sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson()),
-            sourcePreflightSupport.summarize(entity.getDetailsJson()),
-            sourcePreflightSupport.summarizeSync(entity.getDetailsJson()),
-            sourcePreflightSupport.summarizeWidget(entity.getDetailsJson()),
+            credentials,
+            sourcePreflight,
+            syncDetail,
+            widgetDetail,
+            readinessEvaluator.evaluate(entity, credentials, sourcePreflight, syncDetail, widgetDetail, latestReleaseSummary),
             toVersionSummary(latestVersion),
-            toReleaseSummary(latestRelease),
+            latestReleaseSummary,
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),

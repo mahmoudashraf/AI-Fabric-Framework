@@ -32,6 +32,7 @@ public record ShopifyStoreConnectionSummary(
     ShopifyStoreSourcePreflightSummary sourcePreflight,
     ShopifyStoreSyncSummary syncDetail,
     ShopifyStoreWidgetSummary widgetDetail,
+    ShopifyStoreReadinessSummary readiness,
     DeploymentVersionSummary latestVersion,
     DeploymentReleaseSummary latestRelease,
     Instant lastSourcePreflightAt,

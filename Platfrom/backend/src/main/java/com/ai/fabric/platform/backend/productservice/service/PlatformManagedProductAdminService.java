@@ -21,6 +21,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreReadinessEvaluator;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightSupport;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
@@ -63,6 +64,7 @@ public class PlatformManagedProductAdminService {
     private final PlatformAuditService platformAuditService;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
+    private final ShopifyStoreReadinessEvaluator readinessEvaluator;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -79,6 +81,7 @@ public class PlatformManagedProductAdminService {
                                               PlatformAuditService platformAuditService,
                                               RailwayGraphqlClient railwayGraphqlClient,
                                               ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                              ShopifyStoreReadinessEvaluator readinessEvaluator,
                                               ObjectMapper objectMapper) {
         this.serviceService = serviceService;
         this.serviceRepository = serviceRepository;
@@ -93,6 +96,7 @@ public class PlatformManagedProductAdminService {
         this.platformAuditService = platformAuditService;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.sourcePreflightSupport = sourcePreflightSupport;
+        this.readinessEvaluator = readinessEvaluator;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder().connectTimeout(HTTP_TIMEOUT).build();
     }
@@ -240,6 +244,11 @@ public class PlatformManagedProductAdminService {
         PlatformConsumerEntity consumer = hasText(entity.getConsumerId())
             ? platformConsumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null)
             : null;
+        var credentials = sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson());
+        var sourcePreflight = sourcePreflightSupport.summarize(entity.getDetailsJson());
+        var syncDetail = sourcePreflightSupport.summarizeSync(entity.getDetailsJson());
+        var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
+        var latestReleaseSummary = toReleaseSummary(latestRelease);
         return new ShopifyStoreConnectionSummary(
             entity.getId(),
             entity.getShopDomain(),
@@ -263,12 +272,13 @@ public class PlatformManagedProductAdminService {
             entity.isCollectionsEnabled(),
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
-            sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson()),
-            sourcePreflightSupport.summarize(entity.getDetailsJson()),
-            sourcePreflightSupport.summarizeSync(entity.getDetailsJson()),
-            sourcePreflightSupport.summarizeWidget(entity.getDetailsJson()),
+            credentials,
+            sourcePreflight,
+            syncDetail,
+            widgetDetail,
+            readinessEvaluator.evaluate(entity, credentials, sourcePreflight, syncDetail, widgetDetail, latestReleaseSummary),
             toVersionSummary(latestVersion),
-            toReleaseSummary(latestRelease),
+            latestReleaseSummary,
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),

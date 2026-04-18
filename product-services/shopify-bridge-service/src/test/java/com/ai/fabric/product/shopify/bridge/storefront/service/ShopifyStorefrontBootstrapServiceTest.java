@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentReleaseSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentVersionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import org.junit.jupiter.api.Test;
@@ -117,6 +118,7 @@ class ShopifyStorefrontBootstrapServiceTest {
             null,
             null,
             null,
+            readiness(sourceReadinessStatus),
             new ShopifyBridgeStoreDeploymentVersionSummary(
                 "ver-1",
                 "v1",
@@ -141,6 +143,27 @@ class ShopifyStorefrontBootstrapServiceTest {
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z")
+        );
+    }
+
+    private ShopifyBridgeStoreReadinessSummary readiness(String sourceReadinessStatus) {
+        if ("READY".equalsIgnoreCase(sourceReadinessStatus)) {
+            return new ShopifyBridgeStoreReadinessSummary(
+                "STOREFRONT_READY",
+                true,
+                true,
+                java.util.List.of(),
+                java.util.List.of(),
+                java.util.List.of("Enable the Shopify theme app extension and load the storefront once to finish widget activation.")
+            );
+        }
+        return new ShopifyBridgeStoreReadinessSummary(
+            "BLOCKED",
+            false,
+            false,
+            java.util.List.of("Shopify source readiness is not READY yet."),
+            java.util.List.of("Store data is not ready yet. Run source preflight and complete publish/apply/verify before enabling the widget."),
+            java.util.List.of("Run source preflight and resolve any blocked Shopify source categories.")
         );
     }
 }
