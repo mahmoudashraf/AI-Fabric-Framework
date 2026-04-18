@@ -119,6 +119,8 @@ class ShopifyStoreSyncServiceTest {
             null,
             null,
             null,
+            null,
+            null,
             Instant.now(),
             null,
             null,

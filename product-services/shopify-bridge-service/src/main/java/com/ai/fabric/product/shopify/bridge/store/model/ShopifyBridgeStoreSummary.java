@@ -28,6 +28,8 @@ public record ShopifyBridgeStoreSummary(
     ShopifyBridgeStoreSourcePreflightSummary sourcePreflight,
     ShopifyBridgeStoreSyncSummary syncDetail,
     ShopifyBridgeStoreWidgetSummary widgetDetail,
+    ShopifyBridgeStoreDeploymentVersionSummary latestVersion,
+    ShopifyBridgeStoreDeploymentReleaseSummary latestRelease,
     Instant lastSourcePreflightAt,
     Instant lastSyncAt,
     Instant lastWebhookAt,

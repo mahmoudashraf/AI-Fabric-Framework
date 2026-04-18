@@ -1,5 +1,8 @@
 package com.ai.fabric.platform.backend.shopify.model;
 
+import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+
 import java.time.Instant;
 
 public record ShopifyStoreConnectionSummary(
@@ -29,6 +32,8 @@ public record ShopifyStoreConnectionSummary(
     ShopifyStoreSourcePreflightSummary sourcePreflight,
     ShopifyStoreSyncSummary syncDetail,
     ShopifyStoreWidgetSummary widgetDetail,
+    DeploymentVersionSummary latestVersion,
+    DeploymentReleaseSummary latestRelease,
     Instant lastSourcePreflightAt,
     Instant lastSyncAt,
     Instant lastWebhookAt,

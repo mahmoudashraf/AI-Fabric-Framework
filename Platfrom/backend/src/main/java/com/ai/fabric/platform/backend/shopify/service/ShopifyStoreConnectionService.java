@@ -2,7 +2,13 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -32,6 +38,8 @@ public class ShopifyStoreConnectionService {
     private final PlatformManagedProductServiceService productServiceService;
     private final PlatformCustomerRepository customerRepository;
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentVersionRepository deploymentVersionRepository;
+    private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final PlatformConsumerRepository consumerRepository;
     private final PlatformAuditService platformAuditService;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
@@ -40,6 +48,8 @@ public class ShopifyStoreConnectionService {
                                          PlatformManagedProductServiceService productServiceService,
                                          PlatformCustomerRepository customerRepository,
                                          DeploymentRepository deploymentRepository,
+                                         DeploymentVersionRepository deploymentVersionRepository,
+                                         DeploymentReleaseRepository deploymentReleaseRepository,
                                          PlatformConsumerRepository consumerRepository,
                                          PlatformAuditService platformAuditService,
                                          ShopifyStoreSourcePreflightSupport sourcePreflightSupport) {
@@ -47,6 +57,8 @@ public class ShopifyStoreConnectionService {
         this.productServiceService = productServiceService;
         this.customerRepository = customerRepository;
         this.deploymentRepository = deploymentRepository;
+        this.deploymentVersionRepository = deploymentVersionRepository;
+        this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.consumerRepository = consumerRepository;
         this.platformAuditService = platformAuditService;
         this.sourcePreflightSupport = sourcePreflightSupport;
@@ -160,6 +172,12 @@ public class ShopifyStoreConnectionService {
         PlatformManagedProductServiceEntity productService = productServiceService.requireServiceById(entity.getProductServiceId());
         PlatformCustomerEntity customer = entity.getCustomerId() == null ? null : customerRepository.findById(entity.getCustomerId()).orElse(null);
         DeploymentEntity deployment = entity.getDeploymentId() == null ? null : deploymentRepository.findById(entity.getDeploymentId()).orElse(null);
+        DeploymentVersionEntity latestVersion = deployment == null
+            ? null
+            : deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deployment.getId()).stream().findFirst().orElse(null);
+        DeploymentReleaseEntity latestRelease = deployment == null
+            ? null
+            : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
         PlatformConsumerEntity consumer = entity.getConsumerId() == null ? null : consumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null);
         return new ShopifyStoreConnectionSummary(
             entity.getId(),
@@ -188,11 +206,52 @@ public class ShopifyStoreConnectionService {
             sourcePreflightSupport.summarize(entity.getDetailsJson()),
             sourcePreflightSupport.summarizeSync(entity.getDetailsJson()),
             sourcePreflightSupport.summarizeWidget(entity.getDetailsJson()),
+            toVersionSummary(latestVersion),
+            toReleaseSummary(latestRelease),
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
+        );
+    }
+
+    private DeploymentVersionSummary toVersionSummary(DeploymentVersionEntity version) {
+        if (version == null) {
+            return null;
+        }
+        return new DeploymentVersionSummary(
+            version.getId(),
+            version.getDeploymentId(),
+            version.getSourceDraftId(),
+            version.getVersionLabel(),
+            version.getStatus(),
+            version.getConfigHash(),
+            version.isReindexRequired(),
+            version.getPublishedAt()
+        );
+    }
+
+    private DeploymentReleaseSummary toReleaseSummary(DeploymentReleaseEntity release) {
+        if (release == null) {
+            return null;
+        }
+        return new DeploymentReleaseSummary(
+            release.getId(),
+            release.getDeploymentId(),
+            release.getDeploymentVersionId(),
+            release.getStatus(),
+            release.getVerificationStatus(),
+            release.getProvisioningStatus(),
+            release.getProvisioningTarget(),
+            release.getCurrentStepKey(),
+            release.getCurrentStepDescription(),
+            release.getErrorMessage(),
+            release.getVerificationRunId(),
+            sourcePreflightSupport.readJsonNode(release.getProvisioningDetailsJson()),
+            release.getCreatedAt(),
+            release.getAppliedAt(),
+            release.getUpdatedAt()
         );
     }
 

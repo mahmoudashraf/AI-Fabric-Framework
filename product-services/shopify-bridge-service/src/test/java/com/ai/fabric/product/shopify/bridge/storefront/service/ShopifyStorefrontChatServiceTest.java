@@ -1,6 +1,8 @@
 package com.ai.fabric.product.shopify.bridge.storefront.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentReleaseSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentVersionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -95,6 +97,25 @@ class ShopifyStorefrontChatServiceTest {
             null,
             null,
             null,
+            new ShopifyBridgeStoreDeploymentVersionSummary(
+                "ver-1",
+                "v1",
+                "PUBLISHED",
+                Instant.parse("2026-04-18T00:00:00Z")
+            ),
+            new ShopifyBridgeStoreDeploymentReleaseSummary(
+                "rel-1",
+                "ver-1",
+                "APPLIED_VERIFIED",
+                "PASSED",
+                "SUCCEEDED",
+                "completed",
+                "Release applied and verified.",
+                null,
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T00:00:00Z")
+            ),
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),

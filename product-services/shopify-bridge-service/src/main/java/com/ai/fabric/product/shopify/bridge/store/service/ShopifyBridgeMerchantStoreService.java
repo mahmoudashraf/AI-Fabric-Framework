@@ -66,6 +66,12 @@ public class ShopifyBridgeMerchantStoreService {
         return platformShopifyStoreClient.bootstrap(merchantSession.shopDomain());
     }
 
+    public ShopifyBridgeStoreSummary goLive(ShopifyMerchantSession merchantSession,
+                                            String authorizationHeader) {
+        acquireConnectedCredentials(merchantSession, authorizationHeader);
+        return platformShopifyStoreClient.goLive(merchantSession.shopDomain());
+    }
+
     private ShopifyBridgeCredentialAcquisition acquireConnectedCredentials(ShopifyMerchantSession merchantSession,
                                                                            String authorizationHeader) {
         ShopifyBridgeStoreSummary current = findStoreOrNull(merchantSession.shopDomain());

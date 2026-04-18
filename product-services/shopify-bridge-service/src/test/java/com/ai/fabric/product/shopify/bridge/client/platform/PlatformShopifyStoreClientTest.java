@@ -160,6 +160,19 @@ class PlatformShopifyStoreClientTest {
     }
 
     @Test
+    void goLiveUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/go-live"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("READY", "NOT_SYNCED", "NOT_ENABLED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.goLive("alpha.myshopify.com");
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        server.verify();
+    }
+
+    @Test
     void recordSourcePreflightUsesPlatformAdminApiKey() {
         server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/source-preflight"))
             .andExpect(method(HttpMethod.POST))

@@ -38,6 +38,11 @@ public class ShopifyStorefrontChatService {
         if (!StringUtils.hasText(store.consumerId()) || !StringUtils.hasText(store.deploymentId())) {
             throw unavailable("Store assistant mapping is incomplete for " + store.shopDomain() + ".");
         }
+        if (store.latestRelease() == null
+            || !"APPLIED_VERIFIED".equalsIgnoreCase(store.latestRelease().status())
+            || !"PASSED".equalsIgnoreCase(store.latestRelease().verificationStatus())) {
+            throw unavailable("Store assistant is not live yet for " + store.shopDomain() + ". Wait for publish/apply/verify to complete.");
+        }
         return store;
     }
 

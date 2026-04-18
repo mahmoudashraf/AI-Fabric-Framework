@@ -525,6 +525,8 @@ export type ShopifyStoreConnectionSummary = {
   sourcePreflight: ShopifyStoreSourcePreflightSummary | null
   syncDetail: ShopifyStoreSyncSummary | null
   widgetDetail: ShopifyStoreWidgetSummary | null
+  latestVersion: DeploymentVersionSummary | null
+  latestRelease: DeploymentReleaseSummary | null
   lastSourcePreflightAt: string | null
   lastSyncAt: string | null
   lastWebhookAt: string | null
@@ -2873,6 +2875,12 @@ export function bootstrapShopifyStore(shopDomain: string, payload: BootstrapShop
   return request<ShopifyStoreBootstrapSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/bootstrap`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function goLiveShopifyStore(shopDomain: string) {
+  return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/go-live`, {
+    method: 'POST',
   })
 }
 

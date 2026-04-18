@@ -87,6 +87,14 @@ public class PlatformShopifyStoreClient {
             .body(ShopifyBridgeStoreBootstrapResponse.class);
     }
 
+    public ShopifyBridgeStoreSummary goLive(String shopDomain) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/go-live")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreSummary.class);
+    }
+
     public ShopifyBridgeStoreSummary recordSourcePreflight(String shopDomain, ShopifyBridgeRecordSourcePreflightRequest request) {
         return restClient.post()
             .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/source-preflight")

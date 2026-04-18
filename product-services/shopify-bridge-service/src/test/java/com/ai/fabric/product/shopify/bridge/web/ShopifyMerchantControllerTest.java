@@ -118,6 +118,17 @@ class ShopifyMerchantControllerTest {
         verify(merchantStoreService).runSourcePreflight(any(), anyString());
     }
 
+    @Test
+    void goLiveUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.goLive(any(), anyString())).thenReturn(store());
+
+        mockMvc.perform(post("/api/app/store/go-live").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+
+        verify(merchantStoreService).goLive(any(), anyString());
+    }
+
     private ShopifyBridgeStoreSummary store() {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
@@ -153,6 +164,8 @@ class ShopifyMerchantControllerTest {
                 "read_products",
                 true
             ),
+            null,
+            null,
             null,
             null,
             null,

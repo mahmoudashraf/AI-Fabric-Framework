@@ -19,6 +19,7 @@ import {
   connectStore,
   fetchSession,
   fetchShell,
+  goLiveStore,
   runSourcePreflight,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeShellResponse,
@@ -61,7 +62,7 @@ export default function App() {
   })
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | null>(null)
+  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'go-live' | null>(null)
 
   useEffect(() => {
     void refresh()
@@ -146,6 +147,24 @@ export default function App() {
       setActionMessage(`Recorded Shopify source preflight for ${store.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to run Shopify source preflight.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleGoLive() {
+    setBusyAction('go-live')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const store = await goLiveStore()
+      setState((current) => ({
+        ...current,
+        session: current.session ? { ...current.session, store } : current.session,
+      }))
+      setActionMessage(`Requested publish/apply for ${store.shopDomain}. Track the latest release below before enabling the storefront widget.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to request Shopify Companion go-live.')
     } finally {
       setBusyAction(null)
     }
@@ -273,7 +292,7 @@ export default function App() {
                 Next actions
               </Text>
               <Text as="p" variant="bodyMd" tone="subdued">
-                Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability.
+                Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability. Go live only after the source readiness checks are clean.
               </Text>
               <Divider />
               <InlineStack gap="300" align="start">
@@ -298,6 +317,13 @@ export default function App() {
                   disabled={!session}
                 >
                   Bootstrap deployment
+                </Button>
+                <Button
+                  onClick={() => void handleGoLive()}
+                  loading={busyAction === 'go-live'}
+                  disabled={!session}
+                >
+                  Publish and apply
                 </Button>
               </InlineStack>
             </BlockStack>
@@ -324,6 +350,8 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
         <List.Item>Widget: {store.widgetStatus}</List.Item>
         <List.Item>Credentials: {store.credentials?.status ?? 'MISSING'}</List.Item>
         <List.Item>Deployment: {store.deploymentName ?? '—'} ({store.deploymentStatus ?? '—'})</List.Item>
+        <List.Item>Latest version: {store.latestVersion?.versionLabel ?? '—'} ({store.latestVersion?.status ?? '—'})</List.Item>
+        <List.Item>Latest release: {store.latestRelease?.status ?? '—'} / verification {store.latestRelease?.verificationStatus ?? '—'}</List.Item>
         <List.Item>Consumer: {store.consumerId ?? '—'}</List.Item>
       </List>
       {store.credentials ? (
@@ -337,6 +365,13 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
           {store.sourcePreflight.categories
             .map((category) => `${category.category} ${category.status.toLowerCase()} (${category.itemCount})`)
             .join(' · ')}
+        </Text>
+      ) : null}
+      {store.latestRelease ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          Release step {store.latestRelease.currentStepKey ?? '—'} · provisioning {store.latestRelease.provisioningStatus} · updated{' '}
+          {store.latestRelease.updatedAt ? new Date(store.latestRelease.updatedAt).toLocaleString() : '—'}
+          {store.latestRelease.errorMessage ? ` · ${store.latestRelease.errorMessage}` : ''}
         </Text>
       ) : null}
       <Text as="p" variant="bodySm" tone="subdued">

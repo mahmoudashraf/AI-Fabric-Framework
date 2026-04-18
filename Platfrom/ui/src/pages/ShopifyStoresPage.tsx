@@ -33,6 +33,7 @@ import {
   fetchProductServices,
   fetchShopifyStore,
   fetchShopifyStores,
+  goLiveShopifyStore,
   recordShopifyStoreSourcePreflight,
   type RecordShopifyStoreSourcePreflightRequest,
   type ShopifyStoreBootstrapSummary,
@@ -65,6 +66,7 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'NOT_STARTED':
     case 'INSTALL_IDENTITY_READY':
     case 'PLATFORM_BOOTSTRAPPED':
+    case 'GO_LIVE_REQUESTED':
       return 'warning'
     default:
       return 'default'
@@ -234,6 +236,24 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const goLiveMutation = useMutation({
+    mutationFn: (shopDomain: string) => goLiveShopifyStore(shopDomain),
+    onSuccess: async (store) => {
+      setMessage({
+        type: 'success',
+        text: `Requested publish/apply for ${store.shopDomain}. Latest release ${store.latestRelease?.id ?? '—'} is now ${store.latestRelease?.status ?? 'queued'}.`,
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', store.shopDomain] }),
+        queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+      ])
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to request Shopify Companion go-live.' })
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: ({ shopDomain, force }: { shopDomain: string; force: boolean }) => deleteShopifyStore(shopDomain, force),
     onSuccess: async (_, variables) => {
@@ -300,6 +320,13 @@ export function ShopifyStoresPage() {
                 disabled={bootstrapMutation.isPending}
               >
                 Bootstrap platform
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => goLiveMutation.mutate(selectedStore.shopDomain)}
+                disabled={goLiveMutation.isPending}
+              >
+                Publish and apply
               </Button>
               <Button
                 variant="outlined"
@@ -376,6 +403,13 @@ export function ShopifyStoresPage() {
                       ['Customer', selectedStore.customerName ?? selectedStore.customerId],
                       ['Deployment', selectedStore.deploymentName ?? selectedStore.deploymentId],
                       ['Deployment status', selectedStore.deploymentStatus],
+                      ['Latest version', selectedStore.latestVersion ? `${selectedStore.latestVersion.versionLabel} (${selectedStore.latestVersion.status})` : null],
+                      [
+                        'Latest release',
+                        selectedStore.latestRelease
+                          ? `${selectedStore.latestRelease.status} / ${selectedStore.latestRelease.verificationStatus}`
+                          : null,
+                      ],
                       ['Consumer', selectedStore.consumerDisplayName ?? selectedStore.consumerId],
                       ['Onboarding', selectedStore.onboardingStatus],
                       ['Credentials', selectedStore.credentials?.status],
@@ -498,6 +532,41 @@ export function ShopifyStoresPage() {
                     </Card>
                   ) : null}
 
+                  {selectedStore.latestRelease ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Go-live release</Typography>
+                            <Chip size="small" label={selectedStore.latestRelease.status} color={chipColor(selectedStore.latestRelease.status)} />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Verification ${selectedStore.latestRelease.verificationStatus}`}
+                              color={chipColor(selectedStore.latestRelease.verificationStatus)}
+                            />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Version {selectedStore.latestVersion?.versionLabel ?? selectedStore.latestRelease.deploymentVersionId} · Provisioning{' '}
+                            {selectedStore.latestRelease.provisioningStatus}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Step {selectedStore.latestRelease.currentStepKey ?? '—'} · {selectedStore.latestRelease.currentStepDescription ?? 'No current step description.'}
+                          </Typography>
+                          {selectedStore.latestRelease.errorMessage ? (
+                            <Typography variant="body2" color="error.main">
+                              {selectedStore.latestRelease.errorMessage}
+                            </Typography>
+                          ) : null}
+                          <Typography variant="body2" color="text.secondary">
+                            Created {formatTimestamp(selectedStore.latestRelease.createdAt)} · Applied {formatTimestamp(selectedStore.latestRelease.appliedAt)} · Updated{' '}
+                            {formatTimestamp(selectedStore.latestRelease.updatedAt)}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
                   {selectedStore.widgetDetail ? (
                     <Card variant="outlined">
                       <CardContent>
@@ -587,6 +656,7 @@ export function ShopifyStoresPage() {
               <MenuItem value="INSTALL_IDENTITY_READY">INSTALL_IDENTITY_READY</MenuItem>
               <MenuItem value="PLATFORM_BOOTSTRAPPED">PLATFORM_BOOTSTRAPPED</MenuItem>
               <MenuItem value="PREFLIGHT_READY">PREFLIGHT_READY</MenuItem>
+              <MenuItem value="GO_LIVE_REQUESTED">GO_LIVE_REQUESTED</MenuItem>
               <MenuItem value="LIVE">LIVE</MenuItem>
               <MenuItem value="BLOCKED">BLOCKED</MenuItem>
             </TextField>

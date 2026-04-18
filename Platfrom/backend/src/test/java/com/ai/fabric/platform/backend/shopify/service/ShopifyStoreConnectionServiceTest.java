@@ -2,7 +2,9 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -34,6 +36,8 @@ class ShopifyStoreConnectionServiceTest {
         PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
@@ -69,6 +73,8 @@ class ShopifyStoreConnectionServiceTest {
             productServiceService,
             customerRepository,
             deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
             new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
@@ -108,6 +114,8 @@ class ShopifyStoreConnectionServiceTest {
         PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
@@ -140,6 +148,8 @@ class ShopifyStoreConnectionServiceTest {
             productServiceService,
             customerRepository,
             deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
             new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
@@ -174,6 +184,8 @@ class ShopifyStoreConnectionServiceTest {
         PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
@@ -191,6 +203,8 @@ class ShopifyStoreConnectionServiceTest {
             productServiceService,
             customerRepository,
             deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
             new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
@@ -207,6 +221,8 @@ class ShopifyStoreConnectionServiceTest {
         PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
@@ -224,6 +240,8 @@ class ShopifyStoreConnectionServiceTest {
             productServiceService,
             customerRepository,
             deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
             new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())

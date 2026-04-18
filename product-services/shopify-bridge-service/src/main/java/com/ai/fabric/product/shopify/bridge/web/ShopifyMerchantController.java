@@ -46,6 +46,12 @@ public class ShopifyMerchantController {
         return merchantStoreService.bootstrap(requireMerchant(authentication), authorizationHeader);
     }
 
+    @PostMapping("/store/go-live")
+    public ShopifyBridgeStoreSummary goLive(Authentication authentication,
+                                            @RequestHeader("Authorization") String authorizationHeader) {
+        return merchantStoreService.goLive(requireMerchant(authentication), authorizationHeader);
+    }
+
     private ShopifyMerchantSession requireMerchant(Authentication authentication) {
         Object principal = authentication == null ? null : authentication.getPrincipal();
         if (principal instanceof ShopifyMerchantSession merchantSession) {

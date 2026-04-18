@@ -14,6 +14,25 @@ export type ShopifyBridgeStoreSummary = {
   deploymentId: string | null
   deploymentName: string | null
   deploymentStatus: string | null
+  latestVersion: {
+    id: string
+    versionLabel: string
+    status: string
+    publishedAt: string | null
+  } | null
+  latestRelease: {
+    id: string
+    deploymentVersionId: string
+    status: string
+    verificationStatus: string
+    provisioningStatus: string
+    currentStepKey: string | null
+    currentStepDescription: string | null
+    errorMessage: string | null
+    createdAt: string
+    appliedAt: string | null
+    updatedAt: string
+  } | null
   consumerId: string | null
   installStatus: string
   syncStatus: string
@@ -102,6 +121,10 @@ export async function runSourcePreflight(): Promise<ShopifyBridgeStoreSummary> {
 
 export async function bootstrapStore(): Promise<ShopifyBridgeStoreBootstrapResponse> {
   return authenticatedFetchJson('/api/app/store/bootstrap', { method: 'POST' })
+}
+
+export async function goLiveStore(): Promise<ShopifyBridgeStoreSummary> {
+  return authenticatedFetchJson('/api/app/store/go-live', { method: 'POST' })
 }
 
 async function authenticatedFetchJson<T>(input: string, init: RequestInit): Promise<T> {

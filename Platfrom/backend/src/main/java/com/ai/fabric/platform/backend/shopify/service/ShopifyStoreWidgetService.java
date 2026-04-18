@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
@@ -21,15 +22,18 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class ShopifyStoreWidgetService {
 
     private final ShopifyStoreConnectionRepository repository;
+    private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final PlatformAuditService platformAuditService;
     private final ShopifyStoreSourcePreflightSupport support;
 
     public ShopifyStoreWidgetService(ShopifyStoreConnectionRepository repository,
+                                     DeploymentReleaseRepository deploymentReleaseRepository,
                                      ShopifyStoreConnectionService shopifyStoreConnectionService,
                                      PlatformAuditService platformAuditService,
                                      ShopifyStoreSourcePreflightSupport support) {
         this.repository = repository;
+        this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.platformAuditService = platformAuditService;
         this.support = support;
@@ -59,7 +63,8 @@ public class ShopifyStoreWidgetService {
         store.setWidgetStatus(status);
         if ("ENABLED".equals(status)
             && "SYNCED".equalsIgnoreCase(store.getSyncStatus())
-            && "READY".equalsIgnoreCase(store.getSourceReadinessStatus())) {
+            && "READY".equalsIgnoreCase(store.getSourceReadinessStatus())
+            && hasVerifiedRelease(store.getDeploymentId())) {
             store.setOnboardingStatus("LIVE");
         } else if ("FAILED".equals(status)) {
             store.setOnboardingStatus("BLOCKED");
@@ -91,6 +96,16 @@ public class ShopifyStoreWidgetService {
 
     private String normalizeStatus(String value) {
         return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean hasVerifiedRelease(String deploymentId) {
+        if (!hasText(deploymentId)) {
+            return false;
+        }
+        return deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .map(release -> "APPLIED_VERIFIED".equalsIgnoreCase(release.getStatus())
+                && "PASSED".equalsIgnoreCase(release.getVerificationStatus()))
+            .orElse(false);
     }
 
     private boolean hasText(String value) {

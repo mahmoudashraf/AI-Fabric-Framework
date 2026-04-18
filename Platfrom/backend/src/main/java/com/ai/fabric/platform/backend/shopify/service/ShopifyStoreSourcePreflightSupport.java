@@ -140,6 +140,17 @@ public class ShopifyStoreSourcePreflightSupport {
         }
     }
 
+    public JsonNode readJsonNode(String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(value);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private Instant parseInstant(String value) {
         try {
             return hasText(value) ? Instant.parse(value) : null;

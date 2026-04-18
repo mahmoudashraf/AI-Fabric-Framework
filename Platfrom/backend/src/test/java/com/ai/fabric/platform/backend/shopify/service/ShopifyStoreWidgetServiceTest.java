@@ -1,6 +1,8 @@
 package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
@@ -21,6 +23,7 @@ class ShopifyStoreWidgetServiceTest {
     @Test
     void recordMarksLiveWhenWidgetEnabledAfterSyncAndReadiness() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
@@ -31,8 +34,9 @@ class ShopifyStoreWidgetServiceTest {
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary);
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(verifiedRelease()));
 
-        ShopifyStoreWidgetService service = new ShopifyStoreWidgetService(repository, connectionService, auditService, support);
+        ShopifyStoreWidgetService service = new ShopifyStoreWidgetService(repository, deploymentReleaseRepository, connectionService, auditService, support);
 
         ShopifyStoreConnectionSummary result = service.record(
             "demo.myshopify.com",
@@ -47,6 +51,7 @@ class ShopifyStoreWidgetServiceTest {
     @Test
     void recordMarksBlockedWhenWidgetFails() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
@@ -57,8 +62,9 @@ class ShopifyStoreWidgetServiceTest {
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary);
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
 
-        ShopifyStoreWidgetService service = new ShopifyStoreWidgetService(repository, connectionService, auditService, support);
+        ShopifyStoreWidgetService service = new ShopifyStoreWidgetService(repository, deploymentReleaseRepository, connectionService, auditService, support);
 
         ShopifyStoreConnectionSummary result = service.record(
             "demo.myshopify.com",
@@ -75,6 +81,7 @@ class ShopifyStoreWidgetServiceTest {
         entity.setShopDomain("demo.myshopify.com");
         entity.setDisplayName("Demo Shop");
         entity.setProductServiceId("psv-123");
+        entity.setDeploymentId("dep-123");
         entity.setInstallStatus("INSTALLED");
         entity.setSyncStatus("SYNCED");
         entity.setSourceReadinessStatus("READY");
@@ -117,11 +124,23 @@ class ShopifyStoreWidgetServiceTest {
             null,
             null,
             null,
+            null,
+            null,
             Instant.now(),
             null,
             null,
             Instant.now(),
             Instant.now()
         );
+    }
+
+    private DeploymentReleaseEntity verifiedRelease() {
+        DeploymentReleaseEntity entity = new DeploymentReleaseEntity();
+        entity.setId("rel-123");
+        entity.setDeploymentId("dep-123");
+        entity.setStatus("APPLIED_VERIFIED");
+        entity.setVerificationStatus("PASSED");
+        entity.setUpdatedAt(Instant.now());
+        return entity;
     }
 }

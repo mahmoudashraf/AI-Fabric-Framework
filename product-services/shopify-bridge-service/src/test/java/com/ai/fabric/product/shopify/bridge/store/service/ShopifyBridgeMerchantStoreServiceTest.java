@@ -138,6 +138,29 @@ class ShopifyBridgeMerchantStoreServiceTest {
     }
 
     @Test
+    void goLiveUsesConnectedCredentialsAndDelegatesToPlatform() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            installCredentialService,
+            mock(ShopifyBridgeSourcePreflightService.class)
+        );
+        when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
+        when(installCredentialService.acquireAndPersistMaterial(session(), "Bearer session-token"))
+            .thenReturn(acquisition(store("alpha.myshopify.com")));
+        when(client.goLive("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
+
+        ShopifyBridgeStoreSummary response = service.goLive(session(), "Bearer session-token");
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        verify(installCredentialService).acquireAndPersistMaterial(session(), "Bearer session-token");
+        verify(client).goLive("alpha.myshopify.com");
+    }
+
+    @Test
     void runSourcePreflightUsesConnectedCredentials() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
@@ -225,6 +248,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
                 "read_products",
                 true
             ),
+            null,
+            null,
             null,
             null,
             null,

@@ -32,6 +32,11 @@ public class ShopifyStorefrontBootstrapService {
         if (!"READY".equalsIgnoreCase(store.sourceReadinessStatus())) {
             return unavailable(store, "Store data is not ready yet. Run source preflight and complete publish/apply/verify before enabling the widget.");
         }
+        if (store.latestRelease() == null
+            || !"APPLIED_VERIFIED".equalsIgnoreCase(store.latestRelease().status())
+            || !"PASSED".equalsIgnoreCase(store.latestRelease().verificationStatus())) {
+            return unavailable(store, "Store deployment is not live yet. Wait for publish/apply/verify to finish before enabling the widget.");
+        }
 
         PlatformPublicConsumerDeploymentCredentialsResponse credentials =
             platformShopifyStoreClient.getConsumerCredentials(store.consumerId());

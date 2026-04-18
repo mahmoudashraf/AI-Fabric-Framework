@@ -11,7 +11,9 @@ import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredential
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -35,6 +37,8 @@ class ShopifyStoreCredentialServiceTest {
         PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
@@ -74,6 +78,8 @@ class ShopifyStoreCredentialServiceTest {
             productServiceService,
             customerRepository,
             deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
             support
@@ -122,6 +128,8 @@ class ShopifyStoreCredentialServiceTest {
         PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
@@ -177,6 +185,8 @@ class ShopifyStoreCredentialServiceTest {
             productServiceService,
             customerRepository,
             deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
             consumerRepository,
             platformAuditService,
             support

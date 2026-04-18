@@ -249,6 +249,8 @@ public class PlatformManagedProductAdminService {
             sourcePreflightSupport.summarize(entity.getDetailsJson()),
             sourcePreflightSupport.summarizeSync(entity.getDetailsJson()),
             sourcePreflightSupport.summarizeWidget(entity.getDetailsJson()),
+            null,
+            null,
             entity.getLastSourcePreflightAt(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),
