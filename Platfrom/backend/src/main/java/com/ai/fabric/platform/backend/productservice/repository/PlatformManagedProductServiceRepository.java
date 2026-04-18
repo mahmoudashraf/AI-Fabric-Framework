@@ -11,5 +11,6 @@ public interface PlatformManagedProductServiceRepository extends JpaRepository<P
     List<PlatformManagedProductServiceEntity> findAllByOrderByDisplayNameAsc();
 
     Optional<PlatformManagedProductServiceEntity> findByServiceRefIgnoreCase(String serviceRef);
-}
 
+    List<PlatformManagedProductServiceEntity> findAllByStatusIgnoreCaseOrderByDisplayNameAsc(String status);
+}

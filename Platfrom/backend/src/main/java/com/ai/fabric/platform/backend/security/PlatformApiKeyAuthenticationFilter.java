@@ -1,6 +1,8 @@
 package com.ai.fabric.platform.backend.security;
 
 import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -24,11 +26,14 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private final PlatformAuthProperties properties;
     private final PlatformSecretService platformSecretService;
+    private final PlatformManagedProductServiceRepository productServiceRepository;
 
     public PlatformApiKeyAuthenticationFilter(PlatformAuthProperties properties,
-                                              PlatformSecretService platformSecretService) {
+                                              PlatformSecretService platformSecretService,
+                                              PlatformManagedProductServiceRepository productServiceRepository) {
         this.properties = properties;
         this.platformSecretService = platformSecretService;
+        this.productServiceRepository = productServiceRepository;
     }
 
     @Override
@@ -51,8 +56,8 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        PlatformRole role = matchRole(presentedKey);
-        if (role == null) {
+        PlatformPrincipal principal = matchPrincipal(presentedKey, request.getRequestURI());
+        if (principal == null) {
             log.warn(
                 "Platform auth rejected request: method={}, path={}, header={}",
                 request.getMethod(),
@@ -63,24 +68,51 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        PlatformPrincipal principal = new PlatformPrincipal(
-            role == PlatformRole.PLATFORM_ADMIN ? "platform-admin" : "platform-operator",
-            role,
-            role == PlatformRole.PLATFORM_ADMIN ? "Platform Admin API Key" : "Platform Operator API Key",
-            "API_KEY"
-        );
         SecurityContextHolder.getContext().setAuthentication(PlatformAuthenticationSupport.authenticationFor(principal));
         filterChain.doFilter(request, response);
     }
 
-    private PlatformRole matchRole(String presentedKey) {
+    private PlatformPrincipal matchPrincipal(String presentedKey, String requestPath) {
         if (matches(resolveAdminApiKey(), presentedKey)) {
-            return PlatformRole.PLATFORM_ADMIN;
+            return new PlatformPrincipal(
+                "platform-admin",
+                PlatformRole.PLATFORM_ADMIN,
+                "Platform Admin API Key",
+                "API_KEY"
+            );
         }
         if (matches(resolveOperatorApiKey(), presentedKey)) {
-            return PlatformRole.PLATFORM_OPERATOR;
+            return new PlatformPrincipal(
+                "platform-operator",
+                PlatformRole.PLATFORM_OPERATOR,
+                "Platform Operator API Key",
+                "API_KEY"
+            );
+        }
+        if (supportsProductServiceAuth(requestPath)) {
+            for (PlatformManagedProductServiceEntity service : productServiceRepository.findAllByStatusIgnoreCaseOrderByDisplayNameAsc("ACTIVE")) {
+                if (!hasText(service.getSecretName())) {
+                    continue;
+                }
+                if (matches(platformSecretService.resolveSecret(service.getSecretName()), presentedKey)) {
+                    return new PlatformPrincipal(
+                        service.getServiceRef(),
+                        PlatformRole.PLATFORM_PRODUCT_SERVICE,
+                        firstNonBlank(service.getDisplayName(), service.getServiceRef()),
+                        "PRODUCT_SERVICE_API_KEY"
+                    );
+                }
+            }
         }
         return null;
+    }
+
+    private boolean supportsProductServiceAuth(String requestPath) {
+        if (!hasText(requestPath)) {
+            return false;
+        }
+        return requestPath.startsWith("/api/shopify/")
+            || requestPath.startsWith("/api/public/consumers/");
     }
 
     private boolean apiKeyAuthAvailable() {

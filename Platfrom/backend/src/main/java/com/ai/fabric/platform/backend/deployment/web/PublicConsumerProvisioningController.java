@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/public/consumers")
-@PreAuthorize("hasAnyRole('PUBLIC_API_CLIENT','PLATFORM_ADMIN','PLATFORM_OPERATOR')")
 public class PublicConsumerProvisioningController {
 
     private final PublicProvisioningApiService publicProvisioningApiService;
@@ -22,16 +21,19 @@ public class PublicConsumerProvisioningController {
     }
 
     @GetMapping("/{consumerId}")
+    @PreAuthorize("hasAnyRole('PUBLIC_API_CLIENT','PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
     public PublicConsumerDeploymentSummary getConsumer(@PathVariable String consumerId) {
         return publicProvisioningApiService.getConsumerDeployment(consumerId);
     }
 
     @GetMapping("/{consumerId}/status")
+    @PreAuthorize("hasAnyRole('PUBLIC_API_CLIENT','PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
     public PublicConsumerDeploymentStatusResponse getConsumerStatus(@PathVariable String consumerId) {
         return publicProvisioningApiService.getConsumerDeploymentStatus(consumerId);
     }
 
     @GetMapping("/{consumerId}/credentials")
+    @PreAuthorize("hasAnyRole('PUBLIC_API_CLIENT','PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
     public PublicConsumerDeploymentCredentialsResponse getConsumerCredentials(@PathVariable String consumerId) {
         return publicProvisioningApiService.getConsumerDeploymentCredentials(consumerId);
     }

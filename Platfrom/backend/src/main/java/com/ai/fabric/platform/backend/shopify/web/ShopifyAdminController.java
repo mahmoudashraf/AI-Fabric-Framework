@@ -42,7 +42,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/shopify/stores")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
 public class ShopifyAdminController {
 
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
@@ -82,11 +81,13 @@ public class ShopifyAdminController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or hasRole('PLATFORM_PRODUCT_SERVICE')")
     public List<ShopifyStoreConnectionSummary> listStores() {
         return shopifyStoreConnectionService.listConnections();
     }
 
     @GetMapping("/{shopDomain}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary getStore(@PathVariable String shopDomain) {
         return shopifyStoreConnectionService.getConnection(shopDomain);
     }
@@ -101,26 +102,27 @@ public class ShopifyAdminController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canUpsert(authentication, #request)")
     public ShopifyStoreConnectionSummary upsertStore(@Valid @RequestBody UpsertShopifyStoreConnectionRequest request) {
         return shopifyStoreConnectionService.upsertConnection(request);
     }
 
     @PostMapping("/{shopDomain}/credentials")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary upsertCredentials(@PathVariable String shopDomain,
                                                            @Valid @RequestBody UpsertShopifyStoreCredentialsRequest request) {
         return shopifyStoreCredentialService.upsert(shopDomain, request);
     }
 
     @DeleteMapping("/{shopDomain}/credentials")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     @ResponseStatus(HttpStatus.OK)
     public ShopifyStoreConnectionSummary clearCredentials(@PathVariable String shopDomain) {
         return shopifyStoreCredentialService.clear(shopDomain);
     }
 
     @PostMapping("/{shopDomain}/credentials/material")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ResponseEntity<ShopifyStoreResolvedCredentialsSummary> resolveCredentials(@PathVariable String shopDomain) {
         return ResponseEntity.ok()
             .cacheControl(CacheControl.noStore())
@@ -128,55 +130,61 @@ public class ShopifyAdminController {
     }
 
     @PostMapping("/{shopDomain}/bootstrap")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreBootstrapSummary bootstrapStore(@PathVariable String shopDomain,
                                                        @RequestBody(required = false) BootstrapShopifyStoreRequest request) {
         return shopifyStoreBootstrapService.bootstrap(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/go-live")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary goLive(@PathVariable String shopDomain) {
         return shopifyStoreGoLiveService.goLive(shopDomain);
     }
 
     @PostMapping("/{shopDomain}/uninstall")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary uninstall(@PathVariable String shopDomain) {
         return shopifyStoreUninstallService.markUninstalled(shopDomain, "Shopify app uninstall cleanup.");
     }
 
     @PostMapping("/{shopDomain}/source-preflight")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary recordSourcePreflight(@PathVariable String shopDomain,
                                                                @RequestBody RecordShopifyStoreSourcePreflightRequest request) {
         return shopifyStoreSourcePreflightService.record(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/sync-status")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary recordSyncStatus(@PathVariable String shopDomain,
                                                           @RequestBody RecordShopifyStoreSyncStatusRequest request) {
         return shopifyStoreSyncService.record(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/documents/sync")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary syncDocuments(@PathVariable String shopDomain,
                                                        @RequestBody SyncShopifyStoreDocumentsRequest request) {
         return shopifyStoreDocumentSyncService.sync(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/webhook-events")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary recordWebhookEvent(@PathVariable String shopDomain,
                                                             @RequestBody RecordShopifyStoreWebhookEventRequest request) {
         return shopifyStoreWebhookService.record(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/widget-status")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary recordWidgetStatus(@PathVariable String shopDomain,
                                                             @RequestBody RecordShopifyStoreWidgetStatusRequest request) {
         return shopifyStoreWidgetService.record(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/widget-settings")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary updateWidgetSettings(@PathVariable String shopDomain,
                                                               @RequestBody UpdateShopifyStoreWidgetSettingsRequest request) {
         return shopifyStoreWidgetSettingsService.update(shopDomain, request);

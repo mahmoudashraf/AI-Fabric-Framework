@@ -364,11 +364,12 @@ public class PlatformManagedProductProvisioningService {
         );
 
         ensureServiceSecret(service);
+        String publicBaseUrl = ensureServiceDomain(project.id(), environment.id(), railwayService.id());
         railwayGraphqlClient.upsertVariables(
             project.id(),
             environment.id(),
             railwayService.id(),
-            buildServiceEnv(service)
+            buildServiceEnv(service, publicBaseUrl)
         );
 
         if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
@@ -390,7 +391,6 @@ public class PlatformManagedProductProvisioningService {
             environment.id(),
             railwayService.id()
         );
-        String publicBaseUrl = ensureServiceDomain(project.id(), environment.id(), railwayService.id());
         return new ReconciledRailwayService(
             project.id(),
             environment.id(),
@@ -500,15 +500,19 @@ public class PlatformManagedProductProvisioningService {
         return "MANAGED_PRODUCT_" + normalizeToken(serviceRef).replace('-', '_').toUpperCase(Locale.ROOT) + "_API_KEY";
     }
 
-    private List<RailwayGraphqlClient.RailwayEnvVarInput> buildServiceEnv(PlatformManagedProductServiceEntity service) {
+    private List<RailwayGraphqlClient.RailwayEnvVarInput> buildServiceEnv(PlatformManagedProductServiceEntity service,
+                                                                          String publicBaseUrl) {
         List<RailwayGraphqlClient.RailwayEnvVarInput> env = new ArrayList<>();
         switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" -> {
-                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SHARED_SECRET", resolveSecret(service.getSecretName())));
+                String sharedSecret = resolveSecret(service.getSecretName());
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SHARED_SECRET", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SERVICE_REF", service.getServiceRef()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_APP_NAME", blankToFallback(service.getDisplayName(), "Shopify Bridge Service")));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_ENVIRONMENT_SCOPE", resolveEnvironmentName(service)));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PLATFORM_BASE_URL", deliveryProperties.publicBaseUrl()));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY", sharedSecret));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PUBLIC_BASE_URL", blankToFallback(publicBaseUrl, "")));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "health,info"));
             }
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());

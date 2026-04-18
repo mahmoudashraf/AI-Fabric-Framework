@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.security;
 public enum PlatformRole {
     PLATFORM_ADMIN,
     PLATFORM_OPERATOR,
+    PLATFORM_PRODUCT_SERVICE,
     CUSTOMER_ADMIN,
     PUBLIC_API_CLIENT;
 

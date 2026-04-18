@@ -11,6 +11,9 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCapabilitySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
@@ -71,7 +74,15 @@ public class ShopifyStoreConnectionService {
     }
 
     public List<ShopifyStoreConnectionSummary> listConnections() {
-        return repository.findAllByOrderByCreatedAtDesc().stream()
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        List<ShopifyStoreConnectionEntity> entities;
+        if (principal != null && principal.role() == PlatformRole.PLATFORM_PRODUCT_SERVICE) {
+            PlatformManagedProductServiceEntity service = productServiceService.requireService(principal.actorId());
+            entities = repository.findAllByProductServiceIdOrderByShopDomainAsc(service.getId());
+        } else {
+            entities = repository.findAllByOrderByCreatedAtDesc();
+        }
+        return entities.stream()
             .map(this::toSummary)
             .toList();
     }

@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/public/consumers")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
 public class PublicConsumerBridgeController {
 
     private final PublicConsumerBridgeChatService publicConsumerBridgeChatService;
@@ -22,6 +21,7 @@ public class PublicConsumerBridgeController {
     }
 
     @PostMapping("/{consumerId}/bridge/chat/query")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
     public JsonNode query(@PathVariable String consumerId,
                           @RequestBody(required = false) JsonNode request,
                           @RequestHeader(value = PublicConsumerBridgeChatService.SHOPPER_SESSION_HEADER, required = false)
@@ -30,6 +30,7 @@ public class PublicConsumerBridgeController {
     }
 
     @PostMapping("/{consumerId}/bridge/chat/suggestions")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
     public JsonNode suggestions(@PathVariable String consumerId,
                                 @RequestBody(required = false) JsonNode request,
                                 @RequestHeader(value = PublicConsumerBridgeChatService.SHOPPER_SESSION_HEADER, required = false)

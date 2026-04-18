@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.security;
 
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -33,6 +34,9 @@ class PlatformSecurityIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private PlatformSecretService platformSecretService;
 
     @Test
     void sessionEndpointIsPublicAndReportsUnauthenticatedStateWithoutKey() throws Exception {
@@ -655,5 +659,115 @@ class PlatformSecurityIntegrationTest {
                     }
                     """))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void productServiceApiKeyIsScopedToItsOwnShopifyStoresAndCannotUseGeneralPlatformApis() throws Exception {
+        mockMvc.perform(post("/api/product-services")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "serviceRef": "shopify-bridge-prod",
+                      "displayName": "Shopify Bridge Prod",
+                      "productFamily": "SHOPIFY",
+                      "serviceKind": "SHOPIFY_BRIDGE_SERVICE",
+                      "deploymentMode": "SHARED_PLATFORM_SERVICE",
+                      "tenantMode": "MULTI_TENANT_SHARED",
+                      "environmentScope": "prod",
+                      "desiredReplicas": 1,
+                      "minReplicas": 1,
+                      "maxReplicas": 3,
+                      "baseUrl": "https://shopify-bridge.example.com",
+                      "secretName": "MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY"
+                    }
+                    """))
+            .andExpect(status().isCreated());
+
+        platformSecretService.upsertManagedSecret(
+            "MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY",
+            "bridge-secret-key",
+            java.util.Map.of("serviceRef", "shopify-bridge-prod", "purpose", "PRODUCT_SERVICE_SECRET")
+        );
+
+        mockMvc.perform(post("/api/product-services")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "serviceRef": "shopify-bridge-other",
+                      "displayName": "Shopify Bridge Other",
+                      "productFamily": "SHOPIFY",
+                      "serviceKind": "SHOPIFY_BRIDGE_SERVICE",
+                      "deploymentMode": "SHARED_PLATFORM_SERVICE",
+                      "tenantMode": "MULTI_TENANT_SHARED",
+                      "environmentScope": "prod",
+                      "desiredReplicas": 1,
+                      "minReplicas": 1,
+                      "maxReplicas": 3,
+                      "baseUrl": "https://shopify-bridge-other.example.com",
+                      "secretName": "MANAGED_PRODUCT_SHOPIFY_BRIDGE_OTHER_API_KEY"
+                    }
+                    """))
+            .andExpect(status().isCreated());
+
+        platformSecretService.upsertManagedSecret(
+            "MANAGED_PRODUCT_SHOPIFY_BRIDGE_OTHER_API_KEY",
+            "bridge-other-secret",
+            java.util.Map.of("serviceRef", "shopify-bridge-other", "purpose", "PRODUCT_SERVICE_SECRET")
+        );
+
+        mockMvc.perform(post("/api/shopify/stores")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "shopDomain": "alpha.myshopify.com",
+                      "displayName": "Alpha",
+                      "productServiceRef": "shopify-bridge-prod",
+                      "installStatus": "INSTALLED",
+                      "syncStatus": "NOT_SYNCED",
+                      "sourceReadinessStatus": "NOT_RUN",
+                      "widgetStatus": "NOT_ENABLED",
+                      "onboardingStatus": "CONNECTED"
+                    }
+                    """))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/shopify/stores")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "shopDomain": "beta.myshopify.com",
+                      "displayName": "Beta",
+                      "productServiceRef": "shopify-bridge-other",
+                      "installStatus": "INSTALLED",
+                      "syncStatus": "NOT_SYNCED",
+                      "sourceReadinessStatus": "NOT_RUN",
+                      "widgetStatus": "NOT_ENABLED",
+                      "onboardingStatus": "CONNECTED"
+                    }
+                    """))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/shopify/stores")
+                .header("X-PLATFORM-API-KEY", "bridge-secret-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].shopDomain", is("alpha.myshopify.com")))
+            .andExpect(jsonPath("$.length()", is(1)));
+
+        mockMvc.perform(get("/api/shopify/stores/alpha.myshopify.com")
+                .header("X-PLATFORM-API-KEY", "bridge-secret-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain", is("alpha.myshopify.com")));
+
+        mockMvc.perform(get("/api/shopify/stores/beta.myshopify.com")
+                .header("X-PLATFORM-API-KEY", "bridge-secret-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/deployments")
+                .header("X-PLATFORM-API-KEY", "bridge-secret-key"))
+            .andExpect(status().isUnauthorized());
     }
 }

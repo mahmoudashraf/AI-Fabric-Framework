@@ -12,6 +12,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -130,7 +131,21 @@ class PlatformManagedProductProvisioningServiceTest {
             eq("/actuator/health"),
             eq(1)
         );
-        verify(railwayGraphqlClient).upsertVariables(eq("prj-123"), eq("env-123"), eq("svc-123"), any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RailwayGraphqlClient.RailwayEnvVarInput>> envCaptor = ArgumentCaptor.forClass(List.class);
+        verify(railwayGraphqlClient).upsertVariables(eq("prj-123"), eq("env-123"), eq("svc-123"), envCaptor.capture());
+        assertThat(envCaptor.getValue())
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::name)
+            .contains(
+                "SHOPIFY_BRIDGE_SHARED_SECRET",
+                "SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY",
+                "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
+                "SHOPIFY_BRIDGE_PLATFORM_BASE_URL"
+            );
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_PUBLIC_BASE_URL".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("https://shopify-bridge-prod.up.railway.app");
     }
 
     @Test

@@ -17,6 +17,9 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -284,5 +287,75 @@ class ShopifyStoreConnectionServiceTest {
         connectionService.deleteConnection("demo.myshopify.com", true);
 
         verify(repository).delete(entity);
+    }
+
+    @Test
+    void listConnectionsScopesResultsForProductServicePrincipal() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("psv-123");
+        service.setServiceRef("shopify-bridge-prod");
+        service.setDisplayName("Shopify Bridge Service");
+        service.setProductFamily("SHOPIFY");
+        service.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("alpha.myshopify.com");
+        entity.setProductServiceId("psv-123");
+        entity.setInstallStatus("INSTALLED");
+        entity.setSyncStatus("NOT_SYNCED");
+        entity.setSourceReadinessStatus("NOT_RUN");
+        entity.setWidgetStatus("NOT_ENABLED");
+        entity.setOnboardingStatus("CONNECTED");
+        entity.setProductsEnabled(true);
+        entity.setCollectionsEnabled(true);
+        entity.setPagesEnabled(true);
+        entity.setPoliciesEnabled(true);
+        entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(Instant.now());
+
+        when(productServiceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
+        when(repository.findAllByProductServiceIdOrderByShopDomainAsc("psv-123")).thenReturn(java.util.List.of(entity));
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
+        );
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+            new com.ai.fabric.platform.backend.security.PlatformPrincipal(
+                "shopify-bridge-prod",
+                com.ai.fabric.platform.backend.security.PlatformRole.PLATFORM_PRODUCT_SERVICE,
+                "Shopify Bridge Service",
+                "TEST"
+            ),
+            null,
+            java.util.List.of(new SimpleGrantedAuthority("ROLE_PLATFORM_PRODUCT_SERVICE"))
+        ));
+        try {
+            assertThat(connectionService.listConnections())
+                .extracting(ShopifyStoreConnectionSummary::shopDomain)
+                .containsExactly("alpha.myshopify.com");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }
