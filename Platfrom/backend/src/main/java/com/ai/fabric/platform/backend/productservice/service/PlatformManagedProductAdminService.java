@@ -280,6 +280,15 @@ public class PlatformManagedProductAdminService {
 
     @Transactional
     public PlatformManagedProductServiceSummary decommission(String serviceRef) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        long dependentStores = shopifyStoreConnectionRepository.countByProductServiceId(service.getId());
+        if (dependentStores > 0) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Managed product service " + serviceRef + " still has " + dependentStores
+                    + " dependent Shopify store mapping(s). Remove the mappings before decommissioning the service."
+            );
+        }
         return provisioningService.decommission(serviceRef);
     }
 

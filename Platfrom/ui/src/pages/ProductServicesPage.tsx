@@ -210,6 +210,7 @@ export function ProductServicesPage() {
   })
 
   const selectedService = selectedServiceQuery.data ?? selectedSummary
+  const decommissionBlocked = (selectedService?.dependentStoresCount ?? 0) > 0
 
   useEffect(() => {
     if (selectedService) {
@@ -437,6 +438,7 @@ export function ProductServicesPage() {
                           variant="outlined"
                           color="error"
                           onClick={() => setDecommissionDialogOpen(true)}
+                          disabled={decommissionBlocked}
                         >
                           Decommission
                         </Button>
@@ -486,6 +488,12 @@ export function ProductServicesPage() {
                         </Grid>
                       ))}
                     </Grid>
+                    {decommissionBlocked ? (
+                      <Alert severity="warning">
+                        Decommission is blocked while {selectedService?.dependentStoresCount ?? 0} Shopify store mapping(s) still depend on this
+                        service. Remove the mappings first.
+                      </Alert>
+                    ) : null}
                   </Stack>
                 </CardContent>
               </Card>
@@ -796,6 +804,12 @@ export function ProductServicesPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Type the service ref to delete the managed Railway linkage and clear the managed secret. Dependent Shopify store mappings must be removed first.
           </Typography>
+          {decommissionBlocked ? (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              This service still has {selectedService?.dependentStoresCount ?? 0} dependent Shopify store mapping(s). Decommission is blocked until those
+              mappings are removed.
+            </Alert>
+          ) : null}
           <TextField
             autoFocus
             margin="dense"
@@ -811,7 +825,12 @@ export function ProductServicesPage() {
             variant="contained"
             color="error"
             onClick={() => selectedService && decommissionMutation.mutate(selectedService.serviceRef)}
-            disabled={!selectedService || selectedService.serviceRef !== decommissionConfirmation.trim() || decommissionMutation.isPending}
+            disabled={
+              !selectedService ||
+              decommissionBlocked ||
+              selectedService.serviceRef !== decommissionConfirmation.trim() ||
+              decommissionMutation.isPending
+            }
           >
             Decommission
           </Button>
