@@ -80,7 +80,13 @@ class ShopifyStorefrontControllerTest {
     @Test
     void queryForwardsPublicStorefrontTraffic() throws Exception {
         when(storefrontChatService.query(eq("alpha.myshopify.com"), eq(objectMapper.readTree("""
-            {"query":"Show me backpacks"}
+            {
+              "query":"Show me backpacks",
+              "storefrontContext":{
+                "pageType":"product",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              }
+            }
             """)), eq("shopper-session-1"))).thenReturn(objectMapper.readTree("""
             {"success":true,"conversationId":"conv-1","result":{"message":"Here are some backpacks."}}
             """));
@@ -89,7 +95,13 @@ class ShopifyStorefrontControllerTest {
                 .header("X-AI-FABRIC-SHOPPER-SESSION-ID", "shopper-session-1")
                 .contentType("application/json")
                 .content("""
-                    {"query":"Show me backpacks"}
+                    {
+                      "query":"Show me backpacks",
+                      "storefrontContext":{
+                        "pageType":"product",
+                        "product":{"handle":"travel-pack","title":"Travel Pack"}
+                      }
+                    }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.conversationId").value("conv-1"));
@@ -103,13 +115,24 @@ class ShopifyStorefrontControllerTest {
                 .header("X-AI-FABRIC-SHOPPER-SESSION-ID", "shopper-session-1")
                 .contentType("application/json")
                 .content("""
-                    {"eventType":"WIDGET_OPENED","pageType":"product"}
+                    {
+                      "eventType":"WIDGET_OPENED",
+                      "pageType":"product",
+                      "pageTitle":"Travel Pack",
+                      "productHandle":"travel-pack"
+                    }
                     """))
             .andExpect(status().isAccepted());
 
         verify(storefrontEngagementService).record(
             eq("alpha.myshopify.com"),
-            eq(new ShopifyStorefrontEngagementEventRequest("WIDGET_OPENED", "product")),
+            eq(new ShopifyStorefrontEngagementEventRequest(
+                "WIDGET_OPENED",
+                "product",
+                "Travel Pack",
+                "travel-pack",
+                null
+            )),
             eq("shopper-session-1")
         );
     }

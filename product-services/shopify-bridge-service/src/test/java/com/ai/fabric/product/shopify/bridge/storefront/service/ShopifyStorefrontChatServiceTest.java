@@ -29,7 +29,13 @@ class ShopifyStorefrontChatServiceTest {
         ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
         when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
-            {"query":"Show me backpacks"}
+            {
+              "query":"Show me backpacks",
+              "storefrontContext":{
+                "pageType":"product",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              }
+            }
             """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
             {"success":true,"conversationId":"conv-1","result":{"message":"Here are some backpacks."}}
             """));
@@ -37,14 +43,26 @@ class ShopifyStorefrontChatServiceTest {
         JsonNode response = service.query(
             "alpha.myshopify.com",
             objectMapper.readTree("""
-                {"query":"Show me backpacks"}
+                {
+                  "query":"Show me backpacks",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
                 """),
             "shopper-session-1"
         );
 
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
         verify(platformClient).queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
-            {"query":"Show me backpacks"}
+            {
+              "query":"Show me backpacks",
+              "storefrontContext":{
+                "pageType":"product",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              }
+            }
             """), "shopper-session-1");
     }
 

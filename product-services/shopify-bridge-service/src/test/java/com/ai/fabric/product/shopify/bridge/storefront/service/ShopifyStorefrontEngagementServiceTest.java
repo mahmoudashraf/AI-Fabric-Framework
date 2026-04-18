@@ -30,7 +30,7 @@ class ShopifyStorefrontEngagementServiceTest {
 
         service.record(
             "alpha.myshopify.com",
-            new ShopifyStorefrontEngagementEventRequest("WIDGET_OPENED", "product"),
+            new ShopifyStorefrontEngagementEventRequest("WIDGET_OPENED", "product", "Travel Pack", "travel-pack", null),
             "shopper-session-1"
         );
 
@@ -46,7 +46,7 @@ class ShopifyStorefrontEngagementServiceTest {
 
         assertThatThrownBy(() -> service.record(
             "alpha.myshopify.com",
-            new ShopifyStorefrontEngagementEventRequest("UNSUPPORTED", "product"),
+            new ShopifyStorefrontEngagementEventRequest("UNSUPPORTED", "product", null, null, null),
             "shopper-session-1"
         ))
             .isInstanceOf(ResponseStatusException.class)
@@ -62,7 +62,7 @@ class ShopifyStorefrontEngagementServiceTest {
 
         assertThatThrownBy(() -> service.record(
             "alpha.myshopify.com",
-            new ShopifyStorefrontEngagementEventRequest("WIDGET_OPENED", "product"),
+            new ShopifyStorefrontEngagementEventRequest("WIDGET_OPENED", "product", null, null, null),
             "shopper-session-1"
         ))
             .isInstanceOf(ResponseStatusException.class)

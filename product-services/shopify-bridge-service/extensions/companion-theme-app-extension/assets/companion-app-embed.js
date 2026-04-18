@@ -8,16 +8,17 @@
     var bridgeBaseUrl = (root.dataset.bridgeBaseUrl || '').trim()
     var shopDomain = (root.dataset.shopDomain || '').trim()
     var launcherLabel = (root.dataset.launcherLabel || 'Ask the store assistant').trim()
+    var storefrontContext = extractStorefrontContext(root)
 
     if (!bridgeBaseUrl || !shopDomain) {
       root.dataset.status = 'configuration-required'
       return
     }
 
-    resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel)
+    resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel, storefrontContext)
   }
 
-  function resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel) {
+  function resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel, storefrontContext) {
     root.dataset.status = 'loading'
     fetch(joinUrl(bridgeBaseUrl, '/api/storefront/shops/' + encodeURIComponent(shopDomain) + '/bootstrap'), {
       headers: {
@@ -38,7 +39,7 @@
           root.textContent = payload && payload.message ? payload.message : 'Store assistant is not ready yet.'
           return
         }
-        renderWidget(root, bridgeBaseUrl, launcherLabel, payload)
+        renderWidget(root, bridgeBaseUrl, launcherLabel, payload, storefrontContext)
       })
       .catch(function (error) {
         root.dataset.status = 'failed'
@@ -46,13 +47,11 @@
       })
   }
 
-  function renderWidget(root, bridgeBaseUrl, launcherLabel, payload) {
+  function renderWidget(root, bridgeBaseUrl, launcherLabel, payload, storefrontContext) {
     root.dataset.status = 'ready'
     root.textContent = ''
     var resolvedLauncherLabel = (payload.launcherLabel || launcherLabel || 'Ask the store assistant').trim()
-    var resolvedWelcomeMessage = (
-      payload.welcomeMessage || payload.message || 'Store assistant is ready. Ask about products, policies, or collections.'
-    ).trim()
+    var resolvedWelcomeMessage = deriveWelcomeMessage(payload, storefrontContext)
 
     var state = {
       conversationId: null,
@@ -87,6 +86,13 @@
       '</div></div>' +
       '<button type="button" class="loom-companion-close" aria-label="Close assistant">Close</button>'
 
+    var contextBar = document.createElement('div')
+    contextBar.className = 'loom-companion-panel__context'
+    contextBar.hidden = !hasContextTarget(storefrontContext)
+    if (!contextBar.hidden) {
+      contextBar.textContent = contextBadgeLabel(storefrontContext)
+    }
+
     var messages = document.createElement('div')
     messages.className = 'loom-companion-messages'
 
@@ -112,6 +118,7 @@
     var closeButton = header.querySelector('.loom-companion-close')
 
     panel.appendChild(header)
+    panel.appendChild(contextBar)
     panel.appendChild(messages)
     panel.appendChild(suggestions)
     panel.appendChild(status)
@@ -221,21 +228,20 @@
         method: 'POST',
         headers: shopperHeaders(),
         body: JSON.stringify({
-          content: state.messages.length > 1 ? state.messages[state.messages.length - 1].content : '',
+          content: state.messages.length > 1 ? state.messages[state.messages.length - 1].content : buildContextPrompt(storefrontContext),
           maxSuggestions: 4,
+          storefrontContext: storefrontContext,
         }),
       })
         .then(function (response) {
           state.suggestions = extractSuggestions(response)
+          if (state.suggestions.length === 0) {
+            state.suggestions = defaultSuggestionsForContext(storefrontContext)
+          }
           render()
         })
         .catch(function () {
-          state.suggestions = [
-            'Show me your best sellers',
-            'What is your shipping policy?',
-            'Compare your top product categories',
-            'What should I buy for travel?',
-          ]
+          state.suggestions = defaultSuggestionsForContext(storefrontContext)
           render()
         })
     }
@@ -249,6 +255,7 @@
         body: JSON.stringify({
           query: userText,
           conversationId: state.conversationId || undefined,
+          storefrontContext: storefrontContext,
         }),
       })
         .then(function (response) {
@@ -291,12 +298,137 @@
         headers: shopperHeaders(),
         body: JSON.stringify({
           eventType: eventType,
-          pageType: (root.dataset.pageType || '').trim() || 'unknown',
+          pageType: storefrontContext.pageType || 'unknown',
+          pageTitle: storefrontContext.pageTitle || null,
+          productHandle: storefrontContext.product ? storefrontContext.product.handle : null,
+          collectionHandle: storefrontContext.collection ? storefrontContext.collection.handle : null,
         }),
       }).catch(function () {
         return null
       })
     }
+  }
+
+  function extractStorefrontContext(root) {
+    var pageType = trimValue(root.dataset.pageType) || 'unknown'
+    var pageTitle = trimValue(root.dataset.pageTitle)
+    var context = {
+      pageType: pageType,
+      pageTitle: pageTitle,
+      product: null,
+      collection: null,
+    }
+
+    var productTitle = trimValue(root.dataset.productTitle)
+    var productHandle = trimValue(root.dataset.productHandle)
+    var productId = trimValue(root.dataset.productId)
+    if (productTitle || productHandle || productId) {
+      context.product = {
+        id: productId,
+        handle: productHandle,
+        title: productTitle || pageTitle || 'this product',
+        vendor: trimValue(root.dataset.productVendor),
+        type: trimValue(root.dataset.productType),
+        priceCents: trimValue(root.dataset.productPriceCents),
+      }
+    }
+
+    var collectionTitle = trimValue(root.dataset.collectionTitle)
+    var collectionHandle = trimValue(root.dataset.collectionHandle)
+    var collectionId = trimValue(root.dataset.collectionId)
+    if (collectionTitle || collectionHandle || collectionId) {
+      context.collection = {
+        id: collectionId,
+        handle: collectionHandle,
+        title: collectionTitle || pageTitle || 'this collection',
+      }
+    }
+
+    return context
+  }
+
+  function deriveWelcomeMessage(payload, storefrontContext) {
+    var fallback = (payload.welcomeMessage || payload.message || '').trim()
+    if (fallback && !isGenericWelcomeMessage(fallback)) {
+      return fallback
+    }
+    if (storefrontContext.product && storefrontContext.product.title) {
+      return 'Ask about ' + storefrontContext.product.title + ', compare it with similar products, or check shipping and return policies before you buy.'
+    }
+    if (storefrontContext.collection && storefrontContext.collection.title) {
+      return 'Ask for the best options in ' + storefrontContext.collection.title + ', compare products, or check store policies before you buy.'
+    }
+    if (fallback) {
+      return fallback
+    }
+    return 'Store assistant is ready. Ask about products, policies, or collections.'
+  }
+
+  function isGenericWelcomeMessage(value) {
+    return value === 'Store assistant is ready. Ask about products, policies, or collections.'
+  }
+
+  function hasContextTarget(storefrontContext) {
+    return !!((storefrontContext.product && storefrontContext.product.title) || (storefrontContext.collection && storefrontContext.collection.title))
+  }
+
+  function contextBadgeLabel(storefrontContext) {
+    if (storefrontContext.product && storefrontContext.product.title) {
+      return 'Product context: ' + storefrontContext.product.title
+    }
+    if (storefrontContext.collection && storefrontContext.collection.title) {
+      return 'Collection context: ' + storefrontContext.collection.title
+    }
+    return ''
+  }
+
+  function buildContextPrompt(storefrontContext) {
+    if (storefrontContext.product) {
+      var parts = ['Current product: ' + storefrontContext.product.title]
+      if (storefrontContext.product.vendor) {
+        parts.push('vendor ' + storefrontContext.product.vendor)
+      }
+      if (storefrontContext.product.type) {
+        parts.push('type ' + storefrontContext.product.type)
+      }
+      return parts.join(', ')
+    }
+    if (storefrontContext.collection) {
+      return 'Current collection: ' + storefrontContext.collection.title
+    }
+    if (storefrontContext.pageTitle) {
+      return 'Current page: ' + storefrontContext.pageTitle
+    }
+    return ''
+  }
+
+  function defaultSuggestionsForContext(storefrontContext) {
+    if (storefrontContext.product && storefrontContext.product.title) {
+      return [
+        'Tell me about ' + storefrontContext.product.title,
+        'How does ' + storefrontContext.product.title + ' compare to similar products?',
+        'What should I know before buying ' + storefrontContext.product.title + '?',
+        'What is your return policy for this product?',
+      ]
+    }
+    if (storefrontContext.collection && storefrontContext.collection.title) {
+      return [
+        'Show me the highlights from ' + storefrontContext.collection.title,
+        'Which products in ' + storefrontContext.collection.title + ' are best for everyday use?',
+        'Compare the top picks in ' + storefrontContext.collection.title,
+        'What is your shipping policy?',
+      ]
+    }
+    return [
+      'Show me your best sellers',
+      'What is your shipping policy?',
+      'Compare your top product categories',
+      'What should I buy for travel?',
+    ]
+  }
+
+  function trimValue(value) {
+    return typeof value === 'string' && value.trim() ? value.trim() : ''
   }
 
   function fetchJson(path, init) {
