@@ -28,6 +28,7 @@ shopify:
     platform-base-url: ${SHOPIFY_BRIDGE_PLATFORM_BASE_URL:}
     platform-admin-api-key: ${SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY:}
     platform-admin-api-key-header: ${SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY_HEADER:X-PLATFORM-API-KEY}
+    webhook-shared-secret: ${SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET:}
     admin-api-key: ${SHOPIFY_BRIDGE_SHARED_SECRET:}
     admin-api-key-header: ${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER:X-BRIDGE-API-KEY}
 

@@ -7,6 +7,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightCategorySummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -44,6 +45,7 @@ class PlatformShopifyStoreClientTest {
                 "https://platform.example.com",
                 "platform-admin-key",
                 "X-PLATFORM-API-KEY",
+                "webhook-secret",
                 "bridge-admin-key",
                 "X-BRIDGE-API-KEY"
             )
@@ -199,6 +201,35 @@ class PlatformShopifyStoreClientTest {
         );
 
         assertThat(response.widgetStatus()).isEqualTo("ENABLED");
+        server.verify();
+    }
+
+    @Test
+    void upsertUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/shopify/stores"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess(storeBody("READY", "NOT_SYNCED", "NOT_ENABLED"), MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeStoreSummary response = client.upsertStore(new ShopifyBridgeUpsertStoreRequest(
+            "alpha.myshopify.com",
+            "Alpha",
+            "shopify-bridge-prod",
+            "cust-1",
+            "dep-1",
+            "consumer-alpha",
+            "UNINSTALLED",
+            "NOT_SYNCED",
+            "READY",
+            "NOT_ENABLED",
+            "BLOCKED",
+            true,
+            true,
+            false,
+            true
+        ));
+
+        assertThat(response.installStatus()).isEqualTo("INSTALLED");
         server.verify();
     }
 

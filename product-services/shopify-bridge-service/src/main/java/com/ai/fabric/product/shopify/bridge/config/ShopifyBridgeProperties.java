@@ -13,6 +13,7 @@ public record ShopifyBridgeProperties(
     String platformBaseUrl,
     String platformAdminApiKey,
     String platformAdminApiKeyHeader,
+    String webhookSharedSecret,
     String adminApiKey,
     String adminApiKeyHeader
 ) {
@@ -27,6 +28,7 @@ public record ShopifyBridgeProperties(
         platformBaseUrl = normalize(platformBaseUrl, "");
         platformAdminApiKey = normalize(platformAdminApiKey, "");
         platformAdminApiKeyHeader = normalize(platformAdminApiKeyHeader, "X-PLATFORM-API-KEY");
+        webhookSharedSecret = normalize(webhookSharedSecret, "");
         adminApiKey = normalize(adminApiKey, "");
         adminApiKeyHeader = normalize(adminApiKeyHeader, "X-BRIDGE-API-KEY");
     }
