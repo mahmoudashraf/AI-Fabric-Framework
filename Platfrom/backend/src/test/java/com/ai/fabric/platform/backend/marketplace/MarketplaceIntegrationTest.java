@@ -177,6 +177,23 @@ class MarketplaceIntegrationTest {
     }
 
     @Test
+    void shopifyCompanionTemplateBootstrapsOnCustomStartFromScratch() throws Exception {
+        mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-shopify-companion")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.0",
+                        "name", "Shopify Companion Bootstrap Smoke",
+                        "environment", "dev",
+                        "templateId", "custom-start-from-scratch"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id", notNullValue()))
+            .andExpect(jsonPath("$.templateId", is("custom-start-from-scratch")));
+    }
+
+    @Test
     void supportStarterCatalogCompilesAllPluginTypesIntoDeploymentConfig() throws Exception {
         String bootstrapResponse = mockMvc.perform(asAdmin(
                 post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-support-desk-shell")
