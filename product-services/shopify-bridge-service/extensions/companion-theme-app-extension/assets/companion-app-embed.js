@@ -10,19 +10,30 @@
 
     var bridgeBaseUrl = trimValue(root.dataset.bridgeBaseUrl)
     var shopDomain = trimValue(root.dataset.shopDomain)
+    var requestedWidgetShell = normalizeWidgetShell(root.dataset.widgetShell)
+    var maxModeShellScriptUrl = trimValue(root.dataset.maxModeShellScriptUrl)
+    var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
+    var effectiveWidgetShell = resolveEffectiveWidgetShell(
+      requestedWidgetShell,
+      maxModeShellScriptUrl,
+      maxModeScriptUrl
+    )
     if (!bridgeBaseUrl || !shopDomain) {
       root.dataset.status = 'configuration-required'
       return
     }
+    root.dataset.requestedWidgetShell = requestedWidgetShell
+    root.dataset.widgetShell = effectiveWidgetShell
 
     resolveBootstrap(root, {
       bridgeBaseUrl: bridgeBaseUrl,
       shopDomain: shopDomain,
       launcherLabel: trimValue(root.dataset.launcherLabel) || 'Ask the store assistant',
-      widgetShell: normalizeWidgetShell(root.dataset.widgetShell),
+      widgetShell: effectiveWidgetShell,
+      requestedWidgetShell: requestedWidgetShell,
       legacyShellScriptUrl: trimValue(root.dataset.legacyShellScriptUrl),
-      maxModeShellScriptUrl: trimValue(root.dataset.maxModeShellScriptUrl),
-      maxModeScriptUrl: trimValue(root.dataset.maxModeScriptUrl),
+      maxModeShellScriptUrl: maxModeShellScriptUrl,
+      maxModeScriptUrl: maxModeScriptUrl,
       storefrontContext: extractStorefrontContext(root),
     })
   }
@@ -51,15 +62,41 @@
         }
         return loadShellRenderer(config.widgetShell, config).then(function (renderer) {
           teardownActiveShell(root)
-          renderer.render({
-            root: root,
-            bridgeBaseUrl: config.bridgeBaseUrl,
-            launcherLabel: config.launcherLabel,
-            maxModeScriptUrl: config.maxModeScriptUrl,
-            payload: payload,
-            storefrontContext: config.storefrontContext,
-          })
-          root.dataset.activeShell = config.widgetShell
+          return Promise.resolve(
+            renderer.render({
+              root: root,
+              bridgeBaseUrl: config.bridgeBaseUrl,
+              launcherLabel: config.launcherLabel,
+              maxModeScriptUrl: config.maxModeScriptUrl,
+              payload: payload,
+              storefrontContext: config.storefrontContext,
+            })
+          )
+            .then(function () {
+              root.dataset.activeShell = config.widgetShell
+            })
+            .catch(function (error) {
+              if (config.widgetShell !== 'max-mode') {
+                throw error
+              }
+              return loadShellRenderer('legacy', config).then(function (legacyRenderer) {
+                teardownActiveShell(root)
+                return Promise.resolve(
+                  legacyRenderer.render({
+                    root: root,
+                    bridgeBaseUrl: config.bridgeBaseUrl,
+                    launcherLabel: config.launcherLabel,
+                    maxModeScriptUrl: config.maxModeScriptUrl,
+                    payload: payload,
+                    storefrontContext: config.storefrontContext,
+                  })
+                ).then(function () {
+                  root.dataset.activeShell = 'legacy'
+                  root.dataset.widgetShell = 'max-mode'
+                  root.dataset.fallbackShell = 'legacy'
+                })
+              })
+            })
         })
       })
       .catch(function (error) {
@@ -166,6 +203,13 @@
 
   function normalizeWidgetShell(value) {
     return value === 'max-mode' ? 'max-mode' : 'legacy'
+  }
+
+  function resolveEffectiveWidgetShell(requestedWidgetShell, maxModeShellScriptUrl, maxModeScriptUrl) {
+    if (maxModeShellScriptUrl && maxModeScriptUrl) {
+      return 'max-mode'
+    }
+    return requestedWidgetShell
   }
 
   function trimValue(value) {

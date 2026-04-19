@@ -14,7 +14,7 @@
     teardown()
     options.root.dataset.status = 'loading'
     options.root.textContent = ''
-    ensureMaxModeReady(options.maxModeScriptUrl)
+    return ensureMaxModeReady(options.maxModeScriptUrl)
       .then(function (maxModeApi) {
         if (!maxModeApi || typeof maxModeApi.init !== 'function') {
           throw new Error('Max Mode widget API is unavailable.')
@@ -73,10 +73,6 @@
         })
 
         options.root.dataset.status = 'ready'
-      })
-      .catch(function (error) {
-        options.root.dataset.status = 'failed'
-        options.root.textContent = error && error.message ? error.message : 'Max Mode widget failed to initialize.'
       })
   }
 
