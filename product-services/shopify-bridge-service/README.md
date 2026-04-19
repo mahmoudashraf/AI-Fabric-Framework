@@ -55,6 +55,12 @@ The generated `shopify.app.toml` uses two separate URLs:
 
 If the merchant UI is served from the same host as the backend, set both values to the same base URL.
 
+Default deploy posture in this repo:
+
+- the Railway image builds `ui/`
+- the built merchant UI is copied into the Shopify Bridge container
+- the bridge service serves the embedded app shell and `/assets/**` from that bundled UI directory
+
 ## Important boundary
 
 This workspace supports the real Shopify CLI-managed app path.

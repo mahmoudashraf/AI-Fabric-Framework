@@ -291,6 +291,14 @@ In repo terms:
 
 If both are served from the same host, they can be set to the same value.
 
+Current repo default:
+
+- the Railway image for `product-services/shopify-bridge-service` builds the merchant UI from `ui/`
+- the built files are copied into the bridge container
+- the bridge service serves the embedded app shell and `/assets/**`
+
+So the default production posture is a same-host deployment unless we later split the merchant UI into its own hosted surface.
+
 ### 5.3 Use real install auth
 
 For the product path, use OAuth-backed store install, not manually shared temporary tokens.

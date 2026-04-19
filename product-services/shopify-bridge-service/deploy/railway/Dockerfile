@@ -1,14 +1,27 @@
+FROM node:20-alpine AS ui-build
+WORKDIR /workspace/ui
+
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY ui ./
+RUN npm run build
+
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
-COPY . .
+COPY pom.xml ./
+COPY src ./src
 
-RUN mvn -f pom.xml -DskipTests package
+RUN mvn -DskipTests package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 COPY --from=build /workspace/target/shopify-bridge-service-*.jar /app/shopify-bridge-service.jar
+COPY --from=ui-build /workspace/ui/dist /app/ui
+
+ENV SHOPIFY_BRIDGE_MERCHANT_UI_DIRECTORY=/app/ui
 
 EXPOSE 8080
 
