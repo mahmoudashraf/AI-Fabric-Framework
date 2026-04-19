@@ -342,6 +342,37 @@ Suggested fields:
 - `coalescedRunId`
 - `notes`
 
+### 6.2.1 Transport-neutral event envelope
+
+The dirty-event queue should be designed as the first transport for a more general event pipeline, not as a one-off table shape that blocks future evolution.
+
+Add an explicit event envelope contract with fields such as:
+
+- `eventId`
+- `schemaVersion`
+- `eventType`
+- `eventSource`
+- `shopDomain`
+- `deploymentId`
+- `aggregateKey`
+  - recommended: `shopDomain + entityType`
+- `dedupeKey`
+- `correlationId`
+- `causationId`
+- `occurredAt`
+- `availableAt`
+- `payloadJson`
+- `headersJson`
+
+Rules:
+
+- producers write the same logical event envelope regardless of transport
+- consumers process the same logical event envelope regardless of transport
+- queue-table persistence is the first transport implementation
+- a future outbox or broker publisher must not change merchant-facing behavior or policy semantics
+
+This is the key future-readiness boundary. We should abstract the transport, not prematurely adopt a broker.
+
 ### 6.3 Minimal indexed-object ledger
 
 Do not extend Shopify tracking into a full mirrored content store.
@@ -407,6 +438,91 @@ Later, add true incremental event-driven vectorization:
 - create webhook can emit targeted `UPSERT`
 
 That reduces cost and avoids rerunning full entity-family refreshes when only one object changed.
+
+### 7.4 Future-ready event architecture
+
+Do not couple Shopify webhook handling directly to Kafka or any other broker-specific producer API.
+
+Instead split the pipeline into stable roles:
+
+1. `Event ingestor`
+
+- receives webhook-derived changes
+- writes a transport-neutral event envelope
+- performs dedupe-key assignment
+
+2. `Coalescer`
+
+- groups events by aggregate key
+- applies debounce and minimum-run-interval rules
+- emits a bounded indexing intent
+
+3. `Intent dispatcher`
+
+- hands off indexing intents to the current execution transport
+- today: database-backed queue plus scheduler
+- later: outbox publisher or broker-backed dispatcher
+
+4. `Run enqueuer`
+
+- converts the bounded indexing intent into a vectorization run or delta run
+- keeps plan/run creation inside the existing platform vectorization model
+
+This gives us three important properties:
+
+- transport independence
+- testable business rules outside infrastructure concerns
+- a clean migration path from database queue to outbox or broker later
+
+### 7.5 Transport decision
+
+Current recommendation:
+
+- use a platform-owned database queue now
+- use scheduled polling/coalescing now
+- keep the event contract and dispatcher abstraction ready for a future broker
+
+Do not introduce Kafka yet because it does not remove the real hard problems:
+
+- idempotency
+- coalescing
+- per-store ordering
+- delete/update correctness
+- sparse indexed-object ledger correctness
+
+Kafka or another broker becomes justified only if one or more of these become true:
+
+- sustained multi-store event volume is high enough that database polling becomes the bottleneck
+- multiple independent consumers need the same event stream
+- replay requirements exceed what a database queue or outbox gives us
+- cross-service event fan-out becomes a platform-wide primitive
+
+### 7.6 Outbox-compatible migration path
+
+Build the first implementation so it can evolve like this without semantic rewrites:
+
+1. `Phase A`
+
+- webhook -> database event queue
+- scheduler/coalescer -> bounded indexing intent
+- intent -> vectorization run
+
+2. `Phase B`
+
+- webhook -> database event queue + transactional outbox
+- outbox publisher -> broker topic
+- consumers continue to process the same event envelope
+
+3. `Phase C`
+
+- broker becomes the primary transport for downstream consumers
+- database queue can remain as the authoritative intake ledger or be reduced to an outbox/audit role
+
+Important:
+
+- the sparse indexed-object ledger remains required in every phase
+- merchant-facing trigger policies remain required in every phase
+- only the transport changes; business semantics do not
 
 ## 8) Delete Semantics
 
@@ -543,18 +659,21 @@ Ship:
 - per source-family create/delete/update toggles
 - debounce/coalescing queue
 - recent event decisions in UI
+- transport-neutral event envelope and dispatcher boundary
 
 Backend work:
 
 - add policy persistence
 - add dirty queue persistence
 - add scheduler/coalescer
+- add event envelope and dispatcher abstraction
 - webhook handler records evaluable events instead of only invalidating sync
 
 Acceptance:
 
 - repeated product updates do not queue duplicate runs
 - one quiet-window run is scheduled for the affected entity families
+- the ingestion/coalescing logic can switch transport later without changing trigger-policy semantics
 
 ### Wave 3: Indexed-field-aware updates
 
@@ -607,6 +726,7 @@ Recommended order:
 Reason:
 
 - Wave 1 and Wave 2 deliver merchant value on current safe platform primitives
+- Wave 2 should establish the future-ready transport boundary while still using the database queue
 - Wave 3 raises correctness
 - Wave 4 is the deeper runner/runtime extension
 
@@ -623,6 +743,8 @@ The plan is complete when all of the following are true:
 - source-object changes do not require publish/apply
 - stale deleted objects are removed from runtime and indexed state
 - trigger decisions are auditable and visible
+- event ingestion, coalescing, and run enqueueing remain transport-neutral
+- the first implementation can evolve to outbox or broker transport without changing merchant policy semantics
 
 ## 14) Recommendation
 
