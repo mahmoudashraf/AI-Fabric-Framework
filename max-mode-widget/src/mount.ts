@@ -33,7 +33,7 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   const host = document.createElement("div");
   host.id = SHADOW_HOST_ID;
   host.style.cssText =
-    "position:fixed;z-index:2147483647;top:0;left:0;width:0;height:0;pointer-events:none;";
+    "position:fixed;z-index:2147483647;top:0;left:0;width:100vw;height:100vh;pointer-events:none;overflow:visible;";
   document.body.appendChild(host);
 
   _shadowRoot = host.attachShadow({ mode: "open" });
@@ -57,7 +57,7 @@ export function mountWidget(config: MaxModeWidgetConfig): void {
   const container = document.createElement("div");
   container.id = WIDGET_CONTAINER_ID;
   container.className = "max-mode-widget-root";
-  container.style.cssText = "all:initial;pointer-events:auto;";
+  container.style.cssText = "all:initial;position:fixed;inset:0;pointer-events:none;";
   _shadowRoot.appendChild(container);
 
   // Render widget
