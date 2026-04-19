@@ -9,10 +9,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,16 +25,15 @@ class ShopifyBridgeUsageServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-04-18T12:00:00Z"), ZoneOffset.UTC);
         ShopifyBridgeUsageService service = new ShopifyBridgeUsageService(repository, clock);
 
-        when(repository.findByShopDomainIgnoreCaseAndUsageDateAndEventType(
-            "alpha.myshopify.com",
-            LocalDate.parse("2026-04-18"),
-            "STOREFRONT_QUERY"
-        )).thenReturn(Optional.empty());
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
         service.recordEvent("alpha.myshopify.com", "STOREFRONT_QUERY");
 
-        verify(repository).save(any(ShopifyBridgeUsageDailyEntity.class));
+        verify(repository).incrementDailyEvent(
+            any(),
+            eq("alpha.myshopify.com"),
+            eq(LocalDate.parse("2026-04-18")),
+            eq("STOREFRONT_QUERY"),
+            eq(Instant.parse("2026-04-18T12:00:00Z"))
+        );
     }
 
     @Test

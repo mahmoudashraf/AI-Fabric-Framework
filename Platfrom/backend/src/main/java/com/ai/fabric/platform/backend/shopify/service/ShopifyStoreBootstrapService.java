@@ -131,6 +131,7 @@ public class ShopifyStoreBootstrapService {
                 existingDeployment.getStatus()
             );
         ensureSharedVectorBootstrapDefaults(deployment.id());
+        ensureShopifyCompanionSecurityDefaults(deployment.id());
 
         PlatformConsumerEntity existingConsumer = resolveConsumer(store.getConsumerId());
         boolean createdConsumer = existingConsumer == null;
@@ -396,6 +397,33 @@ public class ShopifyStoreBootstrapService {
                 null,
                 providerConfig,
                 null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+    }
+
+    private void ensureShopifyCompanionSecurityDefaults(String deploymentId) {
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        ObjectNode securityConfig = ensureObject(draft.securityConfig());
+        boolean changed = putText(
+            securityConfig,
+            "authzMode",
+            ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED
+        );
+        if (!changed) {
+            return;
+        }
+        deploymentService.updateDraft(
+            draft.id(),
+            new UpdateDeploymentDraftRequest(
+                null,
+                null,
+                null,
+                null,
+                securityConfig,
                 null,
                 null,
                 null,

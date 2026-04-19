@@ -76,7 +76,9 @@ class ShopifyWebhookSubscriptionServiceTest {
         when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap()))
             .thenAnswer(invocation -> {
                 Map<String, Object> variables = invocation.getArgument(3);
-                String topic = String.valueOf(variables.get("topic"));
+                @SuppressWarnings("unchecked")
+                List<String> topics = (List<String>) variables.get("topics");
+                String topic = topics == null || topics.isEmpty() ? null : topics.get(0);
                 if ("APP_UNINSTALLED".equals(topic)) {
                     return driftedListResponse();
                 }
@@ -198,8 +200,8 @@ class ShopifyWebhookSubscriptionServiceTest {
 
     private String listQuery() {
         return """
-        query ShopifyBridgeWebhookSubscriptions($topic: WebhookSubscriptionTopic!) {
-          webhookSubscriptions(first: 50, topics: $topic) {
+        query ShopifyBridgeWebhookSubscriptions($topics: [WebhookSubscriptionTopic!]) {
+          webhookSubscriptions(first: 50, topics: $topics) {
             edges {
               node {
                 id

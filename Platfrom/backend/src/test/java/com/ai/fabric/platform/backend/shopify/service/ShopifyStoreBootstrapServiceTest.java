@@ -146,6 +146,7 @@ class ShopifyStoreBootstrapServiceTest {
         );
         verify(templateBootstrapService).bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
         verify(customerConsumerService, never()).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
     }
 
@@ -252,6 +253,7 @@ class ShopifyStoreBootstrapServiceTest {
         verify(customerTenantService, never()).createCustomer(any());
         verify(templateBootstrapService, never()).bootstrap(any(), any());
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
         verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
     }
 
@@ -327,6 +329,7 @@ class ShopifyStoreBootstrapServiceTest {
 
         assertThat(summary.consumerId()).isEqualTo("shopify-demo");
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
         verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
         verify(customerConsumerService).updateConsumer(eq("cus-123"), eq("shopify-demo"), any(UpdatePlatformConsumerRequest.class));
     }
@@ -497,6 +500,7 @@ class ShopifyStoreBootstrapServiceTest {
                 && request.providerConfig().path("qdrantHost").asText("").isBlank()
                 && request.providerConfig().path("qdrantRuntimeApiKeySecretName").asText("").isBlank()
         ));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
     }
 
     private boolean matchesSharedQdrantDefaults(UpdateDeploymentDraftRequest request) {
@@ -523,6 +527,13 @@ class ShopifyStoreBootstrapServiceTest {
             && "eu-west-1".equals(provider.path("qdrantCloudRegionId").asText())
             && provider.path("qdrantHost").asText("").isBlank()
             && provider.path("qdrantRuntimeApiKeySecretName").asText("").isBlank();
+    }
+
+    private boolean matchesAllowVerifiedSecurity(UpdateDeploymentDraftRequest request) {
+        if (request == null || !(request.securityConfig() instanceof ObjectNode security)) {
+            return false;
+        }
+        return "ALLOW_VERIFIED".equals(security.path("authzMode").asText());
     }
 
     private ShopifyStoreConnectionEntity store(String shopDomain) {

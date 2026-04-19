@@ -4,11 +4,13 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -18,6 +20,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,6 +54,23 @@ class ShopifyStoreGoLiveServiceTest {
             null,
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:00:00Z")
+        ));
+        when(deploymentService.updateDraft(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
+            "drf-1",
+            "dep-1",
+            3,
+            "MODIFIED",
+            null,
+            null,
+            null,
+            null,
+            JsonNodeFactory.instance.objectNode().put("authzMode", "ALLOW_VERIFIED"),
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T10:00:00Z"),
+            Instant.parse("2026-04-18T10:01:00Z")
         ));
         when(deploymentService.publishDraft("drf-1")).thenReturn(new DeploymentVersionSummary(
             "ver-1",
@@ -91,6 +112,9 @@ class ShopifyStoreGoLiveServiceTest {
 
         assertThat(result.onboardingStatus()).isEqualTo("GO_LIVE_REQUESTED");
         assertThat(store.getOnboardingStatus()).isEqualTo("GO_LIVE_REQUESTED");
+        verify(deploymentService).updateDraft(eq("drf-1"), argThat(request ->
+            request.securityConfig() != null && "ALLOW_VERIFIED".equals(request.securityConfig().path("authzMode").asText())
+        ));
         verify(deploymentService).publishDraft("drf-1");
         verify(deploymentService).applyVersion("dep-1", "ver-1");
     }

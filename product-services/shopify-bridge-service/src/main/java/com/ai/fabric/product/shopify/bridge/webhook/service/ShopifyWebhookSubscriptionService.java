@@ -19,8 +19,8 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 public class ShopifyWebhookSubscriptionService {
 
     private static final String LIST_SUBSCRIPTIONS_QUERY = """
-        query ShopifyBridgeWebhookSubscriptions($topic: WebhookSubscriptionTopic!) {
-          webhookSubscriptions(first: 50, topics: $topic) {
+        query ShopifyBridgeWebhookSubscriptions($topics: [WebhookSubscriptionTopic!]) {
+          webhookSubscriptions(first: 50, topics: $topics) {
             edges {
               node {
                 id
@@ -229,7 +229,7 @@ public class ShopifyWebhookSubscriptionService {
             shopDomain,
             accessToken,
             LIST_SUBSCRIPTIONS_QUERY,
-            Map.of("topic", topic)
+            Map.of("topics", List.of(topic))
         );
         failOnGraphQlErrors(response, "Shopify webhook subscription lookup failed.");
         Map<String, Object> data = requireMap(response.get("data"), "Shopify webhook subscription lookup returned no data.");

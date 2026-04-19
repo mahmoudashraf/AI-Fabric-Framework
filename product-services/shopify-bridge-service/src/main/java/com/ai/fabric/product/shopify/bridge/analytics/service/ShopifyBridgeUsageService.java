@@ -42,25 +42,13 @@ public class ShopifyBridgeUsageService {
         String normalizedEventType = normalizeRequired(eventType, "eventType");
         Instant now = clock.instant();
         LocalDate usageDate = LocalDate.ofInstant(now, ZoneOffset.UTC);
-        ShopifyBridgeUsageDailyEntity entity = repository.findByShopDomainIgnoreCaseAndUsageDateAndEventType(
-                normalizedShopDomain,
-                usageDate,
-                normalizedEventType
-            )
-            .orElseGet(() -> {
-                ShopifyBridgeUsageDailyEntity created = new ShopifyBridgeUsageDailyEntity();
-                created.setId("sbu-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
-                created.setShopDomain(normalizedShopDomain);
-                created.setUsageDate(usageDate);
-                created.setEventType(normalizedEventType);
-                created.setEventCount(0L);
-                created.setCreatedAt(now);
-                return created;
-            });
-        entity.setEventCount(entity.getEventCount() + 1L);
-        entity.setLastEventAt(now);
-        entity.setUpdatedAt(now);
-        repository.save(entity);
+        repository.incrementDailyEvent(
+            "sbu-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12),
+            normalizedShopDomain,
+            usageDate,
+            normalizedEventType,
+            now
+        );
     }
 
     @Transactional(readOnly = true)
