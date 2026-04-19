@@ -21,6 +21,7 @@ Those still come from:
 
 Current docs:
 
+- `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md`
 - `doc/Productization/future-work/MarketPlace/Products/PRODUCT_DIRECTION_DECISION_RECORD.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_PRODUCTS_SHIPPING_ROADMAP.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
