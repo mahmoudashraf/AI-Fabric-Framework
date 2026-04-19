@@ -16,7 +16,7 @@ class ManagedDeploymentProfileCatalogTest {
         );
 
         assertThat(issuers).isEqualTo(
-            "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-consumer-bridge,platform-release-verification,platform-vectorization-verification,platform-runtime-coverage"
+            "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-release-verification,platform-vectorization-verification,platform-runtime-coverage"
         );
     }
 
