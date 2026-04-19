@@ -4,6 +4,8 @@
   data-bridge-base-url="{{ bridge_base_url | escape }}"
   data-launcher-label="{{ launcher_label | default: 'Ask the store assistant' | escape }}"
   data-widget-shell="{{ widget_shell | default: 'legacy' | escape }}"
+  data-legacy-shell-script-url="{{ 'companion-legacy-shell.js' | asset_url | escape }}"
+  data-max-mode-shell-script-url="{{ 'companion-max-mode-shell.js' | asset_url | escape }}"
   data-max-mode-script-url="{{ 'max-mode-widget.iife.js' | asset_url | escape }}"
   data-shop-domain="{{ shop.permanent_domain | escape }}"
   data-page-type="{{ request.page_type | default: 'unknown' | escape }}"
