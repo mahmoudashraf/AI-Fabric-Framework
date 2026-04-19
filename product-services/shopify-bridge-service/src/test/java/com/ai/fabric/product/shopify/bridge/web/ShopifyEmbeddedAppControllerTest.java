@@ -14,6 +14,7 @@ import java.nio.file.Path;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -40,6 +41,8 @@ class ShopifyEmbeddedAppControllerTest {
         mockMvc.perform(get("/"))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith("text/html"))
+            .andExpect(header().doesNotExist("X-Frame-Options"))
+            .andExpect(header().string("Content-Security-Policy", org.hamcrest.Matchers.containsString("frame-ancestors https://admin.shopify.com https://*.myshopify.com;")))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("Shopify Bridge Admin")));
     }
 
