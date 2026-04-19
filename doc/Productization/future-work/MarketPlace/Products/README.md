@@ -25,6 +25,7 @@ Current docs:
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_PRODUCTS_SHIPPING_ROADMAP.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md`
