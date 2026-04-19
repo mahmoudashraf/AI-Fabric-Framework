@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
+import { emitEvent } from "@/config";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -101,6 +102,14 @@ export function useChatFlow({
       if (currentMode === "navigator_deep") {
         mode = "navigator_deep";
       }
+
+      emitEvent("message:sent", {
+        query,
+        conversationId: currentConversationId,
+        position,
+        mode,
+        attachmentsCount: attachedItems.length,
+      });
 
       setCurrentPosition(position);
       setCurrentMode(mode);
@@ -285,6 +294,13 @@ export function useChatFlow({
           messageContent = data.response || data.message || "I processed your query successfully.";
         }
 
+        emitEvent("message:received", {
+          conversationId: data.conversationId || currentConversationId,
+          resultType,
+          success: data.result?.success ?? data.success ?? true,
+          durationMs,
+        });
+
         const messageId = (Date.now() + 1).toString();
         if (messageDocs) messageDocs = messageDocs.map((doc) => ({ ...doc, messageId }));
 
@@ -316,6 +332,10 @@ export function useChatFlow({
 
         setChatMessages((prev) => [...prev, aiMessage]);
       } catch (error) {
+        emitEvent("error", {
+          source: "chat-query",
+          message: error instanceof Error ? error.message : "Unknown chat query failure",
+        });
         const errorMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           type: "ai",
