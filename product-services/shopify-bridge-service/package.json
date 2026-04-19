@@ -5,10 +5,10 @@
   "scripts": {
     "shopify:preflight": "bash ./deploy/shopify/shopify-cli-preflight.sh",
     "shopify:config:render": "bash ./deploy/shopify/render-shopify-app-config.sh",
-    "shopify:app:dev": "npm run shopify:preflight && npm run shopify:config:render && shopify app dev",
-    "shopify:app:info": "npm run shopify:preflight && npm run shopify:config:render && shopify app info",
-    "shopify:app:deploy": "npm run shopify:preflight && npm run shopify:config:render && shopify app deploy --allow-updates",
-    "shopify:app:release": "npm run shopify:preflight && npm run shopify:config:render && shopify app release",
+    "shopify:app:dev": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app dev --path .",
+    "shopify:app:info": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app info --path .",
+    "shopify:app:deploy": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app deploy --allow-updates --path .",
+    "shopify:app:release": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app release --path .",
     "ui:dev": "npm --prefix ./ui run dev",
     "ui:build": "npm --prefix ./ui run build"
   }
