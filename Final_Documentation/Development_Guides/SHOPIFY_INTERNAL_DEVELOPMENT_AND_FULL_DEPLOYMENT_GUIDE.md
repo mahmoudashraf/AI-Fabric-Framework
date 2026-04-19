@@ -15,6 +15,24 @@ This guide should be read with:
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
 
+Current live Loom Companion Shopify app state:
+
+- real Shopify CLI-managed app exists
+- app name: `Loom Companion`
+- app handle: `loom-companion`
+- app client id: `939df746e3bbbb0a8ab2f31cf94bd11b`
+- app URL: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
+- OAuth callback URL: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app/auth/shopify/callback`
+- app proxy URL: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
+- target dev store: `shopping-companion-test.myshopify.com`
+- platform bootstrap for the target dev store already exists:
+  - customer: `cus-8ac907b8`
+  - deployment: `dep-b8d3e57b`
+  - consumer: `shopify-shopping-companion-test`
+- remaining live gap:
+  - the app still needs to be installed and approved on the target dev store
+  - the theme app embed still needs to be enabled in the store theme
+
 Relevant official Shopify references:
 
 - Create apps using the Dev Dashboard: <https://shopify.dev/docs/apps/build/dev-dashboard/create-apps-using-dev-dashboard>
@@ -390,30 +408,63 @@ For Loom Companion shipping, standardize on:
 - OAuth-backed store install
 - CLI-managed theme app extension deployment
 
-## 8) Current Blocker Summary
+## 8) Current Full-Deployment State
 
-What is currently missing for full Shopify-side verification:
+What is already done:
 
-- the real Shopify CLI-managed app project in the correct owner context
-- enough local disk space on this machine to run Shopify CLI scaffolding and package installation
-- after the app exists, the correct store-scoped Admin API credentials for direct Shopify Admin verification when needed
+- the real Shopify CLI-managed app project exists in Shopify
+- app configuration and the theme app extension have been deployed through Shopify CLI
+- the Shopify Bridge service is live and correctly serves:
+  - embedded app shell
+  - OAuth install endpoint
+  - OAuth callback endpoint
+  - app proxy target
+- the install endpoint now returns the expected Shopify OAuth redirect
+- the target dev store already has a platform-side store mapping and bootstrap:
+  - customer created
+  - deployment created
+  - consumer binding created
 
-What will unblock it:
+What is still missing for end-to-end go-live on the target dev store:
 
-- free local disk space first
-- then initialize or link the real Shopify app project through Shopify CLI
-- then complete the remaining Shopify owner/admin steps for install and theme enablement
+- the store admin must install and approve the app on `shopping-companion-test.myshopify.com`
+- the OAuth callback must persist the real store access token into the platform store credential path
+- source preflight must run against the real store credentials
+- publish/apply/sync/verify must run for the target store deployment
+- the theme app embed must be enabled in the theme editor
 
-## 9) Administration Help Checklist
+What this means in practice:
 
-If you want me to complete the Shopify-side verification path next, I need the following from your side:
+- the remaining blocker is no longer app creation or CLI setup
+- the remaining blocker is the store-admin approval path inside Shopify plus the post-install rollout steps
 
-1. confirm the Shopify owner context that should own the real app
-2. be available for any required interactive Shopify login or app-owner confirmation
-3. complete any Shopify-side install and theme app embed enablement steps if the CLI cannot do them headlessly
-4. optionally, if we fall back to the Dev Dashboard path for a narrow verification need:
-   - provide `client_id`
-   - provide `client_secret`
-   - confirm the exact installed store domain
+## 9) Exact Remaining Admin Steps
 
-Without that, I can still prepare the repo and deployment side, but not finish the Shopify-side install and go-live path end to end.
+For the current live Loom Companion app, the remaining Shopify-side path is:
+
+1. Open the install URL while logged into the target store admin:
+   - `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app/auth/shopify/install?shop=shopping-companion-test.myshopify.com`
+2. Approve the app install and requested scopes for the store.
+3. Let Shopify redirect back to:
+   - `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app/auth/shopify/callback`
+4. Confirm the embedded app lands back on the bridge-served merchant UI.
+5. In Shopify theme editor, enable the Loom Companion app embed and save the theme.
+
+After that, the remaining steps are ours:
+
+1. verify that the platform store record now has live credentials
+2. run source preflight
+3. request go-live for the bootstrapped deployment
+4. verify apply-time sync and post-apply verification
+5. verify storefront bootstrap, suggestions, and shopper query path
+
+What I still need from administration side:
+
+- one real store-admin install/approval pass on `shopping-companion-test.myshopify.com`
+- one real theme-editor enablement pass for the app embed
+
+What I do not need anymore:
+
+- I do not need another app-creation step
+- I do not need another CLI token for the current app
+- I do not need the Dev Dashboard fallback path for the real deployment
