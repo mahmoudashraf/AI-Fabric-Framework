@@ -330,6 +330,145 @@ class IntentHandlingStepPendingConfirmationLoopBreakerTest {
         assertThat(pendingActionStore.getPendingActionStack("chat-retention", "user-1")).isEmpty();
     }
 
+    @Test
+    void shouldHonorConfiguredOnceParamRegardlessOfStoredKeyCaseDuringLoopBreakerFlow() {
+        InMemoryPendingActionStore pendingActionStore = new InMemoryPendingActionStore();
+
+        AtomicInteger cancelExecuteCount = new AtomicInteger();
+        AtomicInteger discountExecuteCount = new AtomicInteger();
+
+        AIActionHandler cancelHandler = new AIActionHandler() {
+            @Override
+            public AIActionMetaData getActionMetadata() {
+                return AIActionMetaData.builder()
+                    .name("cancel_purchase_order")
+                    .description("Cancel purchase order")
+                    .requiredParameters(Set.of("orderNumber"))
+                    .build();
+            }
+
+            @Override
+            public boolean requiresConfirmation() {
+                return true;
+            }
+
+            @Override
+            public String getConfirmationMessage(Map<String, Object> params, ActionContext context) {
+                return "Cancel this order?";
+            }
+
+            @Override
+            public ActionResult executeAction(Map<String, Object> params, ActionContext context) {
+                cancelExecuteCount.incrementAndGet();
+                return ActionResult.builder()
+                    .success(true)
+                    .message("Order cancelled.")
+                    .data(ActionPayload.object(Map.of("orderNumber", params.get("orderNumber"))))
+                    .build();
+            }
+        };
+
+        AIActionHandler discountHandler = new AIActionHandler() {
+            @Override
+            public AIActionMetaData getActionMetadata() {
+                return AIActionMetaData.builder()
+                    .name("offer_order_discount")
+                    .description("Offer discount")
+                    .requiredParameters(Set.of("orderNumber"))
+                    .build();
+            }
+
+            @Override
+            public boolean requiresConfirmation() {
+                return true;
+            }
+
+            @Override
+            public String getConfirmationMessage(Map<String, Object> params, ActionContext context) {
+                return "Apply discount?";
+            }
+
+            @Override
+            public ActionResult executeAction(Map<String, Object> params, ActionContext context) {
+                discountExecuteCount.incrementAndGet();
+                return ActionResult.builder()
+                    .success(true)
+                    .message("Discount offered.")
+                    .data(ActionPayload.object(Map.of(
+                        "orderNumber", params.get("orderNumber"),
+                        "discountPercent", params.getOrDefault("discountPercent", 10)
+                    )))
+                    .build();
+            }
+        };
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("cancel_purchase_order")).thenReturn(Optional.of(cancelHandler));
+        when(registry.findMetadata("cancel_purchase_order")).thenReturn(Optional.of(cancelHandler.getActionMetadata()));
+        when(registry.findHandler("offer_order_discount")).thenReturn(Optional.of(discountHandler));
+        when(registry.findMetadata("offer_order_discount")).thenReturn(Optional.of(discountHandler.getActionMetadata()));
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.ORCHESTRATION)))
+            .thenReturn(AIGenerationResponse.builder()
+                .content("{\"decision\":\"POSITIVE\",\"confidence\":1.0}")
+                .model("test-model")
+                .build());
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf((RAGProvider) null),
+            aiCoreService,
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            null,
+            pendingActionStore,
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+        ReflectionTestUtils.setField(step, "confirmationInterceptorCatalogProvider", providerOf(rulesProvider(retentionRulesWithMixedCaseOnceParam())));
+
+        OrchestrationContext orchContext = OrchestrationContext.builder()
+            .userId("user-1")
+            .conversationId("chat-retention-guard")
+            .build();
+
+        pendingActionStore.pushPendingAction("chat-retention-guard", "user-1", new PendingAction(
+            "cancel_purchase_order",
+            Map.of("orderNumber", "PO-1", "_RetentionOfferOffered", true),
+            null,
+            java.time.Instant.now()
+        ));
+
+        Intent cancelIntent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("cancel_purchase_order")
+            .actionParams(Map.of("orderNumber", "PO-1"))
+            .build();
+
+        PipelineContext turn = PipelineContext.from("yes", orchContext)
+            .toBuilder()
+            .historyMessages(List.of(AIChatMessage.user("cancel purchase order PO-1")))
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(cancelIntent)).build())
+            .build();
+
+        OrchestrationResult result = step.process(turn).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(((Map<?, ?>) result.getData()).get("action")).isEqualTo("cancel_purchase_order");
+        assertThat(cancelExecuteCount.get()).isEqualTo(1);
+        assertThat(discountExecuteCount.get()).isEqualTo(0);
+        assertThat(pendingActionStore.getPendingActionStack("chat-retention-guard", "user-1")).isEmpty();
+    }
+
     private <T> ObjectProvider<T> providerOf(T value) {
         @SuppressWarnings("unchecked")
         ObjectProvider<T> provider = mock(ObjectProvider.class);
@@ -378,6 +517,29 @@ class IntentHandlingStepPendingConfirmationLoopBreakerTest {
                     null
                 ),
                 new ConfirmationInterceptorStackPolicy(true, List.of("cancel_purchase_order"))
+            )
+        );
+    }
+
+    private List<ConfirmationInterceptorRule> retentionRulesWithMixedCaseOnceParam() {
+        return List.of(
+            new ConfirmationInterceptorRule(
+                "cancel_to_retention_offer",
+                new ConfirmationInterceptorTrigger(
+                    List.of("cancel_purchase_order"),
+                    IntentType.CONFIRMATION_POSITIVE,
+                    "_RetentionOfferOffered"
+                ),
+                new ConfirmationInterceptorDecision(
+                    ConfirmationInterceptorDecisionType.PROMPT_ACTION,
+                    "offer_order_discount",
+                    Map.of(
+                        "orderNumber", "{{pending.actionParams.orderNumber}}",
+                        "discountPercent", 10
+                    ),
+                    null
+                ),
+                ConfirmationInterceptorStackPolicy.NONE
             )
         );
     }

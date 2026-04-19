@@ -28,6 +28,7 @@ import com.ai.infrastructure.intent.action.policy.ActionPostPolicyEngine;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorParamSupport;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
@@ -1027,7 +1028,9 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         List<PendingAction> workingStack = new ArrayList<>(stackSnapshot);
-        String onceParam = rule.trigger() != null ? normalizeConfirmationKey(rule.trigger().onceParam()) : null;
+        String onceParam = rule.trigger() != null
+            ? ConfirmationInterceptorParamSupport.normalizeOnceParam(rule.trigger().onceParam())
+            : null;
         if (StringUtils.hasText(onceParam) && !workingStack.isEmpty()) {
             workingStack.set(0, withBooleanPendingParam(workingStack.getFirst(), onceParam, true));
         }
@@ -1110,10 +1113,7 @@ public class IntentHandlingStep implements PipelineStep {
             if (!containsNormalizedConfirmationValue(trigger.pendingActions(), actionName)) {
                 continue;
             }
-            String onceParam = normalizeConfirmationKey(trigger.onceParam());
-            if (StringUtils.hasText(onceParam)
-                && pending.actionParams() != null
-                && Boolean.TRUE.equals(pending.actionParams().get(onceParam))) {
+            if (ConfirmationInterceptorParamSupport.isBooleanFlagSet(pending.actionParams(), trigger.onceParam())) {
                 continue;
             }
             return rule;

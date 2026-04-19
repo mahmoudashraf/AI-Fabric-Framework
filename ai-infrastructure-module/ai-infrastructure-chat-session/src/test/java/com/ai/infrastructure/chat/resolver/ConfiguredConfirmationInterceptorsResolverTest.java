@@ -51,7 +51,7 @@ class ConfiguredConfirmationInterceptorsResolverTest {
 
         PendingAction top = store.peekPendingAction("conv-1", "demo-user").orElseThrow();
         assertThat(top.action()).isEqualTo("cancel_purchase_order");
-        assertThat(top.actionParams()).containsEntry("_retentionOfferOffered", true);
+        assertThat(top.actionParams()).containsEntry("_retentionofferoffered", true);
         assertThat(resolver.canResolve(confirmation(IntentType.CONFIRMATION_POSITIVE), Map.of(), context)).isFalse();
     }
 
@@ -119,6 +119,55 @@ class ConfiguredConfirmationInterceptorsResolverTest {
             .containsEntry("orderId", 42);
         assertThat(updated.getConfirmedActions()).containsExactly("cancel_purchase_order");
         assertThat(store.getPendingActionStack("conv-3", "demo-user")).isEmpty();
+    }
+
+    @Test
+    void shouldPreserveNonConfirmationIntentsWhenConfiguredInterceptorMatchesCompoundTurn() {
+        InMemoryPendingActionStore store = new InMemoryPendingActionStore();
+        ConfiguredConfirmationInterceptorsResolver resolver = new ConfiguredConfirmationInterceptorsResolver(
+            store,
+            provider(retentionRules())
+        );
+
+        PipelineContext context = context("conv-4");
+        store.pushPendingAction("conv-4", "demo-user", new PendingAction(
+            "cancel_purchase_order",
+            Map.of("orderNumber", "PO-7"),
+            null,
+            Instant.now()
+        ));
+
+        MultiIntentResponse compound = MultiIntentResponse.builder()
+            .intents(List.of(
+                Intent.builder().type(IntentType.CONFIRMATION_POSITIVE).build(),
+                Intent.builder().type(IntentType.ACTION).action("show_orders").confidence(0.9d).build()
+            ))
+            .build();
+
+        PipelineContext updated = resolver.resolve(compound, Map.of(), context);
+
+        assertThat(updated.getIntentResponse().getIntents())
+            .extracting(Intent::getAction)
+            .containsExactly("offer_order_discount", "show_orders");
+    }
+
+    @Test
+    void shouldHonorOnceParamRegardlessOfStoredKeyCase() {
+        InMemoryPendingActionStore store = new InMemoryPendingActionStore();
+        ConfiguredConfirmationInterceptorsResolver resolver = new ConfiguredConfirmationInterceptorsResolver(
+            store,
+            provider(retentionRulesWithMixedCaseOnceParam())
+        );
+
+        PipelineContext context = context("conv-5");
+        store.pushPendingAction("conv-5", "demo-user", new PendingAction(
+            "cancel_purchase_order",
+            Map.of("orderNumber", "PO-5", "_retentionofferoffered", true),
+            null,
+            Instant.now()
+        ));
+
+        assertThat(resolver.canResolve(confirmation(IntentType.CONFIRMATION_POSITIVE), Map.of(), context)).isFalse();
     }
 
     private ObjectProvider<ConfirmationInterceptorCatalogProvider> provider(List<ConfirmationInterceptorRule> rules) {
@@ -201,6 +250,29 @@ class ConfiguredConfirmationInterceptorsResolverTest {
                     null
                 ),
                 new ConfirmationInterceptorStackPolicy(true, List.of("cancel_purchase_order"))
+            )
+        );
+    }
+
+    private List<ConfirmationInterceptorRule> retentionRulesWithMixedCaseOnceParam() {
+        return List.of(
+            new ConfirmationInterceptorRule(
+                "cancel_to_retention_offer",
+                new ConfirmationInterceptorTrigger(
+                    List.of("cancel_purchase_order"),
+                    IntentType.CONFIRMATION_POSITIVE,
+                    "_RetentionOfferOffered"
+                ),
+                new ConfirmationInterceptorDecision(
+                    ConfirmationInterceptorDecisionType.PROMPT_ACTION,
+                    "offer_order_discount",
+                    Map.of(
+                        "orderNumber", "{{pending.actionParams.orderNumber}}",
+                        "discountPercent", 10
+                    ),
+                    null
+                ),
+                ConfirmationInterceptorStackPolicy.NONE
             )
         );
     }

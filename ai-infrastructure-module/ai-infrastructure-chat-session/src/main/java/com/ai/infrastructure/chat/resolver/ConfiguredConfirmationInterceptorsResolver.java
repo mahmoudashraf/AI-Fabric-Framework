@@ -9,6 +9,7 @@ import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorParamSupport;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
@@ -80,9 +81,11 @@ public class ConfiguredConfirmationInterceptorsResolver extends ConfirmationReso
         List<PendingAction> stackSnapshot = store().getPendingActionStack(conversationId, ownerId);
         List<PendingAction> workingStack = new ArrayList<>(stackSnapshot);
 
-        String onceParam = rule.trigger() != null ? rule.trigger().onceParam() : null;
+        String onceParam = rule.trigger() != null
+            ? ConfirmationInterceptorParamSupport.normalizeOnceParam(rule.trigger().onceParam())
+            : null;
         if (StringUtils.hasText(onceParam) && !workingStack.isEmpty()) {
-            workingStack.set(0, withBooleanParam(workingStack.get(0), onceParam.trim(), true));
+            workingStack.set(0, withBooleanParam(workingStack.get(0), onceParam, true));
         }
 
         InterceptionDecision decision = toDecision(rule.decision(), stackSnapshot);
@@ -98,8 +101,11 @@ public class ConfiguredConfirmationInterceptorsResolver extends ConfirmationReso
             }
         }
 
+        List<Intent> nextIntents = new ArrayList<>(decision.intents());
+        nextIntents.addAll(withoutConfirmationIntents(intentResponse));
+
         MultiIntentResponse updatedResponse = MultiIntentResponse.builder()
-            .intents(decision.intents())
+            .intents(List.copyOf(nextIntents))
             .orchestrationStrategy(intentResponse != null ? intentResponse.getOrchestrationStrategy() : null)
             .metadata(intentResponse != null && intentResponse.getMetadata() != null ? intentResponse.getMetadata() : Map.of())
             .build();
@@ -157,9 +163,7 @@ public class ConfiguredConfirmationInterceptorsResolver extends ConfirmationReso
             if (!containsNormalized(trigger.pendingActions(), actionName)) {
                 continue;
             }
-            if (StringUtils.hasText(trigger.onceParam())
-                && pending.actionParams() != null
-                && Boolean.TRUE.equals(pending.actionParams().get(trigger.onceParam().trim()))) {
+            if (ConfirmationInterceptorParamSupport.isBooleanFlagSet(pending.actionParams(), trigger.onceParam())) {
                 continue;
             }
             return rule;
