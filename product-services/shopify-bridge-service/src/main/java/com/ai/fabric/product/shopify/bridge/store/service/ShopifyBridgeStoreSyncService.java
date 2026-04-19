@@ -23,6 +23,8 @@ import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 @Service
 public class ShopifyBridgeStoreSyncService {
 
+    private static final int MAX_POLICY_BODY_CHARS = 5_500;
+
     private static final String PRODUCTS_QUERY = """
         query ShopifyCompanionProductsSync($cursor: String) {
           products(first: 50, after: $cursor) {
@@ -250,7 +252,7 @@ public class ShopifyBridgeStoreSyncService {
                 joinContent(
                     text(node, "title"),
                     text(node, "type"),
-                    sanitizeRichText(text(node, "body"))
+                    sanitizePolicyBody(text(node, "body"))
                 ),
                 metadata(
                     "policyType", text(node, "type"),
@@ -395,6 +397,33 @@ public class ShopifyBridgeStoreSyncService {
         String collapsed = stripped.replaceAll("[\\t\\x0B\\f\\r ]+", " ").replaceAll("\\n{3,}", "\n\n");
         String normalized = collapsed.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String sanitizePolicyBody(String html) {
+        String sanitized = sanitizeRichText(html);
+        if (sanitized == null) {
+            return null;
+        }
+        String withoutLiquidArtifacts = sanitized
+            .replaceAll("\\{\\{[^}]+}}", " ")
+            .replaceAll("\\{%[^%]+%}", " ")
+            .replaceAll("\\s{2,}", " ")
+            .trim();
+        if (withoutLiquidArtifacts.isEmpty()) {
+            return null;
+        }
+        return truncateForKnowledge(withoutLiquidArtifacts, MAX_POLICY_BODY_CHARS);
+    }
+
+    private String truncateForKnowledge(String value, int maxChars) {
+        if (value == null || value.isBlank() || maxChars <= 0 || value.length() <= maxChars) {
+            return value;
+        }
+        int cutoff = value.lastIndexOf(' ', maxChars - 1);
+        if (cutoff < Math.max(1, maxChars / 2)) {
+            cutoff = maxChars;
+        }
+        return value.substring(0, cutoff).trim();
     }
 
     private String storefrontUrl(String shopDomain, String path) {

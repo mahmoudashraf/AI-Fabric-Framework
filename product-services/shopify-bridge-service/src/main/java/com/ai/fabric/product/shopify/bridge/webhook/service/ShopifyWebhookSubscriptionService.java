@@ -71,9 +71,6 @@ public class ShopifyWebhookSubscriptionService {
         new DesiredWebhookSubscription("COLLECTIONS_CREATE", "loom-collections-create"),
         new DesiredWebhookSubscription("COLLECTIONS_UPDATE", "loom-collections-update"),
         new DesiredWebhookSubscription("COLLECTIONS_DELETE", "loom-collections-delete"),
-        new DesiredWebhookSubscription("PAGES_CREATE", "loom-pages-create"),
-        new DesiredWebhookSubscription("PAGES_UPDATE", "loom-pages-update"),
-        new DesiredWebhookSubscription("PAGES_DELETE", "loom-pages-delete"),
         new DesiredWebhookSubscription("SHOP_UPDATE", "loom-shop-update")
     );
 

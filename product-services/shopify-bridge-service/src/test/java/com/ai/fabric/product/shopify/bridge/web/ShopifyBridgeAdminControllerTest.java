@@ -82,7 +82,7 @@ class ShopifyBridgeAdminControllerTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             new ShopifyBridgeInstallOverview(10, 8, 2, 7, Instant.parse("2026-04-18T10:10:00Z"), Instant.parse("2026-04-18T09:00:00Z")),
             new ShopifyBridgeStoreOverview("READY", "Platform store mappings resolved successfully.", 6, 3, 2, 1, 1, Instant.parse("2026-04-18T10:15:00Z")),
-            new ShopifyBridgeWebhookSubscriptionOverview("READY", "Diagnostics available.", "https://bridge.example.com/api/webhooks/shopify", 11, List.of("APP_UNINSTALLED")),
+            new ShopifyBridgeWebhookSubscriptionOverview("READY", "Diagnostics available.", "https://bridge.example.com/api/webhooks/shopify", 9, List.of("APP_UNINSTALLED")),
             new ShopifyBridgeBillingSummary("FREE", "Companion Free", "ACTIVE", false, false, "Free mode."),
             new ShopifyBridgeUsageOverview(Instant.parse("2026-04-18T10:20:00Z"), Instant.parse("2026-04-18T10:18:00Z"), 1, 2, 4, 9, List.of(), List.of()),
             List.of("managed-service-health"),
@@ -96,7 +96,7 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.status").value("READY"))
             .andExpect(jsonPath("$.installs.totalCount").value(10))
             .andExpect(jsonPath("$.stores.readyForGoLiveCount").value(3))
-            .andExpect(jsonPath("$.webhookSubscriptions.expectedCount").value(11))
+            .andExpect(jsonPath("$.webhookSubscriptions.expectedCount").value(9))
             .andExpect(jsonPath("$.billing.mode").value("FREE"))
             .andExpect(jsonPath("$.usage.totalToday").value(4));
     }
@@ -108,8 +108,8 @@ class ShopifyBridgeAdminControllerTest {
             "DEGRADED",
             "One topic is missing.",
             "https://bridge.example.com/api/webhooks/shopify",
-            11,
-            10,
+            9,
+            8,
             1,
             0,
             Instant.parse("2026-04-18T10:25:00Z"),

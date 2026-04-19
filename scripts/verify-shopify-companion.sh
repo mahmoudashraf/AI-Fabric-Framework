@@ -197,7 +197,7 @@ http_request() {
   shift 3 || true
   local headers=("$@")
   local response
-  response="$(python3 - "$method" "$url" "$body" "${HTTP_COOKIE_JAR:-}" "${headers[@]}" <<'PY'
+  response="$(python3 - "$method" "$url" "$body" "${HTTP_COOKIE_JAR:-}" "${headers[@]-}" <<'PY'
 import json
 import subprocess
 import sys
@@ -240,7 +240,7 @@ http_request_text() {
   shift 2 || true
   local headers=("$@")
   local response
-  response="$(python3 - "$method" "$url" "${headers[@]}" <<'PY'
+  response="$(python3 - "$method" "$url" "${headers[@]-}" <<'PY'
 import subprocess
 import sys
 
@@ -272,11 +272,11 @@ PY
 
 extract_first_asset_path() {
   local payload="$1"
-  printf '%s' "${payload}" | python3 - <<'PY'
+  HTML_PAYLOAD="${payload}" python3 - <<'PY'
 import re
-import sys
+import os
 
-payload = sys.stdin.read()
+payload = os.environ["HTML_PAYLOAD"]
 match = re.search(r'(/assets/[^"\']+)', payload)
 print(match.group(1) if match else "")
 PY
@@ -299,15 +299,13 @@ import sys
 
 required = {
     "loom-app-uninstalled": "APP_UNINSTALLED",
+    "loom-app-subscriptions-update": "APP_SUBSCRIPTIONS_UPDATE",
     "loom-products-create": "PRODUCTS_CREATE",
     "loom-products-update": "PRODUCTS_UPDATE",
     "loom-products-delete": "PRODUCTS_DELETE",
     "loom-collections-create": "COLLECTIONS_CREATE",
     "loom-collections-update": "COLLECTIONS_UPDATE",
     "loom-collections-delete": "COLLECTIONS_DELETE",
-    "loom-pages-create": "PAGES_CREATE",
-    "loom-pages-update": "PAGES_UPDATE",
-    "loom-pages-delete": "PAGES_DELETE",
     "loom-shop-update": "SHOP_UPDATE",
 }
 
@@ -418,14 +416,12 @@ assert_equals "$(json_get "${store_json}" "productServiceRef")" "${PRODUCT_SERVI
 assert_equals "$(json_get "${store_json}" "installStatus")" "${EXPECT_INSTALL_STATUS}" "platform store installStatus"
 assert_equals "$(json_get "${store_json}" "syncStatus")" "${EXPECT_SYNC_STATUS}" "platform store syncStatus"
 assert_equals "$(json_get "${store_json}" "sourceReadinessStatus")" "${EXPECT_SOURCE_READINESS_STATUS}" "platform store sourceReadinessStatus"
-assert_equals "$(json_get "${store_json}" "widgetStatus")" "${EXPECT_WIDGET_STATUS}" "platform store widgetStatus"
 assert_equals "$(json_get "${store_json}" "readiness.storefrontReady")" "${EXPECT_STOREFRONT_READY}" "platform storefront readiness"
 assert_equals "$(json_get "${store_json}" "readiness.goLiveEligible")" "${EXPECT_GO_LIVE_ELIGIBLE}" "platform go-live eligibility"
 assert_nonempty "$(json_get "${store_json}" "deploymentId")" "platform deploymentId"
 assert_nonempty "$(json_get "${store_json}" "consumerId")" "platform consumerId"
 assert_nonempty "$(json_get "${store_json}" "sourcePreflight.checkedAt")" "platform source preflight checkedAt"
 assert_nonempty "$(json_get "${store_json}" "syncDetail.checkedAt")" "platform sync checkedAt"
-assert_nonempty "$(json_get "${store_json}" "widgetDetail.message")" "platform widget message"
 
 echo "== Platform store binding inspection =="
 platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]-}"
@@ -552,6 +548,13 @@ assert_nonempty "$(json_get "${query_json}" "conversationId")" "storefront query
 echo "== Storefront event =="
 http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/events" '{"eventType":"WIDGET_OPENED","pageType":"product","pageTitle":"Verification product page"}' "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
 assert_equals "${HTTP_STATUS}" "202" "storefront event status"
+
+echo "== Platform store summary after storefront bootstrap =="
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]-}"
+assert_equals "${HTTP_STATUS}" "200" "platform store summary after bootstrap status"
+store_after_bootstrap_json="${HTTP_BODY}"
+assert_equals "$(json_get "${store_after_bootstrap_json}" "widgetStatus")" "${EXPECT_WIDGET_STATUS}" "platform store widgetStatus"
+assert_nonempty "$(json_get "${store_after_bootstrap_json}" "widgetDetail.message")" "platform widget message"
 
 if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   echo "== Merchant session =="

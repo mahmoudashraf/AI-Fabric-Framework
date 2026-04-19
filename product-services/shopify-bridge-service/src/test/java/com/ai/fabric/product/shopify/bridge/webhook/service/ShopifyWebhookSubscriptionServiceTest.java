@@ -30,8 +30,8 @@ class ShopifyWebhookSubscriptionServiceTest {
 
         service.reconcileContentSubscriptions("alpha.myshopify.com", "token");
 
-        verify(client, times(12)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
-        verify(client, times(12)).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
+        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
+        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
     }
 
     @Test
@@ -44,7 +44,7 @@ class ShopifyWebhookSubscriptionServiceTest {
 
         service.reconcileContentSubscriptions("alpha.myshopify.com", "token");
 
-        verify(client, times(12)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
+        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
         verify(client, never()).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
         verify(client, never()).execute(eq("alpha.myshopify.com"), eq("token"), eq(deleteMutation()), anyMap());
     }
@@ -63,9 +63,9 @@ class ShopifyWebhookSubscriptionServiceTest {
 
         service.reconcileContentSubscriptions("alpha.myshopify.com", "token");
 
-        verify(client, times(12)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
+        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
         verify(client, times(1)).execute(eq("alpha.myshopify.com"), eq("token"), eq(deleteMutation()), anyMap());
-        verify(client, times(12)).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
+        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
     }
 
     @Test
@@ -89,9 +89,9 @@ class ShopifyWebhookSubscriptionServiceTest {
         var summary = service.inspectContentSubscriptions("alpha.myshopify.com", "token");
 
         assertThat(summary.status()).isEqualTo("DEGRADED");
-        assertThat(summary.expectedCount()).isEqualTo(12);
+        assertThat(summary.expectedCount()).isEqualTo(9);
         assertThat(summary.readyCount()).isEqualTo(1);
-        assertThat(summary.missingCount()).isEqualTo(10);
+        assertThat(summary.missingCount()).isEqualTo(7);
         assertThat(summary.driftedCount()).isEqualTo(1);
         assertThat(summary.topics()).anyMatch(topic -> "APP_UNINSTALLED".equals(topic.topic()) && "DRIFTED".equals(topic.status()));
         assertThat(summary.topics()).anyMatch(topic -> "PRODUCTS_CREATE".equals(topic.topic()) && "READY".equals(topic.status()));

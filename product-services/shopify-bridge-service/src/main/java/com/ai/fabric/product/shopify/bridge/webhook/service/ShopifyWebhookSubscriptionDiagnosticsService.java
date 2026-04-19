@@ -85,15 +85,13 @@ public class ShopifyWebhookSubscriptionDiagnosticsService {
     private String expectedName(String topic) {
         return switch (topic) {
             case "APP_UNINSTALLED" -> "loom-app-uninstalled";
+            case "APP_SUBSCRIPTIONS_UPDATE" -> "loom-app-subscriptions-update";
             case "PRODUCTS_CREATE" -> "loom-products-create";
             case "PRODUCTS_UPDATE" -> "loom-products-update";
             case "PRODUCTS_DELETE" -> "loom-products-delete";
             case "COLLECTIONS_CREATE" -> "loom-collections-create";
             case "COLLECTIONS_UPDATE" -> "loom-collections-update";
             case "COLLECTIONS_DELETE" -> "loom-collections-delete";
-            case "PAGES_CREATE" -> "loom-pages-create";
-            case "PAGES_UPDATE" -> "loom-pages-update";
-            case "PAGES_DELETE" -> "loom-pages-delete";
             case "SHOP_UPDATE" -> "loom-shop-update";
             default -> topic == null ? null : topic.trim().toLowerCase();
         };

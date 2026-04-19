@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,6 +167,57 @@ class ShopifyBridgeStoreSyncServiceTest {
         assertThat(syncCaptor.getValue().documents()).hasSize(1);
         assertThat(syncCaptor.getValue().documents().getFirst().sourceCategory()).isEqualTo("pages");
         assertThat(syncCaptor.getValue().documents().getFirst().entityType()).isEqualTo("support-policy");
+    }
+
+    @Test
+    void syncNormalizesAndBoundsShopifyPolicyBodies() {
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient);
+
+        String repeatedClause = String.join(" ", Collections.nCopies(2_000, "policy-clause"));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
+        query ShopifyCompanionPoliciesSync {
+          shop {
+            shopPolicies {
+              id
+              title
+              type
+              body
+              url
+              updatedAt
+            }
+          }
+        }
+        """))).thenReturn(Map.of(
+            "data", Map.of(
+                "shop", Map.of(
+                    "shopPolicies", List.of(Map.of(
+                        "id", "gid://shopify/ShopPolicy/1",
+                        "title", "Privacy policy",
+                        "type", "PRIVACY_POLICY",
+                        "body", "<p>Last updated: {{ last_updated }}</p><p>{% if data_sale_opt_out_enabled %}" + repeatedClause + "</p>",
+                        "url", "https://alpha.myshopify.com/policies/privacy-policy",
+                        "updatedAt", "2026-04-18T12:05:00Z"
+                    ))
+                )
+            )
+        ));
+        when(platformClient.syncDocuments(eq("alpha.myshopify.com"), any())).thenReturn(store(false, false, false, true));
+        when(platformClient.recordSyncStatus(eq("alpha.myshopify.com"), any())).thenReturn(store(false, false, false, true));
+
+        service.sync(acquisition(store(false, false, false, true)));
+
+        ArgumentCaptor<ShopifyBridgeSyncStoreDocumentsRequest> syncCaptor =
+            ArgumentCaptor.forClass(ShopifyBridgeSyncStoreDocumentsRequest.class);
+        verify(platformClient).syncDocuments(eq("alpha.myshopify.com"), syncCaptor.capture());
+        assertThat(syncCaptor.getValue().documents()).hasSize(1);
+        assertThat(syncCaptor.getValue().documents().getFirst().content())
+            .doesNotContain("{{")
+            .doesNotContain("}}")
+            .doesNotContain("{%")
+            .doesNotContain("%}");
+        assertThat(syncCaptor.getValue().documents().getFirst().content().length()).isLessThanOrEqualTo(5_600);
     }
 
     private Map<String, Object> cursorVariables(String cursor) {

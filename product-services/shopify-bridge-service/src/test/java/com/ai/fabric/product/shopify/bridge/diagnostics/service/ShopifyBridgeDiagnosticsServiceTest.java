@@ -57,7 +57,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
             List.of(new ShopifyBridgeUsageEventCountSummary("STOREFRONT_WIDGET_OPENED_HOME_PAGE", 4))
         ));
         when(webhookSubscriptionService.expectedWebhookUri()).thenReturn("https://bridge.example.com/api/webhooks/shopify");
-        when(webhookSubscriptionService.expectedSubscriptionCount()).thenReturn(11);
+        when(webhookSubscriptionService.expectedSubscriptionCount()).thenReturn(9);
         when(webhookSubscriptionService.expectedTopics()).thenReturn(List.of("APP_UNINSTALLED", "PRODUCTS_CREATE"));
 
         ShopifyBridgeDiagnosticsService service = new ShopifyBridgeDiagnosticsService(
@@ -78,7 +78,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
         assertThat(overview.stores().readyForGoLiveCount()).isEqualTo(1);
         assertThat(overview.stores().blockedCount()).isEqualTo(1);
         assertThat(overview.webhookSubscriptions().status()).isEqualTo("READY");
-        assertThat(overview.webhookSubscriptions().expectedCount()).isEqualTo(11);
+        assertThat(overview.webhookSubscriptions().expectedCount()).isEqualTo(9);
         assertThat(overview.billing().mode()).isEqualTo("FREE");
         assertThat(overview.usage().activeShopsLast7Days()).isEqualTo(2);
         assertThat(overview.usage().totalToday()).isEqualTo(5);
@@ -112,7 +112,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
             List.of(),
             List.of()
         ));
-        when(webhookSubscriptionService.expectedSubscriptionCount()).thenReturn(11);
+        when(webhookSubscriptionService.expectedSubscriptionCount()).thenReturn(9);
         when(webhookSubscriptionService.expectedTopics()).thenReturn(List.of("APP_UNINSTALLED"));
         when(webhookSubscriptionService.expectedWebhookUri()).thenThrow(new org.springframework.web.server.ResponseStatusException(
             org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
