@@ -53,7 +53,10 @@ final class VectorizationSourceAdapterSupport {
         Map<String, String> headers = new LinkedHashMap<>();
         switch (authMode) {
             case "API_KEY" -> {
-                String header = firstText(datasetConfig, "apiKeyHeader", descriptor.config(), "apiKeyHeader");
+                String header = firstText(datasetConfig, "authHeaderName", descriptor.config(), "authHeaderName");
+                if (!StringUtils.hasText(header)) {
+                    header = firstText(datasetConfig, "apiKeyHeader", descriptor.config(), "apiKeyHeader");
+                }
                 if (!StringUtils.hasText(header)) {
                     header = "Authorization";
                 }

@@ -182,7 +182,7 @@ class ShopifyStoreVectorizationServiceTest {
             "REST_API".equals(request.adapterType())
                 && "API_KEY".equals(request.authMode())
                 && "https://bridge.example.com".equals(request.connectionConfig().path("baseUrl").asText())
-                && "X-BRIDGE-API-KEY".equals(request.connectionConfig().path("apiKeyHeader").asText())
+                && "X-BRIDGE-API-KEY".equals(request.connectionConfig().path("authHeaderName").asText())
                 && "/api/admin/stores/alpha.myshopify.com/vectorization-source/product"
                     .equals(request.connectionConfig().path("datasets").path("product").path("path").asText())
                 && "/api/admin/stores/alpha.myshopify.com/vectorization-source/support-policy"

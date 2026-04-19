@@ -45,7 +45,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class ShopifyStoreVectorizationService {
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
-    private static final String BRIDGE_ADMIN_API_KEY_HEADER = "X-BRIDGE-API-KEY";
+    private static final String BRIDGE_ADMIN_AUTH_HEADER_NAME = "X-BRIDGE-API-KEY";
 
     private final ShopifyStoreConnectionRepository repository;
     private final DeploymentRepository deploymentRepository;
@@ -204,7 +204,7 @@ public class ShopifyStoreVectorizationService {
         );
         ObjectNode connectionConfig = JSON.objectNode();
         connectionConfig.put("baseUrl", trimTrailingSlash(bridgeBaseUrl));
-        connectionConfig.put("apiKeyHeader", BRIDGE_ADMIN_API_KEY_HEADER);
+        connectionConfig.put("authHeaderName", BRIDGE_ADMIN_AUTH_HEADER_NAME);
         connectionConfig.set("datasets", buildDatasetConfig(store));
 
         ObjectNode secretReferences = JSON.objectNode();
