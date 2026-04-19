@@ -22,30 +22,55 @@ public interface ShopifyBridgeUsageDailyRepository extends JpaRepository<Shopify
     @Modifying
     @Query(
         value = """
-            insert into shopify_bridge_usage_daily (
+            merge into shopify_bridge_usage_daily as target
+            using (
+                values (
+                    :id,
+                    :shopDomain,
+                    :usageDate,
+                    :eventType,
+                    :now,
+                    :now,
+                    :now
+                )
+            ) as source (
                 id,
                 shop_domain,
                 usage_date,
                 event_type,
-                event_count,
                 last_event_at,
                 created_at,
                 updated_at
-            ) values (
-                :id,
-                :shopDomain,
-                :usageDate,
-                :eventType,
-                1,
-                :now,
-                :now,
-                :now
             )
-            on conflict (shop_domain, usage_date, event_type)
-            do update set
-                event_count = shopify_bridge_usage_daily.event_count + 1,
-                last_event_at = excluded.last_event_at,
-                updated_at = excluded.updated_at
+            on target.shop_domain = source.shop_domain
+               and target.usage_date = source.usage_date
+               and target.event_type = source.event_type
+            when matched then
+                update set
+                    event_count = target.event_count + 1,
+                    last_event_at = source.last_event_at,
+                    updated_at = source.updated_at
+            when not matched then
+                insert (
+                    id,
+                    shop_domain,
+                    usage_date,
+                    event_type,
+                    event_count,
+                    last_event_at,
+                    created_at,
+                    updated_at
+                )
+                values (
+                    source.id,
+                    source.shop_domain,
+                    source.usage_date,
+                    source.event_type,
+                    1,
+                    source.last_event_at,
+                    source.created_at,
+                    source.updated_at
+                )
             """,
         nativeQuery = true
     )
