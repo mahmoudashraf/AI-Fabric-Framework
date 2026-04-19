@@ -43,7 +43,8 @@ class ShopifyEmbeddedAppControllerTest {
             .andExpect(content().contentTypeCompatibleWith("text/html"))
             .andExpect(header().doesNotExist("X-Frame-Options"))
             .andExpect(header().string("Content-Security-Policy", org.hamcrest.Matchers.containsString("frame-ancestors https://admin.shopify.com https://*.myshopify.com;")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Shopify Bridge Admin")));
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Shopify Bridge Admin")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("<meta name=\"shopify-api-key\" content=\"test-shopify-api-key\" />")));
     }
 
     @Test
