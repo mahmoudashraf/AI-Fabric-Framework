@@ -12,6 +12,7 @@ Purpose:
 This plan should be read with:
 
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_AI_ENABLEMENT_EXECUTION_ROADMAP.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_VECTORIZATION_TRIGGER_PLAN.md`
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md`
