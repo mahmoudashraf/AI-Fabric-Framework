@@ -12,6 +12,14 @@ if [[ -f "${LOCAL_ENV_FILE}" ]]; then
   set +a
 fi
 
+resolve_shopify_cli() {
+  if [[ -n "${SHOPIFY_CLI_RUNNER:-}" ]]; then
+    printf '%s' "${SHOPIFY_CLI_RUNNER}"
+    return
+  fi
+  command -v shopify
+}
+
 resolve_node_binary() {
   if [[ -n "${SHOPIFY_CLI_NODE_BINARY:-}" ]]; then
     printf '%s' "${SHOPIFY_CLI_NODE_BINARY}"
@@ -21,19 +29,20 @@ resolve_node_binary() {
     printf '%s' "${NODE}"
     return
   fi
+  if [[ -n "${SHOPIFY_CLI_RUNNER:-}" ]]; then
+    local runner_dir
+    runner_dir="$(cd "$(dirname "${SHOPIFY_CLI_RUNNER}")" && pwd)"
+    if [[ -x "${runner_dir}/node" ]]; then
+      printf '%s' "${runner_dir}/node"
+      return
+    fi
+  fi
   command -v node
 }
 
-resolve_shopify_cli() {
-  if [[ -n "${SHOPIFY_CLI_RUNNER:-}" ]]; then
-    printf '%s' "${SHOPIFY_CLI_RUNNER}"
-    return
-  fi
-  command -v shopify
-}
-
-NODE_BINARY="$(resolve_node_binary)"
 SHOPIFY_CLI_RUNNER="$(resolve_shopify_cli)"
+NODE_BINARY="$(resolve_node_binary)"
+NODE_DIR="$(cd "$(dirname "${NODE_BINARY}")" && pwd)"
 
 if [[ ! -x "${NODE_BINARY}" ]]; then
   echo "Resolved Node binary is not executable: ${NODE_BINARY}" >&2
@@ -46,4 +55,6 @@ if [[ ! -f "${SHOPIFY_CLI_RUNNER}" ]]; then
 fi
 
 cd "${SERVICE_ROOT}"
+export NODE="${NODE_BINARY}"
+export PATH="${NODE_DIR}:${PATH}"
 exec "${NODE_BINARY}" "${SHOPIFY_CLI_RUNNER}" "$@"
