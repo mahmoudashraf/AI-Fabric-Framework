@@ -3,8 +3,26 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-OUTPUT_FILE="${SHOPIFY_APP_TOML_OUTPUT:-${SERVICE_ROOT}/shopify.app.toml}"
 LOCAL_ENV_FILE="${SHOPIFY_LOCAL_ENV_FILE:-${SCRIPT_DIR}/.env.shopify}"
+
+resolve_output_file() {
+  if [[ -n "${SHOPIFY_APP_TOML_OUTPUT:-}" ]]; then
+    printf '%s' "${SHOPIFY_APP_TOML_OUTPUT}"
+    return
+  fi
+
+  shopt -s nullglob
+  local linked_configs=("${SERVICE_ROOT}"/shopify.app.*.toml)
+  shopt -u nullglob
+  if [[ "${#linked_configs[@]}" -eq 1 ]]; then
+    printf '%s' "${linked_configs[0]}"
+    return
+  fi
+
+  printf '%s' "${SERVICE_ROOT}/shopify.app.toml"
+}
+
+OUTPUT_FILE="$(resolve_output_file)"
 
 if [[ -f "${LOCAL_ENV_FILE}" ]]; then
   set -a

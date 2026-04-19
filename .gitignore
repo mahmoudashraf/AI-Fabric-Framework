@@ -116,5 +116,6 @@ Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HAND
 
 # Shopify CLI local app workspace artifacts
 product-services/shopify-bridge-service/shopify.app.toml
+product-services/shopify-bridge-service/shopify.app.*.toml
 product-services/shopify-bridge-service/.shopify/
 product-services/shopify-bridge-service/deploy/shopify/.env.shopify
