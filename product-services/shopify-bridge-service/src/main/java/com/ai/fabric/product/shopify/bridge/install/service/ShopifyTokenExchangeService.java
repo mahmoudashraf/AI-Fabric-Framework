@@ -23,6 +23,7 @@ public class ShopifyTokenExchangeService {
     private static final String TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
     private static final String ID_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:id_token";
     private static final String OFFLINE_TOKEN_TYPE = "urn:shopify:params:oauth:token-type:offline-access-token";
+    private static final String REFRESH_TOKEN_GRANT = "refresh_token";
 
     private final ShopifyBridgeProperties properties;
     private final RestClient restClient;
@@ -68,6 +69,53 @@ public class ShopifyTokenExchangeService {
         return new ShopifyTokenExchangeMaterial(
             accessToken,
             refreshToken,
+            accessTokenExpiresAt,
+            refreshTokenExpiresAt,
+            scopesText,
+            true
+        );
+    }
+
+    public ShopifyTokenExchangeMaterial refreshExpiringOfflineToken(String shopDomain,
+                                                                    String refreshToken) {
+        if (properties.shopifyApiKey().isBlank() || properties.shopifyApiSecret().isBlank()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Shopify Bridge client credentials are not configured.");
+        }
+        String normalizedShopDomain = normalize(shopDomain);
+        if (normalizedShopDomain == null) {
+            throw new ResponseStatusException(CONFLICT, "Shop domain is required for Shopify token refresh.");
+        }
+        String normalizedRefreshToken = normalize(refreshToken);
+        if (normalizedRefreshToken == null) {
+            throw new ResponseStatusException(CONFLICT, "Refresh token is required for Shopify token refresh.");
+        }
+
+        LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("client_id", properties.shopifyApiKey());
+        form.add("client_secret", properties.shopifyApiSecret());
+        form.add("grant_type", REFRESH_TOKEN_GRANT);
+        form.add("refresh_token", normalizedRefreshToken);
+
+        Map<String, Object> response = restClient.post()
+            .uri("https://" + normalizedShopDomain + "/admin/oauth/access_token")
+            .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+            .accept(MediaType.APPLICATION_JSON)
+            .body(form)
+            .retrieve()
+            .body(new ParameterizedTypeReference<>() { });
+        if (response == null) {
+            throw new ResponseStatusException(BAD_GATEWAY, "Shopify token refresh returned an empty response.");
+        }
+
+        String accessToken = requireField(response, "access_token");
+        String rotatedRefreshToken = requireField(response, "refresh_token");
+        String scopesText = normalize(response.get("scope"));
+        Instant now = Instant.now();
+        Instant accessTokenExpiresAt = plusSeconds(now, number(response.get("expires_in")));
+        Instant refreshTokenExpiresAt = plusSeconds(now, number(response.get("refresh_token_expires_in")));
+        return new ShopifyTokenExchangeMaterial(
+            accessToken,
+            rotatedRefreshToken,
             accessTokenExpiresAt,
             refreshTokenExpiresAt,
             scopesText,

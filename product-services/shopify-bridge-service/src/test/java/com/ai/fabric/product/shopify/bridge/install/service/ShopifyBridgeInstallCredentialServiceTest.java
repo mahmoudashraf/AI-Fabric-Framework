@@ -15,6 +15,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,8 +50,8 @@ class ShopifyBridgeInstallCredentialServiceTest {
             new ShopifyBridgeResolvedStoreCredentials(
                 "shpat_access",
                 "shprt_refresh",
-                Instant.parse("2026-04-18T01:00:00Z"),
-                Instant.parse("2026-07-18T00:00:00Z"),
+                Instant.parse("2099-04-18T01:00:00Z"),
+                Instant.parse("2099-07-18T00:00:00Z"),
                 "read_products,read_content,read_legal_policies",
                 true
             )
@@ -64,6 +65,47 @@ class ShopifyBridgeInstallCredentialServiceTest {
         assertThat(resolved.orElseThrow().tokenExchangeMaterial().refreshToken()).isEqualTo("shprt_refresh");
         verify(platformClient).getStore("alpha.myshopify.com");
         verify(platformClient).resolveCredentialMaterial("alpha.myshopify.com");
+    }
+
+    @Test
+    void resolvePersistedMaterialRefreshesExpiredExpiringToken() {
+        ShopifyBridgeStoreSummary store = store();
+        ShopifyBridgeStoreSummary refreshedStore = storeWithCredentialTimes(
+            Instant.parse("2026-04-19T12:00:00Z"),
+            Instant.parse("2026-07-18T12:00:00Z")
+        );
+        when(platformClient.getStore("alpha.myshopify.com"))
+            .thenReturn(store)
+            .thenReturn(refreshedStore);
+        when(platformClient.resolveCredentialMaterial("alpha.myshopify.com")).thenReturn(
+            new ShopifyBridgeResolvedStoreCredentials(
+                "shpat_expired",
+                "shprt_refresh",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products,read_content,read_legal_policies",
+                true
+            )
+        );
+        when(tokenExchangeService.refreshExpiringOfflineToken("alpha.myshopify.com", "shprt_refresh")).thenReturn(
+            new ShopifyTokenExchangeMaterial(
+                "shpat_rotated",
+                "shprt_rotated",
+                Instant.parse("2026-04-19T12:00:00Z"),
+                Instant.parse("2026-07-18T12:00:00Z"),
+                "read_products,read_content,read_legal_policies",
+                true
+            )
+        );
+        when(platformClient.upsertCredentials(eq("alpha.myshopify.com"), any())).thenReturn(refreshedStore);
+
+        Optional<ShopifyBridgeCredentialAcquisition> resolved = service.resolvePersistedMaterial("alpha.myshopify.com");
+
+        assertThat(resolved).isPresent();
+        assertThat(resolved.orElseThrow().tokenExchangeMaterial().accessToken()).isEqualTo("shpat_rotated");
+        assertThat(resolved.orElseThrow().tokenExchangeMaterial().refreshToken()).isEqualTo("shprt_rotated");
+        verify(tokenExchangeService).refreshExpiringOfflineToken("alpha.myshopify.com", "shprt_refresh");
+        verify(platformClient).upsertCredentials(eq("alpha.myshopify.com"), any());
     }
 
     @Test
@@ -97,6 +139,14 @@ class ShopifyBridgeInstallCredentialServiceTest {
     }
 
     private ShopifyBridgeStoreSummary store() {
+        return storeWithCredentialTimes(
+            Instant.parse("2026-04-18T01:00:00Z"),
+            Instant.parse("2026-07-18T00:00:00Z")
+        );
+    }
+
+    private ShopifyBridgeStoreSummary storeWithCredentialTimes(Instant accessTokenExpiresAt,
+                                                               Instant refreshTokenExpiresAt) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
             "alpha.myshopify.com",
@@ -126,8 +176,8 @@ class ShopifyBridgeInstallCredentialServiceTest {
                 "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA",
                 "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA",
                 Instant.parse("2026-04-18T00:00:00Z"),
-                Instant.parse("2026-04-18T01:00:00Z"),
-                Instant.parse("2026-07-18T00:00:00Z"),
+                accessTokenExpiresAt,
+                refreshTokenExpiresAt,
                 "read_products,read_content,read_legal_policies",
                 true
             ),

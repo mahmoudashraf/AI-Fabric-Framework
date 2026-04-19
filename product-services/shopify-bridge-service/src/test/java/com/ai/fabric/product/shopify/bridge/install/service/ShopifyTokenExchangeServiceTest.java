@@ -60,6 +60,34 @@ class ShopifyTokenExchangeServiceTest {
         server.verify();
     }
 
+    @Test
+    void refreshExpiringOfflineTokenUsesRefreshGrantContract() {
+        server.expect(requestTo("https://alpha.myshopify.com/admin/oauth/access_token"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_FORM_URLENCODED))
+            .andExpect(content().string(containsString("grant_type=refresh_token")))
+            .andExpect(content().string(containsString("refresh_token=shprt_previous")))
+            .andRespond(withSuccess("""
+                {
+                  "access_token":"shpat_rotated",
+                  "expires_in":3600,
+                  "refresh_token":"shprt_rotated",
+                  "refresh_token_expires_in":7776000,
+                  "scope":"read_products,read_content,read_legal_policies"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyTokenExchangeMaterial material = service.refreshExpiringOfflineToken("alpha.myshopify.com", "shprt_previous");
+
+        assertThat(material.accessToken()).isEqualTo("shpat_rotated");
+        assertThat(material.refreshToken()).isEqualTo("shprt_rotated");
+        assertThat(material.scopesText()).isEqualTo("read_products,read_content,read_legal_policies");
+        assertThat(material.expiring()).isTrue();
+        assertThat(material.accessTokenExpiresAt()).isAfter(Instant.now());
+        assertThat(material.refreshTokenExpiresAt()).isAfter(material.accessTokenExpiresAt());
+        server.verify();
+    }
+
     private ShopifyMerchantSession session() {
         return new ShopifyMerchantSession(
             "alpha.myshopify.com",
