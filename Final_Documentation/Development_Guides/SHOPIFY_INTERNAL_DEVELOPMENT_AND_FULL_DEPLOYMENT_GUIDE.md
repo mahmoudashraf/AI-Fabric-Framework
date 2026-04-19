@@ -32,6 +32,11 @@ Current live Loom Companion Shopify app state:
 - remaining live gap:
   - the app still needs to be installed and approved on the target dev store
   - the theme app embed still needs to be enabled in the store theme
+- latest validated Shopify app release from the repo workflow:
+  - `loom-companion-8`
+- current theme-shell posture:
+  - `legacy` is still the default shell
+  - `max-mode` is now available as an explicit theme app embed setting
 
 Relevant official Shopify references:
 
@@ -101,12 +106,19 @@ What it is for:
 - working with app project tooling
 - creating or linking the real Shopify app project
 - deploying app configuration and theme app extensions through Shopify CLI
+- running non-interactive app deploys through:
+  - `SHOPIFY_CLI_PARTNERS_TOKEN`
 
 What it is not:
 
 - not a store Admin API access token
 - not an install token
 - not enough by itself to call `/{shop}/admin/api/...`
+
+Current validated execution path:
+
+- `SHOPIFY_CLI_PARTNERS_TOKEN=<partner-cli-token> shopify app deploy --allow-updates`
+- this works for the current Loom Companion app workspace without interactive login
 
 ### 2.2 Catalog or Dev Dashboard API key/token
 
@@ -351,6 +363,22 @@ Use Shopify CLI deploy flow to publish the app version that contains:
 - the theme app extension
 - the generated `shopify.app.toml`
 - the CLI web process definitions (`shopify.web.toml` and `ui/shopify.web.toml`)
+- the synced shared widget bundle for the optional `max-mode` storefront shell
+
+Current repo command posture:
+
+- `npm -C product-services/shopify-bridge-service run shopify:app:deploy`
+- `npm -C product-services/shopify-bridge-service run shopify:app:release`
+
+Both commands now:
+
+- run workspace preflight
+- rebuild `max-mode-widget`
+- sync `max-mode-widget.iife.js` into the theme app extension assets
+- render the Shopify app config
+- then invoke Shopify CLI
+
+This matters because the `max-mode` storefront shell depends on the synced IIFE bundle.
 
 ### 5.6 Merchant-side go-live actions
 
@@ -367,7 +395,9 @@ CLI helps with the app project and deployment flow, but these merchant-side acti
 For the real Shopify CLI-managed path, we need:
 
 1. the correct Shopify owner context for the real app
-2. a Shopify login/session in that owner context when the CLI needs interactive authentication
+2. either:
+   - a Shopify login/session in that owner context
+   - or a valid Partner Dashboard CLI token exported as `SHOPIFY_CLI_PARTNERS_TOKEN`
 3. authority to create or confirm the real app in Shopify
 4. authority to set app URLs and redirect URLs
 5. authority to install the app on the target store
@@ -414,6 +444,7 @@ What is already done:
 
 - the real Shopify CLI-managed app project exists in Shopify
 - app configuration and the theme app extension have been deployed through Shopify CLI
+- non-interactive CLI deploy from this repo has been validated with `SHOPIFY_CLI_PARTNERS_TOKEN`
 - the Shopify Bridge service is live and correctly serves:
   - embedded app shell
   - OAuth install endpoint
@@ -449,6 +480,12 @@ For the current live Loom Companion app, the remaining Shopify-side path is:
    - `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app/auth/shopify/callback`
 4. Confirm the embedded app lands back on the bridge-served merchant UI.
 5. In Shopify theme editor, enable the Loom Companion app embed and save the theme.
+
+Theme editor detail:
+
+- the embed now exposes a `Widget shell` setting
+- keep `legacy` as the default production choice for now
+- switch to `max-mode` only when we intentionally want to validate the shared Max Mode storefront shell on the store
 
 After that, the remaining steps are ours:
 
@@ -489,5 +526,6 @@ What I still need from administration side:
 What I do not need anymore:
 
 - I do not need another app-creation step
-- I do not need another CLI token for the current app
+- I do not need another app-creation step for the current app
+- I do not need an interactive Shopify CLI login if `SHOPIFY_CLI_PARTNERS_TOKEN` is available
 - I do not need the Dev Dashboard fallback path for the real deployment
