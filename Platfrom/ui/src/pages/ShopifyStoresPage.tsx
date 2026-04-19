@@ -31,6 +31,7 @@ import {
   bootstrapShopifyStore,
   deleteShopifyStore,
   fetchProductServices,
+  runProductServiceStoreSourcePreflight,
   fetchShopifyStoreBinding,
   fetchShopifyStore,
   fetchShopifyStores,
@@ -252,6 +253,22 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const runLivePreflightMutation = useMutation({
+    mutationFn: ({ serviceRef, shopDomain }: { serviceRef: string; shopDomain: string }) =>
+      runProductServiceStoreSourcePreflight(serviceRef, shopDomain),
+    onSuccess: async (store) => {
+      setMessage({ type: 'success', text: `Ran live source preflight for ${store.shopDomain}.` })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', store.shopDomain] }),
+        queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+      ])
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to run live Shopify source preflight.' })
+    },
+  })
+
   const goLiveMutation = useMutation({
     mutationFn: (shopDomain: string) => goLiveShopifyStore(shopDomain),
     onSuccess: async (store) => {
@@ -321,13 +338,28 @@ export function ShopifyStoresPage() {
               <Button
                 variant="outlined"
                 startIcon={<FactCheckRoundedIcon />}
+                onClick={() =>
+                  selectedStore.productServiceRef
+                    ? runLivePreflightMutation.mutate({
+                        serviceRef: selectedStore.productServiceRef,
+                        shopDomain: selectedStore.shopDomain,
+                      })
+                    : undefined
+                }
+                disabled={runLivePreflightMutation.isPending || !selectedStore.productServiceRef}
+              >
+                Run live source preflight
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<FactCheckRoundedIcon />}
                 onClick={() => {
                   setPreflightCategories(buildPreflightCategories(selectedStore))
                   setPreflightDialogOpen(true)
                 }}
                 disabled={preflightMutation.isPending}
               >
-                Record source preflight
+                Record preflight override
               </Button>
               <Button
                 variant="outlined"

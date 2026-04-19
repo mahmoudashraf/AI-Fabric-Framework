@@ -312,6 +312,69 @@ class PlatformManagedProductAdminServiceTest {
     }
 
     @Test
+    void runStoreSourcePreflightCallsBridgeAdminEndpointAndReturnsPlatformSummary() throws Exception {
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/api/admin/stores/demo.myshopify.com/run-source-preflight", this::handleRunSourcePreflightRequest);
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setBaseUrl(baseUrl);
+        service.setSecretName("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY");
+        ShopifyStoreConnectionEntity connection = storeConnection(service.getId(), "demo.myshopify.com");
+        ShopifyStoreConnectionSummary storeSummary = summary(connection);
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), "demo.myshopify.com"))
+            .thenReturn(java.util.Optional.of(connection));
+        when(platformSecretService.resolveSecret("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY")).thenReturn("bridge-admin-key");
+        when(shopifyStoreConnectionService.getConnection("demo.myshopify.com")).thenReturn(storeSummary);
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            shopifyStoreConnectionService,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        ShopifyStoreConnectionSummary result = adminService.runStoreSourcePreflight("shopify-bridge-prod", "demo.myshopify.com");
+
+        assertThat(result.shopDomain()).isEqualTo("demo.myshopify.com");
+        verify(platformAuditService).record(
+            org.mockito.ArgumentMatchers.eq("MANAGED_PRODUCT_SOURCE_PREFLIGHT_TRIGGERED"),
+            org.mockito.ArgumentMatchers.eq("MANAGED_PRODUCT_SERVICE"),
+            org.mockito.ArgumentMatchers.eq("shopify-bridge-prod"),
+            any()
+        );
+    }
+
+    @Test
     void deploymentHistoryReturnsRecentRailwayDeployments() {
         PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
         service.setRailwayProjectId("rail-project-123");
@@ -690,6 +753,47 @@ class PlatformManagedProductAdminServiceTest {
         return entity;
     }
 
+    private ShopifyStoreConnectionSummary summary(ShopifyStoreConnectionEntity entity) {
+        return new ShopifyStoreConnectionSummary(
+            entity.getId(),
+            entity.getShopDomain(),
+            entity.getShopDomain(),
+            entity.getProductServiceId(),
+            "shopify-bridge-prod",
+            "Shopify Bridge Service",
+            entity.getCustomerId(),
+            "Demo Customer",
+            entity.getDeploymentId(),
+            "Demo Deployment",
+            "ACTIVE",
+            entity.getConsumerId(),
+            "Demo Storefront",
+            entity.getInstallStatus(),
+            entity.getSyncStatus(),
+            entity.getSourceReadinessStatus(),
+            entity.getWidgetStatus(),
+            entity.getOnboardingStatus(),
+            entity.isProductsEnabled(),
+            entity.isCollectionsEnabled(),
+            entity.isPagesEnabled(),
+            entity.isPoliciesEnabled(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            versionSummary(),
+            releaseSummary(),
+            null,
+            null,
+            null,
+            entity.getCreatedAt(),
+            entity.getUpdatedAt()
+        );
+    }
+
     private DeploymentVersionEntity version() {
         DeploymentVersionEntity entity = new DeploymentVersionEntity();
         entity.setId("ver-123");
@@ -892,6 +996,24 @@ class PlatformManagedProductAdminServiceTest {
               "message": "Merchant approval is required before go-live."
             }
             """.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, payload.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(payload);
+        }
+    }
+
+    private void handleRunSourcePreflightRequest(HttpExchange exchange) throws IOException {
+        String apiKey = exchange.getRequestHeaders().getFirst("X-BRIDGE-API-KEY");
+        if (!"bridge-admin-key".equals(apiKey)) {
+            exchange.sendResponseHeaders(401, -1);
+            return;
+        }
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(405, -1);
+            return;
+        }
+        byte[] payload = "{\"shopDomain\":\"demo.myshopify.com\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, payload.length);
         try (OutputStream outputStream = exchange.getResponseBody()) {

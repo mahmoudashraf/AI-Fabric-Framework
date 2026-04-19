@@ -115,6 +115,12 @@ public class ProductServiceController {
         return adminService.getStoreBillingSummary(serviceRef, shopDomain);
     }
 
+    @PostMapping("/{serviceRef}/stores/{shopDomain}/run-source-preflight")
+    public ShopifyStoreConnectionSummary runStoreSourcePreflight(@PathVariable String serviceRef,
+                                                                 @PathVariable String shopDomain) {
+        return adminService.runStoreSourcePreflight(serviceRef, shopDomain);
+    }
+
     @PostMapping("/{serviceRef}/reconcile")
     public PlatformManagedProductServiceSummary reconcile(@PathVariable String serviceRef) {
         return adminService.reconcile(serviceRef);

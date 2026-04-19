@@ -515,6 +515,54 @@ public class PlatformManagedProductAdminService {
         }
     }
 
+    public ShopifyStoreConnectionSummary runStoreSourcePreflight(String serviceRef, String shopDomain) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (!hasText(service.getBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
+        }
+        if (!hasText(service.getSecretName())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
+        }
+        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+            ));
+
+        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
+        if (!hasText(apiKey)) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
+        }
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/run-source-preflight")))
+                .timeout(HTTP_TIMEOUT)
+                .header("Accept", "application/json")
+                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ResponseStatusException(CONFLICT, "Managed product source preflight request failed with HTTP " + response.statusCode() + ".");
+            }
+            platformAuditService.record(
+                "MANAGED_PRODUCT_SOURCE_PREFLIGHT_TRIGGERED",
+                TARGET_TYPE,
+                service.getServiceRef(),
+                Map.of(
+                    "serviceRef", service.getServiceRef(),
+                    "shopDomain", shopDomain
+                )
+            );
+            return shopifyStoreConnectionService.getConnection(shopDomain);
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product source preflight request failed."), ex);
+        }
+    }
+
     @Transactional
     public PlatformManagedProductServiceSummary forceRecreate(String serviceRef) {
         return provisioningService.forceRecreate(serviceRef);

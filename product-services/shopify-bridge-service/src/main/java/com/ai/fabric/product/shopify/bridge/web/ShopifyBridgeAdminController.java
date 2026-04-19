@@ -66,6 +66,11 @@ public class ShopifyBridgeAdminController {
         return storeAdminService.bootstrap(shopDomain);
     }
 
+    @PostMapping("/stores/{shopDomain}/run-source-preflight")
+    public ShopifyBridgeStoreSummary runSourcePreflight(@PathVariable String shopDomain) {
+        return storeAdminService.runSourcePreflight(shopDomain);
+    }
+
     @PostMapping("/stores/{shopDomain}/source-preflight")
     public ShopifyBridgeStoreSummary recordSourcePreflight(@PathVariable String shopDomain,
                                                            @RequestBody ShopifyBridgeRecordSourcePreflightRequest request) {

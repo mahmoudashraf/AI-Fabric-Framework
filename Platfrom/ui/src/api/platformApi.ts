@@ -3052,6 +3052,15 @@ export function fetchProductServiceStoreBinding(serviceRef: string, shopDomain: 
   )
 }
 
+export function runProductServiceStoreSourcePreflight(serviceRef: string, shopDomain: string) {
+  return request<ShopifyStoreConnectionSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/run-source-preflight`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
 export function fetchProductServiceDeploymentHistory(serviceRef: string, limit = 10) {
   return request<PlatformManagedProductServiceDeploymentHistorySummary>(
     `/api/product-services/${encodeURIComponent(serviceRef)}/railway/deployments?limit=${encodeURIComponent(String(limit))}`,

@@ -183,6 +183,15 @@ class ShopifyBridgeAdminControllerTest {
     }
 
     @Test
+    void adminRunSourcePreflightUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.runSourcePreflight("alpha.myshopify.com")).thenReturn(sampleStore());
+
+        mockMvc.perform(post("/api/admin/stores/alpha.myshopify.com/run-source-preflight").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+    }
+
+    @Test
     void adminSourcePreflightUsesStoreServiceWhenApiKeyMatches() throws Exception {
         when(storeAdminService.recordSourcePreflight(
             org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),

@@ -10,8 +10,11 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+
+import static org.springframework.http.HttpStatus.CONFLICT;
 
 @Service
 public class ShopifyBridgeStoreAdminService {
@@ -19,13 +22,16 @@ public class ShopifyBridgeStoreAdminService {
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyBridgeBillingService billingService;
+    private final ShopifyBridgeSourcePreflightService sourcePreflightService;
 
     public ShopifyBridgeStoreAdminService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                           ShopifyBridgeInstallCredentialService installCredentialService,
-                                          ShopifyBridgeBillingService billingService) {
+                                          ShopifyBridgeBillingService billingService,
+                                          ShopifyBridgeSourcePreflightService sourcePreflightService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
         this.billingService = billingService;
+        this.sourcePreflightService = sourcePreflightService;
     }
 
     public List<ShopifyBridgeStoreSummary> listStores() {
@@ -44,6 +50,15 @@ public class ShopifyBridgeStoreAdminService {
 
     public ShopifyBridgeStoreBootstrapResponse bootstrap(String shopDomain) {
         return platformShopifyStoreClient.bootstrap(shopDomain);
+    }
+
+    public ShopifyBridgeStoreSummary runSourcePreflight(String shopDomain) {
+        return installCredentialService.resolvePersistedMaterial(shopDomain)
+            .map(sourcePreflightService::run)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify source preflight requires persisted store credentials. Install or reconnect the app first."
+            ));
     }
 
     public ShopifyBridgeStoreSummary recordSourcePreflight(String shopDomain,
