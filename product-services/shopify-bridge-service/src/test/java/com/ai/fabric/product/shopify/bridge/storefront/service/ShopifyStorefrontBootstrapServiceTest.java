@@ -5,6 +5,7 @@ import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublic
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicDeploymentIntegrationSummary;
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicRuntimeEndpointsSummary;
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicRuntimePostureSummary;
+import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentReleaseSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentVersionSummary;
@@ -29,7 +30,7 @@ class ShopifyStorefrontBootstrapServiceTest {
     @Test
     void bootstrapResolvesConsumerCredentialsAndMarksWidgetEnabled() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyStorefrontBootstrapService service = new ShopifyStorefrontBootstrapService(platformClient);
+        ShopifyStorefrontBootstrapService service = new ShopifyStorefrontBootstrapService(platformClient, properties("https://bridge.example.com"));
         ShopifyBridgeStoreSummary store = store("INSTALLED", "READY", "NOT_ENABLED", "consumer-alpha", "dep-1");
         ShopifyBridgeStoreSummary updated = store("INSTALLED", "READY", "ENABLED", "consumer-alpha", "dep-1");
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store);
@@ -62,8 +63,8 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.consumerId()).isEqualTo("consumer-alpha");
         assertThat(response.launcherLabel()).isEqualTo("Need help?");
         assertThat(response.welcomeMessage()).isEqualTo("Ask me about products and store policies.");
-        assertThat(response.bridgeQueryUrl()).isEqualTo("/api/storefront/shops/alpha.myshopify.com/chat/query");
-        assertThat(response.bridgeEventUrl()).isEqualTo("/api/storefront/shops/alpha.myshopify.com/events");
+        assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
+        assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
         verify(platformClient).getConsumerCredentials("consumer-alpha");
     }
@@ -71,7 +72,7 @@ class ShopifyStorefrontBootstrapServiceTest {
     @Test
     void bootstrapReturnsUnavailableWhenStoreNotReady() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyStorefrontBootstrapService service = new ShopifyStorefrontBootstrapService(platformClient);
+        ShopifyStorefrontBootstrapService service = new ShopifyStorefrontBootstrapService(platformClient, properties("https://bridge.example.com"));
         when(platformClient.getStore("alpha.myshopify.com"))
             .thenReturn(store("INSTALLED", "NOT_RUN", "NOT_ENABLED", "consumer-alpha", "dep-1"));
 
@@ -79,6 +80,26 @@ class ShopifyStorefrontBootstrapServiceTest {
 
         assertThat(response.available()).isFalse();
         assertThat(response.message()).contains("Store data is not ready yet");
+    }
+
+    private ShopifyBridgeProperties properties(String publicBaseUrl) {
+        return new ShopifyBridgeProperties(
+            "Shopify Bridge Service",
+            "shopify-bridge-prod",
+            "SHOPIFY",
+            "SHOPIFY_BRIDGE_SERVICE",
+            "production",
+            publicBaseUrl,
+            "2026-04",
+            "shopify-api-key",
+            "shopify-api-secret",
+            "https://platform.example.com",
+            "platform-api-key",
+            "X-PLATFORM-API-KEY",
+            "webhook-secret",
+            "bridge-admin-key",
+            "X-BRIDGE-API-KEY"
+        );
     }
 
     private ShopifyBridgeStoreSummary store(String installStatus,

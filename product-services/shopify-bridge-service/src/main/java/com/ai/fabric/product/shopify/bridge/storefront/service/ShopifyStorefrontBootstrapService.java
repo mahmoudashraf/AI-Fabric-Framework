@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.storefront.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicConsumerDeploymentCredentialsResponse;
+import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
@@ -18,9 +19,12 @@ public class ShopifyStorefrontBootstrapService {
         "Store assistant is ready. Ask about products, policies, or collections.";
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeProperties properties;
 
-    public ShopifyStorefrontBootstrapService(PlatformShopifyStoreClient platformShopifyStoreClient) {
+    public ShopifyStorefrontBootstrapService(PlatformShopifyStoreClient platformShopifyStoreClient,
+                                             ShopifyBridgeProperties properties) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.properties = properties;
     }
 
     public ShopifyStorefrontBootstrapResponse bootstrap(String shopDomain) {
@@ -40,9 +44,9 @@ public class ShopifyStorefrontBootstrapService {
             )
         );
 
-        String bridgeQueryUrl = "/api/storefront/shops/" + encodePathSegment(updated.shopDomain()) + "/chat/query";
-        String bridgeSuggestionsUrl = "/api/storefront/shops/" + encodePathSegment(updated.shopDomain()) + "/chat/suggestions";
-        String bridgeEventUrl = "/api/storefront/shops/" + encodePathSegment(updated.shopDomain()) + "/events";
+        String bridgeQueryUrl = storefrontUrl(updated.shopDomain(), "/chat/query");
+        String bridgeSuggestionsUrl = storefrontUrl(updated.shopDomain(), "/chat/suggestions");
+        String bridgeEventUrl = storefrontUrl(updated.shopDomain(), "/events");
         String preferredIntegrationMode = credentials.integration() == null ? null : credentials.integration().preferredIntegrationMode();
         String runtimeAuthMode = credentials.integration() == null || credentials.integration().posture() == null
             ? null
@@ -105,5 +109,16 @@ public class ShopifyStorefrontBootstrapService {
 
     private String encodePathSegment(String value) {
         return UriUtils.encodePathSegment(value == null ? "" : value.trim(), StandardCharsets.UTF_8);
+    }
+
+    private String storefrontUrl(String shopDomain, String suffix) {
+        String path = "/api/storefront/shops/" + encodePathSegment(shopDomain) + suffix;
+        if (properties.publicBaseUrl().isBlank()) {
+            return path;
+        }
+        String base = properties.publicBaseUrl().endsWith("/")
+            ? properties.publicBaseUrl().substring(0, properties.publicBaseUrl().length() - 1)
+            : properties.publicBaseUrl();
+        return base + path;
     }
 }

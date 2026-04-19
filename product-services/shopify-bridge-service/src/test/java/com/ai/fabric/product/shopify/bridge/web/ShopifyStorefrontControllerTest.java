@@ -18,14 +18,17 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
     "shopify.bridge.admin-api-key=test-admin-key",
     "shopify.bridge.shopify-api-key=test-shopify-api-key",
-    "shopify.bridge.shopify-api-secret=test-shopify-secret"
+    "shopify.bridge.shopify-api-secret=test-shopify-secret",
+    "shopify.bridge.public-base-url=https://bridge.example.com"
 })
 @AutoConfigureMockMvc
 class ShopifyStorefrontControllerTest {
@@ -60,9 +63,9 @@ class ShopifyStorefrontControllerTest {
             "Ask me about products and policies.",
             "PRIVATE_RUNTIME_BACKEND_MEDIATED",
             "SIGNED_PRIVATE_RUNTIME",
-            "/api/storefront/shops/alpha.myshopify.com/chat/query",
-            "/api/storefront/shops/alpha.myshopify.com/chat/suggestions",
-            "/api/storefront/shops/alpha.myshopify.com/events",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/suggestions",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events",
             "Route storefront traffic through the Shopify Bridge backend.",
             "Storefront bootstrap resolved."
         ));
@@ -71,10 +74,20 @@ class ShopifyStorefrontControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.available").value(true))
             .andExpect(jsonPath("$.consumerId").value("consumer-alpha"))
-            .andExpect(jsonPath("$.bridgeQueryUrl").value("/api/storefront/shops/alpha.myshopify.com/chat/query"))
-            .andExpect(jsonPath("$.bridgeEventUrl").value("/api/storefront/shops/alpha.myshopify.com/events"));
+            .andExpect(jsonPath("$.bridgeQueryUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query"))
+            .andExpect(jsonPath("$.bridgeEventUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events"));
 
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_BOOTSTRAP");
+    }
+
+    @Test
+    void storefrontCorsPreflightAllowsThemeOrigin() throws Exception {
+        mockMvc.perform(options("/api/storefront/shops/alpha.myshopify.com/chat/query")
+                .header("Origin", "https://shopping-companion-test.myshopify.com")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "content-type,x-ai-fabric-shopper-session-id"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Access-Control-Allow-Origin", "https://shopping-companion-test.myshopify.com"));
     }
 
     @Test
