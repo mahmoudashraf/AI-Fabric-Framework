@@ -310,6 +310,12 @@ jobs:
             echo "Missing admin target deployment id after rollout resolution." >&2
             exit 1
           fi
+          verify_inference_service_admin_mutation="false"
+          if [[ -n "${INFERENCE_SERVICE_ROTATE_SECRET_VALUE}" ]]; then
+            verify_inference_service_admin_mutation="true"
+          else
+            echo "Skipping inference service admin mutation in workflow: INFERENCE_SERVICE_ROTATE_SECRET_VALUE is not set."
+          fi
           env \
             PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
             PLATFORM_UI_BASE_URL="${PLATFORM_UI_BASE_URL}" \
@@ -323,7 +329,7 @@ jobs:
             VERIFY_CANONICAL_ROLLOUT_MUTATION="false" \
             VERIFY_INFERENCE_SERVICE_UI="true" \
             VERIFY_INFERENCE_SERVICE_ADMIN_READONLY="true" \
-            VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="true" \
+            VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="${verify_inference_service_admin_mutation}" \
             INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF}" \
             INFERENCE_SERVICE_ROTATE_SECRET_VALUE="${INFERENCE_SERVICE_ROTATE_SECRET_VALUE}" \
             bash scripts/verify-platform-admin-regression.sh

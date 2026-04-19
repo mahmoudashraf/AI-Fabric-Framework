@@ -121,11 +121,6 @@ if [[ ("${RUN_PLATFORM_ADMIN_CHECKS}" == "true" || "${RUN_ECOMMERCE_DEPLOYMENT_C
   echo "Set PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD." >&2
   exit 2
 fi
-if [[ "${RUN_PLATFORM_ADMIN_CHECKS}" == "true" && -z "${INFERENCE_SERVICE_ROTATE_SECRET_VALUE}" ]]; then
-  echo "Set INFERENCE_SERVICE_ROTATE_SECRET_VALUE when platform admin checks are enabled." >&2
-  exit 2
-fi
-
 resolved_json='{}'
 if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
   required_rollout_keys=""
@@ -237,6 +232,12 @@ if [[ "${RUN_PLATFORM_ADMIN_CHECKS}" == "true" ]]; then
     echo "Missing admin target deployment id after rollout resolution." >&2
     exit 1
   fi
+  verify_inference_service_admin_mutation="false"
+  if [[ -n "${INFERENCE_SERVICE_ROTATE_SECRET_VALUE}" ]]; then
+    verify_inference_service_admin_mutation="true"
+  else
+    echo "Skipping inference service admin mutation in platform state verification suite: INFERENCE_SERVICE_ROTATE_SECRET_VALUE is not set."
+  fi
   run_step "Verify platform admin live regression" env \
     PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
     PLATFORM_UI_BASE_URL="${PLATFORM_UI_BASE_URL}" \
@@ -251,7 +252,7 @@ if [[ "${RUN_PLATFORM_ADMIN_CHECKS}" == "true" ]]; then
     VERIFY_CONSUMER_RESOLUTION_SMOKE="true" \
     VERIFY_INFERENCE_SERVICE_UI="true" \
     VERIFY_INFERENCE_SERVICE_ADMIN_READONLY="true" \
-    VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="true" \
+    VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="${verify_inference_service_admin_mutation}" \
     INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF}" \
     INFERENCE_SERVICE_ROTATE_SECRET_VALUE="${INFERENCE_SERVICE_ROTATE_SECRET_VALUE}" \
     bash scripts/verify-platform-admin-regression.sh
