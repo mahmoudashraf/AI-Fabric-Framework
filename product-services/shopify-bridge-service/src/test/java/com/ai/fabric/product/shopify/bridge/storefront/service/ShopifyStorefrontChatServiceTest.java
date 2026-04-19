@@ -31,10 +31,17 @@ class ShopifyStorefrontChatServiceTest {
         when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
               "query":"Show me backpacks",
-              "storefrontContext":{
-                "pageType":"product",
-                "product":{"handle":"travel-pack","title":"Travel Pack"}
-              }
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Product: Travel Pack. Product handle: travel-pack",
+                  "metadata":{
+                    "pageType":"product",
+                    "productHandle":"travel-pack",
+                    "productTitle":"Travel Pack"
+                  }
+                }
+              ]
             }
             """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
             {"success":true,"conversationId":"conv-1","result":{"message":"Here are some backpacks."}}
@@ -58,10 +65,80 @@ class ShopifyStorefrontChatServiceTest {
         verify(platformClient).queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
               "query":"Show me backpacks",
-              "storefrontContext":{
-                "pageType":"product",
-                "product":{"handle":"travel-pack","title":"Travel Pack"}
-              }
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Product: Travel Pack. Product handle: travel-pack",
+                  "metadata":{
+                    "pageType":"product",
+                    "productHandle":"travel-pack",
+                    "productTitle":"Travel Pack"
+                  }
+                }
+              ]
+            }
+            """), "shopper-session-1");
+    }
+
+    @Test
+    void suggestionsNormalizesStorefrontContextBeforeForwarding() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.suggestConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {
+              "content":"Current page: Travel Pack",
+              "maxSuggestions":4,
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Page title: Travel Pack. Product: Travel Pack. Product handle: travel-pack",
+                  "metadata":{
+                    "pageType":"product",
+                    "pageTitle":"Travel Pack",
+                    "productHandle":"travel-pack",
+                    "productTitle":"Travel Pack"
+                  }
+                }
+              ]
+            }
+            """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
+            {"success":true,"suggestions":["Tell me about Travel Pack"]}
+            """));
+
+        JsonNode response = service.suggestions(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "content":"Current page: Travel Pack",
+                  "maxSuggestions":4,
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "pageTitle":"Travel Pack",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("suggestions")).hasSize(1);
+        verify(platformClient).suggestConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {
+              "content":"Current page: Travel Pack",
+              "maxSuggestions":4,
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Page title: Travel Pack. Product: Travel Pack. Product handle: travel-pack",
+                  "metadata":{
+                    "pageType":"product",
+                    "pageTitle":"Travel Pack",
+                    "productHandle":"travel-pack",
+                    "productTitle":"Travel Pack"
+                  }
+                }
+              ]
             }
             """), "shopper-session-1");
     }
