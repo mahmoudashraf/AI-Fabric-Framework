@@ -458,6 +458,29 @@ After that, the remaining steps are ours:
 4. verify apply-time sync and post-apply verification
 5. verify storefront bootstrap, suggestions, and shopper query path
 
+Operator helper now available:
+
+- `scripts/run-shopify-companion-rollout.sh`
+
+Current intended usage:
+
+```bash
+PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
+SHOPIFY_BRIDGE_BASE_URL=https://shopify-bridge-shopify-bridge-pr-production.up.railway.app \
+SHOP_DOMAIN=shopping-companion-test.myshopify.com \
+PLATFORM_SESSION_COOKIE_JAR=/tmp/platform-shopify.cookies \
+PRODUCT_SERVICE_REF=shopify-bridge-prod \
+bash scripts/run-shopify-companion-rollout.sh
+```
+
+What it does:
+
+- ensures the platform store mapping exists
+- bootstraps customer/deployment/consumer bindings when missing
+- prints the exact live install URL
+- stops cleanly if Shopify install approval is still missing
+- after install, it can continue into live source preflight and go-live from the platform side
+
 What I still need from administration side:
 
 - one real store-admin install/approval pass on `shopping-companion-test.myshopify.com`
