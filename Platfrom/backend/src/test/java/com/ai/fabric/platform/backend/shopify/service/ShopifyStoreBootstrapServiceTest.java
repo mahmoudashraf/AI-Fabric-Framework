@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -419,7 +420,7 @@ class ShopifyStoreBootstrapServiceTest {
     }
 
     @Test
-    void bootstrapAutoResolvesInternalSharedQdrantRootWhenHostIsNotConfigured() {
+    void bootstrapKeepsPlatformManagedQdrantWhenSharedRootIsNotConfigured() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
@@ -441,35 +442,22 @@ class ShopifyStoreBootstrapServiceTest {
         PlatformConsumerSummary consumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-123", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
         ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-123", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
 
-        DeploymentEntity internalQdrantDeployment = new DeploymentEntity();
-        internalQdrantDeployment.setId("dep-shared");
-        internalQdrantDeployment.setActiveVersionId("ver-shared");
-        internalQdrantDeployment.setUpdatedAt(Instant.now());
-
-        DeploymentManagedVectorResourceEntity sharedCluster = new DeploymentManagedVectorResourceEntity();
-        sharedCluster.setId("mvr-1");
-        sharedCluster.setDeploymentId("dep-shared");
-        sharedCluster.setVendor("qdrant");
-        sharedCluster.setResourceType("CLUSTER");
-        sharedCluster.setResourceStatus("ACTIVE");
-        sharedCluster.setEndpoint("https://shared-qdrant.auto.example");
-        sharedCluster.setUpdatedAt(Instant.now());
-
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
         when(customerTenantService.createCustomer(any())).thenReturn(customerSummary);
         when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
         when(deploymentService.listTemplates()).thenReturn(List.of(templateSummary("dev-openai-qdrant", "qdrant")));
         when(templateBootstrapService.bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class))).thenReturn(deployment);
-        when(deploymentService.getActiveDraftForDeployment("dep-123")).thenReturn(draftResponse("dep-123"));
+        when(deploymentService.getActiveDraftForDeployment("dep-123")).thenReturn(draftResponseWithProvider("dep-123", provider -> {
+            provider.put("vectorProvisioningMode", "EXTERNAL_EXISTING");
+            provider.put("vectorStoragePosture", "SHARED");
+            provider.put("qdrantHost", "https://shared-qdrant.auto.example");
+            provider.put("qdrantRuntimeApiKeySecretName", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED");
+        }));
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.empty());
         when(customerConsumerService.createConsumer(eq("cus-123"), any())).thenReturn(consumer);
         when(installService.listInstalls("dep-123")).thenReturn(List.of());
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
-        when(deploymentRepository.findByCustomerIdAndArchivedAtIsNullOrderByUpdatedAtDesc(PlatformCustomerTenantService.INTERNAL_CUSTOMER_ID))
-            .thenReturn(List.of(internalQdrantDeployment));
-        when(managedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-shared"))
-            .thenReturn(List.of(sharedCluster));
 
         ShopifyStoreBootstrapService service = new ShopifyStoreBootstrapService(
             repository,
@@ -505,8 +493,9 @@ class ShopifyStoreBootstrapServiceTest {
         service.bootstrap("demo.myshopify.com", new BootstrapShopifyStoreRequest(null, null, null, null, null, null, null));
 
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(request ->
-            matchesSharedQdrantDefaults(request)
-                && "https://shared-qdrant.auto.example".equals(request.providerConfig().path("qdrantHost").asText())
+            matchesPlatformManagedQdrantDefaults(request)
+                && request.providerConfig().path("qdrantHost").asText("").isBlank()
+                && request.providerConfig().path("qdrantRuntimeApiKeySecretName").asText("").isBlank()
         ));
     }
 
@@ -521,6 +510,19 @@ class ShopifyStoreBootstrapServiceTest {
             && !provider.path("qdrantRuntimeApiKeySecretName").asText("").isBlank()
             && provider.path("qdrantCloudProviderId").asText("").isBlank()
             && provider.path("qdrantCloudRegionId").asText("").isBlank();
+    }
+
+    private boolean matchesPlatformManagedQdrantDefaults(UpdateDeploymentDraftRequest request) {
+        if (request == null || !(request.providerConfig() instanceof ObjectNode provider)) {
+            return false;
+        }
+        return "PLATFORM_MANAGED".equals(provider.path("vectorProvisioningMode").asText())
+            && "SHARED".equals(provider.path("vectorStoragePosture").asText())
+            && provider.path("qdrantManagedCollectionsEnabled").asBoolean(false)
+            && "aws".equals(provider.path("qdrantCloudProviderId").asText())
+            && "eu-west-1".equals(provider.path("qdrantCloudRegionId").asText())
+            && provider.path("qdrantHost").asText("").isBlank()
+            && provider.path("qdrantRuntimeApiKeySecretName").asText("").isBlank();
     }
 
     private ShopifyStoreConnectionEntity store(String shopDomain) {
@@ -559,6 +561,19 @@ class ShopifyStoreBootstrapServiceTest {
         provider.put("llmProvider", "openai");
         provider.put("embeddingProvider", "openai");
         provider.put("vectorStrategy", "qdrant");
+        return draftResponseWithProvider(deploymentId, provider);
+    }
+
+    private DeploymentDraftResponse draftResponseWithProvider(String deploymentId, Consumer<ObjectNode> customizer) {
+        ObjectNode provider = JsonNodeFactory.instance.objectNode();
+        provider.put("llmProvider", "openai");
+        provider.put("embeddingProvider", "openai");
+        provider.put("vectorStrategy", "qdrant");
+        customizer.accept(provider);
+        return draftResponseWithProvider(deploymentId, provider);
+    }
+
+    private DeploymentDraftResponse draftResponseWithProvider(String deploymentId, ObjectNode provider) {
         return new DeploymentDraftResponse(
             "drf-123",
             deploymentId,

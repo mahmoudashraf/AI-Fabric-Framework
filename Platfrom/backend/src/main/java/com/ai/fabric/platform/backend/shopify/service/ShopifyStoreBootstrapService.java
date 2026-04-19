@@ -382,6 +382,7 @@ public class ShopifyStoreBootstrapService {
             changed |= putBoolean(providerConfig, "qdrantManagedCollectionsEnabled", properties.defaultQdrantManagedCollectionsEnabled());
             changed |= putText(providerConfig, "qdrantCloudProviderId", properties.defaultQdrantCloudProviderId());
             changed |= putText(providerConfig, "qdrantCloudRegionId", properties.defaultQdrantCloudRegionId());
+            changed |= removeIfPresent(providerConfig, "qdrantHost");
             changed |= removeIfPresent(providerConfig, "qdrantRuntimeApiKeySecretName");
         }
         if (!changed) {
@@ -417,14 +418,7 @@ public class ShopifyStoreBootstrapService {
         if (configuredSourceDeploymentId != null) {
             return resolveActiveManagedQdrantRoot(configuredSourceDeploymentId);
         }
-
-        return deploymentRepository.findByCustomerIdAndArchivedAtIsNullOrderByUpdatedAtDesc(PlatformCustomerTenantService.INTERNAL_CUSTOMER_ID)
-            .stream()
-            .filter(candidate -> hasText(candidate.getActiveVersionId()))
-            .map(candidate -> resolveActiveManagedQdrantRoot(candidate.getId()))
-            .filter(root -> root != null && hasText(root.host()))
-            .findFirst()
-            .orElse(null);
+        return null;
     }
 
     private ResolvedSharedQdrantRoot resolveActiveManagedQdrantRoot(String deploymentId) {
