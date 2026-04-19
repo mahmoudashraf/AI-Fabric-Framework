@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.security.RuntimePublicTokenSigningService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -23,6 +24,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -43,6 +45,7 @@ public class PublicConsumerBridgeChatService {
     private static final Duration RUNTIME_TIMEOUT = Duration.ofSeconds(30);
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
+    private static final int MAX_ATTACHMENT_METADATA_ENTRIES = 12;
 
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PublicProvisioningApiService publicProvisioningApiService;
@@ -291,7 +294,8 @@ public class PublicConsumerBridgeChatService {
             copyTextField(request, body, "conversationId");
             copyTextField(request, body, "mode");
             copyTextField(request, body, "position");
-            copyStorefrontContext(request, body);
+            copyAttachments(request, body);
+            appendStorefrontContextAttachment(request, body);
         }
         return body;
     }
@@ -305,7 +309,8 @@ public class PublicConsumerBridgeChatService {
                 int value = Math.max(1, Math.min(maxSuggestions.asInt(), 6));
                 body.put("maxSuggestions", value);
             }
-            copyStorefrontContext(request, body);
+            copyAttachments(request, body);
+            appendStorefrontContextAttachment(request, body);
         }
         if (!body.has("content")) {
             body.put("content", "");
@@ -323,57 +328,174 @@ public class PublicConsumerBridgeChatService {
         }
     }
 
-    private void copyStorefrontContext(JsonNode source, ObjectNode target) {
+    private void copyAttachments(JsonNode source, ObjectNode target) {
         if (source == null || !source.isObject()) {
             return;
         }
-        JsonNode rawContext = source.get("storefrontContext");
-        if (rawContext == null || !rawContext.isObject()) {
+        JsonNode rawAttachments = source.get("attachments");
+        if (rawAttachments == null || !rawAttachments.isArray()) {
             return;
         }
-        ObjectNode normalized = objectMapper.createObjectNode();
-        copyLimitedTextField(rawContext, normalized, "pageType");
-        copyLimitedTextField(rawContext, normalized, "pageTitle");
+        ArrayNode attachments = objectMapper.createArrayNode();
+        for (JsonNode rawAttachment : rawAttachments) {
+            ObjectNode sanitized = sanitizeAttachment(rawAttachment);
+            if (sanitized != null && !sanitized.isEmpty()) {
+                attachments.add(sanitized);
+            }
+        }
+        if (!attachments.isEmpty()) {
+            target.set("attachments", attachments);
+        }
+    }
+
+    private void appendStorefrontContextAttachment(JsonNode source, ObjectNode target) {
+        ObjectNode attachment = storefrontContextAttachment(source);
+        if (attachment == null || attachment.isEmpty()) {
+            return;
+        }
+        ArrayNode attachments = objectMapper.createArrayNode();
+        JsonNode existing = target.get("attachments");
+        if (existing != null && existing.isArray()) {
+            attachments.addAll((ArrayNode) existing);
+        }
+        attachments.add(attachment);
+        target.set("attachments", attachments);
+    }
+
+    private ObjectNode storefrontContextAttachment(JsonNode source) {
+        if (source == null || !source.isObject()) {
+            return null;
+        }
+        JsonNode rawContext = source.get("storefrontContext");
+        if (rawContext == null || !rawContext.isObject()) {
+            return null;
+        }
+        ObjectNode metadata = objectMapper.createObjectNode();
+        copyLimitedTextField(rawContext, metadata, "pageType");
+        copyLimitedTextField(rawContext, metadata, "pageTitle");
 
         JsonNode rawProduct = rawContext.get("product");
         if (rawProduct != null && rawProduct.isObject()) {
-            ObjectNode product = objectMapper.createObjectNode();
-            copyLimitedTextField(rawProduct, product, "id");
-            copyLimitedTextField(rawProduct, product, "handle");
-            copyLimitedTextField(rawProduct, product, "title");
-            copyLimitedTextField(rawProduct, product, "vendor");
-            copyLimitedTextField(rawProduct, product, "type");
-            copyLimitedTextField(rawProduct, product, "priceCents");
-            if (!product.isEmpty()) {
-                normalized.set("product", product);
-            }
+            copyLimitedTextField(rawProduct, metadata, "id", "productId");
+            copyLimitedTextField(rawProduct, metadata, "handle", "productHandle");
+            copyLimitedTextField(rawProduct, metadata, "title", "productTitle");
+            copyLimitedTextField(rawProduct, metadata, "vendor", "productVendor");
+            copyLimitedTextField(rawProduct, metadata, "type", "productType");
+            copyLimitedTextField(rawProduct, metadata, "priceCents", "productPriceCents");
         }
 
         JsonNode rawCollection = rawContext.get("collection");
         if (rawCollection != null && rawCollection.isObject()) {
-            ObjectNode collection = objectMapper.createObjectNode();
-            copyLimitedTextField(rawCollection, collection, "id");
-            copyLimitedTextField(rawCollection, collection, "handle");
-            copyLimitedTextField(rawCollection, collection, "title");
-            if (!collection.isEmpty()) {
-                normalized.set("collection", collection);
-            }
+            copyLimitedTextField(rawCollection, metadata, "id", "collectionId");
+            copyLimitedTextField(rawCollection, metadata, "handle", "collectionHandle");
+            copyLimitedTextField(rawCollection, metadata, "title", "collectionTitle");
         }
 
-        if (!normalized.isEmpty()) {
-            target.set("storefrontContext", normalized);
+        String contentText = storefrontContextSummary(metadata);
+        if (!StringUtils.hasText(contentText) && metadata.isEmpty()) {
+            return null;
         }
+        ObjectNode attachment = objectMapper.createObjectNode();
+        attachment.put("source", "shopify-storefront-context");
+        if (StringUtils.hasText(contentText)) {
+            attachment.put("contentText", contentText);
+        }
+        if (!metadata.isEmpty()) {
+            attachment.set("metadata", metadata);
+        }
+        return attachment;
     }
 
     private void copyLimitedTextField(JsonNode source, ObjectNode target, String field) {
-        String value = trimToNull(textOrNull(source, field));
+        copyLimitedTextField(source, target, field, field);
+    }
+
+    private void copyLimitedTextField(JsonNode source, ObjectNode target, String sourceField, String targetField) {
+        String value = trimToNull(textOrNull(source, sourceField));
         if (value == null) {
             return;
         }
         if (value.length() > MAX_CONTEXT_TEXT_LENGTH) {
             value = value.substring(0, MAX_CONTEXT_TEXT_LENGTH);
         }
-        target.put(field, value);
+        target.put(targetField, value);
+    }
+
+    private ObjectNode sanitizeAttachment(JsonNode rawAttachment) {
+        if (rawAttachment == null || !rawAttachment.isObject()) {
+            return null;
+        }
+        ObjectNode sanitized = objectMapper.createObjectNode();
+        copyLimitedTextField(rawAttachment, sanitized, "id");
+        copyLimitedTextField(rawAttachment, sanitized, "vectorSpace");
+        copyLimitedTextField(rawAttachment, sanitized, "contentText");
+        copyLimitedTextField(rawAttachment, sanitized, "source");
+        copyLimitedTextField(rawAttachment, sanitized, "url");
+        copyLimitedTextField(rawAttachment, sanitized, "imageUrl");
+
+        JsonNode rawMetadata = rawAttachment.get("metadata");
+        if (rawMetadata != null && rawMetadata.isObject()) {
+            ObjectNode metadata = objectMapper.createObjectNode();
+            int count = 0;
+            for (var entry : iterable(rawMetadata.fields())) {
+                if (count >= MAX_ATTACHMENT_METADATA_ENTRIES) {
+                    break;
+                }
+                String key = trimToNull(entry.getKey());
+                JsonNode valueNode = entry.getValue();
+                if (key == null || valueNode == null || valueNode.isNull() || !valueNode.isValueNode()) {
+                    continue;
+                }
+                String value = trimToNull(valueNode.asText(null));
+                if (value == null) {
+                    continue;
+                }
+                if (value.length() > MAX_CONTEXT_TEXT_LENGTH) {
+                    value = value.substring(0, MAX_CONTEXT_TEXT_LENGTH);
+                }
+                metadata.put(key, value);
+                count++;
+            }
+            if (!metadata.isEmpty()) {
+                sanitized.set("metadata", metadata);
+            }
+        }
+
+        return sanitized.isEmpty() ? null : sanitized;
+    }
+
+    private String storefrontContextSummary(ObjectNode metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        addSummaryPart(parts, metadata, "pageType", "Page type");
+        addSummaryPart(parts, metadata, "pageTitle", "Page title");
+        addSummaryPart(parts, metadata, "productTitle", "Product");
+        addSummaryPart(parts, metadata, "productHandle", "Product handle");
+        addSummaryPart(parts, metadata, "productVendor", "Product vendor");
+        addSummaryPart(parts, metadata, "productType", "Product type");
+        addSummaryPart(parts, metadata, "productPriceCents", "Product price cents");
+        addSummaryPart(parts, metadata, "collectionTitle", "Collection");
+        addSummaryPart(parts, metadata, "collectionHandle", "Collection handle");
+        if (parts.isEmpty()) {
+            return null;
+        }
+        String summary = String.join(". ", parts);
+        return summary.length() > MAX_CONTEXT_TEXT_LENGTH
+            ? summary.substring(0, MAX_CONTEXT_TEXT_LENGTH)
+            : summary;
+    }
+
+    private void addSummaryPart(List<String> parts, ObjectNode metadata, String field, String label) {
+        String value = trimToNull(textOrNull(metadata, field));
+        if (value != null) {
+            parts.add(label + ": " + value);
+        }
+    }
+
+    private <T> Iterable<T> iterable(java.util.Iterator<T> iterator) {
+        return () -> iterator;
     }
 
     private URI runtimeUri(String runtimeBaseUrl, String path) {
