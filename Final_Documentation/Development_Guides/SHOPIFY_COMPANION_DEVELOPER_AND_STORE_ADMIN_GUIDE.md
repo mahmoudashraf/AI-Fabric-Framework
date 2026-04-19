@@ -34,9 +34,15 @@ For vectorization specifically:
 - store admins choose which Shopify source categories should be included
 - the platform reconciles the deployment to install or enable the required plugins
 - the platform configures the vectorization source connection and plan
-- the store admin can trigger vectorization for the current enabled scope
+- the store admin should trigger bounded indexing or reindexing for the current enabled scope
 
 Store admins do not edit raw plugins or deployment wiring directly.
+
+Important wording:
+
+- the current implementation still has an internal normalization/sync stage
+- that stage should remain a platform concern
+- the merchant-facing product language should be `Index`, `Reindex`, and `Live updates`, not `Sync`
 
 ---
 
@@ -62,7 +68,7 @@ Shopify admin app:
 
 - merchant-facing bounded control plane
 - source selection
-- preflight, sync, vectorization, storefront activation, playground, support bundle
+- preflight, indexing, live updates, storefront activation, playground, support bundle
 
 Theme app embed:
 
@@ -155,7 +161,7 @@ When those change:
 1. the Shopify store record is updated
 2. required deployment plugin support is reconciled
 3. the vectorization source connection and plan are reconciled to the current scope
-4. the merchant can queue vectorization for current data
+4. the merchant can queue indexing or reindexing for current data
 
 ### 3.4 Draft and apply behavior
 
@@ -172,7 +178,7 @@ Platform behavior:
 Practical implication:
 
 - developers/operators must treat plugin composition and live deployment release as platform concerns
-- merchants should only see bounded actions such as `Reconcile deployment support` and `Vectorize current data`
+- merchants should only see bounded actions such as `Reconcile deployment support`, `Index all enabled data`, and `Reindex selected types`
 
 ### 3.5 Live vectorization flow
 
@@ -226,7 +232,7 @@ Inline secret validation failure:
 - meaning: connection config or request payload still uses a secret-shaped field name/value pattern
 - action: use secret refs only and neutral config keys
 
-Fresh run succeeds but sync state stays `RUNNING`:
+Fresh run succeeds but content freshness still shows `RUNNING`:
 
 - meaning: old stale runs still exist on superseded plan revisions
 - action: the platform cleanup path should close superseded in-flight runs once a newer run completes successfully
@@ -265,7 +271,7 @@ It should let the merchant:
 
 - connect and recover the app install for the current shop
 - choose which approved Shopify content categories should be used
-- run bounded readiness and sync actions
+- run bounded readiness and indexing actions
 - verify storefront activation
 - test the live assistant behavior
 - download a support bundle
@@ -290,18 +296,19 @@ Source scope:
   - Policies
 - save source settings
 
-Readiness and sync:
+Readiness and launch:
 
 - run source preflight
-- sync now
 - request go-live
 
-Vectorization:
+Indexing:
 
 - view vectorization summary
 - reconcile deployment support
-- vectorize current data
+- index all enabled data
+- reindex selected types
 - view last run status and blocking reasons
+- configure live update trigger rules when that feature ships
 
 Storefront:
 
@@ -351,8 +358,8 @@ For a new store:
 7. Request go-live.
 8. Enable the theme app embed.
 9. Open the storefront once.
-10. Use `Sync now` if needed.
-11. Use `Vectorize current data` when the deployment vectorization summary is ready.
+10. Use `Index all enabled data` when the deployment vectorization summary is ready.
+11. Reindex selected types only when you intentionally want to rebuild part of the enabled scope.
 12. Validate answers in the merchant playground.
 
 For an existing live store after scope changes:
@@ -360,10 +367,10 @@ For an existing live store after scope changes:
 1. change source categories
 2. save source settings
 3. reconcile deployment support if the vectorization panel indicates drift or missing support
-4. vectorize current data
+4. index all enabled data
 5. recheck last run status and storefront behavior
 
-### 4.5 What the vectorization buttons mean
+### 4.5 What the indexing buttons mean
 
 `Reconcile deployment support`
 
@@ -371,10 +378,15 @@ For an existing live store after scope changes:
 - ensures the vectorization source connection and plan match the current store scope
 - should be used after source-category changes or when the app shows missing or drifted deployment support
 
-`Vectorize current data`
+`Index all enabled data`
 
-- queues a deployment vectorization run for the currently enabled Shopify scope
+- queues a deployment indexing run for the currently enabled Shopify scope
 - should be used after reconcile is healthy and blocking reasons are empty
+
+`Reindex selected types`
+
+- queues a bounded rebuild for selected enabled entity families
+- should be used when the merchant wants to refresh only part of the current scope
 
 What the merchant should understand:
 
@@ -400,13 +412,13 @@ Source readiness:
 
 - indicates whether the chosen Shopify categories passed bounded preflight checks
 
-Sync status:
+Content freshness:
 
-- indicates whether Shopify content has been synced into the platform runtime flow
+- indicates whether recent Shopify changes have been absorbed by the platform’s internal normalization layer
 
 Vectorization summary:
 
-- indicates whether the deployment is ready to run vectorization for the current scope
+- indicates whether the deployment is ready to run indexing for the current scope
 
 Storefront ready:
 
@@ -427,7 +439,7 @@ If `Reconcile deployment support` fails:
 - use the support bundle
 - do not ask the merchant to edit plugin internals
 
-If `Vectorize current data` is blocked:
+If `Index all enabled data` or `Reindex selected types` is blocked:
 
 - read the blocking reasons shown in the app
 - usually this means the deployment support or runner state is not yet ready
@@ -439,8 +451,8 @@ If storefront is not ready:
 
 If the assistant answers with stale results:
 
-- run `Sync now`
-- if scope changed, also run `Vectorize current data`
+- run `Index all enabled data`
+- if the store is already indexed and only part of the enabled scope changed, use `Reindex selected types`
 
 ---
 
@@ -463,8 +475,8 @@ Keep the Shopify admin app focused on:
 
 - scope selection
 - readiness
-- sync
-- vectorization trigger
+- indexing and reindexing
+- live update trigger policy
 - storefront activation
 - testing
 - support

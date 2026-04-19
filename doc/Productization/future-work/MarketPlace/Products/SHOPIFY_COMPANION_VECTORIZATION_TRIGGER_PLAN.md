@@ -1,10 +1,10 @@
 # Shopify Companion Vectorization Trigger Plan
 
-Status: concrete implementation plan for manual and auto vectorization triggers (2026-04-19)
+Status: concrete implementation plan for manual indexing and live-update triggers (2026-04-19)
 
 Purpose:
 
-- define how Shopify object changes should drive sync and vectorization
+- define how Shopify object changes should drive indexing and live updates
 - align Shopify trigger behavior with the existing AI Fabric reindex and indexed-output model
 - define what the store admin should control in Shopify admin
 - separate what can ship now on current platform primitives from what requires deeper runner/runtime work
@@ -22,31 +22,37 @@ Current Shopify behavior is not enough for the desired merchant experience.
 Today:
 
 - Shopify content webhooks are received
-- the store is marked `NOT_SYNCED`
-- an incremental Shopify document sync is attempted
-- vectorization is still triggered manually by the store admin
+- the store is marked content-dirty
+- an internal normalization refresh is attempted
+- indexing is still triggered manually by the store admin
 
 That is only half of the product.
 
 Target behavior:
 
-- the store admin can manually sync current entities
-- the store admin can manually vectorize current entities
-- the store admin can enable auto vectorization per Shopify object family
+- the store admin can manually index all enabled data
+- the store admin can manually reindex selected entity families
+- the store admin can enable live auto indexing per Shopify object family
 - the store admin can choose which trigger types are active:
   - create
   - delete
   - update
-- for updates, the store admin can choose whether auto vectorization reacts to:
+- for updates, the store admin can choose whether live auto indexing reacts to:
   - any update
   - only updates that change indexed fields
   - only a bounded selected subset of indexed fields
+
+Important merchant-facing rule:
+
+- `sync` is an internal implementation stage
+- the Shopify admin app should expose `Index`, `Reindex`, and `Live updates`
+- the merchant should not need to understand or operate a separate sync layer
 
 The important platform rule is:
 
 - deployment config changes still follow the normal draft -> publish -> apply -> reindex model
 - Shopify source-object changes should not require deployment publish/apply
-- Shopify source-object changes should drive sync and vectorization against the already active deployment snapshot
+- Shopify source-object changes should drive indexing against the already active deployment snapshot, with any required internal normalization refresh hidden behind that action
 
 ## 2) Current State
 
@@ -62,6 +68,11 @@ Current vectorization trigger:
 
 - vectorization only runs from explicit admin action in [ShopifyStoreVectorizationService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/service/ShopifyStoreVectorizationService.java#L151)
 - the current execution mode is explicitly manual in [ShopifyStoreVectorizationService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/service/ShopifyStoreVectorizationService.java#L309)
+
+Current product gap:
+
+- the implementation still separates internal content refresh from vector indexing
+- the merchant experience should converge on `Index/Reindex/Live updates`, not `Sync` plus `Vectorize`
 
 Current sync deletion behavior:
 
@@ -99,13 +110,12 @@ The store admin should be able to:
   - Collections
   - Pages
   - Policies
-- manually sync all currently enabled categories
-- manually sync selected entity families:
+- manually index all currently enabled categories
+- manually reindex selected entity families:
   - `product`
   - `support-policy`
-- manually vectorize all currently enabled entity families
-- manually vectorize selected entity families
-- enable or disable auto vectorization
+- manually reindex all currently enabled entity families
+- enable or disable live auto indexing
 - choose trigger types per Shopify source family:
   - create
   - delete
@@ -155,7 +165,7 @@ These remain draft-backed and reindex-backed. They are not Shopify webhook conce
 - page updated
 - policy/store metadata changed
 
-These should drive sync and vectorization against the active deployment snapshot without requiring publish/apply.
+These should drive indexing against the active deployment snapshot without requiring publish/apply.
 
 3. Operational runtime changes
 
@@ -269,8 +279,8 @@ For `INDEXED_FIELDS_ONLY` or `SELECTED_INDEXED_FIELDS`, the system should:
 2. identify source family and object id
 3. fetch the current canonical normalized record from Shopify Bridge
 4. compute the effective indexed payload fingerprint for that record
-5. compare it to the last vectorized fingerprint for that record
-6. queue auto vectorization only if the watched indexed output changed
+5. compare it to the last indexed fingerprint for that record
+6. queue live auto indexing only if the watched indexed output changed
 
 Why this is required:
 
@@ -332,22 +342,29 @@ Suggested fields:
 - `coalescedRunId`
 - `notes`
 
-### 6.3 Record fingerprint tracking
+### 6.3 Minimal indexed-object ledger
 
-Extend tracked Shopify document state so field-aware triggers can compare against the last indexed output:
+Do not extend Shopify tracking into a full mirrored content store.
 
-Suggested additions to tracked document state:
+The thin production-safe model is a sparse indexed-object ledger that stores only:
 
+- `shopDomain`
+- `deploymentId`
+- `entityType`
+- `sourceObjectId`
 - `sourceRecordVersion`
 - `indexedOutputFingerprint`
-- `lastVectorizedAt`
-- `lastVectorizationRunId`
+- `lastIndexedAt`
+- `lastIndexRunId`
+- `lastIndexedDeploymentHash`
+- `deletedAt` nullable
 
 Important:
 
-- `contentFingerprint` already exists for synced Shopify documents in [ShopifyStoreDocumentSyncService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/service/ShopifyStoreDocumentSyncService.java#L302)
-- do not overload that field with vectorization semantics
-- add a separate vectorization fingerprint based on effective indexed output
+- do not persist raw Shopify content bodies for this ledger
+- do not overload `contentFingerprint` from [ShopifyStoreDocumentSyncService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/service/ShopifyStoreDocumentSyncService.java#L302) with indexing semantics
+- the bridge should stay stateless for content; canonical records are fetched on demand
+- this ledger should live in the platform control plane, not in the bridge database
 
 ## 7) Execution Model
 
@@ -355,11 +372,10 @@ Important:
 
 The Shopify admin app should expose:
 
-- `Sync current data`
-- `Sync selected entities`
-- `Vectorize current data`
-- `Vectorize selected entities`
-- `Retry last failed auto run`
+- `Index all enabled data`
+- `Reindex all enabled data`
+- `Reindex selected entity types`
+- `Retry last failed auto index run`
 
 Manual actions should be bounded to the current enabled source families and entity types.
 
@@ -368,10 +384,10 @@ Manual actions should be bounded to the current enabled source families and enti
 Near-term, auto mode should use current platform primitives and remain safe:
 
 1. webhook received
-2. record webhook and mark sync dirty
-3. run or schedule bounded incremental sync for affected source family
+2. record webhook and mark the affected source family dirty
+3. run or schedule any required bounded internal normalization refresh for that source family
 4. coalesce events for a debounce window
-5. if auto policy allows, queue one scoped vectorization run for the affected entity types
+5. if auto policy allows, queue one scoped indexing run for the affected entity types
 
 Near-term run type:
 
@@ -398,15 +414,15 @@ Delete handling needs explicit treatment.
 
 Current state:
 
-- full dataset sync can delete stale tracked documents from runtime
+- internal dataset refresh can delete stale tracked documents from runtime
 - vectorization runner does not emit `DELETE`
 
 Plan:
 
 Near-term:
 
-- auto delete triggers should force a bounded sync for the affected source family before any vectorization rerun
-- that ensures runtime stale documents are removed using the existing delete-capable dataset sync path
+- auto delete triggers should force a bounded internal refresh for the affected source family before any reindex run
+- that ensures runtime stale documents are removed using the existing delete-capable refresh path
 
 Later:
 
@@ -417,7 +433,7 @@ Later:
 
 ### 9.1 Merchant panel sections
 
-Add a dedicated `Sync and vectorization triggers` section in the Shopify admin app.
+Add a dedicated `Indexing and live updates` section in the Shopify admin app.
 
 Sections:
 
@@ -428,10 +444,9 @@ Sections:
 
 2. Manual actions
 
-- sync all enabled data
-- sync selected entity types
-- vectorize all enabled data
-- vectorize selected entity types
+- index all enabled data
+- reindex all enabled data
+- reindex selected entity types
 
 3. Auto trigger policies
 
@@ -443,8 +458,8 @@ Sections:
 
 4. Current status
 
-- sync state
-- vectorization state
+- content freshness state
+- indexing state
 - out-of-date state
 - last webhook
 - last auto trigger decision
@@ -455,8 +470,8 @@ Sections:
 
 - last 20 webhook-triggered decisions
 - whether each event:
-  - triggered sync only
-  - triggered vectorization
+  - triggered internal refresh only
+  - triggered reindex
   - was skipped
   - was coalesced
 
@@ -483,7 +498,7 @@ The merchant should see:
 If the active deployment snapshot changes in a way that requires reindex:
 
 - mark the deployment `OUT_OF_DATE`
-- do not silently claim auto vectorization has fully realigned the store
+- do not silently claim live auto indexing has fully realigned the store
 - require a proper post-apply reindex path
 
 This must remain aligned with the framework’s indexed-output model in:
@@ -505,16 +520,15 @@ Shopify source-object changes:
 
 Ship:
 
-- `Sync current data`
-- `Sync selected entities`
-- `Vectorize current data`
-- `Vectorize selected entities`
-- clear status for sync dirty vs vectorization current
+- `Index all enabled data`
+- `Reindex all enabled data`
+- `Reindex selected entity types`
+- clear status for content freshness vs index currency
 
 Backend work:
 
-- add explicit sync actions for selected entity families
-- expose selected-entity vectorization action
+- keep any content refresh step internal to the indexing action
+- expose selected-entity reindex action
 - return richer status and blocking reasons
 
 Acceptance:
@@ -578,6 +592,7 @@ Backend work:
 Acceptance:
 
 - delete webhooks remove indexed objects without requiring family-wide sync sweeps
+- delete webhooks remove indexed objects without requiring family-wide refresh sweeps
 - create/update/delete events can be handled incrementally
 
 ## 12) Recommended Build Order
@@ -599,9 +614,9 @@ Reason:
 
 The plan is complete when all of the following are true:
 
-- store admin can manually sync all or selected entity families
-- store admin can manually vectorize all or selected entity families
-- store admin can enable auto vectorization per source family
+- store admin can manually index all enabled data and reindex selected entity families
+- store admin can manually reindex all or selected entity families
+- store admin can enable live auto indexing per source family
 - create/delete/update triggers are configurable
 - update triggers can be restricted to indexed fields
 - deployment reindex semantics remain version-based and separate
@@ -613,8 +628,8 @@ The plan is complete when all of the following are true:
 
 The right product shape is:
 
-- manual merchant sync + vectorization controls first
-- auto vectorization second
+- manual merchant indexing controls first
+- live auto indexing second
 - field-aware update triggers third
 - true incremental delete/upsert vectorization last
 
