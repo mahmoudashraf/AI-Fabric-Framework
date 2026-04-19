@@ -56,6 +56,21 @@ public class VectorizationRunnerService {
 
     private static final Set<String> CLAIMABLE_STATUSES = Set.of("QUEUED", "RESUME_REQUESTED", "RETRY_REQUESTED");
     private static final Set<String> COMPLETION_STATUSES = Set.of("COMPLETED", "FAILED", "PAUSED", "CANCELLED");
+    private static final Set<String> IN_FLIGHT_STATUSES = Set.of(
+        "QUEUED",
+        "CLAIMED",
+        "RUNNING",
+        "PAUSE_REQUESTED",
+        "RESUME_REQUESTED",
+        "RETRY_REQUESTED"
+    );
+    private static final Set<String> IN_FLIGHT_REQUESTED_STATUSES = Set.of(
+        "QUEUED",
+        "PAUSE_REQUESTED",
+        "RESUME_REQUESTED",
+        "RETRY_REQUESTED",
+        "CANCEL_REQUESTED"
+    );
 
     private final PlatformVectorizationProperties properties;
     private final PlatformAuditService platformAuditService;
@@ -436,6 +451,7 @@ public class VectorizationRunnerService {
                     }
                 }
                 plan.setLastSuccessfulIndexedOutputHash(successfulIndexedOutputHash);
+                cancelSupersededRuns(run, now);
             }
             plan.setUpdatedAt(now);
             planRepository.save(plan);
@@ -505,6 +521,46 @@ public class VectorizationRunnerService {
 
     private boolean leaseExpired(Instant leaseExpiresAt) {
         return leaseExpiresAt == null || leaseExpiresAt.isBefore(Instant.now());
+    }
+
+    private void cancelSupersededRuns(VectorizationRunEntity completedRun, Instant now) {
+        runRepository.findByDeploymentIdOrderByCreatedAtDesc(completedRun.getDeploymentId()).stream()
+            .filter(candidate -> candidate != null && !completedRun.getId().equals(candidate.getId()))
+            .filter(this::isInFlight)
+            .filter(candidate -> supersededBy(candidate, completedRun))
+            .forEach(candidate -> {
+                ObjectNode errorSummary = jsonSupport.readObject(candidate.getErrorSummaryJson());
+                errorSummary.put("summary", "Superseded by a newer successful vectorization run.");
+                errorSummary.put("supersededByRunId", completedRun.getId());
+                errorSummary.put("supersededByPlanRevisionId", completedRun.getPlanRevisionId());
+                candidate.setStatus("CANCELLED");
+                candidate.setRequestedStatus("CANCELLED");
+                candidate.setErrorSummaryJson(jsonSupport.write(errorSummary));
+                candidate.setLeaseExpiresAt(null);
+                candidate.setCompletedAt(now);
+                candidate.setUpdatedAt(now);
+                runRepository.save(candidate);
+            });
+    }
+
+    private boolean isInFlight(VectorizationRunEntity run) {
+        if (run == null) {
+            return false;
+        }
+        return IN_FLIGHT_STATUSES.contains(run.getStatus())
+            || IN_FLIGHT_REQUESTED_STATUSES.contains(run.getRequestedStatus());
+    }
+
+    private boolean supersededBy(VectorizationRunEntity candidate, VectorizationRunEntity completedRun) {
+        Instant candidateCreatedAt = candidate.getCreatedAt();
+        Instant completedCreatedAt = completedRun.getCreatedAt();
+        if (candidateCreatedAt != null && completedCreatedAt != null && !candidateCreatedAt.isBefore(completedCreatedAt)) {
+            return false;
+        }
+        if (candidateCreatedAt == null && completedCreatedAt != null) {
+            return false;
+        }
+        return true;
     }
 
     private VectorizationSourceConnectionEntity resolveConnection(String sourceConnectionId, String deploymentId) {
