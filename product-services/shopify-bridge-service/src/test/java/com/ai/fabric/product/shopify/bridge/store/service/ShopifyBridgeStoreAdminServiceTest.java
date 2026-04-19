@@ -26,11 +26,13 @@ class ShopifyBridgeStoreAdminServiceTest {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeSourcePreflightService sourcePreflightService = mock(ShopifyBridgeSourcePreflightService.class);
+        ShopifyBridgeVectorizationSourceService vectorizationSourceService = mock(ShopifyBridgeVectorizationSourceService.class);
         ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
             platformShopifyStoreClient,
             installCredentialService,
             billingService,
-            sourcePreflightService
+            sourcePreflightService,
+            vectorizationSourceService
         );
 
         ShopifyBridgeStoreSummary store = sampleStore();
@@ -61,11 +63,13 @@ class ShopifyBridgeStoreAdminServiceTest {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeSourcePreflightService sourcePreflightService = mock(ShopifyBridgeSourcePreflightService.class);
+        ShopifyBridgeVectorizationSourceService vectorizationSourceService = mock(ShopifyBridgeVectorizationSourceService.class);
         ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
             platformShopifyStoreClient,
             installCredentialService,
             billingService,
-            sourcePreflightService
+            sourcePreflightService,
+            vectorizationSourceService
         );
 
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());

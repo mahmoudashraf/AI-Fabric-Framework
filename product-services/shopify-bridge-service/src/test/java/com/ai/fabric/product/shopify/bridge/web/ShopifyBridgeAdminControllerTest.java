@@ -15,6 +15,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncS
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourceRecord;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
@@ -154,6 +156,43 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.status").value("READY_FOR_APPROVAL"))
             .andExpect(jsonPath("$.merchantApprovalRequired").value(true))
             .andExpect(jsonPath("$.launchBlocked").value(true));
+    }
+
+    @Test
+    void adminVectorizationSourcePageIsReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.vectorizationSourcePage("alpha.myshopify.com", "product", null, 25))
+            .thenReturn(new ShopifyBridgeVectorizationSourcePageResponse(
+                "alpha.myshopify.com",
+                "product",
+                3,
+                true,
+                "collections|",
+                List.of(new ShopifyBridgeVectorizationSourceRecord(
+                    "gid://shopify/Product/1",
+                    "2026-04-19T10:00:00Z",
+                    "Trail Shoe",
+                    "Breathable trail shoe",
+                    "products",
+                    "product",
+                    "https://alpha.myshopify.com/products/trail-shoe",
+                    "trail-shoe",
+                    "Loom",
+                    "Shoes",
+                    null
+                ))
+            ));
+
+        mockMvc.perform(
+                get("/api/admin/stores/alpha.myshopify.com/vectorization-source/product")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .param("limit", "25")
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.entityType").value("product"))
+            .andExpect(jsonPath("$.totalCount").value(3))
+            .andExpect(jsonPath("$.items[0].title").value("Trail Shoe"))
+            .andExpect(jsonPath("$.nextCursor").value("collections|"));
     }
 
     @Test

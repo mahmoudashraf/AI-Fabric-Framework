@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncS
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -23,15 +24,18 @@ public class ShopifyBridgeStoreAdminService {
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyBridgeSourcePreflightService sourcePreflightService;
+    private final ShopifyBridgeVectorizationSourceService vectorizationSourceService;
 
     public ShopifyBridgeStoreAdminService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                           ShopifyBridgeInstallCredentialService installCredentialService,
                                           ShopifyBridgeBillingService billingService,
-                                          ShopifyBridgeSourcePreflightService sourcePreflightService) {
+                                          ShopifyBridgeSourcePreflightService sourcePreflightService,
+                                          ShopifyBridgeVectorizationSourceService vectorizationSourceService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
         this.billingService = billingService;
         this.sourcePreflightService = sourcePreflightService;
+        this.vectorizationSourceService = vectorizationSourceService;
     }
 
     public List<ShopifyBridgeStoreSummary> listStores() {
@@ -74,5 +78,12 @@ public class ShopifyBridgeStoreAdminService {
     public ShopifyBridgeStoreSummary recordWidgetStatus(String shopDomain,
                                                         ShopifyBridgeRecordWidgetStatusRequest request) {
         return platformShopifyStoreClient.recordWidgetStatus(shopDomain, request);
+    }
+
+    public ShopifyBridgeVectorizationSourcePageResponse vectorizationSourcePage(String shopDomain,
+                                                                                String entityType,
+                                                                                String cursor,
+                                                                                Integer limit) {
+        return vectorizationSourceService.page(shopDomain, entityType, cursor, limit);
     }
 }

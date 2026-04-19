@@ -12,6 +12,8 @@ import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceIns
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationRunSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
@@ -43,6 +45,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class ShopifyStoreVectorizationService {
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
+    private static final String BRIDGE_ADMIN_API_KEY_HEADER = "X-BRIDGE-API-KEY";
 
     private final ShopifyStoreConnectionRepository repository;
     private final DeploymentRepository deploymentRepository;
@@ -50,6 +53,7 @@ public class ShopifyStoreVectorizationService {
     private final DeploymentService deploymentService;
     private final DeploymentMarketplaceInstallService deploymentMarketplaceInstallService;
     private final MarketplaceCatalogService marketplaceCatalogService;
+    private final PlatformManagedProductServiceRepository productServiceRepository;
     private final VectorizationService vectorizationService;
     private final ShopifyCompanionBootstrapProperties properties;
     private final PlatformAuditService platformAuditService;
@@ -60,6 +64,7 @@ public class ShopifyStoreVectorizationService {
                                             DeploymentService deploymentService,
                                             DeploymentMarketplaceInstallService deploymentMarketplaceInstallService,
                                             MarketplaceCatalogService marketplaceCatalogService,
+                                            PlatformManagedProductServiceRepository productServiceRepository,
                                             VectorizationService vectorizationService,
                                             ShopifyCompanionBootstrapProperties properties,
                                             PlatformAuditService platformAuditService) {
@@ -69,6 +74,7 @@ public class ShopifyStoreVectorizationService {
         this.deploymentService = deploymentService;
         this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
         this.marketplaceCatalogService = marketplaceCatalogService;
+        this.productServiceRepository = productServiceRepository;
         this.vectorizationService = vectorizationService;
         this.properties = properties;
         this.platformAuditService = platformAuditService;
@@ -172,7 +178,8 @@ public class ShopifyStoreVectorizationService {
     }
 
     private VectorizationOverviewSummary reconcileVectorizationOverview(ShopifyStoreConnectionEntity store, DeploymentEntity deployment) {
-        UpsertVectorizationSourceConnectionRequest connectionRequest = buildConnectionRequest(store);
+        PlatformManagedProductServiceEntity productService = requireProductService(store);
+        UpsertVectorizationSourceConnectionRequest connectionRequest = buildConnectionRequest(store, productService);
         var connection = vectorizationService.upsertSourceConnection(deployment.getId(), connectionRequest);
         vectorizationService.upsertPlan(
             deployment.getId(),
@@ -188,12 +195,21 @@ public class ShopifyStoreVectorizationService {
         return vectorizationService.getOverviewForTrustedCaller(deployment);
     }
 
-    private UpsertVectorizationSourceConnectionRequest buildConnectionRequest(ShopifyStoreConnectionEntity store) {
+    private UpsertVectorizationSourceConnectionRequest buildConnectionRequest(ShopifyStoreConnectionEntity store,
+                                                                             PlatformManagedProductServiceEntity productService) {
+        String bridgeBaseUrl = trimRequired(productService.getBaseUrl(), "Shopify Bridge base URL is not configured for vectorization.");
+        String bridgeSharedSecretRef = trimRequired(
+            productService.getSecretName(),
+            "Shopify Bridge admin API secret is not configured for vectorization."
+        );
         ObjectNode connectionConfig = JSON.objectNode();
-        connectionConfig.put("shopDomain", store.getShopDomain());
-        connectionConfig.put("productServiceId", blankToEmpty(store.getProductServiceId()));
-        connectionConfig.put("deploymentId", blankToEmpty(store.getDeploymentId()));
-        connectionConfig.put("consumerId", blankToEmpty(store.getConsumerId()));
+        connectionConfig.put("baseUrl", trimTrailingSlash(bridgeBaseUrl));
+        connectionConfig.put("apiKeyHeader", BRIDGE_ADMIN_API_KEY_HEADER);
+        connectionConfig.set("datasets", buildDatasetConfig(store));
+
+        ObjectNode secretReferences = JSON.objectNode();
+        ObjectNode platformSecretRefs = secretReferences.putObject("platformSecretRefs");
+        platformSecretRefs.put("apiKey", bridgeSharedSecretRef);
 
         ObjectNode discoverySummary = JSON.objectNode();
         discoverySummary.put("selectedCategoryCount", ShopifyCompanionPluginSelection.selectedCategories(store).size());
@@ -203,12 +219,40 @@ public class ShopifyStoreVectorizationService {
 
         return new UpsertVectorizationSourceConnectionRequest(
             "Shopify store " + store.getShopDomain(),
-            "shopify-store",
-            "private_runtime_backend_mediated",
+            "REST_API",
+            "API_KEY",
             connectionConfig,
-            JSON.objectNode(),
+            secretReferences,
             discoverySummary
         );
+    }
+
+    private ObjectNode buildDatasetConfig(ShopifyStoreConnectionEntity store) {
+        ObjectNode datasets = JSON.objectNode();
+
+        ObjectNode product = datasets.putObject("product");
+        product.put("path", "/api/admin/stores/" + store.getShopDomain() + "/vectorization-source/product");
+        product.put("paginationMode", "CURSOR");
+        product.put("cursorParam", "cursor");
+        product.put("pageSizeParam", "limit");
+        product.put("pageSize", 50);
+        product.put("itemsPath", "items");
+        product.put("nextCursorPath", "nextCursor");
+        product.put("hasMorePath", "hasMore");
+        product.put("countPath", "totalCount");
+
+        ObjectNode supportPolicy = datasets.putObject("support-policy");
+        supportPolicy.put("path", "/api/admin/stores/" + store.getShopDomain() + "/vectorization-source/support-policy");
+        supportPolicy.put("paginationMode", "CURSOR");
+        supportPolicy.put("cursorParam", "cursor");
+        supportPolicy.put("pageSizeParam", "limit");
+        supportPolicy.put("pageSize", 50);
+        supportPolicy.put("itemsPath", "items");
+        supportPolicy.put("nextCursorPath", "nextCursor");
+        supportPolicy.put("hasMorePath", "hasMore");
+        supportPolicy.put("countPath", "totalCount");
+
+        return datasets;
     }
 
     private ObjectNode buildMappingConfig(ShopifyStoreConnectionEntity store) {
@@ -218,6 +262,40 @@ public class ShopifyStoreVectorizationService {
         sourceCategories.put("collectionsEnabled", store.isCollectionsEnabled());
         sourceCategories.put("pagesEnabled", store.isPagesEnabled());
         sourceCategories.put("policiesEnabled", store.isPoliciesEnabled());
+        ObjectNode entityMappings = mapping.putObject("entityMappings");
+
+        ObjectNode productMapping = entityMappings.putObject("product");
+        productMapping.put("dataset", "product");
+        productMapping.put("recordIdField", "id");
+        productMapping.put("recordVersionField", "updatedAt");
+        ObjectNode productFields = productMapping.putObject("entityFieldMappings");
+        productFields.put("name", "title");
+        productFields.put("description", "content");
+        productFields.put("category", "sourceCategory");
+        ObjectNode productMetadata = productMapping.putObject("metadataFieldMappings");
+        productMetadata.put("sourceCategory", "sourceCategory");
+        productMetadata.put("documentType", "documentType");
+        productMetadata.put("storefrontUrl", "storefrontUrl");
+        productMetadata.put("handle", "handle");
+        productMetadata.put("vendor", "vendor");
+        productMetadata.put("productType", "productType");
+        productMetadata.put("updatedAt", "updatedAt");
+
+        ObjectNode supportPolicyMapping = entityMappings.putObject("support-policy");
+        supportPolicyMapping.put("dataset", "support-policy");
+        supportPolicyMapping.put("recordIdField", "id");
+        supportPolicyMapping.put("recordVersionField", "updatedAt");
+        ObjectNode supportPolicyFields = supportPolicyMapping.putObject("entityFieldMappings");
+        supportPolicyFields.put("name", "title");
+        supportPolicyFields.put("description", "content");
+        supportPolicyFields.put("category", "sourceCategory");
+        ObjectNode supportPolicyMetadata = supportPolicyMapping.putObject("metadataFieldMappings");
+        supportPolicyMetadata.put("sourceCategory", "sourceCategory");
+        supportPolicyMetadata.put("documentType", "documentType");
+        supportPolicyMetadata.put("policyType", "policyType");
+        supportPolicyMetadata.put("storefrontUrl", "storefrontUrl");
+        supportPolicyMetadata.put("updatedAt", "updatedAt");
+
         ObjectNode datasets = mapping.putObject("datasets");
         if (ShopifyCompanionPluginSelection.requiresCatalogData(store)) {
             datasets.put("product", ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID + "/shopify-catalog");
@@ -233,6 +311,7 @@ public class ShopifyStoreVectorizationService {
         execution.put("triggerMode", "SHOPIFY_ADMIN_MANUAL");
         execution.put("selectedCategoryCount", ShopifyCompanionPluginSelection.selectedCategories(store).size());
         execution.put("fullRefreshRequired", true);
+        execution.put("batchSize", 50);
         return execution;
     }
 
@@ -425,6 +504,18 @@ public class ShopifyStoreVectorizationService {
         return deployment;
     }
 
+    private PlatformManagedProductServiceEntity requireProductService(ShopifyStoreConnectionEntity store) {
+        String productServiceId = blankToNull(store == null ? null : store.getProductServiceId());
+        if (productServiceId == null) {
+            throw new ResponseStatusException(CONFLICT, "Shopify store must be bound to a Shopify Bridge service before vectorization can be configured.");
+        }
+        return productServiceRepository.findById(productServiceId)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify Bridge service binding could not be resolved for vectorization."
+            ));
+    }
+
     private DeploymentEntity resolveDeployment(ShopifyStoreConnectionEntity store) {
         if (store == null || store.getDeploymentId() == null || store.getDeploymentId().isBlank()) {
             return null;
@@ -457,5 +548,24 @@ public class ShopifyStoreVectorizationService {
 
     private String blankToEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String trimRequired(String value, String message) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            throw new ResponseStatusException(CONFLICT, message);
+        }
+        return normalized;
+    }
+
+    private String trimTrailingSlash(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
 }

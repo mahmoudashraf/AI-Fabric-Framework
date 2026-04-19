@@ -8,6 +8,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncS
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
@@ -54,6 +55,14 @@ public class ShopifyBridgeAdminController {
     @GetMapping("/stores/{shopDomain}/billing-summary")
     public ShopifyBridgeBillingSummary billingSummary(@PathVariable String shopDomain) {
         return storeAdminService.billingSummary(shopDomain);
+    }
+
+    @GetMapping("/stores/{shopDomain}/vectorization-source/{entityType}")
+    public ShopifyBridgeVectorizationSourcePageResponse vectorizationSourcePage(@PathVariable String shopDomain,
+                                                                                @PathVariable String entityType,
+                                                                                @org.springframework.web.bind.annotation.RequestParam(required = false) String cursor,
+                                                                                @org.springframework.web.bind.annotation.RequestParam(required = false) Integer limit) {
+        return storeAdminService.vectorizationSourcePage(shopDomain, entityType, cursor, limit);
     }
 
     @GetMapping("/stores/{shopDomain}/webhook-subscriptions")
