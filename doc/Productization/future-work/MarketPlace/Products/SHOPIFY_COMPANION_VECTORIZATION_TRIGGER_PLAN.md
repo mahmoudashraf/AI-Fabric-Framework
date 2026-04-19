@@ -1,4 +1,4 @@
-# Shopify Companion Vectorization Trigger Plan
+# Shopify Companion Indexing Trigger Plan
 
 Status: concrete implementation plan for manual indexing and live-update triggers (2026-04-19)
 
@@ -8,6 +8,15 @@ Purpose:
 - align Shopify trigger behavior with the existing AI Fabric reindex and indexed-output model
 - define what the store admin should control in Shopify admin
 - separate what can ship now on current platform primitives from what requires deeper runner/runtime work
+
+This plan is intentionally written as a production implementation guide, not just a feature outline. The target design must be:
+
+- durable
+- idempotent
+- ordered per store and entity family
+- observable
+- safe for multi-tenant production traffic
+- evolvable from database queue to outbox or broker transport without semantic rewrites
 
 This plan should be read with:
 
@@ -53,6 +62,59 @@ The important platform rule is:
 - deployment config changes still follow the normal draft -> publish -> apply -> reindex model
 - Shopify source-object changes should not require deployment publish/apply
 - Shopify source-object changes should drive indexing against the already active deployment snapshot, with any required internal normalization refresh hidden behind that action
+
+Production-ready target:
+
+- webhook intake must acknowledge fast and never do heavy indexing work inline
+- duplicate deliveries must be safe
+- per-store ordering decisions must be explicit
+- queue processing must support lease, retry, dead-letter handling, and operator recovery
+- merchant-facing controls must remain bounded even as internal event architecture evolves
+
+## 1.1 Architecture Principles
+
+The implementation should follow these rules:
+
+1. `Acknowledge fast`
+
+- verify the webhook
+- persist the intake record or event
+- return success quickly
+- do not block the Shopify webhook request on indexing work
+
+2. `Idempotency before throughput`
+
+- duplicate deliveries are expected
+- the system must dedupe safely before attempting downstream work
+
+3. `Per-aggregate ordering, not global ordering`
+
+- ordering should be guaranteed only where it matters
+- the correct aggregate is the current store plus the affected entity family
+
+4. `Transport-neutral business logic`
+
+- trigger evaluation, coalescing, and indexing intent generation must not depend on Kafka, Postgres polling, or any specific queue implementation
+
+5. `Thin data retention`
+
+- keep only the sparse indexed-object ledger and auditable event history needed for correctness and recovery
+- do not build a full Shopify content mirror in platform or bridge databases
+
+6. `Safe degradation`
+
+- if auto indexing is unhealthy, merchants must still be able to recover with bounded manual indexing actions
+
+## 1.2 Non-goals
+
+This plan does not aim to:
+
+- make the bridge a long-lived Shopify content warehouse
+- expose deployment internals to merchants
+- provide exactly-once delivery guarantees at the transport layer
+- make deployment-snapshot reindex semantics disappear
+
+We only need at-least-once delivery with strong idempotency and correct aggregate ordering.
 
 ## 2) Current State
 
@@ -189,9 +251,9 @@ Add a bounded per-store policy model:
 Each block should contain:
 
 - `enabled`
-- `manualSyncAllowed`
-- `manualVectorizeAllowed`
-- `autoVectorizationEnabled`
+- `manualIndexAllowed`
+- `manualReindexAllowed`
+- `autoIndexingEnabled`
 - `createTriggerEnabled`
 - `deleteTriggerEnabled`
 - `updateTriggerMode`
@@ -220,6 +282,18 @@ Recommended defaults:
 - `policies`
   - create/delete: not independently exposed
   - update: `INDEXED_FIELDS_ONLY` via `shop/update`
+
+### 4.3 Policy safety rules
+
+The trigger policy model should also enforce these production rules:
+
+- auto indexing is opt-in by default for existing stores unless explicitly enabled during rollout
+- `minimumRunIntervalSeconds` must be enforced even if webhook volume spikes
+- per-family policies must have safe defaults that avoid surprise reindex storms
+- policy updates must be audited with actor, timestamp, and effective diff
+- policy evaluation should fail closed:
+  - if policy state cannot be resolved, do not enqueue auto indexing
+  - keep manual indexing available unless the deployment is not ready
 
 ## 5) Indexed-Field Awareness
 
@@ -300,10 +374,16 @@ Suggested fields:
 
 - `shopDomain`
 - `policyVersion`
-- `autoVectorizationDefault`
+- `autoIndexingDefault`
 - `sourcePoliciesJson`
 - `updatedAt`
 - `updatedBy`
+
+Recommended constraints:
+
+- one active policy row per store
+- optimistic versioning on policy updates
+- full audit record for policy changes
 
 ### 6.2 Dirty-event queue
 
@@ -342,6 +422,41 @@ Suggested fields:
 - `coalescedRunId`
 - `notes`
 
+Recommended additions for production:
+
+- `aggregateKey`
+- `dedupeKey`
+- `correlationId`
+- `causationId`
+- `attemptCount`
+- `lastAttemptAt`
+- `nextAttemptAt`
+- `leaseOwner`
+- `leaseExpiresAt`
+- `failureCode`
+- `lastErrorSummary`
+- `deadLetteredAt`
+- `retentionExpiresAt`
+
+Recommended status model:
+
+- `QUEUED`
+- `LEASED`
+- `COALESCED`
+- `DISPATCHED`
+- `COMPLETED`
+- `SKIPPED`
+- `FAILED`
+- `DEAD_LETTERED`
+
+Recommended indexes and constraints:
+
+- unique constraint on `dedupeKey` within the intended dedupe scope
+- index on `status, nextAttemptAt`
+- index on `aggregateKey, occurredAt`
+- index on `shopDomain, entityType, sourceObjectId`
+- retention-oriented index on `retentionExpiresAt`
+
 ### 6.2.1 Transport-neutral event envelope
 
 The dirty-event queue should be designed as the first transport for a more general event pipeline, not as a one-off table shape that blocks future evolution.
@@ -368,10 +483,38 @@ Rules:
 
 - producers write the same logical event envelope regardless of transport
 - consumers process the same logical event envelope regardless of transport
-- queue-table persistence is the first transport implementation
+- queue persistence is the first transport implementation
 - a future outbox or broker publisher must not change merchant-facing behavior or policy semantics
+- event schema versioning must be explicit and backward-compatible within one rollout window
 
 This is the key future-readiness boundary. We should abstract the transport, not prematurely adopt a broker.
+
+### 6.2.2 Webhook intake requirements
+
+The webhook intake path must be production-safe.
+
+Required behavior:
+
+- verify Shopify HMAC before accepting the request
+- record the Shopify event id and topic
+- dedupe repeated webhook deliveries
+- persist the event and return success quickly
+- do not fetch Shopify objects or enqueue heavy indexing work inline with the webhook request if that risks timeout
+
+Required stored fields on webhook intake or linked event metadata:
+
+- `shopifyWebhookId`
+- `shopifyTopic`
+- `shopDomain`
+- `receivedAt`
+- `validatedAt`
+- `deliveryAttempt` if available
+- payload checksum or payload reference
+
+Security rule:
+
+- never persist raw secrets or session tokens in webhook event payloads
+- if payload retention is needed for audit or replay, store only the minimal payload or a bounded encrypted reference
 
 ### 6.3 Minimal indexed-object ledger
 
@@ -389,6 +532,18 @@ The thin production-safe model is a sparse indexed-object ledger that stores onl
 - `lastIndexRunId`
 - `lastIndexedDeploymentHash`
 - `deletedAt` nullable
+
+Recommended additions:
+
+- `firstIndexedAt`
+- `lastSeenAt`
+- `lastTriggerDecision`
+- `lastTriggerReason`
+
+Recommended constraints:
+
+- unique constraint on `deploymentId, entityType, sourceObjectId`
+- do not allow one store object to drift into multiple active rows for the same entity type
 
 Important:
 
@@ -427,6 +582,13 @@ Near-term run type:
 - still behaves as a scoped refresh run, not a per-object in-place patch
 
 This is the fastest production-safe path because it builds on what already exists.
+
+Implementation guidance:
+
+- the coalescer should lease work with a bounded lease TTL
+- processing must be safe under duplicate scheduler executions
+- one aggregate key should not be processed concurrently by multiple workers unless ordering is proven irrelevant
+- if a newer event supersedes an older queued event for the same aggregate, the older one should be marked `COALESCED`, not left ambiguous
 
 ### 7.3 Auto mode, later
 
@@ -474,6 +636,15 @@ This gives us three important properties:
 - testable business rules outside infrastructure concerns
 - a clean migration path from database queue to outbox or broker later
 
+Recommended internal interfaces:
+
+- `ShopifyIndexingEventIngestor`
+- `ShopifyIndexingEventCoalescer`
+- `ShopifyIndexingIntentDispatcher`
+- `ShopifyIndexingRunEnqueuer`
+
+Those names matter less than the separation of responsibilities.
+
 ### 7.5 Transport decision
 
 Current recommendation:
@@ -496,6 +667,7 @@ Kafka or another broker becomes justified only if one or more of these become tr
 - multiple independent consumers need the same event stream
 - replay requirements exceed what a database queue or outbox gives us
 - cross-service event fan-out becomes a platform-wide primitive
+- operational evidence shows queue polling or row locking is the real bottleneck rather than Shopify API or indexing throughput
 
 ### 7.6 Outbox-compatible migration path
 
@@ -524,7 +696,64 @@ Important:
 - merchant-facing trigger policies remain required in every phase
 - only the transport changes; business semantics do not
 
-## 8) Delete Semantics
+## 8) Reliability, Recovery, And Operations
+
+### 8.1 Retry model
+
+Retries must be bounded and explicit.
+
+Recommended behavior:
+
+- transient failures retry with exponential backoff
+- permanent failures move to `FAILED` or `DEAD_LETTERED`
+- repeated failures on one aggregate must not block unrelated stores
+- manual replay tooling should exist for operators
+
+Recommended failure classes:
+
+- `SHOPIFY_API_TRANSIENT`
+- `SHOPIFY_API_AUTH`
+- `BRIDGE_UNAVAILABLE`
+- `POLICY_EVALUATION_FAILED`
+- `RUN_ENQUEUE_FAILED`
+- `INDEXING_RUN_FAILED`
+- `SCHEMA_ERROR`
+
+### 8.2 Dead-letter handling
+
+If an event cannot be processed safely after bounded retries:
+
+- move it to `DEAD_LETTERED`
+- preserve diagnostic context
+- expose it in operator diagnostics
+- do not silently drop it
+
+The merchant should see a plain-language degraded status, not raw queue internals.
+
+### 8.3 Retention and cleanup
+
+Recommended retention posture:
+
+- keep recent completed/coalesced/skipped events for audit and troubleshooting
+- prune or archive old completed events on a schedule
+- keep dead-letter events longer than successful events
+- keep indexed-object ledger rows as long as they remain relevant to live indexing correctness
+
+Retention must be explicit; otherwise the queue tables will grow without bound.
+
+### 8.4 Concurrency control
+
+Required rules:
+
+- one aggregate key should have at most one active leased processor
+- one deployment should have bounded concurrent auto-index runs
+- manual merchant actions should either:
+  - reuse in-flight work when equivalent
+  - or clearly create a new bounded run with a reason code
+
+The system should prefer coalescing to parallelism for one store family.
+
+## 9) Delete Semantics
 
 Delete handling needs explicit treatment.
 
@@ -545,9 +774,47 @@ Later:
 - extend the vectorization runner target writer to emit `DELETE`
 - allow a pure object-level delete path without a family-level sync sweep
 
-## 9) Admin UX Plan
+## 10) Observability And SLOs
 
-### 9.1 Merchant panel sections
+### 10.1 Required metrics
+
+At minimum, record:
+
+- webhook intake rate
+- dedupe hit rate
+- queued event count by status
+- dead-letter count
+- coalescing ratio
+- time from webhook receipt to indexing intent creation
+- time from webhook receipt to completed indexing run
+- indexing run failure rate by reason
+- per-store last successful live update time
+
+### 10.2 Required logs and traces
+
+Use correlation identifiers across:
+
+- webhook intake
+- bridge fetch
+- event coalescing
+- run enqueueing
+- runner execution
+
+Logs must allow an operator to trace one Shopify object change to one final indexing outcome.
+
+### 10.3 Suggested service objectives
+
+Initial objectives should be explicit even if they tighten later:
+
+- webhook requests acknowledged within a small bounded latency budget
+- live updates visible in indexing state within a bounded freshness window under normal load
+- dead-letter rate below an agreed threshold
+
+If we do not define these, we cannot operate the system properly.
+
+## 11) Admin UX Plan
+
+### 11.1 Merchant panel sections
 
 Add a dedicated `Indexing and live updates` section in the Shopify admin app.
 
@@ -591,7 +858,7 @@ Sections:
   - was skipped
   - was coalesced
 
-### 9.2 UX rules
+### 11.2 UX rules
 
 The merchant should never see:
 
@@ -607,9 +874,9 @@ The merchant should see:
 - derived indexed fields
 - reasons when a trigger was skipped
 
-## 10) Platform Rules
+## 12) Platform Rules
 
-### 10.1 Deployment-snapshot rule
+### 12.1 Deployment-snapshot rule
 
 If the active deployment snapshot changes in a way that requires reindex:
 
@@ -622,7 +889,7 @@ This must remain aligned with the framework’s indexed-output model in:
 - [VectorizationIndexedOutputHashService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/vectorization/service/VectorizationIndexedOutputHashService.java)
 - [DeploymentConfigCompiler.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentConfigCompiler.java#L157)
 
-### 10.2 Source-object rule
+### 12.2 Source-object rule
 
 Shopify source-object changes:
 
@@ -630,7 +897,43 @@ Shopify source-object changes:
 - must not mutate deployment entity config
 - must operate against the active deployment snapshot
 
-## 11) Implementation Waves
+### 12.3 Multi-tenant safety rule
+
+The indexing trigger pipeline must remain tenant-safe.
+
+Required rules:
+
+- event dedupe and aggregate keys must never collapse data across tenants or deployments
+- one store's failures must not block unrelated stores
+- operator replay tooling must be scoped to the intended store and deployment
+- no event consumer should be able to fetch raw data from another tenant without the same control-plane authorization already required elsewhere
+
+## 13) Rollout And Feature Flags
+
+Roll this out progressively.
+
+Required flags or rollout guards:
+
+- merchant-visible indexing labels
+- auto indexing enablement
+- per-family trigger policies
+- indexed-field-aware update evaluation
+- delete-triggered live updates
+
+Recommended rollout order:
+
+1. internal stores only
+2. design partners
+3. default-enabled for new stores
+4. selective migration for existing stores
+
+During rollout:
+
+- auto indexing should be observable before it is default-on
+- operators need a global kill switch
+- per-store disablement must exist for recovery
+
+## 14) Implementation Waves
 
 ### Wave 1: Finalize manual merchant controls
 
@@ -650,6 +953,7 @@ Backend work:
 Acceptance:
 
 - merchant can fully recover current indexed state manually without platform operator help
+- merchant-visible labels no longer require understanding internal sync mechanics
 
 ### Wave 2: Auto trigger policy and dirty queue
 
@@ -674,6 +978,7 @@ Acceptance:
 - repeated product updates do not queue duplicate runs
 - one quiet-window run is scheduled for the affected entity families
 - the ingestion/coalescing logic can switch transport later without changing trigger-policy semantics
+- queue leasing, retry, and dead-letter behavior are implemented and test-covered
 
 ### Wave 3: Indexed-field-aware updates
 
@@ -693,6 +998,7 @@ Acceptance:
 
 - updates to non-indexed Shopify fields do not trigger vectorization
 - updates to indexed fields do trigger vectorization
+- indexed-fingerprint computation is deterministic and version-aware
 
 ### Wave 4: True incremental delete and object-level vectorization
 
@@ -713,8 +1019,9 @@ Acceptance:
 - delete webhooks remove indexed objects without requiring family-wide sync sweeps
 - delete webhooks remove indexed objects without requiring family-wide refresh sweeps
 - create/update/delete events can be handled incrementally
+- operators can replay or inspect failed delta events safely
 
-## 12) Recommended Build Order
+## 15) Recommended Build Order
 
 Recommended order:
 
@@ -730,7 +1037,7 @@ Reason:
 - Wave 3 raises correctness
 - Wave 4 is the deeper runner/runtime extension
 
-## 13) Acceptance Criteria
+## 16) Acceptance Criteria
 
 The plan is complete when all of the following are true:
 
@@ -745,8 +1052,13 @@ The plan is complete when all of the following are true:
 - trigger decisions are auditable and visible
 - event ingestion, coalescing, and run enqueueing remain transport-neutral
 - the first implementation can evolve to outbox or broker transport without changing merchant policy semantics
+- webhook intake is idempotent and fast
+- queue processing has bounded retry and dead-letter handling
+- per-store/entity-family ordering is explicit and test-covered
+- operator observability is sufficient to debug one event end to end
+- retention and cleanup are implemented so queue state does not grow without bound
 
-## 14) Recommendation
+## 17) Recommendation
 
 The right product shape is:
 
