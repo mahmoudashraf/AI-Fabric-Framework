@@ -1510,11 +1510,26 @@ public class DeploymentReleaseVerificationService {
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)
             && ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)) {
             ObjectNode details = objectMapper.createObjectNode();
+            details.put("entityTypeCount", entityConfig.path("ai-entities").size());
+            if (ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)
+                && hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig))) {
+                details.put("qdrantHost", ManagedDeploymentProfileCatalog.qdrantHost(providerConfig));
+                boolean ready = entityConfig.path("ai-entities").size() > 0;
+                addCheck(
+                    checks,
+                    "managed_vector_provisioning_ready",
+                    ready ? "PASSED" : "FAILED",
+                    ready
+                        ? "Platform-managed shared-root Qdrant collection provisioning prerequisites are satisfied."
+                        : "Platform-managed shared-root Qdrant provisioning requires at least one configured entity type.",
+                    details
+                );
+                return;
+            }
             details.put("qdrantCloudAccountId", ManagedDeploymentProfileCatalog.qdrantCloudAccountId(providerConfig));
             details.put("qdrantCloudProviderId", ManagedDeploymentProfileCatalog.qdrantCloudProviderId(providerConfig));
             details.put("qdrantCloudRegionId", ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig));
             details.put("qdrantCloudPackageId", ManagedDeploymentProfileCatalog.qdrantCloudPackageId(providerConfig));
-            details.put("entityTypeCount", entityConfig.path("ai-entities").size());
             boolean ready = hasText(ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig))
                 && entityConfig.path("ai-entities").size() > 0
                 && platformSecretService.isSecretPresent("QDRANT_CLOUD_MANAGEMENT_API_KEY");

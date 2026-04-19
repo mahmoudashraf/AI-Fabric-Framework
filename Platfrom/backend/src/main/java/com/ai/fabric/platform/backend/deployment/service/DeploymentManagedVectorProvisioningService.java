@@ -192,7 +192,13 @@ public class DeploymentManagedVectorProvisioningService {
         if (ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)) {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT);
-            ensureManagedQdrantCloudCluster(deploymentId, effectiveProviderConfig, entityConfig, details);
+            if (reuseManagedQdrantSharedRoot(effectiveProviderConfig)) {
+                ensureManagedQdrantCollections(deploymentId, effectiveProviderConfig, entityConfig, details);
+                details.put("mode", "MANAGED_SHARED_COLLECTIONS");
+                details.put("sharedRootReused", true);
+            } else {
+                ensureManagedQdrantCloudCluster(deploymentId, effectiveProviderConfig, entityConfig, details);
+            }
             return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
         }
 
@@ -304,6 +310,11 @@ public class DeploymentManagedVectorProvisioningService {
         details.put("baseUrl", baseUrl);
         details.put("vectorDimensions", vectorDimensions);
         details.set("collections", collections);
+    }
+
+    private boolean reuseManagedQdrantSharedRoot(JsonNode providerConfig) {
+        return ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)
+            && StringUtils.hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig));
     }
 
     private void ensureManagedQdrantCloudCluster(String deploymentId,

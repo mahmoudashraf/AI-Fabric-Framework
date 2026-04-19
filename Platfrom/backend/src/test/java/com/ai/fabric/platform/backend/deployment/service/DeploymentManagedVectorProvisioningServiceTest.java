@@ -18,6 +18,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DeploymentManagedVectorProvisioningServiceTest {
@@ -222,6 +223,71 @@ class DeploymentManagedVectorProvisioningServiceTest {
                 && "shared-qdrant-secret".equals(request.headers().firstValue("api-key").orElse(null))),
             any(HttpResponse.BodyHandler.class)
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void ensureProvisionedReusesPlatformManagedSharedQdrantRootWhenHostIsPreconfigured() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED")).thenReturn("shared-qdrant-secret");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> missing = mock(HttpResponse.class);
+        when(missing.statusCode()).thenReturn(404);
+        HttpResponse<String> created = mock(HttpResponse.class);
+        when(created.statusCode()).thenReturn(200);
+        when(created.body()).thenReturn("{\"status\":\"ok\"}");
+
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().contains("/collections/")
+                && "shared-qdrant-secret".equals(request.headers().firstValue("api-key").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(missing);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "PUT".equals(request.method())
+                && request.uri().toString().contains("/collections/")
+                && "shared-qdrant-secret".equals(request.headers().firstValue("api-key").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(created);
+
+        QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
+        DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
+            secretService,
+            objectMapper,
+            httpClient,
+            qdrantCloudClient
+        );
+
+        JsonNode providerConfig = objectMapper.readTree("""
+            {
+              "embeddingProvider": "openai",
+              "vectorStrategy": "qdrant",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "vectorStoragePosture": "SHARED",
+              "qdrantHost": "https://cluster.example",
+              "qdrantManagedCollectionsEnabled": true,
+              "qdrantRuntimeApiKeySecretName": "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED",
+              "qdrantCloudProviderId": "aws",
+              "qdrantCloudRegionId": "eu-west-1"
+            }
+            """);
+        JsonNode entityConfig = objectMapper.readTree("""
+            {
+              "ai-config": { "vector-dimensions": 1536 },
+              "ai-entities": { "product": {} }
+            }
+            """);
+
+        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+
+        assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_SHARED_COLLECTIONS");
+        assertThat(result.details().path("sharedRootReused").asBoolean()).isTrue();
+        assertThat(result.details().path("baseUrl").asText()).isEqualTo("https://cluster.example");
+        assertThat(result.details().path("collections")).hasSize(1);
+        verifyNoInteractions(qdrantCloudClient);
     }
 
     @SuppressWarnings("unchecked")
