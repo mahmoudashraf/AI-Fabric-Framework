@@ -375,6 +375,61 @@ class PlatformManagedProductAdminServiceTest {
     }
 
     @Test
+    void runStoreSourcePreflightSurfacesBridgeConflictMessage() throws Exception {
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/api/admin/stores/demo.myshopify.com/run-source-preflight", this::handleRunSourcePreflightConflictRequest);
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setBaseUrl(baseUrl);
+        service.setSecretName("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY");
+        ShopifyStoreConnectionEntity connection = storeConnection(service.getId(), "demo.myshopify.com");
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), "demo.myshopify.com"))
+            .thenReturn(java.util.Optional.of(connection));
+        when(platformSecretService.resolveSecret("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY")).thenReturn("bridge-admin-key");
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            shopifyStoreConnectionService,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        assertThatThrownBy(() -> adminService.runStoreSourcePreflight("shopify-bridge-prod", "demo.myshopify.com"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("persisted store credentials");
+    }
+
+    @Test
     void deploymentHistoryReturnsRecentRailwayDeployments() {
         PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
         service.setRailwayProjectId("rail-project-123");
@@ -1016,6 +1071,27 @@ class PlatformManagedProductAdminServiceTest {
         byte[] payload = "{\"shopDomain\":\"demo.myshopify.com\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, payload.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(payload);
+        }
+    }
+
+    private void handleRunSourcePreflightConflictRequest(HttpExchange exchange) throws IOException {
+        String apiKey = exchange.getRequestHeaders().getFirst("X-BRIDGE-API-KEY");
+        if (!"bridge-admin-key".equals(apiKey)) {
+            exchange.sendResponseHeaders(401, -1);
+            return;
+        }
+        byte[] payload = """
+            {
+              "timestamp": "2026-04-19T00:57:26Z",
+              "success": false,
+              "errorCode": "CONFLICT",
+              "message": "Shopify source preflight requires persisted store credentials. Install or reconnect the app first."
+            }
+            """.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(409, payload.length);
         try (OutputStream outputStream = exchange.getResponseBody()) {
             outputStream.write(payload);
         }

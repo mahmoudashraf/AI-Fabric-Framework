@@ -544,7 +544,13 @@ public class PlatformManagedProductAdminService {
                 .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(CONFLICT, "Managed product source preflight request failed with HTTP " + response.statusCode() + ".");
+                String bridgeMessage = extractRemoteMessage(response.body());
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    hasText(bridgeMessage)
+                        ? bridgeMessage
+                        : "Managed product source preflight request failed with HTTP " + response.statusCode() + "."
+                );
             }
             platformAuditService.record(
                 "MANAGED_PRODUCT_SOURCE_PREFLIGHT_TRIGGERED",
@@ -1026,6 +1032,18 @@ public class PlatformManagedProductAdminService {
             return null;
         }
         return trimToNull(value.asText());
+    }
+
+    private String extractRemoteMessage(String body) {
+        if (!hasText(body)) {
+            return null;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(body);
+            return text(node, "message");
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private String joinUrl(String baseUrl, String path) {
