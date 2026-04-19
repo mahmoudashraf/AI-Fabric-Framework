@@ -269,13 +269,27 @@ Important:
 
 ### 5.2 Set app URLs
 
-Configure the Shopify app with the deployed Shopify Bridge service URLs:
+Configure the Shopify app with the correct split URLs:
 
 - App URL
+  - the merchant embedded-app URL
 - allowed redirection URLs
+  - handled by the Shopify Bridge backend callback endpoint
 - webhook callback URLs if needed
+  - handled by the Shopify Bridge backend
+- app proxy URL
+  - pointed at the Shopify Bridge backend
 
 This is required for real OAuth and merchant install flow.
+
+In repo terms:
+
+- `SHOPIFY_APP_PUBLIC_BASE_URL`
+  - merchant embedded app URL
+- `SHOPIFY_BRIDGE_PUBLIC_BASE_URL`
+  - hosted backend URL for OAuth callback, webhooks, and storefront proxy traffic
+
+If both are served from the same host, they can be set to the same value.
 
 ### 5.3 Use real install auth
 
@@ -309,6 +323,8 @@ Use Shopify CLI deploy flow to publish the app version that contains:
 
 - the embedded admin app config
 - the theme app extension
+- the generated `shopify.app.toml`
+- the CLI web process definitions (`shopify.web.toml` and `ui/shopify.web.toml`)
 
 ### 5.6 Merchant-side go-live actions
 

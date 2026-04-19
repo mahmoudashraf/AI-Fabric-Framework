@@ -1,8 +1,10 @@
 client_id = "REPLACE_WITH_SHOPIFY_API_KEY"
 name = "Loom Companion"
 handle = "loom-companion"
-application_url = "https://replace-with-shopify-bridge.example.com"
+application_url = "https://replace-with-shopify-app.example.com"
 embedded = true
+extension_directories = ["extensions"]
+web_directories = [".", "ui"]
 
 [access_scopes]
 scopes = "read_products,read_content"
@@ -11,6 +13,9 @@ scopes = "read_products,read_content"
 redirect_urls = [
   "https://replace-with-shopify-bridge.example.com/auth/shopify/callback"
 ]
+
+[build]
+automatically_update_urls_on_dev = false
 
 [webhooks]
 api_version = "2026-04"

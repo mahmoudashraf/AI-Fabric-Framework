@@ -1,0 +1,7 @@
+roles = ["backend"]
+auth_callback_path = ["/auth/shopify/callback"]
+webhooks_path = "/api/webhooks/shopify"
+
+[commands]
+dev = "bash ./deploy/shopify/run-bridge-backend-dev.sh"
+build = "mvn -q -DskipTests compile"
