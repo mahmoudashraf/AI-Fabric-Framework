@@ -5,9 +5,11 @@ import { getChatSuggestions } from "@/api/chat";
 export function useSuggestionsController({
   attachedItems,
   starterSuggestions,
+  requestContext,
 }: {
   attachedItems: Array<{ type: string; data: any }>;
   starterSuggestions: string[];
+  requestContext?: Record<string, any>;
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -54,6 +56,7 @@ export function useSuggestionsController({
           content: contentParts.join("; ") || "Give me suggestions based on attached items",
           maxSuggestions: 4,
           attachments: attachments.length > 0 ? attachments : undefined,
+          ...(requestContext || {}),
         });
 
         if (data.suggestions && Array.isArray(data.suggestions)) {
@@ -79,7 +82,7 @@ export function useSuggestionsController({
     }, 10000); // 10s delay to avoid interrupting early interactions
 
     return () => clearTimeout(timeoutId);
-  }, [attachedItems, starterSuggestions]);
+  }, [attachedItems, starterSuggestions, requestContext]);
 
   return {
     suggestions,

@@ -1,4 +1,7 @@
 (function () {
+  var MAX_MODE_SHADOW_HOST_ID = 'max-mode-widget-shadow-host'
+  var maxModeLoadPromise = null
+
   function bootstrap() {
     var root = document.getElementById('loom-companion-embed-root')
     if (!root) {
@@ -8,6 +11,8 @@
     var bridgeBaseUrl = (root.dataset.bridgeBaseUrl || '').trim()
     var shopDomain = (root.dataset.shopDomain || '').trim()
     var launcherLabel = (root.dataset.launcherLabel || 'Ask the store assistant').trim()
+    var widgetShell = normalizeWidgetShell(root.dataset.widgetShell)
+    var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
     var storefrontContext = extractStorefrontContext(root)
 
     if (!bridgeBaseUrl || !shopDomain) {
@@ -15,10 +20,10 @@
       return
     }
 
-    resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel, storefrontContext)
+    resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel, storefrontContext, widgetShell, maxModeScriptUrl)
   }
 
-  function resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel, storefrontContext) {
+  function resolveBootstrap(root, bridgeBaseUrl, shopDomain, launcherLabel, storefrontContext, widgetShell, maxModeScriptUrl) {
     root.dataset.status = 'loading'
     fetch(joinUrl(bridgeBaseUrl, '/api/storefront/shops/' + encodeURIComponent(shopDomain) + '/bootstrap'), {
       headers: {
@@ -39,6 +44,10 @@
           root.textContent = payload && payload.message ? payload.message : 'Store assistant is not ready yet.'
           return
         }
+        if (widgetShell === 'max-mode') {
+          renderMaxModeWidget(root, bridgeBaseUrl, launcherLabel, payload, storefrontContext, maxModeScriptUrl)
+          return
+        }
         renderWidget(root, bridgeBaseUrl, launcherLabel, payload, storefrontContext)
       })
       .catch(function (error) {
@@ -47,7 +56,78 @@
       })
   }
 
+  function renderMaxModeWidget(root, bridgeBaseUrl, launcherLabel, payload, storefrontContext, maxModeScriptUrl) {
+    teardownExistingMaxModeWidget()
+    root.dataset.status = 'loading'
+    root.textContent = ''
+    ensureMaxModeReady(maxModeScriptUrl)
+      .then(function (maxModeApi) {
+        if (!maxModeApi || typeof maxModeApi.init !== 'function') {
+          throw new Error('Max Mode widget API is unavailable.')
+        }
+        var resolvedLauncherLabel = (payload.launcherLabel || launcherLabel || 'Ask the store assistant').trim()
+        var resolvedWelcomeMessage = deriveWelcomeMessage(payload, storefrontContext)
+        var shopperSessionId = getOrCreateShopperSessionId(payload.shopDomain || root.dataset.shopDomain || 'storefront')
+        var starterSuggestions = defaultSuggestionsForContext(storefrontContext)
+
+        maxModeApi.init({
+          apiConfig: {
+            chatBaseUrl: bridgeBaseUrl,
+            defaultHeaders: {
+              'X-AI-FABRIC-SHOPPER-SESSION-ID': shopperSessionId,
+            },
+            probeShellConfigOnOpen: false,
+            runtimeRoutes: {
+              chatQueryUrl: payload.bridgeQueryUrl,
+              suggestionsUrl: payload.bridgeSuggestionsUrl,
+            },
+            runtimeAuth: {
+              probeAuthContextOnOpen: false,
+            },
+          },
+          integrationMode: 'backend-mediated-private-runtime',
+          features: {
+            cart: false,
+            debug: false,
+            conversations: false,
+            quickActions: true,
+          },
+          theme: {
+            primaryColor: '#111827',
+            borderRadius: '1rem',
+            fontFamily: '"Helvetica Neue", Arial, sans-serif',
+            darkMode: false,
+          },
+          position: 'bottom-right',
+          launcher: true,
+          host: {
+            launcherLabel: resolvedLauncherLabel,
+            launcherAriaLabel: resolvedLauncherLabel,
+            launcherVariant: 'pill',
+            assistantLabel: 'Store assistant',
+            welcomeMessage: resolvedWelcomeMessage,
+            starterPrompts: starterPromptsForContext(starterSuggestions),
+            starterSuggestions: starterSuggestions,
+            requestContext: storefrontContext,
+            showUtilityPanel: false,
+          },
+          onEvent: function (event) {
+            if (event && event.type === 'widget:opened') {
+              recordStorefrontEvent(payload, shopperSessionId, storefrontContext, 'WIDGET_OPENED')
+            }
+          },
+        })
+
+        root.dataset.status = 'ready'
+      })
+      .catch(function (error) {
+        root.dataset.status = 'failed'
+        root.textContent = error && error.message ? error.message : 'Max Mode widget failed to initialize.'
+      })
+  }
+
   function renderWidget(root, bridgeBaseUrl, launcherLabel, payload, storefrontContext) {
+    teardownExistingMaxModeWidget()
     root.dataset.status = 'ready'
     root.textContent = ''
     var resolvedLauncherLabel = (payload.launcherLabel || launcherLabel || 'Ask the store assistant').trim()
@@ -435,6 +515,91 @@
       'Compare your top product categories',
       'What should I buy for travel?',
     ]
+  }
+
+  function starterPromptsForContext(suggestions) {
+    return (suggestions || []).slice(0, 4).map(function (value) {
+      return {
+        label: truncateText(value, 48) || value,
+        query: value,
+        position: 'search',
+        mode: 'navigator',
+      }
+    })
+  }
+
+  function recordStorefrontEvent(payload, shopperSessionId, storefrontContext, eventType) {
+    if (!payload || !payload.bridgeEventUrl) {
+      return
+    }
+    fetch(payload.bridgeEventUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-AI-FABRIC-SHOPPER-SESSION-ID': shopperSessionId,
+      },
+      body: JSON.stringify({
+        eventType: eventType,
+        pageType: storefrontContext.pageType || 'unknown',
+        pageTitle: storefrontContext.pageTitle || null,
+        productHandle: storefrontContext.product ? storefrontContext.product.handle : null,
+        collectionHandle: storefrontContext.collection ? storefrontContext.collection.handle : null,
+      }),
+    }).catch(function () {
+      return null
+    })
+  }
+
+  function ensureMaxModeReady(scriptUrl) {
+    var maxModeApi = resolveMaxModeGlobal()
+    if (maxModeApi) {
+      return Promise.resolve(maxModeApi)
+    }
+    if (!scriptUrl) {
+      return Promise.reject(new Error('Max Mode script URL is not configured on the theme app embed.'))
+    }
+    if (!maxModeLoadPromise) {
+      maxModeLoadPromise = new Promise(function (resolve, reject) {
+        var script = document.createElement('script')
+        script.src = scriptUrl
+        script.async = true
+        script.onload = function () {
+          var loadedApi = resolveMaxModeGlobal()
+          if (loadedApi) {
+            resolve(loadedApi)
+            return
+          }
+          reject(new Error('Max Mode loaded but did not expose window.MaxMode.'))
+        }
+        script.onerror = function () {
+          reject(new Error('Failed to load Max Mode storefront bundle.'))
+        }
+        document.head.appendChild(script)
+      })
+    }
+    return maxModeLoadPromise
+  }
+
+  function resolveMaxModeGlobal() {
+    if (window.MaxMode && typeof window.MaxMode.init === 'function') {
+      return window.MaxMode
+    }
+    return null
+  }
+
+  function teardownExistingMaxModeWidget() {
+    if (!document.getElementById(MAX_MODE_SHADOW_HOST_ID)) {
+      return
+    }
+    var maxModeApi = resolveMaxModeGlobal()
+    if (maxModeApi && typeof maxModeApi.destroy === 'function') {
+      maxModeApi.destroy()
+    }
+  }
+
+  function normalizeWidgetShell(value) {
+    return value === 'max-mode' ? 'max-mode' : 'legacy'
   }
 
   function trimValue(value) {

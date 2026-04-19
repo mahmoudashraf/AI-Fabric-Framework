@@ -40,6 +40,13 @@ export interface MaxModeApiConfig {
   runtimeRoutes?: MaxModeRuntimeRouteConfig;
   /** Optional public-runtime auth helpers for secure browser-facing modes */
   runtimeAuth?: MaxModeRuntimeAuthConfig;
+  /**
+   * When true, probe the runtime shell-config route when the widget opens.
+   *
+   * Defaults to true. Hosts with explicitly managed welcome/actions can disable
+   * this to avoid unnecessary route probes.
+   */
+  probeShellConfigOnOpen?: boolean;
 }
 
 export interface MaxModeRuntimeBootstrapResult {
@@ -148,6 +155,8 @@ export interface MaxModeHostConfig {
   starterPrompts?: MaxModeHostStarterPrompt[];
   /** Optional host-owned starter suggestions shown above the composer */
   starterSuggestions?: string[];
+  /** Optional host-owned request payload merged into query and suggestions calls */
+  requestContext?: Record<string, any>;
   /** Optional host-owned initial attachments/context */
   initialAttachments?: MaxModeHostAttachment[];
   /** Hide POC-only utility controls when embedding in storefronts */
@@ -210,6 +219,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     defaultHeaders: undefined,
     fetchCredentials: undefined,
     runtimeRoutes: undefined,
+    probeShellConfigOnOpen: true,
   },
   integrationMode: "backend-mediated-private-runtime",
   features: {
@@ -234,6 +244,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     welcomeMessage: undefined,
     starterPrompts: undefined,
     starterSuggestions: undefined,
+    requestContext: undefined,
     initialAttachments: undefined,
     showUtilityPanel: true,
   },
@@ -254,6 +265,8 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
         ...DEFAULT_CONFIG.apiConfig.runtimeRoutes,
         ...config.apiConfig?.runtimeRoutes,
       },
+      probeShellConfigOnOpen:
+        config.apiConfig?.probeShellConfigOnOpen ?? DEFAULT_CONFIG.apiConfig.probeShellConfigOnOpen,
     },
     features: {
       ...DEFAULT_CONFIG.features,

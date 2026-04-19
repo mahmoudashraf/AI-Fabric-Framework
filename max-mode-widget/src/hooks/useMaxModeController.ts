@@ -175,6 +175,13 @@ function deriveStarterSuggestions(hostConfig: MaxModeHostConfig | undefined) {
   return [];
 }
 
+function sanitizeRequestContext(hostConfig: MaxModeHostConfig | undefined) {
+  if (!hostConfig?.requestContext || typeof hostConfig.requestContext !== "object") {
+    return undefined;
+  }
+  return { ...hostConfig.requestContext };
+}
+
 function sanitizeHostAttachments(hostAttachments: MaxModeHostAttachment[] | undefined) {
   if (!hostAttachments?.length) {
     return [];
@@ -202,6 +209,7 @@ export function useMaxModeController({
   const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
   const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
   const hostStarterSuggestions = useMemo(() => deriveStarterSuggestions(hostConfig), [hostConfig]);
+  const hostRequestContext = useMemo(() => sanitizeRequestContext(hostConfig), [hostConfig]);
   const hostInitialAttachments = useMemo(() => sanitizeHostAttachments(hostConfig?.initialAttachments), [hostConfig]);
 
   const [runtimeShellConfig, setRuntimeShellConfig] = useState<RuntimeShellConfigSummary | null>(null);
@@ -263,7 +271,11 @@ export function useMaxModeController({
     setShowSuggestions,
     shownSuggestions,
     setShownSuggestions,
-  } = useSuggestionsController({ attachedItems, starterSuggestions: hostStarterSuggestions });
+  } = useSuggestionsController({
+    attachedItems,
+    starterSuggestions: hostStarterSuggestions,
+    requestContext: hostRequestContext,
+  });
 
   const {
     cartData,
@@ -326,6 +338,7 @@ export function useMaxModeController({
     setSelectedDebugMessage,
     currentPosition,
     currentMode,
+    requestContext: hostRequestContext,
   });
 
   const { handleConfirmation } = useConfirmationFlow({
@@ -452,6 +465,11 @@ export function useMaxModeController({
       return;
     }
 
+    const shouldProbeShellConfig = widgetConfig.apiConfig.probeShellConfigOnOpen ?? true;
+    if (!shouldProbeShellConfig) {
+      return;
+    }
+
     const probeKey = JSON.stringify({
       integrationMode: identity.integrationMode,
       chatBaseUrl: widgetConfig.apiConfig.chatBaseUrl,
@@ -493,6 +511,7 @@ export function useMaxModeController({
     isOpen,
     identity.integrationMode,
     widgetConfig.apiConfig.chatBaseUrl,
+    widgetConfig.apiConfig.probeShellConfigOnOpen,
     widgetConfig.apiConfig.runtimeRoutes?.shellConfigUrl,
   ]);
 

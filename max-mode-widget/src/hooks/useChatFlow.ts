@@ -24,6 +24,7 @@ export function useChatFlow({
   setSelectedDebugMessage,
   currentPosition,
   currentMode,
+  requestContext,
 }: {
   chatQuery: string;
   setChatQuery: Dispatch<SetStateAction<string>>;
@@ -42,6 +43,7 @@ export function useChatFlow({
   setSelectedDebugMessage: Dispatch<SetStateAction<ChatMessage | null>>;
   currentPosition: "landing" | "catalog" | "search" | "cart";
   currentMode: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
+  requestContext?: Record<string, any>;
 }) {
   const handleChatQuery = useCallback(
     async (presetQuery?: string, actionPosition?: "landing" | "catalog" | "search" | "cart", actionMode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => {
@@ -188,6 +190,7 @@ export function useChatFlow({
           position,
           mode: explicitMode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
+          ...(requestContext || {}),
         };
 
         setLastRequestData({

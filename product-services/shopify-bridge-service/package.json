@@ -8,10 +8,10 @@
     "shopify:widget:build": "npm -C ../../max-mode-widget run build",
     "shopify:widget:sync": "bash ./deploy/shopify/sync-max-mode-widget.sh",
     "shopify:widget:prepare": "npm run shopify:widget:build && npm run shopify:widget:sync",
-    "shopify:app:dev": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app dev --path .",
+    "shopify:app:dev": "npm run shopify:preflight && npm run shopify:widget:prepare && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app dev --path .",
     "shopify:app:info": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app info --path .",
-    "shopify:app:deploy": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app deploy --allow-updates --path .",
-    "shopify:app:release": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app release --path .",
+    "shopify:app:deploy": "npm run shopify:preflight && npm run shopify:widget:prepare && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app deploy --allow-updates --path .",
+    "shopify:app:release": "npm run shopify:preflight && npm run shopify:widget:prepare && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app release --path .",
     "ui:dev": "npm --prefix ./ui run dev",
     "ui:build": "npm --prefix ./ui run build"
   }
