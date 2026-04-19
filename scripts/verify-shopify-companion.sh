@@ -6,7 +6,7 @@ set -euo pipefail
 # Verifies:
 # - platform-managed product service operator surfaces
 # - platform Shopify store mapping/control-plane state
-# - Shopify Bridge shell
+# - Shopify Bridge shell and embedded app UI shell
 # - storefront bootstrap/query/suggestions/events path
 # - optional merchant session path when a Shopify session bearer token is available
 #
@@ -31,6 +31,7 @@ set -euo pipefail
 #   EXPECT_WIDGET_STATUS=ENABLED
 #   EXPECT_STOREFRONT_READY=true
 #   EXPECT_GO_LIVE_ELIGIBLE=true
+#   EXPECT_EMBEDDED_APP_UI=true
 #   EXPECT_WEBHOOK_STATUS=READY
 #   EXPECT_BILLING_STATUS=ACTIVE
 #   EXPECT_BILLING_LAUNCH_BLOCKED=false
@@ -57,6 +58,7 @@ EXPECT_SOURCE_READINESS_STATUS="${EXPECT_SOURCE_READINESS_STATUS:-READY}"
 EXPECT_WIDGET_STATUS="${EXPECT_WIDGET_STATUS:-ENABLED}"
 EXPECT_STOREFRONT_READY="${EXPECT_STOREFRONT_READY:-true}"
 EXPECT_GO_LIVE_ELIGIBLE="${EXPECT_GO_LIVE_ELIGIBLE:-true}"
+EXPECT_EMBEDDED_APP_UI="${EXPECT_EMBEDDED_APP_UI:-true}"
 EXPECT_WEBHOOK_STATUS="${EXPECT_WEBHOOK_STATUS:-}"
 EXPECT_BILLING_STATUS="${EXPECT_BILLING_STATUS:-}"
 EXPECT_BILLING_LAUNCH_BLOCKED="${EXPECT_BILLING_LAUNCH_BLOCKED:-}"
@@ -152,6 +154,16 @@ assert_nonempty() {
   fi
 }
 
+assert_contains() {
+  local value="$1"
+  local expected="$2"
+  local label="$3"
+  if [[ "${value}" != *"${expected}"* ]]; then
+    echo "Assertion failed for ${label}: expected substring '${expected}'"
+    exit 1
+  fi
+}
+
 assert_optional_equals() {
   local actual="$1"
   local expected="$2"
@@ -220,6 +232,54 @@ PY
 )"
   HTTP_BODY="${response%$'\n'*}"
   HTTP_STATUS="${response##*$'\n'}"
+}
+
+http_request_text() {
+  local method="$1"
+  local url="$2"
+  shift 2 || true
+  local headers=("$@")
+  local response
+  response="$(python3 - "$method" "$url" "${headers[@]}" <<'PY'
+import subprocess
+import sys
+
+method = sys.argv[1]
+url = sys.argv[2]
+headers = sys.argv[3:]
+
+cmd = [
+    "curl",
+    "-sS",
+    "-X", method,
+    "-H", "Accept: text/html, text/plain, */*",
+    "-w", "\n%{http_code}",
+]
+for header in headers:
+    cmd.extend(["-H", header])
+cmd.append(url)
+
+completed = subprocess.run(cmd, capture_output=True, text=True)
+if completed.returncode != 0:
+    print(completed.stderr.strip(), file=sys.stderr)
+    raise SystemExit(completed.returncode)
+print(completed.stdout, end="")
+PY
+)"
+  HTTP_BODY="${response%$'\n'*}"
+  HTTP_STATUS="${response##*$'\n'}"
+}
+
+extract_first_asset_path() {
+  local payload="$1"
+  printf '%s' "${payload}" | python3 - <<'PY'
+import re
+import sys
+
+payload = sys.stdin.read()
+match = re.search(r'(/assets/[^"\']+)', payload)
+print(match.group(1) if match else "")
+PY
 }
 
 platform_request() {
@@ -412,6 +472,20 @@ assert_equals "${HTTP_STATUS}" "200" "bridge shell status"
 shell_json="${HTTP_BODY}"
 assert_equals "$(json_get "${shell_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "bridge shell serviceRef"
 assert_nonempty "$(json_get "${shell_json}" "appName")" "bridge shell appName"
+
+if [[ "${EXPECT_EMBEDDED_APP_UI}" == "true" ]]; then
+  echo "== Bridge embedded app shell =="
+  http_request_text GET "${bridge_base}/?shop=${SHOP_DOMAIN}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge embedded app shell status"
+  embedded_app_html="${HTTP_BODY}"
+  assert_contains "${embedded_app_html}" "<div id=\"root\"></div>" "bridge embedded app root"
+  embedded_asset_path="$(extract_first_asset_path "${embedded_app_html}")"
+  assert_nonempty "${embedded_asset_path}" "bridge embedded app asset path"
+
+  echo "== Bridge embedded app asset =="
+  http_request_text GET "${bridge_base}${embedded_asset_path}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge embedded app asset status"
+fi
 
 echo "== Bridge admin overview =="
 if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
