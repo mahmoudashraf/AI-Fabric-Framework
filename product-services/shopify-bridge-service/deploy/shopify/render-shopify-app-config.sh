@@ -75,7 +75,7 @@ name = "$(escape_toml "${APP_NAME}")"
 handle = "$(escape_toml "${APP_HANDLE}")"
 application_url = "$(escape_toml "${APP_PUBLIC_BASE_URL}")"
 embedded = ${APP_EMBEDDED}
-extension_directories = ["extensions"]
+extension_directories = ["extensions/*"]
 web_directories = [".", "ui"]
 
 [access_scopes]

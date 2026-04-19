@@ -3,7 +3,7 @@ name = "Loom Companion"
 handle = "loom-companion"
 application_url = "https://replace-with-shopify-app.example.com"
 embedded = true
-extension_directories = ["extensions"]
+extension_directories = ["extensions/*"]
 web_directories = [".", "ui"]
 
 [access_scopes]
