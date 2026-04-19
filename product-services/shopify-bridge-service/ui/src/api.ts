@@ -230,6 +230,11 @@ export type ShopifyBridgeStoreVectorizationSummary = {
   planConfigured: boolean
   planId: string | null
   planStatus: string | null
+  runnerConfigured: boolean
+  runnerRegistrationId: string | null
+  runnerRegistrationStatus: string | null
+  deploymentApplyInProgress: boolean
+  deploymentApplyStatus: string | null
   runnerMode: string | null
   syncState: string | null
   readyToRun: boolean

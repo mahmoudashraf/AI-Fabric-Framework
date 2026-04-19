@@ -750,6 +750,8 @@ export default function App() {
                         <List.Item>Missing plugins: {vectorizationSummary.missingPluginIds.join(', ') || 'None'}</List.Item>
                         <List.Item>Disabled plugins: {vectorizationSummary.disabledPluginIds.join(', ') || 'None'}</List.Item>
                         <List.Item>Source connection: {vectorizationSummary.sourceConnectionStatus ?? 'Not configured'}</List.Item>
+                        <List.Item>Runner: {vectorizationSummary.runnerConfigured ? (vectorizationSummary.runnerRegistrationStatus ?? 'Configured') : 'Not provisioned'}</List.Item>
+                        <List.Item>Deployment apply: {vectorizationSummary.deploymentApplyInProgress ? (vectorizationSummary.deploymentApplyStatus ?? 'IN_PROGRESS') : (vectorizationSummary.deploymentApplyStatus ?? 'Idle')}</List.Item>
                         <List.Item>Plan runner: {vectorizationSummary.runnerMode ?? 'Not configured'}</List.Item>
                       </List>
                       {vectorizationSummary.lastRun ? (
