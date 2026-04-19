@@ -13,6 +13,7 @@ This guide should be read with:
 
 - `Final_Documentation/Development_Guides/SHOPIFY_INTERNAL_DEVELOPMENT_AND_FULL_DEPLOYMENT_GUIDE.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_VECTORIZATION_TRIGGER_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
 
