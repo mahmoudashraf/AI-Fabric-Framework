@@ -89,6 +89,15 @@ jobs:
         run: |
           mvn -f Platfrom/backend/pom.xml test -DskipITs
 
+      - name: Install AI Fabric framework artifacts for product tests
+        if: ${{ inputs.product_tests }}
+        run: |
+          mvn -f ai-infrastructure-module/pom.xml -B -V -DskipTests install \
+            -pl '!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
+            -am
+        env:
+          MAVEN_OPTS: "-Xmx2g"
+
       - name: Run ai-fabric-product tests
         if: ${{ inputs.product_tests }}
         run: |
