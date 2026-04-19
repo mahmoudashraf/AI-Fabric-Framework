@@ -73,4 +73,18 @@ class PlatformSecretServiceTest {
         assertThat(summary.source()).isEqualTo("DATABASE");
         assertThat(summary.present()).isTrue();
     }
+
+    @Test
+    void listSecretsIncludesShopifyBridgeCredentialSecrets() {
+        PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
+        when(repository.findAll()).thenReturn(List.of());
+        when(repository.findById("SHOPIFY_APP_API_KEY")).thenReturn(Optional.empty());
+        when(repository.findById("SHOPIFY_APP_API_SECRET")).thenReturn(Optional.empty());
+        when(repository.findById("SHOPIFY_WEBHOOK_SHARED_SECRET")).thenReturn(Optional.empty());
+        PlatformSecretService service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
+
+        assertThat(service.listSecrets())
+            .extracting(PlatformSecretSummary::name)
+            .contains("SHOPIFY_APP_API_KEY", "SHOPIFY_APP_API_SECRET", "SHOPIFY_WEBHOOK_SHARED_SECRET");
+    }
 }

@@ -201,6 +201,123 @@ class PlatformManagedProductProvisioningServiceTest {
         verify(railwayGraphqlClient, never()).deleteProject("prj-123");
     }
 
+    @Test
+    void defaultShopifySecretNamesAreResolvedWhenProvisioningPropertiesDoNotOverrideThem() {
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(serviceService.getService("shopify-bridge-prod")).thenReturn(summary(service));
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(railwayGraphqlClient.findProjectByName("ws-123", "loom-product-dev-shopify-bridge-prod")).thenReturn(null);
+        RailwayGraphqlClient.RailwayProjectSnapshot project = new RailwayGraphqlClient.RailwayProjectSnapshot(
+            "prj-123",
+            "loom-product-dev-shopify-bridge-prod",
+            List.of(),
+            List.of()
+        );
+        when(railwayGraphqlClient.createProject("ws-123", "loom-product-dev-shopify-bridge-prod", "dev")).thenReturn(project);
+        when(railwayGraphqlClient.createEnvironment("prj-123", "dev")).thenReturn(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-123", "dev"));
+        when(railwayGraphqlClient.createServiceFromRepository("prj-123", "shopify-bridge-shopify-bridge-prod", "TheBaseRepo", "Platform-V5"))
+            .thenReturn(new RailwayGraphqlClient.RailwayServiceSummary("svc-123", "shopify-bridge-shopify-bridge-prod"));
+        when(railwayGraphqlClient.connectServiceToRepository("svc-123", "TheBaseRepo", "Platform-V5"))
+            .thenReturn(new RailwayGraphqlClient.RailwayServiceSummary("svc-123", "shopify-bridge-shopify-bridge-prod"));
+        when(platformSecretService.isSecretPresent("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn("bridge-secret");
+        when(platformSecretService.resolveSecret("SHOPIFY_APP_API_KEY")).thenReturn("shopify-api-key");
+        when(platformSecretService.resolveSecret("SHOPIFY_APP_API_SECRET")).thenReturn("shopify-api-secret");
+        when(platformSecretService.resolveSecret("SHOPIFY_WEBHOOK_SHARED_SECRET")).thenReturn(null);
+        when(railwayGraphqlClient.hasStagedChanges("env-123")).thenReturn(false);
+        when(railwayGraphqlClient.deployService("svc-123", "env-123")).thenReturn("dep-railway-123");
+        when(railwayGraphqlClient.getDeployment("dep-railway-123"))
+            .thenReturn(new RailwayGraphqlClient.RailwayDeploymentSummary("dep-railway-123", "SUCCESS", null, null, Instant.now().toString()));
+        when(railwayGraphqlClient.getServiceInstance("env-123", "svc-123"))
+            .thenReturn(new RailwayGraphqlClient.RailwayServiceInstanceSummary(
+                "inst-123",
+                "svc-123",
+                "shopify-bridge-shopify-bridge-prod",
+                "product-services/shopify-bridge-service",
+                "product-services/shopify-bridge-service/deploy/railway/Dockerfile",
+                "/actuator/health",
+                "http://shopify-bridge.internal",
+                "TheBaseRepo",
+                null
+            ));
+        when(railwayGraphqlClient.listServiceDomains("prj-123", "env-123", "svc-123"))
+            .thenReturn(List.of(new RailwayGraphqlClient.RailwayServiceDomainSummary("dom-123", "shopify-bridge-prod.up.railway.app")));
+
+        PlatformManagedProductProvisioningService provisioningService = new PlatformManagedProductProvisioningService(
+            new PlatformProvisioningProperties(
+                "RAILWAY",
+                "https://backboard.railway.com/graphql/v2",
+                "token",
+                "TheBaseRepo",
+                "Platform-V5",
+                "dev",
+                "ws-123",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                40,
+                null,
+                null,
+                false,
+                false,
+                60_000,
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(5)
+            ),
+            new PlatformProductProvisioningProperties(
+                null,
+                null,
+                null,
+                null,
+                null,
+                "2026-04",
+                null,
+                null,
+                null,
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(5)
+            ),
+            new PlatformDeliveryProperties("https://platform.example.com", true, Duration.ofDays(1)),
+            railwayGraphqlClient,
+            platformSecretService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            serviceService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        provisioningService.reconcile("shopify-bridge-prod");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RailwayGraphqlClient.RailwayEnvVarInput>> envCaptor = ArgumentCaptor.forClass(List.class);
+        verify(railwayGraphqlClient).upsertVariables(eq("prj-123"), eq("env-123"), eq("svc-123"), envCaptor.capture());
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_SHOPIFY_API_KEY".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("shopify-api-key");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_SHOPIFY_API_SECRET".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("shopify-api-secret");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("shopify-api-secret");
+    }
+
     private PlatformManagedProductServiceEntity productService(String serviceRef) {
         PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
         service.setId("psv-123");
