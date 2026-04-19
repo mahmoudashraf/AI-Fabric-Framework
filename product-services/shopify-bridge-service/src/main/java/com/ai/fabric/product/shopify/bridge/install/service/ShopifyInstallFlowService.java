@@ -35,7 +35,7 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 @Service
 public class ShopifyInstallFlowService {
 
-    private static final String DEFAULT_APP_SCOPES = "read_products,read_content";
+    private static final String DEFAULT_APP_SCOPES = "read_products,read_content,read_legal_policies";
     private static final Logger log = LoggerFactory.getLogger(ShopifyInstallFlowService.class);
 
     private final ShopifyBridgeProperties properties;

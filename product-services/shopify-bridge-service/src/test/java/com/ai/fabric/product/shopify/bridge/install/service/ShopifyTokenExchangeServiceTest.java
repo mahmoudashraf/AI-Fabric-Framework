@@ -45,7 +45,7 @@ class ShopifyTokenExchangeServiceTest {
                   "expires_in":3600,
                   "refresh_token":"shprt_refresh",
                   "refresh_token_expires_in":7776000,
-                  "scope":"read_products,read_content"
+                  "scope":"read_products,read_content,read_legal_policies"
                 }
                 """, MediaType.APPLICATION_JSON));
 
@@ -53,7 +53,7 @@ class ShopifyTokenExchangeServiceTest {
 
         assertThat(material.accessToken()).isEqualTo("shpat_access");
         assertThat(material.refreshToken()).isEqualTo("shprt_refresh");
-        assertThat(material.scopesText()).isEqualTo("read_products,read_content");
+        assertThat(material.scopesText()).isEqualTo("read_products,read_content,read_legal_policies");
         assertThat(material.expiring()).isTrue();
         assertThat(material.accessTokenExpiresAt()).isAfter(Instant.now());
         assertThat(material.refreshTokenExpiresAt()).isAfter(material.accessTokenExpiresAt());

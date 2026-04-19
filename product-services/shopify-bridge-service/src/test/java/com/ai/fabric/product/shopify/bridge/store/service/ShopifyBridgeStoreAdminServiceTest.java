@@ -41,7 +41,7 @@ class ShopifyBridgeStoreAdminServiceTest {
                 null,
                 null,
                 null,
-                "read_products,read_content",
+                "read_products,read_content,read_legal_policies",
                 false
             )
         );

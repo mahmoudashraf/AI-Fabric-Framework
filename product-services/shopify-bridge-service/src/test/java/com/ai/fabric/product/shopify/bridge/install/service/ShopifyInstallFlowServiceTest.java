@@ -67,7 +67,7 @@ class ShopifyInstallFlowServiceTest {
 
         assertThat(redirect.toString()).startsWith("https://alpha.myshopify.com/admin/oauth/authorize?");
         assertThat(redirect.toString()).contains("client_id=shopify-api-key");
-        assertThat(redirect.toString()).contains("scope=read_products,read_content");
+        assertThat(redirect.toString()).contains("scope=read_products,read_content,read_legal_policies");
         assertThat(redirect.toString()).contains("redirect_uri=https://bridge.example.com/auth/shopify/callback");
         assertThat(redirect.toString()).contains("state=");
     }
@@ -86,7 +86,7 @@ class ShopifyInstallFlowServiceTest {
             .andRespond(withSuccess("""
                 {
                   "access_token":"shopify-offline-token",
-                  "scope":"read_products,read_content"
+                  "scope":"read_products,read_content,read_legal_policies"
                 }
                 """, MediaType.APPLICATION_JSON));
 
@@ -111,7 +111,7 @@ class ShopifyInstallFlowServiceTest {
             eq("alpha.myshopify.com"),
             eq("https://alpha.myshopify.com"),
             eq(host),
-            eq("read_products,read_content"),
+            eq("read_products,read_content,read_legal_policies"),
             eq("MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA"),
             eq(null),
             eq(null),
@@ -152,7 +152,7 @@ class ShopifyInstallFlowServiceTest {
                 null,
                 null,
                 null,
-                "read_products,read_content",
+                "read_products,read_content,read_legal_policies",
                 false
             ),
             null,

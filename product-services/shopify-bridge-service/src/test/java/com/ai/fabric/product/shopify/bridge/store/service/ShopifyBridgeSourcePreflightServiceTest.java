@@ -105,7 +105,7 @@ class ShopifyBridgeSourcePreflightServiceTest {
                 "shprt_refresh",
                 Instant.parse("2026-04-18T01:00:00Z"),
                 Instant.parse("2026-07-18T00:00:00Z"),
-                "read_products,read_content",
+                "read_products,read_content,read_legal_policies",
                 true
             )
         );
@@ -146,7 +146,7 @@ class ShopifyBridgeSourcePreflightServiceTest {
                 Instant.parse("2026-04-18T00:00:00Z"),
                 Instant.parse("2026-04-18T01:00:00Z"),
                 Instant.parse("2026-07-18T00:00:00Z"),
-                "read_products,read_content",
+                "read_products,read_content,read_legal_policies",
                 true
             ),
             null,

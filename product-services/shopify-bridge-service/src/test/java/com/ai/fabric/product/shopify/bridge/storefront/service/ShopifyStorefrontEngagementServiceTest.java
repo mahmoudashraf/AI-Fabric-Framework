@@ -121,7 +121,7 @@ class ShopifyStorefrontEngagementServiceTest {
                 now,
                 now,
                 Instant.parse("2026-07-18T00:00:00Z"),
-                "read_products,read_content",
+                "read_products,read_content,read_legal_policies",
                 true
             ),
             null,

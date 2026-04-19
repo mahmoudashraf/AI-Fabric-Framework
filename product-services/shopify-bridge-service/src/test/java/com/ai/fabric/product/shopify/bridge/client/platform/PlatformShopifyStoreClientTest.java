@@ -229,7 +229,7 @@ class PlatformShopifyStoreClientTest {
                   "refreshToken":"shprt_refresh",
                   "accessTokenExpiresAt":"2026-04-18T01:00:00Z",
                   "refreshTokenExpiresAt":"2026-07-18T00:00:00Z",
-                  "scopesText":"read_products,read_content",
+                  "scopesText":"read_products,read_content,read_legal_policies",
                   "expiring":true
                 }
                 """, MediaType.APPLICATION_JSON));
