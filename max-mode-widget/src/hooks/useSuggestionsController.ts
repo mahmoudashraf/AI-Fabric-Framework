@@ -4,8 +4,10 @@ import { getChatSuggestions } from "@/api/chat";
 
 export function useSuggestionsController({
   attachedItems,
+  starterSuggestions,
 }: {
   attachedItems: Array<{ type: string; data: any }>;
+  starterSuggestions: string[];
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -14,7 +16,8 @@ export function useSuggestionsController({
 
   useEffect(() => {
     if (attachedItems.length === 0) {
-      setSuggestions([]);
+      setSuggestions(starterSuggestions);
+      setShowSuggestions(starterSuggestions.length > 0);
       return;
     }
 
@@ -76,7 +79,7 @@ export function useSuggestionsController({
     }, 10000); // 10s delay to avoid interrupting early interactions
 
     return () => clearTimeout(timeoutId);
-  }, [attachedItems]);
+  }, [attachedItems, starterSuggestions]);
 
   return {
     suggestions,

@@ -7,6 +7,7 @@
  */
 
 import type { RuntimeShellConfigSummary } from "@/types";
+import type { MaxModeMode, MaxModePosition } from "@/constants";
 
 export interface MaxModeApiConfig {
   /** Base URL for the chat / orchestration API */
@@ -120,6 +121,39 @@ export interface MaxModeThemeConfig {
   darkMode?: boolean | "auto";
 }
 
+export interface MaxModeHostAttachment {
+  type: string;
+  data: Record<string, any>;
+}
+
+export interface MaxModeHostStarterPrompt {
+  label: string;
+  query: string;
+  position?: MaxModePosition;
+  mode?: MaxModeMode;
+}
+
+export interface MaxModeHostConfig {
+  /** Visible launcher label for storefront/product hosts */
+  launcherLabel?: string;
+  /** Accessible launcher label override */
+  launcherAriaLabel?: string;
+  /** Visual launcher style for hosts that want a pill instead of an icon button */
+  launcherVariant?: "icon" | "pill";
+  /** Assistant label shown in the widget header */
+  assistantLabel?: string;
+  /** Optional host-owned welcome message */
+  welcomeMessage?: string;
+  /** Optional host-owned starter prompts shown as quick actions */
+  starterPrompts?: MaxModeHostStarterPrompt[];
+  /** Optional host-owned starter suggestions shown above the composer */
+  starterSuggestions?: string[];
+  /** Optional host-owned initial attachments/context */
+  initialAttachments?: MaxModeHostAttachment[];
+  /** Hide POC-only utility controls when embedding in storefronts */
+  showUtilityPanel?: boolean;
+}
+
 export interface MaxModeWidgetConfig {
   /** API endpoints and auth */
   apiConfig: MaxModeApiConfig;
@@ -140,6 +174,8 @@ export interface MaxModeWidgetConfig {
   position?: "bottom-right" | "bottom-left";
   /** Set to false to hide the default floating launcher button */
   launcher?: boolean;
+  /** Optional host-owned UX overrides and initial context */
+  host?: MaxModeHostConfig;
   /** Callback for widget events (cart changes, messages, etc.) */
   onEvent?: (event: MaxModeEvent) => void;
   /** Callback when widget is closed */
@@ -190,6 +226,17 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   },
   position: "bottom-right",
   launcher: true,
+  host: {
+    launcherLabel: undefined,
+    launcherAriaLabel: undefined,
+    launcherVariant: "icon",
+    assistantLabel: undefined,
+    welcomeMessage: undefined,
+    starterPrompts: undefined,
+    starterSuggestions: undefined,
+    initialAttachments: undefined,
+    showUtilityPanel: true,
+  },
   onEvent: undefined,
   onClose: undefined,
 };
@@ -215,6 +262,10 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
     theme: {
       ...DEFAULT_CONFIG.theme,
       ...config.theme,
+    },
+    host: {
+      ...DEFAULT_CONFIG.host,
+      ...config.host,
     },
   };
 

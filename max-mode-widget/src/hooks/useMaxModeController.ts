@@ -6,7 +6,14 @@ import { useToast } from "@/hooks/use-toast";
 
 import type { QuickAction } from "@/constants";
 import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_CATEGORIES } from "@/constants";
-import { emitEvent, getWidgetConfig, getWidgetIdentity, isCartCrudEnabled } from "@/config";
+import {
+  emitEvent,
+  getWidgetConfig,
+  getWidgetIdentity,
+  isCartCrudEnabled,
+  type MaxModeHostAttachment,
+  type MaxModeHostConfig,
+} from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
 import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary, RuntimeShellConfigSummary } from "@/types";
 import { useAttachmentsController } from "./useAttachmentsController";
@@ -98,7 +105,29 @@ function shellPromptPalette(index: number) {
   return palettes[index % palettes.length];
 }
 
-function deriveQuickActions(shellConfig: RuntimeShellConfigSummary | null): QuickAction[] {
+function deriveQuickActions(
+  hostConfig: MaxModeHostConfig | undefined,
+  shellConfig: RuntimeShellConfigSummary | null,
+): QuickAction[] {
+  const hostStarterPrompts = hostConfig?.starterPrompts?.filter(
+    (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
+  );
+  if (hostStarterPrompts?.length) {
+    return hostStarterPrompts.map((prompt, index) => {
+      const palette = shellPromptPalette(index);
+      return {
+        icon: Zap,
+        label: prompt.label.trim(),
+        query: prompt.query.trim(),
+        color: palette.color,
+        bg: palette.bg,
+        border: palette.border,
+        position: prompt.position ?? "search",
+        mode: prompt.mode ?? "navigator",
+      };
+    });
+  }
+
   const starterPrompts = shellConfig?.starterPrompts?.filter(
     (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
   );
@@ -120,7 +149,11 @@ function deriveQuickActions(shellConfig: RuntimeShellConfigSummary | null): Quic
   });
 }
 
-function deriveWelcomeMessage(shellConfig: RuntimeShellConfigSummary | null) {
+function deriveWelcomeMessage(hostConfig: MaxModeHostConfig | undefined, shellConfig: RuntimeShellConfigSummary | null) {
+  const hostMessage = hostConfig?.welcomeMessage?.trim();
+  if (hostMessage) {
+    return hostMessage;
+  }
   const title = shellConfig?.greetingTitle?.trim();
   const message = shellConfig?.greetingMessage?.trim();
   if (title && message) {
@@ -132,11 +165,47 @@ function deriveWelcomeMessage(shellConfig: RuntimeShellConfigSummary | null) {
   return "👋 Welcome to MAX Mode - your AI-powered shopping assistant! I can help you find products, manage orders, apply coupons, and much more. Try the quick actions above or just ask me anything!";
 }
 
-export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
+function deriveStarterSuggestions(hostConfig: MaxModeHostConfig | undefined) {
+  const suggestions = hostConfig?.starterSuggestions
+    ?.map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+  if (suggestions?.length) {
+    return suggestions.slice(0, 4);
+  }
+  return [];
+}
+
+function sanitizeHostAttachments(hostAttachments: MaxModeHostAttachment[] | undefined) {
+  if (!hostAttachments?.length) {
+    return [];
+  }
+  return hostAttachments
+    .filter((attachment) => attachment && attachment.type?.trim() && attachment.data && typeof attachment.data === "object")
+    .map((attachment) => ({
+      type: attachment.type.trim(),
+      data: attachment.data,
+    }));
+}
+
+export function useMaxModeController({
+  isOpen,
+  assistantLabel,
+  showUtilityPanel,
+}: {
+  isOpen: boolean;
+  assistantLabel?: string;
+  showUtilityPanel?: boolean;
+}) {
   const { toast } = useToast();
+  const widgetConfig = getWidgetConfig();
+  const hostConfig = widgetConfig.host;
+  const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
+  const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
+  const hostStarterSuggestions = useMemo(() => deriveStarterSuggestions(hostConfig), [hostConfig]);
+  const hostInitialAttachments = useMemo(() => sanitizeHostAttachments(hostConfig?.initialAttachments), [hostConfig]);
 
   const [runtimeShellConfig, setRuntimeShellConfig] = useState<RuntimeShellConfigSummary | null>(null);
-  const quickActions = useMemo(() => deriveQuickActions(runtimeShellConfig), [runtimeShellConfig]);
+  const quickActions = useMemo(() => deriveQuickActions(hostConfig, runtimeShellConfig), [hostConfig, runtimeShellConfig]);
   const searchCategories = SEARCH_CATEGORIES;
   const aiSearchCategories = AI_SEARCH_CATEGORIES;
   const browseProductCategories = BROWSE_PRODUCT_CATEGORIES;
@@ -176,7 +245,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const [isSearchCategoryOpen, setIsSearchCategoryOpen] = useState(false);
   const [isBrowseProductsOpen, setIsBrowseProductsOpen] = useState(false);
   const [searchCategory, setSearchCategory] = useState<string | null>(null);
-  const widgetConfig = getWidgetConfig();
   const cartEnabled = isCartCrudEnabled(widgetConfig);
   const identity = useMemo(
     () => getWidgetIdentity(),
@@ -195,7 +263,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setShowSuggestions,
     shownSuggestions,
     setShownSuggestions,
-  } = useSuggestionsController({ attachedItems });
+  } = useSuggestionsController({ attachedItems, starterSuggestions: hostStarterSuggestions });
 
   const {
     cartData,
@@ -441,6 +509,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentConversationId,
     contextDocuments,
     setContextDocuments,
+    hostInitialAttachments,
   });
 
   useMaxModeViewSync({
@@ -461,7 +530,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setNewDocuments,
     setIsNewDocsPreviewOpen,
     setViewedDocumentIds,
-    welcomeContent: deriveWelcomeMessage(runtimeShellConfig),
+    welcomeContent: deriveWelcomeMessage(hostConfig, runtimeShellConfig),
   });
 
   const {
@@ -689,6 +758,8 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     shownSuggestions,
     setShownSuggestions,
     identity,
+    assistantLabel: resolvedAssistantLabel,
+    showUtilityPanel: resolvedShowUtilityPanel,
     collectingItem,
     setCollectingItem,
     isQuickActionsOpen,

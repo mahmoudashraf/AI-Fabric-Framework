@@ -5,6 +5,9 @@
   "scripts": {
     "shopify:preflight": "bash ./deploy/shopify/shopify-cli-preflight.sh",
     "shopify:config:render": "bash ./deploy/shopify/render-shopify-app-config.sh",
+    "shopify:widget:build": "npm -C ../../max-mode-widget run build",
+    "shopify:widget:sync": "bash ./deploy/shopify/sync-max-mode-widget.sh",
+    "shopify:widget:prepare": "npm run shopify:widget:build && npm run shopify:widget:sync",
     "shopify:app:dev": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app dev --path .",
     "shopify:app:info": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app info --path .",
     "shopify:app:deploy": "npm run shopify:preflight && npm run shopify:config:render && bash ./deploy/shopify/run-shopify-cli.sh app deploy --allow-updates --path .",

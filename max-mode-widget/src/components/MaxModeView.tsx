@@ -23,7 +23,12 @@ export function MaxModeView({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] bg-white dark:bg-gray-950"
     >
-      <MaxModeHeader onClose={onClose} onShowSampleDocuments={controller.showSampleDocuments} />
+      <MaxModeHeader
+        onClose={onClose}
+        onShowSampleDocuments={controller.showSampleDocuments}
+        assistantLabel={controller.assistantLabel}
+        showUtilityPanel={controller.showUtilityPanel}
+      />
       <MaxModeQuickActions controller={controller} />
       <MaxModeMainContent controller={controller} />
       <MaxModeCollectionAnimation collectingItem={controller.collectingItem} />
