@@ -19,6 +19,8 @@ import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceIns
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.BootstrapShopifyStoreRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
@@ -66,6 +68,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceTemplateBootstrapService templateBootstrapService = mock(MarketplaceTemplateBootstrapService.class);
         DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
@@ -90,6 +93,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shared-embeddings")).thenReturn("1.0.0");
         when(installService.createInstall(eq("dep-123"), any(CreateDeploymentMarketplaceInstallRequest.class))).thenReturn(mock(DeploymentMarketplaceInstallSummary.class));
+        when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService("psv-123")));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
 
@@ -105,6 +109,7 @@ class ShopifyStoreBootstrapServiceTest {
             templateBootstrapService,
             installService,
             marketplaceCatalogService,
+            productServiceRepository,
             connectionService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
@@ -147,6 +152,7 @@ class ShopifyStoreBootstrapServiceTest {
         verify(templateBootstrapService).bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesShopifyBridgeRoutingDefaults));
         verify(customerConsumerService, never()).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
     }
 
@@ -163,6 +169,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceTemplateBootstrapService templateBootstrapService = mock(MarketplaceTemplateBootstrapService.class);
         DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
@@ -200,6 +207,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shared-embeddings")).thenReturn("1.0.0");
         when(installService.createInstall(eq("dep-123"), any(CreateDeploymentMarketplaceInstallRequest.class))).thenReturn(mock(DeploymentMarketplaceInstallSummary.class));
+        when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService("psv-123")));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
 
@@ -215,6 +223,7 @@ class ShopifyStoreBootstrapServiceTest {
             templateBootstrapService,
             installService,
             marketplaceCatalogService,
+            productServiceRepository,
             connectionService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
@@ -254,6 +263,7 @@ class ShopifyStoreBootstrapServiceTest {
         verify(templateBootstrapService, never()).bootstrap(any(), any());
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesShopifyBridgeRoutingDefaults));
         verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
     }
 
@@ -270,6 +280,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceTemplateBootstrapService templateBootstrapService = mock(MarketplaceTemplateBootstrapService.class);
         DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
@@ -305,6 +316,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(customerConsumerService.updateBinding(eq("cus-123"), eq("shopify-demo"), any())).thenReturn(reboundConsumer);
         when(customerConsumerService.updateConsumer(eq("cus-123"), eq("shopify-demo"), any(UpdatePlatformConsumerRequest.class))).thenReturn(activeConsumer);
         when(installService.listInstalls("dep-123")).thenReturn(List.of());
+        when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService("psv-123")));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
 
@@ -320,6 +332,7 @@ class ShopifyStoreBootstrapServiceTest {
             templateBootstrapService,
             installService,
             marketplaceCatalogService,
+            productServiceRepository,
             connectionService,
             new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", List.of()),
             auditService
@@ -330,6 +343,7 @@ class ShopifyStoreBootstrapServiceTest {
         assertThat(summary.consumerId()).isEqualTo("shopify-demo");
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesShopifyBridgeRoutingDefaults));
         verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
         verify(customerConsumerService).updateConsumer(eq("cus-123"), eq("shopify-demo"), any(UpdatePlatformConsumerRequest.class));
     }
@@ -347,6 +361,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceTemplateBootstrapService templateBootstrapService = mock(MarketplaceTemplateBootstrapService.class);
         DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
@@ -374,6 +389,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shared-embeddings")).thenReturn("1.0.0");
         when(installService.createInstall(eq("dep-123"), any(CreateDeploymentMarketplaceInstallRequest.class))).thenReturn(mock(DeploymentMarketplaceInstallSummary.class));
+        when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService("psv-123")));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
 
@@ -389,6 +405,7 @@ class ShopifyStoreBootstrapServiceTest {
             templateBootstrapService,
             installService,
             marketplaceCatalogService,
+            productServiceRepository,
             connectionService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
@@ -420,6 +437,7 @@ class ShopifyStoreBootstrapServiceTest {
             "dev-openai-qdrant".equals(request.templateId())
                 && "PLATFORM_MANAGED".equals(request.vectorProvisioningMode())
         ));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesShopifyBridgeRoutingDefaults));
     }
 
     @Test
@@ -435,6 +453,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceTemplateBootstrapService templateBootstrapService = mock(MarketplaceTemplateBootstrapService.class);
         DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
@@ -459,6 +478,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.empty());
         when(customerConsumerService.createConsumer(eq("cus-123"), any())).thenReturn(consumer);
         when(installService.listInstalls("dep-123")).thenReturn(List.of());
+        when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService("psv-123")));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
 
@@ -474,6 +494,7 @@ class ShopifyStoreBootstrapServiceTest {
             templateBootstrapService,
             installService,
             marketplaceCatalogService,
+            productServiceRepository,
             connectionService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
@@ -501,6 +522,7 @@ class ShopifyStoreBootstrapServiceTest {
                 && request.providerConfig().path("qdrantRuntimeApiKeySecretName").asText("").isBlank()
         ));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesShopifyBridgeRoutingDefaults));
     }
 
     private boolean matchesSharedQdrantDefaults(UpdateDeploymentDraftRequest request) {
@@ -536,6 +558,26 @@ class ShopifyStoreBootstrapServiceTest {
         return "ALLOW_VERIFIED".equals(security.path("authzMode").asText());
     }
 
+    private boolean matchesShopifyBridgeRoutingDefaults(UpdateDeploymentDraftRequest request) {
+        if (request == null || !(request.routingConfig() instanceof ObjectNode routing)) {
+            return false;
+        }
+        ObjectNode upstream = (ObjectNode) routing.path("connector").path("upstream");
+        ObjectNode auth = (ObjectNode) upstream.path("auth");
+        ObjectNode listProducts = (ObjectNode) routing.path("actions").path("list_products");
+        ObjectNode requestBody = (ObjectNode) listProducts.path("request").path("body");
+        return "https://shopify-bridge.example.com".equals(upstream.path("base-url").asText())
+            && "API_KEY".equals(auth.path("type").asText())
+            && "X-BRIDGE-API-KEY".equals(auth.path("header").asText())
+            && "${SHOPIFY_BRIDGE_SHARED_SECRET}".equals(auth.path("value").asText())
+            && "POST".equals(listProducts.path("method").asText())
+            && "/api/admin/stores/demo.myshopify.com/actions/execute".equals(listProducts.path("path").asText())
+            && "{{actionId}}".equals(requestBody.path("actionId").asText())
+            && "{{params}}".equals(requestBody.path("params").asText())
+            && "{{idempotencyKey}}".equals(requestBody.path("idempotencyKey").asText())
+            && "{{trace}}".equals(requestBody.path("trace").asText());
+    }
+
     private ShopifyStoreConnectionEntity store(String shopDomain) {
         ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
         entity.setId("shp-123");
@@ -565,6 +607,18 @@ class ShopifyStoreBootstrapServiceTest {
         customer.setCreatedAt(Instant.now());
         customer.setUpdatedAt(Instant.now());
         return customer;
+    }
+
+    private PlatformManagedProductServiceEntity productService(String id) {
+        PlatformManagedProductServiceEntity entity = new PlatformManagedProductServiceEntity();
+        entity.setId(id);
+        entity.setBaseUrl("https://shopify-bridge.example.com/");
+        entity.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+        entity.setServiceRef("shopify-bridge-prod");
+        entity.setStatus("ACTIVE");
+        entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(Instant.now());
+        return entity;
     }
 
     private DeploymentDraftResponse draftResponse(String deploymentId) {

@@ -19,6 +19,8 @@ import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceIns
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.BootstrapShopifyStoreRequest;
@@ -62,6 +64,15 @@ public class ShopifyStoreBootstrapService {
     private static final String ACTIVE_RESOURCE_STATUS = "ACTIVE";
     private static final String QDRANT_VENDOR = "qdrant";
     private static final String QDRANT_CLUSTER_RESOURCE_TYPE = "CLUSTER";
+    private static final String SHOPIFY_BRIDGE_SHARED_SECRET_ENV = "SHOPIFY_BRIDGE_SHARED_SECRET";
+    private static final String SHOPIFY_BRIDGE_API_KEY_HEADER = "X-BRIDGE-API-KEY";
+    private static final List<String> SHOPIFY_COMPANION_ACTION_IDS = List.of(
+        "list_products",
+        "search_products",
+        "get_product_details",
+        "check_availability",
+        "get_policy"
+    );
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     private final ShopifyStoreConnectionRepository repository;
@@ -75,6 +86,7 @@ public class ShopifyStoreBootstrapService {
     private final MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService;
     private final DeploymentMarketplaceInstallService deploymentMarketplaceInstallService;
     private final MarketplaceCatalogService marketplaceCatalogService;
+    private final PlatformManagedProductServiceRepository productServiceRepository;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyCompanionBootstrapProperties properties;
     private final PlatformAuditService platformAuditService;
@@ -90,6 +102,7 @@ public class ShopifyStoreBootstrapService {
                                         MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService,
                                         DeploymentMarketplaceInstallService deploymentMarketplaceInstallService,
                                         MarketplaceCatalogService marketplaceCatalogService,
+                                        PlatformManagedProductServiceRepository productServiceRepository,
                                         ShopifyStoreConnectionService shopifyStoreConnectionService,
                                         ShopifyCompanionBootstrapProperties properties,
                                         PlatformAuditService platformAuditService) {
@@ -104,6 +117,7 @@ public class ShopifyStoreBootstrapService {
         this.marketplaceTemplateBootstrapService = marketplaceTemplateBootstrapService;
         this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
         this.marketplaceCatalogService = marketplaceCatalogService;
+        this.productServiceRepository = productServiceRepository;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.properties = properties;
         this.platformAuditService = platformAuditService;
@@ -132,6 +146,7 @@ public class ShopifyStoreBootstrapService {
             );
         ensureSharedVectorBootstrapDefaults(deployment.id());
         ensureShopifyCompanionSecurityDefaults(deployment.id());
+        ensureShopifyCompanionConnectorDefaults(store, deployment.id());
 
         PlatformConsumerEntity existingConsumer = resolveConsumer(store.getConsumerId());
         boolean createdConsumer = existingConsumer == null;
@@ -432,6 +447,67 @@ public class ShopifyStoreBootstrapService {
         );
     }
 
+    private void ensureShopifyCompanionConnectorDefaults(ShopifyStoreConnectionEntity store, String deploymentId) {
+        PlatformManagedProductServiceEntity productService = resolveProductService(store.getProductServiceId());
+        String productServiceBaseUrl = productService == null ? null : blankToNull(productService.getBaseUrl());
+        if (!hasText(productServiceBaseUrl)) {
+            return;
+        }
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        ObjectNode routingConfig = ensureObject(draft.routingConfig());
+        boolean changed = false;
+
+        ObjectNode connector = ensureNestedObject(routingConfig, "connector");
+        ObjectNode upstream = ensureNestedObject(connector, "upstream");
+        changed |= putText(upstream, "base-url", trimTrailingSlash(productServiceBaseUrl));
+
+        ObjectNode upstreamAuth = ensureNestedObject(upstream, "auth");
+        changed |= putText(upstreamAuth, "type", "API_KEY");
+        changed |= putText(upstreamAuth, "header", SHOPIFY_BRIDGE_API_KEY_HEADER);
+        changed |= putText(upstreamAuth, "value", "${" + SHOPIFY_BRIDGE_SHARED_SECRET_ENV + "}");
+
+        ObjectNode actions = ensureNestedObject(routingConfig, "actions");
+        for (String actionId : SHOPIFY_COMPANION_ACTION_IDS) {
+            changed |= ensureShopifyCompanionActionRoute(actions, actionId, store.getShopDomain());
+        }
+
+        if (!changed) {
+            return;
+        }
+        deploymentService.updateDraft(
+            draft.id(),
+            new UpdateDeploymentDraftRequest(
+                null,
+                null,
+                routingConfig,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+    }
+
+    private boolean ensureShopifyCompanionActionRoute(ObjectNode actions,
+                                                      String actionId,
+                                                      String shopDomain) {
+        ObjectNode action = ensureNestedObject(actions, actionId);
+        boolean changed = false;
+        changed |= putText(action, "method", "POST");
+        changed |= putText(action, "path", "/api/admin/stores/" + shopDomain + "/actions/execute");
+
+        ObjectNode request = ensureNestedObject(action, "request");
+        ObjectNode body = ensureNestedObject(request, "body");
+        changed |= putText(body, "actionId", "{{actionId}}");
+        changed |= putText(body, "params", "{{params}}");
+        changed |= putText(body, "idempotencyKey", "{{idempotencyKey}}");
+        changed |= putText(body, "trace", "{{trace}}");
+        return changed;
+    }
+
     private ResolvedSharedQdrantRoot resolveSharedQdrantRoot() {
         String configuredHost = blankToNull(properties.defaultQdrantHost());
         String configuredSourceDeploymentId = blankToNull(properties.defaultQdrantSourceDeploymentId());
@@ -483,6 +559,10 @@ public class ShopifyStoreBootstrapService {
 
     private PlatformConsumerEntity resolveConsumer(String consumerId) {
         return hasText(consumerId) ? consumerRepository.findByConsumerIdIgnoreCase(consumerId).orElse(null) : null;
+    }
+
+    private PlatformManagedProductServiceEntity resolveProductService(String productServiceId) {
+        return hasText(productServiceId) ? productServiceRepository.findById(productServiceId).orElse(null) : null;
     }
 
     private String nextAvailableConsumerId(String customerId, String requestedConsumerId) {
@@ -555,6 +635,16 @@ public class ShopifyStoreBootstrapService {
         return JSON.objectNode();
     }
 
+    private ObjectNode ensureNestedObject(ObjectNode node, String field) {
+        JsonNode existing = node.path(field);
+        if (existing instanceof ObjectNode objectNode) {
+            return objectNode;
+        }
+        ObjectNode created = JSON.objectNode();
+        node.set(field, created);
+        return created;
+    }
+
     private boolean putText(ObjectNode node, String field, String value) {
         String normalized = blankToNull(value);
         String existing = blankToNull(node.path(field).asText(null));
@@ -586,6 +676,10 @@ public class ShopifyStoreBootstrapService {
         }
         node.remove(field);
         return true;
+    }
+
+    private String trimTrailingSlash(String value) {
+        return value != null && value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
 
     private record BootstrapDeployment(

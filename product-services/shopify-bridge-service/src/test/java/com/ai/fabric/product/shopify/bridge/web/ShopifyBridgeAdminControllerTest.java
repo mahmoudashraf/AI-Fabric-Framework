@@ -1,5 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
+import com.ai.fabric.product.shopify.bridge.action.service.ShopifyBridgeActionExecutionService;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeWebhookSubscriptionOverview;
@@ -53,6 +55,9 @@ class ShopifyBridgeAdminControllerTest {
 
     @MockBean
     private ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
+
+    @MockBean
+    private ShopifyBridgeActionExecutionService actionExecutionService;
 
     @Test
     void healthIsPublic() throws Exception {
@@ -159,6 +164,27 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].shopDomain").value("alpha.myshopify.com"))
             .andExpect(jsonPath("$[0].productServiceRef").value("shopify-bridge-test"));
+    }
+
+    @Test
+    void adminActionExecutionUsesActionServiceWhenApiKeyMatches() throws Exception {
+        when(actionExecutionService.execute(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any()
+        )).thenReturn(ShopifyBridgeActionResult.ok("Products", java.util.Map.of("count", 1)));
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/actions/execute")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"actionId":"list_products","params":{},"trace":{}}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.message").value("Products"))
+            .andExpect(jsonPath("$.data.count").value(1));
     }
 
     @Test

@@ -10,16 +10,22 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleS
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -259,6 +265,49 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanAddsShopifyBridgeSharedSecretWhenDeploymentMapsToBridgeService() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+
+        ShopifyStoreConnectionEntity store = new ShopifyStoreConnectionEntity();
+        store.setDeploymentId("dep-123");
+        store.setProductServiceId("ps-1");
+        when(storeRepository.findByDeploymentId("dep-123")).thenReturn(Optional.of(store));
+        when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        ReflectionTestUtils.setField(service, "shopifyStoreConnectionRepository", storeRepository);
+        ReflectionTestUtils.setField(service, "platformManagedProductServiceRepository", productServiceRepository);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version());
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
+
+        assertThat(connectorEnv)
+            .containsEntry("SHOPIFY_BRIDGE_SHARED_SECRET", "${secret:SHOPIFY_BRIDGE_SHARED_SECRET_PROD}");
+    }
+
+    @Test
     void buildPlanUsesSecurityCorsOverridesWhenPresent() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
@@ -468,7 +517,7 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
             .containsEntry(
                 "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS",
-                "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-release-verification,platform-vectorization-verification,platform-runtime-coverage"
+                "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-consumer-bridge,platform-release-verification,platform-vectorization-verification,platform-runtime-coverage"
             )
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", "dep-123")
             .containsEntry(
@@ -1471,5 +1520,15 @@ class RailwayProvisioningPlanServiceTest {
         version.setManifestJson("{}");
         version.setPublishedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return version;
+    }
+
+    private PlatformManagedProductServiceEntity productService(String id) {
+        PlatformManagedProductServiceEntity entity = new PlatformManagedProductServiceEntity();
+        entity.setId(id);
+        entity.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+        entity.setSecretName("SHOPIFY_BRIDGE_SHARED_SECRET_PROD");
+        entity.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
+        return entity;
     }
 }

@@ -18,6 +18,8 @@ public interface ShopifyStoreConnectionRepository extends JpaRepository<ShopifyS
 
     Optional<ShopifyStoreConnectionEntity> findByConsumerIdIgnoreCase(String consumerId);
 
+    Optional<ShopifyStoreConnectionEntity> findByDeploymentId(String deploymentId);
+
     long countByProductServiceId(String productServiceId);
 
     long countByProductServiceIdAndInstallStatusIgnoreCase(String productServiceId, String installStatus);

@@ -13,9 +13,13 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningServicesSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationManagedSecretNames;
@@ -37,6 +41,7 @@ public class RailwayProvisioningPlanService {
     private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
     private static final String CONNECTOR_ADMIN_SECRET = "APP_ADMIN_API_KEY";
+    private static final String SHOPIFY_BRIDGE_SHARED_SECRET_ENV = "SHOPIFY_BRIDGE_SHARED_SECRET";
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
@@ -50,6 +55,12 @@ public class RailwayProvisioningPlanService {
     private final VectorizationPlanRepository vectorizationPlanRepository;
     private final TenantScopedVectorHandleResolver tenantScopedVectorHandleResolver;
     private final ObjectMapper objectMapper;
+
+    @Autowired(required = false)
+    private ShopifyStoreConnectionRepository shopifyStoreConnectionRepository;
+
+    @Autowired(required = false)
+    private PlatformManagedProductServiceRepository platformManagedProductServiceRepository;
 
     RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
@@ -267,6 +278,7 @@ public class RailwayProvisioningPlanService {
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
             connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
         }
+        addShopifyBridgeConnectorEnv(connectorEnv, deployment);
         addCorsEnv(connectorEnv, securityConfig);
 
         RailwayServicePlanSummary restConnector = new RailwayServicePlanSummary(
@@ -407,6 +419,31 @@ public class RailwayProvisioningPlanService {
             return "";
         }
         return node.path(field).asText("").trim();
+    }
+
+    private void addShopifyBridgeConnectorEnv(List<RailwayEnvVarSummary> connectorEnv, DeploymentEntity deployment) {
+        if (connectorEnv == null
+            || deployment == null
+            || shopifyStoreConnectionRepository == null
+            || platformManagedProductServiceRepository == null) {
+            return;
+        }
+        ShopifyStoreConnectionEntity store = shopifyStoreConnectionRepository.findByDeploymentId(deployment.getId()).orElse(null);
+        if (store == null || !hasText(store.getProductServiceId())) {
+            return;
+        }
+        PlatformManagedProductServiceEntity productService =
+            platformManagedProductServiceRepository.findById(store.getProductServiceId()).orElse(null);
+        if (productService == null || !hasText(productService.getSecretName())) {
+            return;
+        }
+        if (!"SHOPIFY_BRIDGE_SERVICE".equalsIgnoreCase(productService.getServiceKind())) {
+            return;
+        }
+        connectorEnv.add(new RailwayEnvVarSummary(
+            SHOPIFY_BRIDGE_SHARED_SECRET_ENV,
+            "${secret:" + productService.getSecretName() + "}"
+        ));
     }
 
     private void addRuntimeProviderEnv(List<RailwayEnvVarSummary> runtimeEnv,
