@@ -200,6 +200,43 @@ export type ShopifyBridgeBillingApprovalResponse = {
   message: string
 }
 
+export type ShopifyBridgeStoreVectorizationRunSummary = {
+  id: string
+  reason: string
+  status: string
+  requestedStatus: string
+  entityScope: string[]
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type ShopifyBridgeStoreVectorizationSummary = {
+  shopDomain: string
+  deploymentId: string | null
+  bootstrapped: boolean
+  selectedCategories: string[]
+  selectedEntityTypes: string[]
+  requiredPluginIds: string[]
+  installedPluginIds: string[]
+  missingPluginIds: string[]
+  disabledPluginIds: string[]
+  reconciliationRequired: boolean
+  connectionConfigured: boolean
+  sourceConnectionId: string | null
+  sourceConnectionStatus: string | null
+  sourceAdapterType: string | null
+  planConfigured: boolean
+  planId: string | null
+  planStatus: string | null
+  runnerMode: string | null
+  syncState: string | null
+  readyToRun: boolean
+  blockingReasons: string[]
+  lastRun: ShopifyBridgeStoreVectorizationRunSummary | null
+}
+
 export type ShopifyWebhookSubscriptionStatusSummary = {
   shopDomain: string
   status: string
@@ -258,6 +295,18 @@ export async function fetchStorefrontPreview(): Promise<ShopifyStorefrontPreview
 
 export async function fetchUsageSummary(): Promise<ShopifyBridgeUsageSummary> {
   return authenticatedFetchJson('/api/app/store/usage-summary', { method: 'GET' })
+}
+
+export async function fetchVectorizationSummary(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization', { method: 'GET' })
+}
+
+export async function reconcileVectorization(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/reconcile', { method: 'POST' })
+}
+
+export async function vectorizeNowStore(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/vectorize-now', { method: 'POST' })
 }
 
 export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary> {

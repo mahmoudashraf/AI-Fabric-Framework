@@ -1,0 +1,29 @@
+package com.ai.fabric.product.shopify.bridge.store.model;
+
+import java.util.List;
+
+public record ShopifyBridgeStoreVectorizationSummary(
+    String shopDomain,
+    String deploymentId,
+    boolean bootstrapped,
+    List<String> selectedCategories,
+    List<String> selectedEntityTypes,
+    List<String> requiredPluginIds,
+    List<String> installedPluginIds,
+    List<String> missingPluginIds,
+    List<String> disabledPluginIds,
+    boolean reconciliationRequired,
+    boolean connectionConfigured,
+    String sourceConnectionId,
+    String sourceConnectionStatus,
+    String sourceAdapterType,
+    boolean planConfigured,
+    String planId,
+    String planStatus,
+    String runnerMode,
+    String syncState,
+    boolean readyToRun,
+    List<String> blockingReasons,
+    ShopifyBridgeStoreVectorizationRunSummary lastRun
+) {
+}

@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectio
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
@@ -21,6 +22,7 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGoLiveService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreUninstallService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWebhookService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetSettingsService;
@@ -50,6 +52,7 @@ public class ShopifyAdminController {
     private final ShopifyStoreCredentialService shopifyStoreCredentialService;
     private final ShopifyStoreGoLiveService shopifyStoreGoLiveService;
     private final ShopifyStoreUninstallService shopifyStoreUninstallService;
+    private final ShopifyStoreVectorizationService shopifyStoreVectorizationService;
     private final ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService;
     private final ShopifyStoreSyncService shopifyStoreSyncService;
     private final ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService;
@@ -62,6 +65,7 @@ public class ShopifyAdminController {
                                   ShopifyStoreCredentialService shopifyStoreCredentialService,
                                   ShopifyStoreGoLiveService shopifyStoreGoLiveService,
                                   ShopifyStoreUninstallService shopifyStoreUninstallService,
+                                  ShopifyStoreVectorizationService shopifyStoreVectorizationService,
                                   ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService,
                                   ShopifyStoreSyncService shopifyStoreSyncService,
                                   ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService,
@@ -73,6 +77,7 @@ public class ShopifyAdminController {
         this.shopifyStoreCredentialService = shopifyStoreCredentialService;
         this.shopifyStoreGoLiveService = shopifyStoreGoLiveService;
         this.shopifyStoreUninstallService = shopifyStoreUninstallService;
+        this.shopifyStoreVectorizationService = shopifyStoreVectorizationService;
         this.shopifyStoreSourcePreflightService = shopifyStoreSourcePreflightService;
         this.shopifyStoreSyncService = shopifyStoreSyncService;
         this.shopifyStoreDocumentSyncService = shopifyStoreDocumentSyncService;
@@ -153,6 +158,24 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary uninstall(@PathVariable String shopDomain) {
         return shopifyStoreUninstallService.markUninstalled(shopDomain, "Shopify app uninstall cleanup.");
+    }
+
+    @GetMapping("/{shopDomain}/vectorization")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary vectorization(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.getSummary(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/reconcile")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary reconcileVectorization(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.reconcile(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/vectorize-now")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary vectorizeNow(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.vectorizeNow(shopDomain);
     }
 
     @PostMapping("/{shopDomain}/source-preflight")

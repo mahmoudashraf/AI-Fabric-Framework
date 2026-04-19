@@ -20,6 +20,7 @@ import enTranslations from '@shopify/polaris/locales/en.json'
 import {
   bootstrapStore,
   fetchBillingSummary,
+  fetchVectorizationSummary,
   requestBillingApproval,
   connectStore,
   fetchWebhookSubscriptions,
@@ -29,17 +30,20 @@ import {
   fetchShell,
   goLiveStore,
   queryMerchantPlayground,
+  reconcileVectorization,
   runSourcePreflight,
   suggestMerchantPlayground,
   syncNowStore,
   updateSourceSettings,
   updateWidgetSettings,
+  vectorizeNowStore,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeBillingSummary,
   type ShopifyBridgeBillingApprovalResponse,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
+  type ShopifyBridgeStoreVectorizationSummary,
   type ShopifyBridgeUsageSummary,
   type ShopifyWebhookSubscriptionStatusSummary,
   type ShopifyStorefrontPreviewResponse,
@@ -75,6 +79,7 @@ type LoadState = {
   usageSummary: ShopifyBridgeUsageSummary | null
   billingSummary: ShopifyBridgeBillingSummary | null
   webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null
   loading: boolean
   error: string | null
 }
@@ -107,13 +112,14 @@ export default function App() {
     usageSummary: null,
     billingSummary: null,
     webhookSubscriptions: null,
+    vectorizationSummary: null,
     loading: true,
     error: null,
   })
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [pendingBillingReturn, setPendingBillingReturn] = useState(() => hasBillingReturnQueryParam())
-  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'sync' | 'go-live' | 'source-settings' | 'billing-approval' | null>(null)
+  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'sync' | 'go-live' | 'source-settings' | 'billing-approval' | 'vectorization-reconcile' | 'vectorize-now' | null>(null)
   const [widgetSettings, setWidgetSettings] = useState({
     launcherLabel: 'Ask the store assistant',
     welcomeMessage: 'Store assistant is ready. Ask about products, policies, or collections.',
@@ -174,6 +180,7 @@ export default function App() {
       let usageSummary: ShopifyBridgeUsageSummary | null = null
       let billingSummary: ShopifyBridgeBillingSummary | null = null
       let webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null = null
+      let vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null = null
       try {
         session = await fetchSession()
         storefrontPreview = await fetchStorefrontPreview()
@@ -188,6 +195,7 @@ export default function App() {
           usageSummary: null,
           billingSummary: null,
           webhookSubscriptions: null,
+          vectorizationSummary: null,
           loading: false,
           error: sessionError instanceof Error ? sessionError.message : 'Failed to resolve merchant session.',
         })
@@ -198,6 +206,13 @@ export default function App() {
       } catch {
         webhookSubscriptions = null
       }
+      try {
+        if (session?.store?.deploymentId) {
+          vectorizationSummary = await fetchVectorizationSummary()
+        }
+      } catch {
+        vectorizationSummary = null
+      }
       setState({
         shell,
         session,
@@ -205,6 +220,7 @@ export default function App() {
         usageSummary,
         billingSummary,
         webhookSubscriptions,
+        vectorizationSummary,
         loading: false,
         error: null,
       })
@@ -230,6 +246,7 @@ export default function App() {
         usageSummary: null,
         billingSummary: null,
         webhookSubscriptions: null,
+        vectorizationSummary: null,
         loading: false,
         error: error instanceof Error ? error.message : 'Unknown bridge shell failure.',
       })
@@ -261,6 +278,7 @@ export default function App() {
     try {
       const result = await bootstrapStore()
       applyBootstrapResult(result)
+      await refresh()
       setActionMessage(`Bootstrapped deployment ${result.deploymentId ?? '—'} for ${result.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to bootstrap store.')
@@ -352,9 +370,40 @@ export default function App() {
         ...current,
         session: current.session ? { ...current.session, store } : current.session,
       }))
-      setActionMessage(`Updated source categories for ${store.shopDomain}. Run source preflight again before go-live.`)
+      await refresh()
+      setActionMessage(`Updated source categories for ${store.shopDomain}. Deployment vectorization support has been reconciled for the current selection.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to update source settings.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleVectorizationReconcile() {
+    setBusyAction('vectorization-reconcile')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const vectorizationSummary = await reconcileVectorization()
+      setState((current) => ({ ...current, vectorizationSummary }))
+      setActionMessage(`Reconciled deployment vectorization support for ${vectorizationSummary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to reconcile deployment vectorization support.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleVectorizeNow() {
+    setBusyAction('vectorize-now')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const vectorizationSummary = await vectorizeNowStore()
+      setState((current) => ({ ...current, vectorizationSummary }))
+      setActionMessage(`Queued deployment vectorization for ${vectorizationSummary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to trigger Shopify vectorization.')
     } finally {
       setBusyAction(null)
     }
@@ -455,6 +504,7 @@ export default function App() {
     billingSummary?.merchantApprovalRequired && billingSummary?.status === 'READY_FOR_APPROVAL',
   )
   const webhookSubscriptions = state.webhookSubscriptions
+  const vectorizationSummary = state.vectorizationSummary
   const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary, billingSummary, webhookSubscriptions)
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
@@ -471,6 +521,14 @@ export default function App() {
     Boolean(store?.deploymentId) &&
     !installRecoveryRequired &&
     !isReleaseInProgress(store?.latestRelease?.status)
+  const canReconcileVectorization =
+    Boolean(session) &&
+    Boolean(store?.deploymentId) &&
+    !installRecoveryRequired
+  const canVectorizeNow =
+    Boolean(session) &&
+    Boolean(vectorizationSummary?.readyToRun) &&
+    !installRecoveryRequired
   const sourceSettingsDirty =
     !!store &&
     (store.productsEnabled !== sourceSettings.productsEnabled ||
@@ -659,6 +717,80 @@ export default function App() {
                   {store ? <StoreSummary store={store} /> : (
                     <Text as="p" variant="bodyMd" tone="subdued">
                       This merchant has not connected the current store to the platform yet.
+                    </Text>
+                  )}
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Deployment vectorization
+                  </Text>
+                  {vectorizationSummary ? (
+                    <BlockStack gap="200">
+                      <InlineStack gap="200" align="start">
+                        <Badge tone={vectorizationSummary.readyToRun ? 'success' : 'attention'}>
+                          {vectorizationSummary.readyToRun ? 'Ready to run' : 'Needs reconcile'}
+                        </Badge>
+                        {vectorizationSummary.syncState ? (
+                          <Badge tone={badgeTone(vectorizationSummary.syncState)}>{vectorizationSummary.syncState}</Badge>
+                        ) : null}
+                      </InlineStack>
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        Shopify source selection now drives deployment plugin installs and the deployment vectorization plan. Use reconcile to align the deployment with the current store scope, then queue vectorization for the current enabled data.
+                      </Text>
+                      <List type="bullet">
+                        <List.Item>Selected categories: {vectorizationSummary.selectedCategories.join(', ') || 'None selected'}</List.Item>
+                        <List.Item>Selected entity types: {vectorizationSummary.selectedEntityTypes.join(', ') || 'None selected'}</List.Item>
+                        <List.Item>Required plugins: {vectorizationSummary.requiredPluginIds.join(', ') || 'None required'}</List.Item>
+                        <List.Item>Installed plugins: {vectorizationSummary.installedPluginIds.join(', ') || 'None installed'}</List.Item>
+                        <List.Item>Missing plugins: {vectorizationSummary.missingPluginIds.join(', ') || 'None'}</List.Item>
+                        <List.Item>Disabled plugins: {vectorizationSummary.disabledPluginIds.join(', ') || 'None'}</List.Item>
+                        <List.Item>Source connection: {vectorizationSummary.sourceConnectionStatus ?? 'Not configured'}</List.Item>
+                        <List.Item>Plan runner: {vectorizationSummary.runnerMode ?? 'Not configured'}</List.Item>
+                      </List>
+                      {vectorizationSummary.lastRun ? (
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Last run: {vectorizationSummary.lastRun.reason} · {vectorizationSummary.lastRun.status} · {formatTimestamp(vectorizationSummary.lastRun.createdAt)}
+                        </Text>
+                      ) : (
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          No vectorization run has been queued for this deployment yet.
+                        </Text>
+                      )}
+                      {vectorizationSummary.blockingReasons.length ? (
+                        <Banner tone="warning">
+                          <List type="bullet">
+                            {vectorizationSummary.blockingReasons.map((reason) => (
+                              <List.Item key={reason}>{reason}</List.Item>
+                            ))}
+                          </List>
+                        </Banner>
+                      ) : null}
+                      <InlineStack gap="200">
+                        <Button
+                          onClick={() => void handleVectorizationReconcile()}
+                          loading={busyAction === 'vectorization-reconcile'}
+                          disabled={!canReconcileVectorization}
+                        >
+                          Reconcile deployment support
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={() => void handleVectorizeNow()}
+                          loading={busyAction === 'vectorize-now'}
+                          disabled={!canVectorizeNow}
+                        >
+                          Vectorize current data
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  ) : (
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Vectorization details appear after the store is bootstrapped to a deployment.
                     </Text>
                   )}
                 </BlockStack>

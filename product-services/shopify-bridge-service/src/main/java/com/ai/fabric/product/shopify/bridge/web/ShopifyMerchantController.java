@@ -8,6 +8,7 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSu
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
@@ -73,6 +74,21 @@ public class ShopifyMerchantController {
     public ShopifyBridgeStoreSummary syncNow(Authentication authentication,
                                              @RequestHeader("Authorization") String authorizationHeader) {
         return merchantStoreService.syncNow(requireMerchant(authentication), authorizationHeader);
+    }
+
+    @GetMapping("/store/vectorization")
+    public ShopifyBridgeStoreVectorizationSummary vectorization(Authentication authentication) {
+        return merchantStoreService.vectorization(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/vectorization/reconcile")
+    public ShopifyBridgeStoreVectorizationSummary reconcileVectorization(Authentication authentication) {
+        return merchantStoreService.reconcileVectorization(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/vectorization/vectorize-now")
+    public ShopifyBridgeStoreVectorizationSummary vectorizeNow(Authentication authentication) {
+        return merchantStoreService.vectorizeNow(requireMerchant(authentication));
     }
 
     @GetMapping("/store/storefront-preview")

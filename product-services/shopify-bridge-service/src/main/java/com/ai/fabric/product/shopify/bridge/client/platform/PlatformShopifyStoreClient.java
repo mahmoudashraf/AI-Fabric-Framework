@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWebho
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSyncStoreDocumentsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
@@ -175,6 +176,30 @@ public class PlatformShopifyStoreClient {
             .body(request)
             .retrieve()
             .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary getVectorization(String shopDomain) {
+        return restClient.get()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary reconcileVectorization(String shopDomain) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/reconcile")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary vectorizeNow(String shopDomain) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/vectorize-now")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
     }
 
     public PlatformPublicConsumerDeploymentCredentialsResponse getConsumerCredentials(String consumerId) {

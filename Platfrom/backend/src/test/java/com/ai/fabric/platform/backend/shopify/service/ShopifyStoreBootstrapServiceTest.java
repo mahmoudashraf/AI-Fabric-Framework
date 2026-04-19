@@ -70,6 +70,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         ShopifyStoreConnectionEntity store = store("demo.myshopify.com");
@@ -111,6 +112,7 @@ class ShopifyStoreBootstrapServiceTest {
             marketplaceCatalogService,
             productServiceRepository,
             connectionService,
+            vectorizationService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
                 "dev-openai-qdrant",
@@ -145,14 +147,15 @@ class ShopifyStoreBootstrapServiceTest {
         assertThat(summary.installedPluginIds()).containsExactly(
             "mkp-template-shopify-companion",
             "mkp-action-shopify-companion-read",
+            "mkp-inference-shared-embeddings",
             "mkp-data-shopify-catalog",
-            "mkp-data-shopify-policies",
-            "mkp-inference-shared-embeddings"
+            "mkp-data-shopify-policies"
         );
         verify(templateBootstrapService).bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
         verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesShopifyBridgeRoutingDefaults));
+        verify(vectorizationService).reconcile("demo.myshopify.com");
         verify(customerConsumerService, never()).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
     }
 
@@ -171,6 +174,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         ShopifyStoreConnectionEntity store = store("demo.myshopify.com");
@@ -225,6 +229,7 @@ class ShopifyStoreBootstrapServiceTest {
             marketplaceCatalogService,
             productServiceRepository,
             connectionService,
+            vectorizationService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
                 "dev-openai-qdrant",
@@ -255,9 +260,9 @@ class ShopifyStoreBootstrapServiceTest {
         assertThat(summary.createdConsumer()).isFalse();
         assertThat(summary.installedPluginIds()).containsExactly(
             "mkp-action-shopify-companion-read",
+            "mkp-inference-shared-embeddings",
             "mkp-data-shopify-catalog",
-            "mkp-data-shopify-policies",
-            "mkp-inference-shared-embeddings"
+            "mkp-data-shopify-policies"
         );
         verify(customerTenantService, never()).createCustomer(any());
         verify(templateBootstrapService, never()).bootstrap(any(), any());
@@ -282,6 +287,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         ShopifyStoreConnectionEntity store = store("demo.myshopify.com");
@@ -334,6 +340,7 @@ class ShopifyStoreBootstrapServiceTest {
             marketplaceCatalogService,
             productServiceRepository,
             connectionService,
+            vectorizationService,
             new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", List.of()),
             auditService
         );
@@ -363,6 +370,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         ShopifyStoreConnectionEntity store = store("demo.myshopify.com");
@@ -407,6 +415,7 @@ class ShopifyStoreBootstrapServiceTest {
             marketplaceCatalogService,
             productServiceRepository,
             connectionService,
+            vectorizationService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
                 "custom-start-from-scratch",
@@ -455,6 +464,7 @@ class ShopifyStoreBootstrapServiceTest {
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         ShopifyStoreConnectionEntity store = store("demo.myshopify.com");
@@ -496,6 +506,7 @@ class ShopifyStoreBootstrapServiceTest {
             marketplaceCatalogService,
             productServiceRepository,
             connectionService,
+            vectorizationService,
             new ShopifyCompanionBootstrapProperties(
                 "dev",
                 "dev-openai-qdrant",

@@ -59,8 +59,6 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class ShopifyStoreBootstrapService {
 
     private static final String CANONICAL_TEMPLATE_ID = "dev-openai-qdrant";
-    private static final String LEGACY_SHOPIFY_INFERENCE_PLUGIN_ID = "mkp-inference-shopify-companion-default";
-    private static final String CANONICAL_SHOPIFY_INFERENCE_PLUGIN_ID = "mkp-inference-shared-embeddings";
     private static final String ACTIVE_RESOURCE_STATUS = "ACTIVE";
     private static final String QDRANT_VENDOR = "qdrant";
     private static final String QDRANT_CLUSTER_RESOURCE_TYPE = "CLUSTER";
@@ -88,6 +86,7 @@ public class ShopifyStoreBootstrapService {
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final PlatformManagedProductServiceRepository productServiceRepository;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
+    private final ShopifyStoreVectorizationService shopifyStoreVectorizationService;
     private final ShopifyCompanionBootstrapProperties properties;
     private final PlatformAuditService platformAuditService;
 
@@ -104,6 +103,7 @@ public class ShopifyStoreBootstrapService {
                                         MarketplaceCatalogService marketplaceCatalogService,
                                         PlatformManagedProductServiceRepository productServiceRepository,
                                         ShopifyStoreConnectionService shopifyStoreConnectionService,
+                                        ShopifyStoreVectorizationService shopifyStoreVectorizationService,
                                         ShopifyCompanionBootstrapProperties properties,
                                         PlatformAuditService platformAuditService) {
         this.repository = repository;
@@ -119,6 +119,7 @@ public class ShopifyStoreBootstrapService {
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.productServiceRepository = productServiceRepository;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
+        this.shopifyStoreVectorizationService = shopifyStoreVectorizationService;
         this.properties = properties;
         this.platformAuditService = platformAuditService;
     }
@@ -154,7 +155,7 @@ public class ShopifyStoreBootstrapService {
             ? createConsumer(store, customer, deployment, resolvedRequest)
             : ensureConsumerBinding(existingConsumer, deployment);
 
-        List<String> installedPluginIds = ensureBundle(deployment.id(), createdDeployment, resolvedRequest);
+        List<String> installedPluginIds = ensureBundle(store, deployment.id(), createdDeployment, resolvedRequest);
 
         store.setCustomerId(customer.getId());
         store.setDeploymentId(deployment.id());
@@ -162,6 +163,7 @@ public class ShopifyStoreBootstrapService {
         store.setOnboardingStatus("PLATFORM_BOOTSTRAPPED");
         store.setUpdatedAt(Instant.now());
         repository.save(store);
+        shopifyStoreVectorizationService.reconcile(store.getShopDomain());
 
         ShopifyStoreConnectionSummary summary = shopifyStoreConnectionService.getConnection(store.getShopDomain());
         platformAuditService.record(
@@ -303,7 +305,8 @@ public class ShopifyStoreBootstrapService {
         return summary;
     }
 
-    private List<String> ensureBundle(String deploymentId,
+    private List<String> ensureBundle(ShopifyStoreConnectionEntity store,
+                                      String deploymentId,
                                       boolean createdDeployment,
                                       BootstrapShopifyStoreRequest request) {
         LinkedHashSet<String> desiredPluginIds = new LinkedHashSet<>();
@@ -311,12 +314,10 @@ public class ShopifyStoreBootstrapService {
             request.pluginIds().stream()
                 .filter(value -> value != null && !value.isBlank())
                 .map(String::trim)
-                .map(this::canonicalizeBootstrapPluginId)
+                .map(ShopifyCompanionPluginSelection::canonicalizePluginId)
                 .forEach(desiredPluginIds::add);
         } else {
-            properties.defaultPluginIds().stream()
-                .map(this::canonicalizeBootstrapPluginId)
-                .forEach(desiredPluginIds::add);
+            desiredPluginIds.addAll(ShopifyCompanionPluginSelection.desiredManagedPluginIds(properties, store));
         }
 
         LinkedHashSet<String> installed = deploymentMarketplaceInstallService.listInstalls(deploymentId).stream()
@@ -545,12 +546,6 @@ public class ShopifyStoreBootstrapService {
         return PlatformSecretService.MANAGED_SECRET_PREFIX
             + "QDRANT_DB_API_KEY_DEP_"
             + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
-    }
-
-    private String canonicalizeBootstrapPluginId(String pluginId) {
-        return LEGACY_SHOPIFY_INFERENCE_PLUGIN_ID.equalsIgnoreCase(pluginId)
-            ? CANONICAL_SHOPIFY_INFERENCE_PLUGIN_ID
-            : pluginId;
     }
 
     private DeploymentEntity resolveDeployment(String deploymentId) {

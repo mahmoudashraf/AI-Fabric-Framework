@@ -16,6 +16,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabi
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -433,6 +434,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));
+        when(client.reconcileVectorization("alpha.myshopify.com")).thenReturn(vectorization("alpha.myshopify.com"));
 
         ShopifyBridgeStoreSummary response = service.updateSourceSettings(
             session(),
@@ -457,6 +459,32 @@ class ShopifyBridgeMerchantStoreServiceTest {
             true,
             false
         ));
+        verify(client).reconcileVectorization("alpha.myshopify.com");
+    }
+
+    @Test
+    void vectorizeNowDelegatesToPlatform() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            mock(ShopifyBridgeInstallCredentialService.class),
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class),
+            mock(ShopifyStorefrontPreviewService.class),
+            usageService,
+            mock(ShopifyBridgeBillingService.class),
+            mock(ShopifyWebhookSubscriptionDiagnosticsService.class)
+        );
+        when(client.vectorizeNow("alpha.myshopify.com")).thenReturn(vectorization("alpha.myshopify.com"));
+
+        ShopifyBridgeStoreVectorizationSummary response = service.vectorizeNow(session());
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        verify(client).vectorizeNow("alpha.myshopify.com");
+        verify(usageService).recordEvent("alpha.myshopify.com", "MERCHANT_VECTORIZATION_RUN_TRIGGERED");
     }
 
     @Test
@@ -555,6 +583,33 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "webhook-secret",
             "bridge-admin-key",
             "X-BRIDGE-API-KEY"
+        );
+    }
+
+    private ShopifyBridgeStoreVectorizationSummary vectorization(String shopDomain) {
+        return new ShopifyBridgeStoreVectorizationSummary(
+            shopDomain,
+            "dep-1",
+            true,
+            List.of("products", "collections"),
+            List.of("product"),
+            List.of("mkp-action-shopify-companion-read", "mkp-inference-shared-embeddings", "mkp-data-shopify-catalog"),
+            List.of("mkp-action-shopify-companion-read", "mkp-inference-shared-embeddings", "mkp-data-shopify-catalog"),
+            List.of(),
+            List.of(),
+            false,
+            true,
+            "vcn-1",
+            "READY",
+            "SHOPIFY-STORE",
+            true,
+            "vpl-1",
+            "ACTIVE",
+            "PLATFORM_MANAGED_AUTO",
+            "IN_SYNC",
+            true,
+            List.of(),
+            null
         );
     }
 

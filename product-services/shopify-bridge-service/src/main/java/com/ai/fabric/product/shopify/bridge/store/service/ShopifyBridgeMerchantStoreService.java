@@ -14,6 +14,7 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecord
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -147,6 +148,22 @@ public class ShopifyBridgeMerchantStoreService {
         return store;
     }
 
+    public ShopifyBridgeStoreVectorizationSummary vectorization(ShopifyMerchantSession merchantSession) {
+        return platformShopifyStoreClient.getVectorization(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary reconcileVectorization(ShopifyMerchantSession merchantSession) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.reconcileVectorization(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_RECONCILED");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary vectorizeNow(ShopifyMerchantSession merchantSession) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.vectorizeNow(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_RUN_TRIGGERED");
+        return summary;
+    }
+
     public ShopifyWebhookSubscriptionStatusSummary webhookSubscriptions(ShopifyMerchantSession merchantSession) {
         return webhookSubscriptionDiagnosticsService.forShop(merchantSession.shopDomain());
     }
@@ -218,6 +235,9 @@ public class ShopifyBridgeMerchantStoreService {
             pagesEnabled,
             policiesEnabled
         ));
+        if (hasPlatformBindings(store)) {
+            platformShopifyStoreClient.reconcileVectorization(store.shopDomain());
+        }
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SOURCE_SETTINGS_UPDATED");
         return store;
     }
