@@ -157,6 +157,36 @@ class QdrantVectorDatabaseServiceTest {
         verify(client, atLeast(2)).searchAsync(any());
     }
 
+    @Test
+    void getVectorCountByEntityTypeUsesCountProbeWithoutListingCollections() {
+        AIProviderConfig config = baseConfig();
+        QdrantClient client = mock(QdrantClient.class);
+        when(client.countAsync(eq("customer_a__tenant_b__product"), any(), eq(true)))
+            .thenReturn(Futures.immediateFuture(7L));
+
+        QdrantVectorDatabaseService service = new QdrantVectorDatabaseService(config, null, client);
+
+        assertThat(service.getVectorCountByEntityType("product")).isEqualTo(7L);
+
+        verify(client, never()).listCollectionsAsync();
+    }
+
+    @Test
+    void getVectorCountByEntityTypeReturnsZeroWhenCollectionIsMissing() {
+        AIProviderConfig config = baseConfig();
+        QdrantClient client = mock(QdrantClient.class);
+        when(client.countAsync(eq("customer_a__tenant_b__product"), any(), eq(true)))
+            .thenReturn(Futures.immediateFailedFuture(new RuntimeException(
+                "NOT_FOUND: Collection `customer_a__tenant_b__product` does not exist"
+            )));
+
+        QdrantVectorDatabaseService service = new QdrantVectorDatabaseService(config, null, client);
+
+        assertThat(service.getVectorCountByEntityType("product")).isZero();
+
+        verify(client, never()).listCollectionsAsync();
+    }
+
     private AIProviderConfig baseConfig() {
         AIProviderConfig config = new AIProviderConfig();
         AIProviderConfig.QdrantConfig qdrant = config.getQdrant();

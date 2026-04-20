@@ -33,6 +33,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -570,12 +571,16 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     public long getVectorCountByEntityType(String entityType) {
         ensureEnabled();
         String collection = collectionName(entityType);
-        if (!collectionExists(collection)) {
-            return 0L;
+        try {
+            Common.Filter filter = Common.Filter.newBuilder().build();
+            Long count = await(qdrantClient.countAsync(collection, filter, true), "count points");
+            return count != null ? count : 0L;
+        } catch (AIServiceException ex) {
+            if (isCollectionNotFoundFailure(ex)) {
+                return 0L;
+            }
+            throw ex;
         }
-        Common.Filter filter = Common.Filter.newBuilder().build();
-        Long count = await(qdrantClient.countAsync(collection, filter, true), "count points");
-        return count != null ? count : 0L;
     }
 
     @Override
@@ -1149,6 +1154,18 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         }
         return message.contains("Index required but not found")
             || message.contains(KNOWLEDGE_SOURCE_HANDLE_REF_FIELD);
+    }
+
+    private boolean isCollectionNotFoundFailure(AIServiceException exception) {
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String normalized = message.toLowerCase(Locale.ROOT);
+        return normalized.contains("collection")
+            && (normalized.contains("not found")
+                || normalized.contains("does not exist")
+                || normalized.contains("doesn't exist"));
     }
 
     private <T> T await(ListenableFuture<T> future, String action) {
