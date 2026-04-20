@@ -117,6 +117,7 @@ VERIFY_WRITE="${VERIFY_WRITE:-false}"
 EXPECT_CONFIRMATION_INTERCEPTOR_RULES="${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-cancel_to_retention_offer,accept_retention_offer,reject_retention_offer}"
 VERIFY_CONFIRMATION_RETENTION_FLOW="${VERIFY_CONFIRMATION_RETENTION_FLOW:-false}"
 VERIFY_MARKETPLACE_RUNTIME="${VERIFY_MARKETPLACE_RUNTIME:-false}"
+VERIFY_MARKETPLACE_RUNTIME_ACTIVE="${VERIFY_MARKETPLACE_RUNTIME_ACTIVE:-}"
 EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION:-MARKETPLACE_RUNTIME_SUPPORT_V2}"
 EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION:-SEARCH_SOURCE_DIAGNOSTICS_V1}"
 EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}"
@@ -160,6 +161,14 @@ if [[ -z "${VERIFY_VECTORIZATION_CONTROL_PLANE}" ]]; then
     VERIFY_VECTORIZATION_CONTROL_PLANE="true"
   else
     VERIFY_VECTORIZATION_CONTROL_PLANE="false"
+  fi
+fi
+
+if [[ -z "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" ]]; then
+  if [[ "${VERIFY_WRITE}" == "true" ]]; then
+    VERIFY_MARKETPLACE_RUNTIME_ACTIVE="true"
+  else
+    VERIFY_MARKETPLACE_RUNTIME_ACTIVE="false"
   fi
 fi
 
@@ -998,8 +1007,12 @@ PY
   json_assert "marketplace authenticated shell config" $'assert (data or {}).get("success") is True\nprint("ok")'
   assert_marketplace_shell_config "marketplace authenticated shell config payload" "${HTTP_BODY}"
 
-  trap cleanup_marketplace_shared_sentinel EXIT
-  seed_marketplace_shared_sentinel
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    trap cleanup_marketplace_shared_sentinel EXIT
+    seed_marketplace_shared_sentinel
+  else
+    echo "Marketplace shared-source write probe is disabled in read-only mode."
+  fi
 
   local conversation_id="marketplace-runtime-verify-$(date +%s)"
   platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" "$(build_chat_query_payload "${MARKETPLACE_SMOKE_QUERY}" "${conversation_id}")"
@@ -1007,16 +1020,26 @@ PY
   local expected_source_ids_json expected_adapter_types_json
   expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
   expected_adapter_types_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}")"
-  json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert "shared-marketplace-refund-policy" in source_ids, {"expectedSource": "shared-marketplace-refund-policy", "actual": sorted([v for v in source_ids if v])}\nassert len(expected_source_ids & source_ids) >= 2, {"expectedAtLeast": 2, "actual": sorted([v for v in (expected_source_ids & source_ids) if v])}\nprint("ok")'
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert "shared-marketplace-refund-policy" in source_ids, {"expectedSource": "shared-marketplace-refund-policy", "actual": sorted([v for v in source_ids if v])}\nassert len(expected_source_ids & source_ids) >= 2, {"expectedAtLeast": 2, "actual": sorted([v for v in (expected_source_ids & source_ids) if v])}\nprint("ok")'
+  else
+    json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert expected_source_ids & source_ids, {"expectedAnySource": sorted(expected_source_ids), "actual": sorted([v for v in source_ids if v])}\nassert expected_adapter_types & adapter_types, {"expectedAnyAdapter": sorted(expected_adapter_types), "actual": sorted([v for v in adapter_types if v])}\nprint("ok")'
+  fi
 
   runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
   assert_status 200 "marketplace runtime admin overview (post-query)"
   assert_marketplace_runtime_overview "marketplace runtime admin overview (post-query)" "${HTTP_BODY}"
   assert_marketplace_inference_profile "marketplace runtime inference profile (post-query)" "${HTTP_BODY}"
-  json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") == "SUCCEEDED", entry\nshared_hits = [entry for entry in sources if isinstance(entry, dict) and entry.get("adapterType") == "shared-index"]\nassert shared_hits, sources\nif any(entry.get("lastResultsCount") is not None for entry in shared_hits):\n  assert any(int(entry.get("lastResultsCount") or 0) >= 1 for entry in shared_hits), shared_hits\nprint("ok")'
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") == "SUCCEEDED", entry\nshared_hits = [entry for entry in sources if isinstance(entry, dict) and entry.get("adapterType") == "shared-index"]\nassert shared_hits, sources\nif any(entry.get("lastResultsCount") is not None for entry in shared_hits):\n  assert any(int(entry.get("lastResultsCount") or 0) >= 1 for entry in shared_hits), shared_hits\nprint("ok")'
+  else
+    json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") in {"SUCCEEDED", "SKIPPED"}, entry\nshared = source_map.get("shared-marketplace-refund-policy")\nassert shared is not None, source_map\nassert (shared.get("adapterType") or "") == "shared-index", shared\nassert bool(shared.get("handleRefConfigured")) is True, shared\nprint("ok")'
+  fi
   assert_marketplace_provider_connectivity
-  cleanup_marketplace_shared_sentinel
-  trap - EXIT
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    cleanup_marketplace_shared_sentinel
+    trap - EXIT
+  fi
   pass "marketplace runtime live verification"
 }
 
