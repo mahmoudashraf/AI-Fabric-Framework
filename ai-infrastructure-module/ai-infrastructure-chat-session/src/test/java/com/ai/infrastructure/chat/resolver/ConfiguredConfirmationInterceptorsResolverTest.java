@@ -152,6 +152,38 @@ class ConfiguredConfirmationInterceptorsResolverTest {
     }
 
     @Test
+    void shouldSuppressCorrelatedActionIntentsWhenPreservingCompoundTurnFollowUps() {
+        InMemoryPendingActionStore store = new InMemoryPendingActionStore();
+        ConfiguredConfirmationInterceptorsResolver resolver = new ConfiguredConfirmationInterceptorsResolver(
+            store,
+            provider(retentionRules())
+        );
+
+        PipelineContext context = context("conv-6");
+        store.pushPendingAction("conv-6", "demo-user", new PendingAction(
+            "cancel_purchase_order",
+            Map.of("orderNumber", "PO-8"),
+            null,
+            Instant.now()
+        ));
+
+        MultiIntentResponse compound = MultiIntentResponse.builder()
+            .intents(List.of(
+                Intent.builder().type(IntentType.CONFIRMATION_POSITIVE).build(),
+                Intent.builder().type(IntentType.ACTION).action("cancel_purchase_order").confidence(0.9d).build(),
+                Intent.builder().type(IntentType.ACTION).action("offer_order_discount").confidence(0.9d).build(),
+                Intent.builder().type(IntentType.ACTION).action("show_orders").confidence(0.9d).build()
+            ))
+            .build();
+
+        PipelineContext updated = resolver.resolve(compound, Map.of(), context);
+
+        assertThat(updated.getIntentResponse().getIntents())
+            .extracting(Intent::getAction)
+            .containsExactly("offer_order_discount", "show_orders");
+    }
+
+    @Test
     void shouldHonorOnceParamRegardlessOfStoredKeyCase() {
         InMemoryPendingActionStore store = new InMemoryPendingActionStore();
         ConfiguredConfirmationInterceptorsResolver resolver = new ConfiguredConfirmationInterceptorsResolver(

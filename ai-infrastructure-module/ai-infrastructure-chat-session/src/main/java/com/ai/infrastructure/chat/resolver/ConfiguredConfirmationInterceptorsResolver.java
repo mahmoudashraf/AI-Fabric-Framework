@@ -4,6 +4,7 @@ import com.ai.infrastructure.chat.interception.InterceptionDecision;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.intent.action.AIActionNames;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
@@ -17,6 +18,7 @@ import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -102,7 +104,7 @@ public class ConfiguredConfirmationInterceptorsResolver extends ConfirmationReso
         }
 
         List<Intent> nextIntents = new ArrayList<>(decision.intents());
-        nextIntents.addAll(withoutConfirmationIntents(intentResponse));
+        nextIntents.addAll(preservedNonConfirmationIntents(intentResponse, stackSnapshot, decision));
 
         MultiIntentResponse updatedResponse = MultiIntentResponse.builder()
             .intents(List.copyOf(nextIntents))
@@ -190,6 +192,79 @@ public class ConfiguredConfirmationInterceptorsResolver extends ConfirmationReso
                 Set.of()
             );
         };
+    }
+
+    private List<Intent> preservedNonConfirmationIntents(MultiIntentResponse intentResponse,
+                                                         List<PendingAction> stackSnapshot,
+                                                         InterceptionDecision decision) {
+        List<Intent> remaining = withoutConfirmationIntents(intentResponse);
+        if (remaining.isEmpty()) {
+            return List.of();
+        }
+
+        Set<String> correlatedActions = correlatedActionKeys(stackSnapshot, decision);
+        if (correlatedActions.isEmpty()) {
+            return remaining;
+        }
+
+        List<Intent> preserved = new ArrayList<>();
+        for (Intent intent : remaining) {
+            if (intent == null || intent.getType() != IntentType.ACTION) {
+                preserved.add(intent);
+                continue;
+            }
+            String actionName = resolveIntentActionName(intent);
+            if (!StringUtils.hasText(actionName)) {
+                preserved.add(intent);
+                continue;
+            }
+            String normalized = AIActionNames.normalize(actionName);
+            if (!correlatedActions.contains(normalized)) {
+                preserved.add(intent);
+            }
+        }
+        return List.copyOf(preserved);
+    }
+
+    private Set<String> correlatedActionKeys(List<PendingAction> stackSnapshot, InterceptionDecision decision) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (stackSnapshot != null) {
+            for (PendingAction pendingAction : stackSnapshot) {
+                if (pendingAction == null || !StringUtils.hasText(pendingAction.action())) {
+                    continue;
+                }
+                keys.add(AIActionNames.normalize(pendingAction.action()));
+            }
+        }
+        if (decision != null && decision.confirmedActions() != null) {
+            for (String actionName : decision.confirmedActions()) {
+                if (StringUtils.hasText(actionName)) {
+                    keys.add(AIActionNames.normalize(actionName));
+                }
+            }
+        }
+        if (decision != null && decision.intents() != null) {
+            for (Intent intent : decision.intents()) {
+                String actionName = resolveIntentActionName(intent);
+                if (StringUtils.hasText(actionName)) {
+                    keys.add(AIActionNames.normalize(actionName));
+                }
+            }
+        }
+        return keys;
+    }
+
+    private String resolveIntentActionName(Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        if (StringUtils.hasText(intent.getAction())) {
+            return intent.getAction().trim();
+        }
+        if (intent.getType() == IntentType.ACTION && StringUtils.hasText(intent.getIntent())) {
+            return intent.getIntent().trim();
+        }
+        return null;
     }
 
     private Intent actionIntent(String actionName, Map<String, Object> params) {
