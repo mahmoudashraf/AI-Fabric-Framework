@@ -114,6 +114,49 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.managedVectorProvisioningEnabled()).isFalse();
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksWeaviateReadyApiFailedWhenClusterReturnsNotFound() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn("weaviate-secret");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(404);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://weaviate.example:443/v1/.well-known/ready")
+                && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-weaviate", "Weaviate"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "weaviate",
+                  "weaviateScheme": "https",
+                  "weaviateHost": "weaviate.example",
+                  "weaviatePort": 443
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(1);
+        assertThat(summary.probes().get(0).key()).isEqualTo("weaviate_ready_api");
+        assertThat(summary.probes().get(0).status()).isEqualTo("FAILED");
+        assertThat(summary.probes().get(0).endpoint()).isEqualTo("https://weaviate.example:443/v1/.well-known/ready");
+        assertThat(summary.probes().get(0).message()).contains("HTTP 404");
+    }
+
     @Test
     void probeSummarizesManagedQdrantCollectionsFromEntityConfig() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);

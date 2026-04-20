@@ -397,7 +397,7 @@ public class DeploymentProviderConnectivityService {
                     request.header("Authorization", "Bearer " + apiKey);
                 }
             },
-            false
+            true
         );
     }
 
