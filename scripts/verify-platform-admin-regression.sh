@@ -291,36 +291,44 @@ platform_http() {
 }
 
 platform_login() {
-  if [[ -n "${PLATFORM_API_KEY}" || -n "${PLATFORM_COOKIE}" ]]; then
+  if [[ -n "${PLATFORM_COOKIE}" ]]; then
     return 0
   fi
+
+  if [[ -n "${PLATFORM_LOGIN_EMAIL}" && -n "${PLATFORM_LOGIN_PASSWORD}" ]]; then
+    local tmp
+    tmp="$(mktemp)"
+    local payload
+    payload="$(mktemp)"
+    cat > "${payload}" <<EOF
+{"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
+EOF
+    local status
+    status="$(
+      curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
+        -H "Content-Type: application/json" \
+        --data "@${payload}" \
+        "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
+    )"
+    rm -f "${payload}"
+    if [[ "${status}" != "200" ]]; then
+      echo "Platform login failed (HTTP ${status})."
+      cat "${tmp}"
+      rm -f "${tmp}"
+      exit 1
+    fi
+    rm -f "${tmp}"
+    return 0
+  fi
+
+  if [[ -n "${PLATFORM_API_KEY}" ]]; then
+    return 0
+  fi
+
   if [[ -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ]]; then
     echo "Platform verification requires PLATFORM_API_KEY, PLATFORM_COOKIE, or PLATFORM_LOGIN_EMAIL/PLATFORM_LOGIN_PASSWORD."
     exit 2
   fi
-
-  local tmp
-  tmp="$(mktemp)"
-  local payload
-  payload="$(mktemp)"
-  cat > "${payload}" <<EOF
-{"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
-EOF
-  local status
-  status="$(
-    curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
-      -H "Content-Type: application/json" \
-      --data "@${payload}" \
-      "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
-  )"
-  rm -f "${payload}"
-  if [[ "${status}" != "200" ]]; then
-    echo "Platform login failed (HTTP ${status})."
-    cat "${tmp}"
-    rm -f "${tmp}"
-    exit 1
-  fi
-  rm -f "${tmp}"
 }
 
 poll_until() {
