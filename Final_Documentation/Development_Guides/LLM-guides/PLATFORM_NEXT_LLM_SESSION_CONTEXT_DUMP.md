@@ -10,20 +10,16 @@ If live access is required, use the private handoff file separately and keep it 
 
 - Repo root: `/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo`
 - Branch: `Platform-V5`
-- HEAD: `9ba2fd1b737c6bbac76ca1150d36bbc21137eced`
-- Date captured: `2026-04-17`
+- HEAD: `71196b5efccd765550a010de4ec8c88eada88f1b`
+- Date captured: `2026-04-20`
+- Worktree status at capture: clean
 
 Important branch note:
 
-- the user explicitly reset the branch to `9ba2fd1b737c6bbac76ca1150d36bbc21137eced`
-- all streaming/widget work discussed after that point must be treated as discarded
-- do not assume any later widget or streaming commits exist on the active branch
-
-Current local note:
-
-- one unrelated untracked file may exist:
-  - `doc/Productization/future-work/MarketPlace/PLATFORM_CONTRACT_FINALIZATION_AND_LAUNCH_PLAN.md`
-- do not assume it is committed or authoritative unless the user asks to use it
+- the older sanitized snapshot on this branch referred to `HEAD = 9ba2fd1b737c6bbac76ca1150d36bbc21137eced` on `2026-04-17`
+- that older branch-specific snapshot is stale for current `HEAD` assumptions
+- this branch now includes newer Shopify Companion product and indexing-planning docs from `2026-04-18` through `2026-04-19`
+- do not treat the earlier post-action webhook-policy thread as the default next implementation topic for this branch
 
 ## 2. Current Marketplace Baseline On This Branch
 
@@ -50,11 +46,19 @@ Required interpretation:
 
 Start here for current implementation context:
 
-1. `doc/Productization/future-work/MarketPlace/README.md`
-2. `doc/Productization/future-work/MarketPlace/MARKETPLACE_CONTROL_PLANE_COMPOSITION_PLAN.md`
-3. `doc/Productization/future-work/MarketPlace/MARKETPLACE_INFERENCE_PROFILE_PRODUCTIZATION_PLAN.md`
-4. `doc/Productization/future-work/MarketPlace/MARKETPLACE_SHARED_INFERENCE_SERVICE_PLATFORM_PLAN.md`
-5. `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_AND_AUTH_TROUBLESHOOTING_GUIDE.md`
+1. `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_LLM_SESSION_OPERATING_CONTEXT.md`
+2. `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md`
+3. `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_FRAMEWORK_PHILOSOPHY.md`
+4. `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_AND_AUTH_TROUBLESHOOTING_GUIDE.md`
+5. `doc/Productization/future-work/MarketPlace/README.md`
+6. `doc/Productization/future-work/MarketPlace/Products/README.md`
+7. `doc/Productization/future-work/MarketPlace/Products/PRODUCT_DIRECTION_DECISION_RECORD.md`
+8. `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_PRODUCTS_SHIPPING_ROADMAP.md`
+9. `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
+10. `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
+11. `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_VECTORIZATION_TRIGGER_PLAN.md`
+12. `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md`
+13. `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md`
 
 Only use the private handoff doc if live credentials are required:
 
@@ -62,203 +66,239 @@ Only use the private handoff doc if live credentials are required:
 
 That private file is operationally useful but intentionally not safe for normal committed handoff usage.
 
-## 4. What Was Just Discussed In This Session
+## 4. What Was Just Reviewed In This Session
 
-The active product discussion at the point of this handoff was not about streaming or widget UX.
+The active work in this session was:
 
-The useful current topic is:
+- orient to the main LLM/platform operating guides
+- review the current Shopify Companion product docs
+- review the Shopify Companion indexing-trigger plan in detail
+- verify the current code surfaces named by the indexing-trigger plan
 
-- minimal marketplace-compatible post-action async policy support
+Current user instruction at the point of this handoff:
 
-The user explicitly narrowed scope to:
+- understand the Shopify Companion indexing-trigger work
+- do not implement it until the user explicitly asks
 
-- ignore pre-action policies
-- keep only the smallest useful post-action async policy
+## 5. Current Product Direction On This Branch
 
-## 5. Agreed Minimal Direction: Post-Action Async Webhook Policy
+The current Shopify V1 posture is:
 
-The clean minimal implementation direction is:
+- `Shopify Companion`
+- read-first shopping companion
+- evidence-backed product and policy assistant
+- not a transaction bot
 
-- support exactly one post-action async policy type:
-  - `webhook`
-- do not add a new public marketplace plugin type
-- attach this capability to existing `ACTION` plugins
-- compile it into deployment config
-- execute it from runtime/framework config, not from third-party code
+Important product rules:
 
-## 6. Minimal Config Direction
+- Shopify remains a thin first-party consumer of the existing platform
+- no Shopify-specific runtime fork
+- no new public marketplace plugin type is required for launch
+- storefront identity should resolve through stable `consumerId`
+- default launch auth posture remains:
+  - browser -> Shopify Bridge -> private runtime
+- merchant UI must stay bounded:
+  - source-category selection
+  - preflight
+  - indexing and live-update controls
+  - storefront activation
+  - diagnostics
 
-Use action-local post-policy declarations plus shared target definitions.
+The merchant should not be asked to manage:
 
-Conceptual shape:
+- raw plugin installs
+- deployment drafts or versions
+- source-connection JSON
+- vectorization plan JSON
+- secrets
+- runner sessions or low-level concurrency
 
-```yaml
-actions:
-  - name: cancel_order
-    postPolicies:
-      - type: webhook
-        targetRef: zapier_order_events
-        eventType: order.cancelled
+## 6. Current Shopify Companion Baseline On This Branch
 
-webhookTargets:
-  - id: zapier_order_events
-    urlSecretRef: ZAPIER_ORDER_EVENTS_URL
-    signingSecretRef: ZAPIER_SIGNING_SECRET
-    timeoutMs: 3000
-    maxAttempts: 5
-```
+Current main product surfaces:
 
-Rationale:
+- platform backend:
+  - deployment lifecycle
+  - marketplace composition
+  - Shopify store binding records
+  - vectorization connections, plans, runs, and runner registration
+- Shopify Bridge service:
+  - Shopify install/auth/session handling
+  - merchant embedded admin app
+  - storefront bootstrap/query/suggestions/event routes
+  - normalized vectorization-source endpoints
+- theme app extension:
+  - storefront launcher and shopper assistant surface
 
-- per-action policy attachment is easy to reason about
-- target reuse stays centralized
-- target URL remains secret-backed
-- validation remains bounded and deterministic
+Current vectorization shape:
 
-## 7. Minimal Runtime Behavior
+- source connection adapter type: `REST_API`
+- source auth mode: `API_KEY`
+- source auth header: `X-BRIDGE-API-KEY`
+- source data provider: Shopify Bridge admin endpoints
 
-Required behavior:
+Current source-category mapping:
 
-1. action executes successfully
-2. matching webhook post-policy is resolved
-3. delivery job is enqueued
-4. user response returns immediately
-5. background worker sends the webhook asynchronously
+- `products` -> `product`
+- `collections` -> `product`
+- `pages` -> `support-policy`
+- `policies` -> `support-policy`
 
-Do not block the user-facing action response on webhook delivery.
+Current required plugin baseline for the Shopify Companion vectorization path:
 
-## 8. Minimal Delivery Payload
+- `mkp-action-shopify-companion-read`
+- `mkp-inference-shared-embeddings`
+- `mkp-data-shopify-catalog`
+- `mkp-data-shopify-policies`
 
-Conceptual payload shape:
+Current bounded merchant actions that are actually wired now:
 
-```json
-{
-  "eventType": "order.cancelled",
-  "timestamp": "2026-04-17T12:00:00Z",
-  "deploymentId": "dep-123",
-  "conversationId": "conv-123",
-  "action": {
-    "name": "cancel_order",
-    "params": {
-      "orderId": "O-1001"
-    }
-  },
-  "result": {
-    "success": true,
-    "data": {}
-  }
-}
-```
+- `Reconcile deployment support`
+- `Index all enabled data`
 
-Optional signing header:
+Current important gap:
 
-- `X-AI-Fabric-Signature`
+- the product/docs are moving toward `Index`, `Reindex`, and `Live updates`
+- the currently wired manual run surface is still the single bounded `vectorize-now` flow for the current enabled entity scope
 
-## 9. Minimal Platform Pieces To Build
+## 7. Current Verified Code-Level Status
 
-### 9.1 Config And Validation
+The current code-backed state is:
 
-Add support for:
+1. Shopify content/config webhooks are classified in:
+   - `product-services/shopify-bridge-service/.../ShopifyWebhookService.java`
+2. Those webhooks record state and attempt incremental sync:
+   - current behavior is still sync-invalidation oriented, not live-index-intent oriented
+3. The platform marks the store `NOT_SYNCED` on webhook-driven invalidation:
+   - `Platfrom/backend/.../ShopifyStoreWebhookService.java`
+4. Manual indexing is currently triggered through:
+   - `Platfrom/backend/.../ShopifyStoreVectorizationService.java`
+5. Current execution config is explicitly manual:
+   - `triggerMode = SHOPIFY_ADMIN_MANUAL`
+6. Shopify document sync already removes stale runtime documents during sync sweeps:
+   - `Platfrom/backend/.../ShopifyStoreDocumentSyncService.java`
+7. The vectorization runner target writer still emits `UPSERT` only:
+   - `ai-fabric-product/.../ConnectorDataSyncTargetWriter.java`
+8. Deployment-level reindex semantics already remain version-based through:
+   - `Platfrom/backend/.../VectorizationIndexedOutputHashService.java`
+   - `Platfrom/backend/.../DeploymentConfigCompiler.java`
+   - `Platfrom/backend/.../DeploymentService.java`
 
-- `actions[].postPolicies[]`
-- `webhookTargets[]`
+Important practical interpretation:
 
-Validate:
+- deployment-snapshot changes are already handled as publish/apply/reindex concerns
+- Shopify source-object changes are not yet modeled as a durable live-indexing event pipeline
 
-- policy type must be `webhook`
-- referenced action exists
-- `targetRef` resolves to a declared target
-- secret refs are non-empty
+## 8. Agreed Next Focus: Shopify Companion Indexing Trigger Plan
 
-### 9.2 Delivery Queue Table
+The current next implementation topic is:
 
-Minimal table shape:
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_VECTORIZATION_TRIGGER_PLAN.md`
 
-- `id`
-- `deployment_id`
-- `action_name`
-- `event_type`
-- `target_ref`
-- `payload_json`
-- `status`
-- `attempt_count`
-- `next_attempt_at`
-- `last_error`
-- `created_at`
-- `delivered_at`
+The plan separates three classes of change:
 
-### 9.3 Enqueue Service
+1. deployment-snapshot changes
+   - remain draft-backed and reindex-backed
+2. Shopify source-object changes
+   - should drive indexing against the active deployment snapshot without publish/apply
+3. operational runtime changes
+   - should not themselves trigger reindex
 
-After successful action execution:
+Merchant-facing target behavior:
 
-- create delivery rows for matching webhook post-policies
+- manually index all enabled data
+- manually reindex selected entity families
+- manually reindex all enabled entity families
+- enable live auto indexing per Shopify source family
+- choose create/delete/update trigger types
+- choose update sensitivity:
+  - `ANY_UPDATE`
+  - `INDEXED_FIELDS_ONLY`
+  - `SELECTED_INDEXED_FIELDS`
 
-### 9.4 Background Sender
+Important product wording rule:
 
-Scheduled worker:
+- `sync` is internal
+- merchant language should be `Index`, `Reindex`, and `Live updates`
 
-- pick pending rows
-- send HTTP POST
-- mark delivered on `2xx`
-- retry on failure until `maxAttempts`
+## 9. Current Gaps Between Target Plan And Current Code
 
-## 10. Minimal Marketplace Integration
+The following pieces appear to be future work rather than already-landed behavior:
 
-Do not add a new public plugin type.
+- no persisted `ShopifyStoreVectorizationPolicy` model yet
+- no Shopify-specific dirty-event queue / coalescer / dead-letter flow yet
+- no sparse indexed-object ledger with indexed-output fingerprints yet
+- no indexed-field-aware update evaluation yet
+- no targeted manual `Reindex selected types` endpoint yet
+- no true object-level incremental `DELETE` support in the vectorization runner yet
 
-Instead:
+The trigger plan should therefore be read as real implementation work, not as already-complete behavior.
 
-- extend `ACTION` plugin contributions so they can emit:
-  - action definitions
-  - action routes
-  - post-action webhook policies
-  - webhook target definitions
+## 10. Recommended Immediate Next Sequence
 
-Compiler responsibility:
+If the next session starts implementation on the indexing-trigger work, use this order:
 
-- merge plugin-provided webhook config into deployment config
-- validate references before publish
+1. finish the manual merchant-control surface so the product language and backend actions align
+2. add persisted store-level trigger policy
+3. add a platform-owned dirty-event queue with dedupe, lease, retry, and dead-letter behavior
+4. split the pipeline into stable roles:
+   - event ingestor
+   - coalescer
+   - intent dispatcher
+   - run enqueuer
+5. keep the first auto mode on current safe primitives:
+   - webhook -> internal refresh/coalesce -> scoped indexing run
+6. derive effective indexed fields from the active deployment snapshot instead of inventing a second field-definition system
+7. add the sparse indexed-object ledger and indexed-output fingerprint comparison
+8. only later extend the runner for true object-level `UPSERT` and `DELETE`
 
-## 11. Minimal Verification Target
+## 11. Where To Look In Code First
 
-Required proof:
+Primary code areas for the indexing-trigger work:
 
-1. publish and apply a deployment with one webhook post-policy
-2. trigger the action successfully
-3. confirm a delivery row is created
-4. confirm the webhook endpoint receives the payload
-5. force one failure and confirm retry behavior works
+- bridge webhook intake:
+  - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/webhook/`
+- merchant bridge routes and platform client:
+  - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/web/`
+  - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/client/platform/`
+- merchant UI:
+  - `product-services/shopify-bridge-service/ui/src/`
+- platform Shopify domain:
+  - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/`
+- platform vectorization domain:
+  - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/vectorization/`
+- vectorization runner:
+  - `ai-fabric-product/ai-fabric-vectorization-runner/src/main/java/com/ai/fabric/vectorization/runner/`
 
-Good first real example:
+Useful current verification scripts:
 
-- extend a first-party `ACTION` plugin such as a Shopify admin action plugin
-- deliver post-action event to a Zapier catch hook
+- `scripts/verify-shopify-companion.sh`
+- `scripts/verify-shopify-companion-uninstall.sh`
+- `scripts/run-shopify-companion-rollout.sh`
 
-## 12. Recommended Immediate Next Sequence
+Useful current API checks:
 
-If the next session starts implementation, use this order:
+- `GET /api/shopify/stores/{shopDomain}/vectorization`
+- `POST /api/shopify/stores/{shopDomain}/vectorization/reconcile`
+- `POST /api/shopify/stores/{shopDomain}/vectorization/vectorize-now`
+- `GET /api/deployments/{deploymentId}/vectorization`
+- `GET /api/deployments/{deploymentId}/vectorization/runs/{runId}`
 
-1. add config schema for `postPolicies` and `webhookTargets`
-2. add validation
-3. add delivery queue table
-4. enqueue on successful action execution
-5. add scheduled sender with retry
-6. extend marketplace `ACTION` compiler support
-7. seed one first-party example
-8. add one live verification script or verification step
-
-## 13. Explicit Non-Goals For The Next Session
+## 12. Explicit Non-Goals For The Next Session
 
 Do not expand scope unless the user asks:
 
-- no pre-action policies
-- no generic workflow engine
-- no arbitrary user scripting
-- no arbitrary outbound HTTP execution without bounded target config
-- no new public marketplace plugin type for webhook behavior
+- no new public marketplace plugin type for Shopify indexing triggers
+- no Shopify-specific runtime fork
+- no full Shopify content mirror in platform or bridge databases
+- no broker-first/Kafka-first rewrite before the business semantics exist
+- no removal of deployment-snapshot reindex semantics
+- no merchant exposure of drafts, versions, secrets, or vectorization JSON internals
+- no implementation of the indexing-trigger plan until the user explicitly requests code changes
 
-## 14. Session Safety Notes
+## 13. Session Safety Notes
 
 - this file is safe to commit
 - do not copy raw secrets into this file
 - if live validation is needed, use the private handoff only as an operational credential source, not as a design reference
+- when debugging live Shopify Companion issues, keep platform control plane, Shopify Bridge, and storefront/theme-extension failures separated

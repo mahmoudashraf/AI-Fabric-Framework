@@ -144,6 +144,11 @@ EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETIN
 RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN:-}"
 MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
 MARKETPLACE_SHARED_SENTINEL_ID="${MARKETPLACE_SHARED_SENTINEL_ID:-}"
+MARKETPLACE_SHARED_SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF:-commerce-catalog/refund-policy}"
+MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE:-policy}"
+MARKETPLACE_SHARED_SENTINEL_DATASET_ID="${MARKETPLACE_SHARED_SENTINEL_DATASET_ID:-}"
+MARKETPLACE_SHARED_SENTINEL_DATASET_HASH="${MARKETPLACE_SHARED_SENTINEL_DATASET_HASH:-}"
+MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL="${MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL:-}"
 RETENTION_TEST_SKU="${RETENTION_TEST_SKU:-SKU-0001}"
 RETENTION_TEST_QUANTITY="${RETENTION_TEST_QUANTITY:-1}"
 RETENTION_TEST_SHIPPING_ADDRESS="${RETENTION_TEST_SHIPPING_ADDRESS:-10 Verification Lane, London}"
@@ -689,17 +694,35 @@ marketplace_shared_sentinel_payload() {
   local operation="${2:-upsert}"
   SENTINEL_ID="${sentinel_id}" \
   SENTINEL_OPERATION="${operation}" \
+  SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}" \
+  SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE}" \
+  SENTINEL_DATASET_ID="${MARKETPLACE_SHARED_SENTINEL_DATASET_ID}" \
+  SENTINEL_DATASET_HASH="${MARKETPLACE_SHARED_SENTINEL_DATASET_HASH}" \
   python3 - <<'PY'
+import hashlib
 import json
 import os
 
 sentinel_id = os.environ["SENTINEL_ID"]
 operation = os.environ.get("SENTINEL_OPERATION", "upsert").strip().lower()
+handle_ref = os.environ.get("SENTINEL_HANDLE_REF", "").strip()
+entity_type = os.environ.get("SENTINEL_ENTITY_TYPE", "").strip() or "policy"
+dataset_id = os.environ.get("SENTINEL_DATASET_ID", "").strip()
+dataset_hash = os.environ.get("SENTINEL_DATASET_HASH", "").strip()
+
+granted_scopes = ["vectorization:verification"]
+if operation == "delete":
+    granted_scopes.insert(0, "data-sync:delete")
+else:
+    granted_scopes.insert(0, "data-sync:upsert")
 
 trace = {
     "requestId": f"marketplace-shared-sentinel-{sentinel_id}",
     "metadata": {
         "deploymentId": os.environ.get("PLATFORM_DEPLOYMENT_ID", ""),
+        "datasetId": dataset_id,
+        "handleRef": handle_ref,
+        "datasetHash": dataset_hash,
         "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
     },
     "authContext": {
@@ -712,37 +735,130 @@ trace = {
         "customerId": os.environ.get("EXPECT_TENANT_SCOPED_CUSTOMER_ID", ""),
         "tenantId": os.environ.get("EXPECT_TENANT_SCOPED_TENANT_ID", ""),
         "issuer": "platform-hosted-verification",
-        "grantedScopes": ["data-sync:upsert", "data-sync:delete", "vectorization:verification"],
+        "grantedScopes": granted_scopes,
     },
 }
 
 if operation == "delete":
     print(json.dumps({
-        "vectorSpace": "policy",
-        "id": sentinel_id,
         "trace": trace,
+        "operations": [
+            {
+                "type": "DELETE",
+                "vectorSpace": entity_type,
+                "id": sentinel_id,
+            }
+        ],
     }))
     raise SystemExit(0)
 
+content = (
+    "title: Shared Refund Policy\n"
+    "text: Customers may request a refund within 30 days of delivery. "
+    "Refunds require the product to be returned in good condition, and approved refunds "
+    "are issued to the original payment method within 5 business days.\n"
+    "classification: refund"
+)
+
 print(json.dumps({
-    "vectorSpace": "policy",
-    "id": sentinel_id,
-    "content": (
-        "title: Shared Refund Policy\\n"
-        "text: Customers may request a refund within 30 days of delivery. "
-        "Refunds require the product to be returned in good condition, and approved refunds "
-        "are issued to the original payment method within 5 business days.\\n"
-        "classification: refund"
-    ),
-    "metadata": {
-        "title": "Shared Refund Policy",
-        "classification": "refund",
-        "knowledgeSourceHandleRef": "commerce-catalog/refund-policy",
-        "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
-    },
     "trace": trace,
+    "operations": [
+        {
+            "type": "UPSERT",
+            "vectorSpace": entity_type,
+            "id": sentinel_id,
+            "content": content,
+            "metadata": {
+                "title": "Shared Refund Policy",
+                "classification": "refund",
+                "knowledgeSourceHandleRef": handle_ref,
+                "marketplaceDatasetId": dataset_id,
+                "marketplaceDatasetHash": dataset_hash,
+                "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
+            },
+            "identity": {
+                "sourceRecordId": sentinel_id,
+                "sourceRecordVersion": dataset_hash,
+                "contentFingerprint": hashlib.md5(content.encode("utf-8")).hexdigest(),
+            },
+        }
+    ],
 }))
 PY
+}
+
+ensure_marketplace_shared_sentinel_contract() {
+  if [[ -n "${MARKETPLACE_SHARED_SENTINEL_DATASET_ID}" && -n "${MARKETPLACE_SHARED_SENTINEL_DATASET_HASH}" ]]; then
+    return 0
+  fi
+  if [[ -z "${PLATFORM_BASE_URL:-}" || -z "${PLATFORM_DEPLOYMENT_ID:-}" ]]; then
+    fail "Marketplace shared sentinel verification requires PLATFORM_BASE_URL and PLATFORM_DEPLOYMENT_ID, or explicit MARKETPLACE_SHARED_SENTINEL_DATASET_ID and MARKETPLACE_SHARED_SENTINEL_DATASET_HASH."
+  fi
+  if [[ -z "${PLATFORM_SOURCE_OF_TRUTH_BODY:-}" ]]; then
+    platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
+    assert_status 200 "platform source of truth (marketplace sentinel contract)"
+    PLATFORM_SOURCE_OF_TRUTH_BODY="${HTTP_BODY}"
+  fi
+
+  MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL="$(PARSE_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}" python3 - <<'PY'
+import json
+import os
+
+body = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+print(((body.get("liveArtifacts") or {}).get("marketplaceDatasetArtifactUrl")) or "")
+PY
+)"
+  if [[ -z "${MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL}" ]]; then
+    fail "Marketplace shared sentinel verification requires liveArtifacts.marketplaceDatasetArtifactUrl in deployment source-of-truth."
+  fi
+
+  platform_http GET "${MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL}"
+  assert_status 200 "marketplace dataset artifact fetch"
+  local resolved_contract=()
+  mapfile -t resolved_contract < <(
+    MARKETPLACE_DATASET_ARTIFACT_BODY="${HTTP_BODY}" \
+    SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}" \
+    SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE}" \
+    python3 - <<'PY'
+import json
+import os
+import sys
+
+body = json.loads(os.environ.get("MARKETPLACE_DATASET_ARTIFACT_BODY", "") or "{}")
+datasets = (body or {}).get("datasets") or []
+handle_ref = (os.environ.get("SENTINEL_HANDLE_REF") or "").strip()
+default_entity_type = (os.environ.get("SENTINEL_ENTITY_TYPE") or "").strip() or "policy"
+
+match = next(
+    (
+        item for item in datasets
+        if isinstance(item, dict) and (item.get("handleRef") or "").strip() == handle_ref
+    ),
+    None,
+)
+if match is None:
+    print(f"missing handleRef {handle_ref}", file=sys.stderr)
+    raise SystemExit(1)
+
+dataset_id = (match.get("datasetId") or "").strip()
+dataset_hash = (match.get("datasetHash") or "").strip()
+entity_type = (match.get("entityType") or "").strip() or default_entity_type
+if not dataset_id or not dataset_hash:
+    print(json.dumps(match), file=sys.stderr)
+    raise SystemExit(2)
+
+print(dataset_id)
+print(dataset_hash)
+print(entity_type)
+PY
+  ) || fail "Failed to resolve marketplace shared sentinel dataset contract for handleRef ${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}."
+  if [[ "${#resolved_contract[@]}" -lt 3 ]]; then
+    fail "Marketplace shared sentinel contract lookup returned incomplete dataset metadata."
+  fi
+
+  MARKETPLACE_SHARED_SENTINEL_DATASET_ID="${resolved_contract[0]}"
+  MARKETPLACE_SHARED_SENTINEL_DATASET_HASH="${resolved_contract[1]}"
+  MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE="${resolved_contract[2]}"
 }
 
 cleanup_marketplace_shared_sentinel() {
@@ -751,7 +867,7 @@ cleanup_marketplace_shared_sentinel() {
   fi
   local payload
   payload="$(marketplace_shared_sentinel_payload "${MARKETPLACE_SHARED_SENTINEL_ID}" "delete")"
-  runtime_operational_http POST "${RUNTIME_BASE_URL}/api/ai/data-sync/delete" "${payload}"
+  runtime_operational_http POST "${RUNTIME_BASE_URL}/api/ai/data-sync/batch" "${payload}"
   MARKETPLACE_SHARED_SENTINEL_ID=""
 }
 
@@ -762,12 +878,13 @@ seed_marketplace_shared_sentinel() {
   if [[ -z "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
     fail "Marketplace shared sentinel seeding requires RUNTIME_TRUSTED_BACKEND_API_KEY."
   fi
+  ensure_marketplace_shared_sentinel_contract
   MARKETPLACE_SHARED_SENTINEL_ID="policy-shared-refund-$(date +%s)"
   local payload
   payload="$(marketplace_shared_sentinel_payload "${MARKETPLACE_SHARED_SENTINEL_ID}" "upsert")"
-  runtime_operational_http POST "${RUNTIME_BASE_URL}/api/ai/data-sync/upsert" "${payload}"
+  runtime_operational_http POST "${RUNTIME_BASE_URL}/api/ai/data-sync/batch" "${payload}"
   assert_status 200 "marketplace shared sentinel upsert"
-  json_assert "marketplace shared sentinel upsert" $'assert (data or {}).get("success") is True, data\nprint("ok")'
+  json_assert "marketplace shared sentinel upsert" $'assert (data or {}).get("success") is True, data\nassert int((data or {}).get("failedOperations") or 0) == 0, data\nassert int((data or {}).get("succeededOperations") or 0) >= 1, data\nprint("ok")'
 }
 
 run_marketplace_runtime_verification() {
@@ -1558,7 +1675,7 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
 
   if [[ "${VERIFY_MARKETPLACE_RUNTIME}" == "true" ]]; then
     HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
-    json_assert "platform marketplace source of truth artifacts" $'artifacts = (data or {}).get("liveArtifacts") or {}\nassert bool(artifacts.get("knowledgeSourceArtifactUrl")), artifacts\nassert bool(artifacts.get("shellArtifactUrl")), artifacts\nprint("ok")'
+    json_assert "platform marketplace source of truth artifacts" $'artifacts = (data or {}).get("liveArtifacts") or {}\nassert bool(artifacts.get("knowledgeSourceArtifactUrl")), artifacts\nassert bool(artifacts.get("shellArtifactUrl")), artifacts\nassert bool(artifacts.get("marketplaceDatasetArtifactUrl")), artifacts\nprint("ok")'
     pass "platform marketplace artifact alignment"
   fi
 
