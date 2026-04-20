@@ -266,6 +266,10 @@ public class RailwayGraphqlClient {
         message
         """;
 
+    private static final String MINIMAL_HTTP_LOG_FIELDS = """
+        timestamp
+        """;
+
     private static final String DOMAINS_QUERY = """
         query domains($projectId: String!, $environmentId: String!, $serviceId: String!) {
           domains(
@@ -736,16 +740,33 @@ public class RailwayGraphqlClient {
                                                       String filter,
                                                       String startDate,
                                                       String endDate) {
-        return fetchLogs(
-            "httpLogs",
-            "deploymentId",
-            deploymentId,
-            limit,
-            filter,
-            startDate,
-            endDate,
-            HTTP_LOG_FIELDS
-        );
+        RailwayProvisioningException lastFailure = null;
+        for (String fieldSelection : List.of(HTTP_LOG_FIELDS, MINIMAL_HTTP_LOG_FIELDS)) {
+            try {
+                return fetchLogs(
+                    "httpLogs",
+                    "deploymentId",
+                    deploymentId,
+                    limit,
+                    filter,
+                    startDate,
+                    endDate,
+                    fieldSelection
+                );
+            } catch (RailwayProvisioningException ex) {
+                lastFailure = ex;
+                if (!isGraphQlFieldValidationFailure(ex) || MINIMAL_HTTP_LOG_FIELDS.equals(fieldSelection)) {
+                    throw ex;
+                }
+                log.warn(
+                    "Railway httpLogs field selection failed validation; retrying with a minimal field set: {}",
+                    ex.getMessage()
+                );
+            }
+        }
+        throw lastFailure == null
+            ? new RailwayProvisioningException("Railway http log query failed.")
+            : lastFailure;
     }
 
     public List<RailwayServiceDomainSummary> listServiceDomains(String projectId,
@@ -1000,6 +1021,11 @@ public class RailwayGraphqlClient {
 
     private boolean isRetryableStatus(int statusCode) {
         return statusCode == 429 || statusCode == 502 || statusCode == 503 || statusCode == 504;
+    }
+
+    private boolean isGraphQlFieldValidationFailure(RailwayProvisioningException ex) {
+        String message = ex.getMessage();
+        return message != null && message.contains("Cannot query field");
     }
 
     private String summarizeBody(String body) {
