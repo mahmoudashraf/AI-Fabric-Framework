@@ -243,7 +243,7 @@ public class RailwayGraphqlClient {
         }
         """;
 
-    private static final String LOG_FIELDS = """
+    private static final String STANDARD_LOG_FIELDS = """
         timestamp
         severity
         message
@@ -259,6 +259,11 @@ public class RailwayGraphqlClient {
           key
           value
         }
+        """;
+
+    private static final String HTTP_LOG_FIELDS = """
+        timestamp
+        message
         """;
 
     private static final String DOMAINS_QUERY = """
@@ -697,7 +702,16 @@ public class RailwayGraphqlClient {
                                                             String filter,
                                                             String startDate,
                                                             String endDate) {
-        return fetchLogs("deploymentLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+        return fetchLogs(
+            "deploymentLogs",
+            "deploymentId",
+            deploymentId,
+            limit,
+            filter,
+            startDate,
+            endDate,
+            STANDARD_LOG_FIELDS
+        );
     }
 
     public List<RailwayLogEntrySummary> fetchBuildLogs(String deploymentId,
@@ -705,7 +719,16 @@ public class RailwayGraphqlClient {
                                                        String filter,
                                                        String startDate,
                                                        String endDate) {
-        return fetchLogs("buildLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+        return fetchLogs(
+            "buildLogs",
+            "deploymentId",
+            deploymentId,
+            limit,
+            filter,
+            startDate,
+            endDate,
+            STANDARD_LOG_FIELDS
+        );
     }
 
     public List<RailwayLogEntrySummary> fetchHttpLogs(String deploymentId,
@@ -713,7 +736,16 @@ public class RailwayGraphqlClient {
                                                       String filter,
                                                       String startDate,
                                                       String endDate) {
-        return fetchLogs("httpLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+        return fetchLogs(
+            "httpLogs",
+            "deploymentId",
+            deploymentId,
+            limit,
+            filter,
+            startDate,
+            endDate,
+            HTTP_LOG_FIELDS
+        );
     }
 
     public List<RailwayServiceDomainSummary> listServiceDomains(String projectId,
@@ -793,7 +825,8 @@ public class RailwayGraphqlClient {
                                                    Integer limit,
                                                    String filter,
                                                    String startDate,
-                                                   String endDate) {
+                                                   String endDate,
+                                                   String logFields) {
         StringBuilder args = new StringBuilder();
         appendArgument(args, idArgName, graphQlStringLiteral(idValue));
         if (limit != null) {
@@ -815,7 +848,7 @@ public class RailwayGraphqlClient {
                 %s
               }
             }
-            """.formatted(queryField, args, LOG_FIELDS);
+            """.formatted(queryField, args, logFields);
 
         JsonNode data = execute(query, Map.of());
         List<RailwayLogEntrySummary> logs = new ArrayList<>();
