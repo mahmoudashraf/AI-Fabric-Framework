@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorResourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantBindingSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
@@ -9,19 +10,24 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Comparator;
+
 @Service
 public class DeploymentTenantScopedVectorService {
 
     private final PlatformCustomerTenantService platformCustomerTenantService;
     private final TenantScopedVectorHandleResolver tenantScopedVectorHandleResolver;
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
+    private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
 
     public DeploymentTenantScopedVectorService(PlatformCustomerTenantService platformCustomerTenantService,
                                                TenantScopedVectorHandleResolver tenantScopedVectorHandleResolver,
-                                               DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService) {
+                                               DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                               DeploymentManagedVectorResourceService deploymentManagedVectorResourceService) {
         this.platformCustomerTenantService = platformCustomerTenantService;
         this.tenantScopedVectorHandleResolver = tenantScopedVectorHandleResolver;
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
+        this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
     }
 
     public DeploymentTenantScopedVectorSummary build(DeploymentEntity deployment, JsonNode providerConfig) {
@@ -198,7 +204,7 @@ public class DeploymentTenantScopedVectorService {
             binding.tenantName(),
             "COLLECTION_PREFIX",
             "Endpoint",
-            blankToFallback(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig), "Configured Qdrant cluster"),
+            resolveQdrantRootResourceValue(deployment, providerConfig),
             collectionPrefix,
             null,
             collectionPrefix + "<entity_type>",
@@ -208,6 +214,54 @@ public class DeploymentTenantScopedVectorService {
             null,
             "Tenant scope is enforced through Qdrant collection naming under the configured cluster."
         );
+    }
+
+    private String resolveQdrantRootResourceValue(DeploymentEntity deployment, JsonNode providerConfig) {
+        String managedEndpoint = deploymentManagedVectorResourceService.listResources(deployment.getId()).stream()
+            .filter(resource -> "qdrant".equalsIgnoreCase(resource.vendor()))
+            .filter(resource -> "ACTIVE".equalsIgnoreCase(resource.resourceStatus()))
+            .sorted(Comparator.comparingInt(this::qdrantResourcePriority))
+            .map(this::managedQdrantBaseUrl)
+            .filter(StringUtils::hasText)
+            .findFirst()
+            .orElse(null);
+        if (StringUtils.hasText(managedEndpoint)) {
+            return managedEndpoint;
+        }
+        return blankToFallback(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig), "Configured Qdrant cluster");
+    }
+
+    private int qdrantResourcePriority(DeploymentManagedVectorResourceSummary resource) {
+        if ("CLUSTER".equalsIgnoreCase(resource.resourceType())) {
+            return 0;
+        }
+        if ("COLLECTION".equalsIgnoreCase(resource.resourceType())) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private String managedQdrantBaseUrl(DeploymentManagedVectorResourceSummary resource) {
+        if (resource == null) {
+            return null;
+        }
+        JsonNode details = resource.details();
+        if (details != null && StringUtils.hasText(details.path("baseUrl").asText(""))) {
+            return trimTrailingSlash(details.path("baseUrl").asText(""));
+        }
+        if (StringUtils.hasText(resource.endpoint())) {
+            String endpoint = trimTrailingSlash(resource.endpoint());
+            int collectionIndex = endpoint.indexOf("/collections/");
+            return collectionIndex >= 0 ? endpoint.substring(0, collectionIndex) : endpoint;
+        }
+        return null;
+    }
+
+    private String trimTrailingSlash(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
 
     private DeploymentTenantScopedVectorSummary weaviateSummary(DeploymentEntity deployment,

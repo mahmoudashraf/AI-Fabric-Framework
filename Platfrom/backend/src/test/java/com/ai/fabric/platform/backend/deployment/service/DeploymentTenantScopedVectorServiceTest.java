@@ -1,14 +1,17 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorResourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantBindingSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,6 +26,7 @@ class DeploymentTenantScopedVectorServiceTest {
     void buildSharedPineconeSummaryDerivesTenantScopedNamespaceHandle() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         DeploymentEntity deployment = deployment("cust-acme", "ten-retail");
         when(tenantService.summarizeBinding(deployment)).thenReturn(
             new DeploymentTenantBindingSummary(
@@ -48,7 +52,8 @@ class DeploymentTenantScopedVectorServiceTest {
         DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
             tenantService,
             new TenantScopedVectorHandleResolver(),
-            registryService
+            registryService,
+            managedVectorResourceService
         );
 
         DeploymentTenantScopedVectorSummary summary = service.build(
@@ -78,6 +83,7 @@ class DeploymentTenantScopedVectorServiceTest {
     void buildSharedWeaviateSummaryBlocksWithoutNativeMultiTenancy() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         DeploymentEntity deployment = deployment("cust-acme", "ten-support");
         when(tenantService.summarizeBinding(deployment)).thenReturn(
             new DeploymentTenantBindingSummary(
@@ -103,7 +109,8 @@ class DeploymentTenantScopedVectorServiceTest {
         DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
             tenantService,
             new TenantScopedVectorHandleResolver(),
-            registryService
+            registryService,
+            managedVectorResourceService
         );
 
         DeploymentTenantScopedVectorSummary summary = service.build(
@@ -130,6 +137,7 @@ class DeploymentTenantScopedVectorServiceTest {
     void buildSharedWeaviateSummaryReportsNormalizedClassPrefixAndTenantHandle() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         DeploymentEntity deployment = deployment("cust-acme", "ten-support");
         when(tenantService.summarizeBinding(deployment)).thenReturn(
             new DeploymentTenantBindingSummary(
@@ -155,7 +163,8 @@ class DeploymentTenantScopedVectorServiceTest {
         DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
             tenantService,
             new TenantScopedVectorHandleResolver(),
-            registryService
+            registryService,
+            managedVectorResourceService
         );
 
         DeploymentTenantScopedVectorSummary summary = service.build(
@@ -184,6 +193,7 @@ class DeploymentTenantScopedVectorServiceTest {
     void buildDedicatedSummaryReportsNonSharedLifecycle() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         DeploymentEntity deployment = deployment("cust-acme", "ten-retail");
         when(tenantService.summarizeBinding(deployment)).thenReturn(
             new DeploymentTenantBindingSummary(
@@ -209,7 +219,8 @@ class DeploymentTenantScopedVectorServiceTest {
         DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
             tenantService,
             new TenantScopedVectorHandleResolver(),
-            registryService
+            registryService,
+            managedVectorResourceService
         );
 
         DeploymentTenantScopedVectorSummary summary = service.build(
@@ -235,6 +246,7 @@ class DeploymentTenantScopedVectorServiceTest {
     void buildPlatformManagedSharedQdrantSummaryUsesPlatformManagedLifecycle() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         DeploymentEntity deployment = deployment("cust-acme", "ten-retail");
         when(tenantService.summarizeBinding(deployment)).thenReturn(
             new DeploymentTenantBindingSummary(
@@ -260,7 +272,8 @@ class DeploymentTenantScopedVectorServiceTest {
         DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
             tenantService,
             new TenantScopedVectorHandleResolver(),
-            registryService
+            registryService,
+            managedVectorResourceService
         );
 
         DeploymentTenantScopedVectorSummary summary = service.build(
@@ -285,9 +298,62 @@ class DeploymentTenantScopedVectorServiceTest {
     }
 
     @Test
+    void buildPlatformManagedSharedQdrantSummaryUsesManagedResourceBaseUrlWhenProviderConfigOmitsHost() throws Exception {
+        PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
+        DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        DeploymentEntity deployment = deployment("cust-acme", "ten-retail");
+        when(tenantService.summarizeBinding(deployment)).thenReturn(
+            new DeploymentTenantBindingSummary(
+                "cust-acme",
+                "Acme Corp",
+                "acme",
+                "ACTIVE",
+                false,
+                "ten-retail",
+                "Retail",
+                "retail",
+                "ACTIVE",
+                false,
+                true,
+                0,
+                0,
+                "EDITABLE",
+                "editable"
+            )
+        );
+        when(registryService.summarizeForDeployment(any(), any())).thenReturn(registrySummary("READY"));
+        when(managedVectorResourceService.listResources(deployment.getId())).thenReturn(
+            List.of(qdrantClusterResource("https://shared-qdrant.platform.internal"))
+        );
+
+        DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
+            tenantService,
+            new TenantScopedVectorHandleResolver(),
+            registryService,
+            managedVectorResourceService
+        );
+
+        DeploymentTenantScopedVectorSummary summary = service.build(
+            deployment,
+            objectMapper.readTree("""
+                {
+                  "vectorStrategy": "qdrant",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "vectorStoragePosture": "SHARED"
+                }
+                """)
+        );
+
+        assertThat(summary.status()).isEqualTo("READY");
+        assertThat(summary.rootResourceValue()).isEqualTo("https://shared-qdrant.platform.internal");
+    }
+
+    @Test
     void buildSharedMilvusSummaryUsesCustomerBoundHostAsRoot() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         DeploymentEntity deployment = deployment("cust-acme", "ten-retail");
         when(tenantService.summarizeBinding(deployment)).thenReturn(
             new DeploymentTenantBindingSummary(
@@ -313,7 +379,8 @@ class DeploymentTenantScopedVectorServiceTest {
         DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
             tenantService,
             new TenantScopedVectorHandleResolver(),
-            registryService
+            registryService,
+            managedVectorResourceService
         );
 
         DeploymentTenantScopedVectorSummary summary = service.build(
@@ -355,6 +422,35 @@ class DeploymentTenantScopedVectorServiceTest {
             "INFO",
             "Cleanup info",
             "Registry summary"
+        );
+    }
+
+    private DeploymentManagedVectorResourceSummary qdrantClusterResource(String baseUrl) {
+        JsonNode details = objectMapper.createObjectNode().put("baseUrl", baseUrl);
+        return new DeploymentManagedVectorResourceSummary(
+            "mvr-123",
+            "dep-12345678",
+            "ver-123",
+            "rel-123",
+            "qdrant",
+            "qdrant",
+            "PLATFORM_MANAGED",
+            "MANAGED_CLOUD_CLUSTER",
+            "CLUSTER",
+            "aifabric-12345678",
+            "cluster-123",
+            baseUrl,
+            "ACTIVE",
+            "NOT_REQUESTED",
+            null,
+            null,
+            "READY",
+            List.of("QDRANT_CLOUD_MANAGEMENT_API_KEY"),
+            details,
+            "ALIGNED",
+            null,
+            Instant.parse("2026-04-21T00:00:00Z"),
+            Instant.parse("2026-04-21T00:00:00Z")
         );
     }
 }
