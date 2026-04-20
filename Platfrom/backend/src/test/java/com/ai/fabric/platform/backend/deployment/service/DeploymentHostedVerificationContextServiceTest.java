@@ -187,7 +187,7 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.profile()).isEqualTo("marketplace-runtime");
         assertThat(context.script()).isEqualTo("scripts/verify-ecommerce-deployment.sh");
         assertThat(context.env()).containsEntry("VERIFY_MARKETPLACE_RUNTIME", "true");
-        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V2");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
         assertThat(context.env()).containsEntry("STORE_BASE_URL", "https://store.example");
         assertThat(context.env()).containsEntry(

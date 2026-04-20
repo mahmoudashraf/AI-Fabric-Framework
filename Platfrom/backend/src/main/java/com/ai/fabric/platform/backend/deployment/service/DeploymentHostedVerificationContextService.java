@@ -384,7 +384,7 @@ public class DeploymentHostedVerificationContextService {
                                                    JsonNode knowledgeSourceConfig,
                                                    JsonNode shellConfig) {
         env.put("VERIFY_MARKETPLACE_RUNTIME", "true");
-        env.put("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V1");
+        env.put("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V2");
         env.put("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
         env.put("EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION", "INFERENCE_PROFILE_RUNTIME_V1");
         env.put("MARKETPLACE_SMOKE_QUERY", "What is the refund policy?");
