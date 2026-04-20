@@ -303,13 +303,24 @@ platform_login() {
     cat > "${payload}" <<EOF
 {"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
 EOF
-    local status
-    status="$(
-      curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
-        -H "Content-Type: application/json" \
-        --data "@${payload}" \
-        "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
-    )"
+    local status=""
+    local attempt=1
+    while true; do
+      status="$(
+        curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
+          -H "Content-Type: application/json" \
+          --data "@${payload}" \
+          "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
+      )"
+      if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+          && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+        echo "WARN: transient platform login returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+        sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+        attempt=$((attempt + 1))
+        continue
+      fi
+      break
+    done
     rm -f "${payload}"
     if [[ "${status}" != "200" ]]; then
       echo "Platform login failed (HTTP ${status})."
