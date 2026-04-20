@@ -118,6 +118,52 @@ class MarketplaceDatasetSyncServiceTest {
     }
 
     @Test
+    void systemManagedPackagedSeedSyncDoesNotRequireMarketplaceInstallMetadata() {
+        DeploymentEntity deployment = deployment("dep-system");
+        DeploymentVersionEntity version = version(datasetConfig("""
+            {
+              "contractVersion":"MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets":[
+                {
+                  "systemManaged":true,
+                  "marketplacePluginId":"platform-marketplace-runtime-rollout",
+                  "marketplacePluginVersionId":"platform-marketplace-runtime-rollout-v1",
+                  "datasetId":"shared-marketplace-refund-policy-seed",
+                  "entityType":"policy",
+                  "storageScope":"PLUGIN_SCOPED",
+                  "sharingScope":"TENANT_SHARED",
+                  "ingestionMode":"PACKAGED_SEED",
+                  "updateStrategy":"UPSERT_BY_ID",
+                  "handleRef":"commerce-catalog/refund-policy",
+                  "datasetHash":"marketplace-runtime-refund-policy-v1",
+                  "seedDatasetRef":"classpath:marketplace/datasets/verification/refund-policy.jsonl",
+                  "config":{"scope":"all"}
+                }
+              ]
+            }
+            """));
+        DeploymentReleaseEntity release = release("rel-system");
+        when(datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId("platform-marketplace-runtime-rollout", "ten-1", "shared-marketplace-refund-policy-seed"))
+            .thenReturn(Optional.empty());
+        when(datasetDocumentRepository.findByDatasetHandleIdOrderByDocumentIdAsc(anyString())).thenReturn(List.of());
+        when(runtimeSyncClient.upsertDocuments(
+            eq(deployment),
+            eq("policy"),
+            eq("shared-marketplace-refund-policy-seed"),
+            eq("commerce-catalog/refund-policy"),
+            eq("marketplace-runtime-refund-policy-v1"),
+            any()
+        )).thenReturn(1);
+
+        MarketplaceDatasetSyncService.DatasetSyncSummary summary = service.syncReleaseDatasets(deployment, version, release);
+
+        assertThat(summary.datasetsCount()).isEqualTo(1);
+        assertThat(summary.syncedDatasets()).isEqualTo(1);
+        verify(installRepository, never()).findById(anyString());
+        verify(pluginDatasetRepository, never()).findByPluginVersionIdAndDatasetId(anyString(), anyString());
+    }
+
+    @Test
     void packagedSeedSyncDeletesStaleTrackedDocumentsWhenDatasetChanges() {
         DeploymentEntity deployment = deployment("dep-2");
         DeploymentVersionEntity version = version(datasetConfig("""

@@ -80,6 +80,12 @@ public class DeploymentVerificationRolloutService {
     private static final String MARKETPLACE_KNOWLEDGE_SOURCE_ID = "deployment-marketplace-knowledge";
     private static final String MARKETPLACE_SHARED_POLICY_SOURCE_ID = "shared-marketplace-refund-policy";
     private static final String MARKETPLACE_SHARED_POLICY_HANDLE_REF = "commerce-catalog/refund-policy";
+    private static final String MARKETPLACE_SHARED_POLICY_DATASET_ID = "shared-marketplace-refund-policy-seed";
+    private static final String MARKETPLACE_SHARED_POLICY_PLUGIN_ID = "platform-marketplace-runtime-rollout";
+    private static final String MARKETPLACE_SHARED_POLICY_PLUGIN_VERSION_ID = "platform-marketplace-runtime-rollout-v1";
+    private static final String MARKETPLACE_SHARED_POLICY_DATASET_HASH = "marketplace-runtime-refund-policy-v1";
+    private static final String MARKETPLACE_SHARED_POLICY_DATASET_REF =
+        "classpath:marketplace/datasets/verification/refund-policy.jsonl";
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
     private static final int DEFAULT_PAGE_SIZE = 500;
@@ -753,7 +759,8 @@ public class DeploymentVerificationRolloutService {
                         ecommerceSecurityConfig(draft.securityConfig()),
                         withDefaultPromptLatencyTuning(ensureObject(draft.promptConfig())),
                         marketplaceKnowledgeSourceConfig(),
-                        marketplaceShellConfig()
+                        marketplaceShellConfig(),
+                        marketplaceDatasetConfig()
                     );
                 }
             },
@@ -1185,6 +1192,7 @@ public class DeploymentVerificationRolloutService {
             .put("type", "shared-vector")
             .put("adapterType", "shared-index")
             .put("attributionLabel", "Shared refund policy knowledge")
+            .put("datasetRef", MARKETPLACE_SHARED_POLICY_DATASET_ID)
             .put("entityType", "policy")
             .put("handleRef", MARKETPLACE_SHARED_POLICY_HANDLE_REF)
             .put("enabled", true);
@@ -1194,6 +1202,28 @@ public class DeploymentVerificationRolloutService {
             .add("PRIVATE_RUNTIME_BACKEND_MEDIATED");
         sharedPolicySource.putObject("filters")
             .put("classification", "refund");
+        return root;
+    }
+
+    private ObjectNode marketplaceDatasetConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "MARKETPLACE_DATASET_CONFIG_V1");
+        ObjectNode dataset = root.putArray("datasets")
+            .addObject()
+            .put("systemManaged", true)
+            .put("marketplacePluginId", MARKETPLACE_SHARED_POLICY_PLUGIN_ID)
+            .put("marketplacePluginVersionId", MARKETPLACE_SHARED_POLICY_PLUGIN_VERSION_ID)
+            .put("datasetId", MARKETPLACE_SHARED_POLICY_DATASET_ID)
+            .put("entityType", "policy")
+            .put("storageScope", "PLUGIN_SCOPED")
+            .put("sharingScope", "TENANT_SHARED")
+            .put("ingestionMode", "PACKAGED_SEED")
+            .put("updateStrategy", "UPSERT_BY_ID")
+            .put("handleRef", MARKETPLACE_SHARED_POLICY_HANDLE_REF)
+            .put("datasetHash", MARKETPLACE_SHARED_POLICY_DATASET_HASH)
+            .put("seedDatasetRef", MARKETPLACE_SHARED_POLICY_DATASET_REF);
+        dataset.putObject("config")
+            .put("scope", "all");
         return root;
     }
 

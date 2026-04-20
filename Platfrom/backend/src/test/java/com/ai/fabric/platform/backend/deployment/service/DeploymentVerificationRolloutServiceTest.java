@@ -293,8 +293,25 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(0).path("adapterType").asText()).isEqualTo("deployment-private-vector");
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("id").asText()).isEqualTo("shared-marketplace-refund-policy");
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("adapterType").asText()).isEqualTo("shared-index");
+        assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("datasetRef").asText())
+            .isEqualTo("shared-marketplace-refund-policy-seed");
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("handleRef").asText()).isEqualTo("commerce-catalog/refund-policy");
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("filters").path("classification").asText()).isEqualTo("refund");
+        assertThat(marketplace.marketplaceDatasetConfig().path("contractVersion").asText()).isEqualTo("MARKETPLACE_DATASET_CONFIG_V1");
+        assertThat(marketplace.marketplaceDatasetConfig().path("datasets")).hasSize(1);
+        assertThat(marketplace.marketplaceDatasetConfig().path("datasets").get(0).path("systemManaged").asBoolean()).isTrue();
+        assertThat(marketplace.marketplaceDatasetConfig().path("datasets").get(0).path("marketplacePluginId").asText())
+            .isEqualTo("platform-marketplace-runtime-rollout");
+        assertThat(marketplace.marketplaceDatasetConfig().path("datasets").get(0).path("marketplacePluginVersionId").asText())
+            .isEqualTo("platform-marketplace-runtime-rollout-v1");
+        assertThat(marketplace.marketplaceDatasetConfig().path("datasets").get(0).path("datasetId").asText())
+            .isEqualTo("shared-marketplace-refund-policy-seed");
+        assertThat(marketplace.marketplaceDatasetConfig().path("datasets").get(0).path("ingestionMode").asText())
+            .isEqualTo("PACKAGED_SEED");
+        assertThat(marketplace.marketplaceDatasetConfig().path("datasets").get(0).path("handleRef").asText())
+            .isEqualTo("commerce-catalog/refund-policy");
+        assertThat(marketplace.marketplaceDatasetConfig().path("datasets").get(0).path("seedDatasetRef").asText())
+            .isEqualTo("classpath:marketplace/datasets/verification/refund-policy.jsonl");
         assertThat(marketplace.providerConfig().path("vectorStrategy").asText()).isEqualTo("qdrant");
         assertThat(marketplace.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
         assertThat(marketplace.providerConfig().path("vectorStoragePosture").asText()).isEqualTo("SHARED");

@@ -151,22 +151,34 @@ public class MarketplaceDatasetSyncService {
                                DeploymentReleaseEntity release,
                                ObjectNode dataset,
                                SyncTrigger trigger) {
-        String installId = requiredText(dataset, "marketplaceInstallId");
+        boolean systemManaged = isSystemManagedDataset(dataset);
+        String installId = systemManaged ? text(dataset, "marketplaceInstallId") : requiredText(dataset, "marketplaceInstallId");
         String pluginId = requiredText(dataset, "marketplacePluginId");
+        String pluginVersionId = requiredPluginVersionId(dataset, installId, systemManaged);
         String datasetId = requiredText(dataset, "datasetId");
         String entityType = requiredText(dataset, "entityType");
         String handleRef = requiredText(dataset, "handleRef");
         String datasetHash = requiredText(dataset, "datasetHash");
         String ingestionMode = requiredText(dataset, "ingestionMode");
 
-        DeploymentMarketplacePluginInstallEntity install = installRepository.findById(installId)
-            .orElseThrow(() -> new IllegalStateException("Marketplace dataset references unknown install: " + installId));
-        MarketplacePluginDatasetEntity pluginDataset = pluginDatasetRepository.findByPluginVersionIdAndDatasetId(install.getPluginVersionId(), datasetId)
-            .orElseThrow(() -> new IllegalStateException("Marketplace dataset definition missing for install " + installId + " dataset " + datasetId));
+        final DeploymentMarketplacePluginInstallEntity install;
+        final MarketplacePluginDatasetEntity pluginDataset;
+        if (!systemManaged) {
+            install = installRepository.findById(installId)
+                .orElseThrow(() -> new IllegalStateException("Marketplace dataset references unknown install: " + installId));
+            pluginDataset = pluginDatasetRepository.findByPluginVersionIdAndDatasetId(pluginVersionId, datasetId)
+                .orElseThrow(() -> new IllegalStateException("Marketplace dataset definition missing for install " + installId + " dataset " + datasetId));
+        } else {
+            install = null;
+            pluginDataset = null;
+        }
 
         MarketplaceDatasetHandleEntity handle = datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId(pluginId, deployment.getTenantId(), datasetId)
-            .orElseGet(() -> newHandle(deployment, install, pluginDataset));
-        handle.setPluginVersionId(install.getPluginVersionId());
+            .orElseGet(() -> systemManaged
+                ? newSystemManagedHandle(deployment, dataset, pluginId, pluginVersionId)
+                : newHandle(deployment, install, pluginDataset));
+        handle.setPluginId(pluginId);
+        handle.setPluginVersionId(pluginVersionId);
         handle.setDeploymentId(deployment.getId());
         handle.setCustomerId(deployment.getCustomerId());
         handle.setTenantId(deployment.getTenantId());
@@ -265,6 +277,7 @@ public class MarketplaceDatasetSyncService {
         String installId = text(dataset, "marketplaceInstallId");
         String datasetId = text(dataset, "datasetId");
         String pluginId = text(dataset, "marketplacePluginId");
+        String pluginVersionId = requiredPluginVersionId(dataset, installId, isSystemManagedDataset(dataset));
         MarketplaceDatasetHandleEntity handle = datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId(
                 pluginId,
                 deployment.getTenantId(),
@@ -274,7 +287,7 @@ public class MarketplaceDatasetSyncService {
                 MarketplaceDatasetHandleEntity created = new MarketplaceDatasetHandleEntity();
                 created.setId("mdh-" + UUID.randomUUID().toString().substring(0, 8));
                 created.setPluginId(pluginId);
-                created.setPluginVersionId(resolvePluginVersionId(installId));
+                created.setPluginVersionId(pluginVersionId);
                 created.setDatasetId(datasetId);
                 created.setDeploymentId(deployment.getId());
                 created.setCustomerId(deployment.getCustomerId());
@@ -317,6 +330,29 @@ public class MarketplaceDatasetSyncService {
         handle.setEntityType(pluginDataset.getEntityType());
         handle.setStatus("PENDING");
         handle.setDatasetHash(pluginDataset.getDatasetHash());
+        handle.setCreatedAt(Instant.now());
+        handle.setUpdatedAt(Instant.now());
+        return handle;
+    }
+
+    private MarketplaceDatasetHandleEntity newSystemManagedHandle(DeploymentEntity deployment,
+                                                                  ObjectNode dataset,
+                                                                  String pluginId,
+                                                                  String pluginVersionId) {
+        MarketplaceDatasetHandleEntity handle = new MarketplaceDatasetHandleEntity();
+        handle.setId("mdh-" + UUID.randomUUID().toString().substring(0, 8));
+        handle.setPluginId(pluginId);
+        handle.setPluginVersionId(pluginVersionId);
+        handle.setDatasetId(requiredText(dataset, "datasetId"));
+        handle.setDeploymentId(deployment.getId());
+        handle.setCustomerId(deployment.getCustomerId());
+        handle.setTenantId(deployment.getTenantId());
+        handle.setStorageScope(requiredText(dataset, "storageScope"));
+        handle.setSharingScope(requiredText(dataset, "sharingScope"));
+        handle.setHandleRef(requiredText(dataset, "handleRef"));
+        handle.setEntityType(requiredText(dataset, "entityType"));
+        handle.setStatus("PENDING");
+        handle.setDatasetHash(requiredText(dataset, "datasetHash"));
         handle.setCreatedAt(Instant.now());
         handle.setUpdatedAt(Instant.now());
         return handle;
@@ -560,6 +596,25 @@ public class MarketplaceDatasetSyncService {
 
     private String text(JsonNode node, String fieldName) {
         return node == null ? null : (StringUtils.hasText(node.path(fieldName).asText("")) ? node.path(fieldName).asText("").trim() : null);
+    }
+
+    private boolean isSystemManagedDataset(ObjectNode dataset) {
+        return dataset != null && dataset.path("systemManaged").asBoolean(false);
+    }
+
+    private String requiredPluginVersionId(ObjectNode dataset, String installId, boolean systemManaged) {
+        String explicitPluginVersionId = text(dataset, "marketplacePluginVersionId");
+        if (StringUtils.hasText(explicitPluginVersionId)) {
+            return explicitPluginVersionId;
+        }
+        String resolved = resolvePluginVersionId(installId);
+        if (StringUtils.hasText(resolved)) {
+            return resolved;
+        }
+        if (systemManaged) {
+            throw new IllegalStateException("System-managed marketplace dataset config is missing required field 'marketplacePluginVersionId'.");
+        }
+        throw new IllegalStateException("Marketplace dataset references unknown install: " + installId);
     }
 
     private String resolvePluginVersionId(String installId) {
