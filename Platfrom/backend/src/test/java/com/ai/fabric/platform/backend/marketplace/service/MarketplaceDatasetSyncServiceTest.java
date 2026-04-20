@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetDocumentEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetSyncRunEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginDatasetEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetDocumentRepository;
@@ -27,10 +28,12 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -161,6 +164,59 @@ class MarketplaceDatasetSyncServiceTest {
         assertThat(summary.syncedDatasets()).isEqualTo(1);
         verify(installRepository, never()).findById(anyString());
         verify(pluginDatasetRepository, never()).findByPluginVersionIdAndDatasetId(anyString(), anyString());
+    }
+
+    @Test
+    void systemManagedSyncFailureDoesNotMaskRootCauseWhenInstallIdIsAbsent() {
+        DeploymentEntity deployment = deployment("dep-system-fail");
+        DeploymentVersionEntity version = version(datasetConfig("""
+            {
+              "contractVersion":"MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets":[
+                {
+                  "systemManaged":true,
+                  "marketplacePluginId":"platform-marketplace-runtime-rollout",
+                  "marketplacePluginVersionId":"platform-marketplace-runtime-rollout-v1",
+                  "datasetId":"shared-marketplace-refund-policy-seed",
+                  "entityType":"policy",
+                  "storageScope":"PLUGIN_SCOPED",
+                  "sharingScope":"TENANT_SHARED",
+                  "ingestionMode":"PACKAGED_SEED",
+                  "updateStrategy":"UPSERT_BY_ID",
+                  "handleRef":"commerce-catalog/refund-policy",
+                  "datasetHash":"marketplace-runtime-refund-policy-v1",
+                  "seedDatasetRef":"classpath:marketplace/datasets/verification/refund-policy.jsonl",
+                  "config":{"scope":"all"}
+                }
+              ]
+            }
+            """));
+        DeploymentReleaseEntity release = release("rel-system-fail");
+        when(datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId("platform-marketplace-runtime-rollout", "ten-1", "shared-marketplace-refund-policy-seed"))
+            .thenReturn(Optional.empty());
+        when(datasetDocumentRepository.findByDatasetHandleIdOrderByDocumentIdAsc(anyString())).thenReturn(List.of());
+        when(runtimeSyncClient.upsertDocuments(
+            eq(deployment),
+            eq("policy"),
+            eq("shared-marketplace-refund-policy-seed"),
+            eq("commerce-catalog/refund-policy"),
+            eq("marketplace-runtime-refund-policy-v1"),
+            any()
+        )).thenThrow(new IllegalStateException("runtime sync failed"));
+
+        assertThatThrownBy(() -> service.syncReleaseDatasets(deployment, version, release))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessage("runtime sync failed");
+
+        ArgumentCaptor<MarketplaceDatasetSyncRunEntity> runCaptor = ArgumentCaptor.forClass(MarketplaceDatasetSyncRunEntity.class);
+        verify(syncRunRepository, atLeastOnce()).save(runCaptor.capture());
+        MarketplaceDatasetSyncRunEntity failedRun = runCaptor.getAllValues().stream()
+            .filter(run -> "FAILED".equals(run.getStatus()))
+            .reduce((first, second) -> second)
+            .orElseThrow();
+        assertThat(failedRun.getErrorMessage()).isEqualTo("runtime sync failed");
+        assertThat(failedRun.getDetailsJson()).contains("shared-marketplace-refund-policy-seed");
+        assertThat(failedRun.getDetailsJson()).doesNotContain("installId");
     }
 
     @Test

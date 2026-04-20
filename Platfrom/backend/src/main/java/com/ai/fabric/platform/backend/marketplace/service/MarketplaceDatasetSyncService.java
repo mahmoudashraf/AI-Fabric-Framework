@@ -310,7 +310,7 @@ public class MarketplaceDatasetSyncService {
         run.setStartedAt(Instant.now());
         run.setCompletedAt(Instant.now());
         run.setErrorMessage(ex.getMessage());
-        run.setDetailsJson(writeJson(Map.of("datasetId", datasetId, "installId", installId)));
+        run.setDetailsJson(writeJson(buildFailureDetails(datasetId, installId)));
         syncRunRepository.save(run);
     }
 
@@ -592,6 +592,17 @@ public class MarketplaceDatasetSyncService {
             throw new IllegalStateException("Marketplace dataset config is missing required field '" + fieldName + "'.");
         }
         return value;
+    }
+
+    private Map<String, Object> buildFailureDetails(String datasetId, String installId) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        if (StringUtils.hasText(datasetId)) {
+            details.put("datasetId", datasetId);
+        }
+        if (StringUtils.hasText(installId)) {
+            details.put("installId", installId);
+        }
+        return details;
     }
 
     private String text(JsonNode node, String fieldName) {
