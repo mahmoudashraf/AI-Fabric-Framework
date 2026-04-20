@@ -430,6 +430,141 @@ class DeploymentManagedVectorProvisioningServiceTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void ensureProvisionedRetriesManagedQdrantCollectionLookupWhileDataPlaneWarmsUp() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");
+        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn(null);
+
+        QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
+        when(qdrantCloudClient.resolveAccount("", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudAccountResolution("acct-1", "Primary", true)
+        );
+        when(qdrantCloudClient.requireRegion("aws", "eu-west-1")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudRegionSummary("eu-west-1", "EU West 1", "aws", true)
+        );
+        when(qdrantCloudClient.resolvePackage("acct-1", "qdrant-cloud-management", "aws", "eu-west-1", "")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudPackageSummary("pkg-1", "Sandbox", "sandbox", "USD", 1000, "PACKAGE_STATUS_ACTIVE", "2GB", "shared", "10GB")
+        );
+        when(qdrantCloudClient.findClusterByName("acct-1", "aifabric-123", "qdrant-cloud-management")).thenReturn(null);
+        when(qdrantCloudClient.createCluster("acct-1", "dep-123", "aifabric-123", "aws", "eu-west-1", "pkg-1", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary(
+                "cluster-1",
+                "acct-1",
+                "aifabric-123",
+                "aws",
+                "eu-west-1",
+                "pkg-1",
+                "CLUSTER_PHASE_CREATING",
+                "",
+                "",
+                6333,
+                6334,
+                Map.of("managed-by", "ai-fabric-platform")
+            )
+        );
+        when(qdrantCloudClient.awaitClusterReady("acct-1", "cluster-1", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary(
+                "cluster-1",
+                "acct-1",
+                "aifabric-123",
+                "aws",
+                "eu-west-1",
+                "pkg-1",
+                "CLUSTER_PHASE_HEALTHY",
+                "",
+                "https://cluster-1.eu-west-1.aws.cloud.qdrant.io",
+                6333,
+                6334,
+                Map.of("managed-by", "ai-fabric-platform")
+            )
+        );
+        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", "ai-fabric-123", "qdrant-cloud-management")).thenReturn(null);
+        when(qdrantCloudClient.createCollectionDatabaseApiKey(
+            "acct-1",
+            "cluster-1",
+            "ai-fabric-123",
+            List.of("product", "policy"),
+            "qdrant-cloud-management"
+        )).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
+                "key-1",
+                "cluster-1",
+                "ai-fabric-123",
+                "abcd",
+                "runtime-qdrant-key"
+            )
+        );
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> unavailable = mock(HttpResponse.class);
+        when(unavailable.statusCode()).thenReturn(503);
+        when(unavailable.body()).thenReturn("{\"status\":\"error\"}");
+        HttpResponse<String> missing = mock(HttpResponse.class);
+        when(missing.statusCode()).thenReturn(404);
+        HttpResponse<String> created = mock(HttpResponse.class);
+        when(created.statusCode()).thenReturn(200);
+        when(created.body()).thenReturn("{\"status\":\"ok\"}");
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(unavailable, missing, missing);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "PUT".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(created, created);
+
+        DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
+            secretService,
+            objectMapper,
+            httpClient,
+            qdrantCloudClient
+        );
+
+        JsonNode providerConfig = objectMapper.readTree("""
+            {
+              "embeddingProvider": "openai",
+              "vectorStrategy": "qdrant",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "qdrantCloudProviderId": "aws",
+              "qdrantCloudRegionId": "eu-west-1"
+            }
+            """);
+        JsonNode entityConfig = objectMapper.readTree("""
+            {
+              "ai-config": { "vector-dimensions": 1536 },
+              "ai-entities": { "product": {}, "policy": {} }
+            }
+            """);
+
+        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+
+        assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_CLOUD_CLUSTER");
+        assertThat(result.details().path("collections")).hasSize(2);
+        verify(secretService).upsertManagedSecret(
+            eq("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"),
+            eq("runtime-qdrant-key"),
+            any(Map.class)
+        );
+        verify(httpClient, times(3)).send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
+        );
+        verify(httpClient, times(2)).send(
+            argThat(request -> request != null
+                && "PUT".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void ensureProvisionedReusesExistingQdrantCloudClusterEvenIfPackageIsNoLongerActive() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");

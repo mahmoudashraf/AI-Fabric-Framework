@@ -665,15 +665,15 @@ public class DeploymentManagedVectorProvisioningService {
                                                                      int vectorDimensions,
                                                                      String apiKey) {
         RailwayProvisioningException lastFailure = null;
-        for (int attempt = 1; attempt <= 10; attempt += 1) {
+        for (int attempt = 1; attempt <= 15; attempt += 1) {
             try {
                 return reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, apiKey);
             } catch (RailwayProvisioningException ex) {
-                if (!isQdrantPermissionPropagationFailure(ex) || attempt == 10) {
+                if (!isQdrantStartupPropagationFailure(ex) || attempt == 15) {
                     throw ex;
                 }
                 lastFailure = ex;
-                sleep(500L, "Interrupted while waiting for Qdrant database API key propagation.");
+                sleep(2000L, "Interrupted while waiting for Qdrant collection provisioning prerequisites.");
             }
         }
         throw lastFailure == null
@@ -979,11 +979,15 @@ public class DeploymentManagedVectorProvisioningService {
         }
     }
 
-    private boolean isQdrantPermissionPropagationFailure(RailwayProvisioningException ex) {
+    private boolean isQdrantStartupPropagationFailure(RailwayProvisioningException ex) {
         String message = ex.getMessage();
         return StringUtils.hasText(message)
             && message.contains("Qdrant")
-            && message.contains("HTTP 403");
+            && (message.contains("HTTP 403")
+            || message.contains("HTTP 429")
+            || message.contains("HTTP 502")
+            || message.contains("HTTP 503")
+            || message.contains("HTTP 504"));
     }
 
     private void sleep(long millis, String message) {
