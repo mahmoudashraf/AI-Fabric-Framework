@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.marketplace.service;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entity.TenantScopedVectorResourceEntity;
+import com.ai.fabric.platform.backend.deployment.repository.TenantScopedVectorResourceRepository;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetDocumentEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
@@ -54,6 +56,7 @@ public class MarketplaceDatasetSyncService {
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplacePluginDatasetRepository pluginDatasetRepository;
     private final MarketplaceDatasetRuntimeSyncClient runtimeSyncClient;
+    private final TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
     private final ResourcePatternResolver resourcePatternResolver;
@@ -64,6 +67,7 @@ public class MarketplaceDatasetSyncService {
                                          DeploymentMarketplacePluginInstallRepository installRepository,
                                          MarketplacePluginDatasetRepository pluginDatasetRepository,
                                          MarketplaceDatasetRuntimeSyncClient runtimeSyncClient,
+                                         TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository,
                                          ObjectMapper objectMapper,
                                          JdbcTemplate jdbcTemplate,
                                          ResourcePatternResolver resourcePatternResolver) {
@@ -73,6 +77,7 @@ public class MarketplaceDatasetSyncService {
         this.installRepository = installRepository;
         this.pluginDatasetRepository = pluginDatasetRepository;
         this.runtimeSyncClient = runtimeSyncClient;
+        this.tenantScopedVectorResourceRepository = tenantScopedVectorResourceRepository;
         this.objectMapper = objectMapper;
         this.jdbcTemplate = jdbcTemplate;
         this.resourcePatternResolver = resourcePatternResolver;
@@ -191,7 +196,8 @@ public class MarketplaceDatasetSyncService {
             && STATUS_READY.equalsIgnoreCase(handle.getStatus())
             && handle.getLastSyncAt() != null;
         boolean allowHashSkip = SyncTrigger.APPLY.equals(trigger) || !isExternalSyncIngestionMode(ingestionMode);
-        if (unchangedReadyHandle && allowHashSkip) {
+        boolean sharedVectorRootCurrent = isSharedVectorRootCurrent(deployment, handle, dataset);
+        if (unchangedReadyHandle && allowHashSkip && sharedVectorRootCurrent) {
             MarketplaceDatasetSyncRunEntity skippedRun = newRun(handle, deployment, release, dataset, "SKIPPED");
             skippedRun.setDocumentCount(0);
             skippedRun.setStartedAt(Instant.now());
@@ -268,6 +274,27 @@ public class MarketplaceDatasetSyncService {
         )));
         syncRunRepository.save(run);
         return STATUS_READY;
+    }
+
+    private boolean isSharedVectorRootCurrent(DeploymentEntity deployment,
+                                              MarketplaceDatasetHandleEntity handle,
+                                              ObjectNode dataset) {
+        if (!"TENANT_SHARED".equalsIgnoreCase(text(dataset, "sharingScope"))) {
+            return true;
+        }
+        if (!StringUtils.hasText(deployment.getTenantId()) || handle.getLastSyncAt() == null) {
+            return false;
+        }
+        return tenantScopedVectorResourceRepository.findByTenantIdOrderByUpdatedAtDesc(deployment.getTenantId()).stream()
+            .filter(record -> "ACTIVE".equalsIgnoreCase(record.getResourceStatus()))
+            .findFirst()
+            .map(record -> !activeSharedVectorRootUpdatedAfter(record, handle.getLastSyncAt()))
+            .orElse(false);
+    }
+
+    private boolean activeSharedVectorRootUpdatedAfter(TenantScopedVectorResourceEntity record, Instant lastSyncAt) {
+        Instant activeRootUpdatedAt = record.getUpdatedAt() != null ? record.getUpdatedAt() : record.getCreatedAt();
+        return activeRootUpdatedAt != null && activeRootUpdatedAt.isAfter(lastSyncAt);
     }
 
     private void recordFailure(DeploymentEntity deployment,

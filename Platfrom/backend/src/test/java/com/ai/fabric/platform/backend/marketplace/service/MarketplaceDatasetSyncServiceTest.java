@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.marketplace.service;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entity.TenantScopedVectorResourceEntity;
+import com.ai.fabric.platform.backend.deployment.repository.TenantScopedVectorResourceRepository;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetDocumentEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
@@ -47,6 +49,7 @@ class MarketplaceDatasetSyncServiceTest {
     private final DeploymentMarketplacePluginInstallRepository installRepository = mock(DeploymentMarketplacePluginInstallRepository.class);
     private final MarketplacePluginDatasetRepository pluginDatasetRepository = mock(MarketplacePluginDatasetRepository.class);
     private final MarketplaceDatasetRuntimeSyncClient runtimeSyncClient = mock(MarketplaceDatasetRuntimeSyncClient.class);
+    private final TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository = mock(TenantScopedVectorResourceRepository.class);
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -61,6 +64,7 @@ class MarketplaceDatasetSyncServiceTest {
             installRepository,
             pluginDatasetRepository,
             runtimeSyncClient,
+            tenantScopedVectorResourceRepository,
             objectMapper,
             jdbcTemplate,
             new PathMatchingResourcePatternResolver()
@@ -315,12 +319,80 @@ class MarketplaceDatasetSyncServiceTest {
             .thenReturn(Optional.of(pluginDataset("mkp-data-help-center", "help-center-seed", "faq-article")));
         when(datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId("mkp-data-help-center", "ten-1", "help-center-seed"))
             .thenReturn(Optional.of(existingHandle));
+        when(tenantScopedVectorResourceRepository.findByTenantIdOrderByUpdatedAtDesc("ten-1"))
+            .thenReturn(List.of(activeSharedVectorResource(Instant.parse("2026-04-15T09:00:00Z"))));
 
         MarketplaceDatasetSyncService.DatasetSyncSummary summary = service.syncReleaseDatasets(deployment, version, release);
 
         assertThat(summary.skippedDatasets()).isEqualTo(1);
         verify(runtimeSyncClient, never()).upsertDocuments(any(), any(), any(), any(), any(), any());
         verify(datasetDocumentRepository, never()).saveAll(anyCollection());
+    }
+
+    @Test
+    void readyDatasetWithSameHashResyncsWhenActiveSharedVectorRootChanged() {
+        DeploymentEntity deployment = deployment("dep-6");
+        DeploymentVersionEntity version = version(datasetConfig("""
+            {
+              "contractVersion":"MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets":[
+                {
+                  "systemManaged":true,
+                  "marketplacePluginId":"platform-marketplace-runtime-rollout",
+                  "marketplacePluginVersionId":"platform-marketplace-runtime-rollout-v1",
+                  "datasetId":"shared-marketplace-refund-policy-seed",
+                  "entityType":"policy",
+                  "storageScope":"PLUGIN_SCOPED",
+                  "sharingScope":"TENANT_SHARED",
+                  "ingestionMode":"PACKAGED_SEED",
+                  "updateStrategy":"UPSERT_BY_ID",
+                  "handleRef":"commerce-catalog/refund-policy",
+                  "datasetHash":"marketplace-runtime-refund-policy-v1",
+                  "seedDatasetRef":"classpath:marketplace/datasets/verification/refund-policy.jsonl",
+                  "config":{"scope":"all"}
+                }
+              ]
+            }
+            """));
+        DeploymentReleaseEntity release = release("rel-6");
+        MarketplaceDatasetHandleEntity existingHandle = new MarketplaceDatasetHandleEntity();
+        existingHandle.setId("mdh-shared");
+        existingHandle.setPluginId("platform-marketplace-runtime-rollout");
+        existingHandle.setTenantId("ten-1");
+        existingHandle.setDatasetId("shared-marketplace-refund-policy-seed");
+        existingHandle.setStatus("READY");
+        existingHandle.setDatasetHash("marketplace-runtime-refund-policy-v1");
+        existingHandle.setLastSyncAt(Instant.parse("2026-04-15T10:00:00Z"));
+        when(datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId(
+            "platform-marketplace-runtime-rollout",
+            "ten-1",
+            "shared-marketplace-refund-policy-seed"
+        )).thenReturn(Optional.of(existingHandle));
+        when(tenantScopedVectorResourceRepository.findByTenantIdOrderByUpdatedAtDesc("ten-1"))
+            .thenReturn(List.of(activeSharedVectorResource(Instant.parse("2026-04-20T22:54:49Z"))));
+        when(datasetDocumentRepository.findByDatasetHandleIdOrderByDocumentIdAsc("mdh-shared")).thenReturn(List.of());
+        when(runtimeSyncClient.upsertDocuments(
+            eq(deployment),
+            eq("policy"),
+            eq("shared-marketplace-refund-policy-seed"),
+            eq("commerce-catalog/refund-policy"),
+            eq("marketplace-runtime-refund-policy-v1"),
+            any()
+        )).thenReturn(1);
+
+        MarketplaceDatasetSyncService.DatasetSyncSummary summary = service.syncReleaseDatasets(deployment, version, release);
+
+        assertThat(summary.datasetsCount()).isEqualTo(1);
+        assertThat(summary.syncedDatasets()).isEqualTo(1);
+        assertThat(summary.skippedDatasets()).isEqualTo(0);
+        verify(runtimeSyncClient).upsertDocuments(
+            eq(deployment),
+            eq("policy"),
+            eq("shared-marketplace-refund-policy-seed"),
+            eq("commerce-catalog/refund-policy"),
+            eq("marketplace-runtime-refund-policy-v1"),
+            any()
+        );
     }
 
     @Test
@@ -485,6 +557,26 @@ class MarketplaceDatasetSyncServiceTest {
         entity.setMetadataJson("{}");
         entity.setCreatedAt(Instant.parse("2026-04-15T10:00:00Z"));
         entity.setUpdatedAt(Instant.parse("2026-04-15T10:00:00Z"));
+        return entity;
+    }
+
+    private TenantScopedVectorResourceEntity activeSharedVectorResource(Instant updatedAt) {
+        TenantScopedVectorResourceEntity entity = new TenantScopedVectorResourceEntity();
+        entity.setId("tsv-active");
+        entity.setTenantId("ten-1");
+        entity.setCustomerId("cust-1");
+        entity.setDeploymentId("dep-1");
+        entity.setDeploymentVersionId("ver-1");
+        entity.setDeploymentReleaseId("rel-1");
+        entity.setVendor("qdrant");
+        entity.setVectorStrategy("qdrant");
+        entity.setVectorProvisioningMode("PLATFORM_MANAGED");
+        entity.setVectorStoragePosture("SHARED");
+        entity.setResourceStatus("ACTIVE");
+        entity.setScopeType("COLLECTION_PREFIX");
+        entity.setRegistryKey("cust-1::ten-1::qdrant");
+        entity.setCreatedAt(updatedAt.minus(Duration.ofMinutes(1)));
+        entity.setUpdatedAt(updatedAt);
         return entity;
     }
 
