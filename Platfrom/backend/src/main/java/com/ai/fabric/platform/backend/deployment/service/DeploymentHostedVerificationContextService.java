@@ -438,6 +438,11 @@ public class DeploymentHostedVerificationContextService {
         );
         putIfPresent(
             env,
+            "EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MANAGED_SERVICE_REF",
+            trimToNull(providerConfig.path("orchestrationManagedServiceRef").asText(""))
+        );
+        putIfPresent(
+            env,
             "EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER",
             trimToNull(providerConfig.path("generationLlmProvider").asText(""))
         );
@@ -453,8 +458,23 @@ public class DeploymentHostedVerificationContextService {
         );
         putIfPresent(
             env,
+            "EXPECT_MARKETPLACE_INFERENCE_GENERATION_MANAGED_SERVICE_REF",
+            trimToNull(providerConfig.path("generationManagedServiceRef").asText(""))
+        );
+        putIfPresent(
+            env,
             "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE",
             trimToNull(providerConfig.path("embeddingEndpointProfile").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_MANAGED_SERVICE_REF",
+            trimToNull(providerConfig.path("embeddingManagedServiceRef").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_SERVICE_MODE",
+            trimToNull(providerConfig.path("embeddingServiceMode").asText(""))
         );
     }
 
