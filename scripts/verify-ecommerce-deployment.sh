@@ -144,6 +144,7 @@ EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETIN
 RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN:-}"
 MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
 MARKETPLACE_SHARED_SENTINEL_ID="${MARKETPLACE_SHARED_SENTINEL_ID:-}"
+MARKETPLACE_SHARED_SENTINEL_SOURCE_ID="${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID:-shared-marketplace-refund-policy}"
 MARKETPLACE_SHARED_SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF:-commerce-catalog/refund-policy}"
 MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE:-policy}"
 MARKETPLACE_SHARED_SENTINEL_DATASET_ID="${MARKETPLACE_SHARED_SENTINEL_DATASET_ID:-}"
@@ -705,6 +706,7 @@ marketplace_shared_sentinel_payload() {
   local operation="${2:-upsert}"
   SENTINEL_ID="${sentinel_id}" \
   SENTINEL_OPERATION="${operation}" \
+  SENTINEL_SOURCE_ID="${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID}" \
   SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}" \
   SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE}" \
   SENTINEL_DATASET_ID="${MARKETPLACE_SHARED_SENTINEL_DATASET_ID}" \
@@ -716,10 +718,12 @@ import os
 
 sentinel_id = os.environ["SENTINEL_ID"]
 operation = os.environ.get("SENTINEL_OPERATION", "upsert").strip().lower()
+source_id = os.environ.get("SENTINEL_SOURCE_ID", "").strip()
 handle_ref = os.environ.get("SENTINEL_HANDLE_REF", "").strip()
 entity_type = os.environ.get("SENTINEL_ENTITY_TYPE", "").strip() or "policy"
 dataset_id = os.environ.get("SENTINEL_DATASET_ID", "").strip()
 dataset_hash = os.environ.get("SENTINEL_DATASET_HASH", "").strip()
+source_record_version = dataset_hash or "marketplace-runtime-smoke-v1"
 
 granted_scopes = ["vectorization:verification"]
 if operation == "delete":
@@ -731,9 +735,8 @@ trace = {
     "requestId": f"marketplace-shared-sentinel-{sentinel_id}",
     "metadata": {
         "deploymentId": os.environ.get("PLATFORM_DEPLOYMENT_ID", ""),
-        "datasetId": dataset_id,
+        "sourceId": source_id,
         "handleRef": handle_ref,
-        "datasetHash": dataset_hash,
         "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
     },
     "authContext": {
@@ -770,6 +773,20 @@ content = (
     "are issued to the original payment method within 5 business days.\n"
     "classification: refund"
 )
+metadata = {
+    "title": "Shared Refund Policy",
+    "classification": "refund",
+    "knowledgeSourceHandleRef": handle_ref,
+    "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
+}
+if source_id:
+    metadata["knowledgeSourceId"] = source_id
+if dataset_id:
+    trace["metadata"]["datasetId"] = dataset_id
+    metadata["marketplaceDatasetId"] = dataset_id
+if dataset_hash:
+    trace["metadata"]["datasetHash"] = dataset_hash
+    metadata["marketplaceDatasetHash"] = dataset_hash
 
 print(json.dumps({
     "trace": trace,
@@ -779,17 +796,10 @@ print(json.dumps({
             "vectorSpace": entity_type,
             "id": sentinel_id,
             "content": content,
-            "metadata": {
-                "title": "Shared Refund Policy",
-                "classification": "refund",
-                "knowledgeSourceHandleRef": handle_ref,
-                "marketplaceDatasetId": dataset_id,
-                "marketplaceDatasetHash": dataset_hash,
-                "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
-            },
+            "metadata": metadata,
             "identity": {
                 "sourceRecordId": sentinel_id,
-                "sourceRecordVersion": dataset_hash,
+                "sourceRecordVersion": source_record_version,
                 "contentFingerprint": hashlib.md5(content.encode("utf-8")).hexdigest(),
             },
         }
@@ -799,11 +809,12 @@ PY
 }
 
 ensure_marketplace_shared_sentinel_contract() {
-  if [[ -n "${MARKETPLACE_SHARED_SENTINEL_DATASET_ID}" && -n "${MARKETPLACE_SHARED_SENTINEL_DATASET_HASH}" ]]; then
+  if [[ -n "${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}" && -n "${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE}" \
+    && ( -z "${PLATFORM_BASE_URL:-}" || -z "${PLATFORM_DEPLOYMENT_ID:-}" ) ]]; then
     return 0
   fi
   if [[ -z "${PLATFORM_BASE_URL:-}" || -z "${PLATFORM_DEPLOYMENT_ID:-}" ]]; then
-    fail "Marketplace shared sentinel verification requires PLATFORM_BASE_URL and PLATFORM_DEPLOYMENT_ID, or explicit MARKETPLACE_SHARED_SENTINEL_DATASET_ID and MARKETPLACE_SHARED_SENTINEL_DATASET_HASH."
+    fail "Marketplace shared sentinel verification requires PLATFORM_BASE_URL and PLATFORM_DEPLOYMENT_ID, or explicit MARKETPLACE_SHARED_SENTINEL_HANDLE_REF and MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE."
   fi
   if [[ -z "${PLATFORM_SOURCE_OF_TRUTH_BODY:-}" ]]; then
     platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
@@ -816,18 +827,19 @@ import json
 import os
 
 body = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
-print(((body.get("liveArtifacts") or {}).get("marketplaceDatasetArtifactUrl")) or "")
+print(((body.get("liveArtifacts") or {}).get("knowledgeSourceArtifactUrl")) or "")
 PY
 )"
   if [[ -z "${MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL}" ]]; then
-    fail "Marketplace shared sentinel verification requires liveArtifacts.marketplaceDatasetArtifactUrl in deployment source-of-truth."
+    fail "Marketplace shared sentinel verification requires liveArtifacts.knowledgeSourceArtifactUrl in deployment source-of-truth."
   fi
 
   platform_http GET "${MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL}"
-  assert_status 200 "marketplace dataset artifact fetch"
+  assert_status 200 "marketplace knowledge source artifact fetch"
   local resolved_contract=()
   mapfile -t resolved_contract < <(
-    MARKETPLACE_DATASET_ARTIFACT_BODY="${HTTP_BODY}" \
+    MARKETPLACE_KNOWLEDGE_SOURCE_ARTIFACT_BODY="${HTTP_BODY}" \
+    SENTINEL_SOURCE_ID="${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID}" \
     SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}" \
     SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE}" \
     python3 - <<'PY'
@@ -835,40 +847,50 @@ import json
 import os
 import sys
 
-body = json.loads(os.environ.get("MARKETPLACE_DATASET_ARTIFACT_BODY", "") or "{}")
-datasets = (body or {}).get("datasets") or []
+body = json.loads(os.environ.get("MARKETPLACE_KNOWLEDGE_SOURCE_ARTIFACT_BODY", "") or "{}")
+sources = (body or {}).get("sources") or []
+source_id = (os.environ.get("SENTINEL_SOURCE_ID") or "").strip()
 handle_ref = (os.environ.get("SENTINEL_HANDLE_REF") or "").strip()
 default_entity_type = (os.environ.get("SENTINEL_ENTITY_TYPE") or "").strip() or "policy"
 
 match = next(
     (
-        item for item in datasets
-        if isinstance(item, dict) and (item.get("handleRef") or "").strip() == handle_ref
+        item for item in sources
+        if isinstance(item, dict) and source_id and (item.get("id") or "").strip() == source_id
     ),
     None,
 )
 if match is None:
-    print(f"missing handleRef {handle_ref}", file=sys.stderr)
+    match = next(
+        (
+            item for item in sources
+            if isinstance(item, dict) and handle_ref and (item.get("handleRef") or "").strip() == handle_ref
+        ),
+        None,
+    )
+if match is None:
+    wanted = source_id or handle_ref or "<unknown>"
+    print(f"missing shared knowledge source {wanted}", file=sys.stderr)
     raise SystemExit(1)
 
-dataset_id = (match.get("datasetId") or "").strip()
-dataset_hash = (match.get("datasetHash") or "").strip()
+resolved_source_id = (match.get("id") or "").strip() or source_id
+resolved_handle_ref = (match.get("handleRef") or "").strip() or handle_ref
 entity_type = (match.get("entityType") or "").strip() or default_entity_type
-if not dataset_id or not dataset_hash:
+if not resolved_handle_ref:
     print(json.dumps(match), file=sys.stderr)
     raise SystemExit(2)
 
-print(dataset_id)
-print(dataset_hash)
+print(resolved_source_id)
+print(resolved_handle_ref)
 print(entity_type)
 PY
-  ) || fail "Failed to resolve marketplace shared sentinel dataset contract for handleRef ${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}."
+  ) || fail "Failed to resolve marketplace shared sentinel knowledge source contract for source ${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID}."
   if [[ "${#resolved_contract[@]}" -lt 3 ]]; then
-    fail "Marketplace shared sentinel contract lookup returned incomplete dataset metadata."
+    fail "Marketplace shared sentinel contract lookup returned incomplete knowledge source metadata."
   fi
 
-  MARKETPLACE_SHARED_SENTINEL_DATASET_ID="${resolved_contract[0]}"
-  MARKETPLACE_SHARED_SENTINEL_DATASET_HASH="${resolved_contract[1]}"
+  MARKETPLACE_SHARED_SENTINEL_SOURCE_ID="${resolved_contract[0]}"
+  MARKETPLACE_SHARED_SENTINEL_HANDLE_REF="${resolved_contract[1]}"
   MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE="${resolved_contract[2]}"
 }
 
