@@ -24,6 +24,8 @@ PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_COOKIE="${PLATFORM_COOKIE:-}"
 PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
+PLATFORM_HTTP_RETRY_ATTEMPTS="${PLATFORM_HTTP_RETRY_ATTEMPTS:-4}"
+PLATFORM_HTTP_RETRY_SLEEP_SECONDS="${PLATFORM_HTTP_RETRY_SLEEP_SECONDS:-5}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TEMPLATE_PLUGIN_ID="${TEMPLATE_PLUGIN_ID:-mkp-template-support-desk-shell}"
@@ -165,7 +167,19 @@ platform_request() {
     curl_args+=(-b "${COOKIE_JAR}" -c "${COOKIE_JAR}")
   fi
 
-  HTTP_STATUS="$("${curl_args[@]}")"
+  local attempt=1
+  while true; do
+    HTTP_STATUS="$("${curl_args[@]}")"
+    if [[ "${method}" == "GET" \
+        && ( "${HTTP_STATUS}" == "000" || "${HTTP_STATUS}" == "502" || "${HTTP_STATUS}" == "503" || "${HTTP_STATUS}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient platform ${method} ${path} returned HTTP ${HTTP_STATUS}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
 }
 
 public_request() {
@@ -258,7 +272,19 @@ login_if_needed() {
   if [[ -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ]]; then
     fail "Set PLATFORM_API_KEY, PLATFORM_COOKIE, or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD."
   fi
-  platform_request "POST" "/api/platform/auth/login" "{\"email\":\"${PLATFORM_LOGIN_EMAIL}\",\"password\":\"${PLATFORM_LOGIN_PASSWORD}\"}"
+  local payload="{\"email\":\"${PLATFORM_LOGIN_EMAIL}\",\"password\":\"${PLATFORM_LOGIN_PASSWORD}\"}"
+  local attempt=1
+  while true; do
+    platform_request "POST" "/api/platform/auth/login" "${payload}"
+    if [[ ( "${HTTP_STATUS}" == "000" || "${HTTP_STATUS}" == "502" || "${HTTP_STATUS}" == "503" || "${HTTP_STATUS}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient platform login returned HTTP ${HTTP_STATUS}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
   assert_status 200 "platform login"
   json_assert "platform login" $'assert (data or {}).get("authenticated") is True\nprint("ok")'
 }
@@ -423,7 +449,7 @@ wait_for_release_verification() {
       return
     fi
 
-    if [[ "${status}" == "FAILED" || "${status}" == "VERIFY_FAILED" || "${status}" == "PRE_APPLY_BLOCKED" || "${status}" == "DELETED" ]]; then
+    if [[ "${status}" == "FAILED" || "${status}" == "VERIFY_FAILED" || "${status}" == "APPLIED_VERIFICATION_FAILED" || "${status}" == "PRE_APPLY_BLOCKED" || "${status}" == "DELETED" ]]; then
       fail "release ${RELEASE_ID} ended in ${status}/${verification_status} at step ${current_step}: ${error_message}"
     fi
 

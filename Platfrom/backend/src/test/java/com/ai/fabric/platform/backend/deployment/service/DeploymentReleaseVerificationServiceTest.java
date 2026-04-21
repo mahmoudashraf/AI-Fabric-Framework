@@ -935,6 +935,279 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
+    void verifyRetriesRuntimeAdminJsonProbesUntilRuntimeApplicationBecomesAvailable() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
+        AtomicInteger authOverviewCalls = new AtomicInteger();
+        AtomicInteger actionsOverviewCalls = new AtomicInteger();
+        AtomicInteger indexingOverviewCalls = new AtomicInteger();
+        AtomicInteger connectorActionsOverviewCalls = new AtomicInteger();
+        try {
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+            );
+
+            registerRuntimeHandlers(runtimeServer, artifacts);
+            runtimeServer.removeContext("/api/admin/auth/overview");
+            runtimeServer.createContext("/api/admin/auth/overview", exchange -> {
+                String trustedBackend = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+                String privateAuthorization = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+                if (!"trusted-backend-secret".equals(trustedBackend) || privateAuthorization == null || !privateAuthorization.startsWith("Bearer rpa1.")) {
+                    writeJson(exchange, 401, """
+                        {"success":false,"message":"Unauthorized"}
+                        """);
+                    return;
+                }
+                if (authOverviewCalls.incrementAndGet() == 1) {
+                    writeJson(exchange, 404, """
+                        {"status":"error","code":404,"message":"Application not found"}
+                        """);
+                    return;
+                }
+                writeJson(exchange, 200, """
+                    {
+                      "success": true,
+                      "contractVersion": "RUNTIME_AUTH_OVERVIEW_V1",
+                      "auth": {
+                        "ingressMode": "VERIFIED_CONTEXT_REQUIRED",
+                        "verifiedContextRequired": true,
+                        "rejectConflictingRequestIdentity": true,
+                        "rejectRequestIdentityWhenVerifiedContextPresent": true,
+                        "trustedBackendConfigured": true,
+                        "privateAssertionValidationConfigured": true,
+                        "privateAssertionAcceptedIssuers": ["platform-runtime:SESSION", "platform-runtime:API_KEY", "platform-poc:SESSION", "platform-poc:API_KEY", "platform-poc:SYSTEM", "platform-release-verification", "platform-vectorization-verification", "platform-runtime-coverage"],
+                        "privateAssertionAcceptedAudiences": ["dep-123"],
+                        "publicTokenValidationConfigured": false,
+                        "publicAuthorizationHeader": "Authorization",
+                        "publicTokenScheme": "Bearer",
+                        "publicTokenIssuer": "runtime-public-bootstrap",
+                        "publicAcceptedIssuers": [],
+                        "publicAcceptedAudiences": [],
+                        "publicDefaultAudience": "",
+                        "publicBootstrap": {
+                          "enabled": false,
+                          "allowMissingOrigin": false,
+                          "allowedOrigins": []
+                        }
+                      },
+                      "warnings": [],
+                      "warningCount": 0
+                    }
+                    """);
+            });
+            runtimeServer.removeContext("/api/admin/actions/overview");
+            runtimeServer.createContext("/api/admin/actions/overview", exchange -> {
+                String trustedBackend = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+                String privateAuthorization = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+                if (!"trusted-backend-secret".equals(trustedBackend) || privateAuthorization == null || !privateAuthorization.startsWith("Bearer rpa1.")) {
+                    writeJson(exchange, 401, """
+                        {"success":false,"message":"Unauthorized"}
+                        """);
+                    return;
+                }
+                if (actionsOverviewCalls.incrementAndGet() == 1) {
+                    writeJson(exchange, 404, """
+                        {"status":"error","code":404,"message":"Application not found"}
+                        """);
+                    return;
+                }
+                writeJson(exchange, 200, """
+                    {
+                      "success": true,
+                      "contractVersion": "RUNTIME_ACTION_CATALOG_OVERVIEW_V3",
+                      "count": 2,
+                      "withPresentationHintsCount": 1,
+                      "withBuiltInModuleMappingsCount": 1,
+                      "withBuiltInCardMappingsCount": 1,
+                      "withProvenanceCount": 2,
+                      "confirmationInterceptorsCount": 1,
+                      "postActionWebhookPoliciesCount": 0,
+                      "actionNamesWithPostActionWebhookPolicies": [],
+                      "webhookTargetsCount": 0,
+                      "webhookTargetIds": [],
+                      "confirmationInterceptorRuleNames": ["offer_cart_retention"],
+                      "confirmationInterceptorSources": ["%s"],
+                      "actions": [
+                        {
+                          "name": "list_products",
+                          "resultPresentationHint": "TABLE",
+                          "builtInModuleId": "product-catalog",
+                          "builtInCardId": "product-list",
+                          "provenance": {
+                            "sourceType": "ACTION_CATALOG"
+                          }
+                        },
+                        {
+                          "name": "view_cart",
+                          "resultPresentationHint": "DEFAULT",
+                          "provenance": {
+                            "sourceType": "ACTION_CATALOG"
+                          }
+                        }
+                      ]
+                    }
+                    """.formatted(artifacts.actionsArtifactUrl()));
+            });
+            runtimeServer.removeContext("/api/admin/indexing/overview");
+            runtimeServer.createContext("/api/admin/indexing/overview", exchange -> {
+                String trustedBackend = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+                String privateAuthorization = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+                if (!"trusted-backend-secret".equals(trustedBackend) || privateAuthorization == null || !privateAuthorization.startsWith("Bearer rpa1.")) {
+                    writeJson(exchange, 401, """
+                        {"success":false,"message":"Unauthorized"}
+                        """);
+                    return;
+                }
+                if (indexingOverviewCalls.incrementAndGet() == 1) {
+                    writeJson(exchange, 404, """
+                        {"status":"error","code":404,"message":"Application not found"}
+                        """);
+                    return;
+                }
+                writeJson(exchange, 200, """
+                    {
+                      "success": true,
+                      "supportsVectorScan": true,
+                      "entityTypes": ["product", "policy"],
+                      "countsByEntityType": {
+                        "product": 4,
+                        "policy": 1
+                      },
+                      "totalVectors": 5
+                    }
+                    """);
+            });
+            runtimeServer.removeContext("/api/admin/connector/actions/overview");
+            runtimeServer.createContext("/api/admin/connector/actions/overview", exchange -> {
+                String trustedBackend = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+                String privateAuthorization = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+                if (!"trusted-backend-secret".equals(trustedBackend) || privateAuthorization == null || !privateAuthorization.startsWith("Bearer rpa1.")) {
+                    writeJson(exchange, 401, """
+                        {"success":false,"message":"Unauthorized"}
+                        """);
+                    return;
+                }
+                if (connectorActionsOverviewCalls.incrementAndGet() == 1) {
+                    writeJson(exchange, 404, """
+                        {"status":"error","code":404,"message":"Application not found"}
+                        """);
+                    return;
+                }
+                writeJson(exchange, 200, """
+                    {
+                      "success": true,
+                      "count": 2,
+                      "actions": [
+                        {"actionId": "list_products"},
+                        {"actionId": "view_cart"}
+                      ]
+                    }
+                    """);
+            });
+            registerConnectorHandlers(connectorServer, artifacts);
+            runtimeServer.start();
+            connectorServer.start();
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
+            when(platformSecretService.isSecretPresent(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredManagedVectorizationSummary());
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "lucene",
+                    "LOCAL_MANAGED",
+                    false,
+                    "NONE",
+                    List.of(),
+                    "Platform-managed external vector provisioning is not enabled for this draft.",
+                    List.of(
+                        new DeploymentProviderConnectivityProbeSummary(
+                            "local_vector_backend",
+                            "Local vector backend",
+                            "SKIPPED",
+                            "lucene",
+                            "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
+                        )
+                    ),
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    List.of()
+                )
+            );
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(1),
+                    Duration.ofSeconds(3),
+                    Duration.ofSeconds(2),
+                    Duration.ofMillis(10),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/connector/health",
+                    "/api/admin/overview",
+                    "/api/admin/auth/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
+                ),
+                platformSecretService,
+                new DeploymentConfigCompiler(objectMapper),
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentEntity deployment = deployment(
+                "http://127.0.0.1:" + runtimeServer.getAddress().getPort(),
+                "http://127.0.0.1:" + connectorServer.getAddress().getPort()
+            );
+            DeploymentVersionEntity version = version();
+            DeploymentReleaseEntity release = release();
+
+            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_APPLY");
+
+            assertThat(checkStatus(run, "runtime_auth_overview_http_probe")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_actions_overview_http_probe")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_indexing_overview_http_probe")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "connector_actions_overview_http_probe")).isEqualTo("PASSED");
+            assertThat(authOverviewCalls.get()).isGreaterThanOrEqualTo(2);
+            assertThat(actionsOverviewCalls.get()).isGreaterThanOrEqualTo(2);
+            assertThat(indexingOverviewCalls.get()).isGreaterThanOrEqualTo(2);
+            assertThat(connectorActionsOverviewCalls.get()).isGreaterThanOrEqualTo(2);
+        } finally {
+            runtimeServer.stop(0);
+            connectorServer.stop(0);
+        }
+    }
+
+    @Test
     void verifyPreApplyBlocksWhenManagedSecretIsMissing() throws Exception {
         HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
         try {

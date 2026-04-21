@@ -397,7 +397,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_admin_overview_http_probe", "Runtime admin overview", runtimeOverview);
         validateRuntimeOverview(checks, runtimeOverview, expectations);
 
-        JsonProbeResult runtimeAuthOverview = probeJson(
+        JsonProbeResult runtimeAuthOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeAuthOverviewPath(),
             runtimeAdminHeaders
@@ -405,7 +405,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_auth_overview_http_probe", "Runtime auth overview", runtimeAuthOverview);
         validateRuntimeAuthOverview(checks, runtimeAuthOverview, expectations);
 
-        JsonProbeResult runtimeActionsOverview = probeJson(
+        JsonProbeResult runtimeActionsOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeActionsOverviewPath(),
             runtimeAdminHeaders
@@ -413,7 +413,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_actions_overview_http_probe", "Runtime actions overview", runtimeActionsOverview);
         validateRuntimeActions(checks, runtimeActionsOverview, expectations);
 
-        JsonProbeResult runtimeIndexingOverview = probeJson(
+        JsonProbeResult runtimeIndexingOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeIndexingOverviewPath(),
             runtimeAdminHeaders,
@@ -428,7 +428,7 @@ public class DeploymentReleaseVerificationService {
         validateConnectorAuthz(checks, connectorOverview, expectations);
         validateMarketplaceDatasetSync(checks, deployment, release, expectations);
 
-        JsonProbeResult connectorActionsOverview = probeJson(
+        JsonProbeResult connectorActionsOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.connectorActionsOverviewPath(),
             runtimeAdminHeaders
@@ -482,7 +482,14 @@ public class DeploymentReleaseVerificationService {
     private JsonProbeResult awaitSuccessfulJsonProbe(String baseUrl,
                                                      String path,
                                                      Map<String, String> headers) {
-        JsonProbeResult probe = probeJson(baseUrl, path, headers);
+        return awaitSuccessfulJsonProbe(baseUrl, path, headers, verificationProperties.timeout());
+    }
+
+    private JsonProbeResult awaitSuccessfulJsonProbe(String baseUrl,
+                                                     String path,
+                                                     Map<String, String> headers,
+                                                     Duration timeout) {
+        JsonProbeResult probe = probeJson(baseUrl, path, headers, timeout);
         if (probe.success()) {
             return probe;
         }
@@ -492,7 +499,7 @@ public class DeploymentReleaseVerificationService {
             if (!sleepQuietly(verificationProperties.postApplyConsistencyPollInterval())) {
                 break;
             }
-            probe = probeJson(baseUrl, path, headers);
+            probe = probeJson(baseUrl, path, headers, timeout);
             if (probe.success()) {
                 break;
             }
