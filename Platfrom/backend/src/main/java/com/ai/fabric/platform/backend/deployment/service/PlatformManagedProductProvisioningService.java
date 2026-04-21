@@ -200,6 +200,81 @@ public class PlatformManagedProductProvisioningService {
     }
 
     @Transactional
+    public PlatformManagedProductServiceEntity refreshRailwayBindingFromWorkspace(String serviceRef) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (!requiresRailwayLifecycle(service)) {
+            return service;
+        }
+
+        RailwayGraphqlClient.RailwayProjectSnapshot project = resolveCurrentProjectSnapshot(service);
+        RailwayGraphqlClient.RailwayEnvironmentSummary environment = project == null
+            ? null
+            : project.environmentNamed(resolveEnvironmentName(service));
+        RailwayGraphqlClient.RailwayServiceSummary railwayService = project == null
+            ? null
+            : project.serviceNamed(sharedServiceName(service));
+        boolean needsRefresh = !hasText(service.getRailwayProjectId())
+            || !hasText(service.getRailwayEnvironmentId())
+            || !hasText(service.getRailwayServiceId())
+            || project == null
+            || environment == null
+            || railwayService == null
+            || !service.getRailwayProjectId().equals(project.id())
+            || !service.getRailwayEnvironmentId().equals(environment.id())
+            || !service.getRailwayServiceId().equals(railwayService.id());
+        if (!needsRefresh) {
+            return service;
+        }
+
+        RailwayGraphqlClient.RailwayProjectSnapshot discoveredProject = railwayGraphqlClient.findProjectByName(
+            provisioningProperties.workspaceId(),
+            sharedProjectName(service)
+        );
+        if (discoveredProject == null) {
+            return service;
+        }
+        RailwayGraphqlClient.RailwayEnvironmentSummary discoveredEnvironment = discoveredProject.environmentNamed(resolveEnvironmentName(service));
+        if (discoveredEnvironment == null) {
+            return service;
+        }
+        RailwayGraphqlClient.RailwayServiceSummary discoveredService = discoveredProject.serviceNamed(sharedServiceName(service));
+        if (discoveredService == null) {
+            return service;
+        }
+
+        RailwayGraphqlClient.RailwayServiceInstanceSummary instance = railwayGraphqlClient.getServiceInstance(
+            discoveredEnvironment.id(),
+            discoveredService.id()
+        );
+        String publicBaseUrl = hasText(service.getBaseUrl())
+            ? service.getBaseUrl().trim()
+            : ensureServiceDomain(discoveredProject.id(), discoveredEnvironment.id(), discoveredService.id());
+        String lastDeploymentId = trimToNull(mutableDetails(service).path("lastDeploymentId").asText(null));
+        finalizeActiveService(
+            service,
+            discoveredProject.id(),
+            discoveredEnvironment.id(),
+            discoveredService.id(),
+            instance,
+            publicBaseUrl,
+            lastDeploymentId,
+            "Railway product service linkage refreshed from workspace inventory."
+        );
+        platformAuditService.record(
+            "MANAGED_PRODUCT_RAILWAY_BINDING_REFRESHED",
+            "MANAGED_PRODUCT_SERVICE",
+            service.getServiceRef(),
+            Map.of(
+                "serviceRef", service.getServiceRef(),
+                "railwayProjectId", discoveredProject.id(),
+                "railwayEnvironmentId", discoveredEnvironment.id(),
+                "railwayServiceId", discoveredService.id()
+            )
+        );
+        return service;
+    }
+
+    @Transactional
     public PlatformManagedProductServiceSummary forceRecreate(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
         if (!requiresRailwayLifecycle(service)) {
@@ -319,6 +394,21 @@ public class PlatformManagedProductProvisioningService {
 
     private boolean requiresRailwayLifecycle(PlatformManagedProductServiceEntity service) {
         return "SHOPIFY_BRIDGE_SERVICE".equals(upper(service.getServiceKind()));
+    }
+
+    private RailwayGraphqlClient.RailwayProjectSnapshot resolveCurrentProjectSnapshot(PlatformManagedProductServiceEntity service) {
+        if (!hasText(service.getRailwayProjectId())) {
+            return null;
+        }
+        try {
+            return railwayGraphqlClient.getProject(service.getRailwayProjectId());
+        } catch (RuntimeException ex) {
+            String message = blankToFallback(ex.getMessage(), "").toLowerCase(Locale.ROOT);
+            if (message.contains("project not found")) {
+                return null;
+            }
+            throw ex;
+        }
     }
 
     private ReconciledRailwayService reconcileRailwayService(PlatformManagedProductServiceEntity service) {

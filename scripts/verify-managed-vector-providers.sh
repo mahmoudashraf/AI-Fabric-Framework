@@ -69,6 +69,34 @@ WEAVIATE_HOST="${WEAVIATE_HOST:-${PLATFORM_VERIFICATION_WEAVIATE_HOST:-}}"
 WEAVIATE_PORT="${WEAVIATE_PORT:-443}"
 WEAVIATE_API_KEY="${WEAVIATE_API_KEY:-}"
 
+resolve_secret_value() {
+  local var_name="$1"
+  local file_var_name="${var_name}_FILE"
+  local direct_value="${!var_name:-}"
+  local file_path="${!file_var_name:-}"
+
+  if [[ -n "${file_path}" ]]; then
+    if [[ ! -f "${file_path}" ]]; then
+      echo "Missing secret file for ${var_name}: ${file_path}"
+      exit 2
+    fi
+    python3 - <<'PY' "${file_path}"
+import pathlib
+import sys
+print(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+PY
+    return
+  fi
+
+  printf '%s' "${direct_value}"
+}
+
+PINECONE_API_KEY="$(resolve_secret_value PINECONE_API_KEY)"
+QDRANT_CLOUD_MANAGEMENT_API_KEY="$(resolve_secret_value QDRANT_CLOUD_MANAGEMENT_API_KEY)"
+QDRANT_API_KEY="$(resolve_secret_value QDRANT_API_KEY)"
+ZILLIZ_CLOUD_API_KEY="$(resolve_secret_value ZILLIZ_CLOUD_API_KEY)"
+WEAVIATE_API_KEY="$(resolve_secret_value WEAVIATE_API_KEY)"
+
 TMP_DIR="$(mktemp -d)"
 HTTP_STATUS=""
 HTTP_BODY=""

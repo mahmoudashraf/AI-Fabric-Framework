@@ -134,13 +134,18 @@ public class PlatformManagedProductAdminService {
             .toList();
     }
 
+    public PlatformManagedProductServiceSummary getServiceSummary(String serviceRef) {
+        PlatformManagedProductServiceEntity service = provisioningService.refreshRailwayBindingFromWorkspace(serviceRef);
+        return serviceService.toSummary(service);
+    }
+
     public List<PlatformAuditEventSummary> listActivity(String serviceRef) {
         serviceService.requireService(serviceRef);
         return platformAuditService.listRecentEventsForTarget(TARGET_TYPE, serviceRef, 100);
     }
 
     public PlatformManagedProductServiceDeploymentHistorySummary getDeploymentHistory(String serviceRef, Integer limit) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        PlatformManagedProductServiceEntity service = provisioningService.refreshRailwayBindingFromWorkspace(serviceRef);
         int requestedLimit = normalizeHistoryLimit(limit);
         if (!hasText(service.getRailwayServiceId())) {
             return unavailableDeploymentHistory(service, "Managed product service does not have a Railway service linkage yet.");
@@ -182,7 +187,7 @@ public class PlatformManagedProductAdminService {
                                                                           String filter,
                                                                           String startDate,
                                                                           String endDate) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        PlatformManagedProductServiceEntity service = provisioningService.refreshRailwayBindingFromWorkspace(serviceRef);
         String normalizedSource = normalizeLogSource(source);
         int requestedLimit = normalizeLogLimit(limit);
         if (!hasText(service.getRailwayServiceId())) {

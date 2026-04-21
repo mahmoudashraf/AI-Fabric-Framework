@@ -44,6 +44,8 @@ PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-}"
 PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_API_KEY_HEADER="${PLATFORM_API_KEY_HEADER:-X-PLATFORM-API-KEY}"
 PLATFORM_SESSION_COOKIE_JAR="${PLATFORM_SESSION_COOKIE_JAR:-}"
+PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
+PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 SHOPIFY_BRIDGE_BASE_URL="${SHOPIFY_BRIDGE_BASE_URL:-}"
 SHOP_DOMAIN="${SHOP_DOMAIN:-}"
 PRODUCT_SERVICE_REF="${PRODUCT_SERVICE_REF:-shopify-bridge-prod}"
@@ -67,6 +69,15 @@ SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
+TEMP_PLATFORM_COOKIE_JAR=""
+
+cleanup() {
+  if [[ -n "${TEMP_PLATFORM_COOKIE_JAR}" && -f "${TEMP_PLATFORM_COOKIE_JAR}" ]]; then
+    rm -f "${TEMP_PLATFORM_COOKIE_JAR}"
+  fi
+}
+
+trap cleanup EXIT
 
 require_cmd() {
   local cmd="$1"
@@ -82,6 +93,28 @@ require_env() {
     echo "Missing required env: ${name}"
     exit 2
   fi
+}
+
+resolve_secret_value() {
+  local var_name="$1"
+  local file_var_name="${var_name}_FILE"
+  local direct_value="${!var_name:-}"
+  local file_path="${!file_var_name:-}"
+
+  if [[ -n "${file_path}" ]]; then
+    if [[ ! -f "${file_path}" ]]; then
+      echo "Missing secret file for ${var_name}: ${file_path}"
+      exit 2
+    fi
+    python3 - <<'PY' "${file_path}"
+import pathlib
+import sys
+print(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+PY
+    return
+  fi
+
+  printf '%s' "${direct_value}"
 }
 
 trim_slash() {
@@ -289,6 +322,55 @@ platform_request() {
   HTTP_COOKIE_JAR="${previous_cookie_jar}"
 }
 
+platform_login() {
+  if [[ -n "${PLATFORM_API_KEY}" || -n "${PLATFORM_SESSION_COOKIE_JAR}" ]]; then
+    return
+  fi
+  if [[ -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ]]; then
+    return
+  fi
+
+  TEMP_PLATFORM_COOKIE_JAR="$(mktemp)"
+  local response
+  response="$(python3 - "${platform_base}" "${TEMP_PLATFORM_COOKIE_JAR}" "${PLATFORM_LOGIN_EMAIL}" "${PLATFORM_LOGIN_PASSWORD}" <<'PY'
+import json
+import subprocess
+import sys
+
+platform_base = sys.argv[1]
+cookie_jar = sys.argv[2]
+email = sys.argv[3]
+password = sys.argv[4]
+
+cmd = [
+    "curl",
+    "-sS",
+    "-X", "POST",
+    "-H", "Accept: application/json",
+    "-H", "Content-Type: application/json",
+    "-c", cookie_jar,
+    "-b", cookie_jar,
+    "-w", "\n%{http_code}",
+    "--data", json.dumps({"email": email, "password": password}),
+    f"{platform_base}/api/platform/auth/login",
+]
+completed = subprocess.run(cmd, capture_output=True, text=True)
+if completed.returncode != 0:
+    print(completed.stderr.strip(), file=sys.stderr)
+    raise SystemExit(completed.returncode)
+print(completed.stdout, end="")
+PY
+)"
+  HTTP_BODY="${response%$'\n'*}"
+  HTTP_STATUS="${response##*$'\n'}"
+  if [[ "${HTTP_STATUS}" != "200" ]]; then
+    echo "Platform login failed (HTTP ${HTTP_STATUS})."
+    echo "${HTTP_BODY}"
+    exit 1
+  fi
+  PLATFORM_SESSION_COOKIE_JAR="${TEMP_PLATFORM_COOKIE_JAR}"
+}
+
 assert_shopify_webhook_subscriptions() {
   local payload="$1"
   local expected_uri="$2"
@@ -345,6 +427,12 @@ PY
 }
 
 declare -a platform_headers=()
+PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
+PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
+PLATFORM_LOGIN_PASSWORD="$(resolve_secret_value PLATFORM_LOGIN_PASSWORD)"
+SHOPIFY_BRIDGE_ADMIN_API_KEY="$(resolve_secret_value SHOPIFY_BRIDGE_ADMIN_API_KEY)"
+SHOPIFY_ADMIN_ACCESS_TOKEN="$(resolve_secret_value SHOPIFY_ADMIN_ACCESS_TOKEN)"
+SHOPIFY_MERCHANT_AUTHORIZATION="$(resolve_secret_value SHOPIFY_MERCHANT_AUTHORIZATION)"
 if [[ -n "${PLATFORM_API_KEY}" ]]; then
   platform_headers=("${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
 fi
@@ -356,8 +444,9 @@ require_cmd python3
 require_env PLATFORM_BASE_URL
 require_env SHOPIFY_BRIDGE_BASE_URL
 require_env SHOP_DOMAIN
+platform_login
 if [[ -z "${PLATFORM_API_KEY}" && -z "${PLATFORM_SESSION_COOKIE_JAR}" ]]; then
-  echo "Missing required auth: set PLATFORM_API_KEY or PLATFORM_SESSION_COOKIE_JAR"
+  echo "Missing required auth: set PLATFORM_API_KEY, PLATFORM_SESSION_COOKIE_JAR, or PLATFORM_LOGIN_EMAIL/PLATFORM_LOGIN_PASSWORD"
   exit 2
 fi
 

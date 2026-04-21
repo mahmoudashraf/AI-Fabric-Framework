@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceDeploymentHistorySummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -250,6 +251,102 @@ class PlatformManagedProductAdminServiceTest {
     }
 
     @Test
+    void getServiceSummaryRepairsRailwayBindingBeforeReturningSummary() {
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setRailwayProjectId("prj-456");
+        service.setRailwayEnvironmentId("env-456");
+        service.setRailwayServiceId("svc-456");
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
+
+        PlatformManagedProductServiceSummary expectedSummary = new PlatformManagedProductServiceSummary(
+            service.getId(),
+            service.getServiceRef(),
+            service.getDisplayName(),
+            service.getProductFamily(),
+            service.getServiceKind(),
+            service.getDeploymentMode(),
+            service.getTenantMode(),
+            service.getEnvironmentScope(),
+            service.getDeploymentId(),
+            "prj-456",
+            "env-456",
+            "svc-456",
+            service.getDesiredReplicas(),
+            service.getActualReplicas(),
+            service.getMinReplicas(),
+            service.getMaxReplicas(),
+            service.getBaseUrl(),
+            service.getPrivateNetworkUrl(),
+            service.getHealthPath(),
+            service.getServiceRoot(),
+            service.getDockerfilePath(),
+            service.getSecretName(),
+            service.getStatus(),
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            0
+        );
+
+        when(provisioningService.refreshRailwayBindingFromWorkspace("shopify-bridge-prod")).thenReturn(service);
+        when(serviceService.toSummary(service)).thenReturn(expectedSummary);
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            shopifyStoreConnectionService,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        PlatformManagedProductServiceSummary summary = adminService.getServiceSummary("shopify-bridge-prod");
+
+        assertThat(summary.railwayProjectId()).isEqualTo("prj-456");
+        assertThat(summary.railwayEnvironmentId()).isEqualTo("env-456");
+        assertThat(summary.railwayServiceId()).isEqualTo("svc-456");
+        verify(provisioningService).refreshRailwayBindingFromWorkspace("shopify-bridge-prod");
+    }
+
+    @Test
     void getStoreBindingReturnsShopifyBindingInspectionForMappedStore() {
         PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
         ShopifyStoreConnectionEntity connection = storeConnection(service.getId(), "demo.myshopify.com");
@@ -450,7 +547,7 @@ class PlatformManagedProductAdminServiceTest {
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
 
-        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(provisioningService.refreshRailwayBindingFromWorkspace("shopify-bridge-prod")).thenReturn(service);
         when(railwayGraphqlClient.listServiceDeployments("rail-svc-123", 5)).thenReturn(List.of(
             new RailwayGraphqlClient.RailwayDeploymentSummary(
                 "rail-dep-2",
@@ -517,7 +614,7 @@ class PlatformManagedProductAdminServiceTest {
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
 
-        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(provisioningService.refreshRailwayBindingFromWorkspace("shopify-bridge-prod")).thenReturn(service);
         when(railwayGraphqlClient.listServiceDeployments("rail-svc-123", 1)).thenReturn(List.of(
             new RailwayGraphqlClient.RailwayDeploymentSummary(
                 "rail-dep-9",

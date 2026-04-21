@@ -57,7 +57,7 @@ public class ProductServiceController {
 
     @GetMapping("/{serviceRef}")
     public PlatformManagedProductServiceSummary getService(@PathVariable String serviceRef) {
-        return serviceService.getService(serviceRef);
+        return adminService.getServiceSummary(serviceRef);
     }
 
     @GetMapping("/{serviceRef}/dependents")
