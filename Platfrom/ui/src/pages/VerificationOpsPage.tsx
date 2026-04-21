@@ -7,8 +7,10 @@ import {
   Card,
   CardContent,
   Chip,
+  FormControlLabel,
   Grid,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -17,27 +19,33 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  dispatchPlatformVerificationSuiteRun,
   dispatchDeploymentHostedVerification,
   fetchDeploymentHostedVerificationRuns,
   fetchDeploymentSecretUsage,
   fetchDeploymentVerificationRollouts,
   fetchMarketplaceInferenceServiceHealth,
   fetchMarketplaceInferenceServices,
+  fetchPlatformVerificationSuiteDefinitions,
+  fetchPlatformVerificationSuiteRuns,
   recreateDeploymentVerificationRollouts,
   reconcileMarketplaceInferenceService,
   type DeploymentHostedVerificationRunSummary,
   type DeploymentSecretUsageItemSummary,
   type DeploymentSecretUsageSummary,
   type DeploymentVerificationRolloutItemSummary,
+  type PlatformVerificationSuiteRunSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { HostedVerificationRunHistory } from '../components/HostedVerificationRunHistory'
 
+const CANONICAL_RELEASE_READINESS_SUITE_KEY = 'canonical-release-readiness'
 const SHARED_INFERENCE_SERVICE_REF = 'shared-ollama-orchestration'
 const ROLLOUT_RUN_ORDER = ['marketplace', 'ecommerce', 'qdrant', 'pinecone', 'milvus', 'weaviate'] as const
+const ACTIVE_SUITE_STATUSES = ['QUEUED', 'RUNNING'] as const
 
 function verificationStatusColor(status: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
   if (['PASSED', 'READY', 'ACTIVE', 'SUCCESS'].includes(status)) {
@@ -164,6 +172,10 @@ function normalizeStatusValue(value: string | null | undefined): string {
   return normalized.length > 0 ? normalized : 'UNKNOWN'
 }
 
+function suiteRunActive(status: string | null | undefined): boolean {
+  return ACTIVE_SUITE_STATUSES.includes(normalizeStatusValue(status) as (typeof ACTIVE_SUITE_STATUSES)[number])
+}
+
 function summarizeStatusCounts(values: Array<string | null | undefined>): Array<{ label: string; count: number }> {
   const counts = new Map<string, number>()
   values.forEach((value) => {
@@ -194,6 +206,17 @@ function serviceStatusColor(status: string): 'success' | 'warning' | 'error' | '
   return 'default'
 }
 
+function formatRunTimestamp(value: string | null | undefined): string {
+  if (!value) {
+    return '—'
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+  return parsed.toLocaleString()
+}
+
 function SummarySectionCard(props: {
   title: string
   subtitle: string
@@ -219,24 +242,73 @@ function SummarySectionCard(props: {
 export function VerificationOpsPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
+  const [allowControlPlaneRepair, setAllowControlPlaneRepair] = useState(false)
   const canManageHostedVerification = auth.session?.enabled ? auth.session.canManageUsers : true
+
+  const verificationSuiteDefinitionsQuery = useQuery({
+    queryKey: ['verification-suites', 'definitions'],
+    queryFn: fetchPlatformVerificationSuiteDefinitions,
+    enabled: canManageHostedVerification,
+  })
+
+  const verificationSuiteRunsQuery = useQuery({
+    queryKey: ['verification-suites', 'runs'],
+    queryFn: fetchPlatformVerificationSuiteRuns,
+    enabled: canManageHostedVerification,
+    refetchInterval: (query: { state: { data?: PlatformVerificationSuiteRunSummary[] } }) => {
+      const runs = query.state.data ?? []
+      return runs.some((run) => suiteRunActive(run.status)) ? 4000 : false
+    },
+  })
+
+  const canonicalReleaseSuiteDefinition = useMemo(
+    () => verificationSuiteDefinitionsQuery.data?.find((definition) => definition.key === CANONICAL_RELEASE_READINESS_SUITE_KEY) ?? null,
+    [verificationSuiteDefinitionsQuery.data],
+  )
+
+  const canonicalReleaseSuiteRuns = useMemo(
+    () => (verificationSuiteRunsQuery.data ?? []).filter((run) => run.suiteKey === CANONICAL_RELEASE_READINESS_SUITE_KEY),
+    [verificationSuiteRunsQuery.data],
+  )
+
+  const activeCanonicalReleaseSuiteRun = useMemo(
+    () => canonicalReleaseSuiteRuns.find((run) => suiteRunActive(run.status)) ?? null,
+    [canonicalReleaseSuiteRuns],
+  )
+
+  const latestCanonicalReleaseSuiteRun = canonicalReleaseSuiteRuns[0] ?? null
+  const latestCanonicalReleaseSuiteStageByKey = useMemo(() => {
+    const lookup = new Map<string, PlatformVerificationSuiteRunSummary['stages'][number]>()
+    latestCanonicalReleaseSuiteRun?.stages.forEach((stage) => {
+      lookup.set(stage.stageKey, stage)
+    })
+    return lookup
+  }, [latestCanonicalReleaseSuiteRun])
+  const latestCanonicalReleaseSuiteStageCounts = useMemo(
+    () => summarizeStatusCounts((latestCanonicalReleaseSuiteRun?.stages ?? []).map((stage) => stage.status)),
+    [latestCanonicalReleaseSuiteRun],
+  )
+  const manualOpsLocked = activeCanonicalReleaseSuiteRun != null
 
   const verificationRolloutsQuery = useQuery({
     queryKey: ['deployment-verification-rollouts'],
     queryFn: fetchDeploymentVerificationRollouts,
     enabled: canManageHostedVerification,
+    refetchInterval: manualOpsLocked ? 4000 : false,
   })
 
   const sharedInferenceHealthQuery = useQuery({
     queryKey: ['marketplace', 'inference-services', SHARED_INFERENCE_SERVICE_REF, 'health'],
     queryFn: () => fetchMarketplaceInferenceServiceHealth(SHARED_INFERENCE_SERVICE_REF),
     enabled: canManageHostedVerification,
+    refetchInterval: manualOpsLocked ? 4000 : false,
   })
 
   const inferenceServicesQuery = useQuery({
     queryKey: ['marketplace', 'inference-services'],
     queryFn: fetchMarketplaceInferenceServices,
     enabled: canManageHostedVerification,
+    refetchInterval: manualOpsLocked ? 4000 : false,
   })
 
   const orderedRollouts = useMemo(() => {
@@ -370,15 +442,39 @@ export function VerificationOpsPage() {
     return { total, ready, runnable, blocked, missing, archived }
   }, [orderedRollouts, rolloutReadiness])
 
+  const dispatchCanonicalReleaseSuiteMutation = useMutation({
+    mutationFn: () => dispatchPlatformVerificationSuiteRun(CANONICAL_RELEASE_READINESS_SUITE_KEY, {
+      allowControlPlaneRepair,
+    }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['verification-suites', 'runs'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-rollouts'] }),
+        queryClient.invalidateQueries({ queryKey: ['marketplace', 'inference-services'] }),
+        queryClient.invalidateQueries({ queryKey: ['marketplace', 'inference-services', SHARED_INFERENCE_SERVICE_REF, 'health'] }),
+      ])
+    },
+  })
+
   const recreateRolloutsMutation = useMutation({
-    mutationFn: () => recreateDeploymentVerificationRollouts([...ROLLOUT_RUN_ORDER]),
+    mutationFn: () => {
+      if (manualOpsLocked) {
+        throw new Error('A platform release suite run is active. Wait for it to finish before recreating canonical rollouts manually.')
+      }
+      return recreateDeploymentVerificationRollouts([...ROLLOUT_RUN_ORDER])
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['deployment-verification-rollouts'] })
     },
   })
 
   const reconcileSharedInferenceMutation = useMutation({
-    mutationFn: () => reconcileMarketplaceInferenceService(SHARED_INFERENCE_SERVICE_REF),
+    mutationFn: () => {
+      if (manualOpsLocked) {
+        throw new Error('A platform release suite run is active. Wait for it to finish before reconciling shared inference manually.')
+      }
+      return reconcileMarketplaceInferenceService(SHARED_INFERENCE_SERVICE_REF)
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['marketplace', 'inference-services'] })
       await queryClient.invalidateQueries({ queryKey: ['marketplace', 'inference-services', SHARED_INFERENCE_SERVICE_REF] })
@@ -389,6 +485,9 @@ export function VerificationOpsPage() {
 
   const runRolloutHostedVerificationMutation = useMutation({
     mutationFn: async (rollout: DeploymentVerificationRolloutItemSummary) => {
+      if (manualOpsLocked) {
+        throw new Error('A platform release suite run is active. Wait for it to finish before queueing deployment-only hosted verification.')
+      }
       if (!rollout.deploymentId) {
         throw new Error(`${rollout.displayName} does not have a canonical deployment yet.`)
       }
@@ -409,6 +508,9 @@ export function VerificationOpsPage() {
 
   const runOrderedHostedVerificationMutation = useMutation({
     mutationFn: async () => {
+      if (manualOpsLocked) {
+        throw new Error('A platform release suite run is active. Wait for it to finish before queueing deployment-only hosted verification.')
+      }
       if (!sharedInferenceReady(sharedInferenceHealthQuery.data?.status)) {
         throw new Error('Shared inference service is not ready. Reconcile it first, then queue the ordered verification run map.')
       }
@@ -628,16 +730,209 @@ export function VerificationOpsPage() {
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
           <Stack spacing={2}>
+            <Box>
+              <Typography variant="h6">Platform release suite</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                This is the platform-owned release gate for canonical verification. It persists one audited suite run,
+                executes the stages in order, and stops on the first blocking failure instead of scattering the flow
+                across independent CI jobs.
+              </Typography>
+            </Box>
+
+            {verificationSuiteDefinitionsQuery.isLoading || verificationSuiteRunsQuery.isLoading ? (
+              <Alert severity="info">Loading platform release suite definition and run history…</Alert>
+            ) : null}
+            {verificationSuiteDefinitionsQuery.isError ? (
+              <Alert severity="error">
+                {verificationSuiteDefinitionsQuery.error instanceof Error
+                  ? verificationSuiteDefinitionsQuery.error.message
+                  : 'Failed to load platform verification suite definitions.'}
+              </Alert>
+            ) : null}
+            {verificationSuiteRunsQuery.isError ? (
+              <Alert severity="error">
+                {verificationSuiteRunsQuery.error instanceof Error
+                  ? verificationSuiteRunsQuery.error.message
+                  : 'Failed to load platform verification suite runs.'}
+              </Alert>
+            ) : null}
+            {canonicalReleaseSuiteDefinition == null && !verificationSuiteDefinitionsQuery.isLoading && !verificationSuiteDefinitionsQuery.isError ? (
+              <Alert severity="warning">
+                The canonical release-readiness suite is not registered on the backend yet. Deploy the backend migration and suite services before using this page as the primary release gate.
+              </Alert>
+            ) : null}
+            {activeCanonicalReleaseSuiteRun ? (
+              <Alert severity="info">
+                Release suite run {activeCanonicalReleaseSuiteRun.id} is {activeCanonicalReleaseSuiteRun.status.toLowerCase()}.
+                Manual recreate, reconcile, and deployment-only queue actions stay locked until it finishes.
+              </Alert>
+            ) : null}
+
+            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems={{ xs: 'stretch', lg: 'center' }}>
+              <FormControlLabel
+                control={(
+                  <Switch
+                    checked={allowControlPlaneRepair}
+                    onChange={(event) => setAllowControlPlaneRepair(event.target.checked)}
+                    disabled={dispatchCanonicalReleaseSuiteMutation.isPending || manualOpsLocked}
+                  />
+                )}
+                label="Allow controlled platform repair"
+              />
+              <Button
+                variant="contained"
+                startIcon={<RefreshRoundedIcon />}
+                disabled={
+                  canonicalReleaseSuiteDefinition == null
+                  || dispatchCanonicalReleaseSuiteMutation.isPending
+                  || manualOpsLocked
+                }
+                onClick={() => dispatchCanonicalReleaseSuiteMutation.mutate()}
+              >
+                {dispatchCanonicalReleaseSuiteMutation.isPending ? 'Starting release suite…' : 'Run platform release suite'}
+              </Button>
+              {latestCanonicalReleaseSuiteRun ? (
+                <Chip
+                  label={`Latest ${latestCanonicalReleaseSuiteRun.status}`}
+                  color={verificationStatusColor(latestCanonicalReleaseSuiteRun.status)}
+                  variant="outlined"
+                />
+              ) : null}
+            </Stack>
+
+            <Typography variant="body2" color="text.secondary">
+              Repair mode is intentionally narrow. It only allows governed control-plane recovery for shared inference reconcile
+              and canonical rollout recreation. It does not expose secret values, mutate deployment content, or bypass hosted verification.
+            </Typography>
+
+            {dispatchCanonicalReleaseSuiteMutation.isError ? (
+              <Alert severity="error">
+                {dispatchCanonicalReleaseSuiteMutation.error instanceof Error
+                  ? dispatchCanonicalReleaseSuiteMutation.error.message
+                  : 'Failed to start the platform release suite.'}
+              </Alert>
+            ) : null}
+            {dispatchCanonicalReleaseSuiteMutation.isSuccess ? (
+              <Alert severity="success">{dispatchCanonicalReleaseSuiteMutation.data.summaryMessage}</Alert>
+            ) : null}
+
+            {latestCanonicalReleaseSuiteRun ? (
+              <Stack spacing={1.5}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={latestCanonicalReleaseSuiteRun.id} variant="outlined" />
+                  <Chip
+                    label={latestCanonicalReleaseSuiteRun.status}
+                    color={verificationStatusColor(latestCanonicalReleaseSuiteRun.status)}
+                    variant="outlined"
+                  />
+                  <Chip label={`Requested ${formatRunTimestamp(latestCanonicalReleaseSuiteRun.createdAt)}`} variant="outlined" />
+                  {latestCanonicalReleaseSuiteRun.completedAt ? (
+                    <Chip label={`Completed ${formatRunTimestamp(latestCanonicalReleaseSuiteRun.completedAt)}`} variant="outlined" />
+                  ) : null}
+                  {latestCanonicalReleaseSuiteStageCounts.map((entry) => (
+                    <Chip
+                      key={`suite-stage-count-${entry.label}`}
+                      label={`${entry.label} ${entry.count}`}
+                      color={verificationStatusColor(entry.label)}
+                      variant="outlined"
+                    />
+                  ))}
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  {latestCanonicalReleaseSuiteRun.summaryMessage}
+                </Typography>
+              </Stack>
+            ) : (
+              <Alert severity="info">
+                No platform release suite runs have been recorded yet. Use this suite as the preferred gate before applying new releases.
+              </Alert>
+            )}
+
+            {canonicalReleaseSuiteDefinition ? (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Order</TableCell>
+                    <TableCell>Stage</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Latest signal</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {canonicalReleaseSuiteDefinition.stages.map((stage, index) => {
+                    const latestStageRun = latestCanonicalReleaseSuiteStageByKey.get(stage.key)
+                    return (
+                      <TableRow key={stage.key} hover>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {stage.label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {stage.stageType}
+                            {stage.targetRef ? ` · ${stage.targetRef}` : ''}
+                            {stage.blocking ? ' · blocking' : ' · non-blocking'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={latestStageRun?.status ?? 'DEFINED'}
+                            color={verificationStatusColor(latestStageRun?.status ?? 'INFO')}
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 520 }}>
+                          <Typography variant="body2">
+                            {latestStageRun?.summaryMessage ?? stage.description}
+                          </Typography>
+                          {latestStageRun?.startedAt || latestStageRun?.completedAt ? (
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Started {formatRunTimestamp(latestStageRun.startedAt)} · completed {formatRunTimestamp(latestStageRun.completedAt)}
+                            </Typography>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            ) : null}
+
+            {canonicalReleaseSuiteRuns.length > 1 ? (
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Recent suite runs
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {canonicalReleaseSuiteRuns.slice(0, 6).map((run) => (
+                    <Chip
+                      key={run.id}
+                      label={`${run.id} · ${run.status} · ${formatRunTimestamp(run.createdAt)}`}
+                      color={verificationStatusColor(run.status)}
+                      variant="outlined"
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            ) : null}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2}>
             <Alert severity="info">
-              Recovery order: 1. shared inference service health, 2. canonical rollout recreation, 3. hosted verification in order:
-              marketplace, ecommerce, qdrant, pinecone, milvus, weaviate.
+              This manual section is the surgical fallback. Prefer the platform release suite above for release gating.
+              Use these controls only when you need to inspect or repair one part of the fleet without dispatching the full suite.
             </Alert>
 
             <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
               <Button
                 variant="contained"
                 startIcon={<RefreshRoundedIcon />}
-                disabled={recreateRolloutsMutation.isPending}
+                disabled={recreateRolloutsMutation.isPending || manualOpsLocked}
                 onClick={() => recreateRolloutsMutation.mutate()}
               >
                 {recreateRolloutsMutation.isPending ? 'Recreating rollouts…' : 'Recreate canonical rollouts'}
@@ -645,10 +940,10 @@ export function VerificationOpsPage() {
               <Button
                 variant="outlined"
                 startIcon={<RefreshRoundedIcon />}
-                disabled={runOrderedHostedVerificationMutation.isPending || orderedRollouts.length === 0}
+                disabled={runOrderedHostedVerificationMutation.isPending || orderedRollouts.length === 0 || manualOpsLocked}
                 onClick={() => runOrderedHostedVerificationMutation.mutate()}
               >
-                {runOrderedHostedVerificationMutation.isPending ? 'Queueing hosted verification…' : 'Queue ordered hosted verification'}
+                {runOrderedHostedVerificationMutation.isPending ? 'Queueing deployment-only verification…' : 'Queue deployment-only hosted verification'}
               </Button>
               <Button component={Link} to="/inference-services" variant="text">
                 Open inference services
@@ -742,7 +1037,7 @@ export function VerificationOpsPage() {
                       <Button
                         size="small"
                         variant="outlined"
-                        disabled={reconcileSharedInferenceMutation.isPending}
+                        disabled={reconcileSharedInferenceMutation.isPending || manualOpsLocked}
                         onClick={() => reconcileSharedInferenceMutation.mutate()}
                       >
                         {reconcileSharedInferenceMutation.isPending ? 'Reconciling…' : 'Reconcile'}
@@ -811,7 +1106,7 @@ export function VerificationOpsPage() {
                           <Button
                             size="small"
                             variant="outlined"
-                            disabled={blockReason != null || runRolloutHostedVerificationMutation.isPending}
+                            disabled={blockReason != null || runRolloutHostedVerificationMutation.isPending || manualOpsLocked}
                             onClick={() => runRolloutHostedVerificationMutation.mutate(rollout)}
                           >
                             {runRolloutHostedVerificationMutation.isPending ? 'Queueing…' : 'Run hosted verification'}

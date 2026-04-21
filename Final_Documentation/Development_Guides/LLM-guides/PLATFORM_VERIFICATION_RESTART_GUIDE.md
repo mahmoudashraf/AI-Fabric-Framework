@@ -19,6 +19,7 @@ Use the private handoff for live values.
 Related references:
 
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_LLM_SESSION_OPERATING_CONTEXT.md`
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_UI_RELEASE_VERIFICATION_ARCHITECTURE.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_AND_AUTH_TROUBLESHOOTING_GUIDE.md`
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md`
@@ -49,6 +50,24 @@ Examples:
 
 Do not stop at the first green signal.
 Close the live operational issue and then refresh verification evidence.
+
+### 1.1 UI-first direction
+
+The strategic direction is to move release verification into the platform control plane and away from GitHub Actions.
+
+Current UI path:
+
+- deployment-scoped verification:
+  - `/verification`
+- fleet and release-suite orchestration:
+  - `/verification-ops`
+
+Architecture reference:
+
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_UI_RELEASE_VERIFICATION_ARCHITECTURE.md`
+
+Use the platform release suite as the primary human-operated gate when it covers the needed scope.
+Use repo scripts and GitHub Actions only for parity gaps that the suite does not yet cover.
 
 ## 2. Where Real Credentials Live
 

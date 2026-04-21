@@ -2118,6 +2118,60 @@ export type DeploymentVerificationRolloutSummary = {
   items: DeploymentVerificationRolloutItemSummary[]
 }
 
+export type PlatformVerificationSuiteStageDefinitionSummary = {
+  key: string
+  label: string
+  stageType: string
+  targetRef: string | null
+  blocking: boolean
+  description: string
+}
+
+export type PlatformVerificationSuiteDefinitionSummary = {
+  key: string
+  label: string
+  description: string
+  releaseBlocking: boolean
+  stages: PlatformVerificationSuiteStageDefinitionSummary[]
+}
+
+export type PlatformVerificationSuiteStageRunSummary = {
+  id: string
+  stageOrder: number
+  stageKey: string
+  stageLabel: string
+  stageType: string
+  targetRef: string | null
+  blocking: boolean
+  status: string
+  summaryMessage: string
+  details: unknown
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
+export type PlatformVerificationSuiteRunSummary = {
+  id: string
+  suiteKey: string
+  suiteLabel: string
+  status: string
+  releaseBlocking: boolean
+  summaryMessage: string
+  requestedByActorId: string
+  requestedByRole: string
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  stages: PlatformVerificationSuiteStageRunSummary[]
+}
+
+export type PlatformVerificationSuiteDispatchSummary = {
+  suiteKey: string
+  summaryMessage: string
+  run: PlatformVerificationSuiteRunSummary
+}
+
 export type PlatformRailwayServiceDiscoverySummary = {
   available: boolean
   summaryMessage: string
@@ -3777,6 +3831,32 @@ export function recreateDeploymentVerificationRollouts(rolloutKeys?: string[]) {
     ...(rolloutKeys && rolloutKeys.length > 0
       ? { body: JSON.stringify({ rolloutKeys }) }
       : {}),
+  })
+}
+
+export function fetchPlatformVerificationSuiteDefinitions() {
+  return request<PlatformVerificationSuiteDefinitionSummary[]>('/api/verification-suites')
+}
+
+export function fetchPlatformVerificationSuiteRuns() {
+  return request<PlatformVerificationSuiteRunSummary[]>('/api/verification-suites/runs')
+}
+
+export function fetchPlatformVerificationSuiteRun(runId: string) {
+  return request<PlatformVerificationSuiteRunSummary>(`/api/verification-suites/runs/${runId}`)
+}
+
+export function dispatchPlatformVerificationSuiteRun(
+  suiteKey: string,
+  payload?: {
+    allowControlPlaneRepair?: boolean
+  },
+) {
+  return request<PlatformVerificationSuiteDispatchSummary>(`/api/verification-suites/${suiteKey}/runs`, {
+    method: 'POST',
+    body: JSON.stringify({
+      allowControlPlaneRepair: payload?.allowControlPlaneRepair ?? false,
+    }),
   })
 }
 
