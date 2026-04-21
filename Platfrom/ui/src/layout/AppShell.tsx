@@ -2,6 +2,7 @@ import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
 import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded'
+import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded'
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
 import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
@@ -60,6 +61,7 @@ const navItems = [
   { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },
   { label: 'Security', path: '/security', icon: <HttpsRoundedIcon /> },
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
+  { label: 'Verification Ops', path: '/verification-ops', icon: <ChecklistRoundedIcon />, platformAdminOnly: true },
   { label: 'Vectorization', path: '/vectorization', icon: <AutoFixHighRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },

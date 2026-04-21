@@ -26,6 +26,7 @@ import { ShopifyStoresPage } from './pages/ShopifyStoresPage'
 import { UsersPage } from './pages/UsersPage'
 import { VectorizationPage } from './pages/VectorizationPage'
 import { VerificationPage } from './pages/VerificationPage'
+import { VerificationOpsPage } from './pages/VerificationOpsPage'
 import { DeploymentWorkspaceProvider } from './workspace/DeploymentWorkspaceContext'
 
 export default function App() {
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/verification" element={<VerificationPage />} />
+          <Route path="/verification-ops" element={<VerificationOpsPage />} />
           <Route path="/vectorization" element={<VectorizationPage />} />
           <Route path="/revisions" element={<RevisionsPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />

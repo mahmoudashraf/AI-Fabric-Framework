@@ -329,7 +329,7 @@ export function VerificationPage() {
   const auth = usePlatformAuth()
   const { buildWorkspacePath, selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [hostedProfile, setHostedProfile] = useState<'vector' | 'ecommerce'>('vector')
+  const [hostedProfile, setHostedProfile] = useState<'vector' | 'ecommerce' | 'marketplace-runtime'>('vector')
   const [hostedProfileAutoSelectedFor, setHostedProfileAutoSelectedFor] = useState<string | null>(null)
   const canManageHostedVerification = auth.session?.enabled ? auth.session.canManageUsers : true
   const selectedDeployment = useMemo(
@@ -401,12 +401,16 @@ export function VerificationPage() {
     if (!rollout) {
       return
     }
-    setHostedProfile(rollout.verificationProfile === 'ecommerce' ? 'ecommerce' : 'vector')
+    setHostedProfile(
+      rollout.verificationProfile === 'ecommerce' || rollout.verificationProfile === 'marketplace-runtime'
+        ? rollout.verificationProfile
+        : 'vector',
+    )
     setHostedProfileAutoSelectedFor(selectedDeploymentId)
   }, [hostedProfileAutoSelectedFor, selectedDeploymentId, verificationRolloutsQuery.data])
 
   const dispatchHostedVerificationMutation = useMutation({
-    mutationFn: (profile: 'vector' | 'ecommerce') =>
+    mutationFn: (profile: 'vector' | 'ecommerce' | 'marketplace-runtime') =>
       dispatchDeploymentHostedVerification(selectedDeploymentId, {
         profile,
       }),
@@ -888,8 +892,8 @@ export function VerificationPage() {
                     <Typography variant="h6">Platform-hosted verification</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                       Run the deployment verification scripts from the platform deployment itself. This admin-only runner
-                      is asynchronous, read-only, and intended for rare operator diagnostics. Manual CI remains available
-                      separately in GitHub Actions.
+                      is asynchronous, read-only, and intended for rare operator diagnostics. Fleet-wide canonical rollout
+                      orchestration now lives on Verification Ops, while this page stays scoped to the selected deployment.
                     </Typography>
                   </Box>
 
@@ -905,13 +909,14 @@ export function VerificationPage() {
                       label="Verification profile"
                       value={hostedProfile}
                       onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                        setHostedProfile(event.target.value as 'vector' | 'ecommerce')
+                        setHostedProfile(event.target.value as 'vector' | 'ecommerce' | 'marketplace-runtime')
                       }
                       size="small"
                       sx={{ minWidth: 220 }}
                     >
                       <MenuItem value="vector">Vector deployment</MenuItem>
                       <MenuItem value="ecommerce">Ecommerce deployment</MenuItem>
+                      <MenuItem value="marketplace-runtime">Marketplace runtime</MenuItem>
                     </TextField>
                     <Button
                       variant="contained"
