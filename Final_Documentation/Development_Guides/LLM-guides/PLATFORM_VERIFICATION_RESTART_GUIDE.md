@@ -140,6 +140,8 @@ These are the current known-good non-secret defaults as of `2026-04-21`.
 
 - platform base URL:
   - `https://ai-fabric-framework-production-324f.up.railway.app`
+- platform login email:
+  - `admin@gmail.com`
 - platform UI base URL:
   - `https://platform-ui-production-00e3.up.railway.app`
 - Shopify bridge base URL:

@@ -224,7 +224,7 @@ Recommended repository variables for the workflow:
 - `PLATFORM_BASE_URL`
   default: `https://ai-fabric-framework-production-324f.up.railway.app`
 - `PLATFORM_LOGIN_EMAIL`
-  default: no committed default; prefer `PLATFORM_API_KEY` auth when available
+  default: `admin@gmail.com`
 - `SHOPIFY_BRIDGE_BASE_URL`
   default: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
 - `SHOPIFY_COMPANION_SHOP_DOMAIN`
@@ -240,6 +240,7 @@ Required repository secrets for the workflow:
 
 - preferred: `PLATFORM_API_KEY`
 - fallback session auth: `PLATFORM_LOGIN_PASSWORD`
+  default: no committed default; keep the password in GitHub secrets only
 
 Optional repository secrets that enable deeper verification coverage:
 

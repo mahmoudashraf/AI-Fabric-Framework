@@ -127,6 +127,7 @@ jobs:
       VAR_SHOPIFY_EMBEDDED_HOST: ${{ vars.SHOPIFY_EMBEDDED_HOST }}
       SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
       DEFAULT_PLATFORM_BASE_URL: https://ai-fabric-framework-production-324f.up.railway.app
+      DEFAULT_PLATFORM_LOGIN_EMAIL: admin@gmail.com
       DEFAULT_SHOPIFY_BRIDGE_BASE_URL: https://shopify-bridge-shopify-bridge-pr-production.up.railway.app
       DEFAULT_SHOPIFY_COMPANION_SHOP_DOMAIN: shopping-companion-test.myshopify.com
       DEFAULT_PRODUCT_SERVICE_REF: shopify-bridge-prod
@@ -176,7 +177,8 @@ jobs:
             "${DEFAULT_SHOPIFY_BRIDGE_BASE_URL}")"
           platform_login_email="$(choose \
             "${VAR_PLATFORM_LOGIN_EMAIL:-}" \
-            "${SECRET_PLATFORM_LOGIN_EMAIL:-}" || true)"
+            "${SECRET_PLATFORM_LOGIN_EMAIL:-}" \
+            "${DEFAULT_PLATFORM_LOGIN_EMAIL}")"
           shopify_embedded_host="$(choose \
             "${VAR_SHOPIFY_EMBEDDED_HOST:-}" \
             "${SECRET_SHOPIFY_EMBEDDED_HOST:-}" || true)"
