@@ -36,6 +36,7 @@ COPY Platfrom/ui /app/Platfrom/ui
 COPY ai-fabric-product /app/ai-fabric-product
 COPY ai-infrastructure-module /app/ai-infrastructure-module
 COPY scripts /app/scripts
+RUN chown -R 10010:0 /app
 
 USER 10010
 
