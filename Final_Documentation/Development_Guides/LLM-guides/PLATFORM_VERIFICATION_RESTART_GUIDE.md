@@ -22,6 +22,11 @@ Related references:
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_AND_AUTH_TROUBLESHOOTING_GUIDE.md`
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md`
+- `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md`
+- `Final_Documentation/Development_Guides/SHOPIFY_INTERNAL_DEVELOPMENT_AND_FULL_DEPLOYMENT_GUIDE.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_DESIGN_PARTNER_ROLLOUT_CHECKLIST.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md`
 
 ## 1. First Principles
 
@@ -57,6 +62,7 @@ Important sections in that private file:
 - `6.2 Platform / deployment shared keys`
 - `6.3 Railway / platform service env values`
 - `6.5 Vendor keys`
+- `7.4 Shopify API`
 
 Do not copy raw secrets into committed docs.
 
@@ -106,6 +112,26 @@ Needed only when debugging provider provisioning, Railway state, or platform int
 - `PLATFORM_DB_URL`
 - `PLATFORM_DB_USERNAME`
 - `PLATFORM_DB_PASSWORD`
+
+### 3.6 Shopify verification extras
+
+Required for Shopify live verification:
+
+- `SHOPIFY_BRIDGE_BASE_URL`
+- `SHOP_DOMAIN`
+
+Optional for deeper Shopify verification coverage:
+
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY`
+- `SHOPIFY_ADMIN_ACCESS_TOKEN`
+- `SHOPIFY_MERCHANT_AUTHORIZATION`
+- `SHOPIFY_EMBEDDED_HOST`
+
+Operational notes:
+
+- baseline non-destructive Shopify verification can run without the optional values
+- uninstall verification is destructive and should only target a disposable shop mapping
+- the private handoff is the source of truth for current live Shopify credentials and app values
 
 ## 4. Current Live Defaults To Start From
 
@@ -270,6 +296,38 @@ Purpose:
 - managed provider verification
 
 This is the closest thing to a one-command full-state run.
+
+### 6.8 Shopify verification
+
+Scripts:
+
+- `scripts/verify-shopify-companion.sh`
+- `scripts/verify-shopify-companion-uninstall.sh`
+- `scripts/run-shopify-companion-rollout.sh`
+
+GitHub Actions workflow:
+
+- `.github/workflows/shopify-companion-verification.yml`
+
+Purpose:
+
+- verify Shopify Companion live operator surfaces
+- progress a Shopify store through bootstrap / preflight / go-live
+- verify uninstall cleanup on a disposable store mapping
+
+Primary supporting docs:
+
+- `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md`
+- `Final_Documentation/Development_Guides/SHOPIFY_INTERNAL_DEVELOPMENT_AND_FULL_DEPLOYMENT_GUIDE.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_DESIGN_PARTNER_ROLLOUT_CHECKLIST.md`
+- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_APP_REVIEW_GUIDE.md`
+
+Safety rules:
+
+- use workflow/script mode `verify` first
+- use `rollout` only when intentionally advancing store state
+- use `uninstall_verify` only with an explicitly disposable shop and explicit destructive confirmation
 
 ## 7. Recommended Order
 
