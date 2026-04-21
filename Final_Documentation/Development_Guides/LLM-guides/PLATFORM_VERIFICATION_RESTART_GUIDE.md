@@ -34,11 +34,12 @@ Related references:
 Keep these verification layers separate:
 
 1. local code regression
-2. canonical rollout readiness
-3. direct managed-provider verification
-4. platform admin regression
-5. deployment-level hosted verification from repo scripts
-6. full umbrella suite
+2. platform-owned release suite
+3. canonical rollout readiness
+4. direct managed-provider verification
+5. platform admin regression
+6. deployment-level hosted verification from repo scripts
+7. full umbrella suite
 
 These layers can disagree.
 
@@ -66,8 +67,9 @@ Architecture reference:
 
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_UI_RELEASE_VERIFICATION_ARCHITECTURE.md`
 
-Use the platform release suite as the primary human-operated gate when it covers the needed scope.
-Use repo scripts and GitHub Actions only for parity gaps that the suite does not yet cover.
+Use the platform release suite as the primary human-operated gate.
+Use repo scripts for direct diagnosis and recovery.
+Use GitHub Actions only as secondary confirmation while the broader CI estate is being retired.
 
 ## 2. Where Real Credentials Live
 
@@ -219,6 +221,41 @@ If platform API-key auth is enabled for the target environment, you can replace 
 
 ## 6. Script Map
 
+### 6.0 Platform-owned release suite
+
+Control-plane suite keys:
+
+- `full-platform-release-readiness`
+- `canonical-release-readiness`
+- `platform-code-regression`
+
+Primary release gate:
+
+- `full-platform-release-readiness`
+
+Current ordered stages:
+
+1. platform code regression
+2. shared inference service health
+3. platform admin live regression
+4. canonical rollout inventory
+5. managed vector provider verification
+6. marketplace install flow
+7. Shopify Companion verification
+8. marketplace hosted verification
+9. ecommerce hosted verification
+10. qdrant hosted verification
+11. pinecone hosted verification
+12. milvus hosted verification
+13. weaviate hosted verification
+
+Important runtime behavior:
+
+- with `allowControlPlaneRepair=true`, the suite may perform bounded repair only:
+  - shared inference reconcile
+  - canonical rollout recreation
+  - governed vectorization bootstrap or reindex before hosted verification when a canonical deployment is only blocked by sync drift
+
 ### 6.1 Rollout resolution
 
 Script:
@@ -367,12 +404,9 @@ Safety rules:
 
 Use this order:
 
-1. resolve canonical rollouts
-2. verify managed providers
-3. verify platform admin regression
-4. verify canonical deployments one by one
-5. verify marketplace install flow
-6. run the umbrella suite
+1. run `full-platform-release-readiness` from `/verification-ops`
+2. if it fails, use direct repo scripts to isolate the failing stage
+3. rerun the full platform suite after the live repair is complete
 
 ### 7.2 If you changed code
 
@@ -380,9 +414,10 @@ Use this order:
 
 1. targeted local tests for the touched code
 2. `git diff --check`
-3. resolve canonical rollouts
-4. direct live scripts
-5. umbrella suite last
+3. run `platform-code-regression`
+4. resolve canonical rollouts if you need direct script diagnosis
+5. direct live scripts for the changed surface
+6. `full-platform-release-readiness` last
 
 ### 7.3 Canonical commands
 

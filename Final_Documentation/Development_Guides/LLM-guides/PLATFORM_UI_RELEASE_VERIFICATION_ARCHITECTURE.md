@@ -122,6 +122,13 @@ Core pieces:
 - persisted run tables
   - `Platfrom/backend/src/main/resources/db/migration/V56__platform_verification_suite_runs.sql`
 
+The platform also has an allowlisted script runner for release-gate stages that are still naturally expressed as controlled shell entrypoints.
+
+Operationally important detail:
+
+- the platform backend deploy image now includes the repo worktree slices and toolchains required for the platform code regression gate
+- the control plane can therefore execute the former GitHub platform code regression workflow directly from the platform-owned suite
+
 ### 3.3 Persisted model
 
 The control plane now persists:
@@ -149,13 +156,31 @@ Security:
 
 - platform admin only
 
-## 4. Current Canonical Suite
+## 4. Current Platform-Owned Suites
 
-Implemented suite key:
+Implemented suite keys:
 
+- `full-platform-release-readiness`
 - `canonical-release-readiness`
+- `platform-code-regression`
 
-Current ordered stages:
+Current ordered stages for `full-platform-release-readiness`:
+
+1. platform code regression
+2. shared inference service health
+3. platform admin live regression
+4. canonical rollout inventory
+5. managed vector provider verification
+6. marketplace install flow
+7. Shopify Companion verification
+8. marketplace hosted verification
+9. ecommerce hosted verification
+10. qdrant hosted verification
+11. pinecone hosted verification
+12. milvus hosted verification
+13. weaviate hosted verification
+
+Current ordered stages for `canonical-release-readiness`:
 
 1. shared inference service health
 2. canonical rollout inventory
@@ -166,8 +191,8 @@ Current ordered stages:
 7. milvus hosted verification
 8. weaviate hosted verification
 
-This suite is intentionally fixed-order.
-It encodes the operational dependency chain instead of asking each operator or CI workflow to reconstruct it.
+These suites are intentionally fixed-order.
+They encode the operational dependency chain instead of asking each operator or CI workflow to reconstruct it.
 
 ## 5. What The UI Now Does
 
@@ -185,6 +210,7 @@ The `Verification Ops` page now exposes:
 - manual fallback controls for rollout recreation and deployment-only hosted verification
 
 The page is designed so the release suite is the primary path and the manual controls are a fallback.
+The release suite now covers the former GitHub live verification estate plus the platform code regression gate.
 
 ## 6. Security And Enterprise Boundaries
 
@@ -234,6 +260,18 @@ Keep these concerns separate:
 The UI suite should orchestrate these concerns through bounded stages.
 It should not flatten them into one giant untyped script.
 
+### 6.5 Controlled repair remains bounded
+
+The `allowControlPlaneRepair` flag is still intentionally narrow.
+
+It currently allows:
+
+- shared inference reconcile
+- canonical rollout recreation
+- governed vectorization bootstrap or reindex before hosted verification when a canonical deployment is only blocked by sync drift
+
+It still does not allow arbitrary repair commands or secret mutation from the UI.
+
 ## 7. Why This Is Better Than GitHub Actions
 
 GitHub Actions has been useful, but it has structural limits for this product:
@@ -252,23 +290,27 @@ The platform-owned model improves:
 - secret governance
 - alignment with platform truth
 
-## 8. What Is Not Yet Full Parity
+## 8. Current Parity Status
 
-The current suite foundation does not yet replace every GitHub Actions workflow.
+The current platform-owned release suite now covers the former GitHub release-verification estate:
 
-Major remaining parity gaps:
-
+- platform code regression
 - platform admin live regression
-- direct managed-provider verification suite
+- direct managed-provider verification
 - marketplace install-flow verification
-- Shopify verification flows
+- Shopify Companion verification
+- canonical hosted deployment verification fleet
+
+Remaining gaps are outside the release-verification surface itself:
+
+- broader experimental provider-matrix and integration-test workflows
 - release approval integration
 - apply-time enforcement that a required suite passed recently enough
 
 So the current state is:
 
-- strong foundation in platform
-- not yet full GitHub Actions retirement
+- release verification parity is in the platform
+- broader CI/test-estate retirement is still separate work
 
 ## 9. Recommended Migration Path
 
@@ -279,25 +321,16 @@ Replace it in phases.
 
 Use the platform release suite as the primary human-operated gate before release.
 
-Keep GitHub Actions as a secondary safety net.
+Keep GitHub Actions only as secondary confirmation while the broader CI estate is being retired.
 
 ### Phase 2
-
-Add new suite stage types for:
-
-- platform admin regression
-- provider-direct verification
-- marketplace install flow
-- Shopify verification
-
-### Phase 3
 
 Attach suite-pass requirements to release progression:
 
 - block release approval if the required suite has not passed
 - or block apply for release-blocking environments without fresh suite evidence
 
-### Phase 4
+### Phase 3
 
 Retire overlapping GitHub Actions workflows once suite parity is proven stable.
 

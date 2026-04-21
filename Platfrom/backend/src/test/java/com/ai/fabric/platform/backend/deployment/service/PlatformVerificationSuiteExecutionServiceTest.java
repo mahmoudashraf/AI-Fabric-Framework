@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.repository.PlatformVerification
 import com.ai.fabric.platform.backend.marketplace.model.PlatformManagedInferenceHealthSummary;
 import com.ai.fabric.platform.backend.marketplace.model.PlatformManagedInferenceProbeSummary;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceAdminService;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,7 @@ class PlatformVerificationSuiteExecutionServiceTest {
         DeploymentHostedVerificationRunRepository hostedRunRepository = mock(DeploymentHostedVerificationRunRepository.class);
         PlatformVerificationSuiteScriptContextService scriptContextService = mock(PlatformVerificationSuiteScriptContextService.class);
         PlatformVerificationScriptRunnerService scriptRunnerService = mock(PlatformVerificationScriptRunnerService.class);
+        VectorizationService vectorizationService = mock(VectorizationService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         PlatformVerificationSuiteRunEntity run = new PlatformVerificationSuiteRunEntity();
@@ -106,7 +108,7 @@ class PlatformVerificationSuiteExecutionServiceTest {
             runRepository,
             stageRepository,
             new PlatformVerificationSuiteCatalog(),
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMillis(10), 20, 12_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofMillis(10), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
             inferenceAdminService,
             rolloutService,
             deploymentService,
@@ -114,6 +116,7 @@ class PlatformVerificationSuiteExecutionServiceTest {
             hostedRunRepository,
             scriptContextService,
             scriptRunnerService,
+            vectorizationService,
             auditService,
             new ObjectMapper()
         );

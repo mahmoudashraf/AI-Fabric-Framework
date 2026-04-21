@@ -9,9 +9,11 @@ public record PlatformVerificationSuiteProperties(
     Duration timeout,
     Duration hostedStageTimeout,
     Duration scriptStageTimeout,
+    Duration codeRegressionScriptTimeout,
     Duration pollInterval,
     int maxRecentRuns,
     int maxStageLogCharacters,
+    int codeRegressionMaxLogCharacters,
     String platformUiBaseUrl,
     String weaviateHost,
     String shopifyBridgeBaseUrl,
@@ -28,7 +30,7 @@ public record PlatformVerificationSuiteProperties(
 
     public PlatformVerificationSuiteProperties {
         timeout = timeout == null || timeout.isZero() || timeout.isNegative()
-            ? Duration.ofMinutes(60)
+            ? Duration.ofMinutes(180)
             : timeout;
         hostedStageTimeout = hostedStageTimeout == null || hostedStageTimeout.isZero() || hostedStageTimeout.isNegative()
             ? Duration.ofMinutes(12)
@@ -36,11 +38,15 @@ public record PlatformVerificationSuiteProperties(
         scriptStageTimeout = scriptStageTimeout == null || scriptStageTimeout.isZero() || scriptStageTimeout.isNegative()
             ? Duration.ofMinutes(20)
             : scriptStageTimeout;
+        codeRegressionScriptTimeout = codeRegressionScriptTimeout == null || codeRegressionScriptTimeout.isZero() || codeRegressionScriptTimeout.isNegative()
+            ? Duration.ofMinutes(75)
+            : codeRegressionScriptTimeout;
         pollInterval = pollInterval == null || pollInterval.isZero() || pollInterval.isNegative()
             ? Duration.ofSeconds(3)
             : pollInterval;
         maxRecentRuns = maxRecentRuns <= 0 ? 20 : maxRecentRuns;
         maxStageLogCharacters = maxStageLogCharacters <= 0 ? 12_000 : maxStageLogCharacters;
+        codeRegressionMaxLogCharacters = codeRegressionMaxLogCharacters <= 0 ? 80_000 : codeRegressionMaxLogCharacters;
         platformUiBaseUrl = defaultValue(platformUiBaseUrl, DEFAULT_PLATFORM_UI_BASE_URL);
         weaviateHost = defaultValue(weaviateHost, DEFAULT_WEAVIATE_HOST);
         shopifyBridgeBaseUrl = defaultValue(shopifyBridgeBaseUrl, DEFAULT_SHOPIFY_BRIDGE_BASE_URL);

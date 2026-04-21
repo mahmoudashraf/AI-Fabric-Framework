@@ -14,6 +14,7 @@ public class PlatformVerificationSuiteCatalog {
 
     public static final String FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY = "full-platform-release-readiness";
     public static final String CANONICAL_RELEASE_READINESS_SUITE_KEY = "canonical-release-readiness";
+    public static final String PLATFORM_CODE_REGRESSION_SUITE_KEY = "platform-code-regression";
     public static final String PLATFORM_ADMIN_LIVE_REGRESSION_SUITE_KEY = "platform-admin-live-regression";
     public static final String MANAGED_VECTOR_PROVIDER_VERIFICATION_SUITE_KEY = "managed-vector-provider-verification";
     public static final String MARKETPLACE_INSTALL_FLOW_SUITE_KEY = "marketplace-install-flow";
@@ -32,6 +33,7 @@ public class PlatformVerificationSuiteCatalog {
         return List.of(
             fullPlatformReleaseReadiness(),
             canonicalReleaseReadiness(),
+            platformCodeRegression(),
             platformAdminLiveRegression(),
             managedVectorProviderVerification(),
             marketplaceInstallFlowVerification(),
@@ -129,6 +131,14 @@ public class PlatformVerificationSuiteCatalog {
             true,
             List.of(
                 new PlatformVerificationSuiteStageDefinitionSummary(
+                    "platform-code-regression",
+                    "Platform code regression",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_PLATFORM_CODE_REGRESSION,
+                    true,
+                    "Run the platform code regression gate on the control plane before live environment verification begins."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
                     "shared-inference-health",
                     "Shared inference service health",
                     "INFERENCE_SERVICE_HEALTH",
@@ -223,6 +233,25 @@ public class PlatformVerificationSuiteCatalog {
                     "weaviate",
                     true,
                     "Run the vector hosted verification against the canonical weaviate deployment."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary platformCodeRegression() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            PLATFORM_CODE_REGRESSION_SUITE_KEY,
+            "Platform code regression",
+            "Standalone control-plane execution of the former GitHub platform code regression gate.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "platform-code-regression",
+                    "Platform code regression",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_PLATFORM_CODE_REGRESSION,
+                    true,
+                    "Run backend tests, product tests, targeted infrastructure tests, the platform UI build, and verification shell syntax checks."
                 )
             )
         );

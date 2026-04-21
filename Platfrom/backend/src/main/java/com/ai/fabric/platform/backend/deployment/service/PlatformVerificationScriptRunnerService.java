@@ -57,6 +57,7 @@ public class PlatformVerificationScriptRunnerService {
         Path executionDir = Files.createTempDirectory("platform-verification-suite-script-");
         Path outputFile = executionDir.resolve("run.log");
         Process process = null;
+        Duration timeout = context.timeoutOverride() == null ? suiteProperties.scriptStageTimeout() : context.timeoutOverride();
         try {
             Map<String, String> env = buildEnvironment(context, executionDir);
             ProcessBuilder builder = new ProcessBuilder("bash", scriptPath.toString());
@@ -67,14 +68,14 @@ public class PlatformVerificationScriptRunnerService {
             builder.environment().putAll(env);
 
             process = builder.start();
-            boolean finished = process.waitFor(suiteProperties.scriptStageTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
             String output = Files.exists(outputFile) ? Files.readString(outputFile) : "";
             if (!finished) {
                 process.destroyForcibly();
-                return new ScriptRunResult("TIMED_OUT", null, trimOutput(output));
+                return new ScriptRunResult("TIMED_OUT", null, trimOutput(output, context));
             }
             int exitCode = process.exitValue();
-            return new ScriptRunResult(exitCode == 0 ? "PASSED" : "FAILED", exitCode, trimOutput(output));
+            return new ScriptRunResult(exitCode == 0 ? "PASSED" : "FAILED", exitCode, trimOutput(output, context));
         } finally {
             if (process != null && process.isAlive()) {
                 process.destroyForcibly();
@@ -134,12 +135,15 @@ public class PlatformVerificationScriptRunnerService {
         throw new IOException("Verification script not found: " + configuredScript);
     }
 
-    private String trimOutput(String output) {
+    private String trimOutput(String output, PlatformVerificationScriptContextSummary context) {
+        int maxCharacters = context.maxOutputCharactersOverride() == null
+            ? suiteProperties.maxStageLogCharacters()
+            : context.maxOutputCharactersOverride();
         String normalized = output == null ? "" : output.strip();
-        if (normalized.length() <= suiteProperties.maxStageLogCharacters()) {
+        if (normalized.length() <= maxCharacters) {
             return normalized;
         }
-        return "[truncated]\n" + normalized.substring(normalized.length() - suiteProperties.maxStageLogCharacters());
+        return "[truncated]\n" + normalized.substring(normalized.length() - maxCharacters);
     }
 
     private String trimToNull(String value) {

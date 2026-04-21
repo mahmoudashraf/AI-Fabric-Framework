@@ -16,6 +16,12 @@ import com.ai.fabric.platform.backend.deployment.repository.PlatformVerification
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunStageRepository;
 import com.ai.fabric.platform.backend.marketplace.model.PlatformManagedInferenceHealthSummary;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceAdminService;
+import com.ai.fabric.platform.backend.vectorization.model.CreateVectorizationRunRequest;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationOverviewSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunDetailsSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummary;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -43,6 +49,7 @@ public class PlatformVerificationSuiteExecutionService {
     private final DeploymentHostedVerificationRunRepository deploymentHostedVerificationRunRepository;
     private final PlatformVerificationSuiteScriptContextService scriptContextService;
     private final PlatformVerificationScriptRunnerService scriptRunnerService;
+    private final VectorizationService vectorizationService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
@@ -57,6 +64,7 @@ public class PlatformVerificationSuiteExecutionService {
                                                      DeploymentHostedVerificationRunRepository deploymentHostedVerificationRunRepository,
                                                      PlatformVerificationSuiteScriptContextService scriptContextService,
                                                      PlatformVerificationScriptRunnerService scriptRunnerService,
+                                                     VectorizationService vectorizationService,
                                                      PlatformAuditService platformAuditService,
                                                      ObjectMapper objectMapper) {
         this.runRepository = runRepository;
@@ -70,6 +78,7 @@ public class PlatformVerificationSuiteExecutionService {
         this.deploymentHostedVerificationRunRepository = deploymentHostedVerificationRunRepository;
         this.scriptContextService = scriptContextService;
         this.scriptRunnerService = scriptRunnerService;
+        this.vectorizationService = vectorizationService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
@@ -98,7 +107,7 @@ public class PlatformVerificationSuiteExecutionService {
                     case "INFERENCE_SERVICE_HEALTH" -> executeSharedInferenceHealth(stage, allowControlPlaneRepair);
                     case "CANONICAL_ROLLOUTS" -> executeCanonicalRolloutInventory(stage, allowControlPlaneRepair);
                     case "SCRIPT_VERIFICATION" -> executeScriptVerification(stage);
-                    case "HOSTED_DEPLOYMENT_VERIFICATION" -> executeHostedDeploymentVerification(stage);
+                    case "HOSTED_DEPLOYMENT_VERIFICATION" -> executeHostedDeploymentVerification(stage, allowControlPlaneRepair);
                     default -> failUnsupportedStage(stage);
                 };
                 if (!passed && stage.isBlocking()) {
@@ -233,7 +242,8 @@ public class PlatformVerificationSuiteExecutionService {
         return result.passed();
     }
 
-    private boolean executeHostedDeploymentVerification(PlatformVerificationSuiteRunStageEntity stage) throws InterruptedException {
+    private boolean executeHostedDeploymentVerification(PlatformVerificationSuiteRunStageEntity stage,
+                                                        boolean allowControlPlaneRepair) throws InterruptedException {
         markStageRunning(stage, "Queueing hosted deployment verification.");
         DeploymentVerificationRolloutSummary rolloutSummary = deploymentVerificationRolloutService.listRollouts();
         DeploymentVerificationRolloutItemSummary rollout = rolloutSummary.items().stream()
@@ -256,15 +266,27 @@ public class PlatformVerificationSuiteExecutionService {
             return false;
         }
 
+        ObjectNode details = objectMapper.createObjectNode()
+            .put("deploymentId", rollout.deploymentId())
+            .put("deploymentName", rollout.displayName())
+            .put("verificationProfile", rollout.verificationProfile());
+
+        VectorizationRepairResult vectorizationRepair = ensureVectorizationReadyForHostedVerification(
+            rollout.deploymentId(),
+            allowControlPlaneRepair
+        );
+        details.set("vectorizationRepair", vectorizationRepair.details());
+        if (!vectorizationRepair.ready()) {
+            completeStage(stage, "FAILED", vectorizationRepair.summaryMessage(), details, "");
+            return false;
+        }
+
         DeploymentHostedVerificationDispatchSummary dispatch = deploymentHostedVerificationService.dispatch(
             rollout.deploymentId(),
             new DeploymentHostedVerificationDispatchRequest(rollout.verificationProfile(), false)
         );
         DeploymentHostedVerificationRunEntity hostedRun = awaitHostedVerification(dispatch.run().id());
-        ObjectNode details = objectMapper.createObjectNode()
-            .put("deploymentId", rollout.deploymentId())
-            .put("deploymentName", rollout.displayName())
-            .put("verificationProfile", rollout.verificationProfile())
+        details
             .put("hostedRunId", hostedRun.getId())
             .put("hostedStatus", hostedRun.getStatus())
             .put("hostedSummaryMessage", defaultText(hostedRun.getSummaryMessage(), ""))
@@ -275,6 +297,153 @@ public class PlatformVerificationSuiteExecutionService {
         }
         completeStage(stage, "FAILED", hostedRun.getSummaryMessage(), details, "");
         return false;
+    }
+
+    private VectorizationRepairResult ensureVectorizationReadyForHostedVerification(String deploymentId,
+                                                                                    boolean allowControlPlaneRepair) throws InterruptedException {
+        VectorizationOverviewSummary overview = vectorizationService.getOverview(deploymentId);
+        VectorizationPlanSummary plan = overview.plan();
+        if (plan == null) {
+            ObjectNode details = objectMapper.createObjectNode()
+                .put("deploymentId", deploymentId)
+                .put("vectorizationConfigured", false);
+            return new VectorizationRepairResult(true, "Vectorization is not configured for this deployment.", details);
+        }
+
+        String syncState = defaultText(plan.syncState(), "UNKNOWN");
+        if (vectorizationReady(syncState)) {
+            ObjectNode details = summarizeVectorizationRepair(overview, null, false, "Vectorization is already ready for hosted verification.");
+            return new VectorizationRepairResult(true, "Vectorization is already ready for hosted verification.", details);
+        }
+
+        if ("RUNNING".equalsIgnoreCase(syncState)) {
+            return awaitVectorizationReady(deploymentId, plan.lastRunId(), false, "Waiting for an active vectorization run to finish before hosted verification.");
+        }
+
+        if (!allowControlPlaneRepair) {
+            ObjectNode details = summarizeVectorizationRepair(overview, null, false, "Vectorization is not ready and control-plane repair is disabled.");
+            return new VectorizationRepairResult(false, "Vectorization is not ready for hosted verification: " + syncState, details);
+        }
+
+        String repairReason = vectorizationRepairReason(syncState);
+        if (repairReason == null) {
+            ObjectNode details = summarizeVectorizationRepair(overview, null, true, "Vectorization is not ready and no governed repair path is available for the current sync state.");
+            return new VectorizationRepairResult(false, "Vectorization requires manual operator review before hosted verification: " + syncState, details);
+        }
+
+        VectorizationRunSummary repairRun = vectorizationService.createRun(
+            deploymentId,
+            new CreateVectorizationRunRequest(
+                repairReason,
+                null,
+                "Platform verification suite control-plane repair for syncState=" + syncState,
+                null
+            )
+        );
+        return awaitVectorizationReady(
+            deploymentId,
+            repairRun.id(),
+            true,
+            "Vectorization repair run completed before hosted verification."
+        );
+    }
+
+    private VectorizationRepairResult awaitVectorizationReady(String deploymentId,
+                                                              String runId,
+                                                              boolean repairAttempted,
+                                                              String successMessage) throws InterruptedException {
+        Instant deadline = Instant.now().plus(suiteProperties.hostedStageTimeout());
+        VectorizationRunDetailsSummary runDetails = null;
+        while (Instant.now().isBefore(deadline)) {
+            VectorizationOverviewSummary overview = vectorizationService.getOverview(deploymentId);
+            if (runId != null && !runId.isBlank()) {
+                runDetails = vectorizationService.getRunDetails(deploymentId, runId);
+            }
+            String syncState = overview.plan() == null ? "UNKNOWN" : defaultText(overview.plan().syncState(), "UNKNOWN");
+            String runStatus = runDetails == null ? null : defaultText(runDetails.run().status(), "UNKNOWN");
+            if (vectorizationReady(syncState) && (runStatus == null || "COMPLETED".equalsIgnoreCase(runStatus))) {
+                ObjectNode details = summarizeVectorizationRepair(overview, runDetails == null ? null : runDetails.run(), repairAttempted, successMessage);
+                return new VectorizationRepairResult(true, successMessage, details);
+            }
+            if (runStatus != null && List.of("FAILED", "CANCELLED").contains(runStatus.toUpperCase())) {
+                ObjectNode details = summarizeVectorizationRepair(
+                    overview,
+                    runDetails.run(),
+                    repairAttempted,
+                    "Vectorization repair run did not complete successfully."
+                );
+                return new VectorizationRepairResult(false, "Vectorization repair run failed with status " + runStatus + ".", details);
+            }
+            Thread.sleep(suiteProperties.pollInterval().toMillis());
+        }
+        VectorizationOverviewSummary latestOverview = vectorizationService.getOverview(deploymentId);
+        ObjectNode details = summarizeVectorizationRepair(
+            latestOverview,
+            runDetails == null ? null : runDetails.run(),
+            repairAttempted,
+            "Vectorization did not become ready before the hosted verification timeout."
+        );
+        return new VectorizationRepairResult(
+            false,
+            "Timed out waiting for vectorization to become ready for hosted verification.",
+            details
+        );
+    }
+
+    private ObjectNode summarizeVectorizationRepair(VectorizationOverviewSummary overview,
+                                                    VectorizationRunSummary run,
+                                                    boolean repairAttempted,
+                                                    String summaryMessage) {
+        ObjectNode details = objectMapper.createObjectNode()
+            .put("deploymentId", overview.deploymentId())
+            .put("repairAttempted", repairAttempted)
+            .put("summaryMessage", defaultText(summaryMessage, ""));
+        if (overview.plan() != null) {
+            details.put("syncState", defaultText(overview.plan().syncState(), "UNKNOWN"));
+            details.put("lastRunId", defaultText(overview.plan().lastRunId(), ""));
+            details.put("lastSuccessfulRunId", defaultText(overview.plan().lastSuccessfulRunId(), ""));
+            if (overview.plan().syncReasonDetails() != null) {
+                details.set("syncReasonDetails", overview.plan().syncReasonDetails());
+            }
+        }
+        if (overview.runner() != null) {
+            details.put("runnerRegistrationStatus", defaultText(overview.runner().registrationStatus(), "UNKNOWN"));
+            details.put("runnerLastHeartbeatAt", overview.runner().lastSessionHeartbeatAt() == null ? "" : overview.runner().lastSessionHeartbeatAt().toString());
+            details.put("runnerLastSessionExpiresAt", overview.runner().lastSessionExpiresAt() == null ? "" : overview.runner().lastSessionExpiresAt().toString());
+        }
+        if (run != null) {
+            ObjectNode runNode = details.putObject("run");
+            runNode.put("id", defaultText(run.id(), ""));
+            runNode.put("reason", defaultText(run.reason(), ""));
+            runNode.put("status", defaultText(run.status(), "UNKNOWN"));
+            runNode.put("requestedStatus", defaultText(run.requestedStatus(), "UNKNOWN"));
+            if (run.progressSummary() != null) {
+                runNode.set("progressSummary", run.progressSummary());
+            }
+            if (run.errorSummary() != null) {
+                runNode.set("errorSummary", run.errorSummary());
+            }
+        }
+        return details;
+    }
+
+    private boolean vectorizationReady(String syncState) {
+        return List.of("IN_SYNC", "SOURCE_EMPTY", "MANUALLY_CONFIRMED").contains(defaultText(syncState, "UNKNOWN").toUpperCase());
+    }
+
+    private String vectorizationRepairReason(String syncState) {
+        return switch (defaultText(syncState, "UNKNOWN").toUpperCase()) {
+            case "BOOTSTRAP_REQUIRED", "SOURCE_EMPTY" -> "BOOTSTRAP";
+            case "OUT_OF_DATE", "REINDEX_DEFERRED" -> "REINDEX";
+            default -> null;
+        };
+    }
+
+    private record VectorizationRepairResult(
+        boolean ready,
+        String summaryMessage,
+        ObjectNode details
+    ) {
     }
 
     private DeploymentHostedVerificationRunEntity awaitHostedVerification(String hostedRunId) throws InterruptedException {

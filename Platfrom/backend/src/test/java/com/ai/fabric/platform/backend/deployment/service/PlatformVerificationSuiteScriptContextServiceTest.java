@@ -58,9 +58,11 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                 Duration.ofMinutes(60),
                 Duration.ofMinutes(12),
                 Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
                 Duration.ofSeconds(3),
                 20,
                 12_000,
+                80_000,
                 "https://platform-ui.example.test",
                 "weaviate.example.test",
                 "https://bridge.example.test",
@@ -113,9 +115,11 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                 Duration.ofMinutes(60),
                 Duration.ofMinutes(12),
                 Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
                 Duration.ofSeconds(3),
                 20,
                 12_000,
+                80_000,
                 "https://platform-ui.example.test",
                 "weaviate.example.test",
                 "https://bridge.example.test",
@@ -147,5 +151,57 @@ class PlatformVerificationSuiteScriptContextServiceTest {
         assertThatThrownBy(() -> service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("WEAVIATE_API_KEY");
+    }
+
+    @Test
+    void buildsPlatformCodeRegressionContextWithExtendedTimeout() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(180),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_PLATFORM_CODE_REGRESSION);
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-platform-code-regression.sh");
+        assertThat(context.secretEnvironment()).isEmpty();
+        assertThat(context.environment()).containsEntry("BACKEND_TESTS", "true");
+        assertThat(context.timeoutOverride()).isEqualTo(Duration.ofMinutes(75));
+        assertThat(context.maxOutputCharactersOverride()).isEqualTo(80_000);
     }
 }
