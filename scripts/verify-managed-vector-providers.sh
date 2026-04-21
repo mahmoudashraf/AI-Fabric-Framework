@@ -544,7 +544,14 @@ verify_weaviate() {
   fi
 
   weaviate_http GET "${base_url}/v1/.well-known/ready" ""
-  require_2xx "Weaviate readiness probe" || return 1
+  if [[ ! "${HTTP_STATUS}" =~ ^2 ]]; then
+    if [[ "${HTTP_STATUS}" != "404" ]]; then
+      echo "FAIL: Weaviate readiness probe -> HTTP ${HTTP_STATUS}"
+      [[ -n "${HTTP_BODY}" ]] && echo "${HTTP_BODY}"
+      return 1
+    fi
+    echo "INFO: Weaviate readiness probe returned HTTP 404, falling back to metadata probe."
+  fi
 
   weaviate_http GET "${base_url}/v1/meta" ""
   require_2xx "Weaviate metadata probe" || return 1
