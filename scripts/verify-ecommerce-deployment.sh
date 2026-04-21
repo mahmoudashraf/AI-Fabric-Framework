@@ -144,6 +144,8 @@ EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT="${EXPECT_MARKETPLACE_SHELL_START
 EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED:-false}"
 RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN:-}"
 MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
+MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS="${MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS:-3}"
+MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS="${MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS:-5}"
 MARKETPLACE_SHARED_SENTINEL_ID="${MARKETPLACE_SHARED_SENTINEL_ID:-}"
 MARKETPLACE_SHARED_SENTINEL_SOURCE_ID="${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID:-shared-marketplace-refund-policy}"
 MARKETPLACE_SHARED_SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF:-commerce-catalog/refund-policy}"
@@ -567,6 +569,24 @@ EOF
     exit 1
   fi
   rm -f "${tmp}"
+}
+
+platform_marketplace_smoke_query_http() {
+  local url="$1"
+  local body="$2"
+  local attempt=1
+
+  while true; do
+    platform_http POST "${url}" "${body}"
+    if [[ ( "${HTTP_STATUS}" == "000" || "${HTTP_STATUS}" == "502" || "${HTTP_STATUS}" == "503" || "${HTTP_STATUS}" == "504" ) \
+        && "${attempt}" -lt "${MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient marketplace smoke query returned HTTP ${HTTP_STATUS}; retrying (${attempt}/${MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS})..." >&2
+      sleep "${MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
 }
 
 RUNTIME_PUBLIC_AUTHORIZATION=""
@@ -1014,7 +1034,9 @@ PY
   fi
 
   local conversation_id="marketplace-runtime-verify-$(date +%s)"
-  platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" "$(build_chat_query_payload "${MARKETPLACE_SMOKE_QUERY}" "${conversation_id}")"
+  platform_marketplace_smoke_query_http \
+    "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+    "$(build_chat_query_payload "${MARKETPLACE_SMOKE_QUERY}" "${conversation_id}")"
   assert_status 200 "marketplace runtime smoke query"
   local expected_source_ids_json expected_adapter_types_json
   expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
