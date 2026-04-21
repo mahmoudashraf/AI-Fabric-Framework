@@ -260,6 +260,8 @@ public class DeploymentProductionReadinessScorecardService {
     private DeploymentProductionReadinessAreaSummary vectorizationArea(DeploymentVectorizationVerificationSummary vectorization) {
         String status;
         String message;
+        java.time.Instant now = java.time.Instant.now();
+        boolean runnerSessionActive = VectorizationRunnerReadinessSupport.hasActiveSession(vectorization.runner(), now);
         if (!vectorization.planPresent() && !vectorization.sourceConnectionPresent() && !vectorization.runnerPresent()) {
             status = "READY";
             message = "Vectorization is not configured for this deployment yet.";
@@ -275,9 +277,16 @@ public class DeploymentProductionReadinessScorecardService {
             message = "Vectorization runner registration is not active.";
         } else if (vectorization.runner() != null
             && vectorization.runner().tokenExpiresAt() != null
-            && vectorization.runner().tokenExpiresAt().isBefore(java.time.Instant.now())) {
+            && vectorization.runner().tokenExpiresAt().isBefore(now)
+            && !runnerSessionActive) {
             status = "BLOCKED";
             message = "Vectorization runner registration token has expired and must be rotated before execution.";
+        } else if (vectorization.runner() != null
+            && vectorization.runner().tokenExpiresAt() != null
+            && vectorization.runner().tokenExpiresAt().isBefore(now)
+            && runnerSessionActive) {
+            status = "WARNING";
+            message = "Vectorization runner registration token is expired, but an active runner session is still connected. Rotate the token before the runner restarts.";
         } else if (vectorization.runnerRequired()
             && vectorization.runner() != null
             && vectorization.runner().lastConnectedAt() == null) {

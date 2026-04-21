@@ -598,16 +598,18 @@ public class DeploymentReleaseVerificationService {
             if (summary.runner().tokenExpiresAt() != null) {
                 details.put("tokenExpiresAt", summary.runner().tokenExpiresAt().toString());
             }
+            if (summary.runner().lastSessionExpiresAt() != null) {
+                details.put("lastSessionExpiresAt", summary.runner().lastSessionExpiresAt().toString());
+            }
         }
 
+        Instant now = Instant.now();
         if (!requireActiveRegistration && summary.platformManagedRunnerExpected()) {
             addCheck(
                 checks,
                 "vectorization_runner_registration_ready",
                 "PASSED",
-                summary.runner() != null
-                    && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
-                    && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()))
+                VectorizationRunnerReadinessSupport.isExecutionReady(summary.runner(), now)
                     ? "Platform-managed vectorization runner registration is already active before apply."
                     : "Platform-managed vectorization runner registration will be established after provisioning. Pre-apply only requires vectorization control-plane readiness.",
                 details
@@ -615,17 +617,15 @@ public class DeploymentReleaseVerificationService {
             return;
         }
 
-        boolean passed = summary.runner() != null
-            && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
-            && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()));
+        boolean passed = VectorizationRunnerReadinessSupport.isExecutionReady(summary.runner(), now);
 
         addCheck(
             checks,
             "vectorization_runner_registration_ready",
             passed ? "PASSED" : "FAILED",
             passed
-                ? "Vectorization runner registration is active and its token is valid."
-                : "Vectorization execution requires an active runner registration with a valid token.",
+                ? "Vectorization runner registration is active and execution-ready."
+                : "Vectorization execution requires an active runner registration with a valid token or live runner session.",
             details
         );
     }

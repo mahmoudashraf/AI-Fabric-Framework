@@ -193,7 +193,7 @@ Managed provider defaults:
 - Zilliz existing cluster:
   - `milvus-e2e-49d428ec`
 - Weaviate host:
-  - `l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud`
+  - `weaviate-external-verify-dev.up.railway.app`
 
 These are workflow UI defaults only. You can override them per run.
 

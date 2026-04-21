@@ -92,7 +92,7 @@ public class DeploymentVerificationRolloutService {
     private static final int DEFAULT_BATCH_SIZE = 25;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
-    private static final String DEFAULT_WEAVIATE_HOST = "l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud";
+    private static final String DEFAULT_WEAVIATE_HOST = "weaviate-external-verify-dev.up.railway.app";
     private static final String ZILLIZ_PROJECT_ID = "proj-a58a34b87ccfe2c80d6ec2";
     private static final String ZILLIZ_REGION_ID = "aws-eu-central-1";
 
@@ -1388,9 +1388,7 @@ public class DeploymentVerificationRolloutService {
     }
 
     private boolean runnerRegistrationReady(DeploymentVectorizationVerificationSummary summary) {
-        return summary.runner() != null
-            && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
-            && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()));
+        return VectorizationRunnerReadinessSupport.isExecutionReady(summary.runner(), Instant.now());
     }
 
     private boolean runnerServiceProvisioned(DeploymentReleaseEntity latestRelease) {
