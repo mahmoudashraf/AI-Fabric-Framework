@@ -162,6 +162,7 @@ jobs:
           VAR_PLATFORM_UI_BASE_URL: ${{ vars.PLATFORM_UI_BASE_URL }}
           VAR_REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID: ${{ vars.REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID }}
           VAR_REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID: ${{ vars.REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID }}
+          SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
           PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
           PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
           PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
@@ -169,16 +170,20 @@ jobs:
           set -euo pipefail
 
           choose() {
-            local first="$1"
-            local second="$2"
-            if [[ -n "${first}" ]]; then
-              printf '%s' "${first}"
-            else
-              printf '%s' "${second}"
-            fi
+            for candidate in "$@"; do
+              if [[ -n "${candidate}" ]]; then
+                printf '%s' "${candidate}"
+                return 0
+              fi
+            done
+            return 1
           }
 
-          platform_base_url="$(choose "${INPUT_PLATFORM_BASE_URL:-}" "${VAR_PLATFORM_BASE_URL:-}")"
+          platform_base_url="$(choose \
+            "${INPUT_PLATFORM_BASE_URL:-}" \
+            "${VAR_PLATFORM_BASE_URL:-}" \
+            "${SECRET_PLATFORM_BASE_URL:-}" \
+            "https://ai-fabric-framework-production-324f.up.railway.app")"
           platform_ui_base_url="$(choose "${INPUT_PLATFORM_UI_BASE_URL:-}" "${VAR_PLATFORM_UI_BASE_URL:-}")"
           if [[ -z "${platform_ui_base_url}" ]]; then
             platform_ui_base_url="https://platform-ui-production-00e3.up.railway.app"
