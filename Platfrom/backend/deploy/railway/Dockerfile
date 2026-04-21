@@ -3,13 +3,13 @@
 # Build context: repo root
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 
-FROM node:20-bookworm-slim AS node-runtime
-
 WORKDIR /workspace
 
 COPY Platfrom/backend Platfrom/backend
 
 RUN mvn -f Platfrom/backend/pom.xml -DskipTests package
+
+FROM node:20-bookworm-slim AS node-runtime
 
 FROM maven:3.9.6-eclipse-temurin-21
 
