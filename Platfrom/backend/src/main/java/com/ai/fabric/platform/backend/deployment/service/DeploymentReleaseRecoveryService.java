@@ -233,6 +233,7 @@ public class DeploymentReleaseRecoveryService {
         }
         return switch (stepKey.trim()) {
             case "prepare_apply",
+                 "ensure_vector_backend",
                  "prepare_project",
                  "configure_runtime",
                  "configure_rest_connector",
