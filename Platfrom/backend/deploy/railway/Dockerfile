@@ -26,9 +26,9 @@ COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
     ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-RUN useradd -r -u 10010 -g root platform && \
-    mkdir -p /app && \
-    chown -R 10010:0 /app
+RUN useradd -m -d /home/platform -r -u 10010 -g root platform && \
+    mkdir -p /app /home/platform/.m2 /home/platform/.npm && \
+    chown -R 10010:0 /app /home/platform
 
 COPY --from=build /workspace/Platfrom/backend/target/ai-enablement-platform-backend-*.jar /app/platform-backend.jar
 COPY Platfrom/backend /app/Platfrom/backend
@@ -41,6 +41,9 @@ USER 10010
 
 EXPOSE 8088
 
+ENV HOME="/home/platform"
+ENV MAVEN_CONFIG="/home/platform/.m2"
+ENV NPM_CONFIG_CACHE="/home/platform/.npm"
 ENV JAVA_OPTS=""
 
 ENTRYPOINT ["/bin/sh", "-lc", "exec java $JAVA_OPTS -Dserver.port=${PORT:-8088} -jar /app/platform-backend.jar"]
