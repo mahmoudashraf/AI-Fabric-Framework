@@ -37,7 +37,10 @@ if [[ "${UI_BUILD}" == "true" ]]; then
 fi
 
 if [[ "${BACKEND_TESTS}" == "true" ]]; then
-  run_step "Platform backend tests" mvn -f Platfrom/backend/pom.xml test -DskipITs
+  run_step "Platform backend tests" env \
+    PLATFORM_AUTH_SESSION_COOKIE_SAME_SITE="${PLATFORM_AUTH_SESSION_COOKIE_SAME_SITE:-Lax}" \
+    PLATFORM_AUTH_SESSION_COOKIE_SECURE="${PLATFORM_AUTH_SESSION_COOKIE_SECURE:-false}" \
+    mvn -f Platfrom/backend/pom.xml test -DskipITs
 fi
 
 if [[ "${PRODUCT_TESTS}" == "true" ]]; then
