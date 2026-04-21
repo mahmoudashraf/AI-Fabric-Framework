@@ -132,6 +132,7 @@ Operational notes:
 - baseline non-destructive Shopify verification can run without the optional values
 - uninstall verification is destructive and should only target a disposable shop mapping
 - the private handoff is the source of truth for current live Shopify credentials and app values
+- for GitHub Actions, keep non-secret Shopify config in variables and keep only keys, bearer tokens, and passwords in secrets
 
 ## 4. Current Live Defaults To Start From
 
@@ -141,6 +142,16 @@ These are the current known-good non-secret defaults as of `2026-04-21`.
   - `https://ai-fabric-framework-production-324f.up.railway.app`
 - platform UI base URL:
   - `https://platform-ui-production-00e3.up.railway.app`
+- Shopify bridge base URL:
+  - `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
+- Shopify companion shop domain:
+  - `shopping-companion-test.myshopify.com`
+- Shopify product service ref:
+  - `shopify-bridge-prod`
+- Shopify disposable uninstall shop domain:
+  - empty by default; set explicitly only for destructive uninstall verification
+- Shopify embedded host:
+  - empty by default; set only when merchant-session verification is needed
 - current Weaviate host:
   - `weaviate-external-verify-dev.up.railway.app`
 

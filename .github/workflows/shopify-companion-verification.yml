@@ -119,22 +119,24 @@ jobs:
       INPUT_ALLOW_DESTRUCTIVE_UNINSTALL: ${{ inputs.allow_destructive_uninstall }}
       INPUT_CONFIRM_DESTRUCTIVE_SHOP_DOMAIN: ${{ inputs.confirm_destructive_shop_domain }}
       VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+      VAR_PLATFORM_LOGIN_EMAIL: ${{ vars.PLATFORM_LOGIN_EMAIL }}
       VAR_SHOPIFY_BRIDGE_BASE_URL: ${{ vars.SHOPIFY_BRIDGE_BASE_URL }}
       VAR_SHOPIFY_COMPANION_SHOP_DOMAIN: ${{ vars.SHOPIFY_COMPANION_SHOP_DOMAIN }}
       VAR_SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN: ${{ vars.SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN }}
       VAR_SHOPIFY_PRODUCT_SERVICE_REF: ${{ vars.SHOPIFY_PRODUCT_SERVICE_REF }}
+      VAR_SHOPIFY_EMBEDDED_HOST: ${{ vars.SHOPIFY_EMBEDDED_HOST }}
       SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
       DEFAULT_PLATFORM_BASE_URL: https://ai-fabric-framework-production-324f.up.railway.app
       DEFAULT_SHOPIFY_BRIDGE_BASE_URL: https://shopify-bridge-shopify-bridge-pr-production.up.railway.app
       DEFAULT_SHOPIFY_COMPANION_SHOP_DOMAIN: shopping-companion-test.myshopify.com
       DEFAULT_PRODUCT_SERVICE_REF: shopify-bridge-prod
       PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
-      PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
+      SECRET_PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
       PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
       SHOPIFY_BRIDGE_ADMIN_API_KEY: ${{ secrets.SHOPIFY_BRIDGE_ADMIN_API_KEY }}
       SHOPIFY_ADMIN_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ADMIN_ACCESS_TOKEN }}
       SHOPIFY_MERCHANT_AUTHORIZATION: ${{ secrets.SHOPIFY_MERCHANT_AUTHORIZATION }}
-      SHOPIFY_EMBEDDED_HOST: ${{ secrets.SHOPIFY_EMBEDDED_HOST }}
+      SECRET_SHOPIFY_EMBEDDED_HOST: ${{ secrets.SHOPIFY_EMBEDDED_HOST }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -172,6 +174,12 @@ jobs:
             "${INPUT_SHOPIFY_BRIDGE_BASE_URL:-}" \
             "${VAR_SHOPIFY_BRIDGE_BASE_URL:-}" \
             "${DEFAULT_SHOPIFY_BRIDGE_BASE_URL}")"
+          platform_login_email="$(choose \
+            "${VAR_PLATFORM_LOGIN_EMAIL:-}" \
+            "${SECRET_PLATFORM_LOGIN_EMAIL:-}" || true)"
+          shopify_embedded_host="$(choose \
+            "${VAR_SHOPIFY_EMBEDDED_HOST:-}" \
+            "${SECRET_SHOPIFY_EMBEDDED_HOST:-}" || true)"
           product_service_ref="$(choose \
             "${INPUT_PRODUCT_SERVICE_REF:-}" \
             "${VAR_SHOPIFY_PRODUCT_SERVICE_REF:-}" \
@@ -198,8 +206,8 @@ jobs:
               "${DEFAULT_SHOPIFY_COMPANION_SHOP_DOMAIN}")"
           fi
 
-          if [[ -z "${PLATFORM_API_KEY:-}" && ( -z "${PLATFORM_LOGIN_EMAIL:-}" || -z "${PLATFORM_LOGIN_PASSWORD:-}" ) ]]; then
-            echo "Missing platform auth. Provide PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD GitHub secrets." >&2
+          if [[ -z "${PLATFORM_API_KEY:-}" && ( -z "${platform_login_email:-}" || -z "${PLATFORM_LOGIN_PASSWORD:-}" ) ]]; then
+            echo "Missing platform auth. Provide PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL plus PLATFORM_LOGIN_PASSWORD." >&2
             exit 1
           fi
 
@@ -234,8 +242,14 @@ jobs:
             echo "SHOP_DOMAIN<<__CTX__"
             echo "${shop_domain}"
             echo "__CTX__"
+            echo "PLATFORM_LOGIN_EMAIL<<__CTX__"
+            echo "${platform_login_email}"
+            echo "__CTX__"
             echo "PRODUCT_SERVICE_REF<<__CTX__"
             echo "${product_service_ref}"
+            echo "__CTX__"
+            echo "SHOPIFY_EMBEDDED_HOST<<__CTX__"
+            echo "${shopify_embedded_host}"
             echo "__CTX__"
             echo "AUTO_RUN_SOURCE_PREFLIGHT<<__CTX__"
             echo "${INPUT_AUTO_RUN_SOURCE_PREFLIGHT:-true}"

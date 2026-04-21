@@ -221,21 +221,39 @@ Recommended workflow modes:
 
 Recommended repository variables for the workflow:
 
+- `PLATFORM_BASE_URL`
+  default: `https://ai-fabric-framework-production-324f.up.railway.app`
+- `PLATFORM_LOGIN_EMAIL`
+  default: no committed default; prefer `PLATFORM_API_KEY` auth when available
 - `SHOPIFY_BRIDGE_BASE_URL`
+  default: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
 - `SHOPIFY_COMPANION_SHOP_DOMAIN`
+  default: `shopping-companion-test.myshopify.com`
 - `SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN`
+  default: empty; must be set explicitly for uninstall verification
 - `SHOPIFY_PRODUCT_SERVICE_REF`
+  default: `shopify-bridge-prod`
+- `SHOPIFY_EMBEDDED_HOST`
+  default: empty; set only when merchant-session coverage is needed
 
 Required repository secrets for the workflow:
 
-- platform auth: `PLATFORM_API_KEY` or `PLATFORM_LOGIN_EMAIL` plus `PLATFORM_LOGIN_PASSWORD`
+- preferred: `PLATFORM_API_KEY`
+- fallback session auth: `PLATFORM_LOGIN_PASSWORD`
 
 Optional repository secrets that enable deeper verification coverage:
 
 - `SHOPIFY_BRIDGE_ADMIN_API_KEY`
+  default: empty
 - `SHOPIFY_ADMIN_ACCESS_TOKEN`
+  default: empty
 - `SHOPIFY_MERCHANT_AUTHORIZATION`
-- `SHOPIFY_EMBEDDED_HOST`
+  default: empty
+
+Secret placement rule:
+
+- keep URLs, domains, refs, login email, and embedded host in workflow inputs or repository variables
+- keep API keys, bearer tokens, and passwords in repository secrets
 
 Important workflow guardrails:
 
