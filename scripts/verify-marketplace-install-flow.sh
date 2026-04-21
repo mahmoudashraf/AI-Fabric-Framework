@@ -35,6 +35,8 @@ CLEANUP_ARCHIVE_POLL_ATTEMPTS="${CLEANUP_ARCHIVE_POLL_ATTEMPTS:-12}"
 CLEANUP_ARCHIVE_POLL_SLEEP_SECONDS="${CLEANUP_ARCHIVE_POLL_SLEEP_SECONDS:-5}"
 MARKETPLACE_POC_QUERY_RETRY_ATTEMPTS="${MARKETPLACE_POC_QUERY_RETRY_ATTEMPTS:-3}"
 MARKETPLACE_POC_QUERY_RETRY_SLEEP_SECONDS="${MARKETPLACE_POC_QUERY_RETRY_SLEEP_SECONDS:-5}"
+MARKETPLACE_QUERY_EVIDENCE_RETRY_ATTEMPTS="${MARKETPLACE_QUERY_EVIDENCE_RETRY_ATTEMPTS:-6}"
+MARKETPLACE_QUERY_EVIDENCE_RETRY_SLEEP_SECONDS="${MARKETPLACE_QUERY_EVIDENCE_RETRY_SLEEP_SECONDS:-5}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TEMPLATE_PLUGIN_ID="${TEMPLATE_PLUGIN_ID:-mkp-template-support-desk-shell}"
@@ -714,9 +716,63 @@ assert_query_source() {
   EXPECTED_SOURCE_ID="${expected_source_id}" json_assert "${label}" $'import os\nresult = (data or {}).get("result") or {}\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nexpected_source_id = os.environ["EXPECTED_SOURCE_ID"]\nassert expected_source_id in source_ids, {"expectedSource": expected_source_id, "actual": sorted([v for v in source_ids if v])}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nprint("ok")'
 }
 
+query_matches_source() {
+  local expected_source_id="$1"
+  local matched
+  matched="$(EXPECTED_SOURCE_ID="${expected_source_id}" extract_json_value $'import os\nresult = (data or {}).get("result") or {}\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nexpected_source_id = os.environ["EXPECTED_SOURCE_ID"]\nresult = "true" if docs and expected_source_id in source_ids and "shared-index" in adapter_types else "false"')"
+  [[ "${matched}" == "true" ]]
+}
+
 assert_multi_source_query() {
   local label="$1"
   json_assert "${label}" $'result = (data or {}).get("result") or {}\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nexpected = {"help-center", "policy-folder", "commerce-catalog"}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert len(expected & source_ids) >= 2, {"expectedAtLeast": 2, "actual": sorted([v for v in (expected & source_ids) if v])}\nprint("ok")'
+}
+
+query_matches_multi_source() {
+  local matched
+  matched="$(extract_json_value $'result = (data or {}).get("result") or {}\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nexpected = {"help-center", "policy-folder", "commerce-catalog"}\nresult = "true" if docs and "shared-index" in adapter_types and len(expected & source_ids) >= 2 else "false"')"
+  [[ "${matched}" == "true" ]]
+}
+
+wait_for_query_source_evidence() {
+  local query="$1"
+  local conversation_id_base="$2"
+  local label="$3"
+  local expected_source_id="$4"
+  local attempt=1
+  while true; do
+    run_platform_poc_query "${query}" "${conversation_id_base}-${attempt}" "${label}"
+    if query_matches_source "${expected_source_id}"; then
+      return 0
+    fi
+    if [[ "${attempt}" -ge "${MARKETPLACE_QUERY_EVIDENCE_RETRY_ATTEMPTS}" ]]; then
+      assert_query_source "${label}" "${expected_source_id}"
+      return 1
+    fi
+    echo "WARN: ${label} did not return source-backed evidence yet; retrying (${attempt}/${MARKETPLACE_QUERY_EVIDENCE_RETRY_ATTEMPTS})..." >&2
+    sleep "${MARKETPLACE_QUERY_EVIDENCE_RETRY_SLEEP_SECONDS}"
+    attempt=$((attempt + 1))
+  done
+}
+
+wait_for_multi_source_query_evidence() {
+  local query="$1"
+  local conversation_id_base="$2"
+  local label="$3"
+  local attempt=1
+  while true; do
+    run_platform_poc_query "${query}" "${conversation_id_base}-${attempt}" "${label}"
+    if query_matches_multi_source; then
+      return 0
+    fi
+    if [[ "${attempt}" -ge "${MARKETPLACE_QUERY_EVIDENCE_RETRY_ATTEMPTS}" ]]; then
+      assert_multi_source_query "${label}"
+      return 1
+    fi
+    echo "WARN: ${label} did not return multi-source retrieval evidence yet; retrying (${attempt}/${MARKETPLACE_QUERY_EVIDENCE_RETRY_ATTEMPTS})..." >&2
+    sleep "${MARKETPLACE_QUERY_EVIDENCE_RETRY_SLEEP_SECONDS}"
+    attempt=$((attempt + 1))
+  done
 }
 
 PLATFORM_BASE_URL="$(resolve_secret_value PLATFORM_BASE_URL)"
@@ -952,20 +1008,16 @@ assert_status 200 "deployment provider connectivity"
 json_assert "deployment provider connectivity" $'probes = (data or {}).get("probes") or []\nprobe_map = {item.get("key"): item for item in probes if isinstance(item, dict) and item.get("key")}\nassert "generation_inference_endpoint" in probe_map, probe_map\nassert "embedding_inference_endpoint" in probe_map, probe_map\nassert probe_map["generation_inference_endpoint"].get("status") == "READY", probe_map\nassert probe_map["embedding_inference_endpoint"].get("status") == "READY", probe_map\nif "orchestration_inference_endpoint" in probe_map:\n    assert probe_map["orchestration_inference_endpoint"].get("status") == "READY", probe_map\nsummary = (data or {}).get("summary") or (data or {}).get("summaryMessage") or ""\nassert summary, data\nprint("ok")'
 pass "provider connectivity reflects live inference profile readiness"
 
-run_platform_poc_query "${PACKAGED_DATA_QUERY}" "marketplace-help-center-$(date +%s)" "packaged data live query"
-assert_query_source "packaged data live query" "help-center"
+wait_for_query_source_evidence "${PACKAGED_DATA_QUERY}" "marketplace-help-center-$(date +%s)" "packaged data live query" "help-center"
 pass "packaged seed data plugin answered live query"
 
-run_platform_poc_query "${FOLDER_DATA_QUERY}" "marketplace-policy-folder-$(date +%s)" "folder data live query"
-assert_query_source "folder data live query" "policy-folder"
+wait_for_query_source_evidence "${FOLDER_DATA_QUERY}" "marketplace-policy-folder-$(date +%s)" "folder data live query" "policy-folder"
 pass "folder sync data plugin answered live query"
 
-run_platform_poc_query "${SQL_DATA_QUERY}" "marketplace-sql-data-$(date +%s)" "sql data live query"
-assert_query_source "sql data live query" "commerce-catalog"
+wait_for_query_source_evidence "${SQL_DATA_QUERY}" "marketplace-sql-data-$(date +%s)" "sql data live query" "commerce-catalog"
 pass "sql sync data plugin answered live query"
 
-run_platform_poc_query "${MULTI_SOURCE_QUERY}" "marketplace-multi-source-$(date +%s)" "multi-source marketplace query"
-assert_multi_source_query "multi-source marketplace query"
+wait_for_multi_source_query_evidence "${MULTI_SOURCE_QUERY}" "marketplace-multi-source-$(date +%s)" "multi-source marketplace query"
 pass "multi-source retrieval returned marketplace data from multiple installed plugins"
 
 echo ""
