@@ -1,0 +1,540 @@
+# Platform Verification Restart Guide
+
+Use this guide when a future LLM session needs to restart platform verification work from scratch.
+
+This guide is the verification runbook for:
+
+- flow
+- script order
+- credential classes
+- required environment variables
+- current live defaults
+- operational recovery steps
+- common traps that caused real failures in the current sessions
+
+This file is safe to commit.
+Do not put raw secrets here.
+Use the private handoff for live values.
+
+Related references:
+
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_LLM_SESSION_OPERATING_CONTEXT.md`
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_AND_AUTH_TROUBLESHOOTING_GUIDE.md`
+- `Final_Documentation/Development_Guides/GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md`
+
+## 1. First Principles
+
+Keep these verification layers separate:
+
+1. local code regression
+2. canonical rollout readiness
+3. direct managed-provider verification
+4. platform admin regression
+5. deployment-level hosted verification from repo scripts
+6. full umbrella suite
+
+These layers can disagree.
+
+Examples:
+
+- a release can be healthy while an older stored verification run still shows failure
+- a deployment can pass direct repo verification while the canonical rollout inventory is blocked by stale release evidence
+- a runner registration can be active while the live runner session is dead
+
+Do not stop at the first green signal.
+Close the live operational issue and then refresh verification evidence.
+
+## 2. Where Real Credentials Live
+
+Use the private handoff file for current live values:
+
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md`
+
+Important sections in that private file:
+
+- `6.1 Platform login`
+- `6.2 Platform / deployment shared keys`
+- `6.3 Railway / platform service env values`
+- `6.5 Vendor keys`
+
+Do not copy raw secrets into committed docs.
+
+## 3. Credential Classes You Need
+
+### 3.1 Base platform auth
+
+Required for almost every live script:
+
+- `PLATFORM_BASE_URL`
+- one auth mode:
+  - `PLATFORM_API_KEY`
+  - or `PLATFORM_LOGIN_EMAIL` and `PLATFORM_LOGIN_PASSWORD`
+
+### 3.2 Deployment verification auth
+
+Required for deployment verification wrappers:
+
+- `APP_ADMIN_API_KEY`
+
+Without this, `run-platform-state-verification-suite.sh` will stop before deployment checks.
+
+### 3.3 UI verification
+
+Required only for platform admin UI checks:
+
+- `PLATFORM_UI_BASE_URL`
+
+### 3.4 Managed provider verification
+
+Required for direct vendor checks:
+
+- `OPENAI_API_KEY`
+- `PINECONE_API_KEY`
+- `QDRANT_API_KEY`
+- `QDRANT_CLOUD_MANAGEMENT_API_KEY`
+- `ZILLIZ_CLOUD_API_KEY`
+- `WEAVIATE_API_KEY`
+- `WEAVIATE_HOST`
+
+### 3.5 Railway and DB access
+
+Needed only when debugging provider provisioning, Railway state, or platform internals directly:
+
+- `RAILWAY_API_TOKEN`
+- `RAILWAY_WORKSPACE_ID`
+- `PLATFORM_DB_URL`
+- `PLATFORM_DB_USERNAME`
+- `PLATFORM_DB_PASSWORD`
+
+## 4. Current Live Defaults To Start From
+
+These are the current known-good non-secret defaults as of `2026-04-21`.
+
+- platform base URL:
+  - `https://ai-fabric-framework-production-324f.up.railway.app`
+- platform UI base URL:
+  - `https://platform-ui-production-00e3.up.railway.app`
+- current Weaviate host:
+  - `weaviate-external-verify-dev.up.railway.app`
+
+Current canonical deployment ids were:
+
+- ecommerce:
+  - `dep-0c725f3e`
+- marketplace runtime:
+  - `dep-6d13b01c`
+- qdrant:
+  - `dep-7786c409`
+- pinecone:
+  - `dep-a85f815f`
+- milvus:
+  - `dep-11c2fdce`
+- weaviate:
+  - `dep-713bb33e`
+
+Treat those ids as reference only.
+Do not hardcode them into new logic.
+Resolve them live through rollout inventory first.
+
+## 5. Minimal Shell Bootstrap
+
+Use this as the starting shell shape:
+
+```bash
+export PLATFORM_BASE_URL="https://ai-fabric-framework-production-324f.up.railway.app"
+export PLATFORM_UI_BASE_URL="https://platform-ui-production-00e3.up.railway.app"
+export PLATFORM_LOGIN_EMAIL="..."
+export PLATFORM_LOGIN_PASSWORD="..."
+export APP_ADMIN_API_KEY="..."
+
+export OPENAI_API_KEY="..."
+export PINECONE_API_KEY="..."
+export QDRANT_API_KEY="..."
+export QDRANT_CLOUD_MANAGEMENT_API_KEY="..."
+export ZILLIZ_CLOUD_API_KEY="..."
+export WEAVIATE_API_KEY="..."
+export WEAVIATE_HOST="weaviate-external-verify-dev.up.railway.app"
+```
+
+If platform API-key auth is enabled for the target environment, you can replace login envs with `PLATFORM_API_KEY`.
+
+## 6. Script Map
+
+### 6.1 Rollout resolution
+
+Script:
+
+- `scripts/resolve-verification-rollouts.sh`
+
+Purpose:
+
+- resolve canonical deployment ids
+- tell you whether canonical rollouts are actually verification-ready
+- optionally recreate missing or unready rollouts
+
+Use this first.
+
+### 6.2 Managed provider verification
+
+Script:
+
+- `scripts/verify-managed-vector-providers.sh`
+
+Purpose:
+
+- verify Pinecone, Qdrant Cloud, Zilliz Cloud, and Weaviate directly
+- prove vendor access separately from deployment/runtime status
+
+This script creates temporary provider-side resources for some providers and cleans them up.
+
+### 6.3 Platform admin regression
+
+Script:
+
+- `scripts/verify-platform-admin-regression.sh`
+
+Purpose:
+
+- platform auth/session checks
+- user directory checks
+- deployment assignment checks
+- async deletion flow
+- deployment override flow
+- consumer resolution flow
+- inference-service UI and admin checks
+
+This script creates temporary platform objects and cleans them up.
+
+### 6.4 Deployment wrapper
+
+Script:
+
+- `scripts/run-platform-deployment-verification.sh`
+
+Purpose:
+
+- fetch hosted verification context from the platform
+- run the correct deployment script for a specific deployment/profile
+
+Profiles:
+
+- `ecommerce`
+- `marketplace-runtime`
+- `vector`
+
+### 6.5 Underlying deployment scripts
+
+Scripts:
+
+- `scripts/verify-ecommerce-deployment.sh`
+- `scripts/verify-vector-deployment.sh`
+
+Purpose:
+
+- runtime health
+- connector admin overview
+- runtime-backed operational checks
+- platform-side source-of-truth checks
+- vectorization checks
+- release evidence checks
+- provider connectivity checks
+
+### 6.6 Marketplace install-flow proof
+
+Script:
+
+- `scripts/verify-marketplace-install-flow.sh`
+
+Purpose:
+
+- create a fresh marketplace validation deployment
+- install template, action, data, and inference plugins
+- publish and apply
+- prove live multi-source retrieval
+
+This script creates a temporary deployment and cleans it up unless `KEEP_DEPLOYMENT=true`.
+
+### 6.7 Full umbrella suite
+
+Script:
+
+- `scripts/run-platform-state-verification-suite.sh`
+
+Purpose:
+
+- local code checks
+- marketplace install-flow
+- admin regression
+- deployment verification
+- managed provider verification
+
+This is the closest thing to a one-command full-state run.
+
+## 7. Recommended Order
+
+### 7.1 If you did not change code
+
+Use this order:
+
+1. resolve canonical rollouts
+2. verify managed providers
+3. verify platform admin regression
+4. verify canonical deployments one by one
+5. verify marketplace install flow
+6. run the umbrella suite
+
+### 7.2 If you changed code
+
+Use this order:
+
+1. targeted local tests for the touched code
+2. `git diff --check`
+3. resolve canonical rollouts
+4. direct live scripts
+5. umbrella suite last
+
+### 7.3 Canonical commands
+
+Resolve rollouts:
+
+```bash
+env \
+  PLATFORM_BASE_URL="$PLATFORM_BASE_URL" \
+  PLATFORM_LOGIN_EMAIL="$PLATFORM_LOGIN_EMAIL" \
+  PLATFORM_LOGIN_PASSWORD="$PLATFORM_LOGIN_PASSWORD" \
+  REQUIRED_ROLLOUT_KEYS="ecommerce,marketplace,qdrant,pinecone,milvus,weaviate" \
+  ALLOW_ROLLOUT_MUTATION="false" \
+  WAIT_FOR_VERIFICATION_READY="true" \
+  bash scripts/resolve-verification-rollouts.sh
+```
+
+Managed providers:
+
+```bash
+bash scripts/verify-managed-vector-providers.sh
+```
+
+Platform admin regression:
+
+```bash
+env \
+  PLATFORM_BASE_URL="$PLATFORM_BASE_URL" \
+  PLATFORM_UI_BASE_URL="$PLATFORM_UI_BASE_URL" \
+  PLATFORM_LOGIN_EMAIL="$PLATFORM_LOGIN_EMAIL" \
+  PLATFORM_LOGIN_PASSWORD="$PLATFORM_LOGIN_PASSWORD" \
+  ADMIN_TARGET_DEPLOYMENT_ID="$ECOMMERCE_DEPLOYMENT_ID" \
+  VERIFY_INFERENCE_SERVICE_UI="true" \
+  VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="false" \
+  bash scripts/verify-platform-admin-regression.sh
+```
+
+Single deployment verification:
+
+```bash
+env \
+  PLATFORM_BASE_URL="$PLATFORM_BASE_URL" \
+  PLATFORM_LOGIN_EMAIL="$PLATFORM_LOGIN_EMAIL" \
+  PLATFORM_LOGIN_PASSWORD="$PLATFORM_LOGIN_PASSWORD" \
+  PLATFORM_DEPLOYMENT_ID="dep-xxxxxxxx" \
+  VERIFICATION_PROFILE="ecommerce" \
+  VERIFY_WRITE="false" \
+  APP_ADMIN_API_KEY="$APP_ADMIN_API_KEY" \
+  bash scripts/run-platform-deployment-verification.sh
+```
+
+Marketplace install-flow:
+
+```bash
+env \
+  PLATFORM_BASE_URL="$PLATFORM_BASE_URL" \
+  PLATFORM_LOGIN_EMAIL="$PLATFORM_LOGIN_EMAIL" \
+  PLATFORM_LOGIN_PASSWORD="$PLATFORM_LOGIN_PASSWORD" \
+  KEEP_DEPLOYMENT="false" \
+  bash scripts/verify-marketplace-install-flow.sh
+```
+
+Full umbrella suite:
+
+```bash
+env \
+  PLATFORM_BASE_URL="$PLATFORM_BASE_URL" \
+  PLATFORM_UI_BASE_URL="$PLATFORM_UI_BASE_URL" \
+  PLATFORM_LOGIN_EMAIL="$PLATFORM_LOGIN_EMAIL" \
+  PLATFORM_LOGIN_PASSWORD="$PLATFORM_LOGIN_PASSWORD" \
+  APP_ADMIN_API_KEY="$APP_ADMIN_API_KEY" \
+  OPENAI_API_KEY="$OPENAI_API_KEY" \
+  PINECONE_API_KEY="$PINECONE_API_KEY" \
+  QDRANT_API_KEY="$QDRANT_API_KEY" \
+  QDRANT_CLOUD_MANAGEMENT_API_KEY="$QDRANT_CLOUD_MANAGEMENT_API_KEY" \
+  ZILLIZ_CLOUD_API_KEY="$ZILLIZ_CLOUD_API_KEY" \
+  WEAVIATE_API_KEY="$WEAVIATE_API_KEY" \
+  WEAVIATE_HOST="$WEAVIATE_HOST" \
+  RUN_MARKETPLACE_INSTALL_FLOW_CHECKS="true" \
+  VERIFY_WRITE="false" \
+  bash scripts/run-platform-state-verification-suite.sh
+```
+
+## 8. Read-Only Vs Write
+
+Default posture:
+
+- `VERIFY_WRITE=false`
+
+Use write-backed verification only when intentional.
+
+Important rules:
+
+- platform-hosted verification is expected to be read-only by default
+- GitHub Actions deployment verification is expected to be read-only by default
+- marketplace runtime verification in normal CI should not do live write probes
+- direct active write probes are acceptable only for deliberate non-prod proof flows
+
+## 9. Important Operational Considerations
+
+### 9.1 Resolve rollouts first
+
+If rollout resolution is stuck, the problem is usually real, not a UI glitch.
+
+Typical cause:
+
+- latest canonical release is not `APPLIED_VERIFIED`
+- or the rollout readiness check sees runner/provider drift
+
+### 9.2 Prefer governed remediation
+
+If a live deployment is unhealthy, prefer:
+
+- `REDEPLOY_ACTIVE_VERSION`
+
+before trying ad hoc service restarts.
+
+### 9.3 Runner token rotation revokes sessions
+
+This matters.
+
+Rotating a vectorization runner token revokes existing sessions.
+If the service does not reconnect with the new token, deployment verification will fail runner-session checks even though registration stays `ACTIVE`.
+
+Operational fix:
+
+- redeploy the active version so the managed runner service picks up the new managed secret and reconnects
+
+### 9.4 Stored verification evidence can lag reality
+
+It is possible for:
+
+- runtime to be healthy
+- direct repo verification to pass
+- older release evidence to still show failure
+
+When that happens:
+
+- rerun verification evidence through the platform
+- do not stop at “the deployment looks healthy”
+
+### 9.5 The provider suite needs real vendor envs
+
+`run-platform-state-verification-suite.sh` does not inject provider credentials for you.
+
+If you omit them, the suite will pass earlier steps and then fail at the final managed-provider stage.
+
+### 9.6 `APP_ADMIN_API_KEY` is still required
+
+Even when using platform session login, the umbrella suite still expects `APP_ADMIN_API_KEY` for deployment checks.
+
+### 9.7 Weaviate default host changed
+
+The stale old host should not be reused.
+
+Current default:
+
+- `weaviate-external-verify-dev.up.railway.app`
+
+## 10. Real Failure Patterns Seen In This Session
+
+### 10.1 Marketplace runner provisioning smoke failed
+
+Observed on:
+
+- `dep-6d13b01c`
+
+Shape:
+
+- registration active
+- token valid after rotation
+- runner instance id present
+- but `lastSessionExpiresAt` was stale and verification failed
+
+Cause:
+
+- earlier token rotation revoked runner sessions
+- managed runner service had not reconnected yet
+
+Fix:
+
+- trigger platform remediation:
+  - `REDEPLOY_ACTIVE_VERSION`
+- wait for new release to reach `APPLIED_VERIFIED`
+- confirm fresh runner heartbeat
+- rerun deployment verification
+
+### 10.2 Weaviate canonical rollout was blocked
+
+Observed on:
+
+- canonical Weaviate rollout
+
+Cause:
+
+- old external host was dead
+- provider connectivity failed
+
+Fix that was applied:
+
+- move the canonical Weaviate host to the live Railway-hosted external Weaviate endpoint
+- refresh rollout
+- rerun verification
+
+### 10.3 Umbrella suite failed only at the provider tail
+
+Cause:
+
+- missing provider envs in the shell invocation
+
+Fix:
+
+- rerun the suite with vendor envs
+- or rerun only the managed-provider phase with those envs
+
+## 11. What Good Looks Like
+
+Before ending a verification session, confirm:
+
+- rollout inventory shows all required canonical rollouts as ready
+- managed provider suite passes
+- platform admin regression passes
+- canonical deployment wrapper passes for:
+  - ecommerce
+  - marketplace runtime
+  - qdrant
+  - pinecone
+  - milvus
+  - weaviate
+- marketplace install-flow passes on a fresh temp deployment
+- umbrella suite passes, or if one invocation failed due missing envs, the failed stage is rerun cleanly with the correct envs
+
+## 12. Session Hand-Off Checklist
+
+If another LLM session must continue verification work, leave these facts clearly:
+
+1. which live scripts were run
+2. which deployments were verified
+3. which release ids were the final passing releases
+4. whether any remediation action was triggered
+5. whether any token rotation was performed
+6. whether the worktree is clean
+7. where the real secrets are stored:
+   - the private handoff file
+
+Do not leave the next session guessing whether a failure is still live or was already remediated.
