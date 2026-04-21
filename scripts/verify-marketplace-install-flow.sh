@@ -33,6 +33,8 @@ CLEANUP_RELEASE_SETTLE_ATTEMPTS="${CLEANUP_RELEASE_SETTLE_ATTEMPTS:-24}"
 CLEANUP_RELEASE_SETTLE_SLEEP_SECONDS="${CLEANUP_RELEASE_SETTLE_SLEEP_SECONDS:-5}"
 CLEANUP_ARCHIVE_POLL_ATTEMPTS="${CLEANUP_ARCHIVE_POLL_ATTEMPTS:-12}"
 CLEANUP_ARCHIVE_POLL_SLEEP_SECONDS="${CLEANUP_ARCHIVE_POLL_SLEEP_SECONDS:-5}"
+MARKETPLACE_POC_QUERY_RETRY_ATTEMPTS="${MARKETPLACE_POC_QUERY_RETRY_ATTEMPTS:-3}"
+MARKETPLACE_POC_QUERY_RETRY_SLEEP_SECONDS="${MARKETPLACE_POC_QUERY_RETRY_SLEEP_SECONDS:-5}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TEMPLATE_PLUGIN_ID="${TEMPLATE_PLUGIN_ID:-mkp-template-support-desk-shell}"
@@ -690,7 +692,18 @@ run_platform_poc_query() {
   local query="$1"
   local conversation_id="$2"
   local label="$3"
-  platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" "$(build_chat_query_payload "${query}" "${conversation_id}")"
+  local attempt=1
+  while true; do
+    platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" "$(build_chat_query_payload "${query}" "${conversation_id}")"
+    if [[ ( "${HTTP_STATUS}" == "502" || "${HTTP_STATUS}" == "503" || "${HTTP_STATUS}" == "504" ) \
+        && "${attempt}" -lt "${MARKETPLACE_POC_QUERY_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient marketplace POC query returned HTTP ${HTTP_STATUS}; retrying (${attempt}/${MARKETPLACE_POC_QUERY_RETRY_ATTEMPTS})..." >&2
+      sleep "${MARKETPLACE_POC_QUERY_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
   assert_status 200 "${label}"
   json_assert "${label}" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\nprint("ok")'
 }
