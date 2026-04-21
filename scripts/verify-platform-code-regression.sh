@@ -29,6 +29,16 @@ require_cmd() {
   fi
 }
 
+run_maven_sanitized() {
+  env -i \
+    PATH="${PATH}" \
+    HOME="${HOME:-/tmp}" \
+    JAVA_HOME="${JAVA_HOME:-}" \
+    MAVEN_CONFIG="${MAVEN_CONFIG:-${HOME:-/tmp}/.m2}" \
+    MAVEN_OPTS="${MAVEN_OPTS:-}" \
+    "$@"
+}
+
 if [[ "${BACKEND_TESTS}" == "true" || "${PRODUCT_TESTS}" == "true" || "${INFRASTRUCTURE_TESTS}" == "true" ]]; then
   require_cmd mvn
 fi
@@ -37,37 +47,24 @@ if [[ "${UI_BUILD}" == "true" ]]; then
 fi
 
 if [[ "${BACKEND_TESTS}" == "true" ]]; then
-  run_step "Platform backend tests" env \
-    -u PLATFORM_AUTH_ENABLED \
-    -u PLATFORM_AUTH_HEADER \
-    -u PLATFORM_AUTH_API_KEY_ENABLED \
-    -u PLATFORM_AUTH_SESSION_ENABLED \
-    -u PLATFORM_AUTH_SESSION_COOKIE_NAME \
-    -u PLATFORM_AUTH_SESSION_TTL \
-    -u PLATFORM_AUTH_SESSION_COOKIE_SECURE \
-    -u PLATFORM_AUTH_SESSION_COOKIE_SAME_SITE \
-    -u PLATFORM_OPERATOR_API_KEY \
-    -u PLATFORM_ADMIN_API_KEY \
-    -u PLATFORM_BOOTSTRAP_ADMIN_ENABLED \
-    -u PLATFORM_BOOTSTRAP_ADMIN_EMAIL \
-    -u PLATFORM_BOOTSTRAP_ADMIN_PASSWORD \
-    -u PLATFORM_BOOTSTRAP_ADMIN_DISPLAY_NAME \
+  run_step "Platform backend tests" run_maven_sanitized \
     mvn -f Platfrom/backend/pom.xml test -DskipITs
 fi
 
 if [[ "${PRODUCT_TESTS}" == "true" ]]; then
-  run_step "Install AI Fabric framework artifacts for product tests" env \
-    MAVEN_OPTS="${MAVEN_OPTS:--Xmx2g}" \
+  MAVEN_OPTS="${MAVEN_OPTS:--Xmx2g}" run_step "Install AI Fabric framework artifacts for product tests" run_maven_sanitized \
     mvn -f ai-infrastructure-module/pom.xml -B -V -DskipTests install \
       -pl '!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
       -am
-  run_step "ai-fabric-product tests" mvn -f ai-fabric-product/pom.xml test
+  run_step "ai-fabric-product tests" run_maven_sanitized \
+    mvn -f ai-fabric-product/pom.xml test
 fi
 
 if [[ "${INFRASTRUCTURE_TESTS}" == "true" ]]; then
-  run_step "Targeted platform infrastructure tests" mvn -f ai-infrastructure-module/pom.xml \
-    -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus \
-    -am test -DskipITs
+  run_step "Targeted platform infrastructure tests" run_maven_sanitized \
+    mvn -f ai-infrastructure-module/pom.xml \
+      -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus \
+      -am test -DskipITs
 fi
 
 if [[ "${UI_BUILD}" == "true" ]]; then
