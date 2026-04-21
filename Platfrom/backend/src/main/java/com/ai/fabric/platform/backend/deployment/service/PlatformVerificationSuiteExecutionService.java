@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificat
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutItemSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSummary;
+import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationScriptContextSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentHostedVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunStageRepository;
@@ -40,6 +41,8 @@ public class PlatformVerificationSuiteExecutionService {
     private final DeploymentService deploymentService;
     private final DeploymentHostedVerificationService deploymentHostedVerificationService;
     private final DeploymentHostedVerificationRunRepository deploymentHostedVerificationRunRepository;
+    private final PlatformVerificationSuiteScriptContextService scriptContextService;
+    private final PlatformVerificationScriptRunnerService scriptRunnerService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
@@ -52,6 +55,8 @@ public class PlatformVerificationSuiteExecutionService {
                                                      DeploymentService deploymentService,
                                                      DeploymentHostedVerificationService deploymentHostedVerificationService,
                                                      DeploymentHostedVerificationRunRepository deploymentHostedVerificationRunRepository,
+                                                     PlatformVerificationSuiteScriptContextService scriptContextService,
+                                                     PlatformVerificationScriptRunnerService scriptRunnerService,
                                                      PlatformAuditService platformAuditService,
                                                      ObjectMapper objectMapper) {
         this.runRepository = runRepository;
@@ -63,6 +68,8 @@ public class PlatformVerificationSuiteExecutionService {
         this.deploymentService = deploymentService;
         this.deploymentHostedVerificationService = deploymentHostedVerificationService;
         this.deploymentHostedVerificationRunRepository = deploymentHostedVerificationRunRepository;
+        this.scriptContextService = scriptContextService;
+        this.scriptRunnerService = scriptRunnerService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
@@ -90,6 +97,7 @@ public class PlatformVerificationSuiteExecutionService {
                 boolean passed = switch (stage.getStageType()) {
                     case "INFERENCE_SERVICE_HEALTH" -> executeSharedInferenceHealth(stage, allowControlPlaneRepair);
                     case "CANONICAL_ROLLOUTS" -> executeCanonicalRolloutInventory(stage, allowControlPlaneRepair);
+                    case "SCRIPT_VERIFICATION" -> executeScriptVerification(stage);
                     case "HOSTED_DEPLOYMENT_VERIFICATION" -> executeHostedDeploymentVerification(stage);
                     default -> failUnsupportedStage(stage);
                 };
@@ -136,18 +144,19 @@ public class PlatformVerificationSuiteExecutionService {
             .put("status", health.status())
             .put("driftStatus", defaultText(health.driftStatus(), "UNKNOWN"))
             .put("driftMessage", defaultText(health.driftMessage(), ""))
-            .put("lastProbeStatus", defaultText(health.lastProbeStatus(), "UNKNOWN"))
-            .put("lastProbeMessage", defaultText(health.lastProbeMessage(), ""))
-            .put("repairAttempted", repaired);
+                .put("lastProbeStatus", defaultText(health.lastProbeStatus(), "UNKNOWN"))
+                .put("lastProbeMessage", defaultText(health.lastProbeMessage(), ""))
+                .put("repairAttempted", repaired);
         if (sharedInferenceHealthy(health.status())) {
-            completeStage(stage, "PASSED", "Shared inference service is healthy.", details);
+            completeStage(stage, "PASSED", "Shared inference service is healthy.", details, "");
             return true;
         }
         completeStage(
             stage,
             "FAILED",
             defaultText(health.driftMessage(), defaultText(health.lastProbeMessage(), "Shared inference service is not healthy.")),
-            details
+            details,
+            ""
         );
         return false;
     }
@@ -199,11 +208,29 @@ public class PlatformVerificationSuiteExecutionService {
             .put("repairAttempted", repaired)
             .set("items", items);
         if (blockers.isEmpty()) {
-            completeStage(stage, "PASSED", "Canonical rollout inventory is present and secret-ready.", details);
+            completeStage(stage, "PASSED", "Canonical rollout inventory is present and secret-ready.", details, "");
             return true;
         }
-        completeStage(stage, "FAILED", String.join(" | ", blockers), details);
+        completeStage(stage, "FAILED", String.join(" | ", blockers), details, "");
         return false;
+    }
+
+    private boolean executeScriptVerification(PlatformVerificationSuiteRunStageEntity stage) throws InterruptedException, java.io.IOException {
+        markStageRunning(stage, "Running allowlisted platform verification script.");
+        PlatformVerificationScriptContextSummary context = scriptContextService.build(stage.getTargetRef());
+        PlatformVerificationScriptRunnerService.ScriptRunResult result = scriptRunnerService.run(context);
+        ObjectNode details = objectMapper.createObjectNode()
+            .put("scriptPath", context.scriptPath())
+            .put("targetRef", defaultText(stage.getTargetRef(), ""))
+            .put("exitCode", result.exitCode() == null ? -1 : result.exitCode())
+            .put("timedOut", result.timedOut());
+        String summary = switch (result.status()) {
+            case "PASSED" -> "Verification script completed successfully.";
+            case "TIMED_OUT" -> "Verification script timed out before completion.";
+            default -> extractFailureHeadline(result.output());
+        };
+        completeStage(stage, result.status(), summary, details, result.output());
+        return result.passed();
     }
 
     private boolean executeHostedDeploymentVerification(PlatformVerificationSuiteRunStageEntity stage) throws InterruptedException {
@@ -216,7 +243,7 @@ public class PlatformVerificationSuiteExecutionService {
         if (rollout == null || rollout.deploymentId() == null) {
             ObjectNode details = objectMapper.createObjectNode()
                 .put("targetRef", defaultText(stage.getTargetRef(), ""));
-            completeStage(stage, "FAILED", "Canonical rollout deployment is missing for " + stage.getTargetRef() + ".", details);
+            completeStage(stage, "FAILED", "Canonical rollout deployment is missing for " + stage.getTargetRef() + ".", details, "");
             return false;
         }
         DeploymentSecretUsageSummary secretUsage = deploymentService.getDeploymentSecretUsage(rollout.deploymentId());
@@ -225,7 +252,7 @@ public class PlatformVerificationSuiteExecutionService {
                 .put("deploymentId", rollout.deploymentId())
                 .put("missingRequiredCount", secretUsage.missingRequiredCount())
                 .put("secretSummary", secretUsage.summaryMessage());
-            completeStage(stage, "FAILED", "Required deployment secrets are missing for " + rollout.displayName() + ".", details);
+            completeStage(stage, "FAILED", "Required deployment secrets are missing for " + rollout.displayName() + ".", details, "");
             return false;
         }
 
@@ -243,10 +270,10 @@ public class PlatformVerificationSuiteExecutionService {
             .put("hostedSummaryMessage", defaultText(hostedRun.getSummaryMessage(), ""))
             .put("exitCode", hostedRun.getExitCode() == null ? -1 : hostedRun.getExitCode());
         if ("PASSED".equalsIgnoreCase(hostedRun.getStatus())) {
-            completeStage(stage, "PASSED", hostedRun.getSummaryMessage(), details);
+            completeStage(stage, "PASSED", hostedRun.getSummaryMessage(), details, "");
             return true;
         }
-        completeStage(stage, "FAILED", hostedRun.getSummaryMessage(), details);
+        completeStage(stage, "FAILED", hostedRun.getSummaryMessage(), details, "");
         return false;
     }
 
@@ -334,9 +361,18 @@ public class PlatformVerificationSuiteExecutionService {
                                String status,
                                String summaryMessage,
                                ObjectNode details) {
+        completeStage(stage, status, summaryMessage, details, "");
+    }
+
+    private void completeStage(PlatformVerificationSuiteRunStageEntity stage,
+                               String status,
+                               String summaryMessage,
+                               ObjectNode details,
+                               String logOutput) {
         stage.setStatus(status);
         stage.setSummaryMessage(defaultText(summaryMessage, status));
         stage.setDetailsJson(details == null ? "{}" : details.toString());
+        stage.setLogOutput(defaultText(logOutput, ""));
         stage.setCompletedAt(Instant.now());
         stageRepository.save(stage);
     }
@@ -380,6 +416,18 @@ public class PlatformVerificationSuiteExecutionService {
 
     private String defaultText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String extractFailureHeadline(String output) {
+        if (output == null || output.isBlank()) {
+            return "Verification script failed.";
+        }
+        return output.lines()
+            .map(String::trim)
+            .filter(line -> !line.isBlank())
+            .filter(line -> line.startsWith("FAIL:") || line.startsWith("Assertion failed") || line.startsWith("Missing "))
+            .findFirst()
+            .orElse("Verification script failed.");
     }
 
     private record RolloutAssessment(

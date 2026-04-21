@@ -19,7 +19,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   dispatchPlatformVerificationSuiteRun,
@@ -42,7 +42,7 @@ import {
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { HostedVerificationRunHistory } from '../components/HostedVerificationRunHistory'
 
-const CANONICAL_RELEASE_READINESS_SUITE_KEY = 'canonical-release-readiness'
+const FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY = 'full-platform-release-readiness'
 const SHARED_INFERENCE_SERVICE_REF = 'shared-ollama-orchestration'
 const ROLLOUT_RUN_ORDER = ['marketplace', 'ecommerce', 'qdrant', 'pinecone', 'milvus', 'weaviate'] as const
 const ACTIVE_SUITE_STATUSES = ['QUEUED', 'RUNNING'] as const
@@ -243,6 +243,7 @@ export function VerificationOpsPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const [allowControlPlaneRepair, setAllowControlPlaneRepair] = useState(false)
+  const [selectedSuiteKey, setSelectedSuiteKey] = useState(FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY)
   const canManageHostedVerification = auth.session?.enabled ? auth.session.canManageUsers : true
 
   const verificationSuiteDefinitionsQuery = useQuery({
@@ -261,34 +262,47 @@ export function VerificationOpsPage() {
     },
   })
 
-  const canonicalReleaseSuiteDefinition = useMemo(
-    () => verificationSuiteDefinitionsQuery.data?.find((definition) => definition.key === CANONICAL_RELEASE_READINESS_SUITE_KEY) ?? null,
-    [verificationSuiteDefinitionsQuery.data],
+  useEffect(() => {
+    const definitions = verificationSuiteDefinitionsQuery.data ?? []
+    if (definitions.length === 0) {
+      return
+    }
+    if (definitions.some((definition) => definition.key === selectedSuiteKey)) {
+      return
+    }
+    const preferred = definitions.find((definition) => definition.key === FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY)
+      ?? definitions[0]
+    setSelectedSuiteKey(preferred.key)
+  }, [selectedSuiteKey, verificationSuiteDefinitionsQuery.data])
+
+  const selectedSuiteDefinition = useMemo(
+    () => verificationSuiteDefinitionsQuery.data?.find((definition) => definition.key === selectedSuiteKey) ?? null,
+    [selectedSuiteKey, verificationSuiteDefinitionsQuery.data],
   )
 
-  const canonicalReleaseSuiteRuns = useMemo(
-    () => (verificationSuiteRunsQuery.data ?? []).filter((run) => run.suiteKey === CANONICAL_RELEASE_READINESS_SUITE_KEY),
-    [verificationSuiteRunsQuery.data],
+  const selectedSuiteRuns = useMemo(
+    () => (verificationSuiteRunsQuery.data ?? []).filter((run) => run.suiteKey === selectedSuiteKey),
+    [selectedSuiteKey, verificationSuiteRunsQuery.data],
   )
 
-  const activeCanonicalReleaseSuiteRun = useMemo(
-    () => canonicalReleaseSuiteRuns.find((run) => suiteRunActive(run.status)) ?? null,
-    [canonicalReleaseSuiteRuns],
+  const activeSelectedSuiteRun = useMemo(
+    () => selectedSuiteRuns.find((run) => suiteRunActive(run.status)) ?? null,
+    [selectedSuiteRuns],
   )
 
-  const latestCanonicalReleaseSuiteRun = canonicalReleaseSuiteRuns[0] ?? null
-  const latestCanonicalReleaseSuiteStageByKey = useMemo(() => {
+  const latestSelectedSuiteRun = selectedSuiteRuns[0] ?? null
+  const latestSelectedSuiteStageByKey = useMemo(() => {
     const lookup = new Map<string, PlatformVerificationSuiteRunSummary['stages'][number]>()
-    latestCanonicalReleaseSuiteRun?.stages.forEach((stage) => {
+    latestSelectedSuiteRun?.stages.forEach((stage) => {
       lookup.set(stage.stageKey, stage)
     })
     return lookup
-  }, [latestCanonicalReleaseSuiteRun])
-  const latestCanonicalReleaseSuiteStageCounts = useMemo(
-    () => summarizeStatusCounts((latestCanonicalReleaseSuiteRun?.stages ?? []).map((stage) => stage.status)),
-    [latestCanonicalReleaseSuiteRun],
+  }, [latestSelectedSuiteRun])
+  const latestSelectedSuiteStageCounts = useMemo(
+    () => summarizeStatusCounts((latestSelectedSuiteRun?.stages ?? []).map((stage) => stage.status)),
+    [latestSelectedSuiteRun],
   )
-  const manualOpsLocked = activeCanonicalReleaseSuiteRun != null
+  const manualOpsLocked = activeSelectedSuiteRun != null
 
   const verificationRolloutsQuery = useQuery({
     queryKey: ['deployment-verification-rollouts'],
@@ -443,9 +457,14 @@ export function VerificationOpsPage() {
   }, [orderedRollouts, rolloutReadiness])
 
   const dispatchCanonicalReleaseSuiteMutation = useMutation({
-    mutationFn: () => dispatchPlatformVerificationSuiteRun(CANONICAL_RELEASE_READINESS_SUITE_KEY, {
+    mutationFn: () => {
+      if (selectedSuiteDefinition == null) {
+        throw new Error('Select a verification suite before dispatching a run.')
+      }
+      return dispatchPlatformVerificationSuiteRun(selectedSuiteDefinition.key, {
       allowControlPlaneRepair,
-    }),
+      })
+    },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['verification-suites', 'runs'] }),
@@ -731,13 +750,27 @@ export function VerificationOpsPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Platform release suite</Typography>
+              <Typography variant="h6">Platform verification suites</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                This is the platform-owned release gate for canonical verification. It persists one audited suite run,
-                executes the stages in order, and stops on the first blocking failure instead of scattering the flow
-                across independent CI jobs.
+                This is the platform-owned replacement for the live GitHub verification estate. Each suite persists one
+                audited run, executes stages in order, and keeps the output on the control plane instead of scattering
+                release readiness across separate CI jobs.
               </Typography>
             </Box>
+
+            {verificationSuiteDefinitionsQuery.data && verificationSuiteDefinitionsQuery.data.length > 0 ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {verificationSuiteDefinitionsQuery.data.map((definition) => (
+                  <Chip
+                    key={definition.key}
+                    label={definition.label}
+                    color={definition.key === selectedSuiteKey ? 'primary' : 'default'}
+                    variant={definition.key === selectedSuiteKey ? 'filled' : 'outlined'}
+                    onClick={() => setSelectedSuiteKey(definition.key)}
+                  />
+                ))}
+              </Stack>
+            ) : null}
 
             {verificationSuiteDefinitionsQuery.isLoading || verificationSuiteRunsQuery.isLoading ? (
               <Alert severity="info">Loading platform release suite definition and run history…</Alert>
@@ -756,15 +789,21 @@ export function VerificationOpsPage() {
                   : 'Failed to load platform verification suite runs.'}
               </Alert>
             ) : null}
-            {canonicalReleaseSuiteDefinition == null && !verificationSuiteDefinitionsQuery.isLoading && !verificationSuiteDefinitionsQuery.isError ? (
+            {selectedSuiteDefinition == null && !verificationSuiteDefinitionsQuery.isLoading && !verificationSuiteDefinitionsQuery.isError ? (
               <Alert severity="warning">
-                The canonical release-readiness suite is not registered on the backend yet. Deploy the backend migration and suite services before using this page as the primary release gate.
+                No platform verification suite is registered on the backend yet. Deploy the backend migration and suite services before using this page as the primary release gate.
               </Alert>
             ) : null}
-            {activeCanonicalReleaseSuiteRun ? (
+            {activeSelectedSuiteRun ? (
               <Alert severity="info">
-                Release suite run {activeCanonicalReleaseSuiteRun.id} is {activeCanonicalReleaseSuiteRun.status.toLowerCase()}.
+                Suite run {activeSelectedSuiteRun.id} is {activeSelectedSuiteRun.status.toLowerCase()}.
                 Manual recreate, reconcile, and deployment-only queue actions stay locked until it finishes.
+              </Alert>
+            ) : null}
+
+            {selectedSuiteDefinition ? (
+              <Alert severity={selectedSuiteDefinition.releaseBlocking ? 'info' : 'warning'}>
+                <strong>{selectedSuiteDefinition.label}</strong>: {selectedSuiteDefinition.description}
               </Alert>
             ) : null}
 
@@ -783,18 +822,20 @@ export function VerificationOpsPage() {
                 variant="contained"
                 startIcon={<RefreshRoundedIcon />}
                 disabled={
-                  canonicalReleaseSuiteDefinition == null
+                  selectedSuiteDefinition == null
                   || dispatchCanonicalReleaseSuiteMutation.isPending
                   || manualOpsLocked
                 }
                 onClick={() => dispatchCanonicalReleaseSuiteMutation.mutate()}
               >
-                {dispatchCanonicalReleaseSuiteMutation.isPending ? 'Starting release suite…' : 'Run platform release suite'}
+                {dispatchCanonicalReleaseSuiteMutation.isPending
+                  ? 'Starting suite…'
+                  : `Run ${selectedSuiteDefinition?.label ?? 'platform suite'}`}
               </Button>
-              {latestCanonicalReleaseSuiteRun ? (
+              {latestSelectedSuiteRun ? (
                 <Chip
-                  label={`Latest ${latestCanonicalReleaseSuiteRun.status}`}
-                  color={verificationStatusColor(latestCanonicalReleaseSuiteRun.status)}
+                  label={`Latest ${latestSelectedSuiteRun.status}`}
+                  color={verificationStatusColor(latestSelectedSuiteRun.status)}
                   variant="outlined"
                 />
               ) : null}
@@ -816,20 +857,20 @@ export function VerificationOpsPage() {
               <Alert severity="success">{dispatchCanonicalReleaseSuiteMutation.data.summaryMessage}</Alert>
             ) : null}
 
-            {latestCanonicalReleaseSuiteRun ? (
+            {latestSelectedSuiteRun ? (
               <Stack spacing={1.5}>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip label={latestCanonicalReleaseSuiteRun.id} variant="outlined" />
+                  <Chip label={latestSelectedSuiteRun.id} variant="outlined" />
                   <Chip
-                    label={latestCanonicalReleaseSuiteRun.status}
-                    color={verificationStatusColor(latestCanonicalReleaseSuiteRun.status)}
+                    label={latestSelectedSuiteRun.status}
+                    color={verificationStatusColor(latestSelectedSuiteRun.status)}
                     variant="outlined"
                   />
-                  <Chip label={`Requested ${formatRunTimestamp(latestCanonicalReleaseSuiteRun.createdAt)}`} variant="outlined" />
-                  {latestCanonicalReleaseSuiteRun.completedAt ? (
-                    <Chip label={`Completed ${formatRunTimestamp(latestCanonicalReleaseSuiteRun.completedAt)}`} variant="outlined" />
+                  <Chip label={`Requested ${formatRunTimestamp(latestSelectedSuiteRun.createdAt)}`} variant="outlined" />
+                  {latestSelectedSuiteRun.completedAt ? (
+                    <Chip label={`Completed ${formatRunTimestamp(latestSelectedSuiteRun.completedAt)}`} variant="outlined" />
                   ) : null}
-                  {latestCanonicalReleaseSuiteStageCounts.map((entry) => (
+                  {latestSelectedSuiteStageCounts.map((entry) => (
                     <Chip
                       key={`suite-stage-count-${entry.label}`}
                       label={`${entry.label} ${entry.count}`}
@@ -839,16 +880,16 @@ export function VerificationOpsPage() {
                   ))}
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
-                  {latestCanonicalReleaseSuiteRun.summaryMessage}
+                  {latestSelectedSuiteRun.summaryMessage}
                 </Typography>
               </Stack>
             ) : (
               <Alert severity="info">
-                No platform release suite runs have been recorded yet. Use this suite as the preferred gate before applying new releases.
+                No runs have been recorded for the selected suite yet. Use the full platform suite as the preferred gate before applying new releases.
               </Alert>
             )}
 
-            {canonicalReleaseSuiteDefinition ? (
+            {selectedSuiteDefinition ? (
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -859,8 +900,8 @@ export function VerificationOpsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {canonicalReleaseSuiteDefinition.stages.map((stage, index) => {
-                    const latestStageRun = latestCanonicalReleaseSuiteStageByKey.get(stage.key)
+                  {selectedSuiteDefinition.stages.map((stage, index) => {
+                    const latestStageRun = latestSelectedSuiteStageByKey.get(stage.key)
                     return (
                       <TableRow key={stage.key} hover>
                         <TableCell>{index + 1}</TableCell>
@@ -891,6 +932,27 @@ export function VerificationOpsPage() {
                               Started {formatRunTimestamp(latestStageRun.startedAt)} · completed {formatRunTimestamp(latestStageRun.completedAt)}
                             </Typography>
                           ) : null}
+                          {latestStageRun?.logOutput ? (
+                            <Box
+                              component="pre"
+                              sx={{
+                                mt: 1,
+                                mb: 0,
+                                p: 1.5,
+                                maxHeight: 220,
+                                overflow: 'auto',
+                                borderRadius: 1,
+                                bgcolor: 'grey.100',
+                                color: 'text.primary',
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {latestStageRun.logOutput}
+                            </Box>
+                          ) : null}
                         </TableCell>
                       </TableRow>
                     )
@@ -899,13 +961,13 @@ export function VerificationOpsPage() {
               </Table>
             ) : null}
 
-            {canonicalReleaseSuiteRuns.length > 1 ? (
+            {selectedSuiteRuns.length > 1 ? (
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   Recent suite runs
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {canonicalReleaseSuiteRuns.slice(0, 6).map((run) => (
+                  {selectedSuiteRuns.slice(0, 6).map((run) => (
                     <Chip
                       key={run.id}
                       label={`${run.id} · ${run.status} · ${formatRunTimestamp(run.createdAt)}`}

@@ -39,19 +39,19 @@ class PlatformVerificationSuiteServiceTest {
             runRepository,
             stageRepository,
             executionService,
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofSeconds(3), 20),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofSeconds(3), 20, 12_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
             auditService,
             new ObjectMapper()
         );
 
         PlatformVerificationSuiteDispatchSummary summary = service.dispatch(
-            PlatformVerificationSuiteCatalog.CANONICAL_RELEASE_READINESS_SUITE_KEY,
+            PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
             new PlatformVerificationSuiteDispatchRequest(false)
         );
 
-        assertThat(summary.suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.CANONICAL_RELEASE_READINESS_SUITE_KEY);
+        assertThat(summary.suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
         assertThat(summary.run().status()).isEqualTo("QUEUED");
-        assertThat(summary.run().stages()).hasSize(8);
+        assertThat(summary.run().stages()).hasSize(12);
         assertThat(summary.run().stages().getFirst().stageKey()).isEqualTo("shared-inference-health");
         assertThat(summary.run().stages().getLast().targetRef()).isEqualTo("weaviate");
 

@@ -44,6 +44,9 @@ public class PlatformVerificationSuiteRunStageEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String detailsJson;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String logOutput;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -143,6 +146,14 @@ public class PlatformVerificationSuiteRunStageEntity {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String getLogOutput() {
+        return logOutput;
+    }
+
+    public void setLogOutput(String logOutput) {
+        this.logOutput = logOutput;
     }
 
     public void setCreatedAt(Instant createdAt) {

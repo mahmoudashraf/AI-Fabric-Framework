@@ -2146,6 +2146,7 @@ export type PlatformVerificationSuiteStageRunSummary = {
   status: string
   summaryMessage: string
   details: unknown
+  logOutput: string
   createdAt: string
   startedAt: string | null
   completedAt: string | null

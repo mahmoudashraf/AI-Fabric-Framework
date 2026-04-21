@@ -36,6 +36,8 @@ class PlatformVerificationSuiteExecutionServiceTest {
         DeploymentService deploymentService = mock(DeploymentService.class);
         DeploymentHostedVerificationService hostedVerificationService = mock(DeploymentHostedVerificationService.class);
         DeploymentHostedVerificationRunRepository hostedRunRepository = mock(DeploymentHostedVerificationRunRepository.class);
+        PlatformVerificationSuiteScriptContextService scriptContextService = mock(PlatformVerificationSuiteScriptContextService.class);
+        PlatformVerificationScriptRunnerService scriptRunnerService = mock(PlatformVerificationScriptRunnerService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         PlatformVerificationSuiteRunEntity run = new PlatformVerificationSuiteRunEntity();
@@ -104,12 +106,14 @@ class PlatformVerificationSuiteExecutionServiceTest {
             runRepository,
             stageRepository,
             new PlatformVerificationSuiteCatalog(),
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMillis(10), 20),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMillis(10), 20, 12_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
             inferenceAdminService,
             rolloutService,
             deploymentService,
             hostedVerificationService,
             hostedRunRepository,
+            scriptContextService,
+            scriptRunnerService,
             auditService,
             new ObjectMapper()
         );

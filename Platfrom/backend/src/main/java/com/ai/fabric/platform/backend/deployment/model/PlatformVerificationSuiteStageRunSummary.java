@@ -15,6 +15,7 @@ public record PlatformVerificationSuiteStageRunSummary(
     String status,
     String summaryMessage,
     JsonNode details,
+    String logOutput,
     Instant createdAt,
     Instant startedAt,
     Instant completedAt

@@ -135,6 +135,7 @@ public class PlatformVerificationSuiteService {
         entity.setStatus("QUEUED");
         entity.setSummaryMessage("Awaiting verification suite execution.");
         entity.setDetailsJson("{}");
+        entity.setLogOutput("");
         entity.setCreatedAt(createdAt);
         return entity;
     }
@@ -179,6 +180,7 @@ public class PlatformVerificationSuiteService {
             stage.getStatus(),
             stage.getSummaryMessage(),
             readDetails(stage.getDetailsJson()),
+            stage.getLogOutput(),
             stage.getCreatedAt(),
             stage.getStartedAt(),
             stage.getCompletedAt()
