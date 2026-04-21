@@ -734,6 +734,7 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             missingClasses.add(className);
             return false;
         }
+        log.error("Weaviate class existence check failed for host {} class {}: {}", config.getHost(), className, errorMessages(result.getError()));
         throw new AIServiceException("Weaviate class existence check failed: " + errorMessages(result.getError()));
     }
 
@@ -777,6 +778,7 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             .run();
 
         if (result.hasErrors()) {
+            log.error("Failed to create Weaviate class {} on host {}: {}", className, config.getHost(), errorMessages(result.getError()));
             throw new AIServiceException("Failed to create Weaviate class '" + className + "': " + errorMessages(result.getError()));
         }
 
@@ -1184,6 +1186,13 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             .run();
 
         if (result.hasErrors()) {
+            log.error(
+                "Weaviate upsert failed for host {} class {} vector {}: {}",
+                config.getHost(),
+                className,
+                vectorId,
+                errorMessages(result.getError())
+            );
             throw new AIServiceException("Failed to upsert Weaviate object " + vectorId + ": " + errorMessages(result.getError()));
         }
     }

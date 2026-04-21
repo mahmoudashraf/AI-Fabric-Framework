@@ -218,6 +218,35 @@ class VectorizationRunnerServiceTest {
     }
 
     @Test
+    void completeRunPrefersActiveIndexedOutputHashWhenRevisionHashIsStale() {
+        when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
+            .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
+        when(runRepository.findById("vrn-1")).thenReturn(Optional.of(run("PLATFORM_MANAGED_AUTO")));
+        when(planRepository.findById("vpl-1")).thenReturn(Optional.of(plan("active-hash")));
+        VectorizationPlanRevisionEntity revision = revision("vcn-1");
+        revision.setIndexedOutputHash("stale-hash");
+        when(revisionRepository.findById("vpr-1")).thenReturn(Optional.of(revision));
+
+        service().completeRun(new VectorizationRunnerCompletionRequest(
+            "session-token",
+            "vrn-1",
+            "COMPLETED",
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createArrayNode()
+        ));
+
+        verify(revisionRepository).save(argThat(saved ->
+            "active-hash".equals(saved.getIndexedOutputHash())
+                && saved.getUpdatedAt() != null
+        ));
+        verify(planRepository).save(argThat(saved ->
+            "vrn-1".equals(saved.getLastSuccessfulRunId())
+                && "active-hash".equals(saved.getLastSuccessfulIndexedOutputHash())
+        ));
+    }
+
+    @Test
     void completeRunCancelsOlderSupersededInFlightRuns() {
         when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
             .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));

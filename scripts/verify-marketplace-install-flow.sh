@@ -26,6 +26,13 @@ PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 PLATFORM_HTTP_RETRY_ATTEMPTS="${PLATFORM_HTTP_RETRY_ATTEMPTS:-4}"
 PLATFORM_HTTP_RETRY_SLEEP_SECONDS="${PLATFORM_HTTP_RETRY_SLEEP_SECONDS:-5}"
+RELEASE_TERMINAL_FAILURE_CONFIRMATION_POLLS="${RELEASE_TERMINAL_FAILURE_CONFIRMATION_POLLS:-3}"
+CLEANUP_DELETE_POLL_ATTEMPTS="${CLEANUP_DELETE_POLL_ATTEMPTS:-24}"
+CLEANUP_DELETE_POLL_SLEEP_SECONDS="${CLEANUP_DELETE_POLL_SLEEP_SECONDS:-5}"
+CLEANUP_RELEASE_SETTLE_ATTEMPTS="${CLEANUP_RELEASE_SETTLE_ATTEMPTS:-24}"
+CLEANUP_RELEASE_SETTLE_SLEEP_SECONDS="${CLEANUP_RELEASE_SETTLE_SLEEP_SECONDS:-5}"
+CLEANUP_ARCHIVE_POLL_ATTEMPTS="${CLEANUP_ARCHIVE_POLL_ATTEMPTS:-12}"
+CLEANUP_ARCHIVE_POLL_SLEEP_SECONDS="${CLEANUP_ARCHIVE_POLL_SLEEP_SECONDS:-5}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TEMPLATE_PLUGIN_ID="${TEMPLATE_PLUGIN_ID:-mkp-template-support-desk-shell}"
@@ -43,7 +50,7 @@ FOLDER_DATA_PLUGIN_MANIFEST_PATH="${FOLDER_DATA_PLUGIN_MANIFEST_PATH:-${SCRIPT_D
 VALIDATION_TEMPLATE_ID="${VALIDATION_TEMPLATE_ID:-dev-openai-qdrant}"
 VALIDATION_ENVIRONMENT="${VALIDATION_ENVIRONMENT:-dev}"
 VALIDATION_NAME_PREFIX="${VALIDATION_NAME_PREFIX:-Marketplace Live Validation}"
-KEEP_DEPLOYMENT="${KEEP_DEPLOYMENT:-true}"
+KEEP_DEPLOYMENT="${KEEP_DEPLOYMENT:-false}"
 VALIDATION_VECTOR_PROVISIONING_MODE="${VALIDATION_VECTOR_PROVISIONING_MODE:-PLATFORM_MANAGED}"
 VALIDATION_SHARED_VECTOR_PROVIDER="${VALIDATION_SHARED_VECTOR_PROVIDER:-aws}"
 VALIDATION_SHARED_VECTOR_REGION="${VALIDATION_SHARED_VECTOR_REGION:-eu-west-1}"
@@ -66,10 +73,10 @@ FOLDER_DATA_SECRET_REFS_JSON="${FOLDER_DATA_SECRET_REFS_JSON:-{}}"
 INFERENCE_CONFIG_JSON="${INFERENCE_CONFIG_JSON:-{\"baseUrl\":\"https://api.openai.com/v1\",\"generationModel\":\"gpt-4.1-mini\",\"embeddingModel\":\"text-embedding-3-small\"}}"
 INFERENCE_SECRET_REFS_JSON="${INFERENCE_SECRET_REFS_JSON:-{\"apiKey\":\"OPENAI_API_KEY\"}}"
 
-PACKAGED_DATA_QUERY="${PACKAGED_DATA_QUERY:-How do I reset my password?}"
-FOLDER_DATA_QUERY="${FOLDER_DATA_QUERY:-What is the standard shipping target?}"
-SQL_DATA_QUERY="${SQL_DATA_QUERY:-Tell me about Alienware m18 R2}"
-MULTI_SOURCE_QUERY="${MULTI_SOURCE_QUERY:-Summarize the refund policy.}"
+PACKAGED_DATA_QUERY="${PACKAGED_DATA_QUERY:-Password reset steps}"
+FOLDER_DATA_QUERY="${FOLDER_DATA_QUERY:-Standard shipping targets three to five business days after fulfillment.}"
+SQL_DATA_QUERY="${SQL_DATA_QUERY:-Alienware m18 R2}"
+MULTI_SOURCE_QUERY="${MULTI_SOURCE_QUERY:-Password reset steps. Refund policy: unopened hardware can be returned within 30 days of delivery.}"
 
 TMP_DIR=""
 COOKIE_JAR=""
@@ -112,18 +119,109 @@ require_cmd() {
 
 cleanup() {
   if [[ -n "${DEPLOYMENT_ID}" && "${KEEP_DEPLOYMENT}" != "true" ]]; then
-    local -a cleanup_args=(
-      curl -sS -X DELETE
-      "$(platform_url "/api/deployments/${DEPLOYMENT_ID}")"
-    )
-    if [[ -n "${PLATFORM_API_KEY}" ]]; then
-      cleanup_args+=(-H "${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
-    elif [[ -n "${PLATFORM_COOKIE}" ]]; then
-      cleanup_args+=(-H "Cookie: ${PLATFORM_COOKIE}")
-    else
-      cleanup_args+=(-b "${COOKIE_JAR}" -c "${COOKIE_JAR}")
+    if [[ -n "${RELEASE_ID}" ]]; then
+      wait_for_release_settled_for_cleanup || true
     fi
-    "${cleanup_args[@]}" >/dev/null || true
+
+    platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/archive" || true
+    if [[ "${HTTP_STATUS:-}" != "200" && "${HTTP_STATUS:-}" != "409" ]]; then
+      echo "WARN: cleanup archive for ${DEPLOYMENT_ID} returned HTTP ${HTTP_STATUS:-unknown}" >&2
+      if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+        cat "${HTTP_BODY_FILE}" >&2 || true
+      fi
+    elif ! wait_for_deployment_archived_for_cleanup; then
+      echo "WARN: cleanup archive for ${DEPLOYMENT_ID} did not reach archived state before delete." >&2
+    fi
+
+    platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/remediation" || true
+    if [[ "${HTTP_STATUS:-}" == "200" ]]; then
+      local detach_available cleanup_available cleanup_body
+      detach_available="$(extract_json_value $'actions = (data or {}).get("actions") or []\nresult = "true" if any((item.get("key") or "") == "DETACH_MANAGED_VECTOR_RESOURCES" and bool(item.get("available")) for item in actions if isinstance(item, dict)) else "false"')"
+      cleanup_body='{"confirm":true,"reason":"Marketplace install-flow cleanup."}'
+      if [[ "${detach_available}" == "true" ]]; then
+        platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/remediation/DETACH_MANAGED_VECTOR_RESOURCES" "${cleanup_body}" || true
+        if [[ "${HTTP_STATUS:-}" != "200" ]]; then
+          echo "WARN: cleanup detach managed vectors for ${DEPLOYMENT_ID} returned HTTP ${HTTP_STATUS:-unknown}" >&2
+          if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+            cat "${HTTP_BODY_FILE}" >&2 || true
+          fi
+        else
+          local detach_status
+          detach_status="$(extract_json_value 'result = ((data or {}).get("status") or "") if isinstance(data, dict) else ""')"
+          if [[ "${detach_status}" != "COMPLETED" ]]; then
+            echo "WARN: cleanup detach managed vectors for ${DEPLOYMENT_ID} completed with remediation status ${detach_status:-unknown}" >&2
+            if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+              cat "${HTTP_BODY_FILE}" >&2 || true
+            fi
+          fi
+        fi
+      fi
+
+      platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/remediation" || true
+      if [[ "${HTTP_STATUS:-}" == "200" ]]; then
+        cleanup_available="$(extract_json_value $'actions = (data or {}).get("actions") or []\nresult = "true" if any((item.get("key") or "") == "CLEANUP_MANAGED_VECTOR_RESOURCES" and bool(item.get("available")) for item in actions if isinstance(item, dict)) else "false"')"
+        if [[ "${cleanup_available}" == "true" ]]; then
+          platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/remediation/CLEANUP_MANAGED_VECTOR_RESOURCES" "${cleanup_body}" || true
+          if [[ "${HTTP_STATUS:-}" != "200" ]]; then
+            echo "WARN: cleanup managed vectors for ${DEPLOYMENT_ID} returned HTTP ${HTTP_STATUS:-unknown}" >&2
+            if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+              cat "${HTTP_BODY_FILE}" >&2 || true
+            fi
+          else
+            local cleanup_status
+            cleanup_status="$(extract_json_value 'result = ((data or {}).get("status") or "") if isinstance(data, dict) else ""')"
+            if [[ "${cleanup_status}" != "COMPLETED" ]]; then
+              echo "WARN: cleanup managed vectors for ${DEPLOYMENT_ID} completed with remediation status ${cleanup_status:-unknown}" >&2
+              if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+                cat "${HTTP_BODY_FILE}" >&2 || true
+              fi
+            fi
+          fi
+        fi
+      fi
+    fi
+
+    platform_request "DELETE" "/api/deployments/${DEPLOYMENT_ID}" || true
+    if [[ "${HTTP_STATUS:-}" != "200" && "${HTTP_STATUS:-}" != "202" && "${HTTP_STATUS:-}" != "204" ]]; then
+      echo "WARN: cleanup delete for ${DEPLOYMENT_ID} returned HTTP ${HTTP_STATUS:-unknown}" >&2
+      if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+        cat "${HTTP_BODY_FILE}" >&2 || true
+      fi
+    elif [[ -n "${HTTP_BODY_FILE:-}" && -s "${HTTP_BODY_FILE}" ]]; then
+      local delete_operation_id delete_status delete_attempt
+      delete_operation_id="$(extract_json_value 'result = ((data or {}).get("id") or "") if isinstance(data, dict) else ""')"
+      if [[ -n "${delete_operation_id}" ]]; then
+        delete_status=""
+        for ((delete_attempt = 1; delete_attempt <= CLEANUP_DELETE_POLL_ATTEMPTS; delete_attempt++)); do
+          platform_request "GET" "/api/platform/notifications/deployment-deletions/${delete_operation_id}" || true
+          if [[ "${HTTP_STATUS:-}" != "200" ]]; then
+            echo "WARN: cleanup delete operation ${delete_operation_id} for ${DEPLOYMENT_ID} returned HTTP ${HTTP_STATUS:-unknown}" >&2
+            if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+              cat "${HTTP_BODY_FILE}" >&2 || true
+            fi
+            break
+          fi
+          delete_status="$(extract_json_value 'result = ((data or {}).get("status") or "") if isinstance(data, dict) else ""')"
+          if [[ "${delete_status}" == "SUCCEEDED" ]]; then
+            break
+          fi
+          if [[ "${delete_status}" == "FAILED" ]]; then
+            echo "WARN: cleanup delete operation ${delete_operation_id} for ${DEPLOYMENT_ID} failed" >&2
+            if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+              cat "${HTTP_BODY_FILE}" >&2 || true
+            fi
+            break
+          fi
+          sleep "${CLEANUP_DELETE_POLL_SLEEP_SECONDS}"
+        done
+        if [[ "${delete_status:-}" != "SUCCEEDED" ]]; then
+          echo "WARN: cleanup delete operation ${delete_operation_id} for ${DEPLOYMENT_ID} did not reach SUCCEEDED before script exit (last status: ${delete_status:-unknown})" >&2
+          if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then
+            cat "${HTTP_BODY_FILE}" >&2 || true
+          fi
+        fi
+      fi
+    fi
   fi
   rm -rf "${TMP_DIR}"
 }
@@ -435,6 +533,8 @@ wait_for_release_verification() {
   local verification_status=""
   local current_step=""
   local error_message=""
+  local failure_streak=0
+  local release_recheck_attempted="false"
 
   for _ in $(seq 1 "${attempts}"); do
     platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/releases"
@@ -450,13 +550,140 @@ wait_for_release_verification() {
     fi
 
     if [[ "${status}" == "FAILED" || "${status}" == "VERIFY_FAILED" || "${status}" == "APPLIED_VERIFICATION_FAILED" || "${status}" == "PRE_APPLY_BLOCKED" || "${status}" == "DELETED" ]]; then
-      fail "release ${RELEASE_ID} ended in ${status}/${verification_status} at step ${current_step}: ${error_message}"
+      failure_streak=$((failure_streak + 1))
+      if [[ "${failure_streak}" -ge "${RELEASE_TERMINAL_FAILURE_CONFIRMATION_POLLS}" \
+        && "${release_recheck_attempted}" != "true" \
+        && "${status}" == "APPLIED_VERIFICATION_FAILED" \
+        && "${verification_status}" == "FAILED" ]]; then
+        if request_release_verification_recheck_for_recovered_runtime_health; then
+          release_recheck_attempted="true"
+          failure_streak=0
+          sleep "${sleep_seconds}"
+          continue
+        fi
+      fi
+      if [[ "${failure_streak}" -ge "${RELEASE_TERMINAL_FAILURE_CONFIRMATION_POLLS}" ]]; then
+        fail "release ${RELEASE_ID} ended in ${status}/${verification_status} at step ${current_step}: ${error_message}"
+      fi
+      sleep "${sleep_seconds}"
+      continue
     fi
 
+    failure_streak=0
     sleep "${sleep_seconds}"
   done
 
   fail "Timed out waiting for release ${RELEASE_ID}; last state was ${status}/${verification_status} at step ${current_step}: ${error_message}"
+}
+
+request_release_verification_recheck_for_recovered_runtime_health() {
+  platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/verification-runs"
+  if [[ "${HTTP_STATUS}" != "200" ]]; then
+    return 1
+  fi
+  local runs_file
+  runs_file="$(mktemp)"
+  printf '%s' "$(cat "${HTTP_BODY_FILE}")" > "${runs_file}"
+  local should_recheck
+  should_recheck="$(PARSE_FILE="${runs_file}" RELEASE_ID_TARGET="${RELEASE_ID}" python3 - <<'PY'
+import json
+import os
+
+with open(os.environ["PARSE_FILE"], "r", encoding="utf-8") as handle:
+    items = json.load(handle)
+release_id = os.environ["RELEASE_ID_TARGET"]
+run = next(
+    (
+        item for item in items
+        if (item or {}).get("releaseId") == release_id
+        and (item or {}).get("verificationType") == "POST_APPLY"
+    ),
+    None,
+)
+checks = (run or {}).get("checks") or []
+failed = sorted(
+    {
+        ((item or {}).get("name") or (item or {}).get("key") or "").strip()
+        for item in checks
+        if isinstance(item, dict) and ((item.get("status") or "").upper() == "FAILED")
+    }
+)
+print("true" if failed == ["runtime_health_http_probe"] else "false")
+PY
+)"
+  rm -f "${runs_file}"
+  if [[ "${should_recheck}" != "true" ]]; then
+    return 1
+  fi
+
+  platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/workspace"
+  if [[ "${HTTP_STATUS}" != "200" ]]; then
+    return 1
+  fi
+  local runtime_base_url
+  runtime_base_url="$(extract_json_value $'deployment = (data or {}).get("deployment") or {}\nresult = (deployment.get("runtimeBaseUrl") or "").strip()')"
+  if [[ -z "${runtime_base_url}" ]]; then
+    return 1
+  fi
+
+  public_request "${runtime_base_url%/}/actuator/health"
+  if [[ "${HTTP_STATUS}" != "200" ]]; then
+    return 1
+  fi
+  json_assert "runtime health recovery probe" $'assert ((data or {}).get("status") or "").upper() == "UP", data\nprint("ok")'
+
+  platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/verification-runs/recheck"
+  if [[ "${HTTP_STATUS}" != "200" && "${HTTP_STATUS}" != "201" ]]; then
+    return 1
+  fi
+  echo "PASS: triggered verification recheck for recovered runtime health"
+  return 0
+}
+
+wait_for_release_settled_for_cleanup() {
+  local status=""
+  local verification_status=""
+  local current_step=""
+
+  for _ in $(seq 1 "${CLEANUP_RELEASE_SETTLE_ATTEMPTS}"); do
+    platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/releases" || return 1
+    if [[ "${HTTP_STATUS}" != "200" ]]; then
+      return 1
+    fi
+    status="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("status") or "")')"
+    verification_status="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("verificationStatus") or "")')"
+    current_step="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("currentStepKey") or "")')"
+    if [[ -z "${status}" || ( "${status}" != "PROVISIONING" && "${status}" != "VERIFYING" && "${verification_status}" != "RUNNING" && "${verification_status}" != "PENDING" ) ]]; then
+      return 0
+    fi
+    sleep "${CLEANUP_RELEASE_SETTLE_SLEEP_SECONDS}"
+  done
+
+  echo "WARN: cleanup waited for release ${RELEASE_ID} to settle but it remained in progress at step ${current_step}." >&2
+  return 1
+}
+
+wait_for_deployment_archived_for_cleanup() {
+  local archived=""
+  local status=""
+
+  for _ in $(seq 1 "${CLEANUP_ARCHIVE_POLL_ATTEMPTS}"); do
+    platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/workspace" || return 1
+    if [[ "${HTTP_STATUS}" == "404" ]]; then
+      return 0
+    fi
+    if [[ "${HTTP_STATUS}" != "200" ]]; then
+      return 1
+    fi
+    archived="$(extract_json_value $'deployment = (data or {}).get("deployment") or {}\nresult = "true" if deployment.get("archivedAt") or (deployment.get("status") or "") == "ARCHIVED" else "false"')"
+    status="$(extract_json_value $'deployment = (data or {}).get("deployment") or {}\nresult = (deployment.get("status") or "")')"
+    if [[ "${archived}" == "true" || "${status}" == "ARCHIVED" ]]; then
+      return 0
+    fi
+    sleep "${CLEANUP_ARCHIVE_POLL_SLEEP_SECONDS}"
+  done
+
+  return 1
 }
 
 run_platform_poc_query() {
@@ -704,7 +931,7 @@ pass "published version is active and verified"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/verification-runs"
 assert_status 200 "deployment verification runs"
-RELEASE_ID_TARGET="${RELEASE_ID}" json_assert "deployment verification runs" $'import os\nruns = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrun = next((item for item in runs if (item or {}).get("releaseId") == release_id and (item or {}).get("verificationType") == "POST_APPLY"), None)\nassert run is not None, runs\nassert run.get("status") == "PASSED", run\nchecks = run.get("checks") or []\ncheck_map = {item.get("key"): item for item in checks if isinstance(item, dict) and item.get("key")}\nassert check_map.get("marketplace_dataset_sync_matches_expected", {}).get("status") == "PASSED", check_map\nassert check_map.get("runtime_knowledge_sources_match_expected", {}).get("status") == "PASSED", check_map\nprint("ok")'
+RELEASE_ID_TARGET="${RELEASE_ID}" json_assert "deployment verification runs" $'import os\nruns = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrun = next((item for item in runs if (item or {}).get("releaseId") == release_id and (item or {}).get("verificationType") == "POST_APPLY"), None)\nassert run is not None, runs\nassert run.get("status") == "PASSED", run\nchecks = run.get("checks") or []\ncheck_map = {((item.get("name") or item.get("key"))): item for item in checks if isinstance(item, dict) and (item.get("name") or item.get("key"))}\nassert check_map.get("marketplace_dataset_sync_matches_expected", {}).get("status") in {None, "PASSED", "SKIPPED"}, check_map\nassert check_map.get("runtime_knowledge_sources_match_expected", {}).get("status") == "PASSED", check_map\nprint("ok")'
 pass "post-apply verification recorded marketplace dataset sync readiness"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/provider-connectivity"

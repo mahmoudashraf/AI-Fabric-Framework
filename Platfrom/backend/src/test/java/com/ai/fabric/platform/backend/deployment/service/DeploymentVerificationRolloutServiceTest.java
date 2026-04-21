@@ -489,6 +489,72 @@ class DeploymentVerificationRolloutServiceTest {
     }
 
     @Test
+    void listRolloutsMarksLatestFailedReleaseAsNotVerificationReady() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-713bb33e");
+        deployment.setName("OpenAI Weaviate Verification");
+        deployment.setEnvironmentName("dev");
+        deployment.setActiveVersionId("ver-772ad0da");
+        deployment.setRuntimeBaseUrl("https://runtime-dep-713bb33e-dev.up.railway.app");
+        deployment.setConnectorBaseUrl("https://rest-connector-dep-713bb33e-dev.up.railway.app");
+
+        DeploymentReleaseEntity failedRelease = new DeploymentReleaseEntity();
+        failedRelease.setId("rel-a36e4d65");
+        failedRelease.setDeploymentId("dep-713bb33e");
+        failedRelease.setDeploymentVersionId("ver-772ad0da");
+        failedRelease.setStatus("APPLIED_VERIFICATION_FAILED");
+        failedRelease.setVerificationStatus("FAILED");
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-713bb33e"))
+            .thenReturn(Optional.of(failedRelease));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(argThat(id -> !"dep-713bb33e".equals(id))))
+            .thenReturn(Optional.empty());
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.listRollouts();
+
+        assertThat(summary.items())
+            .filteredOn(item -> "weaviate".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.exists()).isTrue();
+                assertThat(item.verificationReady()).isFalse();
+                assertThat(item.latestReleaseStatus()).isEqualTo("APPLIED_VERIFICATION_FAILED");
+                assertThat(item.latestVerificationStatus()).isEqualTo("FAILED");
+                assertThat(item.readinessMessage()).contains("not in a verified ready state");
+            });
+    }
+
+    @Test
     void recreateRolloutsCanTargetSelectedPresetsOnly() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
@@ -758,7 +824,7 @@ class DeploymentVerificationRolloutServiceTest {
 
         DeploymentReleaseEntity release = new DeploymentReleaseEntity();
         release.setId("rel-123");
-        release.setStatus("APPLIED");
+        release.setStatus("APPLIED_VERIFIED");
         release.setProvisioningStatus("ACTIVE");
         release.setVerificationStatus("PASSED");
         release.setProvisioningDetailsJson("""

@@ -65,7 +65,7 @@ ZILLIZ_CREATE_EPHEMERAL_CLUSTER="${ZILLIZ_CREATE_EPHEMERAL_CLUSTER:-false}"
 ZILLIZ_EPHEMERAL_CLUSTER_NAME="${ZILLIZ_EPHEMERAL_CLUSTER_NAME:-gha-verify-zilliz-${RUN_ID_SUFFIX}}"
 
 WEAVIATE_SCHEME="${WEAVIATE_SCHEME:-https}"
-WEAVIATE_HOST="${WEAVIATE_HOST:-l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud}"
+WEAVIATE_HOST="${WEAVIATE_HOST:-${PLATFORM_VERIFICATION_WEAVIATE_HOST:-}}"
 WEAVIATE_PORT="${WEAVIATE_PORT:-443}"
 WEAVIATE_API_KEY="${WEAVIATE_API_KEY:-}"
 
@@ -533,6 +533,10 @@ verify_zilliz() {
 }
 
 verify_weaviate() {
+  if [[ -z "${WEAVIATE_HOST}" ]]; then
+    echo "FAIL: Weaviate verification requires WEAVIATE_HOST or PLATFORM_VERIFICATION_WEAVIATE_HOST"
+    return 1
+  fi
   local base_url
   base_url="${WEAVIATE_SCHEME}://${WEAVIATE_HOST}"
   if [[ -n "${WEAVIATE_PORT}" && "${WEAVIATE_PORT}" != "443" && "${WEAVIATE_PORT}" != "80" ]]; then

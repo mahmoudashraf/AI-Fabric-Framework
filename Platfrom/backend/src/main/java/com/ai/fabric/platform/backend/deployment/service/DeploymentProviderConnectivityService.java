@@ -388,17 +388,47 @@ public class DeploymentProviderConnectivityService {
             );
         }
         String apiKey = resolution.value();
-        return sendProbe(
-            "weaviate_ready_api",
-            "Weaviate readiness API",
-            endpoint,
-            request -> {
-                if (StringUtils.hasText(apiKey)) {
-                    request.header("Authorization", "Bearer " + apiKey);
-                }
-            },
-            true
-        );
+        RequestCustomizer customizer = request -> {
+            if (StringUtils.hasText(apiKey)) {
+                request.header("Authorization", "Bearer " + apiKey);
+            }
+        };
+        ProbeAttempt readyAttempt = executeProbe(endpoint, customizer);
+        if (isSuccess(readyAttempt.statusCode(), true)) {
+            return readySummary("weaviate_ready_api", "Weaviate readiness API", endpoint, readyAttempt.statusCode());
+        }
+        if (Integer.valueOf(404).equals(readyAttempt.statusCode())) {
+            String metadataEndpoint = buildWeaviateBaseUrl(providerConfig) + "/v1/meta";
+            ProbeAttempt metadataAttempt = executeProbe(metadataEndpoint, customizer);
+            if (isSuccess(metadataAttempt.statusCode(), true)) {
+                return new DeploymentProviderConnectivityProbeSummary(
+                    "weaviate_ready_api",
+                    "Weaviate readiness API",
+                    "READY",
+                    metadataEndpoint,
+                    "Weaviate metadata API responded with HTTP " + metadataAttempt.statusCode()
+                        + " after the readiness endpoint returned HTTP 404."
+                );
+            }
+            if (Integer.valueOf(404).equals(metadataAttempt.statusCode())) {
+                return new DeploymentProviderConnectivityProbeSummary(
+                    "weaviate_ready_api",
+                    "Weaviate readiness API",
+                    "FAILED",
+                    endpoint,
+                    "Weaviate readiness and metadata endpoints both returned HTTP 404. "
+                        + "The configured cluster URL may be stale, rotated, or no longer serving the Weaviate REST API."
+                );
+            }
+            return failedSummary(
+                "weaviate_ready_api",
+                "Weaviate readiness API",
+                endpoint,
+                "Weaviate readiness endpoint returned HTTP 404, and metadata probe "
+                    + probeOutcomeMessage(metadataEndpoint, "Weaviate metadata API", metadataAttempt) + "."
+            );
+        }
+        return summarizeProbe("weaviate_ready_api", "Weaviate readiness API", endpoint, readyAttempt, true);
     }
 
     private DeploymentProviderConnectivityProbeSummary probeZillizCloud(JsonNode providerConfig) {
@@ -976,6 +1006,30 @@ public class DeploymentProviderConnectivityService {
                                                                  String endpoint,
                                                                  RequestCustomizer customizer,
                                                                  boolean strictSuccessOnly) {
+        return summarizeProbe(key, label, endpoint, executeProbe(endpoint, customizer), strictSuccessOnly);
+    }
+
+    private DeploymentProviderConnectivityProbeSummary summarizeProbe(String key,
+                                                                      String label,
+                                                                      String endpoint,
+                                                                      ProbeAttempt attempt,
+                                                                      boolean strictSuccessOnly) {
+        Integer statusCode = attempt.statusCode();
+        if (statusCode != null) {
+            if (isSuccess(statusCode, strictSuccessOnly)) {
+                return readySummary(key, label, endpoint, statusCode);
+            }
+            return failedSummary(key, label, endpoint, label + " responded with HTTP " + statusCode + ".");
+        }
+        return failedSummary(
+            key,
+            label,
+            endpoint,
+            label + " probe failed: " + firstNonBlank(attempt.errorMessage(), "Unknown probe failure")
+        );
+    }
+
+    private ProbeAttempt executeProbe(String endpoint, RequestCustomizer customizer) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(endpoint))
                 .timeout(Duration.ofSeconds(15))
@@ -984,35 +1038,52 @@ public class DeploymentProviderConnectivityService {
             customizer.customize(builder);
 
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            int statusCode = response.statusCode();
-            boolean reachable = strictSuccessOnly
-                ? statusCode >= 200 && statusCode < 300
-                : statusCode >= 200 && statusCode < 500;
-            if (reachable) {
-                return new DeploymentProviderConnectivityProbeSummary(
-                    key,
-                    label,
-                    "READY",
-                    endpoint,
-                    label + " responded with HTTP " + statusCode + "."
-                );
-            }
-            return new DeploymentProviderConnectivityProbeSummary(
-                key,
-                label,
-                "FAILED",
-                endpoint,
-                label + " responded with HTTP " + statusCode + "."
-            );
+            return new ProbeAttempt(response.statusCode(), null);
         } catch (Exception ex) {
-            return new DeploymentProviderConnectivityProbeSummary(
-                key,
-                label,
-                "FAILED",
-                endpoint,
-                label + " probe failed: " + ex.getMessage()
-            );
+            return new ProbeAttempt(null, ex.getMessage());
         }
+    }
+
+    private boolean isSuccess(Integer statusCode, boolean strictSuccessOnly) {
+        if (statusCode == null) {
+            return false;
+        }
+        return strictSuccessOnly
+            ? statusCode >= 200 && statusCode < 300
+            : statusCode >= 200 && statusCode < 500;
+    }
+
+    private DeploymentProviderConnectivityProbeSummary readySummary(String key,
+                                                                    String label,
+                                                                    String endpoint,
+                                                                    int statusCode) {
+        return new DeploymentProviderConnectivityProbeSummary(
+            key,
+            label,
+            "READY",
+            endpoint,
+            label + " responded with HTTP " + statusCode + "."
+        );
+    }
+
+    private DeploymentProviderConnectivityProbeSummary failedSummary(String key,
+                                                                     String label,
+                                                                     String endpoint,
+                                                                     String message) {
+        return new DeploymentProviderConnectivityProbeSummary(
+            key,
+            label,
+            "FAILED",
+            endpoint,
+            message
+        );
+    }
+
+    private String probeOutcomeMessage(String endpoint, String label, ProbeAttempt attempt) {
+        if (attempt.statusCode() != null) {
+            return "responded with HTTP " + attempt.statusCode() + " at " + endpoint;
+        }
+        return "failed at " + endpoint + ": " + firstNonBlank(attempt.errorMessage(), "Unknown probe failure");
     }
 
     private String summarize(List<DeploymentProviderConnectivityProbeSummary> probes) {
@@ -1070,6 +1141,9 @@ public class DeploymentProviderConnectivityService {
             }
         }
         return "";
+    }
+
+    private record ProbeAttempt(Integer statusCode, String errorMessage) {
     }
 
     private List<DeploymentSecretResolutionSummary> effectiveSecretResolutions(String deploymentId,

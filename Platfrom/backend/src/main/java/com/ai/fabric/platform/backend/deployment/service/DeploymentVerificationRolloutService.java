@@ -92,7 +92,7 @@ public class DeploymentVerificationRolloutService {
     private static final int DEFAULT_BATCH_SIZE = 25;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
-    private static final String WEAVIATE_HOST = "l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud";
+    private static final String DEFAULT_WEAVIATE_HOST = "l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud";
     private static final String ZILLIZ_PROJECT_ID = "proj-a58a34b87ccfe2c80d6ec2";
     private static final String ZILLIZ_REGION_ID = "aws-eu-central-1";
 
@@ -604,6 +604,23 @@ public class DeploymentVerificationRolloutService {
                 "This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so the runtime URL and internal connector service are attached."
             );
         }
+        if (latestRelease == null) {
+            return new RolloutReadiness(
+                false,
+                "Runtime and the internal connector service are live, but no release record is available for hosted verification evidence yet."
+            );
+        }
+        if (!"APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())
+            || !"PASSED".equalsIgnoreCase(latestRelease.getVerificationStatus())) {
+            return new RolloutReadiness(
+                false,
+                "The latest release is not in a verified ready state (status="
+                    + firstNonBlank(latestRelease.getStatus(), "UNKNOWN")
+                    + ", verification="
+                    + firstNonBlank(latestRelease.getVerificationStatus(), "UNKNOWN")
+                    + "). Resolve the latest rollout failure before using this canonical deployment as verification-ready."
+            );
+        }
 
         DeploymentVectorizationVerificationSummary vectorization = deploymentVectorizationVerificationService == null
             ? null
@@ -865,7 +882,7 @@ public class DeploymentVerificationRolloutService {
                     ObjectNode provider = ensureObject(draft.providerConfig());
                     provider.put("vectorProvisioningMode", "EXTERNAL_EXISTING");
                     provider.put("weaviateScheme", "https");
-                    provider.put("weaviateHost", WEAVIATE_HOST);
+                    provider.put("weaviateHost", verificationWeaviateHost());
                     provider.put("weaviatePort", 443);
                     return vectorDraftUpdate(draft, provider);
                 }
@@ -1352,6 +1369,18 @@ public class DeploymentVerificationRolloutService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String verificationWeaviateHost() {
+        String override = System.getenv("PLATFORM_VERIFICATION_WEAVIATE_HOST");
+        if (!hasText(override)) {
+            override = System.getenv("WEAVIATE_HOST");
+        }
+        return hasText(override) ? override.trim() : DEFAULT_WEAVIATE_HOST;
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        return hasText(value) ? value : fallback;
     }
 
     private boolean hasConcreteValue(String value) {

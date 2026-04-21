@@ -439,16 +439,16 @@ public class VectorizationRunnerService {
             if ("COMPLETED".equals(finalStatus)) {
                 VectorizationPlanRevisionEntity revision = revisionRepository.findById(run.getPlanRevisionId()).orElse(null);
                 plan.setLastSuccessfulRunId(run.getId());
-                String successfulIndexedOutputHash = revision == null
-                    ? trimToNull(plan.getActiveIndexedOutputHash())
-                    : trimToNull(revision.getIndexedOutputHash());
-                if (!StringUtils.hasText(successfulIndexedOutputHash)) {
-                    successfulIndexedOutputHash = trimToNull(plan.getActiveIndexedOutputHash());
-                    if (revision != null && StringUtils.hasText(successfulIndexedOutputHash)) {
-                        revision.setIndexedOutputHash(successfulIndexedOutputHash);
-                        revision.setUpdatedAt(now);
-                        revisionRepository.save(revision);
-                    }
+                String successfulIndexedOutputHash = trimToNull(plan.getActiveIndexedOutputHash());
+                if (!StringUtils.hasText(successfulIndexedOutputHash) && revision != null) {
+                    successfulIndexedOutputHash = trimToNull(revision.getIndexedOutputHash());
+                }
+                if (revision != null
+                    && StringUtils.hasText(successfulIndexedOutputHash)
+                    && !successfulIndexedOutputHash.equals(trimToNull(revision.getIndexedOutputHash()))) {
+                    revision.setIndexedOutputHash(successfulIndexedOutputHash);
+                    revision.setUpdatedAt(now);
+                    revisionRepository.save(revision);
                 }
                 plan.setLastSuccessfulIndexedOutputHash(successfulIndexedOutputHash);
                 cancelSupersededRuns(run, now);

@@ -116,19 +116,27 @@ class DeploymentProviderConnectivityServiceTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void probeMarksWeaviateReadyApiFailedWhenClusterReturnsNotFound() throws Exception {
+    void probeMarksWeaviateReadyApiFailedWhenReadinessAndMetadataEndpointsReturnNotFound() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         when(secretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn("weaviate-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
-        HttpResponse<String> response = mock(HttpResponse.class);
-        when(response.statusCode()).thenReturn(404);
+        HttpResponse<String> readinessResponse = mock(HttpResponse.class);
+        when(readinessResponse.statusCode()).thenReturn(404);
+        HttpResponse<String> metadataResponse = mock(HttpResponse.class);
+        when(metadataResponse.statusCode()).thenReturn(404);
         when(httpClient.<String>send(
             argThat(request -> request != null
                 && request.uri().toString().equals("https://weaviate.example:443/v1/.well-known/ready")
                 && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
             any(HttpResponse.BodyHandler.class)
-        )).thenReturn(response);
+        )).thenReturn(readinessResponse);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://weaviate.example:443/v1/meta")
+                && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(metadataResponse);
 
         DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
             secretService,
@@ -154,7 +162,59 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.probes().get(0).key()).isEqualTo("weaviate_ready_api");
         assertThat(summary.probes().get(0).status()).isEqualTo("FAILED");
         assertThat(summary.probes().get(0).endpoint()).isEqualTo("https://weaviate.example:443/v1/.well-known/ready");
-        assertThat(summary.probes().get(0).message()).contains("HTTP 404");
+        assertThat(summary.probes().get(0).message()).contains("both returned HTTP 404");
+        assertThat(summary.probes().get(0).message()).contains("stale");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksWeaviateReadyWhenMetadataEndpointSucceedsAfterReadinessNotFound() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn("weaviate-secret");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> readinessResponse = mock(HttpResponse.class);
+        when(readinessResponse.statusCode()).thenReturn(404);
+        HttpResponse<String> metadataResponse = mock(HttpResponse.class);
+        when(metadataResponse.statusCode()).thenReturn(200);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://weaviate.example:443/v1/.well-known/ready")
+                && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(readinessResponse);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://weaviate.example:443/v1/meta")
+                && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(metadataResponse);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-weaviate", "Weaviate"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "weaviate",
+                  "weaviateScheme": "https",
+                  "weaviateHost": "weaviate.example",
+                  "weaviatePort": 443
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(1);
+        assertThat(summary.probes().get(0).key()).isEqualTo("weaviate_ready_api");
+        assertThat(summary.probes().get(0).status()).isEqualTo("READY");
+        assertThat(summary.probes().get(0).endpoint()).isEqualTo("https://weaviate.example:443/v1/meta");
+        assertThat(summary.probes().get(0).message()).contains("metadata API responded with HTTP 200");
     }
 
     @Test
