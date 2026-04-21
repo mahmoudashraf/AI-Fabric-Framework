@@ -42,6 +42,14 @@ scripts/verify-shopify-companion-uninstall.sh
 
 These scripts are the canonical fast check before deeper debugging.
 
+GitHub Actions operator entrypoint:
+
+```text
+.github/workflows/shopify-companion-verification.yml
+```
+
+Use workflow mode `verify` for the normal live check, `rollout` for platform-side bootstrap/go-live progression, and `uninstall_verify` only for a disposable shop mapping with explicit destructive confirmation.
+
 ## 3. Triage Order
 
 Always inspect in this order:

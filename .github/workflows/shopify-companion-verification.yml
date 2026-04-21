@@ -1,0 +1,307 @@
+name: Shopify Companion Verification
+
+run-name: Shopify companion ${{ inputs.operation || 'verify' }}
+
+on:
+  workflow_call:
+    inputs:
+      operation:
+        description: Verification operation. Use verify for non-destructive live checks, rollout to prepare/bootstrap/go-live from the platform side, or uninstall_verify only for a disposable shop mapping.
+        required: false
+        type: string
+        default: verify
+      platform_base_url:
+        description: Platform public base URL override. Leave empty to use repo secret/variable or the production default.
+        required: false
+        type: string
+        default: ''
+      shopify_bridge_base_url:
+        description: Shopify Bridge public base URL override. Leave empty to use repo variable or the production default.
+        required: false
+        type: string
+        default: ''
+      shop_domain:
+        description: Shopify shop domain override. Leave empty to use the canonical live shop or the disposable uninstall shop variable.
+        required: false
+        type: string
+        default: ''
+      product_service_ref:
+        description: Managed Shopify product-service ref override.
+        required: false
+        type: string
+        default: shopify-bridge-prod
+      auto_run_source_preflight:
+        description: For rollout mode, automatically run source preflight after install/bootstrap readiness.
+        required: false
+        type: boolean
+        default: true
+      auto_request_go_live:
+        description: For rollout mode, automatically request go-live when blockers are clear.
+        required: false
+        type: boolean
+        default: true
+      allow_destructive_uninstall:
+        description: Must be true before uninstall verification is allowed.
+        required: false
+        type: boolean
+        default: false
+      confirm_destructive_shop_domain:
+        description: For uninstall verification, this must exactly match the resolved shop domain.
+        required: false
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Verification operation
+        required: true
+        type: choice
+        default: verify
+        options:
+          - verify
+          - rollout
+          - uninstall_verify
+      platform_base_url:
+        description: Platform public base URL override. Leave empty to use repo secret/variable or the production default.
+        required: false
+        type: string
+        default: ''
+      shopify_bridge_base_url:
+        description: Shopify Bridge public base URL override. Leave empty to use repo variable or the production default.
+        required: false
+        type: string
+        default: ''
+      shop_domain:
+        description: Shopify shop domain override. Leave empty to use the canonical live shop or the disposable uninstall shop variable.
+        required: false
+        type: string
+        default: ''
+      product_service_ref:
+        description: Managed Shopify product-service ref override.
+        required: false
+        type: string
+        default: shopify-bridge-prod
+      auto_run_source_preflight:
+        description: For rollout mode, automatically run source preflight after install/bootstrap readiness.
+        required: false
+        type: boolean
+        default: true
+      auto_request_go_live:
+        description: For rollout mode, automatically request go-live when blockers are clear.
+        required: false
+        type: boolean
+        default: true
+      allow_destructive_uninstall:
+        description: Must be true before uninstall verification is allowed.
+        required: false
+        type: boolean
+        default: false
+      confirm_destructive_shop_domain:
+        description: For uninstall verification, this must exactly match the resolved shop domain.
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  verify:
+    name: Run Shopify companion verification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      INPUT_OPERATION: ${{ inputs.operation }}
+      INPUT_PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
+      INPUT_SHOPIFY_BRIDGE_BASE_URL: ${{ inputs.shopify_bridge_base_url }}
+      INPUT_SHOP_DOMAIN: ${{ inputs.shop_domain }}
+      INPUT_PRODUCT_SERVICE_REF: ${{ inputs.product_service_ref }}
+      INPUT_AUTO_RUN_SOURCE_PREFLIGHT: ${{ inputs.auto_run_source_preflight }}
+      INPUT_AUTO_REQUEST_GO_LIVE: ${{ inputs.auto_request_go_live }}
+      INPUT_ALLOW_DESTRUCTIVE_UNINSTALL: ${{ inputs.allow_destructive_uninstall }}
+      INPUT_CONFIRM_DESTRUCTIVE_SHOP_DOMAIN: ${{ inputs.confirm_destructive_shop_domain }}
+      VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+      VAR_SHOPIFY_BRIDGE_BASE_URL: ${{ vars.SHOPIFY_BRIDGE_BASE_URL }}
+      VAR_SHOPIFY_COMPANION_SHOP_DOMAIN: ${{ vars.SHOPIFY_COMPANION_SHOP_DOMAIN }}
+      VAR_SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN: ${{ vars.SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN }}
+      VAR_SHOPIFY_PRODUCT_SERVICE_REF: ${{ vars.SHOPIFY_PRODUCT_SERVICE_REF }}
+      SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
+      DEFAULT_PLATFORM_BASE_URL: https://ai-fabric-framework-production-324f.up.railway.app
+      DEFAULT_SHOPIFY_BRIDGE_BASE_URL: https://shopify-bridge-shopify-bridge-pr-production.up.railway.app
+      DEFAULT_SHOPIFY_COMPANION_SHOP_DOMAIN: shopping-companion-test.myshopify.com
+      DEFAULT_PRODUCT_SERVICE_REF: shopify-bridge-prod
+      PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
+      PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
+      PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
+      SHOPIFY_BRIDGE_ADMIN_API_KEY: ${{ secrets.SHOPIFY_BRIDGE_ADMIN_API_KEY }}
+      SHOPIFY_ADMIN_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ADMIN_ACCESS_TOKEN }}
+      SHOPIFY_MERCHANT_AUTHORIZATION: ${{ secrets.SHOPIFY_MERCHANT_AUTHORIZATION }}
+      SHOPIFY_EMBEDDED_HOST: ${{ secrets.SHOPIFY_EMBEDDED_HOST }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve Shopify verification context
+        id: resolve
+        run: |
+          set -euo pipefail
+
+          choose() {
+            for candidate in "$@"; do
+              if [[ -n "${candidate}" ]]; then
+                printf '%s' "${candidate}"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          operation="${INPUT_OPERATION:-verify}"
+          case "${operation}" in
+            verify|rollout|uninstall_verify) ;;
+            *)
+              echo "Unsupported Shopify verification operation: ${operation}" >&2
+              exit 1
+              ;;
+          esac
+
+          platform_base_url="$(choose \
+            "${INPUT_PLATFORM_BASE_URL:-}" \
+            "${VAR_PLATFORM_BASE_URL:-}" \
+            "${SECRET_PLATFORM_BASE_URL:-}" \
+            "${DEFAULT_PLATFORM_BASE_URL}")"
+          bridge_base_url="$(choose \
+            "${INPUT_SHOPIFY_BRIDGE_BASE_URL:-}" \
+            "${VAR_SHOPIFY_BRIDGE_BASE_URL:-}" \
+            "${DEFAULT_SHOPIFY_BRIDGE_BASE_URL}")"
+          product_service_ref="$(choose \
+            "${INPUT_PRODUCT_SERVICE_REF:-}" \
+            "${VAR_SHOPIFY_PRODUCT_SERVICE_REF:-}" \
+            "${DEFAULT_PRODUCT_SERVICE_REF}")"
+
+          if [[ "${operation}" == "uninstall_verify" ]]; then
+            shop_domain="$(choose "${INPUT_SHOP_DOMAIN:-}" "${VAR_SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN:-}")"
+            if [[ -z "${shop_domain}" ]]; then
+              echo "Uninstall verification requires a disposable shop domain. Set workflow input shop_domain or repository variable SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN." >&2
+              exit 1
+            fi
+            if [[ "${INPUT_ALLOW_DESTRUCTIVE_UNINSTALL:-false}" != "true" ]]; then
+              echo "Uninstall verification is destructive. Re-run with allow_destructive_uninstall=true." >&2
+              exit 1
+            fi
+            if [[ "${INPUT_CONFIRM_DESTRUCTIVE_SHOP_DOMAIN:-}" != "${shop_domain}" ]]; then
+              echo "Uninstall verification requires confirm_destructive_shop_domain to exactly match ${shop_domain}." >&2
+              exit 1
+            fi
+          else
+            shop_domain="$(choose \
+              "${INPUT_SHOP_DOMAIN:-}" \
+              "${VAR_SHOPIFY_COMPANION_SHOP_DOMAIN:-}" \
+              "${DEFAULT_SHOPIFY_COMPANION_SHOP_DOMAIN}")"
+          fi
+
+          if [[ -z "${PLATFORM_API_KEY:-}" && ( -z "${PLATFORM_LOGIN_EMAIL:-}" || -z "${PLATFORM_LOGIN_PASSWORD:-}" ) ]]; then
+            echo "Missing platform auth. Provide PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD GitHub secrets." >&2
+            exit 1
+          fi
+
+          {
+            echo "operation<<__OUTPUT__"
+            echo "${operation}"
+            echo "__OUTPUT__"
+            echo "platform_base_url<<__OUTPUT__"
+            echo "${platform_base_url%/}"
+            echo "__OUTPUT__"
+            echo "shopify_bridge_base_url<<__OUTPUT__"
+            echo "${bridge_base_url%/}"
+            echo "__OUTPUT__"
+            echo "shop_domain<<__OUTPUT__"
+            echo "${shop_domain}"
+            echo "__OUTPUT__"
+            echo "product_service_ref<<__OUTPUT__"
+            echo "${product_service_ref}"
+            echo "__OUTPUT__"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "OPERATION<<__CTX__"
+            echo "${operation}"
+            echo "__CTX__"
+            echo "PLATFORM_BASE_URL<<__CTX__"
+            echo "${platform_base_url%/}"
+            echo "__CTX__"
+            echo "SHOPIFY_BRIDGE_BASE_URL<<__CTX__"
+            echo "${bridge_base_url%/}"
+            echo "__CTX__"
+            echo "SHOP_DOMAIN<<__CTX__"
+            echo "${shop_domain}"
+            echo "__CTX__"
+            echo "PRODUCT_SERVICE_REF<<__CTX__"
+            echo "${product_service_ref}"
+            echo "__CTX__"
+            echo "AUTO_RUN_SOURCE_PREFLIGHT<<__CTX__"
+            echo "${INPUT_AUTO_RUN_SOURCE_PREFLIGHT:-true}"
+            echo "__CTX__"
+            echo "AUTO_REQUEST_GO_LIVE<<__CTX__"
+            echo "${INPUT_AUTO_REQUEST_GO_LIVE:-true}"
+            echo "__CTX__"
+          } >> "${GITHUB_ENV}"
+
+      - name: Resolve platform auth
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+            echo "PLATFORM_API_KEY_HEADER=X-PLATFORM-API-KEY" >> "${GITHUB_ENV}"
+            exit 0
+          fi
+
+          cookie_jar="$(mktemp "${RUNNER_TEMP}/platform-shopify-session.XXXXXX.cookies")"
+          login_payload="$(mktemp "${RUNNER_TEMP}/platform-shopify-login.XXXXXX.json")"
+          trap 'rm -f "${login_payload}"' EXIT
+          cat > "${login_payload}" <<EOF
+          {"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
+          EOF
+
+          login_status="$(
+            curl -sS -o /tmp/platform-shopify-login-response.json -w "%{http_code}" \
+              -c "${cookie_jar}" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              --data "@${login_payload}" \
+              "${PLATFORM_BASE_URL}/api/platform/auth/login"
+          )"
+          if [[ ! "${login_status}" =~ ^2 ]]; then
+            echo "Platform login failed (HTTP ${login_status})." >&2
+            cat /tmp/platform-shopify-login-response.json >&2
+            exit 1
+          fi
+
+          echo "PLATFORM_SESSION_COOKIE_JAR=${cookie_jar}" >> "${GITHUB_ENV}"
+
+      - name: Display Shopify verification target
+        run: |
+          set -euo pipefail
+          echo "Operation: ${OPERATION}"
+          echo "Platform: ${PLATFORM_BASE_URL}"
+          echo "Shopify Bridge: ${SHOPIFY_BRIDGE_BASE_URL}"
+          echo "Shop: ${SHOP_DOMAIN}"
+          echo "Product service: ${PRODUCT_SERVICE_REF}"
+          if [[ "${OPERATION}" == "uninstall_verify" ]]; then
+            echo "Destructive mode: enabled for disposable target"
+          fi
+
+      - name: Run Shopify verification
+        run: |
+          set -euo pipefail
+
+          case "${OPERATION}" in
+            verify)
+              bash scripts/verify-shopify-companion.sh
+              ;;
+            rollout)
+              bash scripts/run-shopify-companion-rollout.sh
+              ;;
+            uninstall_verify)
+              bash scripts/verify-shopify-companion-uninstall.sh
+              ;;
+          esac

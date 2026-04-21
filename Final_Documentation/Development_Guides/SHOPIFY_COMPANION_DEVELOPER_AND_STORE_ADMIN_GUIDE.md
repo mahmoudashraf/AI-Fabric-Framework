@@ -209,6 +209,41 @@ Primary scripts:
 - `scripts/verify-shopify-companion-uninstall.sh`
 - `scripts/run-shopify-companion-rollout.sh`
 
+GitHub Actions entrypoint:
+
+- `.github/workflows/shopify-companion-verification.yml`
+
+Recommended workflow modes:
+
+- `verify`: non-destructive live verification for the configured shop
+- `rollout`: platform-side bootstrap / source preflight / go-live progression
+- `uninstall_verify`: destructive uninstall verification for a disposable shop mapping only
+
+Recommended repository variables for the workflow:
+
+- `SHOPIFY_BRIDGE_BASE_URL`
+- `SHOPIFY_COMPANION_SHOP_DOMAIN`
+- `SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN`
+- `SHOPIFY_PRODUCT_SERVICE_REF`
+
+Required repository secrets for the workflow:
+
+- platform auth: `PLATFORM_API_KEY` or `PLATFORM_LOGIN_EMAIL` plus `PLATFORM_LOGIN_PASSWORD`
+
+Optional repository secrets that enable deeper verification coverage:
+
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY`
+- `SHOPIFY_ADMIN_ACCESS_TOKEN`
+- `SHOPIFY_MERCHANT_AUTHORIZATION`
+- `SHOPIFY_EMBEDDED_HOST`
+
+Important workflow guardrails:
+
+- `verify` is the default safe mode
+- `uninstall_verify` is blocked unless `allow_destructive_uninstall=true`
+- `uninstall_verify` also requires `confirm_destructive_shop_domain` to exactly match the resolved shop domain
+- disposable uninstall targets should be provided through `SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN` or an explicit workflow input, never by reusing the main live verification shop accidentally
+
 Useful direct API checks:
 
 - `GET /api/shopify/stores/{shopDomain}/vectorization`
