@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   Chip,
+  Grid,
   Stack,
   Table,
   TableBody,
@@ -16,7 +17,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   dispatchDeploymentHostedVerification,
@@ -24,6 +25,7 @@ import {
   fetchDeploymentSecretUsage,
   fetchDeploymentVerificationRollouts,
   fetchMarketplaceInferenceServiceHealth,
+  fetchMarketplaceInferenceServices,
   recreateDeploymentVerificationRollouts,
   reconcileMarketplaceInferenceService,
   type DeploymentHostedVerificationRunSummary,
@@ -157,6 +159,63 @@ function sortRuns(runs: DeploymentHostedVerificationRunSummary[]): DeploymentHos
   })
 }
 
+function normalizeStatusValue(value: string | null | undefined): string {
+  const normalized = (value ?? '').trim().toUpperCase()
+  return normalized.length > 0 ? normalized : 'UNKNOWN'
+}
+
+function summarizeStatusCounts(values: Array<string | null | undefined>): Array<{ label: string; count: number }> {
+  const counts = new Map<string, number>()
+  values.forEach((value) => {
+    const key = normalizeStatusValue(value)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  })
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count
+      }
+      return left.label.localeCompare(right.label)
+    })
+}
+
+function serviceStatusColor(status: string): 'success' | 'warning' | 'error' | 'default' {
+  const normalized = normalizeStatusValue(status)
+  if (['ACTIVE', 'READY', 'NO_DRIFT'].includes(normalized)) {
+    return 'success'
+  }
+  if (['FAILED', 'BLOCKED', 'ERROR', 'RAILWAY_RESOURCE_DRIFT', 'ENDPOINT_DRIFT', 'SECRET_DRIFT'].includes(normalized)) {
+    return 'error'
+  }
+  if (['DEGRADED', 'PROVISIONING', 'CREATED', 'SCALE_DRIFT', 'SKIPPED', 'WARNING'].includes(normalized)) {
+    return 'warning'
+  }
+  return 'default'
+}
+
+function SummarySectionCard(props: {
+  title: string
+  subtitle: string
+  children: ReactNode
+}) {
+  return (
+    <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
+      <CardContent>
+        <Stack spacing={2}>
+          <Box>
+            <Typography variant="h6">{props.title}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              {props.subtitle}
+            </Typography>
+          </Box>
+          {props.children}
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function VerificationOpsPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -171,6 +230,12 @@ export function VerificationOpsPage() {
   const sharedInferenceHealthQuery = useQuery({
     queryKey: ['marketplace', 'inference-services', SHARED_INFERENCE_SERVICE_REF, 'health'],
     queryFn: () => fetchMarketplaceInferenceServiceHealth(SHARED_INFERENCE_SERVICE_REF),
+    enabled: canManageHostedVerification,
+  })
+
+  const inferenceServicesQuery = useQuery({
+    queryKey: ['marketplace', 'inference-services'],
+    queryFn: fetchMarketplaceInferenceServices,
     enabled: canManageHostedVerification,
   })
 
@@ -226,6 +291,30 @@ export function VerificationOpsPage() {
     return lookup
   }, [rolloutHostedRuns])
 
+  const deploymentStatusSummary = useMemo(() => ({
+    deployment: summarizeStatusCounts(orderedRollouts.map((rollout) => rollout.deploymentStatus)),
+    release: summarizeStatusCounts(orderedRollouts.map((rollout) => rollout.latestReleaseStatus)),
+    verification: summarizeStatusCounts(orderedRollouts.map((rollout) => rollout.latestVerificationStatus)),
+  }), [orderedRollouts])
+
+  const inferenceServices = inferenceServicesQuery.data ?? []
+  const sharedInferenceService = useMemo(
+    () => inferenceServices.find((service) => service.serviceRef === SHARED_INFERENCE_SERVICE_REF) ?? null,
+    [inferenceServices],
+  )
+  const inferenceServiceSummary = useMemo(() => {
+    const total = inferenceServices.length
+    const active = inferenceServices.filter((service) => ['ACTIVE', 'READY'].includes(normalizeStatusValue(service.status))).length
+    const failed = inferenceServices.filter((service) =>
+      ['FAILED', 'BLOCKED', 'ERROR'].includes(normalizeStatusValue(service.status))
+      || ['RAILWAY_RESOURCE_DRIFT', 'ENDPOINT_DRIFT', 'SECRET_DRIFT'].includes(normalizeStatusValue(service.driftStatus))).length
+    const degraded = inferenceServices.filter((service) =>
+      ['DEGRADED', 'PROVISIONING', 'CREATED'].includes(normalizeStatusValue(service.status))
+      || ['SCALE_DRIFT'].includes(normalizeStatusValue(service.driftStatus))).length
+    const withActiveDependents = inferenceServices.filter((service) => service.dependentActiveDeploymentsCount > 0).length
+    return { total, active, failed, degraded, withActiveDependents }
+  }, [inferenceServices])
+
   const secretUsageStateByDeploymentId = useMemo(() => {
     const states = new Map<string, {
       queryState: 'loading' | 'error' | 'ready' | 'none'
@@ -255,6 +344,31 @@ export function VerificationOpsPage() {
     })
     return states
   }, [rolloutSecretUsageQueries, rolloutTargets])
+
+  const rolloutReadiness = useMemo(() => orderedRollouts.map((rollout) => {
+    const secretState = rollout.deploymentId
+      ? secretUsageStateByDeploymentId.get(rollout.deploymentId)
+      : undefined
+    const blockReason = rolloutRunBlockReason(
+      rollout,
+      secretState?.summary,
+      secretState?.queryState ?? 'none',
+    )
+    return {
+      rollout,
+      blockReason,
+    }
+  }), [orderedRollouts, secretUsageStateByDeploymentId])
+
+  const canonicalRolloutSummary = useMemo(() => {
+    const total = orderedRollouts.length
+    const ready = rolloutReadiness.filter((entry) => entry.rollout.verificationReady && entry.blockReason == null).length
+    const runnable = rolloutReadiness.filter((entry) => entry.blockReason == null).length
+    const blocked = rolloutReadiness.filter((entry) => entry.blockReason != null).length
+    const missing = orderedRollouts.filter((rollout) => !rollout.exists || !rollout.deploymentId).length
+    const archived = orderedRollouts.filter((rollout) => rollout.archived).length
+    return { total, ready, runnable, blocked, missing, archived }
+  }, [orderedRollouts, rolloutReadiness])
 
   const recreateRolloutsMutation = useMutation({
     mutationFn: () => recreateDeploymentVerificationRollouts([...ROLLOUT_RUN_ORDER]),
@@ -372,6 +486,144 @@ export function VerificationOpsPage() {
           so operators can see whether each rollout is runnable before queueing it.
         </Typography>
       </Box>
+
+      <Grid container spacing={2}>
+        <Grid item xs={12} lg={4}>
+          <SummarySectionCard
+            title="Canonical fleet summary"
+            subtitle="High-level readiness for the six canonical verification deployments."
+          >
+            {verificationRolloutsQuery.isLoading ? (
+              <Typography color="text.secondary">Loading canonical fleet summary…</Typography>
+            ) : verificationRolloutsQuery.isError ? (
+              <Alert severity="error">
+                {verificationRolloutsQuery.error instanceof Error
+                  ? verificationRolloutsQuery.error.message
+                  : 'Failed to load canonical fleet summary.'}
+              </Alert>
+            ) : (
+              <Stack spacing={1.5}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={`Total ${canonicalRolloutSummary.total}`} variant="outlined" />
+                  <Chip label={`Ready ${canonicalRolloutSummary.ready}`} color="success" variant="outlined" />
+                  <Chip label={`Runnable ${canonicalRolloutSummary.runnable}`} color="primary" variant="outlined" />
+                  <Chip label={`Blocked ${canonicalRolloutSummary.blocked}`} color={canonicalRolloutSummary.blocked > 0 ? 'warning' : 'default'} variant="outlined" />
+                </Stack>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={`Missing ${canonicalRolloutSummary.missing}`} color={canonicalRolloutSummary.missing > 0 ? 'error' : 'default'} variant="outlined" />
+                  <Chip label={`Archived ${canonicalRolloutSummary.archived}`} color={canonicalRolloutSummary.archived > 0 ? 'error' : 'default'} variant="outlined" />
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  {verificationRolloutsQuery.data?.summaryMessage ?? 'Canonical rollout summary is ready.'}
+                </Typography>
+              </Stack>
+            )}
+          </SummarySectionCard>
+        </Grid>
+
+        <Grid item xs={12} lg={4}>
+          <SummarySectionCard
+            title="Inference services summary"
+            subtitle="Shared inference health plus aggregate platform-managed inference-service state."
+          >
+            {inferenceServicesQuery.isLoading || sharedInferenceHealthQuery.isLoading ? (
+              <Typography color="text.secondary">Loading inference-service summary…</Typography>
+            ) : inferenceServicesQuery.isError ? (
+              <Alert severity="error">
+                {inferenceServicesQuery.error instanceof Error
+                  ? inferenceServicesQuery.error.message
+                  : 'Failed to load inference services.'}
+              </Alert>
+            ) : sharedInferenceHealthQuery.isError ? (
+              <Alert severity="error">
+                {sharedInferenceHealthQuery.error instanceof Error
+                  ? sharedInferenceHealthQuery.error.message
+                  : 'Failed to load shared inference service health.'}
+              </Alert>
+            ) : (
+              <Stack spacing={1.5}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={`Services ${inferenceServiceSummary.total}`} variant="outlined" />
+                  <Chip label={`Active ${inferenceServiceSummary.active}`} color="success" variant="outlined" />
+                  <Chip label={`Degraded ${inferenceServiceSummary.degraded}`} color={inferenceServiceSummary.degraded > 0 ? 'warning' : 'default'} variant="outlined" />
+                  <Chip label={`Failed ${inferenceServiceSummary.failed}`} color={inferenceServiceSummary.failed > 0 ? 'error' : 'default'} variant="outlined" />
+                  <Chip label={`Dependents ${inferenceServiceSummary.withActiveDependents}`} color="warning" variant="outlined" />
+                </Stack>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    label={`Shared ${sharedInferenceHealthQuery.data?.status ?? 'UNKNOWN'}`}
+                    color={verificationStatusColor(sharedInferenceHealthQuery.data?.status ?? 'UNKNOWN')}
+                    variant="outlined"
+                  />
+                  {sharedInferenceService ? (
+                    <Chip
+                      label={`Fleet ${sharedInferenceService.status}`}
+                      color={serviceStatusColor(sharedInferenceService.status)}
+                      variant="outlined"
+                    />
+                  ) : null}
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  {sharedInferenceHealthQuery.data?.driftMessage
+                    ?? sharedInferenceService?.driftMessage
+                    ?? sharedInferenceHealthQuery.data?.lastProbeMessage
+                    ?? 'Shared inference service is healthy.'}
+                </Typography>
+              </Stack>
+            )}
+          </SummarySectionCard>
+        </Grid>
+
+        <Grid item xs={12} lg={4}>
+          <SummarySectionCard
+            title="Deployment status summary"
+            subtitle="Aggregated canonical deployment, latest release, and verification status counts."
+          >
+            {verificationRolloutsQuery.isLoading ? (
+              <Typography color="text.secondary">Loading deployment status summary…</Typography>
+            ) : verificationRolloutsQuery.isError ? (
+              <Alert severity="error">
+                {verificationRolloutsQuery.error instanceof Error
+                  ? verificationRolloutsQuery.error.message
+                  : 'Failed to load deployment status summary.'}
+              </Alert>
+            ) : (
+              <Stack spacing={1.5}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
+                    Deployment status
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {deploymentStatusSummary.deployment.map((entry) => (
+                      <Chip key={`deployment-${entry.label}`} label={`${entry.label} ${entry.count}`} variant="outlined" />
+                    ))}
+                  </Stack>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
+                    Latest release
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {deploymentStatusSummary.release.map((entry) => (
+                      <Chip key={`release-${entry.label}`} label={`${entry.label} ${entry.count}`} variant="outlined" />
+                    ))}
+                  </Stack>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
+                    Latest verification
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {deploymentStatusSummary.verification.map((entry) => (
+                      <Chip key={`verification-${entry.label}`} label={`${entry.label} ${entry.count}`} variant="outlined" />
+                    ))}
+                  </Stack>
+                </Box>
+              </Stack>
+            )}
+          </SummarySectionCard>
+        </Grid>
+      </Grid>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
