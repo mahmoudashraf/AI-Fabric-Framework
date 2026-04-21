@@ -139,7 +139,7 @@ PLATFORM_TUNNEL_MODE=cloudflared
 RAILWAY_API_TOKEN=<workspace-token>
 RAILWAY_WORKSPACE_ID=<workspace-id>
 PLATFORM_DEPLOY_REPOSITORY=mahmoudashraf/AI-Fabric-Framework
-PLATFORM_DEPLOY_BRANCH=Platform_V1
+PLATFORM_DEPLOY_BRANCH=Platform-V5
 PLATFORM_PROVISIONING_ENVIRONMENT=dev
 
 PLATFORM_DB_URL=jdbc:postgresql://localhost:15432/ai_enablement_platform
@@ -173,7 +173,7 @@ PLATFORM_REBUILD_JAR=true
 
 - `OPENAI_API_KEY` must be a real key if you want embeddings/indexing to work.
 - `CONNECTOR_API_KEY`, `ACTIONS_CONNECTOR_API_KEY`, and `APP_ADMIN_API_KEY` can be simple demo values locally, but not in real production.
-- `PLATFORM_DEPLOY_BRANCH` must point to a pushed GitHub branch, not only local code.
+- `PLATFORM_DEPLOY_BRANCH` must point to a pushed GitHub branch that matches the current platform release track, not only local code.
 
 ---
 
