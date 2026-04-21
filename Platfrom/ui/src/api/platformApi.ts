@@ -2173,6 +2173,18 @@ export type PlatformVerificationSuiteDispatchSummary = {
   run: PlatformVerificationSuiteRunSummary
 }
 
+export type PlatformVerificationReleaseGateSummary = {
+  suiteKey: string
+  suiteLabel: string
+  ready: boolean
+  status: string
+  summaryMessage: string
+  freshnessWindow: string
+  evaluatedAt: string
+  expiresAt: string | null
+  latestRun: PlatformVerificationSuiteRunSummary | null
+}
+
 export type PlatformRailwayServiceDiscoverySummary = {
   available: boolean
   summaryMessage: string
@@ -3845,6 +3857,10 @@ export function fetchPlatformVerificationSuiteRuns() {
 
 export function fetchPlatformVerificationSuiteRun(runId: string) {
   return request<PlatformVerificationSuiteRunSummary>(`/api/verification-suites/runs/${runId}`)
+}
+
+export function fetchPlatformVerificationReleaseGate() {
+  return request<PlatformVerificationReleaseGateSummary>('/api/verification-suites/release-gate')
 }
 
 export function dispatchPlatformVerificationSuiteRun(

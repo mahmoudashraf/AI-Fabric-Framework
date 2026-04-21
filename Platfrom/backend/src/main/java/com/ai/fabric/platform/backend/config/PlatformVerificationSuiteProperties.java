@@ -10,6 +10,7 @@ public record PlatformVerificationSuiteProperties(
     Duration hostedStageTimeout,
     Duration scriptStageTimeout,
     Duration codeRegressionScriptTimeout,
+    Duration releaseGateFreshness,
     Duration pollInterval,
     int maxRecentRuns,
     int maxStageLogCharacters,
@@ -41,6 +42,9 @@ public record PlatformVerificationSuiteProperties(
         codeRegressionScriptTimeout = codeRegressionScriptTimeout == null || codeRegressionScriptTimeout.isZero() || codeRegressionScriptTimeout.isNegative()
             ? Duration.ofMinutes(75)
             : codeRegressionScriptTimeout;
+        releaseGateFreshness = releaseGateFreshness == null || releaseGateFreshness.isZero() || releaseGateFreshness.isNegative()
+            ? Duration.ofHours(12)
+            : releaseGateFreshness;
         pollInterval = pollInterval == null || pollInterval.isZero() || pollInterval.isNegative()
             ? Duration.ofSeconds(3)
             : pollInterval;

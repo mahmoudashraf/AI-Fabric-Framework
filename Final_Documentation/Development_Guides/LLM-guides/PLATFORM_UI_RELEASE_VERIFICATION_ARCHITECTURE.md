@@ -56,6 +56,12 @@ That means:
 - it has ordered stages
 - it stops on blocking failures
 - it can be surfaced later in release approval and apply flows
+- it now exposes an explicit release-gate status:
+  - `READY`
+  - `RUNNING`
+  - `FAILED`
+  - `STALE`
+  - `MISSING`
 
 ### 2.3 Repair must be explicit and narrow
 
@@ -199,6 +205,7 @@ They encode the operational dependency chain instead of asking each operator or 
 The `Verification Ops` page now exposes:
 
 - canonical fleet summary
+- release gate summary
 - inference-services summary
 - deployment status summary
 - platform release suite dispatch
@@ -211,6 +218,7 @@ The `Verification Ops` page now exposes:
 
 The page is designed so the release suite is the primary path and the manual controls are a fallback.
 The release suite now covers the former GitHub live verification estate plus the platform code regression gate.
+The release gate summary turns the latest full-suite run into a concrete operator signal instead of forcing people to infer readiness from raw run history.
 
 ## 6. Security And Enterprise Boundaries
 

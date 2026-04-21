@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuit
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDefinitionSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchSummary;
+import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationReleaseGateSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageRunSummary;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunRepository;
@@ -75,6 +76,87 @@ public class PlatformVerificationSuiteService {
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Verification suite run not found: " + runId));
         recoverStaleRuns(List.of(run));
         return toSummary(run);
+    }
+
+    public PlatformVerificationReleaseGateSummary getReleaseGate() {
+        PlatformVerificationSuiteDefinitionSummary definition = catalog.requireDefinition(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
+        Instant now = Instant.now();
+        PlatformVerificationSuiteRunEntity latestRun = runRepository.findTopBySuiteKeyOrderByCreatedAtDesc(definition.key())
+            .orElse(null);
+        if (latestRun == null) {
+            return new PlatformVerificationReleaseGateSummary(
+                definition.key(),
+                definition.label(),
+                false,
+                "MISSING",
+                "No full platform release readiness run has been recorded yet.",
+                suiteProperties.releaseGateFreshness(),
+                now,
+                null,
+                null
+            );
+        }
+
+        recoverStaleRuns(List.of(latestRun));
+        PlatformVerificationSuiteRunSummary latestRunSummary = toSummary(latestRun);
+        Instant completedAt = latestRunSummary.completedAt() != null
+            ? latestRunSummary.completedAt()
+            : latestRunSummary.createdAt();
+        Instant expiresAt = completedAt == null ? null : completedAt.plus(suiteProperties.releaseGateFreshness());
+
+        if (ACTIVE_STATUSES.contains(latestRun.getStatus())) {
+            return new PlatformVerificationReleaseGateSummary(
+                definition.key(),
+                definition.label(),
+                false,
+                "RUNNING",
+                "The latest full platform release readiness run is still in progress.",
+                suiteProperties.releaseGateFreshness(),
+                now,
+                expiresAt,
+                latestRunSummary
+            );
+        }
+
+        if (!"PASSED".equalsIgnoreCase(latestRun.getStatus())) {
+            return new PlatformVerificationReleaseGateSummary(
+                definition.key(),
+                definition.label(),
+                false,
+                "FAILED",
+                "The latest full platform release readiness run did not pass. Run the full suite again and resolve the blocking stage before releasing new changes.",
+                suiteProperties.releaseGateFreshness(),
+                now,
+                expiresAt,
+                latestRunSummary
+            );
+        }
+
+        if (expiresAt == null || now.isAfter(expiresAt)) {
+            return new PlatformVerificationReleaseGateSummary(
+                definition.key(),
+                definition.label(),
+                false,
+                "STALE",
+                "The latest full platform release readiness pass is older than the configured freshness window. Run it again before releasing new changes.",
+                suiteProperties.releaseGateFreshness(),
+                now,
+                expiresAt,
+                latestRunSummary
+            );
+        }
+
+        return new PlatformVerificationReleaseGateSummary(
+            definition.key(),
+            definition.label(),
+            true,
+            "READY",
+            "The latest full platform release readiness run passed within the configured freshness window.",
+            suiteProperties.releaseGateFreshness(),
+            now,
+            expiresAt,
+            latestRunSummary
+        );
     }
 
     public PlatformVerificationSuiteDispatchSummary dispatch(String suiteKey,

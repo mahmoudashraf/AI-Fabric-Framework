@@ -29,6 +29,7 @@ import {
   fetchDeploymentVerificationRollouts,
   fetchMarketplaceInferenceServiceHealth,
   fetchMarketplaceInferenceServices,
+  fetchPlatformVerificationReleaseGate,
   fetchPlatformVerificationSuiteDefinitions,
   fetchPlatformVerificationSuiteRuns,
   recreateDeploymentVerificationRollouts,
@@ -37,6 +38,7 @@ import {
   type DeploymentSecretUsageItemSummary,
   type DeploymentSecretUsageSummary,
   type DeploymentVerificationRolloutItemSummary,
+  type PlatformVerificationReleaseGateSummary,
   type PlatformVerificationSuiteRunSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
@@ -217,6 +219,30 @@ function formatRunTimestamp(value: string | null | undefined): string {
   return parsed.toLocaleString()
 }
 
+function formatDurationLabel(value: string | null | undefined): string {
+  if (!value) {
+    return '—'
+  }
+  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(value)
+  if (!match) {
+    return value
+  }
+  const hours = Number(match[1] ?? 0)
+  const minutes = Number(match[2] ?? 0)
+  const seconds = Number(match[3] ?? 0)
+  const parts: string[] = []
+  if (hours > 0) {
+    parts.push(`${hours}h`)
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes}m`)
+  }
+  if (seconds > 0 || parts.length === 0) {
+    parts.push(`${seconds}s`)
+  }
+  return parts.join(' ')
+}
+
 function SummarySectionCard(props: {
   title: string
   subtitle: string
@@ -260,6 +286,14 @@ export function VerificationOpsPage() {
       const runs = query.state.data ?? []
       return runs.some((run) => suiteRunActive(run.status)) ? 4000 : false
     },
+  })
+
+  const verificationReleaseGateQuery = useQuery({
+    queryKey: ['verification-suites', 'release-gate'],
+    queryFn: fetchPlatformVerificationReleaseGate,
+    enabled: canManageHostedVerification,
+    refetchInterval: (query: { state: { data?: PlatformVerificationReleaseGateSummary } }) =>
+      suiteRunActive(query.state.data?.latestRun?.status) ? 4000 : false,
   })
 
   useEffect(() => {
@@ -467,6 +501,7 @@ export function VerificationOpsPage() {
     },
     onSuccess: async () => {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['verification-suites', 'release-gate'] }),
         queryClient.invalidateQueries({ queryKey: ['verification-suites', 'runs'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-rollouts'] }),
         queryClient.invalidateQueries({ queryKey: ['marketplace', 'inference-services'] }),
@@ -609,7 +644,56 @@ export function VerificationOpsPage() {
       </Box>
 
       <Grid container spacing={2}>
-        <Grid item xs={12} lg={4}>
+        <Grid item xs={12} lg={3}>
+          <SummarySectionCard
+            title="Release gate"
+            subtitle="Freshness and pass/fail status for the full platform release readiness suite."
+          >
+            {verificationReleaseGateQuery.isLoading ? (
+              <Typography color="text.secondary">Loading release gate…</Typography>
+            ) : verificationReleaseGateQuery.isError ? (
+              <Alert severity="error">
+                {verificationReleaseGateQuery.error instanceof Error
+                  ? verificationReleaseGateQuery.error.message
+                  : 'Failed to load the platform release gate.'}
+              </Alert>
+            ) : verificationReleaseGateQuery.data ? (
+              <Stack spacing={1.5}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    label={verificationReleaseGateQuery.data.status}
+                    color={verificationStatusColor(verificationReleaseGateQuery.data.status)}
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`Window ${formatDurationLabel(verificationReleaseGateQuery.data.freshnessWindow)}`}
+                    variant="outlined"
+                  />
+                  {verificationReleaseGateQuery.data.latestRun ? (
+                    <Chip
+                      label={`Latest ${verificationReleaseGateQuery.data.latestRun.status}`}
+                      color={verificationStatusColor(verificationReleaseGateQuery.data.latestRun.status)}
+                      variant="outlined"
+                    />
+                  ) : null}
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  {verificationReleaseGateQuery.data.summaryMessage}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Evaluated {formatRunTimestamp(verificationReleaseGateQuery.data.evaluatedAt)}
+                  {verificationReleaseGateQuery.data.expiresAt
+                    ? ` · expires ${formatRunTimestamp(verificationReleaseGateQuery.data.expiresAt)}`
+                    : ''}
+                </Typography>
+              </Stack>
+            ) : (
+              <Alert severity="warning">The platform release gate is not available yet.</Alert>
+            )}
+          </SummarySectionCard>
+        </Grid>
+
+        <Grid item xs={12} lg={3}>
           <SummarySectionCard
             title="Canonical fleet summary"
             subtitle="High-level readiness for the six canonical verification deployments."
@@ -642,7 +726,7 @@ export function VerificationOpsPage() {
           </SummarySectionCard>
         </Grid>
 
-        <Grid item xs={12} lg={4}>
+        <Grid item xs={12} lg={3}>
           <SummarySectionCard
             title="Inference services summary"
             subtitle="Shared inference health plus aggregate platform-managed inference-service state."
@@ -695,7 +779,7 @@ export function VerificationOpsPage() {
           </SummarySectionCard>
         </Grid>
 
-        <Grid item xs={12} lg={4}>
+        <Grid item xs={12} lg={3}>
           <SummarySectionCard
             title="Deployment status summary"
             subtitle="Aggregated canonical deployment, latest release, and verification status counts."
@@ -804,6 +888,11 @@ export function VerificationOpsPage() {
             {selectedSuiteDefinition ? (
               <Alert severity={selectedSuiteDefinition.releaseBlocking ? 'info' : 'warning'}>
                 <strong>{selectedSuiteDefinition.label}</strong>: {selectedSuiteDefinition.description}
+              </Alert>
+            ) : null}
+            {verificationReleaseGateQuery.data && selectedSuiteDefinition?.key === FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY ? (
+              <Alert severity={verificationReleaseGateQuery.data.ready ? 'success' : 'warning'}>
+                Release gate status: <strong>{verificationReleaseGateQuery.data.status}</strong>. {verificationReleaseGateQuery.data.summaryMessage}
               </Alert>
             ) : null}
 

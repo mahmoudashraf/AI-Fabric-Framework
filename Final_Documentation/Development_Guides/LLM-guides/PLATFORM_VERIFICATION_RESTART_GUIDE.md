@@ -233,6 +233,17 @@ Primary release gate:
 
 - `full-platform-release-readiness`
 
+Release-gate summary:
+
+- `/verification-ops` now also exposes a fresh-pass summary for the full suite
+- use it as the top-level operator signal before treating the platform as release-ready
+- expected statuses:
+  - `READY`
+  - `RUNNING`
+  - `FAILED`
+  - `STALE`
+  - `MISSING`
+
 Current ordered stages:
 
 1. platform code regression

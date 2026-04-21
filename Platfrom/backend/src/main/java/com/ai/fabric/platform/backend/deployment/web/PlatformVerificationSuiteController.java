@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.web;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDefinitionSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchSummary;
+import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationReleaseGateSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteRunSummary;
 import com.ai.fabric.platform.backend.deployment.service.PlatformVerificationSuiteService;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,11 @@ public class PlatformVerificationSuiteController {
     @GetMapping("/runs/{runId}")
     public PlatformVerificationSuiteRunSummary getRun(@PathVariable String runId) {
         return platformVerificationSuiteService.getRun(runId);
+    }
+
+    @GetMapping("/release-gate")
+    public PlatformVerificationReleaseGateSummary releaseGate() {
+        return platformVerificationSuiteService.getReleaseGate();
     }
 
     @PostMapping("/{suiteKey}/runs")
