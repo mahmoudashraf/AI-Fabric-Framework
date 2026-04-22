@@ -12,9 +12,9 @@ It assumes the following product and engineering rule:
 
 It should be read with:
 
-- `doc/Productization/future-work/MarketPlace/Products/Strategy/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md`
-- `doc/Operations/observability/LOOMAI_OBSERVABILITY_STARTER_DESIGN.md`
-- `doc/Operations/observability/CARDINALITY_GOVERNANCE_POLICY.md`
+- `./OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md`
+- `./LOOMAI_OBSERVABILITY_STARTER_DESIGN.md`
+- `./CARDINALITY_GOVERNANCE_POLICY.md`
 
 ---
 
@@ -133,6 +133,30 @@ We do not build:
 
 Managed sinks remain the operating assumption.
 
+### 2.7 Performance rule
+
+The starter must not make product request paths slower by introducing synchronous telemetry network work.
+
+That means:
+
+- no request-path calls to Grafana, Sentry, or other managed sinks
+- no direct cloud log shipping inside application request handling
+- no unbounded background queues
+- no expensive caller-data capture by default
+
+Services should emit telemetry quickly and hand off batching, retry, sampling, and memory protection to the collector layer.
+
+### 2.8 Async and event-first rule
+
+The platform should consume observability in two shapes:
+
+- raw telemetry through managed backends
+- normalized diagnostic summaries and lifecycle events through async platform projections
+
+The starter is responsible for correlation-friendly telemetry and local context propagation.
+
+The platform is responsible for turning releases, verification runs, drift, errors, alerts, and managed-service state into investigation-friendly summaries asynchronously rather than inline on user requests.
+
 ---
 
 ## 3) Why This Must Land Now
@@ -219,6 +243,7 @@ Everything else should have correct defaults or optional opt-in configuration.
 The permanent baseline should include:
 
 - structured JSON logging
+- asynchronous local log dispatch using Logback `AsyncAppender`
 - MDC fields for:
   - `deploymentId`
   - `releaseId`
@@ -232,6 +257,9 @@ The permanent baseline should include:
   - `service`
 - secret and obvious-PII redaction
 - shared field naming across services
+- caller data disabled by default unless explicitly needed for a narrow error path
+
+The application must never perform remote log shipping on the request path. Log shipping belongs to the collector layer.
 
 ### 5.4 Metrics baseline
 
@@ -245,6 +273,8 @@ The permanent baseline should include:
 - runtime cardinality guardrails from the governance policy
 - support for safe per-tenant metrics only where explicitly allowed
 
+High-cardinality context such as `tenantId`, `merchantId`, request identifiers, prompts, and expanded URLs belongs in logs and traces, not in general-purpose metric tags.
+
 ### 5.5 Tracing baseline
 
 The permanent baseline should include:
@@ -254,6 +284,8 @@ The permanent baseline should include:
 - propagation of `deploymentId`, `releaseId`, and `verificationRunId` where those contexts exist
 - tenant context propagation into tracing baggage or equivalent
 - compatibility with OpenTelemetry-based deployment configuration
+
+The tracing baseline should assume a local or host-level collector hop where possible so the service can offload telemetry quickly and let the collector handle batching, retry, sampling policy, and memory protection.
 
 The starter should own in-process configuration and propagation, not deployment of the Java agent itself.
 
@@ -295,6 +327,22 @@ This means the starter should emit or preserve stable identifiers and status dim
 - `traceId`
 
 The starter does not render UI itself, but it should make those pages easier to deepen with telemetry drill-down, trend, and alert/SLO cards later.
+
+### 5.9 Performance-preserving telemetry model
+
+The implementation should follow this runtime model:
+
+1. request paths emit logs, metrics, and trace context locally
+2. local process or host-level collectors batch and forward telemetry
+3. platform-native lifecycle records and diagnostic summaries are materialized asynchronously
+4. operator pages read precomputed summaries first and pivot to raw evidence second
+
+The implementation must preserve these rules:
+
+- customer-facing requests must not wait on observability vendor APIs
+- operator page loads must not depend on live multi-provider fan-out for their first render
+- low-value telemetry is dropped before customer traffic is blocked
+- audit-critical lifecycle records remain separate from lossy operational telemetry
 
 ---
 
@@ -397,6 +445,7 @@ Implement:
 
 - `LoomaiObservabilityProperties`
 - JSON logback baseline
+- async appender baseline and queue policy
 - request filter / interceptor for MDC context
 - request-id generation when absent
 - redaction hooks for obvious secrets and common PII
@@ -413,6 +462,7 @@ Implement:
 - Prometheus exposure defaults
 - cardinality meter filter
 - whitelist loading
+- low-cardinality / high-cardinality split rules that keep high-cardinality data out of metrics
 
 Exit condition:
 
@@ -424,8 +474,9 @@ Exit condition:
 Implement:
 
 - trace context propagation support
-- OpenTelemetry-friendly service configuration
+- OpenTelemetry-friendly service configuration targeting a collector-first deployment model
 - optional Sentry auto-configuration and event enrichment
+- explicit non-blocking transport assumptions in configuration and documentation
 
 Exit condition:
 
@@ -447,9 +498,9 @@ Exit condition:
 
 Adopt in order:
 
-1. `product-services/shopify-bridge-service`
-2. `Platfrom/backend`
-3. `ai-infrastructure-module/ai-fabric-runtime`
+1. `Platfrom/backend`
+2. `ai-infrastructure-module/ai-fabric-runtime`
+3. `product-services/shopify-bridge-service`
 
 Per service, do:
 
@@ -543,6 +594,9 @@ The implementation is successful when all of the following are true:
 - **Risk: the starter becomes a second platform project.**
   Mitigation: keep scope limited to shared in-process observability concerns and sink integration hooks.
 
+- **Risk: observability adds latency or throughput loss to product paths.**
+  Mitigation: collector-first transport, async logging, bounded queues, no remote sink calls on request paths, and no expensive caller data by default.
+
 - **Risk: tracing work expands into deployment work too early.**
   Mitigation: keep Java-agent rollout and hosted sink setup outside the starter implementation boundary.
 
@@ -553,7 +607,7 @@ The implementation is successful when all of the following are true:
   Mitigation: centralize the whitelist and validate against the three initial services before wider rollout.
 
 - **Risk: adoption causes hidden service-specific context gaps.**
-  Mitigation: rollout to Shopify Bridge first, then Platform, then Runtime; fix extraction hooks as they appear without changing business logic.
+  Mitigation: rollout to Platform backend first, then Runtime, then Shopify Bridge; fix extraction hooks as they appear without changing business logic.
 
 ---
 

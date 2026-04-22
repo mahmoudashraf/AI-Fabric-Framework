@@ -1,228 +1,287 @@
-# LoomAI Observability Starter — Design Document
+# LoomAI Observability Starter - Design Document
 
-Status: design for the shared Spring Boot starter that every LoomAI service depends on for production-ready observability (2026-04-21)
+Status: design document (2026-04-22)
 
 Purpose:
 
-- make "production-ready observability" a one-line Maven dependency instead of 200 lines of per-service wiring
-- enforce logging / metrics / tracing / error-tracking defaults that survive Codex-generated code
-- encode the cardinality governance policy directly in the starter so violations fail at build time
-- give every new product (Loom Docs, Loom Comply, Loom Knowledge) a zero-effort path to the observability bar
+- make production-ready observability a one-line framework dependency instead of repeated per-service wiring
+- standardize logging, metrics, tracing, and error enrichment across platform backend, runtime, and product services
+- keep telemetry fast and low-overhead by default
+- give the platform control plane a stable telemetry contract for verification, diagnostics, and assistant investigation
 
 Related:
 
-- [OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md](../../Productization/future-work/MarketPlace/Products/Strategy/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md)
-- [CARDINALITY_GOVERNANCE_POLICY.md](./CARDINALITY_GOVERNANCE_POLICY.md)
-- [RUNBOOK_TEMPLATE.md](../runbooks/RUNBOOK_TEMPLATE.md)
+- `./OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md`
+- `./CARDINALITY_GOVERNANCE_POLICY.md`
+- `./LOOMAI_OBSERVABILITY_STARTER_IMPLEMENTATION_PLAN.md`
+- `../runbooks/RUNBOOK_TEMPLATE.md`
 
 ## 1) Design Goals
 
-1. **One dependency, everything wired** — adding the starter to a new service must produce structured logs, Micrometer metrics, OpenTelemetry traces, Sentry integration, and default health endpoints with zero additional code.
-2. **Opinions, not options** — the starter chooses defaults that match the cardinality and PII policies. Products can override via properties, but the defaults are production-correct.
-3. **Fail loud at build time** — policy violations (banned cardinality labels, missing MDC context, unstructured logging) fail at compile or startup, not in production.
-4. **Test ergonomics preserved** — in test profiles, the starter auto-disables expensive integrations (OTLP exporter, Sentry) so unit tests stay fast.
-5. **Upgrade in one place** — when the stack changes (new OTel version, new Grafana Cloud endpoint), one starter release propagates to every product.
+1. **One dependency, production baseline included**: add the starter and get structured logging, Micrometer defaults, trace propagation hooks, optional Sentry enrichment, and sane health defaults.
+2. **Collector-first, not vendor-first**: services emit locally; collectors handle batching, retry, memory protection, and remote transport.
+3. **Fast by default**: observability must not add meaningful latency to customer request paths.
+4. **Cardinality-safe by default**: low-cardinality metrics, rich logs and traces, explicit guardrails.
+5. **Correlation-first**: emit stable identifiers the platform can join across release, verification, diagnostics, and managed-service flows.
+6. **Stable architecture, phased adoption**: one durable module design, rolled out safely across services.
 
-## 2) Module Layout
+## 2) Module Location
 
-Located at `platform/loomai-observability-starter/`:
+The starter belongs in:
 
-```
-loomai-observability-starter/
-├── pom.xml
-├── src/main/java/com/loomai/observability/
-│   ├── LoomaiObservabilityAutoConfiguration.java
-│   ├── logging/
-│   │   ├── JsonLogEncoderConfig.java
-│   │   ├── TenantMdcFilter.java
-│   │   └── PiiScrubbingConverter.java
-│   ├── metrics/
-│   │   ├── MicrometerDefaultsConfig.java
-│   │   ├── CardinalityMeterFilter.java
-│   │   └── CardinalityWhitelistLoader.java
-│   ├── tracing/
-│   │   ├── OpenTelemetryConfig.java
-│   │   └── TenantBaggagePropagator.java
-│   ├── errors/
-│   │   ├── SentryConfig.java
-│   │   └── SentryTenantScopeEnricher.java
-│   ├── health/
-│   │   └── LoomaiHealthEndpointConfig.java
-│   └── properties/
-│       └── LoomaiObservabilityProperties.java
-├── src/main/resources/
-│   ├── META-INF/spring.factories
-│   ├── META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
-│   ├── logback-loomai.xml
-│   └── cardinality-whitelist.yaml
-└── src/test/...
-```
+- `ai-infrastructure-module/loomai-observability-starter`
 
-## 3) Consumption
+It does not belong under `Platfrom/` because it must be consumable by:
 
-A new service adds:
+- `Platfrom/backend`
+- `ai-infrastructure-module/ai-fabric-runtime`
+- `product-services/*`
 
-```xml
-<dependency>
-  <groupId>com.loomai.platform</groupId>
-  <artifactId>loomai-observability-starter</artifactId>
-  <version>${loomai.platform.version}</version>
-</dependency>
+## 3) Module Layout
+
+```text
+ai-infrastructure-module/loomai-observability-starter/
+|-- pom.xml
+|-- src/main/java/com/ai/infrastructure/observability/
+|   |-- LoomaiObservabilityAutoConfiguration.java
+|   |-- properties/
+|   |   `-- LoomaiObservabilityProperties.java
+|   |-- logging/
+|   |   |-- ObservabilityLogbackConfigurer.java
+|   |   |-- RequestContextMdcFilter.java
+|   |   `-- RedactionSupport.java
+|   |-- metrics/
+|   |   |-- MicrometerDefaultsConfig.java
+|   |   |-- CardinalityMeterFilter.java
+|   |   `-- CardinalityWhitelistLoader.java
+|   |-- tracing/
+|   |   |-- TraceContextConfig.java
+|   |   `-- TenantBaggagePropagator.java
+|   |-- errors/
+|   |   |-- SentryConfig.java
+|   |   `-- SentryScopeEnricher.java
+|   `-- testing/
+|       `-- ObservabilityStarterTestSupport.java
+`-- src/main/resources/
+    |-- META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+    |-- logback-loomai.xml
+    `-- cardinality-whitelist.yaml
 ```
 
-And sets the two properties that cannot be inferred:
+## 4) Consumption Model
+
+A consuming service adds the dependency and sets the two required identifiers:
 
 ```yaml
 loomai:
   observability:
-    product: shopify-companion   # required — one of the enumerated product values
-    service: shopify-bridge      # required — matches deployment name
+    product: platform-control-plane
+    service: platform-backend
 ```
 
-Everything else has production-correct defaults.
+Everything else should have safe defaults.
 
-## 4) Component Design
+## 5) Component Design
 
-### 4.1 Structured Logging
+### 5.1 Logging
 
-- Logback configuration packaged as `logback-loomai.xml`; loaded automatically if the consumer has not provided their own `logback-spring.xml`
-- JSON encoder based on `logstash-logback-encoder`
-- Standard fields on every line: `@timestamp`, `level`, `logger`, `message`, `service`, `product`, `environment`, `traceId`, `spanId`, `tenantId`, `merchantId`, `requestId`, `errorClass`, `stackTrace` (when applicable)
-- A Logback `Converter` scans messages and MDC values for PII patterns (email / phone / credit-card / access-token) and redacts before emission
-- A `TenantMdcFilter` (Servlet + WebFlux variants) extracts `tenantId` from either (a) a JWT claim, (b) the `X-Tenant-Id` header, or (c) a resolver bean provided by the consumer, and pushes it into MDC for the request lifecycle
+The starter should provide:
 
-Banned at runtime: plain `System.out.println` calls are not catchable by Logback, but an annotation processor (4.6) rejects them at compile time in any module that depends on the starter.
+- structured JSON logging
+- a shared field schema
+- MDC population for request and deployment context
+- redaction for secrets and agreed PII classes
+- async local dispatch via Logback `AsyncAppender`
 
-### 4.2 Metrics
+Required fields:
 
-- `MicrometerDefaultsConfig` wires a `PrometheusMeterRegistry` and a remote-write exporter pointed at the Grafana Cloud endpoint configured via properties
-- `CardinalityMeterFilter` applies the rules from the cardinality governance policy:
-  - drops any metric with Bucket C labels
-  - replaces `tenantId` / `merchantId` values with `"unlisted"` for metric names not in the whitelist
-  - route-templates `endpoint` labels using Spring's `HandlerMapping`
-  - lowercases enum labels for consistency
-- `CardinalityWhitelistLoader` reads `cardinality-whitelist.yaml` (from the starter's classpath, extendable by consumers via `loomai.observability.whitelist-overlay`)
-- Standard meters auto-registered: JVM, system CPU, Tomcat / Netty, HikariCP, HTTP server, HTTP client, `@Scheduled` execution time
-- Product-specific meters: consumers emit them via `MeterRegistry` injection; the filter takes care of governance
+- `timestamp`
+- `level`
+- `logger`
+- `message`
+- `product`
+- `service`
+- `environment`
+- `deploymentId`
+- `releaseId`
+- `verificationRunId`
+- `requestId`
+- `tenantId`
+- `merchantId`
+- `traceId`
+- `spanId`
+- `errorClass`
 
-Default scrape interval: 15s to Grafana Cloud remote write. Override via `loomai.observability.metrics.export-interval`.
+Performance rules:
 
-### 4.3 Tracing
+- no remote log shipping from the request path
+- caller data off by default
+- WARN and ERROR should survive pressure better than lower-value events
+- queue policy must be bounded and explicit
 
-- `OpenTelemetryConfig` wires the OTel SDK with an OTLP exporter to Grafana Tempo
-- Auto-instrumentation: HTTP server, HTTP client, JDBC, R2DBC, Shopify Admin API client (instrumented explicitly — see 4.7), LLM provider clients (Anthropic, OpenAI — instrumented explicitly)
-- `TenantBaggagePropagator` attaches `tenantId` to OTel `Baggage` so downstream services receive it without manual plumbing
-- Default sampler: parent-based, 10% head sampling for root spans. Override via `loomai.observability.tracing.sample-ratio`. Errors and slow requests (>P99 latency) are always sampled via tail-sampling rules at the collector (not in the SDK)
-- LLM call attributes captured: `llm.provider`, `llm.model`, `llm.tokens.input`, `llm.tokens.output`, `llm.latency_ms`, `llm.cost_usd_estimate`. Prompt and response text attached as span events, truncated to 2000 characters
+### 5.2 Metrics
 
-### 4.4 Error Tracking
+The starter should provide:
 
-- `SentryConfig` enables the Sentry Java SDK, disabled in test profile
-- `SentryTenantScopeEnricher` attaches `tenantId`, `merchantId`, `product`, `service`, `traceId` to every event's scope
-- Release tagging: `sentry.release` set from `BuildProperties` (requires `spring-boot-maven-plugin` `build-info` goal; starter documents this requirement)
-- PII scrubbing: the Sentry SDK's `beforeSend` hook runs the same scrubber as the Logback converter, so Sentry events cannot leak what logs cannot
-- Grouping: errors are fingerprinted by `product` + `service` + `errorClass` + top stack frame — prevents one-off stack-trace noise from creating thousands of issue groups
+- Micrometer common tags:
+  - `product`
+  - `service`
+  - `environment`
+- Spring Boot Actuator-compatible Prometheus exposure
+- meter filters for cardinality protection
+- whitelist-driven exceptions for narrowly approved tenant-scoped metrics
 
-### 4.5 Health Endpoints
+Metric rules:
 
-- `/actuator/health` — standard Spring Boot health (liveness)
-- `/actuator/health/liveness` — Kubernetes liveness probe; returns 200 if JVM is responsive
-- `/actuator/health/readiness` — Kubernetes readiness; returns 200 only if dependencies (DB, vector store, LLM provider) are reachable
-- `/loomai/observability/self-check` — a starter-provided endpoint that confirms logs are being shipped, metrics are being scraped, and at least one recent trace was exported. Used by BetterStack probes and the Phase B launch gate.
+- low-cardinality dimensions belong in metrics
+- high-cardinality context belongs in logs and traces
+- route templates should be normalized before tagging
+- prompts, expanded URLs, search queries, and other arbitrary strings are never meter tags
 
-### 4.6 Compile-Time Enforcement
+### 5.3 Tracing
 
-A companion annotation processor (`loomai-observability-lint`) rejects at compile time:
+The starter should provide:
 
-- `System.out.println`, `System.err.println`
-- `printStackTrace()` invocations
-- SLF4J calls with string concatenation (forces parameterized logging: `log.info("x={}", x)`)
-- Micrometer `Tag.of("tenantId", ...)` calls outside whitelisted metric names
-- Direct instantiation of `Logger` from `java.util.logging`
+- trace context propagation hooks
+- service name alignment from properties
+- propagation of:
+  - `deploymentId`
+  - `releaseId`
+  - `verificationRunId`
+  - `tenantId`
+  - `merchantId` when applicable
 
-Consumers depend on the processor in the provided scope; it does not ship into production artifacts.
+Transport rules:
 
-### 4.7 Integration Points Consumers Implement
+- target a local or host-level OTLP collector endpoint by default
+- do not assume direct service-to-vendor export as the primary path
+- let the collector own batching, retry, memory protection, and advanced sampling
 
-The starter cannot know everything — consumers provide:
+### 5.4 Error Tracking
 
-- `TenantIdResolver` bean — extracts tenant from the request; default implementation tries JWT claim then header
-- `ShopifyClientInstrumentation` — for services that call the Shopify Admin API, a pre-written `WebClient.Builder` customization adds tracing spans and metrics per Shopify resource
-- `LLMClientInstrumentation` — provided wrappers for the Anthropic and OpenAI Java SDKs that add `llm.*` span attributes and `llm_calls_total` counter
+The starter should provide optional Sentry auto-configuration with:
 
-## 5) Configuration Surface
+- shared scope enrichment:
+  - `product`
+  - `service`
+  - `tenantId`
+  - `merchantId`
+  - `traceId`
+- release tagging
+- redaction behavior aligned with logging
+
+The design assumption is that error shipping should be non-blocking from the point of view of the request path.
+
+### 5.5 Health and Local Wiring Checks
+
+The starter should support:
+
+- normal Spring Boot liveness/readiness health endpoints
+- optional local observability self-checks that validate:
+  - config loaded
+  - MDC filter active
+  - meter filter active
+  - tracing hooks active
+
+The starter should not attempt to prove that Grafana Cloud or Sentry already received data. End-to-end sink verification belongs in environment verification and deployment readiness checks.
+
+### 5.6 Compile-Time Enforcement
+
+A companion lint module is still a valid follow-on track, but it is not required for the architecture to be mature.
+
+If implemented, it should focus on:
+
+- rejecting `System.out.println`
+- rejecting `printStackTrace`
+- rejecting obviously unsafe metric tags
+- pushing teams toward parameterized logging
+
+## 6) Consumer Integration Points
+
+The starter cannot infer everything. Consumers may provide:
+
+- `TenantIdResolver`
+- `MerchantIdResolver`
+- request/deployment correlation hooks where the service already knows those values
+- optional client instrumentation adapters for Shopify and LLM providers
+
+The starter should never force business-logic rewrites just to fit observability.
+
+## 7) Configuration Surface
 
 ```yaml
 loomai:
   observability:
-    product: shopify-companion           # required
-    service: shopify-bridge              # required
+    product: platform-control-plane
+    service: platform-backend
     environment: ${SPRING_PROFILES_ACTIVE:prod}
 
     logging:
-      json: true                         # false only in local dev for human readability
-      include-mdc-keys: "*"              # comma-separated or wildcard
-      pii-scrubbing: true                # disable only for security-reviewed tests
+      json: true
+      async: true
+      caller-data: false
+      pii-redaction: true
 
     metrics:
-      export-endpoint: ${GRAFANA_CLOUD_PROMETHEUS_URL}
-      export-interval: 15s
-      whitelist-overlay: classpath:cardinality-whitelist-overlay.yaml  # optional product-specific additions
+      prometheus-exposure: true
+      whitelist-overlay: classpath:cardinality-whitelist-overlay.yaml
 
     tracing:
       enabled: true
-      otlp-endpoint: ${GRAFANA_CLOUD_TEMPO_URL}
+      otlp-endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
       sample-ratio: 0.1
 
     errors:
       enabled: true
-      sentry-dsn: ${SENTRY_DSN}
-      release: ${spring.application.version:unknown}
+      sentry-dsn: ${SENTRY_DSN:}
 
     health:
-      self-check-enabled: true
+      local-self-check-enabled: false
 ```
 
-All secrets (`GRAFANA_CLOUD_*`, `SENTRY_DSN`) come from the environment, not configuration files.
+Secrets stay env-driven, not committed to source control.
 
-## 6) Testing Strategy
+## 8) Testing Strategy
 
-- `@ObservabilityStarterTest` meta-annotation enables an in-memory meter registry, a span-capturing tracer, and a mock Sentry transport — tests can assert on emitted signals without network
-- A starter integration test suite runs against a real Grafana Cloud staging account nightly; failures block the starter release
-- Each consumer service gets a "observability smoke test" — a single integration test that hits a sample endpoint and asserts log, metric, and trace emission. Provided as a reusable JUnit extension.
+The starter should support:
 
-## 7) Versioning and Rollout
+- unit tests without hosted sink dependencies
+- integration tests for:
+  - property binding
+  - auto-configuration
+  - MDC propagation
+  - meter filter behavior
+  - optional Sentry on/off behavior
+- reusable smoke-test helpers for consumer services
 
-- Starter follows semver; breaking changes require a migration note
-- Published to the internal Maven repository on every merge to `main`
-- Consumers pin via the `loomai.platform.version` BOM — single-line upgrade
-- First release (`1.0.0`) must precede Shopify Companion V1 launch (Phase B of the foundation plan)
-- `1.1.0` target: Week 3–4, adds the WooCommerce bridge instrumentation and the whitelist overlay feature
-- `2.0.0` target: after product #3 launch — any breaking changes learned from 90 days of production use
+Optional environment smoke tests against real managed backends are useful, but they should not be the only proof that the starter works.
 
-## 8) What the Starter Does NOT Do
+## 9) What the Starter Does Not Do
 
-Explicit non-goals, to keep scope honest:
+- It does not define dashboards.
+- It does not define alert rules.
+- It does not replace the platform verification or diagnostics UI.
+- It does not install the OpenTelemetry Java agent.
+- It does not become a business-event or audit framework.
+- It does not make live multi-provider calls just to render telemetry locally.
 
-- **Does not provide dashboards** — dashboards live in Grafana with per-product definitions, versioned separately
-- **Does not provide alert rules** — alert definitions live in the Prometheus / Alertmanager config repo, per product
-- **Does not replace `AIMetricsService` / `AIHealthService`** — those continue to exist; the starter adds Micrometer adapters so their counters become real time series, but the in-memory APIs remain
-- **Does not handle business-level events** — audit logs, security events, compliance trails remain in their existing pipelines
-- **Does not implement sampling policy changes at runtime** — sample ratios change via deployment, not feature flag, to prevent accidental cost spikes
+## 10) Risks and Mitigations
 
-## 9) Risks and Mitigations
+- **Risk: the starter becomes a second platform product.**  
+  Mitigation: keep it focused on shared in-process observability concerns.
 
-- **Risk: starter becomes a bottleneck for every product change.** Mitigation: consumers can override any default via properties; the starter is opinionated, not restrictive. Escape hatches are documented.
-- **Risk: upgrading the starter breaks many services at once.** Mitigation: semver discipline; breaking changes require a migration note and a deprecation release; staging rollout before prod.
-- **Risk: Codex generates code that defeats the lint rules.** Mitigation: rules run in CI, not just IDE; PR check blocks merge on violation.
-- **Risk: PII scrubber false-negatives leak data.** Mitigation: scrubber is backed by a test corpus of known patterns; adding a new pattern is a one-line change; Sentry has a second pass.
-- **Risk: cost of managed services outpaces budget.** Mitigation: cardinality governance policy enforces series caps; monthly cost review in the foundation plan's cadence.
+- **Risk: observability slows product requests.**  
+  Mitigation: async logging, collector-first transport, bounded queues, and no request-path remote sink calls.
 
-## 10) Open Questions
+- **Risk: metric cardinality gets out of control.**  
+  Mitigation: central meter filters, explicit whitelist, and low/high-cardinality split.
 
-Tracked for resolution before `1.0.0`:
+- **Risk: the design still assumes future rewrites.**  
+  Mitigation: stable module boundary and stable property model from day one.
 
-- Does `TenantIdResolver` need to support async resolution (e.g. DB lookup)? Current design is synchronous; if not sufficient, add a `ReactiveTenantIdResolver` variant
-- Should LLM span attributes include a cost estimate at emission time, or only tags that allow later aggregation? Leaning toward emission-time with a swappable pricing table
-- Tail-sampling vs head-sampling: Grafana Tempo supports tail-sampling at the collector — worth the complexity for 1.0 or defer to 2.0?
-- Do we need a "multi-region" mode for Loom Comply's regulated-vertical deployments, or does single-region suffice for year one?
+## 11) Open Questions
+
+- When do we add compile-time lint, if at all?
+- Do we want starter-provided wrappers for specific external SDKs, or should that stay per-service until repeated pain appears?
+- What sampling policy should be fixed in the service and what should remain collector-side?
+- Which local self-checks are worth shipping in the starter and which belong in platform-level readiness logic?

@@ -10,6 +10,7 @@ Execution note (2026-04-06):
   - phase-1 `PLATFORM_PROXY_SESSION`
   - later opt-in `PUBLIC_RUNTIME_BROWSER_TOKEN`
 - where this broader planning document and the Track C execution plan differ on first-release product shape, the Track C execution plan should win
+- this broader planning document should therefore focus on assistant product fit, source-of-truth boundaries, and durable architectural rules rather than trying to redefine Track C execution sequencing
 
 This document describes how the platform should use its own deployment model to create and operate an AI assistant for the platform itself.
 
@@ -103,6 +104,29 @@ This can later become:
 - a tenant support assistant
 - an embedded assistant in customer-admin flows
 
+### 3.4 Correct fit in the operator UX
+
+The assistant should sit above the existing deterministic operator surfaces, not replace them.
+
+The existing source-of-truth surfaces remain:
+
+- `/verification` for deployment-level apply gating and post-apply verification
+- `/verification-ops` for fleet release gate, canonical rollout orchestration, and hosted verification operations
+- `/diagnostics` for drift, remediation, logs, verification evidence, and audit visibility
+
+The assistant should act as:
+
+- an interpreter of those surfaces
+- a navigator to the correct page, deployment, release, or verification run
+- a governed action launcher when the user is allowed
+
+The assistant should not become:
+
+- the only place an operator can inspect release evidence
+- a replacement for raw evidence tables, logs, or status chips
+- a second release-gate system separate from the platform UI
+- a generic chat layer with no clear operational value
+
 ---
 
 ## 4) Product Model
@@ -127,17 +151,31 @@ Recommended deployment types:
 
 ## 5) Assistant Capabilities
 
-### 5.1 Retrieval sources
+### 5.1 Retrieval sources and source precedence
+
+For operational questions, the assistant must prefer live platform state over narrative or planning material.
+
+Recommended source precedence:
+
+1. platform APIs and live deployment state
+2. release, verification, diagnostics, and audit records
+3. runbooks, operator documentation, and user guides
+4. productization plans or strategy documents only when the user explicitly asks about roadmap, design rationale, or policy intent
 
 The assistant should retrieve from:
 
-- platform user guides
-- productization plans and runbooks
 - deployment metadata
 - release history
 - verification results
 - diagnostics summaries
 - audit summaries
+- platform user guides and runbooks
+- productization plans when explicitly relevant
+
+Operational interpretation:
+
+- live operational answers should come from live state and operational records first
+- strategy and planning docs may be useful for explaining intent, but they should not override current platform truth
 
 ### 5.2 Action capabilities
 
@@ -202,6 +240,8 @@ The important distinction is:
 
 Within deployment pages/workspaces, show an assistant side panel scoped to the current deployment.
 
+Over time, this same scoped pattern should be available from the verification and diagnostics flows so the user can ask contextual questions without re-explaining which deployment or release they mean.
+
 Scoped prompts:
 
 - explain latest failure
@@ -213,11 +253,50 @@ Scoped prompts:
 
 Assistant responses should support:
 
+- a short direct answer
+- evidence summary
 - citations
+- deep links back to the relevant platform surfaces
 - related deployments
+- correlation identifiers when available
 - proposed next actions
 - approval cards
 - action result summaries
+
+Minimum response contract for operator-facing answers:
+
+- summary: what is happening
+- evidence: why the assistant believes it
+- citations: what source types were used
+- navigation: where the operator should click next
+- action posture: whether the next action is read-only, confirmation-required, or approval-required
+
+Preferred deep-link targets include:
+
+- `/verification`
+- `/verification-ops`
+- `/diagnostics`
+- deployment activity or overview routes when relevant
+
+When available, the response contract should preserve or surface:
+
+- `deploymentId`
+- `releaseId`
+- `verificationRunId`
+- `requestId`
+- `traceId`
+
+### 6.4 Deterministic evidence remains first-class
+
+The assistant should summarize and correlate evidence, but it should not hide the deterministic operator surfaces.
+
+For example:
+
+- if the assistant explains why a deployment cannot apply, it should still link the user to `/verification`
+- if the assistant explains rollout fleet status, it should still link the user to `/verification-ops`
+- if the assistant explains drift or remediation, it should still link the user to `/diagnostics`
+
+The assistant is therefore a copilot layer over the platform UI, not a substitute for the platform UI.
 
 ---
 
@@ -227,13 +306,16 @@ The platform should let admins configure what the assistant can see.
 
 Recommended source types:
 
-- documents
+- live platform state
 - deployment metadata
 - release records
+- verification records
 - diagnostics
 - logs summaries
 - templates
 - audit records
+- documents and runbooks
+- strategy and productization docs as a lower-priority optional source class
 
 Recommended source scope controls:
 
@@ -241,6 +323,15 @@ Recommended source scope controls:
 - team sources
 - assigned deployment sources
 - explicit deployment set
+
+Recommended trust tiers for operational answers:
+
+- Tier A: live platform state and current API-backed facts
+- Tier B: persisted operational records such as release, verification, diagnostics, and audit history
+- Tier C: human-authored docs and runbooks
+- Tier D: planning and strategy documents
+
+The assistant should prefer higher-trust tiers for operational questions and clearly cite when it is making an inference from lower-trust narrative material.
 
 ---
 
@@ -333,6 +424,27 @@ It may only reference:
 - last updated metadata
 - whether a change requires apply
 
+### 8.6 Correlation and evidence contract
+
+The assistant should preserve or emit correlation identifiers wherever the platform already knows them.
+
+Preferred identifiers:
+
+- `deploymentId`
+- `releaseId`
+- `verificationRunId`
+- `requestId`
+- `traceId`
+
+These identifiers should be usable across:
+
+- assistant citations
+- action previews and results
+- audit records
+- deep links back to verification and diagnostics pages
+
+`traceId` may be unavailable in some current flows until the shared observability foundation is implemented more fully, but the assistant contract should already be shaped to support it.
+
 ---
 
 ## 9) Platform Backend Changes
@@ -366,6 +478,17 @@ Add a bounded action layer that maps assistant actions to platform APIs with:
 - assistant-specific authorization preflight
 - assistant-specific execution routes instead of implicit reuse of browser session auth
 
+### 9.4 Assistant status and existing operator surfaces
+
+The backend should expose assistant status and readiness as safe platform metadata that can be used by:
+
+- the dedicated assistant page
+- deployment overview
+- diagnostics
+- other operator summary surfaces where assistant readiness matters
+
+The assistant should not depend on a hidden health model that only exists inside the assistant page.
+
 ---
 
 ## 10) Frontend Changes
@@ -389,7 +512,19 @@ The intended shape is:
 - platform-backed proxy/auth model
 - richer shell embeds or panels later
 
-### 10.2 Admin configuration UI
+### 10.2 Existing operator surface integration
+
+Add assistant entry points and deep-link integration from the existing operator flows rather than treating the assistant as an isolated destination.
+
+Recommended integrations:
+
+- launch into deployment-scoped assistant context from deployment workspaces
+- launch from verification and diagnostics pages with the relevant deployment context
+- show assistant readiness or degraded state in existing operator summary surfaces where appropriate
+
+The assistant must complement the existing pages, not encourage users to abandon them.
+
+### 10.3 Admin configuration UI
 
 Add admin controls for:
 
@@ -399,7 +534,7 @@ Add admin controls for:
 - approval policy
 - assistant branding / prompt policy
 
-### 10.3 Conversation memory strategy
+### 10.4 Conversation memory strategy
 
 Recommended memory layers:
 
@@ -407,7 +542,13 @@ Recommended memory layers:
 - deployment context memory
 - user-specific recent actions
 
-Do not mix this with unrestricted permanent memory.
+Required memory rules:
+
+- deployment-scoped memory must be isolated by deployment and must not bleed across deployments
+- deployment context should reset or be explicitly rebound when the user changes deployment context
+- recent-action memory should have a short TTL and should store only safe non-secret summaries
+- unrestricted permanent memory is out of scope
+- raw secret material, raw auth tokens, and privileged execution payloads must never become conversational memory
 
 ---
 
@@ -422,8 +563,14 @@ Use the normal platform-managed runtime deployment as the assistant brain.
 Sources should include:
 
 - docs corpus
-- deployment and release metadata connectors
+- deployment, release, verification, and diagnostics metadata connectors
 - diagnostics summaries
+- audit summaries
+
+Preferred retrieval posture:
+
+- summarize logs through governed summaries or explicit deep links
+- do not treat raw log corpus browsing as the primary assistant interaction model
 
 ### 11.3 Actions
 
@@ -472,26 +619,28 @@ Later enterprise features:
 ### Phase 1
 
 - assistant deployment template
+- assistant bootstrap and reconcile path
+- `support` curated module
 - platform-proxy private-runtime auth mode
-- read-only platform assistant
+- shared assistant auth context and signed action context for platform-proxy mode
+- assistant status API and platform-backed chat proxy
+- action-first platform assistant with bounded read actions and a narrow governed write path where the current user is allowed
 - docs + deployment metadata retrieval
+- release, verification, and diagnostics retrieval with explicit source precedence
+- dedicated first-party assistant page using `max-mode-widget`
 - deployment-scoped assistant panel
 
 ### Phase 2
 
-- shared assistant auth context and signed action context
-- diagnostics and release explanation
+- diagnostics and release explanation quality improvements
 - citations and source drawer
-- user-scoped access filtering
-- read-only operational actions
+- deeper links into verification and diagnostics surfaces
+- approval cards
+- approval-required administrative actions
+- conversation history and saved threads
+- assignment-aware assistant behavior
 
 ### Phase 3
-
-- approval-required administrative actions
-- assignment-aware assistant behavior
-- conversation history and saved threads
-
-### Phase 4
 
 - public-runtime browser-token mode
 - anonymous public assistant support
@@ -510,5 +659,6 @@ The right strategic move is:
 - build the platform assistant as a real deployment on the platform
 - give it curated sources and bounded actions
 - keep it permission-aware and approval-driven
+- position it as the operator copilot layer over the existing deterministic control-plane pages, not as their replacement
 
 That makes the platform both more usable and more credible as an enterprise AI deployment product.

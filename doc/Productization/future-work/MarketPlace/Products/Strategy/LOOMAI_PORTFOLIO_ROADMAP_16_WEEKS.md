@@ -18,7 +18,7 @@ This document should be read with:
 - [LOOM_COMPANION_SHOPIFY_LAUNCH_PLAN.md](LOOM_COMPANION_SHOPIFY_LAUNCH_PLAN.md)
 - [LOOM_COMPANION_GO_TO_MARKET_PLAYBOOK.md](LOOM_COMPANION_GO_TO_MARKET_PLAYBOOK.md)
 - [PLATFORM_UI_PERSONA_SEPARATION_PLAN.md](PLATFORM_UI_PERSONA_SEPARATION_PLAN.md)
-- [OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md](OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md)
+- [OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md](../../../../Operations/observability/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md)
 
 ## 1) Portfolio Shape
 
@@ -34,7 +34,7 @@ Shopify Companion is the anchor. Every other product inherits platform capabilit
 
 ## 2) The Reliability Gate
 
-Velocity never overrides reliability. Product #3 does not ship to production until the Phase D checklist in [OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md](OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md) is green:
+Velocity never overrides reliability. Product #3 does not ship to production until the Phase D checklist in [OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md](../../../../Operations/observability/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md) is green:
 
 1. Two products running on the shared observability stack for ≥2 weeks
 2. MTTD <5 min verified via synthetic-failure drill

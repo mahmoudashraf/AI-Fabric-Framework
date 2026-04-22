@@ -4,7 +4,7 @@ Status: execution checklist (2026-04-22)
 
 This document is the task checklist companion to:
 
-- `doc/Operations/observability/LOOMAI_OBSERVABILITY_STARTER_IMPLEMENTATION_PLAN.md`
+- `./LOOMAI_OBSERVABILITY_STARTER_IMPLEMENTATION_PLAN.md`
 
 Use this document for execution tracking.
 
@@ -28,11 +28,16 @@ Use the implementation plan for:
 - [ ] Confirm canonical `product` names for the initial consumers
 - [ ] Confirm canonical `service` names for the initial consumers
 - [ ] Confirm managed observability sinks remain external and are not part of this coding stream
+- [ ] Confirm collector-first transport is the baseline:
+  - services emit locally
+  - collectors batch and forward
+  - request paths never call managed observability vendors directly
 - [ ] Confirm compile-time lint is optional follow-on work, not a delivery blocker
 - [ ] Confirm the existing operator surfaces that should consume the telemetry contract:
   - `/verification`
   - `/verification-ops`
   - `/diagnostics`
+- [ ] Confirm platform summaries should be materialized asynchronously instead of built by live multi-provider fan-out on each page request
 
 Exit gate:
 
@@ -102,6 +107,7 @@ Exit gate:
 ### 3.1 Structured log baseline
 
 - [ ] Add shared JSON logging configuration
+- [ ] Add `AsyncAppender` baseline so logs are dispatched locally without request-path remote shipping
 - [ ] Standardize fields:
   - `timestamp`
   - `level`
@@ -135,12 +141,20 @@ Exit gate:
 - [ ] Redact obvious PII classes that are already agreed in the design/policy docs
 - [ ] Ensure logging redaction rules are reusable by error tracking where possible
 
-### 3.4 Logging verification
+### 3.4 Logging performance and backpressure
+
+- [ ] Keep caller data disabled by default
+- [ ] Define queue size and discarding policy for the async appender
+- [ ] Ensure WARN / ERROR are preserved preferentially under pressure
+- [ ] Ensure logging never performs managed-sink I/O on the request path
+
+### 3.5 Logging verification
 
 - [ ] Add tests for request-context population
 - [ ] Add tests for correlation-field population when context exists
 - [ ] Add tests for missing-context fallback behavior
 - [ ] Add tests for secret redaction
+- [ ] Add tests or config assertions for async appender/backpressure behavior where practical
 
 Exit gate:
 
@@ -158,6 +172,7 @@ Exit gate:
   - `environment`
 - [ ] Ensure Prometheus-compatible exposure works with Spring Actuator
 - [ ] Confirm starter does not conflict with existing service metrics
+- [ ] Ensure high-cardinality context stays out of meter tags by default
 
 ### 4.2 Cardinality enforcement
 
@@ -171,6 +186,8 @@ Exit gate:
 - [ ] Align implementation with `CARDINALITY_GOVERNANCE_POLICY.md`
 - [ ] Verify allowed `tenantId` / `merchantId` metric usage paths
 - [ ] Verify banned labels are rejected consistently
+- [ ] Align low-cardinality metric tags with Micrometer Observation API conventions
+- [ ] Treat high-cardinality identifiers as logs/traces data, not general metric tags
 
 ### 4.4 Metrics verification
 
@@ -194,6 +211,7 @@ Exit gate:
 - [ ] Propagate `deploymentId`, `releaseId`, and `verificationRunId` where relevant
 - [ ] Propagate `tenantId` into tracing context or baggage
 - [ ] Keep Java-agent installation outside starter responsibilities
+- [ ] Target a collector-first OTLP path instead of service-to-vendor direct export where possible
 
 ### 5.2 Error tracking
 
@@ -205,6 +223,7 @@ Exit gate:
   - `merchantId`
   - `traceId`
 - [ ] Reuse or align redaction behavior with logging
+- [ ] Keep error shipping non-blocking from the point of view of the request path
 
 ### 5.3 Verification
 
@@ -237,6 +256,7 @@ Exit gate:
 - [ ] Define the starter-emitted identifiers and status dimensions the platform should surface into `/verification`, `/verification-ops`, and `/diagnostics`
 - [ ] Confirm how logs, traces, and errors will be correlated or deep-linked from those pages
 - [ ] Keep the UI implementation outside the starter, but document the telemetry contract clearly
+- [ ] Confirm the platform will read precomputed diagnostic summaries first and only pivot to raw evidence on demand
 
 Exit gate:
 
@@ -340,6 +360,8 @@ Exit gate:
 - [ ] Verify request and tenant context are visible end-to-end in the core flow
 - [ ] Verify `deploymentId`, `releaseId`, `verificationRunId`, `requestId`, and `traceId` correlation works across platform backend and runtime for verification flows
 - [ ] Verify the existing `/verification`, `/verification-ops`, and `/diagnostics` surfaces have a clear telemetry contract or drill-down path
+- [ ] Verify no service requires synchronous managed-sink network calls on customer request paths
+- [ ] Verify operator surfaces can correlate precomputed summaries with raw-evidence pivots
 
 Exit gate:
 
@@ -377,6 +399,7 @@ These are valid follow-on tasks after the baseline lands.
 - [ ] Shopify Bridge is adopted
 - [ ] Each adopted service has an observability smoke test
 - [ ] Existing verification and diagnostics surfaces have a documented telemetry contract
+- [ ] No service depends on request-path vendor calls for observability
 - [ ] No critical business-logic rewrite was required
 
 ---

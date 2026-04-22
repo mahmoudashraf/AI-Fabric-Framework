@@ -26,11 +26,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  simple:
+    metrics:
+      export:
+        enabled: false
   endpoint:
     health:
       probes:
         enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+loomai:
+  observability:
+    product: loom-shopify
+    service: shopify-bridge-service
+    environment: ${SHOPIFY_BRIDGE_ENVIRONMENT_SCOPE:${ENVIRONMENT:local}}
 
 shopify:
   bridge:

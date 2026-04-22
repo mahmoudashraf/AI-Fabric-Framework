@@ -130,7 +130,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  simple:
+    metrics:
+      export:
+        enabled: false
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+loomai:
+  observability:
+    product: loom-runtime
+    service: ai-fabric-runtime
+    environment: ${AI_FABRIC_RUNTIME_ENVIRONMENT:${ENVIRONMENT:local}}
 
 logging:
   level:

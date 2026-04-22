@@ -15,6 +15,11 @@ import java.util.List;
 @Slf4j
 public class RuntimeRequestAuthResolver {
 
+    private static final String RESOLVED_IDENTITY_ATTRIBUTE =
+        RuntimeRequestAuthResolver.class.getName() + ".resolvedIdentity";
+    private static final String RESOLUTION_ATTEMPTED_ATTRIBUTE =
+        RuntimeRequestAuthResolver.class.getName() + ".resolutionAttempted";
+
     private final RuntimeAuthProperties properties;
     private final RuntimePrivateAssertionService runtimePrivateAssertionService;
     private final RuntimePublicTokenService runtimePublicTokenService;
@@ -37,7 +42,7 @@ public class RuntimeRequestAuthResolver {
     }
 
     public RuntimeResolvedIdentity resolveVerifiedForChat(HttpServletRequest request) {
-        RuntimeResolvedIdentity verified = resolveVerifiedContext(request);
+        RuntimeResolvedIdentity verified = resolveOptionalVerifiedContext(request);
         if (verified != null) {
             return verified;
         }
@@ -45,7 +50,7 @@ public class RuntimeRequestAuthResolver {
     }
 
     public RuntimeResolvedIdentity resolveVerifiedForConversation(HttpServletRequest request) {
-        RuntimeResolvedIdentity verified = resolveVerifiedContext(request);
+        RuntimeResolvedIdentity verified = resolveOptionalVerifiedContext(request);
         if (verified != null) {
             return verified;
         }
@@ -90,6 +95,21 @@ public class RuntimeRequestAuthResolver {
                     + (StringUtils.hasText(surface) ? " for " + surface.trim() : "") + "."
             );
         }
+    }
+
+    public RuntimeResolvedIdentity resolveOptionalVerifiedContext(HttpServletRequest request) {
+        if (request != null && Boolean.TRUE.equals(request.getAttribute(RESOLUTION_ATTEMPTED_ATTRIBUTE))) {
+            Object cached = request.getAttribute(RESOLVED_IDENTITY_ATTRIBUTE);
+            return cached instanceof RuntimeResolvedIdentity identity ? identity : null;
+        }
+        RuntimeResolvedIdentity resolved = resolveVerifiedContext(request);
+        if (request != null) {
+            request.setAttribute(RESOLUTION_ATTEMPTED_ATTRIBUTE, Boolean.TRUE);
+            if (resolved != null) {
+                request.setAttribute(RESOLVED_IDENTITY_ATTRIBUTE, resolved);
+            }
+        }
+        return resolved;
     }
 
     private RuntimeResolvedIdentity resolveVerifiedContext(HttpServletRequest request) {

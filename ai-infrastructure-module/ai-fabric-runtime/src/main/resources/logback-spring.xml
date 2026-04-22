@@ -1,0 +1,8 @@
+<configuration scan="false">
+    <include resource="org/springframework/boot/logging/logback/defaults.xml" />
+    <include resource="com/ai/fabric/observability/logback/loomai-observability-logback.xml" />
+
+    <root level="INFO">
+        <appender-ref ref="LOOMAI_ASYNC_JSON_CONSOLE" />
+    </root>
+</configuration>
