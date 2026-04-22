@@ -2,6 +2,13 @@
 
 Status: launch plan (2026-04-19)
 
+Note:
+
+- one-app packaging and launch sequencing in this document are still useful
+- pricing and plan naming here are historical in places
+- use [LOOM_COMPANION_PRICING_AND_TIER_STRATEGY.md](LOOM_COMPANION_PRICING_AND_TIER_STRATEGY.md) for current tiering
+- use [SHOPIFY_COMPANION_BUILDER_MODE_SHIPPING_ROADMAP.md](SHOPIFY_COMPANION_BUILDER_MODE_SHIPPING_ROADMAP.md) for the current builder-mode roadmap
+
 ---
 
 ## 1) What This Document Is

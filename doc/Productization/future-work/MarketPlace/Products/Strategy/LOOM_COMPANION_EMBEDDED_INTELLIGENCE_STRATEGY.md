@@ -2,6 +2,13 @@
 
 Status: strategy document (2026-04-20)
 
+Note:
+
+- storefront-shape direction in this document is still valid
+- pricing authority no longer lives here
+- use [LOOM_COMPANION_PRICING_AND_TIER_STRATEGY.md](LOOM_COMPANION_PRICING_AND_TIER_STRATEGY.md) for tier decisions
+- use [SHOPIFY_COMPANION_BUILDER_MODE_SHIPPING_ROADMAP.md](SHOPIFY_COMPANION_BUILDER_MODE_SHIPPING_ROADMAP.md) for the resolved milestone order
+
 ---
 
 ## 1) What This Document Is

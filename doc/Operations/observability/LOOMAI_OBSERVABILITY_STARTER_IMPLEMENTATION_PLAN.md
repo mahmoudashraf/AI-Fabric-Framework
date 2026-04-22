@@ -12,7 +12,7 @@ It assumes the following product and engineering rule:
 
 It should be read with:
 
-- `doc/Productization/future-work/MarketPlace/Products/Strategy/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md`
+- `doc/Operations/observability/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md`
 - `doc/Operations/observability/LOOMAI_OBSERVABILITY_STARTER_DESIGN.md`
 - `doc/Operations/observability/CARDINALITY_GOVERNANCE_POLICY.md`
 
