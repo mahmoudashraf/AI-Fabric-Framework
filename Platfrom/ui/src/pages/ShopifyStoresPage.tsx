@@ -1351,7 +1351,12 @@ export function ShopifyStoresPage() {
                           {selectedStore.widgetDetail.settings ? (
                             <Typography variant="body2" color="text.secondary">
                               Launcher {selectedStore.widgetDetail.settings.launcherLabel ?? 'Ask the store assistant'} · Welcome message{' '}
-                              {selectedStore.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'}
+                              {selectedStore.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'} · Profile{' '}
+                              {selectedStore.widgetDetail.settings.shellModeProfile ?? 'SHOPIFY_COMPANION'} · Surfaces{' '}
+                              {(selectedStore.widgetDetail.settings.enabledSurfaces?.length
+                                ? selectedStore.widgetDetail.settings.enabledSurfaces
+                                : ['ai-search', 'contextual-pill', 'product-insight', 'policy-strip', 'product-faq', 'comparison']
+                              ).join(' · ')}
                             </Typography>
                           ) : null}
                           {selectedStore.widgetDetail.message ? (

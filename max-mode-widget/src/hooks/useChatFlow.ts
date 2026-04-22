@@ -46,7 +46,12 @@ export function useChatFlow({
   requestContext?: Record<string, any>;
 }) {
   const handleChatQuery = useCallback(
-    async (presetQuery?: string, actionPosition?: "landing" | "catalog" | "search" | "cart", actionMode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => {
+    async (
+      presetQuery?: string,
+      actionPosition?: "landing" | "catalog" | "search" | "cart",
+      actionMode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor",
+      extraRequestContext?: Record<string, any>,
+    ) => {
       const query = presetQuery ?? chatQuery;
       if (!query.trim()) return;
 
@@ -191,6 +196,7 @@ export function useChatFlow({
           mode: explicitMode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
           ...(requestContext || {}),
+          ...(extraRequestContext || {}),
         };
 
         setLastRequestData({
@@ -358,6 +364,7 @@ export function useChatFlow({
       currentConversationId,
       currentMode,
       currentPosition,
+      requestContext,
       searchCategory,
       setChatMessages,
       setChatQuery,

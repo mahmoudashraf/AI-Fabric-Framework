@@ -1,5 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.storefront.model;
 
+import java.util.List;
+
 public record ShopifyStorefrontBootstrapResponse(
     boolean available,
     String shopDomain,
@@ -9,6 +11,8 @@ public record ShopifyStorefrontBootstrapResponse(
     String sourceReadinessStatus,
     String launcherLabel,
     String welcomeMessage,
+    String shellModeProfile,
+    List<String> enabledSurfaces,
     String preferredIntegrationMode,
     String runtimeAuthMode,
     String bridgeQueryUrl,

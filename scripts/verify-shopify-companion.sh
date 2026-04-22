@@ -32,6 +32,8 @@ set -euo pipefail
 #   EXPECT_STOREFRONT_READY=true
 #   EXPECT_GO_LIVE_ELIGIBLE=true
 #   EXPECT_EMBEDDED_APP_UI=true
+#   EXPECT_SHELL_MODE_PROFILE=SHOPIFY_COMPANION
+#   EXPECT_ENABLED_SURFACES=ai-search,contextual-pill,product-insight,policy-strip,product-faq,comparison
 #   EXPECT_WEBHOOK_STATUS=READY
 #   EXPECT_BILLING_STATUS=ACTIVE
 #   EXPECT_BILLING_LAUNCH_BLOCKED=false
@@ -61,6 +63,8 @@ EXPECT_WIDGET_STATUS="${EXPECT_WIDGET_STATUS:-ENABLED}"
 EXPECT_STOREFRONT_READY="${EXPECT_STOREFRONT_READY:-true}"
 EXPECT_GO_LIVE_ELIGIBLE="${EXPECT_GO_LIVE_ELIGIBLE:-true}"
 EXPECT_EMBEDDED_APP_UI="${EXPECT_EMBEDDED_APP_UI:-true}"
+EXPECT_SHELL_MODE_PROFILE="${EXPECT_SHELL_MODE_PROFILE:-SHOPIFY_COMPANION}"
+EXPECT_ENABLED_SURFACES="${EXPECT_ENABLED_SURFACES:-ai-search,contextual-pill,product-insight,policy-strip,product-faq,comparison}"
 EXPECT_WEBHOOK_STATUS="${EXPECT_WEBHOOK_STATUS:-}"
 EXPECT_BILLING_STATUS="${EXPECT_BILLING_STATUS:-}"
 EXPECT_BILLING_LAUNCH_BLOCKED="${EXPECT_BILLING_LAUNCH_BLOCKED:-}"
@@ -204,6 +208,57 @@ assert_optional_equals() {
   if [[ -n "${expected}" ]]; then
     assert_equals "${actual}" "${expected}" "${label}"
   fi
+}
+
+assert_json_array_contains_csv() {
+  local payload="$1"
+  local path="$2"
+  local expected_csv="$3"
+  local label="$4"
+  JSON_PAYLOAD="${payload}" JSON_PATH="${path}" EXPECTED_CSV="${expected_csv}" ASSERT_LABEL="${label}" python3 - <<'PY'
+import json
+import os
+import sys
+
+payload = os.environ["JSON_PAYLOAD"]
+path = os.environ["JSON_PATH"]
+expected_csv = os.environ["EXPECTED_CSV"]
+label = os.environ["ASSERT_LABEL"]
+
+try:
+    value = json.loads(payload)
+except json.JSONDecodeError as exc:
+    print(f"Invalid JSON for {label}: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+current = value
+for part in [segment for segment in path.split(".") if segment]:
+    if isinstance(current, list):
+        try:
+            current = current[int(part)]
+        except Exception:
+            current = None
+            break
+    elif isinstance(current, dict):
+        current = current.get(part)
+    else:
+        current = None
+        break
+
+if not isinstance(current, list):
+    print(f"Assertion failed for {label}: expected JSON array at path '{path}'", file=sys.stderr)
+    raise SystemExit(1)
+
+actual = {str(item).strip() for item in current if str(item).strip()}
+expected = {item.strip() for item in expected_csv.split(",") if item.strip()}
+missing = sorted(expected - actual)
+if missing:
+    print(
+        f"Assertion failed for {label}: missing values {missing}; actual={sorted(actual)}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+PY
 }
 
 resolve_shopify_admin_access_token() {
@@ -679,6 +734,8 @@ assert_equals "$(json_get "${bootstrap_json}" "shopDomain")" "${SHOP_DOMAIN}" "s
 assert_equals "$(json_get "${bootstrap_json}" "available")" "${EXPECT_STOREFRONT_READY}" "storefront bootstrap availability"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeQueryUrl")" "storefront bridgeQueryUrl"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeSuggestionsUrl")" "storefront bridgeSuggestionsUrl"
+assert_optional_equals "$(json_get "${bootstrap_json}" "shellModeProfile")" "${EXPECT_SHELL_MODE_PROFILE}" "storefront bootstrap shellModeProfile"
+assert_json_array_contains_csv "${bootstrap_json}" "enabledSurfaces" "${EXPECT_ENABLED_SURFACES}" "storefront bootstrap enabledSurfaces"
 
 echo "== Storefront suggestions =="
 http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/suggestions" '{"content":"","maxSuggestions":4}' "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
@@ -706,6 +763,8 @@ assert_equals "${HTTP_STATUS}" "200" "platform store summary after bootstrap sta
 store_after_bootstrap_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_after_bootstrap_json}" "widgetStatus")" "${EXPECT_WIDGET_STATUS}" "platform store widgetStatus"
 assert_nonempty "$(json_get "${store_after_bootstrap_json}" "widgetDetail.message")" "platform widget message"
+assert_optional_equals "$(json_get "${store_after_bootstrap_json}" "widgetDetail.settings.shellModeProfile")" "${EXPECT_SHELL_MODE_PROFILE}" "platform widget shellModeProfile"
+assert_json_array_contains_csv "${store_after_bootstrap_json}" "widgetDetail.settings.enabledSurfaces" "${EXPECT_ENABLED_SURFACES}" "platform widget enabledSurfaces"
 
 if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   echo "== Merchant session =="

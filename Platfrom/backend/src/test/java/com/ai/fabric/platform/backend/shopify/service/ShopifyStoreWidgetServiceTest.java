@@ -29,6 +29,9 @@ class ShopifyStoreWidgetServiceTest {
         ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
 
         ShopifyStoreConnectionEntity store = store();
+        store.setDetailsJson("""
+            {"widget":{"settings":{"launcherLabel":"Need help?","welcomeMessage":"Ask me about products and policies.","shellModeProfile":"GUIDED_COMMERCE","enabledSurfaces":["ai-search","comparison"]}}}
+            """);
         ShopifyStoreConnectionSummary summary = summary("LIVE", "ENABLED");
 
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
@@ -46,6 +49,8 @@ class ShopifyStoreWidgetServiceTest {
         assertThat(result.widgetStatus()).isEqualTo("ENABLED");
         assertThat(store.getOnboardingStatus()).isEqualTo("LIVE");
         assertThat(store.getDetailsJson()).contains("\"widget\"");
+        assertThat(store.getDetailsJson()).contains("\"shellModeProfile\":\"GUIDED_COMMERCE\"");
+        assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\"]");
     }
 
     @Test

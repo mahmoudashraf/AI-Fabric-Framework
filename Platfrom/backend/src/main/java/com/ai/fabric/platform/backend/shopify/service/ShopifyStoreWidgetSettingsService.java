@@ -5,14 +5,18 @@ import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntit
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -25,6 +29,28 @@ public class ShopifyStoreWidgetSettingsService {
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
+    private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison"
+    );
+    private static final Set<String> ALLOWED_SHELL_MODE_PROFILES = Set.of(
+        "SHOPIFY_COMPANION",
+        "GUIDED_COMMERCE",
+        "GUIDED_SUPPORT"
+    );
+    private static final Set<String> ALLOWED_SURFACES = Set.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison"
+    );
 
     private final ShopifyStoreConnectionRepository repository;
     private final ShopifyStoreConnectionService connectionService;
@@ -51,6 +77,8 @@ public class ShopifyStoreWidgetSettingsService {
 
         String launcherLabel = normalizeLauncherLabel(request.launcherLabel());
         String welcomeMessage = normalizeWelcomeMessage(request.welcomeMessage());
+        String shellModeProfile = normalizeShellModeProfile(request.shellModeProfile());
+        List<String> enabledSurfaces = normalizeEnabledSurfaces(request.enabledSurfaces());
         Instant now = Instant.now();
 
         ObjectNode details = support.mutableDetails(store.getDetailsJson());
@@ -58,6 +86,9 @@ public class ShopifyStoreWidgetSettingsService {
         ObjectNode settings = widget.putObject("settings");
         settings.put("launcherLabel", launcherLabel);
         settings.put("welcomeMessage", welcomeMessage);
+        settings.put("shellModeProfile", shellModeProfile);
+        ArrayNode enabledSurfacesNode = settings.putArray("enabledSurfaces");
+        enabledSurfaces.forEach(enabledSurfacesNode::add);
         settings.put("updatedAt", now.toString());
         store.setDetailsJson(support.writeJson(details));
         store.setUpdatedAt(now);
@@ -70,7 +101,9 @@ public class ShopifyStoreWidgetSettingsService {
             Map.of(
                 "shopDomain", store.getShopDomain(),
                 "launcherLabel", launcherLabel,
-                "welcomeMessageLength", Integer.toString(welcomeMessage.length())
+                "welcomeMessageLength", Integer.toString(welcomeMessage.length()),
+                "shellModeProfile", shellModeProfile,
+                "enabledSurfaces", String.join(",", enabledSurfaces)
             )
         );
 
@@ -98,6 +131,32 @@ public class ShopifyStoreWidgetSettingsService {
             throw new ResponseStatusException(CONFLICT, "welcomeMessage exceeds " + MAX_WELCOME_MESSAGE_LENGTH + " characters.");
         }
         return normalized;
+    }
+
+    private String normalizeShellModeProfile(String value) {
+        String normalized = hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : DEFAULT_SHELL_MODE_PROFILE;
+        if (!ALLOWED_SHELL_MODE_PROFILES.contains(normalized)) {
+            throw new ResponseStatusException(CONFLICT, "shellModeProfile must be one of " + ALLOWED_SHELL_MODE_PROFILES + ".");
+        }
+        return normalized;
+    }
+
+    private List<String> normalizeEnabledSurfaces(List<String> values) {
+        if (values == null) {
+            return DEFAULT_ENABLED_SURFACES;
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String value : values) {
+            if (!hasText(value)) {
+                continue;
+            }
+            String candidate = value.trim().toLowerCase(Locale.ROOT);
+            if (!ALLOWED_SURFACES.contains(candidate)) {
+                throw new ResponseStatusException(CONFLICT, "enabledSurfaces contains unsupported value: " + value);
+            }
+            normalized.add(candidate);
+        }
+        return List.copyOf(normalized);
     }
 
     private boolean hasText(String value) {

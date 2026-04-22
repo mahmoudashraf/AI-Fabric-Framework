@@ -28,6 +28,48 @@ import { useNewDocsPreviewActions } from "./useNewDocsPreviewActions";
 import { useSearchControls } from "./useSearchControls";
 import { useSuggestionsController } from "./useSuggestionsController";
 
+const PENDING_PROMPTS_KEY = "maxmode_widget_pending_prompts";
+
+type PendingPrompt = {
+  id: string;
+  message: string;
+  open?: boolean;
+  position?: "landing" | "catalog" | "search" | "cart";
+  mode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
+  requestContext?: Record<string, any>;
+};
+
+function loadPendingPrompts(): PendingPrompt[] {
+  try {
+    const raw = sessionStorage.getItem(PENDING_PROMPTS_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePendingPrompts(prompts: PendingPrompt[]) {
+  try {
+    if (!prompts.length) {
+      sessionStorage.removeItem(PENDING_PROMPTS_KEY);
+      return;
+    }
+    sessionStorage.setItem(PENDING_PROMPTS_KEY, JSON.stringify(prompts));
+  } catch {}
+}
+
+function removePendingPrompt(promptId: string | undefined) {
+  if (!promptId) {
+    return;
+  }
+  const remaining = loadPendingPrompts().filter((prompt) => prompt.id !== promptId);
+  savePendingPrompts(remaining);
+}
+
 function expectedAuthModeForIntegrationMode(mode: string): string | null {
   switch (mode) {
     case "backend-mediated-private-runtime":
@@ -262,6 +304,7 @@ export function useMaxModeController({
   const authContextProbeInFlightRef = useRef(false);
   const shellConfigProbeKeyRef = useRef<string | null>(null);
   const shellConfigProbeInFlightRef = useRef(false);
+  const pendingPromptFlushInFlightRef = useRef(false);
 
   const {
     suggestions,
@@ -341,6 +384,16 @@ export function useMaxModeController({
     requestContext: hostRequestContext,
   });
 
+  const handleProgrammaticPrompt = useCallback(
+    async (prompt: PendingPrompt | null | undefined) => {
+      if (!prompt?.message?.trim()) {
+        return;
+      }
+      await handleChatQuery(prompt.message.trim(), prompt.position, prompt.mode, prompt.requestContext);
+    },
+    [handleChatQuery],
+  );
+
   const { handleConfirmation } = useConfirmationFlow({
     attachedItems,
     currentConversationId,
@@ -351,6 +404,56 @@ export function useMaxModeController({
     setIsLoading,
     toast,
   });
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    if (pendingPromptFlushInFlightRef.current) {
+      return;
+    }
+    const queued = loadPendingPrompts();
+    if (queued.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    pendingPromptFlushInFlightRef.current = true;
+    savePendingPrompts([]);
+
+    void (async () => {
+      try {
+        for (const prompt of queued) {
+          if (cancelled) {
+            break;
+          }
+          await handleProgrammaticPrompt(prompt);
+        }
+      } finally {
+        pendingPromptFlushInFlightRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [handleProgrammaticPrompt, isOpen]);
+
+  useEffect(() => {
+    function onProgrammaticPrompt(event: Event) {
+      const detail = (event as CustomEvent<PendingPrompt>).detail;
+      if (!detail || !detail.message?.trim() || !isOpen) {
+        return;
+      }
+      removePendingPrompt(detail.id);
+      void handleProgrammaticPrompt(detail);
+    }
+
+    window.addEventListener("maxmode:send-message", onProgrammaticPrompt as EventListener);
+    return () => {
+      window.removeEventListener("maxmode:send-message", onProgrammaticPrompt as EventListener);
+    };
+  }, [handleProgrammaticPrompt, isOpen]);
 
   const { handleClarificationSubmit } = useClarificationFlow({
     attachedItems,

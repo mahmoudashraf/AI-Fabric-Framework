@@ -621,6 +621,8 @@ export type ShopifyStoreWidgetSummary = {
   settings: {
     launcherLabel: string | null
     welcomeMessage: string | null
+    shellModeProfile: string | null
+    enabledSurfaces: string[]
   } | null
 }
 

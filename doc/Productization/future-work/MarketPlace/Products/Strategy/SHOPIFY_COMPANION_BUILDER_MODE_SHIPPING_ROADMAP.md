@@ -61,10 +61,10 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 
 | Strategy expectation | Current code reality | Gap |
 |---|---|---|
-| Multiple embedded intelligence surfaces | Theme app extension currently ships one block: `companion-app-embed.liquid`. | Missing product insight block, policy strip, FAQ, comparison, search block, contextual pill block. |
-| Embedded intelligence product shape | Storefront still primarily loads a launcher shell (`legacy` or `max-mode`) through the app embed. | The product still behaves like a widget-first experience. |
+| Multiple embedded intelligence surfaces | Theme app extension still ships one app-embed block, but that block now loads an embedded-surfaces layer with AI search, contextual pill, product insight, policy strip, FAQ entry points, and comparison entry points. | Better than the earlier launcher-only posture, but still missing true merchant-placeable multi-block theme surfaces. |
+| Embedded intelligence product shape | Storefront no longer loads only a launcher shell. The app embed now layers embedded intelligence surfaces on top of the shell. | Product identity is improving, but the delivery model still depends on a fixed app-embed host rather than a mature theme-surface system. |
 | Max Mode storefront convergence | The Shopify embed loader already supports `legacy` and `max-mode`, and there is already a Shopify-specific Max Mode wrapper. | This is a real convergence track, but it is only partially complete and should not be treated as a standalone product milestone. |
-| Real shell conversation modes | Shopify marketplace shell config can carry `defaultConversationMode`, but Shopify bootstrap/shell/chat do not consume it yet. | Shopify still has one hardcoded shopper posture instead of bounded platform-backed shell modes. |
+| Real shell conversation modes | Shopify now persists `shellModeProfile`, exposes it in bootstrap/admin surfaces, and forwards it into bridge/runtime request context. | This is now a bounded mode-profile system, but not yet full multi-mode runtime semantics like true `assistant` / `deep` Shopify modes. |
 | Richer Shopify data coverage | No code-backed evidence yet for blogs/articles, metaobjects, metafields, or review-provider ingestion. | Wave 1 data-expansion work still missing beyond current catalog/content/policy coverage. |
 | Read-first action breadth from strategy docs | Current read action bundle is `list_products`, `search_products`, `get_product_details`, `check_availability`, `get_policy`. | `compare_products`, `find_similar`, `get_size_guide`, and structured discovery modules are not implemented yet. |
 | Tiered commercial model | Bridge billing is one bridge-level free-or-paid posture with one plan name/amount configuration. | `Free / Starter / Elite` entitlements are not implemented yet. |
@@ -161,7 +161,7 @@ Missing:
 - product FAQ block
 - comparison surface
 - clean host contract between Shopify theme extension and shared Max Mode shell
-- real platform-backed shell conversation modes for Shopify
+- fuller platform-backed shell conversation modes for Shopify
 - full removal of long-term dual-shell maintenance as a product dependency
 
 Important rule:

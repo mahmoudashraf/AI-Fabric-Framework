@@ -110,6 +110,8 @@ export type ShopifyBridgeStoreSummary = {
     settings: {
       launcherLabel: string | null
       welcomeMessage: string | null
+      shellModeProfile: string | null
+      enabledSurfaces: string[]
     } | null
   } | null
   createdAt: string
@@ -473,6 +475,8 @@ export async function updateSourceSettings(settings: {
 export async function updateWidgetSettings(settings: {
   launcherLabel: string
   welcomeMessage: string
+  shellModeProfile: string
+  enabledSurfaces: string[]
 }): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/widget-settings', {
     method: 'POST',

@@ -126,6 +126,30 @@ const UPDATE_TRIGGER_OPTIONS = [
   { label: 'Selected indexed fields', value: 'SELECTED_INDEXED_FIELDS' },
 ]
 
+const DEFAULT_WIDGET_SURFACES = [
+  'ai-search',
+  'contextual-pill',
+  'product-insight',
+  'policy-strip',
+  'product-faq',
+  'comparison',
+]
+
+const WIDGET_SURFACE_OPTIONS = [
+  { label: 'AI search dock', value: 'ai-search' },
+  { label: 'Contextual pill', value: 'contextual-pill' },
+  { label: 'Product insight card', value: 'product-insight' },
+  { label: 'Policy strip', value: 'policy-strip' },
+  { label: 'FAQ prompts', value: 'product-faq' },
+  { label: 'Comparison prompts', value: 'comparison' },
+]
+
+const SHELL_MODE_PROFILE_OPTIONS = [
+  { label: 'Shopify Companion', value: 'SHOPIFY_COMPANION' },
+  { label: 'Guided Commerce', value: 'GUIDED_COMMERCE' },
+  { label: 'Guided Support', value: 'GUIDED_SUPPORT' },
+]
+
 function buildVectorizationPolicyDraft(summary: ShopifyBridgeStoreVectorizationSummary | null): VectorizationPolicyDraft | null {
   if (!summary?.policy) {
     return null
@@ -190,6 +214,8 @@ export default function App() {
   const [widgetSettings, setWidgetSettings] = useState({
     launcherLabel: 'Ask the store assistant',
     welcomeMessage: 'Store assistant is ready. Ask about products, policies, or collections.',
+    shellModeProfile: 'SHOPIFY_COMPANION',
+    enabledSurfaces: DEFAULT_WIDGET_SURFACES,
   })
   const [busyWidgetSettings, setBusyWidgetSettings] = useState(false)
   const [playgroundConversationId, setPlaygroundConversationId] = useState<string | null>(null)
@@ -307,6 +333,11 @@ export default function App() {
           welcomeMessage:
             session.store.widgetDetail?.settings?.welcomeMessage ??
             'Store assistant is ready. Ask about products, policies, or collections.',
+          shellModeProfile: session.store.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION',
+          enabledSurfaces:
+            session.store.widgetDetail?.settings?.enabledSurfaces?.length
+              ? [...session.store.widgetDetail.settings.enabledSurfaces]
+              : [...DEFAULT_WIDGET_SURFACES],
         })
       }
     } catch (error) {
@@ -749,7 +780,10 @@ export default function App() {
     !!store &&
     ((store.widgetDetail?.settings?.launcherLabel ?? 'Ask the store assistant') !== widgetSettings.launcherLabel ||
       (store.widgetDetail?.settings?.welcomeMessage ??
-        'Store assistant is ready. Ask about products, policies, or collections.') !== widgetSettings.welcomeMessage)
+        'Store assistant is ready. Ask about products, policies, or collections.') !== widgetSettings.welcomeMessage ||
+      (store.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION') !== widgetSettings.shellModeProfile ||
+      JSON.stringify(store.widgetDetail?.settings?.enabledSurfaces ?? DEFAULT_WIDGET_SURFACES) !==
+        JSON.stringify(widgetSettings.enabledSurfaces))
 
   useEffect(() => {
     if (!store) {
@@ -1265,11 +1299,19 @@ export default function App() {
                       </Text>
                       <List type="bullet">
                         <List.Item>Extension handle: {storefrontPreview.extensionHandle}</List.Item>
-                        <List.Item>Bridge base URL: {storefrontPreview.bridgeBaseUrl ?? 'Not configured'}</List.Item>
-                        <List.Item>Launcher label: {storefrontPreview.launcherLabelDefault}</List.Item>
-                        <List.Item>Welcome message: {storefrontPreview.welcomeMessageDefault}</List.Item>
-                        <List.Item>Storefront base URL: {storefrontPreview.storefrontBaseUrl ?? '—'}</List.Item>
-                      </List>
+                      <List.Item>Bridge base URL: {storefrontPreview.bridgeBaseUrl ?? 'Not configured'}</List.Item>
+                      <List.Item>Launcher label: {storefrontPreview.launcherLabelDefault}</List.Item>
+                      <List.Item>Welcome message: {storefrontPreview.welcomeMessageDefault}</List.Item>
+                      <List.Item>Shell profile: {store?.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION'}</List.Item>
+                      <List.Item>
+                        Embedded surfaces:{' '}
+                        {(store?.widgetDetail?.settings?.enabledSurfaces?.length
+                          ? store.widgetDetail.settings.enabledSurfaces
+                          : DEFAULT_WIDGET_SURFACES
+                        ).join(', ')}
+                      </List.Item>
+                      <List.Item>Storefront base URL: {storefrontPreview.storefrontBaseUrl ?? '—'}</List.Item>
+                    </List>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Activation steps
                       </Text>
@@ -1453,7 +1495,7 @@ export default function App() {
                     Widget settings
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
-                    Companion owns bounded launcher content. Theme settings still enable the embed, but the launcher label and first assistant message come from this app.
+                    Companion owns bounded launcher content, shell persona, and the embedded intelligence surfaces that appear before chat fallback.
                   </Text>
                   <TextField
                     label="Launcher label"
@@ -1471,6 +1513,35 @@ export default function App() {
                     onChange={(value) => setWidgetSettings((current) => ({ ...current, welcomeMessage: value }))}
                     helpText="This becomes the first assistant message when the storefront launcher opens."
                   />
+                  <Select
+                    label="Shell profile"
+                    options={SHELL_MODE_PROFILE_OPTIONS}
+                    value={widgetSettings.shellModeProfile}
+                    onChange={(value) => setWidgetSettings((current) => ({ ...current, shellModeProfile: value }))}
+                    helpText="This controls how the storefront surfaces phrase prompts and shopper guidance."
+                  />
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Embedded surfaces
+                    </Text>
+                    {WIDGET_SURFACE_OPTIONS.map((surface) => (
+                      <Checkbox
+                        key={surface.value}
+                        label={surface.label}
+                        checked={widgetSettings.enabledSurfaces.includes(surface.value)}
+                        onChange={(checked) =>
+                          setWidgetSettings((current) => ({
+                            ...current,
+                            enabledSurfaces: checked
+                              ? [...current.enabledSurfaces, surface.value].filter(
+                                  (value, index, values) => values.indexOf(value) === index,
+                                )
+                              : current.enabledSurfaces.filter((value) => value !== surface.value),
+                          }))
+                        }
+                      />
+                    ))}
+                  </BlockStack>
                   <InlineStack gap="200">
                     <Button
                       onClick={() => void handleWidgetSettingsSave()}
@@ -1813,7 +1884,12 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
       {store.widgetDetail?.settings ? (
         <Text as="p" variant="bodySm" tone="subdued">
           Launcher “{store.widgetDetail.settings.launcherLabel ?? 'Ask the store assistant'}” · welcome message{' '}
-          {store.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'}
+          {store.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'} · profile{' '}
+          {store.widgetDetail.settings.shellModeProfile ?? 'SHOPIFY_COMPANION'} · surfaces{' '}
+          {(store.widgetDetail.settings.enabledSurfaces?.length
+            ? store.widgetDetail.settings.enabledSurfaces
+            : DEFAULT_WIDGET_SURFACES
+          ).join(', ')}
         </Text>
       ) : null}
       {store.capabilities ? (

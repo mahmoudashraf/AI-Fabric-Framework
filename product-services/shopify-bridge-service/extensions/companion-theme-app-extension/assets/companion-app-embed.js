@@ -1,6 +1,9 @@
 (function () {
   var LOOM_COMPANION_SHELLS_KEY = '__loomCompanionShells'
+  var LOOM_COMPANION_SURFACES_KEY = '__loomCompanionEmbeddedSurfaces'
   var shellLoadPromises = {}
+  var surfaceLoadPromises = {}
+  var stylesheetLoadPromises = {}
 
   function bootstrap() {
     var root = document.getElementById('loom-companion-embed-root')
@@ -13,6 +16,8 @@
     var requestedWidgetShell = normalizeWidgetShell(root.dataset.widgetShell)
     var maxModeShellScriptUrl = trimValue(root.dataset.maxModeShellScriptUrl)
     var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
+    var embeddedSurfacesScriptUrl = trimValue(root.dataset.embeddedSurfacesScriptUrl)
+    var embeddedSurfacesStylesheetUrl = trimValue(root.dataset.embeddedSurfacesStylesheetUrl)
     var effectiveWidgetShell = resolveEffectiveWidgetShell(
       requestedWidgetShell,
       maxModeShellScriptUrl,
@@ -34,6 +39,8 @@
       legacyShellScriptUrl: trimValue(root.dataset.legacyShellScriptUrl),
       maxModeShellScriptUrl: maxModeShellScriptUrl,
       maxModeScriptUrl: maxModeScriptUrl,
+      embeddedSurfacesScriptUrl: embeddedSurfacesScriptUrl,
+      embeddedSurfacesStylesheetUrl: embeddedSurfacesStylesheetUrl,
       storefrontContext: extractStorefrontContext(root),
     })
   }
@@ -62,6 +69,7 @@
         }
         return loadShellRenderer(config.widgetShell, config).then(function (renderer) {
           teardownActiveShell(root)
+          teardownEmbeddedSurfaces(root)
           return Promise.resolve(
             renderer.render({
               root: root,
@@ -74,6 +82,7 @@
           )
             .then(function () {
               root.dataset.activeShell = config.widgetShell
+              return renderEmbeddedSurfaces(root, config, payload)
             })
             .catch(function (error) {
               if (config.widgetShell !== 'max-mode') {
@@ -81,6 +90,7 @@
               }
               return loadShellRenderer('legacy', config).then(function (legacyRenderer) {
                 teardownActiveShell(root)
+                teardownEmbeddedSurfaces(root)
                 return Promise.resolve(
                   legacyRenderer.render({
                     root: root,
@@ -94,6 +104,7 @@
                   root.dataset.activeShell = 'legacy'
                   root.dataset.widgetShell = 'max-mode'
                   root.dataset.fallbackShell = 'legacy'
+                  return renderEmbeddedSurfaces(root, config, payload)
                 })
               })
             })
@@ -154,6 +165,86 @@
       }
       document.head.appendChild(script)
     })
+  }
+
+  function renderEmbeddedSurfaces(root, config, payload) {
+    if (!config.embeddedSurfacesScriptUrl) {
+      return Promise.resolve()
+    }
+    return ensureStylesheet(config.embeddedSurfacesStylesheetUrl)
+      .then(function () {
+        return renderEmbeddedSurfacesLoaded(root, config, payload)
+      })
+  }
+
+  function renderEmbeddedSurfacesLoaded(root, config, payload) {
+    var registry = getSurfaceRegistry()
+    if (registry.render && typeof registry.render === 'function') {
+      return Promise.resolve(
+        registry.render({
+          root: root,
+          bridgeBaseUrl: config.bridgeBaseUrl,
+          payload: payload,
+          storefrontContext: config.storefrontContext,
+        })
+      )
+    }
+    if (!surfaceLoadPromises[config.embeddedSurfacesScriptUrl]) {
+      surfaceLoadPromises[config.embeddedSurfacesScriptUrl] = loadScript(config.embeddedSurfacesScriptUrl).then(function () {
+        var loadedRegistry = getSurfaceRegistry()
+        if (!loadedRegistry.render || typeof loadedRegistry.render !== 'function') {
+          throw new Error('Theme app embed did not register embedded companion surfaces.')
+        }
+        return loadedRegistry
+      })
+    }
+    return surfaceLoadPromises[config.embeddedSurfacesScriptUrl].then(function (loadedRegistry) {
+      return loadedRegistry.render({
+        root: root,
+        bridgeBaseUrl: config.bridgeBaseUrl,
+        payload: payload,
+        storefrontContext: config.storefrontContext,
+      })
+    })
+  }
+
+  function ensureStylesheet(url) {
+    if (!url) {
+      return Promise.resolve()
+    }
+    if (document.querySelector('link[data-loom-companion-surfaces="' + url + '"]')) {
+      return Promise.resolve()
+    }
+    if (!stylesheetLoadPromises[url]) {
+      stylesheetLoadPromises[url] = new Promise(function (resolve, reject) {
+        var link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        link.dataset.loomCompanionSurfaces = url
+        link.onload = function () {
+          resolve()
+        }
+        link.onerror = function () {
+          reject(new Error('Failed to load companion surfaces stylesheet.'))
+        }
+        document.head.appendChild(link)
+      })
+    }
+    return stylesheetLoadPromises[url]
+  }
+
+  function teardownEmbeddedSurfaces(root) {
+    var registry = getSurfaceRegistry()
+    if (registry && typeof registry.teardown === 'function') {
+      registry.teardown(root)
+    }
+  }
+
+  function getSurfaceRegistry() {
+    if (!window[LOOM_COMPANION_SURFACES_KEY]) {
+      window[LOOM_COMPANION_SURFACES_KEY] = {}
+    }
+    return window[LOOM_COMPANION_SURFACES_KEY]
   }
 
   function getShellRegistry() {

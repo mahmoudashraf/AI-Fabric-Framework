@@ -13,10 +13,24 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
 public class ShopifyStoreSourcePreflightSupport {
+
+    private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
+    private static final String DEFAULT_WELCOME_MESSAGE =
+        "Store assistant is ready. Ask about products, policies, or collections.";
+    private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison"
+    );
 
     private final ObjectMapper objectMapper;
 
@@ -88,6 +102,9 @@ public class ShopifyStoreSourcePreflightSupport {
                 return null;
             }
             JsonNode settings = widget.path("settings");
+            List<String> enabledSurfaces = settings.isObject()
+                ? readStringArray(settings.get("enabledSurfaces"))
+                : List.of();
             return new ShopifyStoreWidgetSummary(
                 widget.path("status").asText("UNKNOWN"),
                 parseInstant(text(widget, "checkedAt")),
@@ -95,10 +112,19 @@ public class ShopifyStoreSourcePreflightSupport {
                 text(widget, "message"),
                 settings.isObject()
                     ? new ShopifyStoreWidgetSettingsSummary(
-                        text(settings, "launcherLabel"),
-                        text(settings, "welcomeMessage")
+                        text(settings, "launcherLabel") == null ? DEFAULT_LAUNCHER_LABEL : text(settings, "launcherLabel"),
+                        text(settings, "welcomeMessage") == null ? DEFAULT_WELCOME_MESSAGE : text(settings, "welcomeMessage"),
+                        text(settings, "shellModeProfile") == null ? DEFAULT_SHELL_MODE_PROFILE : text(settings, "shellModeProfile"),
+                        enabledSurfaces.isEmpty()
+                            ? DEFAULT_ENABLED_SURFACES
+                            : enabledSurfaces
                     )
-                    : null
+                    : new ShopifyStoreWidgetSettingsSummary(
+                        DEFAULT_LAUNCHER_LABEL,
+                        DEFAULT_WELCOME_MESSAGE,
+                        DEFAULT_SHELL_MODE_PROFILE,
+                        DEFAULT_ENABLED_SURFACES
+                    )
             );
         } catch (Exception ex) {
             return null;
@@ -193,6 +219,22 @@ public class ShopifyStoreSourcePreflightSupport {
 
     private String text(JsonNode node, String field) {
         return node.path(field).isMissingNode() ? null : (node.path(field).asText("").isBlank() ? null : node.path(field).asText("").trim());
+    }
+
+    private List<String> readStringArray(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        node.forEach(item -> {
+            if (item != null && item.isValueNode()) {
+                String value = item.asText("");
+                if (!value.isBlank()) {
+                    values.add(value.trim());
+                }
+            }
+        });
+        return List.copyOf(values);
     }
 
     private boolean hasText(String value) {

@@ -20,9 +20,11 @@
           throw new Error('Max Mode widget API is unavailable.')
         }
         var resolvedLauncherLabel = (options.payload.launcherLabel || options.launcherLabel || 'Ask the store assistant').trim()
-        var resolvedWelcomeMessage = deriveWelcomeMessage(options.payload, options.storefrontContext)
+        var shellModeProfile = normalizeShellModeProfile(options.payload.shellModeProfile)
+        var resolvedWelcomeMessage = deriveWelcomeMessage(options.payload, options.storefrontContext, shellModeProfile)
         var shopperSessionId = getOrCreateShopperSessionId(options.payload.shopDomain || options.root.dataset.shopDomain || 'storefront')
-        var starterSuggestions = defaultSuggestionsForContext(options.storefrontContext)
+        var starterSuggestions = defaultSuggestionsForContext(options.storefrontContext, shellModeProfile)
+        var requestContext = buildRequestContext(options.storefrontContext, shellModeProfile)
 
         maxModeApi.init({
           apiConfig: {
@@ -58,11 +60,11 @@
             launcherLabel: resolvedLauncherLabel,
             launcherAriaLabel: resolvedLauncherLabel,
             launcherVariant: 'pill',
-            assistantLabel: 'Store assistant',
+            assistantLabel: assistantLabelForShellModeProfile(shellModeProfile),
             welcomeMessage: resolvedWelcomeMessage,
-            starterPrompts: starterPromptsForContext(starterSuggestions),
+            starterPrompts: starterPromptsForContext(starterSuggestions, shellModeProfile),
             starterSuggestions: starterSuggestions,
-            requestContext: options.storefrontContext,
+            requestContext: requestContext,
             showUtilityPanel: false,
           },
           onEvent: function (event) {
@@ -86,13 +88,13 @@
     }
   }
 
-  function starterPromptsForContext(suggestions) {
+  function starterPromptsForContext(suggestions, shellModeProfile) {
     return (suggestions || []).slice(0, 4).map(function (value) {
       return {
         label: truncateText(value, 48) || value,
         query: value,
         position: 'search',
-        mode: 'navigator',
+        mode: defaultLauncherMode(shellModeProfile),
       }
     })
   }
@@ -157,19 +159,37 @@
     return null
   }
 
-  function deriveWelcomeMessage(payload, storefrontContext) {
+  function deriveWelcomeMessage(payload, storefrontContext, shellModeProfile) {
     var fallback = (payload.welcomeMessage || payload.message || '').trim()
     if (fallback && !isGenericWelcomeMessage(fallback)) {
       return fallback
     }
     if (storefrontContext.product && storefrontContext.product.title) {
+      if (shellModeProfile === 'GUIDED_SUPPORT') {
+        return 'Ask for shopper support on ' + storefrontContext.product.title + ', compare options, or check shipping and return guidance before you buy.'
+      }
+      if (shellModeProfile === 'GUIDED_COMMERCE') {
+        return 'Ask for guided buying help on ' + storefrontContext.product.title + ', compare options, or check store policies before you buy.'
+      }
       return 'Ask about ' + storefrontContext.product.title + ', compare it with similar products, or check shipping and return policies before you buy.'
     }
     if (storefrontContext.collection && storefrontContext.collection.title) {
+      if (shellModeProfile === 'GUIDED_SUPPORT') {
+        return 'Ask for shopper support on products in ' + storefrontContext.collection.title + ', compare options, or check return guidance before you buy.'
+      }
+      if (shellModeProfile === 'GUIDED_COMMERCE') {
+        return 'Ask for guided buying help in ' + storefrontContext.collection.title + ', compare products, or check store policies before you buy.'
+      }
       return 'Ask for the best options in ' + storefrontContext.collection.title + ', compare products, or check store policies before you buy.'
     }
     if (fallback) {
       return fallback
+    }
+    if (shellModeProfile === 'GUIDED_SUPPORT') {
+      return 'Store support guide is ready. Ask about products, shipping, returns, or what to verify before you buy.'
+    }
+    if (shellModeProfile === 'GUIDED_COMMERCE') {
+      return 'Store buying guide is ready. Ask about products, compare options, or narrow the catalog faster.'
     }
     return 'Store assistant is ready. Ask about products, policies, or collections.'
   }
@@ -178,8 +198,16 @@
     return value === 'Store assistant is ready. Ask about products, policies, or collections.'
   }
 
-  function defaultSuggestionsForContext(storefrontContext) {
+  function defaultSuggestionsForContext(storefrontContext, shellModeProfile) {
     if (storefrontContext.product && storefrontContext.product.title) {
+      if (shellModeProfile === 'GUIDED_SUPPORT') {
+        return [
+          'What should I verify before buying ' + storefrontContext.product.title + '?',
+          'What is your return policy for ' + storefrontContext.product.title + '?',
+          'Compare ' + storefrontContext.product.title + ' with similar products',
+          'What shipping details matter for this product?',
+        ]
+      }
       return [
         'Tell me about ' + storefrontContext.product.title,
         'How does ' + storefrontContext.product.title + ' compare to similar products?',
@@ -188,11 +216,35 @@
       ]
     }
     if (storefrontContext.collection && storefrontContext.collection.title) {
+      if (shellModeProfile === 'GUIDED_SUPPORT') {
+        return [
+          'Which products in ' + storefrontContext.collection.title + ' are easiest to buy with confidence?',
+          'Compare the top picks in ' + storefrontContext.collection.title,
+          'What store policies matter before buying from ' + storefrontContext.collection.title + '?',
+          'What is your return policy?',
+        ]
+      }
       return [
         'Show me the highlights from ' + storefrontContext.collection.title,
         'Which products in ' + storefrontContext.collection.title + ' are best for everyday use?',
         'Compare the top picks in ' + storefrontContext.collection.title,
         'What is your shipping policy?',
+      ]
+    }
+    if (shellModeProfile === 'GUIDED_SUPPORT') {
+      return [
+        'What should I know before buying from this store?',
+        'What is your return policy?',
+        'Compare your best options for a first purchase',
+        'Show me products with the clearest fit and policy guidance',
+      ]
+    }
+    if (shellModeProfile === 'GUIDED_COMMERCE') {
+      return [
+        'Show me your best sellers',
+        'Help me find the right product quickly',
+        'Compare your top product categories',
+        'What should I buy for travel?',
       ]
     }
     return [
@@ -201,6 +253,43 @@
       'Compare your top product categories',
       'What should I buy for travel?',
     ]
+  }
+
+  function buildRequestContext(storefrontContext, shellModeProfile) {
+    var context = {}
+    if (storefrontContext && typeof storefrontContext === 'object') {
+      Object.keys(storefrontContext).forEach(function (key) {
+        context[key] = storefrontContext[key]
+      })
+    }
+    context.shopifyShellModeProfile = shellModeProfile
+    context.shopifySurfaceEntry = 'launcher'
+    return context
+  }
+
+  function normalizeShellModeProfile(value) {
+    var normalized = typeof value === 'string' ? value.trim().toUpperCase() : ''
+    if (!normalized) {
+      return 'SHOPIFY_COMPANION'
+    }
+    return normalized
+  }
+
+  function assistantLabelForShellModeProfile(shellModeProfile) {
+    if (shellModeProfile === 'GUIDED_SUPPORT') {
+      return 'Store support guide'
+    }
+    if (shellModeProfile === 'GUIDED_COMMERCE') {
+      return 'Store buying guide'
+    }
+    return 'Store assistant'
+  }
+
+  function defaultLauncherMode(shellModeProfile) {
+    if (shellModeProfile === 'GUIDED_SUPPORT') {
+      return 'navigator_deep'
+    }
+    return 'navigator'
   }
 
   function getOrCreateShopperSessionId(shopDomain) {

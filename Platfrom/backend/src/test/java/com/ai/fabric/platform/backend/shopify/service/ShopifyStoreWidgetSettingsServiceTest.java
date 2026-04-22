@@ -39,13 +39,17 @@ class ShopifyStoreWidgetSettingsServiceTest {
             "demo.myshopify.com",
             new UpdateShopifyStoreWidgetSettingsRequest(
                 "Need help?",
-                "Ask me about products and policies."
+                "Ask me about products and policies.",
+                "GUIDED_COMMERCE",
+                java.util.List.of("ai-search", "comparison")
             )
         );
 
         assertThat(result.shopDomain()).isEqualTo("demo.myshopify.com");
         assertThat(store.getDetailsJson()).contains("\"launcherLabel\":\"Need help?\"");
         assertThat(store.getDetailsJson()).contains("\"welcomeMessage\":\"Ask me about products and policies.\"");
+        assertThat(store.getDetailsJson()).contains("\"shellModeProfile\":\"GUIDED_COMMERCE\"");
+        assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\"]");
     }
 
     private ShopifyStoreConnectionEntity store() {

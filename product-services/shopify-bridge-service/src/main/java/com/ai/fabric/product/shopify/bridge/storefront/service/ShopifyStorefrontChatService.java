@@ -61,6 +61,8 @@ public class ShopifyStorefrontChatService {
         ObjectNode metadata = objectMapper.createObjectNode();
         copyLimitedTextField(rawContext, metadata, "pageType");
         copyLimitedTextField(rawContext, metadata, "pageTitle");
+        copyLimitedTextField(rawContext, metadata, "shopifyShellModeProfile");
+        copyLimitedTextField(rawContext, metadata, "shopifySurfaceEntry");
 
         JsonNode rawProduct = rawContext.get("product");
         if (rawProduct != null && rawProduct.isObject()) {
@@ -116,6 +118,8 @@ public class ShopifyStorefrontChatService {
         List<String> parts = new ArrayList<>();
         addSummaryPart(parts, metadata, "pageType", "Page type");
         addSummaryPart(parts, metadata, "pageTitle", "Page title");
+        addSummaryPart(parts, metadata, "shopifyShellModeProfile", "Shopify shell mode");
+        addSummaryPart(parts, metadata, "shopifySurfaceEntry", "Shopify surface");
         addSummaryPart(parts, metadata, "productTitle", "Product");
         addSummaryPart(parts, metadata, "productHandle", "Product handle");
         addSummaryPart(parts, metadata, "productVendor", "Product vendor");

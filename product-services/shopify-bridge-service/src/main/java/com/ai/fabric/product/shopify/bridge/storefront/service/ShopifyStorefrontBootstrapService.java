@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 @Service
 public class ShopifyStorefrontBootstrapService {
@@ -17,6 +18,15 @@ public class ShopifyStorefrontBootstrapService {
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
+    private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison"
+    );
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeProperties properties;
@@ -60,6 +70,16 @@ public class ShopifyStorefrontBootstrapService {
             && updated.widgetDetail().settings().welcomeMessage() != null && !updated.widgetDetail().settings().welcomeMessage().isBlank()
             ? updated.widgetDetail().settings().welcomeMessage().trim()
             : DEFAULT_WELCOME_MESSAGE;
+        String shellModeProfile = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().shellModeProfile() != null && !updated.widgetDetail().settings().shellModeProfile().isBlank()
+            ? updated.widgetDetail().settings().shellModeProfile().trim()
+            : DEFAULT_SHELL_MODE_PROFILE;
+        List<String> enabledSurfaces = updated.widgetDetail() != null
+            && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().enabledSurfaces() != null
+            && !updated.widgetDetail().settings().enabledSurfaces().isEmpty()
+            ? List.copyOf(updated.widgetDetail().settings().enabledSurfaces())
+            : DEFAULT_ENABLED_SURFACES;
 
         return new ShopifyStorefrontBootstrapResponse(
             true,
@@ -70,6 +90,8 @@ public class ShopifyStorefrontBootstrapService {
             updated.sourceReadinessStatus(),
             launcherLabel,
             welcomeMessage,
+            shellModeProfile,
+            enabledSurfaces,
             preferredIntegrationMode,
             runtimeAuthMode,
             bridgeQueryUrl,
@@ -90,6 +112,8 @@ public class ShopifyStorefrontBootstrapService {
             store.sourceReadinessStatus(),
             DEFAULT_LAUNCHER_LABEL,
             DEFAULT_WELCOME_MESSAGE,
+            DEFAULT_SHELL_MODE_PROFILE,
+            DEFAULT_ENABLED_SURFACES,
             null,
             null,
             null,
