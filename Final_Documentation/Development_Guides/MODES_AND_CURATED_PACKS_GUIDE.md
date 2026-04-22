@@ -5,6 +5,9 @@ This guide explains how to enable and use **modes** via **curated packs**, with 
 - Phase 1 (`navigator_deep` retrieval semantics)
 - Phase 2 (`executor` tightening)
 
+Related planning:
+- `Final_Documentation/System_Archtecture_Guides/PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md`
+
 It is intentionally practical: **what to set**, **what to expect**, and **how to debug**.
 
 ---

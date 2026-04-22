@@ -3,6 +3,9 @@
 ## Goal
 Make it easy to enable a **coherent orchestration setup** (profile + modes + prompt bundles) with **one config key**, without adding custom code or bypassing framework guardrails.
 
+Related planning:
+- `Final_Documentation/System_Archtecture_Guides/PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md`
+
 Curated packs are **transparent**:
 - They only ship **configuration defaults** and **prompt templates**.
 - They do **not** replace the pipeline, validators, confirmation handling, or security.
@@ -31,6 +34,8 @@ Important:
 Planned (not shipped in this repo yet):
 - `catalog`
 - `support`
+- `resolver_assistant`
+- `thinker`
 
 ## Enable a pack
 Example (commerce):
