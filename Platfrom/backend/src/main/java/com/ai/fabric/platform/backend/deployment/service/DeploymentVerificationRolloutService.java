@@ -393,6 +393,7 @@ public class DeploymentVerificationRolloutService {
             }
         }
 
+        forceRedispatchLatestQueuedApply(deploymentId);
         ensureCanonicalOwnershipAssignments(deploymentId);
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentInternal(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
