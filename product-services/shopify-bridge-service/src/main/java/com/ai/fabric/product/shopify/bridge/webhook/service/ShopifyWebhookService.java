@@ -9,6 +9,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+
 @Service
 public class ShopifyWebhookService {
 
@@ -30,18 +33,20 @@ public class ShopifyWebhookService {
         this.objectMapper = objectMapper;
     }
 
-    public void handle(String topic, String shopDomainHeader, String rawBody) {
+    public void handle(String topic, String shopDomainHeader, String webhookId, String rawBody) {
         String normalizedTopic = blankToEmpty(topic).toLowerCase();
         String shopDomain = extractShopDomain(shopDomainHeader, rawBody);
         if (shopDomain == null || shopDomain.isBlank()) {
             return;
         }
+        JsonNode payload = parsePayload(rawBody);
+        String payloadChecksum = payloadChecksum(rawBody);
 
         if ("app/uninstalled".equals(normalizedTopic)) {
             storeLifecycleService.markUninstalled(shopDomain);
             installCredentialService.clearLocalPersistedCredentials(shopDomain);
             installRecordService.markUninstalled(shopDomain);
-            recordWebhookSafely(shopDomain, normalizedTopic, "UNINSTALLED", null, "Shopify reported app uninstall.", false);
+            recordWebhookSafely(shopDomain, normalizedTopic, "UNINSTALLED", null, null, null, null, webhookId, payloadChecksum, null, "Shopify reported app uninstall.", false);
             return;
         }
 
@@ -51,6 +56,12 @@ public class ShopifyWebhookService {
                 normalizedTopic,
                 "COMPLIANCE_DATA_REQUEST",
                 "privacy",
+                null,
+                null,
+                null,
+                webhookId,
+                payloadChecksum,
+                null,
                 "Shopify requested customer data export review.",
                 false
             );
@@ -63,6 +74,12 @@ public class ShopifyWebhookService {
                 normalizedTopic,
                 "COMPLIANCE_CUSTOMER_REDACT",
                 "privacy",
+                null,
+                null,
+                null,
+                webhookId,
+                payloadChecksum,
+                null,
                 "Shopify requested customer redaction. The bridge service does not retain customer records locally.",
                 false
             );
@@ -78,6 +95,12 @@ public class ShopifyWebhookService {
                 normalizedTopic,
                 "COMPLIANCE_SHOP_REDACT",
                 "privacy",
+                null,
+                null,
+                null,
+                webhookId,
+                payloadChecksum,
+                null,
                 "Shopify requested shop redaction. Credentials and store mapping cleanup have been triggered.",
                 false
             );
@@ -93,6 +116,12 @@ public class ShopifyWebhookService {
                 normalizedTopic,
                 impact.eventType(),
                 impact.sourceCategory(),
+                impact.operation(),
+                extractSourceObjectId(impact.sourceCategory(), payload),
+                extractSourceRecordVersion(payload),
+                webhookId,
+                payloadChecksum,
+                null,
                 impact.message(),
                 impact.invalidateSync()
             );
@@ -106,10 +135,29 @@ public class ShopifyWebhookService {
                                      String topic,
                                      String eventType,
                                      String sourceCategory,
+                                     String operation,
+                                     String sourceObjectId,
+                                     String sourceRecordVersion,
+                                     String shopifyWebhookId,
+                                     String payloadChecksum,
+                                     Integer deliveryAttempt,
                                      String message,
                                      boolean invalidateSync) {
         try {
-            storeLifecycleService.recordWebhookEvent(shopDomain, topic, eventType, sourceCategory, message, invalidateSync);
+            storeLifecycleService.recordWebhookEvent(
+                shopDomain,
+                topic,
+                eventType,
+                sourceCategory,
+                operation,
+                sourceObjectId,
+                sourceRecordVersion,
+                shopifyWebhookId,
+                payloadChecksum,
+                deliveryAttempt,
+                message,
+                invalidateSync
+            );
         } catch (RestClientResponseException ex) {
             if (ex.getStatusCode().value() != 404) {
                 throw ex;
@@ -130,16 +178,57 @@ public class ShopifyWebhookService {
         if (shopDomainHeader != null && !shopDomainHeader.isBlank()) {
             return shopDomainHeader.trim().toLowerCase();
         }
+        JsonNode root = parsePayload(rawBody);
+        String myshopifyDomain = text(root, "myshopify_domain");
+        if (myshopifyDomain != null) {
+            return myshopifyDomain.toLowerCase();
+        }
+        String domain = text(root, "domain");
+        return domain == null ? null : domain.toLowerCase();
+    }
+
+    private JsonNode parsePayload(String rawBody) {
         try {
-            JsonNode root = objectMapper.readTree(rawBody == null ? "{}" : rawBody);
-            String myshopifyDomain = text(root, "myshopify_domain");
-            if (myshopifyDomain != null) {
-                return myshopifyDomain.toLowerCase();
-            }
-            String domain = text(root, "domain");
-            return domain == null ? null : domain.toLowerCase();
+            return objectMapper.readTree(rawBody == null ? "{}" : rawBody);
         } catch (Exception ex) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
+    private String extractSourceObjectId(String sourceCategory, JsonNode root) {
+        if ("policies".equals(sourceCategory)) {
+            return "shop-policies";
+        }
+        String graphQlId = text(root, "admin_graphql_api_id");
+        if (graphQlId != null) {
+            return graphQlId;
+        }
+        String id = text(root, "id");
+        if (id == null || id.isBlank()) {
             return null;
+        }
+        return id.startsWith("gid://") ? id : null;
+    }
+
+    private String extractSourceRecordVersion(JsonNode root) {
+        String updatedAt = text(root, "updatedAt");
+        if (updatedAt != null) {
+            return updatedAt;
+        }
+        return text(root, "updated_at");
+    }
+
+    private String payloadChecksum(String rawBody) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest((rawBody == null ? "" : rawBody).getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(hash.length * 2);
+            for (byte current : hash) {
+                builder.append(String.format("%02x", current));
+            }
+            return builder.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to compute Shopify webhook payload checksum.", ex);
         }
     }
 
@@ -158,26 +247,40 @@ public class ShopifyWebhookService {
 
     private WebhookImpact classify(String topic) {
         if (topic.startsWith("products/")) {
-            return new WebhookImpact("CONTENT_CHANGED", "products", "Shopify product content changed. Incremental sync is required.", true);
+            return new WebhookImpact("CONTENT_CHANGED", "products", topicOperation(topic), "Shopify product content changed. Incremental sync is required.", true);
         }
         if (topic.startsWith("collections/")) {
-            return new WebhookImpact("CONTENT_CHANGED", "collections", "Shopify collection content changed. Incremental sync is required.", true);
+            return new WebhookImpact("CONTENT_CHANGED", "collections", topicOperation(topic), "Shopify collection content changed. Incremental sync is required.", true);
         }
         if (topic.startsWith("pages/")) {
-            return new WebhookImpact("CONTENT_CHANGED", "pages", "Shopify page content changed. Incremental sync is required.", true);
+            return new WebhookImpact("CONTENT_CHANGED", "pages", topicOperation(topic), "Shopify page content changed. Incremental sync is required.", true);
         }
         if ("app_subscriptions/update".equals(topic)) {
-            return new WebhookImpact("BILLING_CHANGED", "billing", "Shopify app subscription billing changed. Review merchant billing status before go-live.", false);
+            return new WebhookImpact("BILLING_CHANGED", "billing", null, "Shopify app subscription billing changed. Review merchant billing status before go-live.", false);
         }
         if ("shop/update".equals(topic)) {
-            return new WebhookImpact("CONFIG_CHANGED", "policies", "Shopify store configuration changed. Review policy and store metadata sync.", true);
+            return new WebhookImpact("CONFIG_CHANGED", "policies", "UPDATE", "Shopify store configuration changed. Review policy and store metadata sync.", true);
         }
         return null;
+    }
+
+    private String topicOperation(String topic) {
+        if (topic == null || topic.isBlank()) {
+            return "UPDATE";
+        }
+        if (topic.endsWith("/create")) {
+            return "CREATE";
+        }
+        if (topic.endsWith("/delete")) {
+            return "DELETE";
+        }
+        return "UPDATE";
     }
 
     private record WebhookImpact(
         String eventType,
         String sourceCategory,
+        String operation,
         String message,
         boolean invalidateSync
     ) {

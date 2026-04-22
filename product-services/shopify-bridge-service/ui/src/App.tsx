@@ -13,36 +13,46 @@ import {
   Link,
   List,
   Page,
+  Select,
   Text,
   TextField,
 } from '@shopify/polaris'
 import enTranslations from '@shopify/polaris/locales/en.json'
 import {
   bootstrapStore,
-  fetchBillingSummary,
-  fetchVectorizationSummary,
-  requestBillingApproval,
   connectStore,
-  fetchWebhookSubscriptions,
-  fetchUsageSummary,
-  fetchStorefrontPreview,
+  fetchBillingSummary,
   fetchSession,
   fetchShell,
+  fetchStorefrontPreview,
+  fetchUsageSummary,
+  fetchVectorizationSummary,
+  fetchWebhookSubscriptions,
   goLiveStore,
+  indexAllStore,
   queryMerchantPlayground,
+  reindexAllStore,
+  reindexSelectedStore,
+  replayVectorizationEventStore,
   reconcileVectorization,
+  requestBillingApproval,
+  retryLastFailedVectorizationAutoRunStore,
   runSourcePreflight,
   suggestMerchantPlayground,
   syncNowStore,
   updateSourceSettings,
+  updateVectorizationPolicyStore,
   updateWidgetSettings,
   vectorizeNowStore,
-  type ShopifyBridgeMerchantSessionResponse,
-  type ShopifyBridgeBillingSummary,
   type ShopifyBridgeBillingApprovalResponse,
+  type ShopifyBridgeBillingSummary,
+  type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
+  type ShopifyBridgeStoreVectorizationIndexedFieldSummary,
+  type ShopifyBridgeStoreVectorizationSourcePolicyInput,
+  type ShopifyBridgeStoreVectorizationSourcePolicySummary,
   type ShopifyBridgeStoreVectorizationSummary,
   type ShopifyBridgeUsageSummary,
   type ShopifyWebhookSubscriptionStatusSummary,
@@ -104,6 +114,46 @@ type PlaygroundSourceCard = {
   url: string | null
 }
 
+type VectorizationPolicyDraft = {
+  policyVersion: number | null
+  sourcePolicies: ShopifyBridgeStoreVectorizationSourcePolicyInput[]
+}
+
+const UPDATE_TRIGGER_OPTIONS = [
+  { label: 'Disabled', value: 'NONE' },
+  { label: 'Any update', value: 'ANY_UPDATE' },
+  { label: 'Indexed fields only', value: 'INDEXED_FIELDS_ONLY' },
+  { label: 'Selected indexed fields', value: 'SELECTED_INDEXED_FIELDS' },
+]
+
+function buildVectorizationPolicyDraft(summary: ShopifyBridgeStoreVectorizationSummary | null): VectorizationPolicyDraft | null {
+  if (!summary?.policy) {
+    return null
+  }
+  return {
+    policyVersion: summary.policy.policyVersion ?? null,
+    sourcePolicies: (summary.policy.sourcePolicies ?? []).map((policy) => ({
+      sourceCategory: policy.sourceCategory,
+      autoIndexingEnabled: policy.autoIndexingEnabled,
+      createTriggerEnabled: policy.createTriggerEnabled,
+      deleteTriggerEnabled: policy.deleteTriggerEnabled,
+      updateTriggerMode: policy.updateTriggerMode,
+      selectedIndexedFields: [...(policy.selectedIndexedFields ?? [])],
+      debounceWindowSeconds: policy.debounceWindowSeconds,
+      minimumRunIntervalSeconds: policy.minimumRunIntervalSeconds,
+    })),
+  }
+}
+
+function sourcePolicyFieldOptions(
+  summary: ShopifyBridgeStoreVectorizationSummary | null,
+  sourceCategory: string
+): ShopifyBridgeStoreVectorizationIndexedFieldSummary[] {
+  return (summary?.effectiveIndexedFields ?? []).filter(
+    (field) => field.sourceCategory === sourceCategory && field.selectableForTriggerPolicy
+  )
+}
+
 export default function App() {
   const [state, setState] = useState<LoadState>({
     shell: null,
@@ -119,7 +169,24 @@ export default function App() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [pendingBillingReturn, setPendingBillingReturn] = useState(() => hasBillingReturnQueryParam())
-  const [busyAction, setBusyAction] = useState<'connect' | 'preflight' | 'bootstrap' | 'sync' | 'go-live' | 'source-settings' | 'billing-approval' | 'vectorization-reconcile' | 'vectorize-now' | null>(null)
+  const [busyAction, setBusyAction] = useState<
+    | 'connect'
+    | 'preflight'
+    | 'bootstrap'
+    | 'sync'
+    | 'go-live'
+    | 'source-settings'
+    | 'billing-approval'
+    | 'vectorization-reconcile'
+    | 'vectorize-now'
+    | 'vectorization-index-all'
+    | 'vectorization-reindex-all'
+    | 'vectorization-reindex-selected'
+    | 'vectorization-policy-save'
+    | 'vectorization-event-replay'
+    | 'vectorization-auto-retry'
+    | null
+  >(null)
   const [widgetSettings, setWidgetSettings] = useState({
     launcherLabel: 'Ask the store assistant',
     welcomeMessage: 'Store assistant is ready. Ask about products, policies, or collections.',
@@ -141,6 +208,8 @@ export default function App() {
     pagesEnabled: true,
     policiesEnabled: true,
   })
+  const [selectedReindexEntityTypes, setSelectedReindexEntityTypes] = useState<string[]>([])
+  const [vectorizationPolicyDraft, setVectorizationPolicyDraft] = useState<VectorizationPolicyDraft | null>(null)
 
   useEffect(() => {
     void refresh()
@@ -224,6 +293,8 @@ export default function App() {
         loading: false,
         error: null,
       })
+      setVectorizationPolicyDraft(buildVectorizationPolicyDraft(vectorizationSummary))
+      setSelectedReindexEntityTypes(vectorizationSummary?.selectedEntityTypes ?? [])
       if (session?.store) {
         setSourceSettings({
           productsEnabled: session.store.productsEnabled,
@@ -250,7 +321,32 @@ export default function App() {
         loading: false,
         error: error instanceof Error ? error.message : 'Unknown bridge shell failure.',
       })
+      setVectorizationPolicyDraft(null)
+      setSelectedReindexEntityTypes([])
     }
+  }
+
+  function applyVectorizationSummary(summary: ShopifyBridgeStoreVectorizationSummary) {
+    setState((current) => ({ ...current, vectorizationSummary: summary }))
+    setVectorizationPolicyDraft(buildVectorizationPolicyDraft(summary))
+    setSelectedReindexEntityTypes((current) => current.filter((value) => summary.selectedEntityTypes.includes(value)))
+  }
+
+  function updatePolicyDraftSource(
+    sourceCategory: string,
+    updater: (current: ShopifyBridgeStoreVectorizationSourcePolicyInput) => ShopifyBridgeStoreVectorizationSourcePolicyInput
+  ) {
+    setVectorizationPolicyDraft((current) => {
+      if (!current) {
+        return current
+      }
+      return {
+        ...current,
+        sourcePolicies: current.sourcePolicies.map((policy) =>
+          policy.sourceCategory === sourceCategory ? updater(policy) : policy
+        ),
+      }
+    })
   }
 
   async function handleConnect() {
@@ -385,7 +481,7 @@ export default function App() {
     setActionMessage(null)
     try {
       const vectorizationSummary = await reconcileVectorization()
-      setState((current) => ({ ...current, vectorizationSummary }))
+      applyVectorizationSummary(vectorizationSummary)
       setActionMessage(`Reconciled deployment vectorization support for ${vectorizationSummary.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to reconcile deployment vectorization support.')
@@ -400,10 +496,107 @@ export default function App() {
     setActionMessage(null)
     try {
       const vectorizationSummary = await vectorizeNowStore()
-      setState((current) => ({ ...current, vectorizationSummary }))
+      applyVectorizationSummary(vectorizationSummary)
       setActionMessage(`Queued deployment vectorization for ${vectorizationSummary.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to trigger Shopify vectorization.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleIndexAll() {
+    setBusyAction('vectorization-index-all')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const vectorizationSummary = await indexAllStore()
+      applyVectorizationSummary(vectorizationSummary)
+      setActionMessage(`Queued indexing for all enabled Shopify data in ${vectorizationSummary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to queue indexing for the current Shopify scope.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleReindexAll() {
+    setBusyAction('vectorization-reindex-all')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const vectorizationSummary = await reindexAllStore()
+      applyVectorizationSummary(vectorizationSummary)
+      setActionMessage(`Queued a full Shopify reindex for ${vectorizationSummary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to queue Shopify reindex.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleReindexSelected() {
+    if (!selectedReindexEntityTypes.length) {
+      setActionError('Select at least one enabled entity family before requesting a bounded Shopify reindex.')
+      return
+    }
+    setBusyAction('vectorization-reindex-selected')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const vectorizationSummary = await reindexSelectedStore({ entityTypes: selectedReindexEntityTypes })
+      applyVectorizationSummary(vectorizationSummary)
+      setActionMessage(`Queued a bounded Shopify reindex for ${selectedReindexEntityTypes.join(', ')}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to queue bounded Shopify reindex.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleSaveVectorizationPolicy() {
+    if (!vectorizationPolicyDraft) {
+      return
+    }
+    setBusyAction('vectorization-policy-save')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const vectorizationSummary = await updateVectorizationPolicyStore(vectorizationPolicyDraft)
+      applyVectorizationSummary(vectorizationSummary)
+      setActionMessage(`Saved live update policy for ${vectorizationSummary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to save the Shopify live update policy.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleReplayVectorizationEvent(eventId: string) {
+    setBusyAction('vectorization-event-replay')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const vectorizationSummary = await replayVectorizationEventStore(eventId)
+      applyVectorizationSummary(vectorizationSummary)
+      setActionMessage(`Requeued Shopify live update event ${eventId}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to replay the Shopify live update event.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleRetryFailedAutoRun() {
+    setBusyAction('vectorization-auto-retry')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const vectorizationSummary = await retryLastFailedVectorizationAutoRunStore()
+      applyVectorizationSummary(vectorizationSummary)
+      setActionMessage(`Requeued the last failed Shopify live auto indexing run for ${vectorizationSummary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to retry the last failed Shopify live auto indexing run.')
     } finally {
       setBusyAction(null)
     }
@@ -505,7 +698,15 @@ export default function App() {
   )
   const webhookSubscriptions = state.webhookSubscriptions
   const vectorizationSummary = state.vectorizationSummary
-  const supportBundleText = buildSupportBundle(shell, session, storefrontPreview, usageSummary, billingSummary, webhookSubscriptions)
+  const supportBundleText = buildSupportBundle(
+    shell,
+    session,
+    storefrontPreview,
+    usageSummary,
+    billingSummary,
+    webhookSubscriptions,
+    vectorizationSummary,
+  )
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
   const billingLaunchBlocked = Boolean(billingSummary?.launchBlocked)
@@ -529,6 +730,15 @@ export default function App() {
     Boolean(session) &&
     Boolean(vectorizationSummary?.readyToRun) &&
     !installRecoveryRequired
+  const vectorizationBusy =
+    busyAction === 'vectorization-reconcile' ||
+    busyAction === 'vectorize-now' ||
+    busyAction === 'vectorization-index-all' ||
+    busyAction === 'vectorization-reindex-all' ||
+    busyAction === 'vectorization-reindex-selected' ||
+    busyAction === 'vectorization-policy-save' ||
+    busyAction === 'vectorization-event-replay' ||
+    busyAction === 'vectorization-auto-retry'
   const sourceSettingsDirty =
     !!store &&
     (store.productsEnabled !== sourceSettings.productsEnabled ||
@@ -738,9 +948,14 @@ export default function App() {
                         {vectorizationSummary.syncState ? (
                           <Badge tone={badgeTone(vectorizationSummary.syncState)}>{vectorizationSummary.syncState}</Badge>
                         ) : null}
+                        {vectorizationSummary.automation ? (
+                          <Badge tone={vectorizationSummary.automation.autoIndexingHealthy ? 'success' : 'attention'}>
+                            {vectorizationSummary.automation.autoIndexingHealthy ? 'Live updates healthy' : 'Live updates degraded'}
+                          </Badge>
+                        ) : null}
                       </InlineStack>
                       <Text as="p" variant="bodyMd" tone="subdued">
-                        Shopify source selection now drives deployment plugin installs and the deployment vectorization plan. Use reconcile to align the deployment with the current store scope, then queue vectorization for the current enabled data.
+                        Shopify source selection now drives deployment plugin installs and the deployment vectorization plan. Use reconcile to align the deployment with the current store scope, then use bounded Index, Reindex, and Live updates controls for the enabled data.
                       </Text>
                       <List type="bullet">
                         <List.Item>Selected categories: {vectorizationSummary.selectedCategories.join(', ') || 'None selected'}</List.Item>
@@ -753,6 +968,13 @@ export default function App() {
                         <List.Item>Runner: {vectorizationSummary.runnerConfigured ? (vectorizationSummary.runnerRegistrationStatus ?? 'Configured') : 'Not provisioned'}</List.Item>
                         <List.Item>Deployment apply: {vectorizationSummary.deploymentApplyInProgress ? (vectorizationSummary.deploymentApplyStatus ?? 'IN_PROGRESS') : (vectorizationSummary.deploymentApplyStatus ?? 'Idle')}</List.Item>
                         <List.Item>Plan runner: {vectorizationSummary.runnerMode ?? 'Not configured'}</List.Item>
+                        <List.Item>Policy version: {vectorizationSummary.policy?.policyVersion ?? '—'}</List.Item>
+                        <List.Item>
+                          Live updates backlog:
+                          {' '}queued {vectorizationSummary.automation?.queuedEvents ?? 0},
+                          {' '}failed {vectorizationSummary.automation?.failedEvents ?? 0},
+                          {' '}dead-lettered {vectorizationSummary.automation?.deadLetteredEvents ?? 0}
+                        </List.Item>
                       </List>
                       {vectorizationSummary.lastRun ? (
                         <Text as="p" variant="bodySm" tone="subdued">
@@ -772,6 +994,15 @@ export default function App() {
                           </List>
                         </Banner>
                       ) : null}
+                      {vectorizationSummary.automation?.degradedReasons?.length ? (
+                        <Banner tone="warning">
+                          <List type="bullet">
+                            {vectorizationSummary.automation.degradedReasons.map((reason) => (
+                              <List.Item key={reason}>{reason}</List.Item>
+                            ))}
+                          </List>
+                        </Banner>
+                      ) : null}
                       <InlineStack gap="200">
                         <Button
                           onClick={() => void handleVectorizationReconcile()}
@@ -782,13 +1013,229 @@ export default function App() {
                         </Button>
                         <Button
                           variant="primary"
-                          onClick={() => void handleVectorizeNow()}
-                          loading={busyAction === 'vectorize-now'}
+                          onClick={() => void handleIndexAll()}
+                          loading={busyAction === 'vectorization-index-all'}
                           disabled={!canVectorizeNow}
                         >
-                          Vectorize current data
+                          Index all enabled data
+                        </Button>
+                        <Button
+                          onClick={() => void handleReindexAll()}
+                          loading={busyAction === 'vectorization-reindex-all'}
+                          disabled={!canVectorizeNow}
+                        >
+                          Reindex all enabled data
                         </Button>
                       </InlineStack>
+
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Bounded reindex selection
+                        </Text>
+                        <InlineStack gap="200">
+                          {vectorizationSummary.selectedEntityTypes.map((entityType) => (
+                            <Checkbox
+                              key={entityType}
+                              label={entityType}
+                              checked={selectedReindexEntityTypes.includes(entityType)}
+                              onChange={(checked) => {
+                                setSelectedReindexEntityTypes((current) =>
+                                  checked
+                                    ? Array.from(new Set([...current, entityType]))
+                                    : current.filter((value) => value !== entityType)
+                                )
+                              }}
+                            />
+                          ))}
+                        </InlineStack>
+                        <InlineStack gap="200">
+                          <Button
+                            onClick={() => void handleReindexSelected()}
+                            loading={busyAction === 'vectorization-reindex-selected'}
+                            disabled={!canVectorizeNow || !selectedReindexEntityTypes.length}
+                          >
+                            Reindex selected types
+                          </Button>
+                          <Button
+                            onClick={() => void handleRetryFailedAutoRun()}
+                            loading={busyAction === 'vectorization-auto-retry'}
+                            disabled={vectorizationBusy || !vectorizationSummary.automation?.lastFailedAutoIndexAt}
+                          >
+                            Retry failed live updates
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+
+                      <BlockStack gap="150">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Effective indexed fields
+                        </Text>
+                        {vectorizationSummary.effectiveIndexedFields.length ? (
+                          <List type="bullet">
+                            {vectorizationSummary.effectiveIndexedFields.map((field) => (
+                              <List.Item key={field.fieldKey}>
+                                {field.label} · {field.sourceCategory} · {field.entityType}
+                              </List.Item>
+                            ))}
+                          </List>
+                        ) : (
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            Effective indexed fields appear after the deployment vectorization plan is active.
+                          </Text>
+                        )}
+                      </BlockStack>
+
+                      {vectorizationPolicyDraft ? (
+                        <BlockStack gap="200">
+                          <Text as="h3" variant="headingSm">
+                            Live update policy
+                          </Text>
+                          {vectorizationSummary.policy?.sourcePolicies.map((policy) => {
+                            const draftPolicy =
+                              vectorizationPolicyDraft.sourcePolicies.find((current) => current.sourceCategory === policy.sourceCategory) ?? policy
+                            const selectableFields = sourcePolicyFieldOptions(vectorizationSummary, policy.sourceCategory)
+                            return (
+                              <Box key={policy.sourceCategory} padding="200" borderWidth="025" borderColor="border" borderRadius="200">
+                                <BlockStack gap="200">
+                                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                    {policy.sourceCategory}
+                                  </Text>
+                                  <InlineStack gap="200">
+                                    <Checkbox
+                                      label="Live updates"
+                                      checked={Boolean(draftPolicy.autoIndexingEnabled)}
+                                      disabled={!policy.enabled}
+                                      onChange={(checked) =>
+                                        updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                          ...current,
+                                          autoIndexingEnabled: checked,
+                                        }))
+                                      }
+                                    />
+                                    <Checkbox
+                                      label="Create"
+                                      checked={Boolean(draftPolicy.createTriggerEnabled)}
+                                      disabled={!policy.enabled}
+                                      onChange={(checked) =>
+                                        updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                          ...current,
+                                          createTriggerEnabled: checked,
+                                        }))
+                                      }
+                                    />
+                                    <Checkbox
+                                      label="Delete"
+                                      checked={Boolean(draftPolicy.deleteTriggerEnabled)}
+                                      disabled={!policy.enabled}
+                                      onChange={(checked) =>
+                                        updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                          ...current,
+                                          deleteTriggerEnabled: checked,
+                                        }))
+                                      }
+                                    />
+                                  </InlineStack>
+                                  <Select
+                                    label="Update trigger mode"
+                                    options={UPDATE_TRIGGER_OPTIONS}
+                                    value={draftPolicy.updateTriggerMode ?? 'NONE'}
+                                    disabled={!policy.enabled}
+                                    onChange={(value) =>
+                                      updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                        ...current,
+                                        updateTriggerMode: value,
+                                        selectedIndexedFields:
+                                          value === 'SELECTED_INDEXED_FIELDS' ? current.selectedIndexedFields ?? [] : [],
+                                      }))
+                                    }
+                                  />
+                                  {draftPolicy.updateTriggerMode === 'SELECTED_INDEXED_FIELDS' ? (
+                                    <BlockStack gap="100">
+                                      <Text as="p" variant="bodySm" tone="subdued">
+                                        Selected indexed fields
+                                      </Text>
+                                      {selectableFields.length ? (
+                                        <InlineStack gap="200">
+                                          {selectableFields.map((field) => (
+                                            <Checkbox
+                                              key={field.fieldKey}
+                                              label={field.label}
+                                              checked={(draftPolicy.selectedIndexedFields ?? []).includes(field.fieldKey)}
+                                              onChange={(checked) =>
+                                                updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                  ...current,
+                                                  selectedIndexedFields: checked
+                                                    ? Array.from(new Set([...(current.selectedIndexedFields ?? []), field.fieldKey]))
+                                                    : (current.selectedIndexedFields ?? []).filter((value) => value !== field.fieldKey),
+                                                }))
+                                              }
+                                            />
+                                          ))}
+                                        </InlineStack>
+                                      ) : (
+                                        <Text as="p" variant="bodySm" tone="subdued">
+                                          No selectable indexed fields are available for this Shopify source family yet.
+                                        </Text>
+                                      )}
+                                    </BlockStack>
+                                  ) : null}
+                                </BlockStack>
+                              </Box>
+                            )
+                          })}
+                          <InlineStack gap="200">
+                            <Button
+                              onClick={() => void handleSaveVectorizationPolicy()}
+                              loading={busyAction === 'vectorization-policy-save'}
+                              disabled={vectorizationBusy}
+                            >
+                              Save live update policy
+                            </Button>
+                          </InlineStack>
+                        </BlockStack>
+                      ) : null}
+
+                      <BlockStack gap="150">
+                        <Text as="h3" variant="headingSm">
+                          Recent live update events
+                        </Text>
+                        {vectorizationSummary.recentEvents.length ? (
+                          <BlockStack gap="150">
+                            {vectorizationSummary.recentEvents.map((event) => (
+                              <Box key={event.id} padding="200" borderWidth="025" borderColor="border" borderRadius="200">
+                                <BlockStack gap="100">
+                                  <Text as="p" variant="bodySm">
+                                    {event.sourceCategory} · {event.operation ?? 'UNKNOWN'} · {event.status}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {event.entityType}
+                                    {event.sourceObjectId ? ` · ${event.sourceObjectId}` : ''}
+                                    {event.failureCode ? ` · ${event.failureCode}` : ''}
+                                    {event.coalescedRunId ? ` · ${event.coalescedRunId}` : ''}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    Occurred {formatTimestamp(event.occurredAt)} · Last attempt {formatTimestamp(event.lastAttemptAt)}
+                                  </Text>
+                                  <InlineStack gap="200">
+                                    <Button
+                                      size="micro"
+                                      onClick={() => void handleReplayVectorizationEvent(event.id)}
+                                      loading={busyAction === 'vectorization-event-replay'}
+                                      disabled={vectorizationBusy}
+                                    >
+                                      Replay event
+                                    </Button>
+                                  </InlineStack>
+                                </BlockStack>
+                              </Box>
+                            ))}
+                          </BlockStack>
+                        ) : (
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            No recent live update events have been recorded yet.
+                          </Text>
+                        )}
+                      </BlockStack>
                     </BlockStack>
                   ) : (
                     <Text as="p" variant="bodyMd" tone="subdued">
@@ -1518,7 +1965,8 @@ function buildSupportBundle(
   storefrontPreview: ShopifyStorefrontPreviewResponse | null,
   usageSummary: ShopifyBridgeUsageSummary | null,
   billingSummary: ShopifyBridgeBillingSummary | null,
-  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null
 ): string {
   const store = session?.store ?? null
   return JSON.stringify(
@@ -1580,6 +2028,7 @@ function buildSupportBundle(
         : null,
       billingSummary,
       webhookSubscriptions,
+      vectorizationSummary,
       storefrontPreview: storefrontPreview
         ? {
             ready: storefrontPreview.ready,
@@ -1652,6 +2101,18 @@ function describeUsageEvent(eventType: string): string {
       return 'widget settings updates'
     case 'MERCHANT_SOURCE_SETTINGS_UPDATED':
       return 'source setting updates'
+    case 'MERCHANT_VECTORIZATION_INDEX_ALL':
+      return 'index all requests'
+    case 'MERCHANT_VECTORIZATION_REINDEX_ALL':
+      return 'reindex all requests'
+    case 'MERCHANT_VECTORIZATION_REINDEX_SELECTED':
+      return 'reindex selected requests'
+    case 'MERCHANT_VECTORIZATION_POLICY_UPDATED':
+      return 'live update policy saves'
+    case 'MERCHANT_VECTORIZATION_EVENT_REPLAYED':
+      return 'live update event replays'
+    case 'MERCHANT_VECTORIZATION_AUTO_RETRY':
+      return 'failed live update retries'
     case 'MERCHANT_PLAYGROUND_QUERY':
       return 'merchant playground queries'
     case 'MERCHANT_PLAYGROUND_SUGGESTIONS':

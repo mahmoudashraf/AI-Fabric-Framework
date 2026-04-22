@@ -29,6 +29,10 @@ public record ShopifyStoreVectorizationSummary(
     String syncState,
     boolean readyToRun,
     List<String> blockingReasons,
-    ShopifyStoreVectorizationRunSummary lastRun
+    ShopifyStoreVectorizationRunSummary lastRun,
+    ShopifyStoreVectorizationPolicySummary policy,
+    List<ShopifyStoreVectorizationIndexedFieldSummary> effectiveIndexedFields,
+    ShopifyStoreVectorizationAutomationSummary automation,
+    List<ShopifyStoreVectorizationEventSummary> recentEvents
 ) {
 }

@@ -9,8 +9,11 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectio
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationEventSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreVectorizationPolicyRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
@@ -31,12 +34,13 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -176,6 +180,52 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreVectorizationSummary vectorizeNow(@PathVariable String shopDomain) {
         return shopifyStoreVectorizationService.vectorizeNow(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/index-all")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary indexAllEnabledData(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.indexAllEnabledData(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/reindex-all")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary reindexAllEnabledData(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.reindexAllEnabledData(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/reindex-selected")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary reindexSelectedEntityTypes(@PathVariable String shopDomain,
+                                                                       @RequestBody ShopifyStoreVectorizationSelectedEntitiesRequest request) {
+        return shopifyStoreVectorizationService.reindexSelectedEntityTypes(shopDomain, request);
+    }
+
+    @PutMapping("/{shopDomain}/vectorization/policy")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary updateVectorizationPolicy(@PathVariable String shopDomain,
+                                                                      @RequestBody UpdateShopifyStoreVectorizationPolicyRequest request) {
+        return shopifyStoreVectorizationService.updatePolicy(shopDomain, request);
+    }
+
+    @GetMapping("/{shopDomain}/vectorization/events")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public List<ShopifyStoreVectorizationEventSummary> recentVectorizationEvents(@PathVariable String shopDomain,
+                                                                                 @RequestParam(defaultValue = "20") int limit) {
+        return shopifyStoreVectorizationService.recentEvents(shopDomain, limit);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/events/{eventId}/replay")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary replayVectorizationEvent(@PathVariable String shopDomain,
+                                                                     @PathVariable String eventId) {
+        return shopifyStoreVectorizationService.replayEvent(shopDomain, eventId);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/retry-last-failed-auto-run")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary retryLastFailedAutoRun(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.retryLastFailedAutoRun(shopDomain);
     }
 
     @PostMapping("/{shopDomain}/source-preflight")

@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationEventService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationLedgerService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationCheckpointEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationFailureBucketEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
@@ -87,6 +89,8 @@ public class VectorizationRunnerService {
     private final VectorizationTokenService tokenService;
     private final VectorizationService vectorizationService;
     private final PlatformSecretService platformSecretService;
+    private final ShopifyStoreVectorizationLedgerService shopifyStoreVectorizationLedgerService;
+    private final ShopifyStoreVectorizationEventService shopifyStoreVectorizationEventService;
 
     public VectorizationRunnerService(PlatformVectorizationProperties properties,
                                       PlatformAuditService platformAuditService,
@@ -102,7 +106,9 @@ public class VectorizationRunnerService {
                                       VectorizationJsonSupport jsonSupport,
                                       VectorizationTokenService tokenService,
                                       VectorizationService vectorizationService,
-                                      PlatformSecretService platformSecretService) {
+                                      PlatformSecretService platformSecretService,
+                                      ShopifyStoreVectorizationLedgerService shopifyStoreVectorizationLedgerService,
+                                      ShopifyStoreVectorizationEventService shopifyStoreVectorizationEventService) {
         this.properties = properties;
         this.platformAuditService = platformAuditService;
         this.deploymentRepository = deploymentRepository;
@@ -118,6 +124,8 @@ public class VectorizationRunnerService {
         this.tokenService = tokenService;
         this.vectorizationService = vectorizationService;
         this.platformSecretService = platformSecretService;
+        this.shopifyStoreVectorizationLedgerService = shopifyStoreVectorizationLedgerService;
+        this.shopifyStoreVectorizationEventService = shopifyStoreVectorizationEventService;
     }
 
     @Transactional
@@ -457,6 +465,45 @@ public class VectorizationRunnerService {
             planRepository.save(plan);
         }
 
+        if ("COMPLETED".equals(finalStatus)) {
+            try {
+                shopifyStoreVectorizationLedgerService.refreshForCompletedRun(run, jsonSupport.readStringList(run.getEntityScopeJson()));
+                shopifyStoreVectorizationEventService.markRunCompletion(
+                    run.getId(),
+                    true,
+                    "Shopify vectorization run completed successfully.",
+                    null
+                );
+            } catch (RuntimeException ex) {
+                shopifyStoreVectorizationEventService.markRunCompletion(
+                    run.getId(),
+                    false,
+                    ex.getMessage() == null || ex.getMessage().isBlank()
+                        ? "Shopify sparse ledger refresh failed after run completion."
+                        : ex.getMessage(),
+                    "LEDGER_REFRESH_FAILED"
+                );
+                platformAuditService.record(
+                    "SHOPIFY_STORE_VECTORIZATION_LEDGER_REFRESH_FAILED",
+                    "DEPLOYMENT",
+                    run.getDeploymentId(),
+                    Map.of(
+                        "deploymentId", run.getDeploymentId(),
+                        "runId", run.getId()
+                    )
+                );
+            }
+        } else {
+            shopifyStoreVectorizationEventService.markRunCompletion(
+                run.getId(),
+                false,
+                buildShopifyFailureSummary(request),
+                "FAILED".equals(finalStatus)
+                    ? "SHOPIFY_VECTOR_RUN_FAILED"
+                    : "SHOPIFY_VECTOR_RUN_INTERRUPTED"
+            );
+        }
+
         platformAuditService.record(
             "VECTORIZATION_RUN_COMPLETED",
             "DEPLOYMENT",
@@ -469,6 +516,14 @@ public class VectorizationRunnerService {
         );
 
         return vectorizationService.summarizeRun(run);
+    }
+
+    private String buildShopifyFailureSummary(VectorizationRunnerCompletionRequest request) {
+        String message = trimToNull(defaultObject(request.errorSummary()).path("exception").asText(null));
+        if (!StringUtils.hasText(message)) {
+            message = trimToNull(defaultObject(request.errorSummary()).path("summary").asText(null));
+        }
+        return StringUtils.hasText(message) ? message : "Shopify vectorization run did not complete successfully.";
     }
 
     @Transactional

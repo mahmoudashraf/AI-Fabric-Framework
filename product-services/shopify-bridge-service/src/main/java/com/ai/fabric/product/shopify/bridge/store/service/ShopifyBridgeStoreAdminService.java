@@ -24,17 +24,20 @@ public class ShopifyBridgeStoreAdminService {
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyBridgeSourcePreflightService sourcePreflightService;
+    private final ShopifyBridgeStoreSyncService storeSyncService;
     private final ShopifyBridgeVectorizationSourceService vectorizationSourceService;
 
     public ShopifyBridgeStoreAdminService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                           ShopifyBridgeInstallCredentialService installCredentialService,
                                           ShopifyBridgeBillingService billingService,
                                           ShopifyBridgeSourcePreflightService sourcePreflightService,
+                                          ShopifyBridgeStoreSyncService storeSyncService,
                                           ShopifyBridgeVectorizationSourceService vectorizationSourceService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
         this.billingService = billingService;
         this.sourcePreflightService = sourcePreflightService;
+        this.storeSyncService = storeSyncService;
         this.vectorizationSourceService = vectorizationSourceService;
     }
 
@@ -65,6 +68,15 @@ public class ShopifyBridgeStoreAdminService {
             ));
     }
 
+    public ShopifyBridgeStoreSummary runSync(String shopDomain) {
+        return installCredentialService.resolvePersistedMaterial(shopDomain)
+            .map(storeSyncService::sync)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify sync requires persisted store credentials. Install or reconnect the app first."
+            ));
+    }
+
     public ShopifyBridgeStoreSummary recordSourcePreflight(String shopDomain,
                                                            ShopifyBridgeRecordSourcePreflightRequest request) {
         return platformShopifyStoreClient.recordSourcePreflight(shopDomain, request);
@@ -85,5 +97,11 @@ public class ShopifyBridgeStoreAdminService {
                                                                                 String cursor,
                                                                                 Integer limit) {
         return vectorizationSourceService.page(shopDomain, entityType, cursor, limit);
+    }
+
+    public com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourceRecord vectorizationSourceRecord(String shopDomain,
+                                                                                                                             String sourceCategory,
+                                                                                                                             String sourceObjectId) {
+        return vectorizationSourceService.record(shopDomain, sourceCategory, sourceObjectId);
     }
 }

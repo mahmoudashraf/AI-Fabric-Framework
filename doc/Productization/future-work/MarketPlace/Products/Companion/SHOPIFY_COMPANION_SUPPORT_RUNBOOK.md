@@ -56,10 +56,11 @@ Always inspect in this order:
 
 1. product service health and dependents
 2. store summary and readiness blockers
-3. bridge shell and merchant session
-4. storefront bootstrap
-5. sync details and webhook detail
-6. latest deployment release / verification state
+3. vectorization summary, policy, and live-update backlog
+4. bridge shell and merchant session
+5. storefront bootstrap
+6. sync details and webhook detail
+7. latest deployment release / verification state
 
 Do not start with the storefront widget if the platform store summary is already blocked.
 
@@ -72,12 +73,14 @@ Use the platform APIs or UI pages for:
 - managed product service overview / dependents
 - Shopify store summary
 - Shopify store mapping, deployment, and consumer drill-through
+- Shopify vectorization summary, policy, indexed fields, automation summary, and recent events
 
 Use the Shopify Bridge service for:
 
 - merchant session state
 - merchant UI shell
 - storefront bootstrap/query/suggestions/events
+- vectorization source-page reachability when bridge admin access is available
 
 ## 5. Common Failure Modes
 
@@ -231,9 +234,10 @@ Escalate to Shopify app/integration engineering when:
 Before onboarding a new design partner or reviewer, confirm:
 
 1. `scripts/verify-shopify-companion.sh` passes
-2. the merchant UI resolves session, store summary, preview, and support bundle
-3. the storefront widget loads from the theme app extension
-4. uninstall verification can be run on a disposable store mapping
+2. vectorization summary shows policy, indexed fields, and a healthy or explainable live-update backlog
+3. the merchant UI resolves session, store summary, preview, and support bundle
+4. the storefront widget loads from the theme app extension
+5. uninstall verification can be run on a disposable store mapping
 
 ## 8. Non-Goals For Support
 

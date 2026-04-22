@@ -2,10 +2,10 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
-import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallSummary;
@@ -14,15 +14,21 @@ import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceI
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationAutomationSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationEventSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationIndexedFieldSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationPolicySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationRunSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreVectorizationPolicyRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.vectorization.model.CreateVectorizationRunRequest;
 import com.ai.fabric.platform.backend.vectorization.model.UpsertVectorizationPlanRequest;
 import com.ai.fabric.platform.backend.vectorization.model.UpsertVectorizationSourceConnectionRequest;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationOverviewSummary;
-import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummary;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationService;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -56,6 +62,10 @@ public class ShopifyStoreVectorizationService {
     private final PlatformManagedProductServiceRepository productServiceRepository;
     private final VectorizationService vectorizationService;
     private final ShopifyCompanionBootstrapProperties properties;
+    private final ShopifyStoreVectorizationPolicyService policyService;
+    private final ShopifyStoreVectorizationFieldCatalogService fieldCatalogService;
+    private final ShopifyStoreVectorizationEventService eventService;
+    private final ShopifyBridgeAdminClient bridgeAdminClient;
     private final PlatformAuditService platformAuditService;
 
     public ShopifyStoreVectorizationService(ShopifyStoreConnectionRepository repository,
@@ -67,6 +77,10 @@ public class ShopifyStoreVectorizationService {
                                             PlatformManagedProductServiceRepository productServiceRepository,
                                             VectorizationService vectorizationService,
                                             ShopifyCompanionBootstrapProperties properties,
+                                            ShopifyStoreVectorizationPolicyService policyService,
+                                            ShopifyStoreVectorizationFieldCatalogService fieldCatalogService,
+                                            ShopifyStoreVectorizationEventService eventService,
+                                            ShopifyBridgeAdminClient bridgeAdminClient,
                                             PlatformAuditService platformAuditService) {
         this.repository = repository;
         this.deploymentRepository = deploymentRepository;
@@ -77,6 +91,10 @@ public class ShopifyStoreVectorizationService {
         this.productServiceRepository = productServiceRepository;
         this.vectorizationService = vectorizationService;
         this.properties = properties;
+        this.policyService = policyService;
+        this.fieldCatalogService = fieldCatalogService;
+        this.eventService = eventService;
+        this.bridgeAdminClient = bridgeAdminClient;
         this.platformAuditService = platformAuditService;
     }
 
@@ -149,29 +167,114 @@ public class ShopifyStoreVectorizationService {
 
     @Transactional
     public ShopifyStoreVectorizationSummary vectorizeNow(String shopDomain) {
+        return indexAllEnabledData(shopDomain);
+    }
+
+    @Transactional
+    public ShopifyStoreVectorizationSummary indexAllEnabledData(String shopDomain) {
         ShopifyStoreConnectionEntity store = requireStore(shopDomain);
-        DeploymentEntity deployment = requireDeployment(store);
-        ShopifyStoreVectorizationSummary reconciled = reconcile(shopDomain);
-        if (!reconciled.readyToRun()) {
-            throw new ResponseStatusException(CONFLICT, String.join(" ", reconciled.blockingReasons()));
-        }
-        vectorizationService.createRun(
-            deployment.getId(),
-            new CreateVectorizationRunRequest(
-                reconciled.lastRun() == null ? "BOOTSTRAP" : "REFRESH",
-                reconciled.selectedEntityTypes(),
-                "Shopify store admin requested vectorization for current enabled source categories.",
-                JSON.objectNode()
-            )
+        return runManualIndexAction(
+            store,
+            ShopifyCompanionPluginSelection.selectedEntityTypes(store),
+            false,
+            "SHOPIFY_ADMIN_INDEX_ALL",
+            "Shopify store admin requested indexing for all enabled data."
         );
+    }
+
+    @Transactional
+    public ShopifyStoreVectorizationSummary reindexAllEnabledData(String shopDomain) {
+        ShopifyStoreConnectionEntity store = requireStore(shopDomain);
+        return runManualIndexAction(
+            store,
+            ShopifyCompanionPluginSelection.selectedEntityTypes(store),
+            true,
+            "SHOPIFY_ADMIN_REINDEX_ALL",
+            "Shopify store admin requested reindex for all enabled data."
+        );
+    }
+
+    @Transactional
+    public ShopifyStoreVectorizationSummary reindexSelectedEntityTypes(String shopDomain,
+                                                                       ShopifyStoreVectorizationSelectedEntitiesRequest request) {
+        ShopifyStoreConnectionEntity store = requireStore(shopDomain);
+        List<String> entityTypes = normalizeRequestedEntityTypes(
+            request == null ? null : request.entityTypes(),
+            ShopifyCompanionPluginSelection.selectedEntityTypes(store)
+        );
+        return runManualIndexAction(
+            store,
+            entityTypes,
+            true,
+            "SHOPIFY_ADMIN_REINDEX_SELECTED",
+            "Shopify store admin requested reindex for selected entity families."
+        );
+    }
+
+    @Transactional
+    public ShopifyStoreVectorizationSummary updatePolicy(String shopDomain,
+                                                         UpdateShopifyStoreVectorizationPolicyRequest request) {
+        ShopifyStoreConnectionEntity store = requireStore(shopDomain);
+        VectorizationOverviewSummary overview = resolveOverview(store);
+        policyService.update(store, overview, request);
         platformAuditService.record(
-            "SHOPIFY_STORE_VECTORIZATION_RUN_TRIGGERED",
+            "SHOPIFY_STORE_VECTORIZATION_POLICY_UPDATED_FROM_ADMIN",
             "SHOPIFY_STORE_CONNECTION",
             store.getShopDomain(),
             Map.of(
                 "shopDomain", store.getShopDomain(),
-                "deploymentId", deployment.getId(),
-                "selectedEntityTypes", String.join(",", reconciled.selectedEntityTypes())
+                "deploymentId", blankToEmpty(store.getDeploymentId()),
+                "requestedBy", PlatformSecurityContext.actorIdOrSystem()
+            )
+        );
+        return buildSummary(store);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ShopifyStoreVectorizationEventSummary> recentEvents(String shopDomain, int limit) {
+        ShopifyStoreConnectionEntity store = requireStore(shopDomain);
+        return eventService.listRecent(store.getShopDomain(), limit);
+    }
+
+    @Transactional
+    public ShopifyStoreVectorizationSummary replayEvent(String shopDomain, String eventId) {
+        ShopifyStoreConnectionEntity store = requireStore(shopDomain);
+        eventService.replay(store.getShopDomain(), eventId);
+        platformAuditService.record(
+            "SHOPIFY_STORE_VECTORIZATION_EVENT_REPLAYED",
+            "SHOPIFY_STORE_CONNECTION",
+            store.getShopDomain(),
+            Map.of(
+                "shopDomain", store.getShopDomain(),
+                "eventId", eventId,
+                "requestedBy", PlatformSecurityContext.actorIdOrSystem()
+            )
+        );
+        return buildSummary(store);
+    }
+
+    @Transactional
+    public ShopifyStoreVectorizationSummary retryLastFailedAutoRun(String shopDomain) {
+        ShopifyStoreConnectionEntity store = requireStore(shopDomain);
+        ShopifyStoreVectorizationSummary summary = buildSummary(store);
+        ShopifyStoreVectorizationAutomationSummary automation = summary.automation();
+        if (automation == null || automation.lastAutoRunId() == null || automation.lastFailedAutoIndexAt() == null) {
+            throw new ResponseStatusException(CONFLICT, "No failed Shopify live auto indexing run is available to retry.");
+        }
+        int replayed = eventService.replayRunEvents(store.getShopDomain(), automation.lastAutoRunId());
+        if (replayed <= 0) {
+            throw new ResponseStatusException(CONFLICT, "No Shopify live update events were available to replay for the last failed auto indexing run.");
+        }
+        platformAuditService.record(
+            "SHOPIFY_STORE_VECTORIZATION_AUTO_RUN_REQUEUED",
+            "SHOPIFY_STORE_CONNECTION",
+            store.getShopDomain(),
+            Map.of(
+                "shopDomain", store.getShopDomain(),
+                "deploymentId", blankToEmpty(store.getDeploymentId()),
+                "runId", automation.lastAutoRunId(),
+                "replayedEvents", Integer.toString(replayed),
+                "requestedBy", PlatformSecurityContext.actorIdOrSystem()
             )
         );
         return buildSummary(store);
@@ -328,6 +431,11 @@ public class ShopifyStoreVectorizationService {
                                                        DeploymentEntity deployment,
                                                        Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId,
                                                        VectorizationOverviewSummary overview) {
+        ShopifyStoreVectorizationPolicySummary policySummary = policyService.getSummary(store, overview);
+        List<ShopifyStoreVectorizationIndexedFieldSummary> effectiveIndexedFields = fieldCatalogService.effectiveFields(overview);
+        ShopifyStoreVectorizationAutomationSummary automation = eventService.summarizeAutomation(store.getShopDomain());
+        List<ShopifyStoreVectorizationEventSummary> recentEvents = eventService.listRecent(store.getShopDomain(), 20);
+
         List<String> selectedCategories = ShopifyCompanionPluginSelection.selectedCategories(store);
         List<String> selectedEntityTypes = ShopifyCompanionPluginSelection.selectedEntityTypes(store);
         List<String> requiredPluginIds = List.copyOf(ShopifyCompanionPluginSelection.desiredManagedPluginIds(properties, store));
@@ -347,10 +455,14 @@ public class ShopifyStoreVectorizationService {
 
         boolean connectionConfigured = overview != null && overview.sourceConnection() != null;
         boolean planConfigured = overview != null && overview.plan() != null && overview.plan().activeRevision() != null;
-        VectorizationRunnerSummary runner = overview == null ? null : overview.runner();
-        boolean runnerConfigured = runner != null;
+        boolean runnerConfigured = overview != null && overview.runner() != null;
         DeploymentReleaseEntity latestRelease = deployment == null ? null : latestRelease(deployment.getId());
         boolean deploymentApplyInProgress = latestRelease != null && isReleaseInProgress(latestRelease);
+        boolean reconciliationRequired = !missingPluginIds.isEmpty()
+            || !disabledPluginIds.isEmpty()
+            || !connectionConfigured
+            || !planConfigured
+            || (requiresPlatformManagedRunner(overview) && !runnerConfigured);
         boolean readyToRun = deployment != null
             && !selectedEntityTypes.isEmpty()
             && missingPluginIds.isEmpty()
@@ -365,7 +477,7 @@ public class ShopifyStoreVectorizationService {
             blockingReasons.add("Shopify store is not bootstrapped to a platform deployment yet.");
         }
         if (selectedEntityTypes.isEmpty()) {
-            blockingReasons.add("At least one Shopify source category must be enabled before vectorization can run.");
+            blockingReasons.add("At least one Shopify source category must be enabled before indexing can run.");
         }
         if (!missingPluginIds.isEmpty()) {
             blockingReasons.add("Deployment is missing required Shopify data plugins: " + String.join(", ", missingPluginIds));
@@ -381,13 +493,13 @@ public class ShopifyStoreVectorizationService {
         }
         if (planConfigured && requiresPlatformManagedRunner(overview) && !runnerConfigured) {
             if (deploymentApplyInProgress) {
-                blockingReasons.add("Deployment is applying vectorization runner support. Wait for the current release to finish before starting vectorization.");
+                blockingReasons.add("Deployment is applying vectorization runner support. Wait for the current release to finish before starting indexing.");
             } else {
                 blockingReasons.add("Deployment vectorization runner is not provisioned on the current release yet. Reconcile deployment support to apply the current version with runner support.");
             }
         }
         if (deploymentApplyInProgress) {
-            blockingReasons.add("Deployment currently has an apply in progress. Wait for it to complete before starting vectorization.");
+            blockingReasons.add("Deployment currently has an apply in progress. Wait for it to complete before starting indexing.");
         }
 
         return new ShopifyStoreVectorizationSummary(
@@ -400,7 +512,7 @@ public class ShopifyStoreVectorizationService {
             installedPluginIds,
             missingPluginIds,
             disabledPluginIds,
-            !missingPluginIds.isEmpty() || !disabledPluginIds.isEmpty(),
+            reconciliationRequired,
             connectionConfigured,
             overview == null || overview.sourceConnection() == null ? null : overview.sourceConnection().id(),
             overview == null || overview.sourceConnection() == null ? null : overview.sourceConnection().status(),
@@ -409,15 +521,19 @@ public class ShopifyStoreVectorizationService {
             overview == null || overview.plan() == null ? null : overview.plan().id(),
             overview == null || overview.plan() == null ? null : overview.plan().status(),
             runnerConfigured,
-            runner == null ? null : runner.registrationId(),
-            runner == null ? null : runner.registrationStatus(),
+            overview == null || overview.runner() == null ? null : overview.runner().registrationId(),
+            overview == null || overview.runner() == null ? null : overview.runner().registrationStatus(),
             deploymentApplyInProgress,
             latestRelease == null ? null : latestRelease.getStatus(),
             overview == null || overview.plan() == null ? null : overview.plan().runnerMode(),
             overview == null || overview.plan() == null ? null : overview.plan().syncState(),
             readyToRun,
             List.copyOf(blockingReasons),
-            summarizeLastRun(overview)
+            summarizeLastRun(overview),
+            policySummary,
+            effectiveIndexedFields,
+            automation,
+            recentEvents
         );
     }
 
@@ -437,6 +553,107 @@ public class ShopifyStoreVectorizationService {
             run.completedAt(),
             run.updatedAt()
         );
+    }
+
+    private ShopifyStoreVectorizationSummary runManualIndexAction(ShopifyStoreConnectionEntity store,
+                                                                 List<String> requestedEntityTypes,
+                                                                 boolean reindex,
+                                                                 String triggerMode,
+                                                                 String note) {
+        DeploymentEntity deployment = requireDeployment(store);
+        ShopifyStoreVectorizationSummary reconciled = reconcile(store.getShopDomain());
+        if (!reconciled.readyToRun()) {
+            throw new ResponseStatusException(CONFLICT, String.join(" ", reconciled.blockingReasons()));
+        }
+        List<String> entityTypes = normalizeRequestedEntityTypes(requestedEntityTypes, reconciled.selectedEntityTypes());
+        bridgeAdminClient.runSync(store);
+        vectorizationService.createRunForTrustedCaller(
+            deployment.getId(),
+            new CreateVectorizationRunRequest(
+                resolveManualRunReason(reconciled, reindex),
+                entityTypes,
+                note,
+                buildManualExecutionOverrides(store, entityTypes, triggerMode, note)
+            ),
+            PlatformSecurityContext.actorIdOrSystem()
+        );
+        platformAuditService.record(
+            "SHOPIFY_STORE_VECTORIZATION_MANUAL_RUN_TRIGGERED",
+            "SHOPIFY_STORE_CONNECTION",
+            store.getShopDomain(),
+            Map.of(
+                "shopDomain", store.getShopDomain(),
+                "deploymentId", deployment.getId(),
+                "entityTypes", String.join(",", entityTypes),
+                "triggerMode", triggerMode,
+                "requestedBy", PlatformSecurityContext.actorIdOrSystem()
+            )
+        );
+        return buildSummary(store);
+    }
+
+    private String resolveManualRunReason(ShopifyStoreVectorizationSummary summary, boolean reindex) {
+        if (reindex) {
+            return "REINDEX";
+        }
+        return summary.lastRun() == null ? "BOOTSTRAP" : "REFRESH";
+    }
+
+    private ObjectNode buildManualExecutionOverrides(ShopifyStoreConnectionEntity store,
+                                                     List<String> entityTypes,
+                                                     String triggerMode,
+                                                     String note) {
+        ObjectNode overrides = JSON.objectNode();
+        overrides.put("triggerMode", triggerMode);
+        overrides.put("shopDomain", store.getShopDomain());
+        overrides.put("requestedBy", PlatformSecurityContext.actorIdOrSystem());
+        overrides.put("sourceSelectionMode", "SHOPIFY_COMPANION_BOUNDED_ADMIN");
+        overrides.set("entityTypes", jsonArray(entityTypes));
+        overrides.set("sourceCategories", jsonArray(sourceCategoriesForEntityTypes(store, entityTypes)));
+        if (note != null && !note.isBlank()) {
+            overrides.put("note", note);
+        }
+        return overrides;
+    }
+
+    private List<String> sourceCategoriesForEntityTypes(ShopifyStoreConnectionEntity store, List<String> entityTypes) {
+        LinkedHashSet<String> categories = new LinkedHashSet<>();
+        if (entityTypes.contains(ShopifyCompanionPluginSelection.ENTITY_TYPE_PRODUCT)) {
+            if (store.isProductsEnabled()) {
+                categories.add(ShopifyStoreVectorizationConstants.SOURCE_PRODUCTS);
+            }
+            if (store.isCollectionsEnabled()) {
+                categories.add(ShopifyStoreVectorizationConstants.SOURCE_COLLECTIONS);
+            }
+        }
+        if (entityTypes.contains(ShopifyCompanionPluginSelection.ENTITY_TYPE_SUPPORT_POLICY)) {
+            if (store.isPagesEnabled()) {
+                categories.add(ShopifyStoreVectorizationConstants.SOURCE_PAGES);
+            }
+            if (store.isPoliciesEnabled()) {
+                categories.add(ShopifyStoreVectorizationConstants.SOURCE_POLICIES);
+            }
+        }
+        return List.copyOf(categories);
+    }
+
+    private List<String> normalizeRequestedEntityTypes(List<String> requested, List<String> allowed) {
+        LinkedHashSet<String> allowedSet = new LinkedHashSet<>(allowed == null ? List.of() : allowed);
+        LinkedHashSet<String> selected = new LinkedHashSet<>();
+        for (String value : requested == null ? List.<String>of() : requested) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            String normalized = ShopifyStoreVectorizationConstants.normalizeEntityType(value);
+            if (!allowedSet.contains(normalized)) {
+                throw new ResponseStatusException(CONFLICT, "Shopify vectorization entity type is not enabled for this store: " + normalized);
+            }
+            selected.add(normalized);
+        }
+        if (selected.isEmpty()) {
+            throw new ResponseStatusException(CONFLICT, "At least one enabled Shopify vectorization entity type is required.");
+        }
+        return List.copyOf(selected);
     }
 
     private Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId(String deploymentId) {
@@ -521,6 +738,11 @@ public class ShopifyStoreVectorizationService {
             return null;
         }
         return deploymentRepository.findById(store.getDeploymentId()).orElse(null);
+    }
+
+    private VectorizationOverviewSummary resolveOverview(ShopifyStoreConnectionEntity store) {
+        DeploymentEntity deployment = requireDeployment(store);
+        return vectorizationService.getOverviewForTrustedCaller(deployment);
     }
 
     private com.fasterxml.jackson.databind.node.ArrayNode jsonArray(List<String> values) {

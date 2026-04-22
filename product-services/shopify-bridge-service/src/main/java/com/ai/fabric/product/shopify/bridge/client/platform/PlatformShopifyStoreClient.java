@@ -9,9 +9,12 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWebho
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSyncStoreDocumentsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,6 +34,8 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 public class PlatformShopifyStoreClient {
 
     private static final ParameterizedTypeReference<List<ShopifyBridgeStoreSummary>> STORE_LIST_TYPE =
+        new ParameterizedTypeReference<>() { };
+    private static final ParameterizedTypeReference<List<ShopifyBridgeStoreVectorizationEventSummary>> VECTORIZATION_EVENT_LIST_TYPE =
         new ParameterizedTypeReference<>() { };
 
     private final ShopifyBridgeProperties properties;
@@ -197,6 +202,66 @@ public class PlatformShopifyStoreClient {
     public ShopifyBridgeStoreVectorizationSummary vectorizeNow(String shopDomain) {
         return restClient.post()
             .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/vectorize-now")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary indexAllEnabledData(String shopDomain) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/index-all")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary reindexAllEnabledData(String shopDomain) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/reindex-all")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary reindexSelectedEntityTypes(String shopDomain,
+                                                                             ShopifyBridgeStoreVectorizationSelectedEntitiesRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/reindex-selected")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary updateVectorizationPolicy(String shopDomain,
+                                                                           ShopifyBridgeUpdateStoreVectorizationPolicyRequest request) {
+        return restClient.put()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/policy")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public List<ShopifyBridgeStoreVectorizationEventSummary> fetchVectorizationEvents(String shopDomain, int limit) {
+        return restClient.get()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/events?limit=" + limit)
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(VECTORIZATION_EVENT_LIST_TYPE);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary replayVectorizationEvent(String shopDomain, String eventId) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/events/" + encodePath(eventId) + "/replay")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary retryLastFailedAutoRun(String shopDomain) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/vectorization/retry-last-failed-auto-run")
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .retrieve()
             .body(ShopifyBridgeStoreVectorizationSummary.class);

@@ -8,7 +8,10 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSu
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
@@ -18,8 +21,11 @@ import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscrip
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
@@ -89,6 +95,53 @@ public class ShopifyMerchantController {
     @PostMapping("/store/vectorization/vectorize-now")
     public ShopifyBridgeStoreVectorizationSummary vectorizeNow(Authentication authentication) {
         return merchantStoreService.vectorizeNow(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/vectorization/index-all")
+    public ShopifyBridgeStoreVectorizationSummary indexAllEnabledData(Authentication authentication) {
+        return merchantStoreService.indexAllEnabledData(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/vectorization/reindex-all")
+    public ShopifyBridgeStoreVectorizationSummary reindexAllEnabledData(Authentication authentication) {
+        return merchantStoreService.reindexAllEnabledData(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/vectorization/reindex-selected")
+    public ShopifyBridgeStoreVectorizationSummary reindexSelected(Authentication authentication,
+                                                                  @RequestBody(required = false) ShopifyBridgeStoreVectorizationSelectedEntitiesRequest request) {
+        return merchantStoreService.reindexSelectedEntityTypes(
+            requireMerchant(authentication),
+            request == null ? new ShopifyBridgeStoreVectorizationSelectedEntitiesRequest(null) : request
+        );
+    }
+
+    @PutMapping("/store/vectorization/policy")
+    public ShopifyBridgeStoreVectorizationSummary updateVectorizationPolicy(Authentication authentication,
+                                                                            @RequestBody(required = false) ShopifyBridgeUpdateStoreVectorizationPolicyRequest request) {
+        return merchantStoreService.updateVectorizationPolicy(
+            requireMerchant(authentication),
+            request == null ? new ShopifyBridgeUpdateStoreVectorizationPolicyRequest(null, null) : request
+        );
+    }
+
+    @GetMapping("/store/vectorization/events")
+    public java.util.List<ShopifyBridgeStoreVectorizationEventSummary> vectorizationEvents(
+        Authentication authentication,
+        @RequestParam(name = "limit", defaultValue = "10") int limit
+    ) {
+        return merchantStoreService.vectorizationEvents(requireMerchant(authentication), limit);
+    }
+
+    @PostMapping("/store/vectorization/events/{eventId}/replay")
+    public ShopifyBridgeStoreVectorizationSummary replayVectorizationEvent(Authentication authentication,
+                                                                           @PathVariable String eventId) {
+        return merchantStoreService.replayVectorizationEvent(requireMerchant(authentication), eventId);
+    }
+
+    @PostMapping("/store/vectorization/retry-last-failed-auto-run")
+    public ShopifyBridgeStoreVectorizationSummary retryLastFailedAutoRun(Authentication authentication) {
+        return merchantStoreService.retryLastFailedAutoRun(requireMerchant(authentication));
     }
 
     @GetMapping("/store/storefront-preview")

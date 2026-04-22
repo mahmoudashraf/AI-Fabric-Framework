@@ -14,7 +14,10 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecord
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -27,6 +30,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.List;
 
 @Service
 public class ShopifyBridgeMerchantStoreService {
@@ -161,6 +166,49 @@ public class ShopifyBridgeMerchantStoreService {
     public ShopifyBridgeStoreVectorizationSummary vectorizeNow(ShopifyMerchantSession merchantSession) {
         ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.vectorizeNow(merchantSession.shopDomain());
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_RUN_TRIGGERED");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary indexAllEnabledData(ShopifyMerchantSession merchantSession) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.indexAllEnabledData(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_INDEX_ALL");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary reindexAllEnabledData(ShopifyMerchantSession merchantSession) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.reindexAllEnabledData(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_REINDEX_ALL");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary reindexSelectedEntityTypes(ShopifyMerchantSession merchantSession,
+                                                                             ShopifyBridgeStoreVectorizationSelectedEntitiesRequest request) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.reindexSelectedEntityTypes(merchantSession.shopDomain(), request);
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_REINDEX_SELECTED");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary updateVectorizationPolicy(ShopifyMerchantSession merchantSession,
+                                                                            ShopifyBridgeUpdateStoreVectorizationPolicyRequest request) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.updateVectorizationPolicy(merchantSession.shopDomain(), request);
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_POLICY_UPDATED");
+        return summary;
+    }
+
+    public List<ShopifyBridgeStoreVectorizationEventSummary> vectorizationEvents(ShopifyMerchantSession merchantSession, int limit) {
+        return platformShopifyStoreClient.fetchVectorizationEvents(merchantSession.shopDomain(), limit);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary replayVectorizationEvent(ShopifyMerchantSession merchantSession,
+                                                                           String eventId) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.replayVectorizationEvent(merchantSession.shopDomain(), eventId);
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_EVENT_REPLAYED");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary retryLastFailedAutoRun(ShopifyMerchantSession merchantSession) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.retryLastFailedAutoRun(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_AUTO_RETRY");
         return summary;
     }
 

@@ -26,12 +26,14 @@ class ShopifyBridgeStoreAdminServiceTest {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeSourcePreflightService sourcePreflightService = mock(ShopifyBridgeSourcePreflightService.class);
+        ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
         ShopifyBridgeVectorizationSourceService vectorizationSourceService = mock(ShopifyBridgeVectorizationSourceService.class);
         ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
             platformShopifyStoreClient,
             installCredentialService,
             billingService,
             sourcePreflightService,
+            storeSyncService,
             vectorizationSourceService
         );
 
@@ -63,12 +65,14 @@ class ShopifyBridgeStoreAdminServiceTest {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeSourcePreflightService sourcePreflightService = mock(ShopifyBridgeSourcePreflightService.class);
+        ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
         ShopifyBridgeVectorizationSourceService vectorizationSourceService = mock(ShopifyBridgeVectorizationSourceService.class);
         ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
             platformShopifyStoreClient,
             installCredentialService,
             billingService,
             sourcePreflightService,
+            storeSyncService,
             vectorizationSourceService
         );
 

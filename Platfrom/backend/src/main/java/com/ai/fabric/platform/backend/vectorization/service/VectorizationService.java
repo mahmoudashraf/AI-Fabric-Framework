@@ -296,7 +296,22 @@ public class VectorizationService {
     @Transactional
     public VectorizationRunSummary createRun(String deploymentId, CreateVectorizationRunRequest request) {
         DeploymentEntity deployment = requireDeploymentOperator(deploymentId);
-        VectorizationPlanEntity plan = planRepository.findByDeploymentId(deploymentId)
+        return createRunForDeployment(deployment, request, currentActorId());
+    }
+
+    @Transactional
+    public VectorizationRunSummary createRunForTrustedCaller(String deploymentId,
+                                                             CreateVectorizationRunRequest request,
+                                                             String requestedByActorId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return createRunForDeployment(deployment, request, requestedByActorId);
+    }
+
+    private VectorizationRunSummary createRunForDeployment(DeploymentEntity deployment,
+                                                           CreateVectorizationRunRequest request,
+                                                           String requestedByActorId) {
+        VectorizationPlanEntity plan = planRepository.findByDeploymentId(deployment.getId())
             .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Vectorization plan is not configured for this deployment."));
         VectorizationPlanRevisionEntity revision = activeRevision(plan);
         if (revision == null) {
@@ -320,7 +335,7 @@ public class VectorizationService {
         run.setCheckpointSummaryJson(jsonSupport.write(jsonSupport.objectNode()));
         run.setErrorSummaryJson(jsonSupport.write(jsonSupport.objectNode()));
         run.setExecutionOverridesJson(jsonSupport.write(defaultObject(request.executionOverrides())));
-        run.setRequestedByActorId(currentActorId());
+        run.setRequestedByActorId(trimToNull(requestedByActorId));
         run.setRequestNote(trimToNull(request.note()));
         run.setCreatedAt(now);
         run.setUpdatedAt(now);
@@ -333,9 +348,9 @@ public class VectorizationService {
         platformAuditService.record(
             "VECTORIZATION_RUN_CREATED",
             "DEPLOYMENT",
-            deploymentId,
+            deployment.getId(),
             Map.of(
-                "deploymentId", deploymentId,
+                "deploymentId", deployment.getId(),
                 "runId", run.getId(),
                 "reason", reason,
                 "runnerMode", run.getRunnerMode()

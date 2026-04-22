@@ -305,6 +305,12 @@ class PlatformShopifyStoreClientTest {
                 "products/update",
                 "CONTENT_CHANGED",
                 "products",
+                "UPDATE",
+                "gid://shopify/Product/1",
+                "2026-04-22T00:00:00Z",
+                "wh_123",
+                "checksum-123",
+                1,
                 "Shopify product content changed. Incremental sync is required.",
                 true
             )

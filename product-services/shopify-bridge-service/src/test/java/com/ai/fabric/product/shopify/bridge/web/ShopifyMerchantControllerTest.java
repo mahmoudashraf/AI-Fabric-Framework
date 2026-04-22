@@ -12,6 +12,12 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabi
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationAutomationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationIndexedFieldSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationPolicySummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSourcePolicySummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
@@ -367,6 +373,49 @@ class ShopifyMerchantControllerTest {
         verify(merchantStoreService).updateSourceSettings(any(), any());
     }
 
+    @Test
+    void vectorizationSummaryUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.vectorization(any())).thenReturn(vectorization());
+
+        mockMvc.perform(get("/api/app/store/vectorization").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.policy.policyVersion").value(1))
+            .andExpect(jsonPath("$.effectiveIndexedFields[0].fieldKey").value("products.title"));
+
+        verify(merchantStoreService).vectorization(any());
+    }
+
+    @Test
+    void vectorizationPolicyUpdateUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.updateVectorizationPolicy(any(), any())).thenReturn(vectorization());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/app/store/vectorization/policy")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "policyVersion": 1,
+                      "sourcePolicies": [
+                        {
+                          "sourceCategory": "products",
+                          "autoIndexingEnabled": true,
+                          "createTriggerEnabled": true,
+                          "deleteTriggerEnabled": true,
+                          "updateTriggerMode": "INDEXED_FIELDS_ONLY",
+                          "selectedIndexedFields": ["products.title"],
+                          "debounceWindowSeconds": 30,
+                          "minimumRunIntervalSeconds": 60
+                        }
+                      ]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.policy.policyVersion").value(1));
+
+        verify(merchantStoreService).updateVectorizationPolicy(any(), any());
+    }
+
     private ShopifyBridgeStoreSummary store() {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
@@ -440,6 +489,97 @@ class ShopifyMerchantControllerTest {
             null,
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z")
+        );
+    }
+
+    private ShopifyBridgeStoreVectorizationSummary vectorization() {
+        return new ShopifyBridgeStoreVectorizationSummary(
+            "alpha.myshopify.com",
+            "dep-1",
+            true,
+            List.of("products"),
+            List.of("product"),
+            List.of("mkp-data-shopify-catalog"),
+            List.of("mkp-data-shopify-catalog"),
+            List.of(),
+            List.of(),
+            false,
+            true,
+            "vcn-1",
+            "READY",
+            "REST_API",
+            true,
+            "vpl-1",
+            "ACTIVE",
+            true,
+            "vrr-1",
+            "ACTIVE",
+            false,
+            "APPLIED_VERIFIED",
+            "PLATFORM_MANAGED_AUTO",
+            "IN_SYNC",
+            true,
+            List.of(),
+            null,
+            new ShopifyBridgeStoreVectorizationPolicySummary(
+                1,
+                false,
+                List.of(new ShopifyBridgeStoreVectorizationSourcePolicySummary(
+                    "products",
+                    true,
+                    true,
+                    true,
+                    false,
+                    true,
+                    true,
+                    "INDEXED_FIELDS_ONLY",
+                    List.of(),
+                    30,
+                    60
+                )),
+                "system",
+                Instant.parse("2026-04-18T12:00:00Z")
+            ),
+            List.of(new ShopifyBridgeStoreVectorizationIndexedFieldSummary(
+                "products.title",
+                "products",
+                "product",
+                "title",
+                "Product title",
+                true
+            )),
+            new ShopifyBridgeStoreVectorizationAutomationSummary(
+                true,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                Instant.parse("2026-04-18T12:00:00Z"),
+                Instant.parse("2026-04-18T12:00:00Z"),
+                null,
+                "vrn-1",
+                List.of()
+            ),
+            List.of(new ShopifyBridgeStoreVectorizationEventSummary(
+                "evt-1",
+                "products",
+                "product",
+                "gid://shopify/Product/1",
+                "products/update",
+                "UPDATE",
+                "COMPLETED",
+                "AUTO_INDEX",
+                null,
+                "vrn-1",
+                "wh-1",
+                Instant.parse("2026-04-18T12:00:00Z"),
+                Instant.parse("2026-04-18T12:00:01Z"),
+                Instant.parse("2026-04-18T12:00:02Z"),
+                Instant.parse("2026-04-18T12:00:03Z"),
+                "Completed"
+            ))
         );
     }
 

@@ -14,9 +14,17 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecord
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabilitySummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationAutomationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationIndexedFieldSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationPolicySummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSourcePolicyInput;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSourcePolicySummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -488,6 +496,69 @@ class ShopifyBridgeMerchantStoreServiceTest {
     }
 
     @Test
+    void indexAllDelegatesToPlatform() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            mock(ShopifyBridgeInstallCredentialService.class),
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class),
+            mock(ShopifyStorefrontPreviewService.class),
+            usageService,
+            mock(ShopifyBridgeBillingService.class),
+            mock(ShopifyWebhookSubscriptionDiagnosticsService.class)
+        );
+        when(client.indexAllEnabledData("alpha.myshopify.com")).thenReturn(vectorization("alpha.myshopify.com"));
+
+        ShopifyBridgeStoreVectorizationSummary response = service.indexAllEnabledData(session());
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        verify(client).indexAllEnabledData("alpha.myshopify.com");
+        verify(usageService).recordEvent("alpha.myshopify.com", "MERCHANT_VECTORIZATION_INDEX_ALL");
+    }
+
+    @Test
+    void updateVectorizationPolicyDelegatesToPlatform() {
+        PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
+            client,
+            properties(),
+            mock(ShopifyInstallRecordService.class),
+            mock(ShopifyBridgeInstallCredentialService.class),
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class),
+            mock(ShopifyStorefrontPreviewService.class),
+            usageService,
+            mock(ShopifyBridgeBillingService.class),
+            mock(ShopifyWebhookSubscriptionDiagnosticsService.class)
+        );
+        ShopifyBridgeUpdateStoreVectorizationPolicyRequest request = new ShopifyBridgeUpdateStoreVectorizationPolicyRequest(
+            1L,
+            List.of(new ShopifyBridgeStoreVectorizationSourcePolicyInput(
+                "products",
+                true,
+                true,
+                true,
+                "INDEXED_FIELDS_ONLY",
+                List.of("products.title"),
+                30,
+                60
+            ))
+        );
+        when(client.updateVectorizationPolicy("alpha.myshopify.com", request)).thenReturn(vectorization("alpha.myshopify.com"));
+
+        ShopifyBridgeStoreVectorizationSummary response = service.updateVectorizationPolicy(session(), request);
+
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        verify(client).updateVectorizationPolicy("alpha.myshopify.com", request);
+        verify(usageService).recordEvent("alpha.myshopify.com", "MERCHANT_VECTORIZATION_POLICY_UPDATED");
+    }
+
+    @Test
     void updateWidgetSettingsDelegatesToPlatform() {
         PlatformShopifyStoreClient client = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeMerchantStoreService service = new ShopifyBridgeMerchantStoreService(
@@ -614,7 +685,66 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "IN_SYNC",
             true,
             List.of(),
-            null
+            null,
+            new ShopifyBridgeStoreVectorizationPolicySummary(
+                1,
+                false,
+                List.of(new ShopifyBridgeStoreVectorizationSourcePolicySummary(
+                    "products",
+                    true,
+                    true,
+                    true,
+                    false,
+                    true,
+                    true,
+                    "INDEXED_FIELDS_ONLY",
+                    List.of(),
+                    30,
+                    60
+                )),
+                "system",
+                Instant.parse("2026-04-18T12:00:00Z")
+            ),
+            List.of(new ShopifyBridgeStoreVectorizationIndexedFieldSummary(
+                "products.title",
+                "products",
+                "product",
+                "title",
+                "Product title",
+                true
+            )),
+            new ShopifyBridgeStoreVectorizationAutomationSummary(
+                true,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                Instant.parse("2026-04-18T12:00:00Z"),
+                Instant.parse("2026-04-18T12:00:00Z"),
+                null,
+                "vrn-1",
+                List.of()
+            ),
+            List.of(new ShopifyBridgeStoreVectorizationEventSummary(
+                "evt-1",
+                "products",
+                "product",
+                "gid://shopify/Product/1",
+                "products/update",
+                "UPDATE",
+                "COMPLETED",
+                "AUTO_INDEX",
+                null,
+                "vrn-1",
+                "wh-1",
+                Instant.parse("2026-04-18T12:00:00Z"),
+                Instant.parse("2026-04-18T12:00:01Z"),
+                Instant.parse("2026-04-18T12:00:02Z"),
+                Instant.parse("2026-04-18T12:00:03Z"),
+                "Completed"
+            ))
         );
     }
 

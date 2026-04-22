@@ -799,6 +799,137 @@ export type RecordShopifyStoreSourcePreflightRequest = {
   categories: ShopifyStoreSourcePreflightCategorySummary[]
 }
 
+export type ShopifyStoreVectorizationRunSummary = {
+  id: string
+  reason: string
+  status: string
+  requestedStatus: string
+  entityScope: string[]
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type ShopifyStoreVectorizationSourcePolicySummary = {
+  sourceCategory: string
+  enabled: boolean
+  manualIndexAllowed: boolean
+  manualReindexAllowed: boolean
+  autoIndexingEnabled: boolean
+  createTriggerEnabled: boolean
+  deleteTriggerEnabled: boolean
+  updateTriggerMode: string
+  selectedIndexedFields: string[]
+  debounceWindowSeconds: number
+  minimumRunIntervalSeconds: number
+}
+
+export type ShopifyStoreVectorizationPolicySummary = {
+  policyVersion: number
+  autoIndexingDefault: boolean
+  sourcePolicies: ShopifyStoreVectorizationSourcePolicySummary[]
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyStoreVectorizationIndexedFieldSummary = {
+  fieldKey: string
+  sourceCategory: string
+  entityType: string
+  sourceField: string
+  label: string
+  selectableForTriggerPolicy: boolean
+}
+
+export type ShopifyStoreVectorizationAutomationSummary = {
+  autoIndexingHealthy: boolean
+  queuedEvents: number
+  leasedEvents: number
+  dispatchedEvents: number
+  skippedEvents: number
+  failedEvents: number
+  deadLetteredEvents: number
+  lastAutoEventAt: string | null
+  lastSuccessfulAutoIndexAt: string | null
+  lastFailedAutoIndexAt: string | null
+  lastAutoRunId: string | null
+  degradedReasons: string[]
+}
+
+export type ShopifyStoreVectorizationEventSummary = {
+  id: string
+  sourceCategory: string
+  entityType: string
+  sourceObjectId: string | null
+  shopifyTopic: string | null
+  operation: string
+  status: string
+  triggerReason: string | null
+  failureCode: string | null
+  coalescedRunId: string | null
+  shopifyWebhookId: string | null
+  occurredAt: string
+  queuedAt: string
+  lastAttemptAt: string | null
+  completedAt: string | null
+  notes: string | null
+}
+
+export type ShopifyStoreVectorizationSummary = {
+  shopDomain: string
+  deploymentId: string | null
+  bootstrapped: boolean
+  selectedCategories: string[]
+  selectedEntityTypes: string[]
+  requiredPluginIds: string[]
+  installedPluginIds: string[]
+  missingPluginIds: string[]
+  disabledPluginIds: string[]
+  reconciliationRequired: boolean
+  connectionConfigured: boolean
+  sourceConnectionId: string | null
+  sourceConnectionStatus: string | null
+  sourceAdapterType: string | null
+  planConfigured: boolean
+  planId: string | null
+  planStatus: string | null
+  runnerConfigured: boolean
+  runnerRegistrationId: string | null
+  runnerRegistrationStatus: string | null
+  deploymentApplyInProgress: boolean
+  deploymentApplyStatus: string | null
+  runnerMode: string | null
+  syncState: string | null
+  readyToRun: boolean
+  blockingReasons: string[]
+  lastRun: ShopifyStoreVectorizationRunSummary | null
+  policy: ShopifyStoreVectorizationPolicySummary
+  effectiveIndexedFields: ShopifyStoreVectorizationIndexedFieldSummary[]
+  automation: ShopifyStoreVectorizationAutomationSummary
+  recentEvents: ShopifyStoreVectorizationEventSummary[]
+}
+
+export type ShopifyStoreVectorizationSourcePolicyInput = {
+  sourceCategory: string
+  autoIndexingEnabled?: boolean
+  createTriggerEnabled?: boolean
+  deleteTriggerEnabled?: boolean
+  updateTriggerMode?: string
+  selectedIndexedFields?: string[]
+  debounceWindowSeconds?: number
+  minimumRunIntervalSeconds?: number
+}
+
+export type UpdateShopifyStoreVectorizationPolicyRequest = {
+  policyVersion: number
+  sourcePolicies: ShopifyStoreVectorizationSourcePolicyInput[]
+}
+
+export type ShopifyStoreVectorizationSelectedEntitiesRequest = {
+  entityTypes: string[]
+}
+
 export type MarketplacePluginPricingSummary = {
   pricingModel: string
   amount: number | null
@@ -3236,6 +3367,75 @@ export function recordShopifyStoreSourcePreflight(shopDomain: string, payload: R
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchShopifyStoreVectorization(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization`)
+}
+
+export function reconcileShopifyStoreVectorization(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/reconcile`, {
+    method: 'POST',
+  })
+}
+
+export function indexAllShopifyStoreVectorization(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/index-all`, {
+    method: 'POST',
+  })
+}
+
+export function reindexAllShopifyStoreVectorization(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/reindex-all`, {
+    method: 'POST',
+  })
+}
+
+export function reindexSelectedShopifyStoreVectorization(
+  shopDomain: string,
+  payload: ShopifyStoreVectorizationSelectedEntitiesRequest,
+) {
+  return request<ShopifyStoreVectorizationSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/reindex-selected`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function updateShopifyStoreVectorizationPolicy(
+  shopDomain: string,
+  payload: UpdateShopifyStoreVectorizationPolicyRequest,
+) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/policy`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchShopifyStoreVectorizationEvents(shopDomain: string, limit = 20) {
+  return request<ShopifyStoreVectorizationEventSummary[]>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/events?limit=${limit}`,
+  )
+}
+
+export function replayShopifyStoreVectorizationEvent(shopDomain: string, eventId: string) {
+  return request<ShopifyStoreVectorizationSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/events/${encodeURIComponent(eventId)}/replay`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function retryLastFailedShopifyStoreVectorizationAutoRun(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/retry-last-failed-auto-run`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function createMarketplacePublisher(payload: CreateMarketplacePublisherRequest) {

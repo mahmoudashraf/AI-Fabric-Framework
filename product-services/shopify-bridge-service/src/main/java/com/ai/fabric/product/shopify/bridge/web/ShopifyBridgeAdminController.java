@@ -65,6 +65,15 @@ public class ShopifyBridgeAdminController {
         return storeAdminService.vectorizationSourcePage(shopDomain, entityType, cursor, limit);
     }
 
+    @GetMapping("/stores/{shopDomain}/vectorization-source-record")
+    public com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourceRecord vectorizationSourceRecord(
+        @PathVariable String shopDomain,
+        @org.springframework.web.bind.annotation.RequestParam String sourceCategory,
+        @org.springframework.web.bind.annotation.RequestParam String sourceObjectId
+    ) {
+        return storeAdminService.vectorizationSourceRecord(shopDomain, sourceCategory, sourceObjectId);
+    }
+
     @GetMapping("/stores/{shopDomain}/webhook-subscriptions")
     public ShopifyWebhookSubscriptionStatusSummary webhookSubscriptions(@PathVariable String shopDomain) {
         return webhookSubscriptionDiagnosticsService.forShop(shopDomain);
@@ -78,6 +87,11 @@ public class ShopifyBridgeAdminController {
     @PostMapping("/stores/{shopDomain}/run-source-preflight")
     public ShopifyBridgeStoreSummary runSourcePreflight(@PathVariable String shopDomain) {
         return storeAdminService.runSourcePreflight(shopDomain);
+    }
+
+    @PostMapping("/stores/{shopDomain}/run-sync")
+    public ShopifyBridgeStoreSummary runSync(@PathVariable String shopDomain) {
+        return storeAdminService.runSync(shopDomain);
     }
 
     @PostMapping("/stores/{shopDomain}/source-preflight")

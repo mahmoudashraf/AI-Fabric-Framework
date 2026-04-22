@@ -71,6 +71,37 @@ public class ShopifyBridgeVectorizationSourceService {
         }
         """;
 
+    private static final String NODE_RECORD_QUERY = """
+        query ShopifyCompanionVectorizationRecord($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on Product {
+              id
+              title
+              handle
+              descriptionHtml
+              vendor
+              productType
+              updatedAt
+            }
+            ... on Collection {
+              id
+              title
+              handle
+              descriptionHtml
+              updatedAt
+            }
+            ... on Page {
+              id
+              title
+              handle
+              body
+              updatedAt
+            }
+          }
+        }
+        """;
+
     private static final String COLLECTIONS_QUERY = """
         query ShopifyCompanionCollectionsVectorizationPage($cursor: String, $limit: Int!) {
           collections(first: $limit, after: $cursor) {
@@ -196,6 +227,98 @@ public class ShopifyBridgeVectorizationSourceService {
         );
     }
 
+    public ShopifyBridgeVectorizationSourceRecord record(String shopDomain,
+                                                         String sourceCategory,
+                                                         String sourceObjectId) {
+        ShopifyBridgeCredentialAcquisition acquisition = installCredentialService.resolvePersistedMaterial(shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify vectorization source requires persisted store credentials. Install or reconnect the app first."
+            ));
+        ShopifyBridgeStoreSummary store = acquisition.store();
+        String normalizedCategory = normalizeSourceCategory(sourceCategory);
+        if (sourceObjectId == null || sourceObjectId.isBlank()) {
+            throw new ResponseStatusException(CONFLICT, "sourceObjectId is required.");
+        }
+        String accessToken = acquisition.tokenExchangeMaterial().accessToken();
+        return switch (normalizedCategory) {
+            case "products" -> loadNodeRecord(
+                store.shopDomain(),
+                accessToken,
+                sourceObjectId,
+                "Product",
+                node -> new ShopifyBridgeVectorizationSourceRecord(
+                    requiredText(node, "id"),
+                    text(node, "updatedAt"),
+                    text(node, "title"),
+                    joinContent(
+                        text(node, "title"),
+                        text(node, "vendor"),
+                        text(node, "productType"),
+                        sanitizeRichText(text(node, "descriptionHtml"))
+                    ),
+                    "products",
+                    "product",
+                    storefrontUrl(store.shopDomain(), "/products/" + safePath(text(node, "handle"))),
+                    text(node, "handle"),
+                    text(node, "vendor"),
+                    text(node, "productType"),
+                    null
+                )
+            );
+            case "collections" -> loadNodeRecord(
+                store.shopDomain(),
+                accessToken,
+                sourceObjectId,
+                "Collection",
+                node -> new ShopifyBridgeVectorizationSourceRecord(
+                    requiredText(node, "id"),
+                    text(node, "updatedAt"),
+                    text(node, "title"),
+                    joinContent(
+                        text(node, "title"),
+                        "Collection",
+                        sanitizeRichText(text(node, "descriptionHtml"))
+                    ),
+                    "collections",
+                    "collection",
+                    storefrontUrl(store.shopDomain(), "/collections/" + safePath(text(node, "handle"))),
+                    text(node, "handle"),
+                    null,
+                    null,
+                    null
+                )
+            );
+            case "pages" -> loadNodeRecord(
+                store.shopDomain(),
+                accessToken,
+                sourceObjectId,
+                "Page",
+                node -> new ShopifyBridgeVectorizationSourceRecord(
+                    requiredText(node, "id"),
+                    text(node, "updatedAt"),
+                    text(node, "title"),
+                    joinContent(
+                        text(node, "title"),
+                        sanitizeRichText(text(node, "body"))
+                    ),
+                    "pages",
+                    "page",
+                    storefrontUrl(store.shopDomain(), "/pages/" + safePath(text(node, "handle"))),
+                    text(node, "handle"),
+                    null,
+                    null,
+                    null
+                )
+            );
+            case "policies" -> loadPolicies(store.shopDomain(), accessToken).stream()
+                .filter(item -> sourceObjectId.equals(item.id()))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Shopify policy record not found: " + sourceObjectId));
+            default -> throw new ResponseStatusException(CONFLICT, "Unsupported Shopify vectorization source category: " + sourceCategory);
+        };
+    }
+
     private int totalCount(ShopifyBridgeStoreSummary store, String accessToken, List<String> categories) {
         int total = 0;
         for (String category : categories) {
@@ -223,6 +346,30 @@ public class ShopifyBridgeVectorizationSourceService {
             };
         }
         return total;
+    }
+
+    private ShopifyBridgeVectorizationSourceRecord loadNodeRecord(String shopDomain,
+                                                                  String accessToken,
+                                                                  String sourceObjectId,
+                                                                  String expectedType,
+                                                                  RecordFactory recordFactory) {
+        Map<String, Object> response = shopifyAdminGraphqlClient.execute(
+            shopDomain,
+            accessToken,
+            NODE_RECORD_QUERY,
+            Map.of("id", sourceObjectId)
+        );
+        List<String> errors = errorMessages(response);
+        if (!errors.isEmpty()) {
+            throw new ResponseStatusException(BAD_GATEWAY, String.join(" ", errors));
+        }
+        Map<String, Object> data = requireMap(response.get("data"), "Shopify Admin API response is missing data.");
+        Map<String, Object> node = requireMap(data.get("node"), "Shopify Admin API response is missing node.");
+        String typename = text(node, "__typename");
+        if (typename != null && !expectedType.equalsIgnoreCase(typename)) {
+            throw new ResponseStatusException(CONFLICT, "Shopify source record type mismatch. Expected " + expectedType + " but found " + typename + ".");
+        }
+        return recordFactory.create(node);
     }
 
     private int countFromConnection(String shopDomain,
@@ -478,6 +625,13 @@ public class ShopifyBridgeVectorizationSourceService {
             throw new ResponseStatusException(CONFLICT, "entityType is required.");
         }
         return entityType.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeSourceCategory(String sourceCategory) {
+        if (sourceCategory == null || sourceCategory.isBlank()) {
+            throw new ResponseStatusException(CONFLICT, "sourceCategory is required.");
+        }
+        return sourceCategory.trim().toLowerCase(Locale.ROOT);
     }
 
     private Map<String, Object> variablesWithCursor(String cursor, int limit) {

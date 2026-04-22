@@ -200,6 +200,10 @@ Expected healthy live signals:
 - plan status: `ACTIVE`
 - runner registration status: `ACTIVE`
 - latest run status: `COMPLETED`
+- policy version is present and source-family policy blocks are visible
+- effective indexed fields are visible for the enabled Shopify scope
+- live-update automation summary is healthy or explicitly explains the backlog
+- recent Shopify live-update events are visible for operator recovery
 
 ### 3.6 Live verification commands
 
@@ -218,6 +222,15 @@ Recommended workflow modes:
 - `verify`: non-destructive live verification for the configured shop
 - `rollout`: platform-side bootstrap / source preflight / go-live progression
 - `uninstall_verify`: destructive uninstall verification for a disposable shop mapping only
+
+Current non-destructive verification coverage:
+
+- platform store vectorization summary
+- bounded source-family trigger policy visibility
+- effective indexed field visibility
+- automation queue/dead-letter health visibility
+- recent live-update event visibility
+- bridge admin vectorization source-page reachability when the bridge admin key is configured
 
 Recommended repository variables for the workflow:
 

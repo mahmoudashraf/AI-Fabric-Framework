@@ -32,14 +32,27 @@ import {
   deleteShopifyStore,
   fetchProductServices,
   runProductServiceStoreSourcePreflight,
+  fetchShopifyStoreVectorization,
   fetchShopifyStoreBinding,
   fetchShopifyStore,
   fetchShopifyStores,
   goLiveShopifyStore,
+  indexAllShopifyStoreVectorization,
+  reconcileShopifyStoreVectorization,
   recordShopifyStoreSourcePreflight,
+  replayShopifyStoreVectorizationEvent,
+  reindexAllShopifyStoreVectorization,
+  reindexSelectedShopifyStoreVectorization,
+  retryLastFailedShopifyStoreVectorizationAutoRun,
   type RecordShopifyStoreSourcePreflightRequest,
   type ShopifyStoreBootstrapSummary,
   type ShopifyStoreSourcePreflightCategorySummary,
+  type ShopifyStoreVectorizationSummary,
+  type ShopifyStoreVectorizationSourcePolicyInput,
+  type ShopifyStoreVectorizationSourcePolicySummary,
+  type ShopifyStoreVectorizationSelectedEntitiesRequest,
+  type UpdateShopifyStoreVectorizationPolicyRequest,
+  updateShopifyStoreVectorizationPolicy,
   upsertShopifyStore,
   type ShopifyStoreConnectionSummary,
   type UpsertShopifyStoreConnectionRequest,
@@ -82,6 +95,7 @@ function isReleaseInProgress(status: string | null | undefined): boolean {
 type StoreFormState = UpsertShopifyStoreConnectionRequest
 type PreflightCategoryStatus = 'READY' | 'PENDING' | 'BLOCKED' | 'FAILED'
 type PreflightFormCategory = ShopifyStoreSourcePreflightCategorySummary & { itemCountText: string }
+type VectorizationPolicyDraft = UpdateShopifyStoreVectorizationPolicyRequest
 
 const emptyForm: StoreFormState = {
   shopDomain: '',
@@ -123,6 +137,31 @@ function buildPreflightCategories(store: ShopifyStoreConnectionSummary): Preflig
     })
 }
 
+function buildVectorizationPolicyDraft(summary: ShopifyStoreVectorizationSummary): VectorizationPolicyDraft {
+  return {
+    policyVersion: summary.policy.policyVersion,
+    sourcePolicies: summary.policy.sourcePolicies.map((policy) => ({
+      sourceCategory: policy.sourceCategory,
+      autoIndexingEnabled: policy.autoIndexingEnabled,
+      createTriggerEnabled: policy.createTriggerEnabled,
+      deleteTriggerEnabled: policy.deleteTriggerEnabled,
+      updateTriggerMode: policy.updateTriggerMode,
+      selectedIndexedFields: [...policy.selectedIndexedFields],
+      debounceWindowSeconds: policy.debounceWindowSeconds,
+      minimumRunIntervalSeconds: policy.minimumRunIntervalSeconds,
+    })),
+  }
+}
+
+function sourceFieldOptions(
+  summary: ShopifyStoreVectorizationSummary | undefined,
+  sourceCategory: string,
+): string[] {
+  return (summary?.effectiveIndexedFields ?? [])
+    .filter((field) => field.sourceCategory === sourceCategory && field.selectableForTriggerPolicy)
+    .map((field) => field.fieldKey)
+}
+
 export function ShopifyStoresPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -135,6 +174,8 @@ export function ShopifyStoresPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [form, setForm] = useState<StoreFormState>(emptyForm)
   const [preflightCategories, setPreflightCategories] = useState<PreflightFormCategory[]>([])
+  const [selectedReindexEntityTypes, setSelectedReindexEntityTypes] = useState<string[]>([])
+  const [vectorizationPolicyDraft, setVectorizationPolicyDraft] = useState<VectorizationPolicyDraft | null>(null)
 
   const servicesQuery = useQuery({
     queryKey: ['product-services'],
@@ -182,6 +223,14 @@ export function ShopifyStoresPage() {
 
   const selectedStore = selectedStoreQuery.data ?? selectedSummary
 
+  const selectedVectorizationQuery = useQuery({
+    queryKey: ['shopify-stores', selectedShopDomain, 'vectorization'],
+    queryFn: () => fetchShopifyStoreVectorization(selectedShopDomain),
+    enabled: selectedShopDomain.length > 0,
+  })
+
+  const selectedVectorization = selectedVectorizationQuery.data
+
   const bindingQuery = useQuery({
     queryKey: ['shopify-stores', selectedShopDomain, 'binding'],
     queryFn: () => fetchShopifyStoreBinding(selectedShopDomain),
@@ -193,6 +242,16 @@ export function ShopifyStoresPage() {
       setPreflightCategories(buildPreflightCategories(selectedStore))
     }
   }, [preflightDialogOpen, selectedStore])
+
+  useEffect(() => {
+    if (selectedVectorization) {
+      setSelectedReindexEntityTypes(selectedVectorization.selectedEntityTypes)
+      setVectorizationPolicyDraft(buildVectorizationPolicyDraft(selectedVectorization))
+    } else {
+      setSelectedReindexEntityTypes([])
+      setVectorizationPolicyDraft(null)
+    }
+  }, [selectedVectorization])
 
   const upsertMutation = useMutation({
     mutationFn: upsertShopifyStore,
@@ -305,6 +364,95 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const refreshVectorizationState = async (shopDomain: string) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+      queryClient.invalidateQueries({ queryKey: ['shopify-stores', shopDomain] }),
+      queryClient.invalidateQueries({ queryKey: ['shopify-stores', shopDomain, 'vectorization'] }),
+      queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+    ])
+  }
+
+  const reconcileVectorizationMutation = useMutation({
+    mutationFn: (shopDomain: string) => reconcileShopifyStoreVectorization(shopDomain),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Reconciled indexing support for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to reconcile Shopify indexing support.' })
+    },
+  })
+
+  const indexAllVectorizationMutation = useMutation({
+    mutationFn: (shopDomain: string) => indexAllShopifyStoreVectorization(shopDomain),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Queued indexing for all enabled data on ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to start Shopify indexing.' })
+    },
+  })
+
+  const reindexAllVectorizationMutation = useMutation({
+    mutationFn: (shopDomain: string) => reindexAllShopifyStoreVectorization(shopDomain),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Queued full reindex for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to start Shopify reindex.' })
+    },
+  })
+
+  const reindexSelectedVectorizationMutation = useMutation({
+    mutationFn: ({ shopDomain, payload }: { shopDomain: string; payload: ShopifyStoreVectorizationSelectedEntitiesRequest }) =>
+      reindexSelectedShopifyStoreVectorization(shopDomain, payload),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Queued selected reindex for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to start selected Shopify reindex.' })
+    },
+  })
+
+  const saveVectorizationPolicyMutation = useMutation({
+    mutationFn: ({ shopDomain, payload }: { shopDomain: string; payload: UpdateShopifyStoreVectorizationPolicyRequest }) =>
+      updateShopifyStoreVectorizationPolicy(shopDomain, payload),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Saved live update policy for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save Shopify live update policy.' })
+    },
+  })
+
+  const replayVectorizationEventMutation = useMutation({
+    mutationFn: ({ shopDomain, eventId }: { shopDomain: string; eventId: string }) =>
+      replayShopifyStoreVectorizationEvent(shopDomain, eventId),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Replayed live update event for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to replay Shopify live update event.' })
+    },
+  })
+
+  const retryFailedAutoRunMutation = useMutation({
+    mutationFn: (shopDomain: string) => retryLastFailedShopifyStoreVectorizationAutoRun(shopDomain),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Requeued failed live auto indexing work for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to requeue the last failed Shopify live auto indexing run.' })
+    },
+  })
+
   const submitPreflight = () => {
     if (!selectedStore) {
       return
@@ -320,6 +468,32 @@ export function ShopifyStoresPage() {
     }
     preflightMutation.mutate({ shopDomain: selectedStore.shopDomain, payload })
   }
+
+  const updatePolicyDraftSource = (
+    sourceCategory: string,
+    mutator: (current: ShopifyStoreVectorizationSourcePolicyInput) => ShopifyStoreVectorizationSourcePolicyInput,
+  ) => {
+    setVectorizationPolicyDraft((current) => {
+      if (!current) {
+        return current
+      }
+      return {
+        ...current,
+        sourcePolicies: current.sourcePolicies.map((policy) =>
+          policy.sourceCategory === sourceCategory ? mutator(policy) : policy,
+        ),
+      }
+    })
+  }
+
+  const vectorizationBusy =
+    reconcileVectorizationMutation.isPending ||
+    indexAllVectorizationMutation.isPending ||
+    reindexAllVectorizationMutation.isPending ||
+    reindexSelectedVectorizationMutation.isPending ||
+    saveVectorizationPolicyMutation.isPending ||
+    replayVectorizationEventMutation.isPending ||
+    retryFailedAutoRunMutation.isPending
 
   return (
     <Stack spacing={3}>
@@ -671,6 +845,429 @@ export function ShopifyStoresPage() {
                         </Stack>
                       </CardContent>
                     </Card>
+                  ) : null}
+
+                  {selectedVectorizationQuery.isError ? (
+                    <Alert severity="error">
+                      {selectedVectorizationQuery.error instanceof Error
+                        ? selectedVectorizationQuery.error.message
+                        : 'Failed to load Shopify indexing summary.'}
+                    </Alert>
+                  ) : null}
+
+                  {selectedVectorization ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={2}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Indexing and live updates</Typography>
+                            <Chip
+                              size="small"
+                              label={selectedVectorization.readyToRun ? 'Ready' : 'Blocked'}
+                              color={selectedVectorization.readyToRun ? 'success' : 'warning'}
+                            />
+                            <Chip size="small" label={selectedVectorization.syncState ?? 'NO_PLAN'} color={chipColor(selectedVectorization.syncState)} />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Runner ${selectedVectorization.runnerRegistrationStatus ?? 'NOT_READY'}`}
+                              color={chipColor(selectedVectorization.runnerRegistrationStatus)}
+                            />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Auto ${selectedVectorization.automation.autoIndexingHealthy ? 'healthy' : 'degraded'}`}
+                              color={selectedVectorization.automation.autoIndexingHealthy ? 'success' : 'warning'}
+                            />
+                          </Stack>
+
+                          <Typography variant="body2" color="text.secondary">
+                            Entity families {selectedVectorization.selectedEntityTypes.join(' · ') || '—'} · Source categories{' '}
+                            {selectedVectorization.selectedCategories.join(' · ') || '—'} · Plan {selectedVectorization.planId ?? '—'} · Connection{' '}
+                            {selectedVectorization.sourceConnectionId ?? '—'}
+                          </Typography>
+
+                          {selectedVectorization.blockingReasons.length > 0 ? (
+                            <Alert severity="warning">
+                              <strong>Indexing blockers</strong>
+                              <List dense>
+                                {selectedVectorization.blockingReasons.map((reason) => (
+                                  <li key={reason}>{reason}</li>
+                                ))}
+                              </List>
+                            </Alert>
+                          ) : null}
+
+                          {selectedVectorization.automation.degradedReasons.length > 0 ? (
+                            <Alert severity="warning">
+                              <strong>Live updates need attention</strong>
+                              <List dense>
+                                {selectedVectorization.automation.degradedReasons.map((reason) => (
+                                  <li key={reason}>{reason}</li>
+                                ))}
+                              </List>
+                            </Alert>
+                          ) : null}
+
+                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
+                            <Button
+                              variant="outlined"
+                              onClick={() => reconcileVectorizationMutation.mutate(selectedStore.shopDomain)}
+                              disabled={vectorizationBusy}
+                            >
+                              Reconcile indexing support
+                            </Button>
+                            <Button
+                              variant="contained"
+                              onClick={() => indexAllVectorizationMutation.mutate(selectedStore.shopDomain)}
+                              disabled={vectorizationBusy || !selectedVectorization.readyToRun}
+                            >
+                              Index all enabled data
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              onClick={() => reindexAllVectorizationMutation.mutate(selectedStore.shopDomain)}
+                              disabled={vectorizationBusy || !selectedVectorization.readyToRun}
+                            >
+                              Reindex all enabled data
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              onClick={() =>
+                                reindexSelectedVectorizationMutation.mutate({
+                                  shopDomain: selectedStore.shopDomain,
+                                  payload: { entityTypes: selectedReindexEntityTypes },
+                                })
+                              }
+                              disabled={
+                                vectorizationBusy ||
+                                !selectedVectorization.readyToRun ||
+                                selectedReindexEntityTypes.length === 0
+                              }
+                            >
+                              Reindex selected families
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              onClick={() => retryFailedAutoRunMutation.mutate(selectedStore.shopDomain)}
+                              disabled={
+                                vectorizationBusy ||
+                                !selectedVectorization.automation.lastAutoRunId ||
+                                !selectedVectorization.automation.lastFailedAutoIndexAt
+                              }
+                            >
+                              Retry last failed auto run
+                            </Button>
+                          </Stack>
+
+                          <FormGroup row>
+                            {selectedVectorization.selectedEntityTypes.map((entityType) => (
+                              <FormControlLabel
+                                key={entityType}
+                                control={
+                                  <Checkbox
+                                    checked={selectedReindexEntityTypes.includes(entityType)}
+                                    onChange={(event) =>
+                                      setSelectedReindexEntityTypes((current) =>
+                                        event.target.checked
+                                          ? [...current, entityType]
+                                          : current.filter((value) => value !== entityType),
+                                      )
+                                    }
+                                  />
+                                }
+                                label={`Reindex ${entityType}`}
+                              />
+                            ))}
+                          </FormGroup>
+
+                          <Grid container spacing={2}>
+                            <Grid item xs={12} md={4}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Stack spacing={1}>
+                                    <Typography sx={{ fontWeight: 700 }}>Automation counters</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Queued {selectedVectorization.automation.queuedEvents} · Leased {selectedVectorization.automation.leasedEvents} ·
+                                      Dispatched {selectedVectorization.automation.dispatchedEvents}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Failed {selectedVectorization.automation.failedEvents} · Dead-lettered{' '}
+                                      {selectedVectorization.automation.deadLetteredEvents}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Last success {formatTimestamp(selectedVectorization.automation.lastSuccessfulAutoIndexAt)}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Last failure {formatTimestamp(selectedVectorization.automation.lastFailedAutoIndexAt)}
+                                    </Typography>
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+
+                            <Grid item xs={12} md={8}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Stack spacing={1.5}>
+                                    <Typography sx={{ fontWeight: 700 }}>Effective indexed fields</Typography>
+                                    {selectedVectorization.effectiveIndexedFields.length === 0 ? (
+                                      <Typography variant="body2" color="text.secondary">
+                                        No effective indexed fields are available until the deployment vectorization plan is active.
+                                      </Typography>
+                                    ) : (
+                                      <Grid container spacing={1}>
+                                        {selectedVectorization.effectiveIndexedFields.map((field) => (
+                                          <Grid item xs={12} md={6} key={field.fieldKey}>
+                                            <Typography variant="body2" color="text.secondary">
+                                              {field.sourceCategory} · {field.label} ({field.fieldKey})
+                                            </Typography>
+                                          </Grid>
+                                        ))}
+                                      </Grid>
+                                    )}
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          </Grid>
+
+                          {vectorizationPolicyDraft ? (
+                            <Card variant="outlined">
+                              <CardContent>
+                                <Stack spacing={2}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography sx={{ fontWeight: 700 }}>Live update policy</Typography>
+                                    <Chip size="small" label={`Version ${selectedVectorization.policy.policyVersion}`} />
+                                    <Typography variant="caption" color="text.secondary">
+                                      Updated by {selectedVectorization.policy.updatedBy ?? 'system'} · {formatTimestamp(selectedVectorization.policy.updatedAt)}
+                                    </Typography>
+                                  </Stack>
+
+                                  {selectedVectorization.policy.sourcePolicies.map((policy) => {
+                                    const draft =
+                                      vectorizationPolicyDraft.sourcePolicies.find((current) => current.sourceCategory === policy.sourceCategory) ?? policy
+                                    const selectableFields = sourceFieldOptions(selectedVectorization, policy.sourceCategory)
+                                    return (
+                                      <Card key={policy.sourceCategory} variant="outlined">
+                                        <CardContent>
+                                          <Stack spacing={1.5}>
+                                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                              <Typography sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
+                                                {policy.sourceCategory}
+                                              </Typography>
+                                              <Chip
+                                                size="small"
+                                                label={policy.enabled ? 'Enabled' : 'Disabled'}
+                                                color={policy.enabled ? 'success' : 'default'}
+                                              />
+                                              <Chip
+                                                size="small"
+                                                variant="outlined"
+                                                label={draft.autoIndexingEnabled ? 'Auto on' : 'Auto off'}
+                                                color={draft.autoIndexingEnabled ? 'success' : 'warning'}
+                                              />
+                                            </Stack>
+
+                                            <FormGroup row>
+                                              <FormControlLabel
+                                                control={
+                                                  <Checkbox
+                                                    checked={Boolean(draft.autoIndexingEnabled)}
+                                                    onChange={(event) =>
+                                                      updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                        ...current,
+                                                        autoIndexingEnabled: event.target.checked,
+                                                      }))
+                                                    }
+                                                  />
+                                                }
+                                                label="Live auto indexing"
+                                              />
+                                              <FormControlLabel
+                                                control={
+                                                  <Checkbox
+                                                    checked={Boolean(draft.createTriggerEnabled)}
+                                                    onChange={(event) =>
+                                                      updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                        ...current,
+                                                        createTriggerEnabled: event.target.checked,
+                                                      }))
+                                                    }
+                                                  />
+                                                }
+                                                label="Create trigger"
+                                              />
+                                              <FormControlLabel
+                                                control={
+                                                  <Checkbox
+                                                    checked={Boolean(draft.deleteTriggerEnabled)}
+                                                    onChange={(event) =>
+                                                      updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                        ...current,
+                                                        deleteTriggerEnabled: event.target.checked,
+                                                      }))
+                                                    }
+                                                  />
+                                                }
+                                                label="Delete trigger"
+                                              />
+                                            </FormGroup>
+
+                                            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                                              <TextField
+                                                select
+                                                label="Update sensitivity"
+                                                value={draft.updateTriggerMode ?? 'INDEXED_FIELDS_ONLY'}
+                                                onChange={(event) =>
+                                                  updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                    ...current,
+                                                    updateTriggerMode: event.target.value,
+                                                  }))
+                                                }
+                                                fullWidth
+                                              >
+                                                <MenuItem value="NONE">NONE</MenuItem>
+                                                <MenuItem value="ANY_UPDATE">ANY_UPDATE</MenuItem>
+                                                <MenuItem value="INDEXED_FIELDS_ONLY">INDEXED_FIELDS_ONLY</MenuItem>
+                                                <MenuItem value="SELECTED_INDEXED_FIELDS">SELECTED_INDEXED_FIELDS</MenuItem>
+                                              </TextField>
+                                              <TextField
+                                                label="Debounce seconds"
+                                                type="number"
+                                                value={draft.debounceWindowSeconds ?? 0}
+                                                onChange={(event) =>
+                                                  updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                    ...current,
+                                                    debounceWindowSeconds: Number.parseInt(event.target.value, 10) || 0,
+                                                  }))
+                                                }
+                                                fullWidth
+                                              />
+                                              <TextField
+                                                label="Minimum run interval seconds"
+                                                type="number"
+                                                value={draft.minimumRunIntervalSeconds ?? 0}
+                                                onChange={(event) =>
+                                                  updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                    ...current,
+                                                    minimumRunIntervalSeconds: Number.parseInt(event.target.value, 10) || 0,
+                                                  }))
+                                                }
+                                                fullWidth
+                                              />
+                                            </Stack>
+
+                                            {draft.updateTriggerMode === 'SELECTED_INDEXED_FIELDS' ? (
+                                              <FormGroup row>
+                                                {selectableFields.map((fieldKey) => (
+                                                  <FormControlLabel
+                                                    key={fieldKey}
+                                                    control={
+                                                      <Checkbox
+                                                        checked={Boolean(draft.selectedIndexedFields?.includes(fieldKey))}
+                                                        onChange={(event) =>
+                                                          updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                            ...current,
+                                                            selectedIndexedFields: event.target.checked
+                                                              ? [...(current.selectedIndexedFields ?? []), fieldKey]
+                                                              : (current.selectedIndexedFields ?? []).filter((value) => value !== fieldKey),
+                                                          }))
+                                                        }
+                                                      />
+                                                    }
+                                                    label={fieldKey}
+                                                  />
+                                                ))}
+                                              </FormGroup>
+                                            ) : null}
+                                          </Stack>
+                                        </CardContent>
+                                      </Card>
+                                    )
+                                  })}
+
+                                  <Stack direction="row" spacing={1}>
+                                    <Button
+                                      variant="contained"
+                                      onClick={() =>
+                                        selectedStore &&
+                                        vectorizationPolicyDraft &&
+                                        saveVectorizationPolicyMutation.mutate({
+                                          shopDomain: selectedStore.shopDomain,
+                                          payload: vectorizationPolicyDraft,
+                                        })
+                                      }
+                                      disabled={vectorizationBusy || !selectedStore || !vectorizationPolicyDraft}
+                                    >
+                                      Save live update policy
+                                    </Button>
+                                  </Stack>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ) : null}
+
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1.5}>
+                                <Typography sx={{ fontWeight: 700 }}>Recent live update events</Typography>
+                                {selectedVectorization.recentEvents.length === 0 ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    No Shopify live update events have been recorded yet.
+                                  </Typography>
+                                ) : (
+                                  selectedVectorization.recentEvents.map((event) => (
+                                    <Card key={event.id} variant="outlined">
+                                      <CardContent>
+                                        <Stack spacing={1}>
+                                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                            <Typography sx={{ fontWeight: 700 }}>
+                                              {event.sourceCategory} {event.operation}
+                                            </Typography>
+                                            <Chip size="small" label={event.status} color={chipColor(event.status)} />
+                                            {event.failureCode ? <Chip size="small" variant="outlined" label={event.failureCode} /> : null}
+                                            <Typography variant="caption" color="text.secondary">
+                                              {formatTimestamp(event.occurredAt)}
+                                            </Typography>
+                                          </Stack>
+                                          <Typography variant="body2" color="text.secondary">
+                                            Topic {event.shopifyTopic ?? '—'} · Entity {event.entityType} · Object {event.sourceObjectId ?? '—'} · Run{' '}
+                                            {event.coalescedRunId ?? '—'}
+                                          </Typography>
+                                          {event.notes ? (
+                                            <Typography variant="body2" color="text.secondary">
+                                              {event.notes}
+                                            </Typography>
+                                          ) : null}
+                                          <Stack direction="row" spacing={1}>
+                                            <Button
+                                              variant="outlined"
+                                              size="small"
+                                              onClick={() =>
+                                                replayVectorizationEventMutation.mutate({
+                                                  shopDomain: selectedStore.shopDomain,
+                                                  eventId: event.id,
+                                                })
+                                              }
+                                              disabled={vectorizationBusy}
+                                            >
+                                              Replay event
+                                            </Button>
+                                          </Stack>
+                                        </Stack>
+                                      </CardContent>
+                                    </Card>
+                                  ))
+                                )}
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : selectedVectorizationQuery.isLoading ? (
+                    <Alert severity="info">Loading Shopify indexing state…</Alert>
                   ) : null}
 
                   {selectedStore.webhookDetail ? (

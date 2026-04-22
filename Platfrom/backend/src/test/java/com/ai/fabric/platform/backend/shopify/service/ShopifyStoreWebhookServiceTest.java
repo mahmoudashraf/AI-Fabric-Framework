@@ -13,7 +13,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ShopifyStoreWebhookServiceTest {
@@ -22,6 +25,7 @@ class ShopifyStoreWebhookServiceTest {
     void recordWebhookInvalidatesSyncWhenRequested() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        ShopifyStoreVectorizationEventService vectorizationEventService = mock(ShopifyStoreVectorizationEventService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
 
@@ -32,7 +36,13 @@ class ShopifyStoreWebhookServiceTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary);
 
-        ShopifyStoreWebhookService service = new ShopifyStoreWebhookService(repository, connectionService, support, auditService);
+        ShopifyStoreWebhookService service = new ShopifyStoreWebhookService(
+            repository,
+            connectionService,
+            support,
+            vectorizationEventService,
+            auditService
+        );
 
         ShopifyStoreConnectionSummary result = service.record(
             "demo.myshopify.com",
@@ -40,6 +50,12 @@ class ShopifyStoreWebhookServiceTest {
                 "products/update",
                 "CONTENT_CHANGED",
                 "products",
+                "UPDATE",
+                "gid://shopify/Product/123",
+                "2026-04-22T00:00:00Z",
+                "wh_123",
+                "checksum-123",
+                2,
                 "Shopify product content changed. Incremental sync is required.",
                 true
             )
@@ -51,12 +67,21 @@ class ShopifyStoreWebhookServiceTest {
         assertThat(store.getDetailsJson()).contains("\"webhook\"");
         assertThat(store.getDetailsJson()).contains("\"products/update\"");
         assertThat(store.getDetailsJson()).contains("\"invalidateSync\":true");
+        verify(vectorizationEventService).ingest(
+            argThat(saved -> "demo.myshopify.com".equals(saved.getShopDomain())),
+            argThat(request ->
+                "products".equals(request.sourceCategory())
+                    && "UPDATE".equals(request.operation())
+                    && "gid://shopify/Product/123".equals(request.sourceObjectId())
+            )
+        );
     }
 
     @Test
     void recordWebhookCanPreserveSyncWhenNoInvalidationRequested() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        ShopifyStoreVectorizationEventService vectorizationEventService = mock(ShopifyStoreVectorizationEventService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
         ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
 
@@ -68,7 +93,13 @@ class ShopifyStoreWebhookServiceTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(connectionService.getConnection("demo.myshopify.com")).thenReturn(summary);
 
-        ShopifyStoreWebhookService service = new ShopifyStoreWebhookService(repository, connectionService, support, auditService);
+        ShopifyStoreWebhookService service = new ShopifyStoreWebhookService(
+            repository,
+            connectionService,
+            support,
+            vectorizationEventService,
+            auditService
+        );
 
         ShopifyStoreConnectionSummary result = service.record(
             "demo.myshopify.com",
@@ -76,6 +107,12 @@ class ShopifyStoreWebhookServiceTest {
                 "app/uninstalled",
                 "UNINSTALLED",
                 null,
+                "DELETE",
+                null,
+                null,
+                "wh_456",
+                "checksum-456",
+                1,
                 "Shopify reported app uninstall.",
                 false
             )
@@ -84,6 +121,7 @@ class ShopifyStoreWebhookServiceTest {
         assertThat(result.syncStatus()).isEqualTo("SYNCED");
         assertThat(store.getSyncStatus()).isEqualTo("SYNCED");
         assertThat(store.getLastWebhookAt()).isNotNull();
+        verify(vectorizationEventService, never()).ingest(any(), any());
     }
 
     private ShopifyStoreConnectionEntity store() {

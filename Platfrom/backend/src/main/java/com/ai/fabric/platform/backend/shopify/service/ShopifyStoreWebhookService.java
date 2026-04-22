@@ -23,15 +23,18 @@ public class ShopifyStoreWebhookService {
     private final ShopifyStoreConnectionRepository repository;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreSourcePreflightSupport support;
+    private final ShopifyStoreVectorizationEventService vectorizationEventService;
     private final PlatformAuditService platformAuditService;
 
     public ShopifyStoreWebhookService(ShopifyStoreConnectionRepository repository,
                                       ShopifyStoreConnectionService shopifyStoreConnectionService,
                                       ShopifyStoreSourcePreflightSupport support,
+                                      ShopifyStoreVectorizationEventService vectorizationEventService,
                                       PlatformAuditService platformAuditService) {
         this.repository = repository;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.support = support;
+        this.vectorizationEventService = vectorizationEventService;
         this.platformAuditService = platformAuditService;
     }
 
@@ -87,6 +90,10 @@ public class ShopifyStoreWebhookService {
         store.setDetailsJson(support.writeJson(details));
         store.setUpdatedAt(now);
         repository.save(store);
+        if (sourceCategory != null
+            && ShopifyStoreVectorizationConstants.SOURCE_CATEGORIES.contains(sourceCategory.toLowerCase(Locale.ROOT))) {
+            vectorizationEventService.ingest(store, request);
+        }
 
         platformAuditService.record(
             "SHOPIFY_STORE_WEBHOOK_RECORDED",

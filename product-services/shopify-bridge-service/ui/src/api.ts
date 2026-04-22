@@ -212,6 +212,71 @@ export type ShopifyBridgeStoreVectorizationRunSummary = {
   updatedAt: string
 }
 
+export type ShopifyBridgeStoreVectorizationSourcePolicySummary = {
+  sourceCategory: string
+  enabled: boolean
+  manualIndexAllowed: boolean
+  manualReindexAllowed: boolean
+  autoIndexingEnabled: boolean
+  createTriggerEnabled: boolean
+  deleteTriggerEnabled: boolean
+  updateTriggerMode: string
+  selectedIndexedFields: string[]
+  debounceWindowSeconds: number
+  minimumRunIntervalSeconds: number
+}
+
+export type ShopifyBridgeStoreVectorizationPolicySummary = {
+  policyVersion: number
+  autoIndexingDefault: boolean
+  sourcePolicies: ShopifyBridgeStoreVectorizationSourcePolicySummary[]
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyBridgeStoreVectorizationIndexedFieldSummary = {
+  fieldKey: string
+  sourceCategory: string
+  entityType: string
+  sourceField: string
+  label: string
+  selectableForTriggerPolicy: boolean
+}
+
+export type ShopifyBridgeStoreVectorizationAutomationSummary = {
+  autoIndexingHealthy: boolean
+  queuedEvents: number
+  leasedEvents: number
+  dispatchedEvents: number
+  skippedEvents: number
+  failedEvents: number
+  deadLetteredEvents: number
+  lastAutoEventAt: string | null
+  lastSuccessfulAutoIndexAt: string | null
+  lastFailedAutoIndexAt: string | null
+  lastAutoRunId: string | null
+  degradedReasons: string[]
+}
+
+export type ShopifyBridgeStoreVectorizationEventSummary = {
+  id: string
+  sourceCategory: string
+  entityType: string
+  sourceObjectId: string | null
+  shopifyTopic: string | null
+  operation: string | null
+  status: string
+  triggerReason: string | null
+  failureCode: string | null
+  coalescedRunId: string | null
+  shopifyWebhookId: string | null
+  occurredAt: string | null
+  queuedAt: string | null
+  lastAttemptAt: string | null
+  completedAt: string | null
+  notes: string | null
+}
+
 export type ShopifyBridgeStoreVectorizationSummary = {
   shopDomain: string
   deploymentId: string | null
@@ -240,6 +305,30 @@ export type ShopifyBridgeStoreVectorizationSummary = {
   readyToRun: boolean
   blockingReasons: string[]
   lastRun: ShopifyBridgeStoreVectorizationRunSummary | null
+  policy: ShopifyBridgeStoreVectorizationPolicySummary | null
+  effectiveIndexedFields: ShopifyBridgeStoreVectorizationIndexedFieldSummary[]
+  automation: ShopifyBridgeStoreVectorizationAutomationSummary | null
+  recentEvents: ShopifyBridgeStoreVectorizationEventSummary[]
+}
+
+export type ShopifyBridgeStoreVectorizationSourcePolicyInput = {
+  sourceCategory: string
+  autoIndexingEnabled?: boolean | null
+  createTriggerEnabled?: boolean | null
+  deleteTriggerEnabled?: boolean | null
+  updateTriggerMode?: string | null
+  selectedIndexedFields?: string[]
+  debounceWindowSeconds?: number | null
+  minimumRunIntervalSeconds?: number | null
+}
+
+export type ShopifyBridgeUpdateStoreVectorizationPolicyRequest = {
+  policyVersion: number | null
+  sourcePolicies: ShopifyBridgeStoreVectorizationSourcePolicyInput[]
+}
+
+export type ShopifyBridgeStoreVectorizationSelectedEntitiesRequest = {
+  entityTypes: string[]
 }
 
 export type ShopifyWebhookSubscriptionStatusSummary = {
@@ -312,6 +401,46 @@ export async function reconcileVectorization(): Promise<ShopifyBridgeStoreVector
 
 export async function vectorizeNowStore(): Promise<ShopifyBridgeStoreVectorizationSummary> {
   return authenticatedFetchJson('/api/app/store/vectorization/vectorize-now', { method: 'POST' })
+}
+
+export async function indexAllStore(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/index-all', { method: 'POST' })
+}
+
+export async function reindexAllStore(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/reindex-all', { method: 'POST' })
+}
+
+export async function reindexSelectedStore(request: ShopifyBridgeStoreVectorizationSelectedEntitiesRequest): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/reindex-selected', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function updateVectorizationPolicyStore(request: ShopifyBridgeUpdateStoreVectorizationPolicyRequest): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/policy', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function fetchVectorizationEventsStore(limit = 10): Promise<ShopifyBridgeStoreVectorizationEventSummary[]> {
+  return authenticatedFetchJson(`/api/app/store/vectorization/events?limit=${limit}`, { method: 'GET' })
+}
+
+export async function replayVectorizationEventStore(eventId: string): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson(`/api/app/store/vectorization/events/${encodeURIComponent(eventId)}/replay`, { method: 'POST' })
+}
+
+export async function retryLastFailedVectorizationAutoRunStore(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/retry-last-failed-auto-run', { method: 'POST' })
 }
 
 export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary> {

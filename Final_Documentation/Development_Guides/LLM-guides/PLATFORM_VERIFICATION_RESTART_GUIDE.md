@@ -394,6 +394,7 @@ Purpose:
 - verify Shopify Companion live operator surfaces
 - progress a Shopify store through bootstrap / preflight / go-live
 - verify uninstall cleanup on a disposable store mapping
+- verify Shopify indexing and live-update operator surfaces without mutating live state
 
 Primary supporting docs:
 
@@ -408,6 +409,15 @@ Safety rules:
 - use workflow/script mode `verify` first
 - use `rollout` only when intentionally advancing store state
 - use `uninstall_verify` only with an explicitly disposable shop and explicit destructive confirmation
+
+Current read-only checks in `scripts/verify-shopify-companion.sh`:
+
+- platform store vectorization summary
+- live-update trigger policy visibility
+- effective indexed field visibility
+- automation queue / dead-letter visibility
+- recent vectorization event visibility
+- bridge admin vectorization source-page reachability when bridge admin auth is configured
 
 ## 7. Recommended Order
 

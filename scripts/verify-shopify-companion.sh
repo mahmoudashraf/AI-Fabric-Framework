@@ -551,6 +551,59 @@ assert_nonempty "$(json_get "${platform_store_webhook_json}" "webhookUri")" "pla
 assert_nonempty "$(json_get "${platform_store_webhook_json}" "expectedCount")" "platform store webhook expectedCount"
 assert_optional_equals "$(json_get "${platform_store_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "platform store webhook status"
 
+echo "== Platform store vectorization overview =="
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/vectorization" "" "${platform_headers[@]-}"
+assert_equals "${HTTP_STATUS}" "200" "platform store vectorization summary status"
+platform_store_vectorization_json="${HTTP_BODY}"
+assert_equals "$(json_get "${platform_store_vectorization_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store vectorization shopDomain"
+assert_nonempty "$(json_get "${platform_store_vectorization_json}" "selectedCategories.0")" "platform store vectorization selectedCategories"
+assert_nonempty "$(json_get "${platform_store_vectorization_json}" "selectedEntityTypes.0")" "platform store vectorization selectedEntityTypes"
+assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.policyVersion")" "platform store vectorization policy version"
+assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.sourcePolicies.0.sourceCategory")" "platform store vectorization source policy category"
+assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.sourcePolicies.0.updateTriggerMode")" "platform store vectorization update trigger mode"
+assert_nonempty "$(json_get "${platform_store_vectorization_json}" "effectiveIndexedFields.0.fieldKey")" "platform store vectorization indexed field"
+assert_nonempty "$(json_get "${platform_store_vectorization_json}" "automation.autoIndexingHealthy")" "platform store vectorization automation health"
+assert_nonempty "$(json_get "${platform_store_vectorization_json}" "recentEvents")" "platform store vectorization recent events payload"
+
+echo "== Platform store vectorization events =="
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/vectorization/events?limit=5" "" "${platform_headers[@]-}"
+assert_equals "${HTTP_STATUS}" "200" "platform store vectorization events status"
+platform_store_vectorization_events_json="${HTTP_BODY}"
+JSON_PAYLOAD="${platform_store_vectorization_json}" JSON_EVENTS="${platform_store_vectorization_events_json}" python3 - <<'PY'
+import json
+import os
+import sys
+
+summary = json.loads(os.environ["JSON_PAYLOAD"])
+events = json.loads(os.environ["JSON_EVENTS"])
+
+assert isinstance(events, list), {"eventsType": type(events).__name__}
+assert isinstance(summary.get("policy"), dict), {"missing": "policy"}
+assert isinstance(summary.get("automation"), dict), {"missing": "automation"}
+assert isinstance(summary.get("recentEvents"), list), {"missing": "recentEvents"}
+assert isinstance(summary.get("effectiveIndexedFields"), list), {"missing": "effectiveIndexedFields"}
+
+selected_categories = summary.get("selectedCategories") or []
+selected_entity_types = summary.get("selectedEntityTypes") or []
+source_policies = summary["policy"].get("sourcePolicies") or []
+policy_categories = {entry.get("sourceCategory") for entry in source_policies if isinstance(entry, dict)}
+
+missing_policies = [category for category in selected_categories if category not in policy_categories]
+assert not missing_policies, {"missingPolicyCategories": missing_policies, "policyCategories": sorted(policy_categories)}
+
+indexed_fields = summary.get("effectiveIndexedFields") or []
+indexed_entity_types = {entry.get("entityType") for entry in indexed_fields if isinstance(entry, dict)}
+missing_indexed = [entity_type for entity_type in selected_entity_types if entity_type not in indexed_entity_types]
+assert not missing_indexed, {"missingIndexedEntityTypes": missing_indexed, "indexedEntityTypes": sorted(indexed_entity_types)}
+
+recent_events = summary.get("recentEvents") or []
+assert len(recent_events) <= 20, {"recentEventsCount": len(recent_events)}
+for event in events:
+    assert isinstance(event, dict), {"badEvent": event}
+    assert event.get("sourceCategory"), {"missingEventSourceCategory": event}
+    assert event.get("entityType"), {"missingEventEntityType": event}
+PY
+
 echo "== Bridge shell =="
 http_request GET "${bridge_base}/api/app/shell"
 assert_equals "${HTTP_STATUS}" "200" "bridge shell status"
@@ -590,6 +643,15 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   bridge_admin_webhook_json="${HTTP_BODY}"
   assert_nonempty "$(json_get "${bridge_admin_webhook_json}" "expectedCount")" "bridge admin store webhook expectedCount"
   assert_optional_equals "$(json_get "${bridge_admin_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "bridge admin store webhook status"
+
+  echo "== Bridge admin vectorization source page =="
+  bridge_vector_entity_type="$(json_get "${platform_store_vectorization_json}" "selectedEntityTypes.0")"
+  assert_nonempty "${bridge_vector_entity_type}" "bridge admin vectorization entity type"
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/vectorization-source/${bridge_vector_entity_type}?limit=1" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge admin vectorization source page status"
+  bridge_vector_page_json="${HTTP_BODY}"
+  assert_equals "$(json_get "${bridge_vector_page_json}" "entityType")" "${bridge_vector_entity_type}" "bridge admin vectorization entityType"
+  assert_nonempty "$(json_get "${bridge_vector_page_json}" "totalCount")" "bridge admin vectorization source totalCount"
 else
   echo "Skipping bridge admin overview because SHOPIFY_BRIDGE_ADMIN_API_KEY is not configured."
 fi
