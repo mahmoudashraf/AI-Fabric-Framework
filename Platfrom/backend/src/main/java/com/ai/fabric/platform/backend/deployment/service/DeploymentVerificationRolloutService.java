@@ -324,7 +324,7 @@ public class DeploymentVerificationRolloutService {
                 if (existing == null) {
                     continue;
                 }
-                recovered = deploymentReleaseRecoveryService.redispatchLatestQueuedApplyRequest(existing.getId()) || recovered;
+                recovered = deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId()) || recovered;
             }
             if (recovered) {
                 deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();

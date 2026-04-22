@@ -66,6 +66,76 @@ import static org.mockito.Mockito.doNothing;
 class DeploymentVerificationRolloutServiceTest {
 
     @Test
+    void listRolloutsRecoversStaleInProgressReleasesBeforeSummarizing() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity existing = new DeploymentEntity();
+        existing.setId("dep-813fa5c9");
+        existing.setName("OpenAI Weaviate Verification");
+        existing.setEnvironmentName("dev");
+        existing.setStatus("VERSION_PUBLISHED");
+        existing.setActiveVersionId("ver-1");
+        existing.setRuntimeBaseUrl("https://runtime.example.test");
+        existing.setConnectorBaseUrl("https://connector.example.test");
+        existing.setCreatedAt(Instant.now());
+        existing.setUpdatedAt(Instant.now());
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-stale");
+        release.setDeploymentId(existing.getId());
+        release.setStatus("PRE_APPLY_VERIFYING");
+        release.setVerificationStatus("RUNNING");
+        release.setProvisioningTarget("RAILWAY_API");
+        release.setCurrentStepKey("preflight_verification");
+        release.setCreatedAt(Instant.now());
+        release.setUpdatedAt(Instant.now());
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(existing), List.of(existing));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(existing.getId())).thenReturn(Optional.of(release));
+        when(deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(anyString())).thenReturn(List.of());
+        when(platformUserRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(platformUser("usr-admin", "admin@example.com", "PLATFORM_ADMIN")));
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
+        when(deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId())).thenReturn(true);
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentReleaseRecoveryService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.listRollouts();
+
+        assertThat(summary.items()).isNotEmpty();
+        verify(deploymentReleaseRecoveryService).reconcileLatestInProgressRelease(existing.getId());
+        verify(deploymentRepository, times(2)).findAllByOrderByCreatedAtDesc();
+    }
+
+    @Test
     void recreateRolloutsCreatesCanonicalDeploymentsAndSeedsProviderDefaults() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
