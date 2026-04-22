@@ -80,6 +80,9 @@ If you are restarting planning from scratch, read in this order:
 Then read the Companion implementation docs under:
 
 - [../Companion](../Companion)
+- especially:
+  - [../Companion/SHOPIFY_COMPANION_MAX_MODE_WIDGET_REFACTOR_PLAN.md](../Companion/SHOPIFY_COMPANION_MAX_MODE_WIDGET_REFACTOR_PLAN.md)
+  - [../Companion/SHOPIFY_COMPANION_SHELL_MODE_ENABLEMENT_PLAN.md](../Companion/SHOPIFY_COMPANION_SHELL_MODE_ENABLEMENT_PLAN.md)
 
 ---
 
@@ -102,6 +105,10 @@ Then read the Companion implementation docs under:
 - [LOOM_COMPANION_EMBEDDED_INTELLIGENCE_STRATEGY.md](LOOM_COMPANION_EMBEDDED_INTELLIGENCE_STRATEGY.md)
   - Canonical storefront product-shape direction.
   - Strongly influences what should ship next on Shopify.
+
+- [../Companion/SHOPIFY_COMPANION_SHELL_MODE_ENABLEMENT_PLAN.md](../Companion/SHOPIFY_COMPANION_SHELL_MODE_ENABLEMENT_PLAN.md)
+  - Canonical bounded plan for bringing real shell conversation modes into Shopify.
+  - Use this with the builder-mode roadmap, not instead of it.
 
 - [LOOM_COMPANION_PRICING_AND_TIER_STRATEGY.md](LOOM_COMPANION_PRICING_AND_TIER_STRATEGY.md)
   - Canonical tiering and pricing direction.
@@ -239,4 +246,3 @@ Do not use this folder as the home for:
 - service runbooks
 - operational reliability implementation details
 - low-level technical implementation plans that already belong under `Companion` or `Operations`
-
