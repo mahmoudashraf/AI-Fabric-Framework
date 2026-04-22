@@ -54,8 +54,8 @@ class PlatformVerificationSuiteServiceTest {
 
         assertThat(summary.suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
         assertThat(summary.run().status()).isEqualTo("QUEUED");
-        assertThat(summary.run().stages()).hasSize(13);
-        assertThat(summary.run().stages().getFirst().stageKey()).isEqualTo("platform-code-regression");
+        assertThat(summary.run().stages()).hasSize(12);
+        assertThat(summary.run().stages().getFirst().stageKey()).isEqualTo("shared-inference-health");
         assertThat(summary.run().stages().getLast().targetRef()).isEqualTo("weaviate");
 
         verify(executionService).execute(summary.run().id(), false);

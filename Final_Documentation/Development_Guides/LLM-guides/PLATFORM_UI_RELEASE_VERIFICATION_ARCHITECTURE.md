@@ -128,12 +128,7 @@ Core pieces:
 - persisted run tables
   - `Platfrom/backend/src/main/resources/db/migration/V56__platform_verification_suite_runs.sql`
 
-The platform also has an allowlisted script runner for release-gate stages that are still naturally expressed as controlled shell entrypoints.
-
-Operationally important detail:
-
-- the platform backend deploy image now includes the repo worktree slices and toolchains required for the platform code regression gate
-- the control plane can therefore execute the former GitHub platform code regression workflow directly from the platform-owned suite
+The platform also has an allowlisted script runner for live verification stages that are still naturally expressed as controlled shell entrypoints.
 
 ### 3.3 Persisted model
 
@@ -168,23 +163,25 @@ Implemented suite keys:
 
 - `full-platform-release-readiness`
 - `canonical-release-readiness`
-- `platform-code-regression`
+- `platform-admin-live-regression`
+- `managed-vector-provider-verification`
+- `marketplace-install-flow`
+- `shopify-companion-verification`
 
 Current ordered stages for `full-platform-release-readiness`:
 
-1. platform code regression
-2. shared inference service health
-3. platform admin live regression
-4. canonical rollout inventory
-5. managed vector provider verification
-6. marketplace install flow
-7. Shopify Companion verification
-8. marketplace hosted verification
-9. ecommerce hosted verification
-10. qdrant hosted verification
-11. pinecone hosted verification
-12. milvus hosted verification
-13. weaviate hosted verification
+1. shared inference service health
+2. platform admin live regression
+3. canonical rollout inventory
+4. managed vector provider verification
+5. marketplace install flow
+6. Shopify Companion verification
+7. marketplace hosted verification
+8. ecommerce hosted verification
+9. qdrant hosted verification
+10. pinecone hosted verification
+11. milvus hosted verification
+12. weaviate hosted verification
 
 Current ordered stages for `canonical-release-readiness`:
 
@@ -220,7 +217,7 @@ The `Verification Ops` page now exposes:
 - manual fallback controls for rollout recreation and deployment-only hosted verification
 
 The page is designed so the release suite is the primary path and the manual controls are a fallback.
-The release suite now covers the former GitHub live verification estate plus the platform code regression gate.
+The release suite now covers the former GitHub live verification estate.
 The release gate summary turns the latest full-suite run into a concrete operator signal instead of forcing people to infer readiness from raw run history.
 
 ## 6. Security And Enterprise Boundaries
@@ -303,9 +300,8 @@ The platform-owned model improves:
 
 ## 8. Current Parity Status
 
-The current platform-owned release suite now covers the former GitHub release-verification estate:
+The current platform-owned release suite now covers the former GitHub live release-verification estate:
 
-- platform code regression
 - platform admin live regression
 - direct managed-provider verification
 - marketplace install-flow verification
@@ -314,6 +310,7 @@ The current platform-owned release suite now covers the former GitHub release-ve
 
 Remaining gaps are outside the release-verification surface itself:
 
+- local code regression and build/test gates
 - broader experimental provider-matrix and integration-test workflows
 - release approval integration
 - apply-time enforcement that a required suite passed recently enough
@@ -321,7 +318,7 @@ Remaining gaps are outside the release-verification surface itself:
 So the current state is:
 
 - release verification parity is in the platform
-- broader CI/test-estate retirement is still separate work
+- broader CI and test-estate retirement is still separate work
 
 ## 9. Recommended Migration Path
 

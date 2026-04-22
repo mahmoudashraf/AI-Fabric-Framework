@@ -227,7 +227,10 @@ Control-plane suite keys:
 
 - `full-platform-release-readiness`
 - `canonical-release-readiness`
-- `platform-code-regression`
+- `platform-admin-live-regression`
+- `managed-vector-provider-verification`
+- `marketplace-install-flow`
+- `shopify-companion-verification`
 
 Primary release gate:
 
@@ -246,19 +249,18 @@ Release-gate summary:
 
 Current ordered stages:
 
-1. platform code regression
-2. shared inference service health
-3. platform admin live regression
-4. canonical rollout inventory
-5. managed vector provider verification
-6. marketplace install flow
-7. Shopify Companion verification
-8. marketplace hosted verification
-9. ecommerce hosted verification
-10. qdrant hosted verification
-11. pinecone hosted verification
-12. milvus hosted verification
-13. weaviate hosted verification
+1. shared inference service health
+2. platform admin live regression
+3. canonical rollout inventory
+4. managed vector provider verification
+5. marketplace install flow
+6. Shopify Companion verification
+7. marketplace hosted verification
+8. ecommerce hosted verification
+9. qdrant hosted verification
+10. pinecone hosted verification
+11. milvus hosted verification
+12. weaviate hosted verification
 
 Important runtime behavior:
 
@@ -435,10 +437,9 @@ Use this order:
 
 1. targeted local tests for the touched code
 2. `git diff --check`
-3. run `platform-code-regression`
-4. resolve canonical rollouts if you need direct script diagnosis
-5. direct live scripts for the changed surface
-6. `full-platform-release-readiness` last
+3. resolve canonical rollouts if you need direct script diagnosis
+4. direct live scripts for the changed surface
+5. `full-platform-release-readiness` last
 
 ### 7.3 Canonical commands
 

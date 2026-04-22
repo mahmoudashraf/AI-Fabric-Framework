@@ -20,7 +20,6 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class PlatformVerificationSuiteScriptContextService {
 
     public static final String SCRIPT_PLATFORM_ADMIN_REGRESSION = "platform-admin-live-regression";
-    public static final String SCRIPT_PLATFORM_CODE_REGRESSION = "platform-code-regression";
     public static final String SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION = "managed-vector-provider-verification";
     public static final String SCRIPT_MARKETPLACE_INSTALL_FLOW = "marketplace-install-flow";
     public static final String SCRIPT_SHOPIFY_COMPANION_VERIFICATION = "shopify-companion-verification";
@@ -61,7 +60,6 @@ public class PlatformVerificationSuiteScriptContextService {
     public PlatformVerificationScriptContextSummary build(String scriptKey) {
         return switch (scriptKey) {
             case SCRIPT_PLATFORM_ADMIN_REGRESSION -> buildPlatformAdminRegression();
-            case SCRIPT_PLATFORM_CODE_REGRESSION -> buildPlatformCodeRegression();
             case SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION -> buildManagedProviderVerification();
             case SCRIPT_MARKETPLACE_INSTALL_FLOW -> buildMarketplaceInstallFlow();
             case SCRIPT_SHOPIFY_COMPANION_VERIFICATION -> buildShopifyCompanionVerification();
@@ -86,23 +84,6 @@ public class PlatformVerificationSuiteScriptContextService {
             "scripts/verify-platform-admin-regression.sh",
             environment,
             basePlatformSecretEnvironment()
-        );
-    }
-
-    private PlatformVerificationScriptContextSummary buildPlatformCodeRegression() {
-        Map<String, String> environment = new LinkedHashMap<>();
-        environment.put("BACKEND_TESTS", "true");
-        environment.put("PRODUCT_TESTS", "true");
-        environment.put("INFRASTRUCTURE_TESTS", "true");
-        environment.put("UI_BUILD", "true");
-        environment.put("SHELL_SYNTAX_CHECKS", "true");
-
-        return new PlatformVerificationScriptContextSummary(
-            "scripts/verify-platform-code-regression.sh",
-            environment,
-            Map.of(),
-            suiteProperties.codeRegressionScriptTimeout(),
-            suiteProperties.codeRegressionMaxLogCharacters()
         );
     }
 
