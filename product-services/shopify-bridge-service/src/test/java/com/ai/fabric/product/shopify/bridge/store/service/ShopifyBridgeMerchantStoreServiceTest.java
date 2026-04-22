@@ -575,21 +575,27 @@ class ShopifyBridgeMerchantStoreServiceTest {
         );
         when(client.updateWidgetSettings("alpha.myshopify.com", new ShopifyBridgeUpdateWidgetSettingsRequest(
             "Need help?",
-            "Ask me about products and policies."
+            "Ask me about products and policies.",
+            "GUIDED_COMMERCE",
+            List.of("ai-search", "comparison")
         ))).thenReturn(store("alpha.myshopify.com"));
 
         ShopifyBridgeStoreSummary response = service.updateWidgetSettings(
             session(),
             new ShopifyBridgeUpdateWidgetSettingsRequest(
                 "Need help?",
-                "Ask me about products and policies."
+                "Ask me about products and policies.",
+                "GUIDED_COMMERCE",
+                List.of("ai-search", "comparison")
             )
         );
 
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         verify(client).updateWidgetSettings("alpha.myshopify.com", new ShopifyBridgeUpdateWidgetSettingsRequest(
             "Need help?",
-            "Ask me about products and policies."
+            "Ask me about products and policies.",
+            "GUIDED_COMMERCE",
+            List.of("ai-search", "comparison")
         ));
     }
 

@@ -284,7 +284,9 @@ class PlatformShopifyStoreClientTest {
             "alpha.myshopify.com",
             new ShopifyBridgeUpdateWidgetSettingsRequest(
                 "Need help?",
-                "Ask me about products and policies."
+                "Ask me about products and policies.",
+                "GUIDED_COMMERCE",
+                List.of("ai-search", "comparison")
             )
         );
 

@@ -18,6 +18,7 @@ import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBo
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -151,7 +152,9 @@ class ShopifyStorefrontBootstrapServiceTest {
                 "Theme extension status recorded.",
                 new ShopifyBridgeStoreWidgetSettingsSummary(
                     "Need help?",
-                    "Ask me about products and store policies."
+                    "Ask me about products and store policies.",
+                    "GUIDED_COMMERCE",
+                    List.of("ai-search", "comparison")
                 )
             ),
             null,

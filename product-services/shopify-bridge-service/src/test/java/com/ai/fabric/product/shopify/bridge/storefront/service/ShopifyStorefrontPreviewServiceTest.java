@@ -134,7 +134,9 @@ class ShopifyStorefrontPreviewServiceTest {
                 ready ? "Theme extension loaded successfully." : "Theme extension not enabled yet.",
                 new ShopifyBridgeStoreWidgetSettingsSummary(
                     "Need help?",
-                    "Ask me about products and store policies."
+                    "Ask me about products and store policies.",
+                    "GUIDED_COMMERCE",
+                    List.of("ai-search", "comparison")
                 )
             ),
             null,

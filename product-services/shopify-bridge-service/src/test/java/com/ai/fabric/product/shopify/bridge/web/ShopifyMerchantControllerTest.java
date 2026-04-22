@@ -461,7 +461,9 @@ class ShopifyMerchantControllerTest {
                 "Theme app extension not enabled yet.",
                 new ShopifyBridgeStoreWidgetSettingsSummary(
                     "Ask the store assistant",
-                    "Store assistant is ready. Ask about products, policies, or collections."
+                    "Store assistant is ready. Ask about products, policies, or collections.",
+                    "SHOPIFY_COMPANION",
+                    List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison")
                 )
             ),
             new ShopifyBridgeStoreCapabilitySummary(
