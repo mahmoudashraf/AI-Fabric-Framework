@@ -16,6 +16,11 @@ set -euo pipefail
 # Optional write checks (create/delete product + verify indexing counts):
 #   VERIFY_WRITE=true ./scripts/verify-ecommerce-deployment.sh
 #
+# Optional confirmation-retention behavioral smoke:
+#   VERIFY_CONFIRMATION_RETENTION_FLOW=true \
+#   RUNTIME_PUBLIC_TOKEN_SIGNING_KEY="..." \
+#   ./scripts/verify-ecommerce-deployment.sh
+#
 # Optional platform-operated deployment verification:
 #   PLATFORM_BASE_URL="https://<platform-backend>.up.railway.app" \
 #   PLATFORM_DEPLOYMENT_ID="dep-12345678" \
@@ -49,6 +54,7 @@ RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER="${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER
 RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
 RUNTIME_PRIVATE_AUTHORIZATION_HEADER="${RUNTIME_PRIVATE_AUTHORIZATION_HEADER:-X-AIFABRIC-RUNTIME-AUTHORIZATION}"
 RUNTIME_PRIVATE_AUTHORIZATION="${RUNTIME_PRIVATE_AUTHORIZATION:-}"
+RUNTIME_PUBLIC_TOKEN_SIGNING_KEY="${RUNTIME_PUBLIC_TOKEN_SIGNING_KEY:-}"
 RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_CONNECTOR_HEALTH_URL:-}"
 RUNTIME_CONNECTOR_OVERVIEW_URL="${RUNTIME_CONNECTOR_OVERVIEW_URL:-}"
 RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL:-}"
@@ -77,8 +83,10 @@ EXPECT_TENANT_SCOPED_TENANT_ID="${EXPECT_TENANT_SCOPED_TENANT_ID:-}"
 EXPECT_TENANT_SCOPED_SCOPE_TYPE="${EXPECT_TENANT_SCOPED_SCOPE_TYPE:-}"
 EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE="${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE:-}"
 EXPECT_TENANT_SCOPED_SCOPE_PREFIX="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME:-}"
 EXPECT_TENANT_SCOPED_TENANT_HANDLE="${EXPECT_TENANT_SCOPED_TENANT_HANDLE:-}"
 EXPECT_TENANT_SCOPED_SCOPE_PATTERN="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME:-}"
 EXPECT_TENANT_SCOPED_REGISTRY_STATUS="${EXPECT_TENANT_SCOPED_REGISTRY_STATUS:-}"
 EXPECT_TENANT_SCOPED_READINESS_STATUS="${EXPECT_TENANT_SCOPED_READINESS_STATUS:-}"
 EXPECT_TENANT_SCOPED_MIGRATION_LOCKED="${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED:-}"
@@ -106,12 +114,63 @@ VERIFY_TENANT_SHARED_ISOLATION="${VERIFY_TENANT_SHARED_ISOLATION:-false}"
 VECTORIZATION_COUNTERPART_DEPLOYMENT_ID="${VECTORIZATION_COUNTERPART_DEPLOYMENT_ID:-}"
 
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
+EXPECT_CONFIRMATION_INTERCEPTOR_RULES="${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-cancel_to_retention_offer,accept_retention_offer,reject_retention_offer}"
+VERIFY_CONFIRMATION_RETENTION_FLOW="${VERIFY_CONFIRMATION_RETENTION_FLOW:-false}"
+VERIFY_MARKETPLACE_RUNTIME="${VERIFY_MARKETPLACE_RUNTIME:-false}"
+VERIFY_MARKETPLACE_RUNTIME_ACTIVE="${VERIFY_MARKETPLACE_RUNTIME_ACTIVE:-}"
+EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION:-MARKETPLACE_RUNTIME_SUPPORT_V2}"
+EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION:-SEARCH_SOURCE_DIAGNOSTICS_V1}"
+EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}"
+EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}"
+EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION:-KNOWLEDGE_SOURCE_CONFIG_V1}"
+EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION:-SHELL_CONFIG_V1}"
+EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION="${EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION:-INFERENCE_PROFILE_RUNTIME_V1}"
+EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER:-}"
+EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER:-}"
+EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER:-}"
+EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL:-}"
+EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE:-}"
+EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MANAGED_SERVICE_REF="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MANAGED_SERVICE_REF:-}"
+EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER:-}"
+EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL:-}"
+EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE:-}"
+EXPECT_MARKETPLACE_INFERENCE_GENERATION_MANAGED_SERVICE_REF="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_MANAGED_SERVICE_REF:-}"
+EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE:-}"
+EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_MANAGED_SERVICE_REF="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_MANAGED_SERVICE_REF:-}"
+EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_SERVICE_MODE="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_SERVICE_MODE:-}"
+EXPECT_MARKETPLACE_SHELL_MODULE_IDS="${EXPECT_MARKETPLACE_SHELL_MODULE_IDS:-}"
+EXPECT_MARKETPLACE_SHELL_CARD_IDS="${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}"
+EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT="${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT:-0}"
+EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED:-false}"
+RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN:-}"
+MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
+MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS="${MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS:-3}"
+MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS="${MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS:-5}"
+MARKETPLACE_SHARED_SENTINEL_ID="${MARKETPLACE_SHARED_SENTINEL_ID:-}"
+MARKETPLACE_SHARED_SENTINEL_SOURCE_ID="${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID:-shared-marketplace-refund-policy}"
+MARKETPLACE_SHARED_SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF:-commerce-catalog/refund-policy}"
+MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE:-policy}"
+MARKETPLACE_SHARED_SENTINEL_DATASET_ID="${MARKETPLACE_SHARED_SENTINEL_DATASET_ID:-}"
+MARKETPLACE_SHARED_SENTINEL_DATASET_HASH="${MARKETPLACE_SHARED_SENTINEL_DATASET_HASH:-}"
+MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL="${MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL:-}"
+RETENTION_TEST_SKU="${RETENTION_TEST_SKU:-SKU-0001}"
+RETENTION_TEST_QUANTITY="${RETENTION_TEST_QUANTITY:-1}"
+RETENTION_TEST_SHIPPING_ADDRESS="${RETENTION_TEST_SHIPPING_ADDRESS:-10 Verification Lane, London}"
+RETENTION_TEST_CANCEL_QUERY_TEMPLATE="${RETENTION_TEST_CANCEL_QUERY_TEMPLATE:-cancel purchase order {orderNumber}}"
 
 if [[ -z "${VERIFY_VECTORIZATION_CONTROL_PLANE}" ]]; then
   if [[ "${EXPECT_VECTORIZATION_PLAN_PRESENT}" == "true" || "${EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT}" == "true" || "${EXPECT_VECTORIZATION_RUNNER_PRESENT}" == "true" || "${VERIFY_VECTORIZATION_RUNNER_ACTIVE}" == "true" || "${VERIFY_VECTORIZATION_SAMPLE}" == "true" ]]; then
     VERIFY_VECTORIZATION_CONTROL_PLANE="true"
   else
     VERIFY_VECTORIZATION_CONTROL_PLANE="false"
+  fi
+fi
+
+if [[ -z "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" ]]; then
+  if [[ "${VERIFY_WRITE}" == "true" ]]; then
+    VERIFY_MARKETPLACE_RUNTIME_ACTIVE="true"
+  else
+    VERIFY_MARKETPLACE_RUNTIME_ACTIVE="false"
   fi
 fi
 
@@ -139,6 +198,7 @@ PY
 API_KEY="$(resolve_secret_value API_KEY)"
 RUNTIME_TRUSTED_BACKEND_API_KEY="$(resolve_secret_value RUNTIME_TRUSTED_BACKEND_API_KEY)"
 RUNTIME_PRIVATE_AUTHORIZATION="$(resolve_secret_value RUNTIME_PRIVATE_AUTHORIZATION)"
+RUNTIME_PUBLIC_TOKEN_SIGNING_KEY="$(resolve_secret_value RUNTIME_PUBLIC_TOKEN_SIGNING_KEY)"
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
@@ -205,6 +265,38 @@ trim_slash() {
   fi
 }
 
+normalize_weaviate_runtime_scope_prefix() {
+  local raw="${1:-}"
+  RAW_SCOPE_PREFIX="${raw}" python3 - <<'PY'
+import hashlib
+import os
+
+value = (os.environ.get("RAW_SCOPE_PREFIX") or "").strip()
+if not value:
+    print("")
+    raise SystemExit(0)
+
+base = []
+upper_next = True
+for current in value:
+    if current.isalnum():
+        base.append(current.upper() if upper_next else current)
+        upper_next = False
+    else:
+        upper_next = True
+
+if not base:
+    base = list("Entity")
+if not base[0].isalpha():
+    base = list("Entity") + base
+if not base[0].isupper():
+    base[0] = base[0].upper()
+
+compact = hashlib.md5(value.encode("utf-8")).hexdigest()[:8]
+print("".join(base) + "_" + compact)
+PY
+}
+
 STORE_BASE_URL="$(trim_slash "${STORE_BASE_URL}")"
 if [[ -n "${RUNTIME_BASE_URL}" ]]; then
   RUNTIME_BASE_URL="$(trim_slash "${RUNTIME_BASE_URL}")"
@@ -229,6 +321,21 @@ if [[ -z "${RUNTIME_AUTH_OVERVIEW_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
 fi
 if [[ -n "${PLATFORM_BASE_URL}" ]]; then
   PLATFORM_BASE_URL="$(trim_slash "${PLATFORM_BASE_URL}")"
+fi
+
+if [[ -z "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}" ]]; then
+  EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"
+  if [[ "${EXPECT_TENANT_SCOPED_SCOPE_TYPE}" == "CLASS_AND_TENANT" && -n "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}" ]]; then
+    EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME="$(normalize_weaviate_runtime_scope_prefix "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}")"
+  fi
+fi
+if [[ -z "${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}" ]]; then
+  EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"
+  if [[ "${EXPECT_TENANT_SCOPED_SCOPE_TYPE}" == "CLASS_AND_TENANT" \
+    && -n "${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}" \
+    && -n "${EXPECT_TENANT_SCOPED_TENANT_HANDLE}" ]]; then
+    EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}<EntityType> @ tenant ${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"
+  fi
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -433,16 +540,27 @@ platform_login() {
   tmp="$(mktemp)"
   local payload
   payload="$(mktemp)"
-  local status
+  local status=""
+  local attempt=1
   cat > "${payload}" <<EOF
 {"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
 EOF
-  status="$(
-    curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
-      -H "Content-Type: application/json" \
-      --data "@${payload}" \
-      "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
-  )"
+  while true; do
+    status="$(
+      curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
+        -H "Content-Type: application/json" \
+        --data "@${payload}" \
+        "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
+    )"
+    if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient platform login returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
   rm -f "${payload}"
   if [[ "${status}" != "200" ]]; then
     echo "Platform login failed (HTTP ${status})."
@@ -453,9 +571,715 @@ EOF
   rm -f "${tmp}"
 }
 
+platform_marketplace_smoke_query_http() {
+  local url="$1"
+  local body="$2"
+  local attempt=1
+
+  while true; do
+    platform_http POST "${url}" "${body}"
+    if [[ ( "${HTTP_STATUS}" == "000" || "${HTTP_STATUS}" == "502" || "${HTTP_STATUS}" == "503" || "${HTTP_STATUS}" == "504" ) \
+        && "${attempt}" -lt "${MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient marketplace smoke query returned HTTP ${HTTP_STATUS}; retrying (${attempt}/${MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS})..." >&2
+      sleep "${MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
+}
+
+RUNTIME_PUBLIC_AUTHORIZATION=""
+RUNTIME_PUBLIC_AUTHORIZATION_HEADER="Authorization"
+
+runtime_public_http() {
+  local method="$1"
+  local url="$2"
+  local body="${3:-}"
+  if [[ "$#" -ge 3 ]]; then
+    shift 3
+  else
+    shift "$#"
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+
+  local headers=()
+  headers+=("-H" "Accept: application/json")
+  if [[ "${method}" != "GET" ]]; then
+    headers+=("-H" "Content-Type: application/json")
+  fi
+  if [[ -n "${RUNTIME_PUBLIC_AUTHORIZATION}" ]]; then
+    headers+=("-H" "${RUNTIME_PUBLIC_AUTHORIZATION_HEADER}: ${RUNTIME_PUBLIC_AUTHORIZATION}")
+  fi
+  if [[ -n "${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN}" ]]; then
+    headers+=("-H" "Origin: ${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN}")
+  fi
+
+  local status
+  if [[ -n "${body}" ]]; then
+    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+  else
+    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+  fi
+
+  HTTP_STATUS="${status}"
+  HTTP_BODY="$(cat "${tmp}")"
+  rm -f "${tmp}"
+}
+
 pass() { echo "PASS: $*"; }
 warn() { echo "WARN: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
+
+csv_text_json() {
+  CSV_TEXT="${1:-}" python3 - <<'PY'
+import json
+import os
+
+raw = os.environ.get("CSV_TEXT", "")
+items = []
+for part in raw.split(","):
+    value = part.strip()
+    if value and value not in items:
+        items.append(value)
+print(json.dumps(items))
+PY
+}
+
+expected_confirmation_interceptor_rules_json() {
+  csv_text_json "${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-}"
+}
+
+assert_expected_confirmation_interceptors() {
+  local label="$1"
+  local body="$2"
+  if [[ -z "${EXPECT_CONFIRMATION_INTERCEPTOR_RULES// }" ]]; then
+    return 0
+  fi
+  HTTP_BODY="${body}"
+  local expected_json
+  expected_json="$(expected_confirmation_interceptor_rules_json)"
+  json_assert "${label}" $'expected = set('"${expected_json}"')\nassert expected, expected\nactual = set((data or {}).get("confirmationInterceptorRuleNames") or [])\nassert actual == expected, {"expected": sorted(expected), "actual": sorted(actual)}\nassert int((data or {}).get("confirmationInterceptorsCount") or 0) == len(expected), data\nsources = (data or {}).get("confirmationInterceptorSources") or []\nassert len(sources) >= 1, sources\nprint("ok")'
+}
+
+assert_marketplace_runtime_overview() {
+  local label="$1"
+  local body="$2"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  local expected_source_ids_json expected_adapter_types_json expected_module_ids_json expected_card_ids_json
+  expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
+  expected_adapter_types_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}")"
+  expected_module_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_SHELL_MODULE_IDS:-}")"
+  expected_card_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}")"
+  HTTP_BODY="${body}"
+  json_assert "${label}" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nexpected_module_ids = set('"${expected_module_ids_json}"')\nexpected_card_ids = set('"${expected_card_ids_json}"')\nmarketplace = (data or {}).get("marketplaceSupport") or {}\nassert marketplace.get("contractVersion") == "'"${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("knowledgeSourceContractVersion") == "'"${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("shellConfigContractVersion") == "'"${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION}"'", marketplace\nassert marketplace.get("searchSourceDiagnosticsContractVersion") == "'"${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION}"'", marketplace\nassert bool((data or {}).get("knowledgeSourceConfigLocation")), data\nassert bool((data or {}).get("shellConfigLocation")), data\nactual_source_ids = set((data or {}).get("knowledgeSourceIds") or [])\nactual_adapter_types = set((data or {}).get("knowledgeSourceAdapterTypes") or [])\nactual_module_ids = set((data or {}).get("shellModuleIds") or [])\nactual_card_ids = set((data or {}).get("shellCardIds") or [])\nassert actual_source_ids == expected_source_ids, {"expected": sorted(expected_source_ids), "actual": sorted(actual_source_ids)}\nassert actual_adapter_types == expected_adapter_types, {"expected": sorted(expected_adapter_types), "actual": sorted(actual_adapter_types)}\nassert actual_module_ids == expected_module_ids, {"expected": sorted(expected_module_ids), "actual": sorted(actual_module_ids)}\nassert actual_card_ids == expected_card_ids, {"expected": sorted(expected_card_ids), "actual": sorted(actual_card_ids)}\nassert int((data or {}).get("shellStarterPromptsCount") or 0) == int("'"${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT}"'"), data\nassert bool((data or {}).get("shellGreetingConfigured")) == ("'"${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED}"'".lower() == "true"), data\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert search_diag.get("contractVersion") == "'"${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION}"'", search_diag\nassert int(search_diag.get("configuredSourcesCount") or 0) >= len(expected_source_ids), search_diag\nprint("ok")'
+}
+
+assert_marketplace_inference_profile() {
+  local label="$1"
+  local body="$2"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  HTTP_BODY="${body}"
+  EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION="${EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION}" \
+  EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER}" \
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER}" \
+  EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER}" \
+  EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL}" \
+  EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE}" \
+  EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MANAGED_SERVICE_REF="${EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MANAGED_SERVICE_REF}" \
+  EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER}" \
+  EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL}" \
+  EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE}" \
+  EXPECT_MARKETPLACE_INFERENCE_GENERATION_MANAGED_SERVICE_REF="${EXPECT_MARKETPLACE_INFERENCE_GENERATION_MANAGED_SERVICE_REF}" \
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE}" \
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_MANAGED_SERVICE_REF="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_MANAGED_SERVICE_REF}" \
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_SERVICE_MODE="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_SERVICE_MODE}" \
+  json_assert "${label}" $'import os\n\ndef norm(value):\n  if value is None:\n    return ""\n  text = str(value).strip()\n  return text\n\nmarketplace = (data or {}).get("marketplaceSupport") or {}\nassert marketplace.get("inferenceProfileContractVersion") == os.environ["EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION"], marketplace\nprofile = (data or {}).get("inferenceProfile") or {}\nassert norm(profile.get("llmProvider")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER"]), profile\nassert norm(profile.get("embeddingProvider")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER"]), profile\nassert norm(profile.get("orchestrationProvider")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER"]), profile\nassert norm(profile.get("orchestrationModel")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL"]), profile\nassert norm(profile.get("orchestrationEndpointProfile")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE"]), profile\nassert norm(profile.get("orchestrationManagedServiceRef")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MANAGED_SERVICE_REF"]), profile\nassert norm(profile.get("generationProvider")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER"]), profile\nassert norm(profile.get("generationModel")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL"]), profile\nassert norm(profile.get("generationEndpointProfile")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE"]), profile\nassert norm(profile.get("generationManagedServiceRef")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_MANAGED_SERVICE_REF"]), profile\nassert norm(profile.get("embeddingEndpointProfile")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE"]), profile\nassert norm(profile.get("embeddingManagedServiceRef")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_MANAGED_SERVICE_REF"]), profile\nassert norm(profile.get("embeddingServiceMode")) == norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_SERVICE_MODE"]), profile\nexpected_orchestration_override = bool(norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE"]) or norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MANAGED_SERVICE_REF"]))\nexpected_generation_override = bool(norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE"]) or norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_GENERATION_MANAGED_SERVICE_REF"]))\nexpected_embedding_override = bool(norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE"]) or norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_MANAGED_SERVICE_REF"]) or norm(os.environ["EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_SERVICE_MODE"]))\nactual_orchestration_override = bool(profile.get("orchestrationHasConnectionOverride"))\nactual_generation_override = bool(profile.get("generationHasConnectionOverride"))\nactual_embedding_override = bool(profile.get("embeddingHasConnectionOverride"))\nif expected_orchestration_override:\n  assert actual_orchestration_override, profile\nif expected_generation_override:\n  assert actual_generation_override, profile\nif expected_embedding_override:\n  assert actual_embedding_override, profile\nprint("ok")'
+}
+
+assert_marketplace_provider_connectivity() {
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/provider-connectivity"
+  assert_status 200 "marketplace provider connectivity"
+  EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER="${EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER}" \
+  json_assert "marketplace provider connectivity" $'import os\nprobes = (data or {}).get("probes") or []\nprobe_map = {item.get("key"): item for item in probes if isinstance(item, dict) and item.get("key")}\nassert probe_map, data\nvector_probe_keys = {\n  "local_vector_backend",\n  "pinecone_control_plane",\n  "qdrant_collections_api",\n  "qdrant_cloud_control_plane",\n  "weaviate_ready_api",\n  "milvus_connectivity",\n  "zilliz_cloud_control_plane",\n}\nvector_probe_map = {key: probe_map[key] for key in vector_probe_keys if key in probe_map}\nassert vector_probe_map, {"missingVectorProbe": True, "probes": probes}\nfor key, probe in vector_probe_map.items():\n  assert (probe.get("status") or "") in {"READY", "SKIPPED"}, {key: probe}\nfor key in ["orchestration_inference_endpoint", "generation_inference_endpoint"]:\n  if key in probe_map:\n    assert probe_map[key].get("status") == "READY", {key: probe_map[key]}\nembedding_provider = ((((data or {}).get("embeddingProvider")) or os.environ.get("EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER") or "").strip().lower())\nif "embedding_inference_endpoint" in probe_map:\n  embedding_status = probe_map["embedding_inference_endpoint"].get("status")\n  if embedding_provider == "onnx":\n    assert embedding_status == "SKIPPED", {"embeddingProvider": embedding_provider, "probe": probe_map["embedding_inference_endpoint"]}\n  else:\n    assert embedding_status == "READY", {"embeddingProvider": embedding_provider, "probe": probe_map["embedding_inference_endpoint"]}\nsummary = (data or {}).get("summary") or (data or {}).get("summaryMessage") or ""\nassert summary, data\nprint("ok")'
+  pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/provider-connectivity"
+}
+
+assert_marketplace_shell_config() {
+  local label="$1"
+  local body="$2"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  local expected_module_ids_json expected_card_ids_json
+  expected_module_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_SHELL_MODULE_IDS:-}")"
+  expected_card_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}")"
+  HTTP_BODY="${body}"
+  json_assert "${label}" $'expected_module_ids = set('"${expected_module_ids_json}"')\nexpected_card_ids = set('"${expected_card_ids_json}"')\nassert (data or {}).get("contractVersion") == "'"${EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION}"'", data\nassert set((data or {}).get("moduleIds") or []) == expected_module_ids, data\nassert set((data or {}).get("cardIds") or []) == expected_card_ids, data\nassert len((data or {}).get("starterPrompts") or []) == int("'"${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT}"'"), data\nassert bool((data or {}).get("greetingTitle") or (data or {}).get("greetingMessage")) == ("'"${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED}"'".lower() == "true"), data\nprint("ok")'
+}
+
+marketplace_shared_sentinel_payload() {
+  local sentinel_id="$1"
+  local operation="${2:-upsert}"
+  SENTINEL_ID="${sentinel_id}" \
+  SENTINEL_OPERATION="${operation}" \
+  SENTINEL_SOURCE_ID="${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID}" \
+  SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}" \
+  SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE}" \
+  SENTINEL_DATASET_ID="${MARKETPLACE_SHARED_SENTINEL_DATASET_ID}" \
+  SENTINEL_DATASET_HASH="${MARKETPLACE_SHARED_SENTINEL_DATASET_HASH}" \
+  python3 - <<'PY'
+import hashlib
+import json
+import os
+
+sentinel_id = os.environ["SENTINEL_ID"]
+operation = os.environ.get("SENTINEL_OPERATION", "upsert").strip().lower()
+source_id = os.environ.get("SENTINEL_SOURCE_ID", "").strip()
+handle_ref = os.environ.get("SENTINEL_HANDLE_REF", "").strip()
+entity_type = os.environ.get("SENTINEL_ENTITY_TYPE", "").strip() or "policy"
+dataset_id = os.environ.get("SENTINEL_DATASET_ID", "").strip()
+dataset_hash = os.environ.get("SENTINEL_DATASET_HASH", "").strip()
+source_record_version = dataset_hash or "marketplace-runtime-smoke-v1"
+
+granted_scopes = ["vectorization:verification"]
+if operation == "delete":
+    granted_scopes.insert(0, "data-sync:delete")
+else:
+    granted_scopes.insert(0, "data-sync:upsert")
+
+trace = {
+    "requestId": f"marketplace-shared-sentinel-{sentinel_id}",
+    "metadata": {
+        "deploymentId": os.environ.get("PLATFORM_DEPLOYMENT_ID", ""),
+        "sourceId": source_id,
+        "handleRef": handle_ref,
+        "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
+    },
+    "authContext": {
+        "subjectId": "system:platform-hosted-verification",
+        "subjectType": "SYSTEM_PROCESS",
+        "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+        "callerType": "SYSTEM_PROCESS",
+        "sessionId": f"marketplace-shared-sentinel-{sentinel_id}",
+        "deploymentId": os.environ.get("PLATFORM_DEPLOYMENT_ID", ""),
+        "customerId": os.environ.get("EXPECT_TENANT_SCOPED_CUSTOMER_ID", ""),
+        "tenantId": os.environ.get("EXPECT_TENANT_SCOPED_TENANT_ID", ""),
+        "issuer": "platform-hosted-verification",
+        "grantedScopes": granted_scopes,
+    },
+}
+
+if operation == "delete":
+    print(json.dumps({
+        "trace": trace,
+        "operations": [
+            {
+                "type": "DELETE",
+                "vectorSpace": entity_type,
+                "id": sentinel_id,
+            }
+        ],
+    }))
+    raise SystemExit(0)
+
+content = (
+    "title: Shared Refund Policy\n"
+    "text: Customers may request a refund within 30 days of delivery. "
+    "Refunds require the product to be returned in good condition, and approved refunds "
+    "are issued to the original payment method within 5 business days.\n"
+    "classification: refund"
+)
+metadata = {
+    "title": "Shared Refund Policy",
+    "classification": "refund",
+    "knowledgeSourceHandleRef": handle_ref,
+    "verificationProbe": "MARKETPLACE_RUNTIME_SMOKE",
+}
+if source_id:
+    metadata["knowledgeSourceId"] = source_id
+if dataset_id:
+    trace["metadata"]["datasetId"] = dataset_id
+    metadata["marketplaceDatasetId"] = dataset_id
+if dataset_hash:
+    trace["metadata"]["datasetHash"] = dataset_hash
+    metadata["marketplaceDatasetHash"] = dataset_hash
+
+print(json.dumps({
+    "trace": trace,
+    "operations": [
+        {
+            "type": "UPSERT",
+            "vectorSpace": entity_type,
+            "id": sentinel_id,
+            "content": content,
+            "metadata": metadata,
+            "identity": {
+                "sourceRecordId": sentinel_id,
+                "sourceRecordVersion": source_record_version,
+                "contentFingerprint": hashlib.md5(content.encode("utf-8")).hexdigest(),
+            },
+        }
+    ],
+}))
+PY
+}
+
+ensure_marketplace_shared_sentinel_contract() {
+  if [[ -n "${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}" && -n "${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE}" \
+    && ( -z "${PLATFORM_BASE_URL:-}" || -z "${PLATFORM_DEPLOYMENT_ID:-}" ) ]]; then
+    return 0
+  fi
+  if [[ -z "${PLATFORM_BASE_URL:-}" || -z "${PLATFORM_DEPLOYMENT_ID:-}" ]]; then
+    fail "Marketplace shared sentinel verification requires PLATFORM_BASE_URL and PLATFORM_DEPLOYMENT_ID, or explicit MARKETPLACE_SHARED_SENTINEL_HANDLE_REF and MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE."
+  fi
+  if [[ -z "${PLATFORM_SOURCE_OF_TRUTH_BODY:-}" ]]; then
+    platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
+    assert_status 200 "platform source of truth (marketplace sentinel contract)"
+    PLATFORM_SOURCE_OF_TRUTH_BODY="${HTTP_BODY}"
+  fi
+
+  MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL="$(PARSE_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}" python3 - <<'PY'
+import json
+import os
+
+body = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+print(((body.get("liveArtifacts") or {}).get("knowledgeSourceArtifactUrl")) or "")
+PY
+)"
+  if [[ -z "${MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL}" ]]; then
+    fail "Marketplace shared sentinel verification requires liveArtifacts.knowledgeSourceArtifactUrl in deployment source-of-truth."
+  fi
+
+  platform_http GET "${MARKETPLACE_SHARED_SENTINEL_ARTIFACT_URL}"
+  assert_status 200 "marketplace knowledge source artifact fetch"
+  local resolved_contract=()
+  while IFS= read -r line; do
+    resolved_contract+=("${line}")
+  done < <(
+    MARKETPLACE_KNOWLEDGE_SOURCE_ARTIFACT_BODY="${HTTP_BODY}" \
+    SENTINEL_SOURCE_ID="${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID}" \
+    SENTINEL_HANDLE_REF="${MARKETPLACE_SHARED_SENTINEL_HANDLE_REF}" \
+    SENTINEL_ENTITY_TYPE="${MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE}" \
+    python3 - <<'PY'
+import json
+import os
+import sys
+
+body = json.loads(os.environ.get("MARKETPLACE_KNOWLEDGE_SOURCE_ARTIFACT_BODY", "") or "{}")
+sources = (body or {}).get("sources") or []
+source_id = (os.environ.get("SENTINEL_SOURCE_ID") or "").strip()
+handle_ref = (os.environ.get("SENTINEL_HANDLE_REF") or "").strip()
+default_entity_type = (os.environ.get("SENTINEL_ENTITY_TYPE") or "").strip() or "policy"
+
+match = next(
+    (
+        item for item in sources
+        if isinstance(item, dict) and source_id and (item.get("id") or "").strip() == source_id
+    ),
+    None,
+)
+if match is None:
+    match = next(
+        (
+            item for item in sources
+            if isinstance(item, dict) and handle_ref and (item.get("handleRef") or "").strip() == handle_ref
+        ),
+        None,
+    )
+if match is None:
+    wanted = source_id or handle_ref or "<unknown>"
+    print(f"missing shared knowledge source {wanted}", file=sys.stderr)
+    raise SystemExit(1)
+
+resolved_source_id = (match.get("id") or "").strip() or source_id
+resolved_handle_ref = (match.get("handleRef") or "").strip() or handle_ref
+entity_type = (match.get("entityType") or "").strip() or default_entity_type
+if not resolved_handle_ref:
+    print(json.dumps(match), file=sys.stderr)
+    raise SystemExit(2)
+
+print(resolved_source_id)
+print(resolved_handle_ref)
+print(entity_type)
+PY
+  ) || fail "Failed to resolve marketplace shared sentinel knowledge source contract for source ${MARKETPLACE_SHARED_SENTINEL_SOURCE_ID}."
+  if [[ "${#resolved_contract[@]}" -lt 3 ]]; then
+    fail "Marketplace shared sentinel contract lookup returned incomplete knowledge source metadata."
+  fi
+
+  MARKETPLACE_SHARED_SENTINEL_SOURCE_ID="${resolved_contract[0]}"
+  MARKETPLACE_SHARED_SENTINEL_HANDLE_REF="${resolved_contract[1]}"
+  MARKETPLACE_SHARED_SENTINEL_ENTITY_TYPE="${resolved_contract[2]}"
+}
+
+cleanup_marketplace_shared_sentinel() {
+  if [[ -z "${MARKETPLACE_SHARED_SENTINEL_ID:-}" || -z "${RUNTIME_BASE_URL:-}" ]]; then
+    return 0
+  fi
+  local payload
+  payload="$(marketplace_shared_sentinel_payload "${MARKETPLACE_SHARED_SENTINEL_ID}" "delete")"
+  runtime_operational_http POST "${RUNTIME_BASE_URL}/api/ai/data-sync/batch" "${payload}"
+  MARKETPLACE_SHARED_SENTINEL_ID=""
+}
+
+seed_marketplace_shared_sentinel() {
+  if [[ -z "${RUNTIME_BASE_URL}" ]]; then
+    fail "Marketplace shared sentinel seeding requires RUNTIME_BASE_URL."
+  fi
+  if [[ -z "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+    fail "Marketplace shared sentinel seeding requires RUNTIME_TRUSTED_BACKEND_API_KEY."
+  fi
+  ensure_marketplace_shared_sentinel_contract
+  MARKETPLACE_SHARED_SENTINEL_ID="policy-shared-refund-$(date +%s)"
+  local payload
+  payload="$(marketplace_shared_sentinel_payload "${MARKETPLACE_SHARED_SENTINEL_ID}" "upsert")"
+  runtime_operational_http POST "${RUNTIME_BASE_URL}/api/ai/data-sync/batch" "${payload}"
+  assert_status 200 "marketplace shared sentinel upsert"
+  json_assert "marketplace shared sentinel upsert" $'assert (data or {}).get("success") is True, data\nassert int((data or {}).get("failedOperations") or 0) == 0, data\nassert int((data or {}).get("succeededOperations") or 0) >= 1, data\nprint("ok")'
+}
+
+run_marketplace_runtime_verification() {
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    return 0
+  fi
+  if [[ -z "${RUNTIME_BASE_URL}" ]]; then
+    fail "VERIFY_MARKETPLACE_RUNTIME requires RUNTIME_BASE_URL."
+  fi
+
+  echo ""
+  echo "== Marketplace Runtime Verification =="
+
+  runtime_http GET "${RUNTIME_BASE_URL}/api/admin/auth/overview"
+  assert_status 200 "marketplace runtime auth overview"
+  local auth_overview_json="${HTTP_BODY}"
+  RUNTIME_AUTH_OVERVIEW_BODY="${auth_overview_json}"
+  if [[ -z "${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN}" ]]; then
+    RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="$(
+      AUTH_OVERVIEW_BODY="${auth_overview_json}" python3 - <<'PY'
+import json
+import os
+
+body = json.loads(os.environ.get("AUTH_OVERVIEW_BODY", "") or "{}")
+auth = (body or {}).get("auth") or {}
+bootstrap = auth.get("publicBootstrap") or {}
+if bootstrap.get("allowMissingOrigin") is True:
+    print("")
+else:
+    allowed = [value.strip() for value in (bootstrap.get("allowedOrigins") or []) if isinstance(value, str) and value.strip()]
+    print(allowed[0] if allowed else "")
+PY
+    )"
+  fi
+  if [[ -z "${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN}" ]]; then
+    AUTH_OVERVIEW_BODY="${auth_overview_json}" python3 - <<'PY'
+import json
+import os
+import sys
+
+body = json.loads(os.environ.get("AUTH_OVERVIEW_BODY", "") or "{}")
+auth = (body or {}).get("auth") or {}
+bootstrap = auth.get("publicBootstrap") or {}
+if bootstrap.get("allowMissingOrigin") is not True:
+    sys.exit(1)
+PY
+    if [[ $? -ne 0 ]]; then
+      fail "marketplace public bootstrap requires an allowed Origin, but runtime auth overview did not expose one. Set RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN explicitly."
+    fi
+  fi
+
+  runtime_public_http POST "${RUNTIME_BASE_URL}/api/public/chat/session" "{}"
+  assert_status 200 "marketplace public bootstrap session"
+  json_assert "marketplace public bootstrap session" $'assert (data or {}).get("success") is True\nassert bool((data or {}).get("accessToken") or (data or {}).get("token"))\nassert bool((data or {}).get("tokenScheme") or (data or {}).get("tokenType"))\nassert isinstance((data or {}).get("shellConfig"), dict)\nprint("ok")'
+  local bootstrap_json="${HTTP_BODY}"
+  assert_marketplace_shell_config "marketplace public bootstrap shell config" "$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+print(json.dumps((json.loads(os.environ.get("PARSE_BODY", "") or "{}") or {}).get("shellConfig") or {}))
+PY
+)"
+
+  RUNTIME_PUBLIC_AUTHORIZATION="$(BOOTSTRAP_JSON="${bootstrap_json}" python3 - <<'PY'
+import json
+import os
+payload = json.loads(os.environ.get("BOOTSTRAP_JSON", "") or "{}")
+scheme = (payload.get("tokenScheme") or payload.get("tokenType") or "Bearer").strip() or "Bearer"
+token = (payload.get("accessToken") or payload.get("token") or "").strip()
+print(f"{scheme} {token}" if token else "")
+PY
+)"
+  if [[ -z "${RUNTIME_PUBLIC_AUTHORIZATION}" ]]; then
+    fail "marketplace public bootstrap did not return a usable access token."
+  fi
+
+  runtime_public_http GET "${RUNTIME_BASE_URL}/api/chat/me/shell-config"
+  assert_status 200 "marketplace authenticated shell config"
+  json_assert "marketplace authenticated shell config" $'assert (data or {}).get("success") is True\nprint("ok")'
+  assert_marketplace_shell_config "marketplace authenticated shell config payload" "${HTTP_BODY}"
+
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    trap cleanup_marketplace_shared_sentinel EXIT
+    seed_marketplace_shared_sentinel
+  else
+    echo "Marketplace shared-source write probe is disabled in read-only mode."
+  fi
+
+  local conversation_id="marketplace-runtime-verify-$(date +%s)"
+  platform_marketplace_smoke_query_http \
+    "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+    "$(build_chat_query_payload "${MARKETPLACE_SMOKE_QUERY}" "${conversation_id}")"
+  assert_status 200 "marketplace runtime smoke query"
+  local expected_source_ids_json expected_adapter_types_json
+  expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
+  expected_adapter_types_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}")"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert "shared-marketplace-refund-policy" in source_ids, {"expectedSource": "shared-marketplace-refund-policy", "actual": sorted([v for v in source_ids if v])}\nassert len(expected_source_ids & source_ids) >= 2, {"expectedAtLeast": 2, "actual": sorted([v for v in (expected_source_ids & source_ids) if v])}\nprint("ok")'
+  else
+    json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\nresult_data = (result.get("data") or {})\nrag = (result_data.get("ragResponse") or {})\nassert rag.get("success") is True, rag\nanswer = (result_data.get("answer") or result.get("message") or "").strip()\nassert answer, result\ndocs = rag.get("documents") or []\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert "shared-marketplace-refund-policy" in source_ids, {"expectedSource": "shared-marketplace-refund-policy", "actual": sorted([v for v in source_ids if v])}\nassert expected_source_ids & source_ids, {"expectedAnySource": sorted(expected_source_ids), "actual": sorted([v for v in source_ids if v])}\nassert expected_adapter_types & adapter_types, {"expectedAnyAdapter": sorted(expected_adapter_types), "actual": sorted([v for v in adapter_types if v])}\nprint("ok")'
+  fi
+
+  runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
+  assert_status 200 "marketplace runtime admin overview (post-query)"
+  assert_marketplace_runtime_overview "marketplace runtime admin overview (post-query)" "${HTTP_BODY}"
+  assert_marketplace_inference_profile "marketplace runtime inference profile (post-query)" "${HTTP_BODY}"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") == "SUCCEEDED", entry\nshared_hits = [entry for entry in sources if isinstance(entry, dict) and entry.get("adapterType") == "shared-index"]\nassert shared_hits, sources\nif any(entry.get("lastResultsCount") is not None for entry in shared_hits):\n  assert any(int(entry.get("lastResultsCount") or 0) >= 1 for entry in shared_hits), shared_hits\nprint("ok")'
+  else
+    json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") in {"SUCCEEDED", "SKIPPED"}, entry\nshared = source_map.get("shared-marketplace-refund-policy")\nassert shared is not None, source_map\nassert (shared.get("lastStatus") or "") == "SUCCEEDED", shared\nassert (shared.get("adapterType") or "") == "shared-index", shared\nassert bool(shared.get("handleRefConfigured")) is True, shared\nif shared.get("lastResultsCount") is not None:\n  assert int(shared.get("lastResultsCount") or 0) >= 1, shared\nprint("ok")'
+  fi
+  assert_marketplace_provider_connectivity
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    cleanup_marketplace_shared_sentinel
+    trap - EXIT
+  fi
+  pass "marketplace runtime live verification"
+}
+
+mint_authenticated_runtime_public_token() {
+  local subject_id="$1"
+  local session_id="$2"
+  if [[ -z "${RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}" ]]; then
+    fail "VERIFY_CONFIRMATION_RETENTION_FLOW requires RUNTIME_PUBLIC_TOKEN_SIGNING_KEY."
+  fi
+  if [[ -z "${RUNTIME_AUTH_OVERVIEW_BODY:-}" ]]; then
+    fail "VERIFY_CONFIRMATION_RETENTION_FLOW requires runtime auth overview to be available."
+  fi
+  AUTH_OVERVIEW_BODY="${RUNTIME_AUTH_OVERVIEW_BODY}" \
+  SIGNING_KEY="${RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}" \
+  SUBJECT_ID="${subject_id}" \
+  SESSION_ID="${session_id}" \
+  python3 - <<'PY'
+import base64
+import datetime as dt
+import hashlib
+import hmac
+import json
+import os
+
+body = json.loads(os.environ["AUTH_OVERVIEW_BODY"])
+auth = (body or {}).get("auth") or {}
+issuer = (auth.get("publicTokenIssuer") or "").strip()
+if not issuer:
+    accepted_issuers = [item for item in (auth.get("publicAcceptedIssuers") or []) if isinstance(item, str) and item.strip()]
+    issuer = accepted_issuers[0] if accepted_issuers else "runtime-public-bootstrap"
+
+default_audience = (auth.get("publicDefaultAudience") or "").strip()
+accepted_audiences = [item for item in (auth.get("publicAcceptedAudiences") or []) if isinstance(item, str) and item.strip()]
+audiences = [default_audience] if default_audience else accepted_audiences[:1]
+scopes = [item for item in (auth.get("publicAuthenticatedDefaultScopes") or []) if isinstance(item, str) and item.strip()]
+if not scopes:
+    scopes = ["chat:query", "chat:conversations"]
+
+ttl_seconds = int(auth.get("publicTokenTtlSeconds") or 900)
+ttl_seconds = max(60, ttl_seconds)
+expires_at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=ttl_seconds)).replace(microsecond=0)
+
+payload = {
+    "sub": os.environ["SUBJECT_ID"],
+    "subjectType": "END_USER",
+    "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+    "callerType": "PUBLIC_BROWSER",
+    "sessionId": os.environ["SESSION_ID"],
+    "iss": issuer,
+    "exp": expires_at.isoformat().replace("+00:00", "Z"),
+    "scopes": scopes,
+}
+if audiences:
+    payload["aud"] = audiences[0] if len(audiences) == 1 else audiences
+
+payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+payload_segment = base64.urlsafe_b64encode(payload_bytes).decode("ascii").rstrip("=")
+signature = hmac.new(
+    os.environ["SIGNING_KEY"].encode("utf-8"),
+    payload_segment.encode("utf-8"),
+    hashlib.sha256
+).digest()
+signature_segment = base64.urlsafe_b64encode(signature).decode("ascii").rstrip("=")
+token = f"rpt1.{payload_segment}.{signature_segment}"
+
+print(json.dumps({
+    "header": (auth.get("publicAuthorizationHeader") or "Authorization").strip() or "Authorization",
+    "authorization": f"{(auth.get('publicTokenScheme') or 'Bearer').strip() or 'Bearer'} {token}"
+}))
+PY
+}
+
+build_chat_query_payload() {
+  local query="$1"
+  local conversation_id="$2"
+  CHAT_QUERY="${query}" CHAT_CONVERSATION_ID="${conversation_id}" python3 - <<'PY'
+import json
+import os
+
+payload = {"query": os.environ["CHAT_QUERY"]}
+conversation_id = os.environ.get("CHAT_CONVERSATION_ID", "").strip()
+if conversation_id:
+    payload["conversationId"] = conversation_id
+print(json.dumps(payload))
+PY
+}
+
+create_order_payload() {
+  local user_id="$1"
+  local sku="$2"
+  local quantity="$3"
+  local shipping_address="$4"
+  local email="$5"
+  ORDER_USER_ID="${user_id}" ORDER_SKU="${sku}" ORDER_QUANTITY="${quantity}" ORDER_SHIPPING="${shipping_address}" ORDER_EMAIL="${email}" python3 - <<'PY'
+import json
+import os
+
+print(json.dumps({
+    "userId": os.environ["ORDER_USER_ID"],
+    "sku": os.environ["ORDER_SKU"],
+    "quantity": int(os.environ["ORDER_QUANTITY"]),
+    "shippingAddress": os.environ["ORDER_SHIPPING"],
+    "email": os.environ["ORDER_EMAIL"],
+}))
+PY
+}
+
+retention_cancel_query() {
+  local order_number="$1"
+  TEMPLATE="${RETENTION_TEST_CANCEL_QUERY_TEMPLATE}" ORDER_NUMBER="${order_number}" python3 - <<'PY'
+import os
+print((os.environ.get("TEMPLATE") or "cancel order {orderNumber}").replace("{orderNumber}", os.environ["ORDER_NUMBER"]))
+PY
+}
+
+run_retention_query() {
+  local query="$1"
+  local conversation_id="$2"
+  local label="$3"
+  runtime_public_http POST "${RUNTIME_BASE_URL}/api/chat/me/query" "$(build_chat_query_payload "${query}" "${conversation_id}")"
+  assert_status 200 "${label}"
+  json_assert "${label}" $'assert (data or {}).get("success") is True\nassert isinstance((data or {}).get("result") or {}, dict)\nprint("ok")'
+}
+
+verify_retention_acceptance_flow() {
+  local user_id="$1"
+  local email="$2"
+  local order_number="$3"
+  local conversation_id="$4"
+
+  run_retention_query "$(retention_cancel_query "${order_number}")" "${conversation_id}" "retention flow initial cancellation"
+  json_assert "retention flow initial cancellation" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "CONFIRMATION_REQUIRED", result\nassert ((result.get("data") or {}).get("action")) == "cancel_purchase_order", result\nprint("ok")'
+
+  run_retention_query "yes" "${conversation_id}" "retention flow offer prompt"
+  json_assert "retention flow offer prompt" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "CONFIRMATION_REQUIRED", result\nassert ((result.get("data") or {}).get("action")) == "offer_order_discount", result\nmsg = (result.get("message") or "").lower()\nassert "discount" in msg or "keep your order" in msg, result\nprint("ok")'
+
+  run_retention_query "yes" "${conversation_id}" "retention flow offer accept"
+  json_assert "retention flow offer accept" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "ACTION_EXECUTED", result\nassert result.get("success") is True, result\ndata_map = result.get("data") or {}\nassert data_map.get("action") == "offer_order_discount", data_map\naction_result = data_map.get("actionResult") or {}\nassert action_result.get("success") is True, action_result\npayload = action_result.get("data") or {}\nassert int(payload.get("discountPercent") or 0) >= 10, payload\nassert bool(payload.get("couponCode")), payload\nprint("ok")'
+
+  http GET "${STORE_BASE_URL}/api/orders/resolve?userId=${user_id}&orderNumberOrId=${order_number}"
+  assert_status 200 "retention flow accepted order remains active"
+  json_assert "retention flow accepted order remains active" $'assert (data or {}).get("orderNumber") == "'"${order_number}"'"\nassert (data or {}).get("status") == "CREATED", data\nprint("ok")'
+}
+
+verify_retention_rejection_flow() {
+  local user_id="$1"
+  local order_number="$2"
+  local conversation_id="$3"
+
+  run_retention_query "$(retention_cancel_query "${order_number}")" "${conversation_id}" "retention flow reject initial cancellation"
+  json_assert "retention flow reject initial cancellation" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "CONFIRMATION_REQUIRED", result\nassert ((result.get("data") or {}).get("action")) == "cancel_purchase_order", result\nprint("ok")'
+
+  run_retention_query "yes" "${conversation_id}" "retention flow reject offer prompt"
+  json_assert "retention flow reject offer prompt" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "CONFIRMATION_REQUIRED", result\nassert ((result.get("data") or {}).get("action")) == "offer_order_discount", result\nprint("ok")'
+
+  run_retention_query "no" "${conversation_id}" "retention flow reject offer"
+  json_assert "retention flow reject offer" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "ACTION_EXECUTED", result\nassert result.get("success") is True, result\ndata_map = result.get("data") or {}\nassert data_map.get("action") == "cancel_purchase_order", data_map\naction_result = data_map.get("actionResult") or {}\nassert action_result.get("success") is True, action_result\nprint("ok")'
+
+  http GET "${STORE_BASE_URL}/api/orders/resolve?userId=${user_id}&orderNumberOrId=${order_number}"
+  assert_status 200 "retention flow rejected order becomes cancelled"
+  json_assert "retention flow rejected order becomes cancelled" $'assert (data or {}).get("orderNumber") == "'"${order_number}"'"\nassert (data or {}).get("status") == "CANCELLED", data\nprint("ok")'
+}
+
+run_confirmation_retention_flow() {
+  if [[ "${VERIFY_CONFIRMATION_RETENTION_FLOW}" != "true" ]]; then
+    return 0
+  fi
+  if [[ -z "${RUNTIME_BASE_URL}" || -z "${STORE_BASE_URL}" ]]; then
+    fail "VERIFY_CONFIRMATION_RETENTION_FLOW requires STORE_BASE_URL and RUNTIME_BASE_URL."
+  fi
+
+  local unique_suffix
+  unique_suffix="$(date +%s)"
+  local subject_id="verify-end-user-${unique_suffix}"
+  local session_id="verify-session-${unique_suffix}"
+  local email="verify-${unique_suffix}@example.test"
+  local token_json
+  token_json="$(mint_authenticated_runtime_public_token "${subject_id}" "${session_id}")"
+  RUNTIME_PUBLIC_AUTHORIZATION_HEADER="$(TOKEN_JSON="${token_json}" python3 - <<'PY'
+import json, os
+print((json.loads(os.environ["TOKEN_JSON"]) or {}).get("header") or "Authorization")
+PY
+)"
+  RUNTIME_PUBLIC_AUTHORIZATION="$(TOKEN_JSON="${token_json}" python3 - <<'PY'
+import json, os
+print((json.loads(os.environ["TOKEN_JSON"]) or {}).get("authorization") or "")
+PY
+)"
+
+  http POST "${STORE_BASE_URL}/api/orders" "$(create_order_payload "${subject_id}" "${RETENTION_TEST_SKU}" "${RETENTION_TEST_QUANTITY}" "${RETENTION_TEST_SHIPPING_ADDRESS}" "${email}")"
+  assert_status 201 "retention flow create acceptance order"
+  local acceptance_order_number
+  acceptance_order_number="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json, os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+print((d.get("orderNumber")) or "")
+PY
+)"
+  if [[ -z "${acceptance_order_number}" ]]; then
+    fail "retention flow create acceptance order did not return an orderNumber."
+  fi
+
+  http POST "${STORE_BASE_URL}/api/orders" "$(create_order_payload "${subject_id}" "${RETENTION_TEST_SKU}" "${RETENTION_TEST_QUANTITY}" "${RETENTION_TEST_SHIPPING_ADDRESS}" "${email}")"
+  assert_status 201 "retention flow create rejection order"
+  local rejection_order_number
+  rejection_order_number="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json, os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+print((d.get("orderNumber")) or "")
+PY
+)"
+  if [[ -z "${rejection_order_number}" ]]; then
+    fail "retention flow create rejection order did not return an orderNumber."
+  fi
+
+  verify_retention_acceptance_flow "${subject_id}" "${email}" "${acceptance_order_number}" "chat-retention-accept-${unique_suffix}"
+  verify_retention_rejection_flow "${subject_id}" "${rejection_order_number}" "chat-retention-reject-${unique_suffix}"
+  pass "runtime confirmation retention flow"
+}
 
 assert_status() {
   local expected="$1"
@@ -701,10 +1525,12 @@ PLATFORM_LATEST_VERIFICATION_RUN_ID=""
 if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
   echo ""
   echo "== Health =="
-  http GET "${STORE_BASE_URL}/actuator/health"
-  assert_status 200 "store health"
-  json_assert "store health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
-  pass "store /actuator/health"
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    http GET "${STORE_BASE_URL}/actuator/health"
+    assert_status 200 "store health"
+    json_assert "store health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
+    pass "store /actuator/health"
+  fi
 
   if [[ -n "${RUNTIME_BASE_URL}" ]]; then
     runtime_http GET "${RUNTIME_CONNECTOR_HEALTH_URL}"
@@ -718,24 +1544,26 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     pass "runtime /actuator/health"
   fi
 
-  echo ""
-  echo "== Store Admin Endpoints (non-destructive) =="
-  http POST "${STORE_BASE_URL}/api/admin/demo/reset" '{"confirm": true, "clearConnectorData": false, "clearRuntimeVectors": false}'
-  if [[ "${HTTP_STATUS}" == "401" ]]; then
-    echo "WARN: store reset endpoint requires admin auth (set API_KEY / API_KEY_HEADER)."
-  else
-    assert_status 200 "store reset (skip)"
-    json_assert "store reset (skip)" $'assert (data or {}).get("success") is True\nprint("ok")'
-    pass "store POST /api/admin/demo/reset (skip mode)"
-  fi
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" != "true" ]]; then
+    echo ""
+    echo "== Store Admin Endpoints (non-destructive) =="
+    http POST "${STORE_BASE_URL}/api/admin/demo/reset" '{"confirm": true, "clearConnectorData": false, "clearRuntimeVectors": false}'
+    if [[ "${HTTP_STATUS}" == "401" ]]; then
+      echo "WARN: store reset endpoint requires admin auth (set API_KEY / API_KEY_HEADER)."
+    else
+      assert_status 200 "store reset (skip)"
+      json_assert "store reset (skip)" $'assert (data or {}).get("success") is True\nprint("ok")'
+      pass "store POST /api/admin/demo/reset (skip mode)"
+    fi
 
-  http POST "${STORE_BASE_URL}/api/admin/demo/clear" '{"confirm": false}'
-  if [[ "${HTTP_STATUS}" == "401" ]]; then
-    echo "WARN: store clear endpoint requires admin auth (set API_KEY / API_KEY_HEADER)."
-  else
-    # This is a "presence" check; the endpoint should refuse without confirm=true.
-    assert_status 400 "store clear (confirm required)"
-    pass "store POST /api/admin/demo/clear exists (confirm required)"
+    http POST "${STORE_BASE_URL}/api/admin/demo/clear" '{"confirm": false}'
+    if [[ "${HTTP_STATUS}" == "401" ]]; then
+      echo "WARN: store clear endpoint requires admin auth (set API_KEY / API_KEY_HEADER)."
+    else
+      # This is a "presence" check; the endpoint should refuse without confirm=true.
+      assert_status 400 "store clear (confirm required)"
+      pass "store POST /api/admin/demo/clear exists (confirm required)"
+    fi
   fi
 
   echo ""
@@ -776,25 +1604,33 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     assert_status 200 "runtime admin overview"
     json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nprint("ok")'
     RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
+    assert_marketplace_runtime_overview "runtime admin marketplace alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
+    assert_marketplace_inference_profile "runtime admin marketplace inference alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
     pass "runtime GET /api/admin/overview"
 
     runtime_http GET "${RUNTIME_AUTH_OVERVIEW_URL}"
     assert_status 200 "runtime auth overview"
     json_assert "runtime auth overview" $'assert (data or {}).get("success") is True\nauth = (data or {}).get("auth") or {}\nassert (auth.get("ingressMode") or "") == "VERIFIED_CONTEXT_REQUIRED"\nassert auth.get("verifiedContextRequired") is True\nassert "warnings" in (data or {})\nprint("ok")'
+    RUNTIME_AUTH_OVERVIEW_BODY="${HTTP_BODY}"
     pass "runtime GET /api/admin/auth/overview"
 
     if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
       HTTP_BODY="${RUNTIME_ADMIN_OVERVIEW_BODY}"
-      json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nif expected_shared:\n  assert bool(scope.get("sharedStorage")) is True, scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n    assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n    assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n    assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n    assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n    assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", scope\nelse:\n  assert not scope or bool(scope.get("sharedStorage")) is False, scope\nprint("ok")'
-      pass "runtime admin tenant-scoped vector scope alignment"
+      json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nif expected_shared:\n  assert bool(scope.get("sharedStorage")) is True, scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n    assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n    assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}"'":\n    assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX_RUNTIME}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n    assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}"'":\n    assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN_RUNTIME}"'", scope\nelse:\n  assert not scope or bool(scope.get("sharedStorage")) is False, scope\nprint("ok")'
+        pass "runtime admin tenant-scoped vector scope alignment"
     fi
+    assert_expected_confirmation_interceptors "runtime admin confirmation interceptor alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
+    pass "runtime admin confirmation interceptor alignment"
 
     echo ""
     echo "== Runtime Action Catalog =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/actions/overview"
     assert_status 200 "runtime actions overview"
     json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
+    assert_expected_confirmation_interceptors "runtime actions confirmation interceptor alignment" "${HTTP_BODY}"
     pass "runtime GET /api/admin/actions/overview"
+
+    run_marketplace_runtime_verification
   fi
 
   if [[ "${VERIFY_WRITE}" == "true" ]]; then
@@ -855,6 +1691,10 @@ PY
       $'counts = (data or {}).get(\"countsByEntityType\") or {}\ncur = int(counts.get(\"product\") or 0)\nwant = int('"${initial_product_count}"')\nraise SystemExit(0 if cur == want else 1)\n'
     pass "indexing delete observed (product count returned to initial)"
   fi
+
+  echo ""
+  echo "== Confirmation Retention Flow =="
+  run_confirmation_retention_flow
 fi
 
 if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
@@ -909,6 +1749,12 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   json_assert "platform source of truth" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nlive = (data or {}).get("live") or {}\nassert live.get("available") is True\nartifacts = (data or {}).get("liveArtifacts") or {}\nassert bool(artifacts.get("actionsArtifactUrl"))\nassert bool(artifacts.get("entityArtifactUrl"))\nassert bool(artifacts.get("routingArtifactUrl"))\nassert bool(artifacts.get("promptArtifactUrl"))\nreadback = (data or {}).get("liveRailwayReadback") or {}\nassert "available" in readback\nassert "status" in readback\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
   PLATFORM_SOURCE_OF_TRUTH_BODY="${HTTP_BODY}"
+
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME}" == "true" ]]; then
+    HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
+    json_assert "platform marketplace source of truth artifacts" $'artifacts = (data or {}).get("liveArtifacts") or {}\nassert bool(artifacts.get("knowledgeSourceArtifactUrl")), artifacts\nassert bool(artifacts.get("shellArtifactUrl")), artifacts\nassert bool(artifacts.get("marketplaceDatasetArtifactUrl")), artifacts\nprint("ok")'
+    pass "platform marketplace artifact alignment"
+  fi
 
   if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
     HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"

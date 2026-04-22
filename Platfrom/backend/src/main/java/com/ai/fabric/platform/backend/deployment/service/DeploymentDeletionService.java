@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -48,6 +49,7 @@ public class DeploymentDeletionService {
     private final DeploymentDeletionExecutionService deploymentDeletionExecutionService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
+    private final PlatformCustomerConsumerService platformCustomerConsumerService;
 
     public DeploymentDeletionService(DeploymentRepository deploymentRepository,
                                      DeploymentReleaseRepository releaseRepository,
@@ -57,7 +59,8 @@ public class DeploymentDeletionService {
                                      DeploymentDeletionOperationRepository deletionOperationRepository,
                                      DeploymentDeletionExecutionService deploymentDeletionExecutionService,
                                      PlatformAuditService platformAuditService,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     PlatformCustomerConsumerService platformCustomerConsumerService) {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentManagedVectorResourceRepository = deploymentManagedVectorResourceRepository;
@@ -67,6 +70,7 @@ public class DeploymentDeletionService {
         this.deploymentDeletionExecutionService = deploymentDeletionExecutionService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
+        this.platformCustomerConsumerService = platformCustomerConsumerService;
     }
 
     @Transactional
@@ -92,6 +96,9 @@ public class DeploymentDeletionService {
         );
         if (deployment.getArchivedAt() == null) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment must be archived before it can be deleted.");
+        }
+        if (platformCustomerConsumerService.hasBoundConsumer(deployment.getId())) {
+            throw new ResponseStatusException(CONFLICT, "Deployment cannot be deleted while a consumer is bound to it.");
         }
 
         DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId).orElse(null);

@@ -1,0 +1,5 @@
+roles = ["frontend"]
+
+[commands]
+dev = "bash ../deploy/shopify/run-bridge-ui-dev.sh"
+build = "npm run build"

@@ -161,7 +161,18 @@ platform_login() {
   cat > "${payload}" <<EOF
 {"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
 EOF
-  platform_http POST "${PLATFORM_BASE_URL}/api/platform/auth/login" "$(cat "${payload}")"
+  local attempt=1
+  while true; do
+    platform_http POST "${PLATFORM_BASE_URL}/api/platform/auth/login" "$(cat "${payload}")"
+    if [[ ( "${HTTP_STATUS}" == "000" || "${HTTP_STATUS}" == "502" || "${HTTP_STATUS}" == "503" || "${HTTP_STATUS}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient platform login returned HTTP ${HTTP_STATUS}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
   rm -f "${payload}"
   assert_status 200 "platform login"
 }

@@ -50,17 +50,18 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
             return;
         }
 
-        if (!hasText(azure.getApiKey()) || !hasText(azure.getEndpoint())) {
+        String apiKey = embeddingApiKey(azure);
+        String endpoint = embeddingEndpoint(azure);
+        if (!hasText(apiKey) || !hasText(endpoint)) {
             log.warn("Azure embedding provider incomplete configuration. Required: api-key, endpoint");
             available = false;
             return;
         }
-        
+
         // For Azure AI Services (Foundry), embedding deployment name is not required in URL
-        String endpoint = azure.getEndpoint();
         if (!endpoint.contains("/models") && !endpoint.contains("services.ai.azure.com")) {
             // Azure OpenAI format requires deployment name
-            if (!hasText(azure.getEmbeddingDeploymentName())) {
+            if (!hasText(embeddingDeploymentName(azure))) {
                 log.warn("Azure OpenAI embedding provider requires embedding deployment name");
                 available = false;
                 return;
@@ -76,7 +77,7 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
         }
 
         try {
-            log.info("Validating Azure embedding deployment '{}'", azure.getEmbeddingDeploymentName());
+            log.info("Validating Azure embedding deployment '{}'", embeddingDeploymentName(azure));
             AIEmbeddingRequest probe = AIEmbeddingRequest.builder().text("ping").build();
             AIEmbeddingResponse response = generateEmbedding(probe);
             embeddingDimension = response.getDimensions();
@@ -104,11 +105,15 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
         ensureConfigured(azure, available);
 
         try {
-            String url = buildEmbeddingsUrl(azure.getEndpoint(), azure.getEmbeddingDeploymentName(), azure.getApiVersion());
+            String url = buildEmbeddingsUrl(
+                embeddingEndpoint(azure),
+                embeddingDeploymentName(azure),
+                embeddingApiVersion(azure)
+            );
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set(HEADER_API_KEY, azure.getApiKey());
+            headers.set(HEADER_API_KEY, embeddingApiKey(azure));
 
             Map<String, Object> body = new HashMap<>();
             body.put("input", List.of(request.getText()));
@@ -164,7 +169,7 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
 
             return AIEmbeddingResponse.builder()
                 .embedding(embedding)
-                .model(azure.getEmbeddingDeploymentName())
+                .model(embeddingDeploymentName(azure))
                 .dimensions(embeddingDimension)
                 .processingTimeMs(elapsed)
                 .requestId(UUID.randomUUID().toString())
@@ -181,11 +186,15 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
         ensureConfigured(azure, available);
 
         try {
-            String url = buildEmbeddingsUrl(azure.getEndpoint(), azure.getEmbeddingDeploymentName(), azure.getApiVersion());
+            String url = buildEmbeddingsUrl(
+                embeddingEndpoint(azure),
+                embeddingDeploymentName(azure),
+                embeddingApiVersion(azure)
+            );
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set(HEADER_API_KEY, azure.getApiKey());
+            headers.set(HEADER_API_KEY, embeddingApiKey(azure));
 
             Map<String, Object> body = new HashMap<>();
             body.put("input", texts);
@@ -234,7 +243,7 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
                     embeddingDimension = dimension;
                     return AIEmbeddingResponse.builder()
                         .embedding(values)
-                        .model(azure.getEmbeddingDeploymentName())
+                        .model(embeddingDeploymentName(azure))
                         .dimensions(dimension)
                         .processingTimeMs(elapsed)
                         .requestId(UUID.randomUUID().toString())
@@ -258,10 +267,10 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
         Map<String, Object> status = new HashMap<>();
         status.put("provider", "azure");
         status.put("available", isAvailable());
-        status.put("endpoint", azure.getEndpoint());
-        status.put("deployment", azure.getEmbeddingDeploymentName());
+        status.put("endpoint", embeddingEndpoint(azure));
+        status.put("deployment", embeddingDeploymentName(azure));
         status.put("embeddingDimension", embeddingDimension);
-        status.put("apiVersion", azure.getApiVersion());
+        status.put("apiVersion", embeddingApiVersion(azure));
 
         if (!isAvailable()) {
             status.put("status", "unavailable");
@@ -273,8 +282,8 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
     }
 
     private void ensureConfigured(AIProviderConfig.AzureConfig azure, boolean requireAvailability) {
-        if (azure == null || !azure.isEnabled() || !hasText(azure.getApiKey())
-            || !hasText(azure.getEndpoint()) || !hasText(azure.getEmbeddingDeploymentName())) {
+        if (azure == null || !azure.isEnabled() || !hasText(embeddingApiKey(azure))
+            || !hasText(embeddingEndpoint(azure)) || !hasText(embeddingDeploymentName(azure))) {
             throw new AIServiceException("Azure embedding provider configuration is incomplete");
         }
         if (requireAvailability && !available) {
@@ -310,6 +319,22 @@ public class AzureOpenAIEmbeddingProvider implements EmbeddingProvider {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private String embeddingApiKey(AIProviderConfig.AzureConfig azure) {
+        return hasText(azure.getEmbeddingApiKey()) ? azure.getEmbeddingApiKey() : azure.getApiKey();
+    }
+
+    private String embeddingEndpoint(AIProviderConfig.AzureConfig azure) {
+        return hasText(azure.getEmbeddingEndpoint()) ? azure.getEmbeddingEndpoint() : azure.getEndpoint();
+    }
+
+    private String embeddingDeploymentName(AIProviderConfig.AzureConfig azure) {
+        return hasText(azure.getEmbeddingDeploymentName()) ? azure.getEmbeddingDeploymentName() : azure.getDeploymentName();
+    }
+
+    private String embeddingApiVersion(AIProviderConfig.AzureConfig azure) {
+        return hasText(azure.getEmbeddingApiVersion()) ? azure.getEmbeddingApiVersion() : azure.getApiVersion();
     }
 
     private AIServiceException wrapException(String message, Exception ex) {

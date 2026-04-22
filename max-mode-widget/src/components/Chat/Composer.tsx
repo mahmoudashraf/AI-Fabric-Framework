@@ -92,7 +92,7 @@ export function Composer({
       </div>
 
       {/* Fixed input box at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-t-2 border-purple-500/30 p-3 md:p-6">
+      <div className="absolute bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white p-3 md:p-6 dark:border-gray-800 dark:bg-gray-950">
         <div className="max-w-3xl mx-auto">
           {oldConversationLocked && <LockedConversationBanner onStartNewConversation={onStartNewConversation} />}
 

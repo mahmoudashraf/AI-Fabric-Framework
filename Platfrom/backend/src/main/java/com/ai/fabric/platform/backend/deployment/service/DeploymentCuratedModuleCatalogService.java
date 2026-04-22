@@ -115,6 +115,17 @@ public class DeploymentCuratedModuleCatalogService {
             ),
             "classpath:bootstrap/prompts/commerce-prompt-config.json"
         );
+        register(
+            modules,
+            new DeploymentCuratedModuleSummary(
+                "support",
+                "Support",
+                "Support-focused assistant baseline tuned for help center, troubleshooting, case triage, and operator workflows.",
+                "support",
+                "support"
+            ),
+            "classpath:bootstrap/prompts/support-prompt-config.json"
+        );
         return Map.copyOf(modules);
     }
 

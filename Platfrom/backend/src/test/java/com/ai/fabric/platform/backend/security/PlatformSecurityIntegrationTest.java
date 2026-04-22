@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.security;
 
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -33,6 +34,9 @@ class PlatformSecurityIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private PlatformSecretService platformSecretService;
 
     @Test
     void sessionEndpointIsPublicAndReportsUnauthenticatedStateWithoutKey() throws Exception {
@@ -156,7 +160,10 @@ class PlatformSecurityIntegrationTest {
             bundleResult.getResponse().getContentAsString(),
             "$.promptArtifactUrl"
         );
-
+        String signedMarketplaceDatasetArtifactUrl = com.jayway.jsonpath.JsonPath.read(
+            bundleResult.getResponse().getContentAsString(),
+            "$.marketplaceDatasetArtifactUrl"
+        );
         mockMvc.perform(get(
                 "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml",
                 deploymentId,
@@ -171,19 +178,40 @@ class PlatformSecurityIntegrationTest {
             ))
             .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(get(URI.create(signedActionsArtifactUrl)))
+        mockMvc.perform(get(
+                "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-marketplace-dataset-config.json",
+                deploymentId,
+                versionId
+            ))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get(
+                URI.create(signedActionsArtifactUrl)
+            ))
             .andExpect(status().isOk())
             .andExpect(content().string(org.hamcrest.Matchers.containsString("actions:")));
 
-        mockMvc.perform(get(URI.create(signedPromptArtifactUrl)))
+        mockMvc.perform(get(
+                URI.create(signedPromptArtifactUrl)
+            ))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("systemPrompt")));
+
+        mockMvc.perform(get(
+                URI.create(signedMarketplaceDatasetArtifactUrl)
+            ))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("MARKETPLACE_DATASET_CONFIG_V1")));
 
         mockMvc.perform(get(URI.create(signedActionsArtifactUrl.replace("sig=", "sig=broken-"))))
             .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get(URI.create(signedPromptArtifactUrl.replace("sig=", "sig=broken-"))))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get(URI.create(signedMarketplaceDatasetArtifactUrl.replace("sig=", "sig=broken-"))))
             .andExpect(status().isUnauthorized());
     }
 
@@ -631,5 +659,121 @@ class PlatformSecurityIntegrationTest {
                     }
                     """))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void productServiceApiKeyIsScopedToItsOwnShopifyStoresAndCannotUseGeneralPlatformApis() throws Exception {
+        String ownServiceRef = "shopify-bridge-auth-scope";
+        String otherServiceRef = "shopify-bridge-auth-other";
+        String ownShopDomain = "alpha-auth-scope.myshopify.com";
+        String otherShopDomain = "beta-auth-scope.myshopify.com";
+        String ownServiceSecret = "bridge-auth-scope-key";
+
+        mockMvc.perform(post("/api/product-services")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "serviceRef": "%s",
+                      "displayName": "Shopify Bridge Prod",
+                      "productFamily": "SHOPIFY",
+                      "serviceKind": "SHOPIFY_BRIDGE_SERVICE",
+                      "deploymentMode": "SHARED_PLATFORM_SERVICE",
+                      "tenantMode": "MULTI_TENANT_SHARED",
+                      "environmentScope": "prod",
+                      "desiredReplicas": 1,
+                      "minReplicas": 1,
+                      "maxReplicas": 3,
+                      "baseUrl": "https://shopify-bridge.example.com",
+                      "secretName": "MANAGED_PRODUCT_SHOPIFY_BRIDGE_AUTH_SCOPE_API_KEY"
+                    }
+                    """.formatted(ownServiceRef)))
+            .andExpect(status().isCreated());
+
+        platformSecretService.upsertManagedSecret(
+            "MANAGED_PRODUCT_SHOPIFY_BRIDGE_AUTH_SCOPE_API_KEY",
+            ownServiceSecret,
+            java.util.Map.of("serviceRef", ownServiceRef, "purpose", "PRODUCT_SERVICE_SECRET")
+        );
+
+        mockMvc.perform(post("/api/product-services")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "serviceRef": "%s",
+                      "displayName": "Shopify Bridge Other",
+                      "productFamily": "SHOPIFY",
+                      "serviceKind": "SHOPIFY_BRIDGE_SERVICE",
+                      "deploymentMode": "SHARED_PLATFORM_SERVICE",
+                      "tenantMode": "MULTI_TENANT_SHARED",
+                      "environmentScope": "prod",
+                      "desiredReplicas": 1,
+                      "minReplicas": 1,
+                      "maxReplicas": 3,
+                      "baseUrl": "https://shopify-bridge-other.example.com",
+                      "secretName": "MANAGED_PRODUCT_SHOPIFY_BRIDGE_AUTH_OTHER_API_KEY"
+                    }
+                    """.formatted(otherServiceRef)))
+            .andExpect(status().isCreated());
+
+        platformSecretService.upsertManagedSecret(
+            "MANAGED_PRODUCT_SHOPIFY_BRIDGE_AUTH_OTHER_API_KEY",
+            "bridge-other-secret",
+            java.util.Map.of("serviceRef", otherServiceRef, "purpose", "PRODUCT_SERVICE_SECRET")
+        );
+
+        mockMvc.perform(post("/api/shopify/stores")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "shopDomain": "%s",
+                      "displayName": "Alpha",
+                      "productServiceRef": "%s",
+                      "installStatus": "INSTALLED",
+                      "syncStatus": "NOT_SYNCED",
+                      "sourceReadinessStatus": "NOT_RUN",
+                      "widgetStatus": "NOT_ENABLED",
+                      "onboardingStatus": "CONNECTED"
+                    }
+                    """.formatted(ownShopDomain, ownServiceRef)))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/shopify/stores")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "shopDomain": "%s",
+                      "displayName": "Beta",
+                      "productServiceRef": "%s",
+                      "installStatus": "INSTALLED",
+                      "syncStatus": "NOT_SYNCED",
+                      "sourceReadinessStatus": "NOT_RUN",
+                      "widgetStatus": "NOT_ENABLED",
+                      "onboardingStatus": "CONNECTED"
+                    }
+                    """.formatted(otherShopDomain, otherServiceRef)))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/shopify/stores")
+                .header("X-PLATFORM-API-KEY", ownServiceSecret))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].shopDomain", is(ownShopDomain)))
+            .andExpect(jsonPath("$.length()", is(1)));
+
+        mockMvc.perform(get("/api/shopify/stores/{shopDomain}", ownShopDomain)
+                .header("X-PLATFORM-API-KEY", ownServiceSecret))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain", is(ownShopDomain)));
+
+        mockMvc.perform(get("/api/shopify/stores/{shopDomain}", otherShopDomain)
+                .header("X-PLATFORM-API-KEY", ownServiceSecret))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/deployments")
+                .header("X-PLATFORM-API-KEY", ownServiceSecret))
+            .andExpect(status().isUnauthorized());
     }
 }

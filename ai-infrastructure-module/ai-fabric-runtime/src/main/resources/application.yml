@@ -57,7 +57,7 @@ ai:
       authz:
         # Remote access control for runtime product deployments.
         # Default base URL inherits ACTIONS_CONNECTOR_BASE_URL so runtime -> REST connector -> customer authz is easy to wire.
-        mode: ${AI_FABRIC_RUNTIME_AUTHZ_MODE:REMOTE_HTTP} # REMOTE_HTTP | DENY_ALL
+        mode: ${AI_FABRIC_RUNTIME_AUTHZ_MODE:REMOTE_HTTP} # REMOTE_HTTP | ALLOW_VERIFIED | DENY_ALL
         remote:
           base-url: ${AUTHZ_BASE_URL:${ACTIONS_CONNECTOR_BASE_URL:}}
           path: ${AUTHZ_PATH:/api/authz/check}

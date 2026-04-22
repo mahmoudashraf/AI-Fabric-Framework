@@ -56,6 +56,18 @@ function statusColor(status: string): 'success' | 'warning' | 'error' | 'info' |
 }
 
 function profileInfo(profile: string): HostedVerificationProfileInfo {
+  if (profile === 'marketplace-runtime') {
+    return {
+      label: 'Marketplace runtime',
+      scope: [
+        'Runtime health plus runtime-backed connector operational health',
+        'Marketplace runtime smoke queries and shared-source retrieval checks',
+        'Runtime admin, auth, and action catalog alignment',
+        'Platform source-of-truth, vectorization, and provider connectivity evidence',
+        'Read-only hosted verification by default, with active write probes only when explicitly enabled',
+      ],
+    }
+  }
   if (profile === 'ecommerce') {
     return {
       label: 'Ecommerce deployment',

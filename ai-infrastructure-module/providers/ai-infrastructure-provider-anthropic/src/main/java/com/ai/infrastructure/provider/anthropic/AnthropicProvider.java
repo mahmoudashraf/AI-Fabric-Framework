@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
+import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
@@ -81,11 +82,15 @@ public class AnthropicProvider implements AIProvider {
                      request.getModel(), request.getGenerationType(), 
                      request.getPrompt() != null ? request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())) : "null");
             
-            String url = ANTHROPIC_BASE_URL + "/messages";
+            ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
+                ProviderRequestOverrideSupport.read(request.getParameters());
+            String baseUrl = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : config.getBaseUrl();
+            String apiKey = hasText(connectionOverride.apiKey()) ? connectionOverride.apiKey() : config.getApiKey();
+            String url = normalizeBaseUrl(baseUrl != null ? baseUrl : ANTHROPIC_BASE_URL) + "/messages";
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("x-api-key", config.getApiKey());
+            headers.set("x-api-key", apiKey);
             headers.set("anthropic-version", "2023-06-01");
             
             Map<String, Object> requestBody = new HashMap<>();
@@ -388,5 +393,16 @@ public class AnthropicProvider implements AIProvider {
         }
         
         return usage;
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return ANTHROPIC_BASE_URL;
+        }
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

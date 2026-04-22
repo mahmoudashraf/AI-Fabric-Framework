@@ -1,5 +1,6 @@
 package com.ai.infrastructure.intent.action;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -43,5 +44,30 @@ public interface PendingActionStore {
      */
     default void clearPendingActions(String conversationId, String ownerId) {
         clearPendingAction(conversationId, ownerId);
+    }
+
+    /**
+     * Return the pending confirmation stack in top-first order.
+     */
+    default List<PendingAction> getPendingActionStack(String conversationId, String ownerId) {
+        return peekPendingAction(conversationId, ownerId)
+            .map(List::of)
+            .orElse(List.of());
+    }
+
+    /**
+     * Replace the entire pending confirmation stack using top-first order.
+     */
+    default void replacePendingActionStack(String conversationId, String ownerId, List<PendingAction> stackTopFirst) {
+        clearPendingActions(conversationId, ownerId);
+        if (stackTopFirst == null || stackTopFirst.isEmpty()) {
+            return;
+        }
+        for (int index = stackTopFirst.size() - 1; index >= 0; index--) {
+            PendingAction pendingAction = stackTopFirst.get(index);
+            if (pendingAction != null) {
+                pushPendingAction(conversationId, ownerId, pendingAction);
+            }
+        }
     }
 }

@@ -73,6 +73,7 @@ jobs:
       INPUT_VECTORIZATION_COUNTERPART_DEPLOYMENT_ID: ${{ inputs.vectorization_counterpart_deployment_id }}
       SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
       VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+      DEFAULT_PLATFORM_BASE_URL: https://ai-fabric-framework-production-324f.up.railway.app
       PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
       PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
       PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
@@ -85,6 +86,7 @@ jobs:
       - name: Resolve platform verification context
         run: |
           set -euo pipefail
+
           PLATFORM_BASE_URL="${INPUT_PLATFORM_BASE_URL:-}"
           if [[ -z "${PLATFORM_BASE_URL}" ]]; then
             PLATFORM_BASE_URL="${SECRET_PLATFORM_BASE_URL:-}"
@@ -93,8 +95,7 @@ jobs:
             PLATFORM_BASE_URL="${VAR_PLATFORM_BASE_URL:-}"
           fi
           if [[ -z "${PLATFORM_BASE_URL}" ]]; then
-            echo "Missing platform base URL. Set workflow input platform_base_url or repo secret/variable PLATFORM_BASE_URL."
-            exit 1
+            PLATFORM_BASE_URL="${DEFAULT_PLATFORM_BASE_URL}"
           fi
           PLATFORM_BASE_URL="${PLATFORM_BASE_URL%/}"
           echo "::add-mask::${PLATFORM_BASE_URL}"

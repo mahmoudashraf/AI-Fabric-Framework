@@ -1,0 +1,366 @@
+package com.ai.fabric.product.shopify.bridge.web;
+
+import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
+import com.ai.fabric.product.shopify.bridge.action.service.ShopifyBridgeActionExecutionService;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeWebhookSubscriptionOverview;
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInstallOverview;
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
+import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeStoreOverview;
+import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourceRecord;
+import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
+import java.util.List;
+
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = {
+    "shopify.bridge.admin-api-key=test-admin-key",
+    "shopify.bridge.service-ref=shopify-bridge-test",
+    "shopify.bridge.platform-base-url=https://platform.example.com",
+    "shopify.bridge.platform-admin-api-key=platform-admin-key"
+})
+@AutoConfigureMockMvc
+class ShopifyBridgeAdminControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private ShopifyBridgeDiagnosticsService diagnosticsService;
+
+    @MockBean
+    private ShopifyBridgeStoreAdminService storeAdminService;
+
+    @MockBean
+    private ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
+
+    @MockBean
+    private ShopifyBridgeActionExecutionService actionExecutionService;
+
+    @Test
+    void healthIsPublic() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").exists());
+    }
+
+    @Test
+    void adminOverviewRequiresApiKey() throws Exception {
+        mockMvc.perform(get("/api/admin/overview"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminOverviewReturnsDiagnosticsWhenApiKeyMatches() throws Exception {
+        when(diagnosticsService.overview()).thenReturn(new ShopifyBridgeOverviewResponse(
+            "Shopify Bridge Service",
+            "shopify-bridge-test",
+            "SHOPIFY",
+            "SHOPIFY_BRIDGE_SERVICE",
+            "prod",
+            "https://platform.example.com",
+            "https://bridge.example.com",
+            true,
+            "READY",
+            Instant.parse("2026-04-18T10:00:00Z"),
+            new ShopifyBridgeInstallOverview(10, 8, 2, 7, Instant.parse("2026-04-18T10:10:00Z"), Instant.parse("2026-04-18T09:00:00Z")),
+            new ShopifyBridgeStoreOverview("READY", "Platform store mappings resolved successfully.", 6, 3, 2, 1, 1, Instant.parse("2026-04-18T10:15:00Z")),
+            new ShopifyBridgeWebhookSubscriptionOverview("READY", "Diagnostics available.", "https://bridge.example.com/api/webhooks/shopify", 9, List.of("APP_UNINSTALLED")),
+            new ShopifyBridgeBillingSummary("FREE", "Companion Free", "ACTIVE", false, false, "Free mode."),
+            new ShopifyBridgeUsageOverview(Instant.parse("2026-04-18T10:20:00Z"), Instant.parse("2026-04-18T10:18:00Z"), 1, 2, 4, 9, List.of(), List.of()),
+            List.of("managed-service-health"),
+            List.of()
+        ));
+        mockMvc.perform(get("/api/admin/overview").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.serviceRef").value("shopify-bridge-test"))
+            .andExpect(jsonPath("$.platformBaseUrl").value("https://platform.example.com"))
+            .andExpect(jsonPath("$.adminApiKeyConfigured").value(true))
+            .andExpect(jsonPath("$.status").value("READY"))
+            .andExpect(jsonPath("$.installs.totalCount").value(10))
+            .andExpect(jsonPath("$.stores.readyForGoLiveCount").value(3))
+            .andExpect(jsonPath("$.webhookSubscriptions.expectedCount").value(9))
+            .andExpect(jsonPath("$.billing.mode").value("FREE"))
+            .andExpect(jsonPath("$.usage.totalToday").value(4));
+    }
+
+    @Test
+    void adminWebhookSubscriptionsAreReturnedWhenApiKeyMatches() throws Exception {
+        when(webhookSubscriptionDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(new ShopifyWebhookSubscriptionStatusSummary(
+            "alpha.myshopify.com",
+            "DEGRADED",
+            "One topic is missing.",
+            "https://bridge.example.com/api/webhooks/shopify",
+            9,
+            8,
+            1,
+            0,
+            Instant.parse("2026-04-18T10:25:00Z"),
+            List.of(new ShopifyWebhookSubscriptionTopicStatusSummary(
+                "PRODUCTS_UPDATE",
+                "loom-products-update",
+                "MISSING",
+                null,
+                null,
+                null,
+                "Required Shopify webhook subscription is missing."
+            ))
+        ));
+
+        mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/webhook-subscriptions").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.status").value("DEGRADED"))
+            .andExpect(jsonPath("$.topics[0].topic").value("PRODUCTS_UPDATE"));
+    }
+
+    @Test
+    void adminBillingSummaryIsReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.billingSummary("alpha.myshopify.com")).thenReturn(new ShopifyBridgeBillingSummary(
+            "PAID",
+            "Companion Growth",
+            "READY_FOR_APPROVAL",
+            true,
+            true,
+            "Merchant approval is required before go-live."
+        ));
+
+        mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/billing-summary").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.mode").value("PAID"))
+            .andExpect(jsonPath("$.planName").value("Companion Growth"))
+            .andExpect(jsonPath("$.status").value("READY_FOR_APPROVAL"))
+            .andExpect(jsonPath("$.merchantApprovalRequired").value(true))
+            .andExpect(jsonPath("$.launchBlocked").value(true));
+    }
+
+    @Test
+    void adminVectorizationSourcePageIsReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.vectorizationSourcePage("alpha.myshopify.com", "product", null, 25))
+            .thenReturn(new ShopifyBridgeVectorizationSourcePageResponse(
+                "alpha.myshopify.com",
+                "product",
+                3,
+                true,
+                "collections|",
+                List.of(new ShopifyBridgeVectorizationSourceRecord(
+                    "gid://shopify/Product/1",
+                    "2026-04-19T10:00:00Z",
+                    "Trail Shoe",
+                    "Breathable trail shoe",
+                    "products",
+                    "product",
+                    "https://alpha.myshopify.com/products/trail-shoe",
+                    "trail-shoe",
+                    "Loom",
+                    "Shoes",
+                    null
+                ))
+            ));
+
+        mockMvc.perform(
+                get("/api/admin/stores/alpha.myshopify.com/vectorization-source/product")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .param("limit", "25")
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.entityType").value("product"))
+            .andExpect(jsonPath("$.totalCount").value(3))
+            .andExpect(jsonPath("$.items[0].title").value("Trail Shoe"))
+            .andExpect(jsonPath("$.nextCursor").value("collections|"));
+    }
+
+    @Test
+    void adminStoresAreReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.listStores()).thenReturn(List.of(sampleStore()));
+
+        mockMvc.perform(get("/api/admin/stores").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$[0].productServiceRef").value("shopify-bridge-test"));
+    }
+
+    @Test
+    void adminActionExecutionUsesActionServiceWhenApiKeyMatches() throws Exception {
+        when(actionExecutionService.execute(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any()
+        )).thenReturn(ShopifyBridgeActionResult.ok("Products", java.util.Map.of("count", 1)));
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/actions/execute")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"actionId":"list_products","params":{},"trace":{}}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.message").value("Products"))
+            .andExpect(jsonPath("$.data.count").value(1));
+    }
+
+    @Test
+    void adminBootstrapUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.bootstrap("alpha.myshopify.com")).thenReturn(new ShopifyBridgeStoreBootstrapResponse(
+            "alpha.myshopify.com",
+            "cust-1",
+            "dep-1",
+            "consumer-1",
+            true,
+            true,
+            true,
+            List.of("mkp-template-shopify-companion"),
+            sampleStore()
+        ));
+
+        mockMvc.perform(post("/api/admin/stores/alpha.myshopify.com/bootstrap").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.createdDeployment").value(true))
+            .andExpect(jsonPath("$.store.consumerId").value("consumer-1"));
+    }
+
+    @Test
+    void adminRunSourcePreflightUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.runSourcePreflight("alpha.myshopify.com")).thenReturn(sampleStore());
+
+        mockMvc.perform(post("/api/admin/stores/alpha.myshopify.com/run-source-preflight").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+    }
+
+    @Test
+    void adminSourcePreflightUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.recordSourcePreflight(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any(ShopifyBridgeRecordSourcePreflightRequest.class)
+        )).thenReturn(sampleStore());
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/source-preflight")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"categories":[{"category":"products","enabled":true,"status":"READY","itemCount":120,"message":"Products reachable"}]}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+    }
+
+    @Test
+    void adminSyncStatusUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.recordSyncStatus(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any(ShopifyBridgeRecordSyncStatusRequest.class)
+        )).thenReturn(sampleStore());
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/sync-status")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"status":"SYNCED","mode":"FULL","documentCount":128,"message":"Initial import completed"}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+    }
+
+    @Test
+    void adminWidgetStatusUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.recordWidgetStatus(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any(ShopifyBridgeRecordWidgetStatusRequest.class)
+        )).thenReturn(sampleStore());
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/widget-status")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"status":"ENABLED","channel":"THEME_APP_EXTENSION","message":"Theme embed enabled"}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+    }
+
+    private ShopifyBridgeStoreSummary sampleStore() {
+        return new ShopifyBridgeStoreSummary(
+            "shp-1",
+            "alpha.myshopify.com",
+            "Alpha",
+            "shopify-bridge-test",
+            "Shopify Bridge Test",
+            "cust-1",
+            "Alpha Customer",
+            "dep-1",
+            "Alpha Deployment",
+            "DRAFT",
+            "consumer-1",
+            "Alpha Storefront",
+            "INSTALLED",
+            "NOT_SYNCED",
+            "NOT_RUN",
+            "NOT_ENABLED",
+            "PLATFORM_BOOTSTRAPPED",
+            true,
+            true,
+            true,
+            true,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA_BBBBBB",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                Instant.parse("2026-04-18T01:00:00Z"),
+                Instant.parse("2026-07-18T00:00:00Z"),
+                "read_products",
+                true
+            ),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T00:00:00Z"),
+            Instant.parse("2026-04-18T00:00:00Z")
+        );
+    }
+}

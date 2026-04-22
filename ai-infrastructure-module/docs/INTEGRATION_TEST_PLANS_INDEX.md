@@ -409,7 +409,7 @@ java -version  # Should show 21.x
 # Maven 3.9+
 mvn -version
 
-# Docker (for REST embedding service)
+# Docker
 docker --version
 
 # Git

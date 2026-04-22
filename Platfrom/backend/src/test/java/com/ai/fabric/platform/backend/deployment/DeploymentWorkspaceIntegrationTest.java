@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -134,6 +135,45 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.lifecycle.liveMatchesLatestPublished", is(false)))
             .andExpect(jsonPath("$.lifecycle.latestPublishedVersionLabel", is(publishedVersion.versionLabel())))
             .andExpect(jsonPath("$.lifecycle.summaryMessage", notNullValue()));
+    }
+
+    @Test
+    void historicalPublishedDraftCannotBeUpdatedOrPublishedAgain() throws Exception {
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Historical Draft Guard", "dev", "dev-openai-lucene")
+        ));
+        DeploymentDraftResponse firstDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+        runAsAdmin(() -> deploymentService.publishDraft(firstDraft.id()));
+        DeploymentDraftResponse activeDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+
+        var updatedPrompts = objectMapper.createObjectNode();
+        updatedPrompts.put("systemPrompt", "Do not use stale drafts.");
+        updatedPrompts.put("intentExtractionPrompt", "");
+        updatedPrompts.put("actionSelectionPrompt", "");
+        updatedPrompts.put("clarificationPrompt", "");
+        updatedPrompts.put("answerGenerationPrompt", "");
+        updatedPrompts.put("retrievalPrompt", "");
+        updatedPrompts.put("assistantUiPrompt", "");
+
+        mockMvc.perform(asAdmin(put("/api/deployment-drafts/{draftId}", firstDraft.id())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(new UpdateDeploymentDraftRequest(
+                    null, null, null, null, null, updatedPrompts
+                )))))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.errorCode", is("CONFLICT")))
+            .andExpect(jsonPath("$.message", is("Only the active draft can be updated. Requested draft is historical: " + firstDraft.id())));
+
+        mockMvc.perform(asAdmin(post("/api/deployment-drafts/{draftId}/publish", firstDraft.id())))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.errorCode", is("CONFLICT")))
+            .andExpect(jsonPath("$.message", is("Only the active draft can be published. Requested draft is historical: " + firstDraft.id())));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is(activeDraft.id())))
+            .andExpect(jsonPath("$.revisionNumber", is(activeDraft.revisionNumber())))
+            .andExpect(jsonPath("$.status", is(activeDraft.status())));
     }
 
     @Test

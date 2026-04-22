@@ -281,6 +281,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
 
         int topK = Optional.ofNullable(request.getLimit()).orElse(10);
         double threshold = Optional.ofNullable(request.getThreshold()).orElse(0.0);
+        String expr = buildScanExpr(request.getMetadata());
 
         SearchParam searchParam = SearchParam.newBuilder()
             .withCollectionName(collection)
@@ -289,6 +290,7 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
             .withMetricType(MetricType.IP)
             .withParams("{\"nprobe\":16}")
             .withVectors(Collections.singletonList(toFloatList(queryVector)))
+            .withExpr(expr)
             .withIgnoreGrowing(false)
             .addOutField(FIELD_ENTITY_ID)
             .addOutField(FIELD_CONTENT)

@@ -10,6 +10,9 @@ import { CustomersPage } from './pages/CustomersPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
+import { MarketplacePage } from './pages/MarketplacePage'
+import { InferenceServicesPage } from './pages/InferenceServicesPage'
+import { ProductServicesPage } from './pages/ProductServicesPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { PocPage } from './pages/PocPage'
@@ -19,9 +22,11 @@ import { RevisionsPage } from './pages/RevisionsPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
+import { ShopifyStoresPage } from './pages/ShopifyStoresPage'
 import { UsersPage } from './pages/UsersPage'
 import { VectorizationPage } from './pages/VectorizationPage'
 import { VerificationPage } from './pages/VerificationPage'
+import { VerificationOpsPage } from './pages/VerificationOpsPage'
 import { DeploymentWorkspaceProvider } from './workspace/DeploymentWorkspaceContext'
 
 export default function App() {
@@ -74,12 +79,17 @@ export default function App() {
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/marketplace" element={<MarketplacePage />} />
+          <Route path="/inference-services" element={<InferenceServicesPage />} />
+          <Route path="/product-services" element={<ProductServicesPage />} />
+          <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />
           <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/verification" element={<VerificationPage />} />
+          <Route path="/verification-ops" element={<VerificationOpsPage />} />
           <Route path="/vectorization" element={<VectorizationPage />} />
           <Route path="/revisions" element={<RevisionsPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />

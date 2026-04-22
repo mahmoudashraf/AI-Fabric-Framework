@@ -9,6 +9,7 @@ The Platform Operator is the main day-to-day user of the platform. This is the e
 Companion guide:
 
 - `Final_Documentation/User_Guides/PLATFORM_USER_TYPES_GUIDE.md`
+- `Final_Documentation/User_Guides/MARKETPLACE_ADMIN_USER_GUIDE.md`
 
 ---
 
@@ -74,19 +75,30 @@ Use this for:
 - action definitions
 - route mapping and upstream behavior
 
-### 3.3 Knowledge
+### 3.3 Marketplace
+
+Use this global screen to:
+
+- browse available marketplace plugins
+- select the target deployment for install work
+- inspect install impact
+- bootstrap new deployments from template plugins
+
+If a workflow requires publisher administration or secret escalation, involve Platform Admin.
+
+### 3.4 Knowledge
 
 Use this for:
 
 - entity and vector-space-related draft editing
 
-### 3.4 Providers
+### 3.5 Providers
 
 Use this for:
 
 - provider/model configuration in the active draft
 
-### 3.5 Security
+### 3.6 Security
 
 Use this for:
 
@@ -96,7 +108,7 @@ Use this for:
 
 If a required secret is missing, escalate to Platform Admin.
 
-### 3.6 Verification
+### 3.7 Verification
 
 Use this before publish to confirm:
 
@@ -104,7 +116,7 @@ Use this before publish to confirm:
 - warnings are understood
 - errors are fixed
 
-### 3.7 Revisions
+### 3.8 Revisions
 
 Use this to:
 
@@ -112,7 +124,7 @@ Use this to:
 - apply a version
 - inspect release history
 
-### 3.8 Diagnostics
+### 3.9 Diagnostics
 
 Use this to:
 
@@ -133,6 +145,7 @@ Use this to:
 ### 4.2 Edit The Draft
 
 1. Update the draft in:
+   - `Marketplace` when plugin-backed changes are needed
    - `Actions`
    - `Knowledge`
    - `Providers`
@@ -228,4 +241,3 @@ If deployment health is unclear:
 - `Final_Documentation/User_Guides/PLATFORM_ADMIN_USER_GUIDE.md`
 - `Final_Documentation/User_Guides/CUSTOMER_ADMIN_USER_GUIDE.md`
 - `changes/Productization/PLATFORM_PHASE_18_PLUS_EXECUTION_PLAN.md`
-

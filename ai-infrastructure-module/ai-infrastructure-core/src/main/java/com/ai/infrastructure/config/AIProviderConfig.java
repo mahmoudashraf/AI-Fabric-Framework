@@ -22,6 +22,20 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "ai.providers")
 public class AIProviderConfig {
 
+    public interface PurposeLlmConnectionConfig {
+        String getLlmProvider();
+        String getModel();
+        Double getTemperature();
+        Integer getMaxTokens();
+        Integer getTimeout();
+        String getEndpointProfile();
+        String getManagedServiceRef();
+        String getApiKey();
+        String getBaseUrl();
+        String getDeploymentName();
+        String getApiVersion();
+    }
+
     /**
      * Whether AI capabilities are globally enabled.
      */
@@ -47,9 +61,47 @@ public class AIProviderConfig {
     private GenerationLlmConfig generation;
 
     /**
-     * Active embedding provider identifier (e.g. onnx, openai, rest).
+     * Active embedding provider identifier (e.g. onnx, openai).
      */
     private String embeddingProvider = "onnx";
+
+    /**
+     * Optional named embedding endpoint-profile identifier used for diagnostics and release verification.
+     */
+    private String embeddingEndpointProfile;
+
+    /**
+     * Optional managed service reference used for diagnostics and release verification.
+     */
+    private String embeddingManagedServiceRef;
+
+    /**
+     * Optional embedding service mode hint emitted by the control plane.
+     */
+    private String embeddingServiceMode;
+
+    /**
+     * Optional embedding-specific base URL override.
+     *
+     * <p>This is primarily used when embeddings are served by a dedicated or shared OpenAI-compatible
+     * service while generation continues to use a different provider endpoint.</p>
+     */
+    private String embeddingBaseUrl;
+
+    /**
+     * Optional embedding-specific deployment name override (mainly for Azure OpenAI).
+     */
+    private String embeddingDeploymentName;
+
+    /**
+     * Optional embedding-specific API version override (mainly for Azure OpenAI).
+     */
+    private String embeddingApiVersion;
+
+    /**
+     * Optional embedding-specific API key override.
+     */
+    private String embeddingApiKey;
 
     /**
      * Enable automatic fallback when the preferred provider fails.
@@ -63,7 +115,6 @@ public class AIProviderConfig {
     private final CohereConfig cohere = new CohereConfig();
     private final GeminiConfig gemini = new GeminiConfig();
     private final ONNXConfig onnx = new ONNXConfig();
-    private final RestConfig rest = new RestConfig();
     private final PineconeConfig pinecone = new PineconeConfig();
     private final WeaviateConfig weaviate = new WeaviateConfig();
     private final QdrantConfig qdrant = new QdrantConfig();
@@ -93,10 +144,14 @@ public class AIProviderConfig {
      * <p>If {@link #orchestration} is not configured, falls back to {@link #resolveLlmDefaults()}.</p>
      */
     public GenerationDefaults resolveOrchestrationLlmDefaults() {
-        if (orchestration == null || !hasText(orchestration.getLlmProvider())) {
+        if (orchestration == null) {
             return resolveLlmDefaults();
         }
-        return buildPurposeDefaults(orchestration.getLlmProvider(), orchestration.getModel(),
+        String provider = hasText(orchestration.getLlmProvider()) ? orchestration.getLlmProvider() : llmProvider;
+        if (!hasText(provider)) {
+            return resolveLlmDefaults();
+        }
+        return buildPurposeDefaults(provider, orchestration.getModel(),
             orchestration.getMaxTokens(), orchestration.getTemperature(), orchestration.getTimeout());
     }
 
@@ -106,10 +161,14 @@ public class AIProviderConfig {
      * <p>If {@link #generation} is not configured, falls back to {@link #resolveLlmDefaults()}.</p>
      */
     public GenerationDefaults resolveGenerationLlmDefaults() {
-        if (generation == null || !hasText(generation.getLlmProvider())) {
+        if (generation == null) {
             return resolveLlmDefaults();
         }
-        return buildPurposeDefaults(generation.getLlmProvider(), generation.getModel(),
+        String provider = hasText(generation.getLlmProvider()) ? generation.getLlmProvider() : llmProvider;
+        if (!hasText(provider)) {
+            return resolveLlmDefaults();
+        }
+        return buildPurposeDefaults(provider, generation.getModel(),
             generation.getMaxTokens(), generation.getTemperature(), generation.getTimeout());
     }
 
@@ -125,7 +184,6 @@ public class AIProviderConfig {
             case "azure" -> azure.toEmbeddingDefaults("azure");
             case "gemini" -> gemini.toEmbeddingDefaults("gemini");
             case "cohere" -> cohere.toEmbeddingDefaults("cohere");
-            case "rest" -> rest.toEmbeddingDefaults("rest");
             case "onnx" ->
                 onnx.toEmbeddingDefaults("onnx");
             default -> onnx.toEmbeddingDefaults("onnx");
@@ -170,6 +228,34 @@ public class AIProviderConfig {
         };
     }
 
+    public boolean orchestrationHasConnectionOverride() {
+        return hasPurposeConnectionOverride(orchestration);
+    }
+
+    public boolean generationHasConnectionOverride() {
+        return hasPurposeConnectionOverride(generation);
+    }
+
+    public boolean embeddingHasConnectionOverride() {
+        return hasText(embeddingEndpointProfile)
+            || hasText(embeddingManagedServiceRef)
+            || hasText(embeddingServiceMode)
+            || hasText(embeddingApiKey)
+            || hasText(embeddingBaseUrl)
+            || hasText(embeddingDeploymentName)
+            || hasText(embeddingApiVersion);
+    }
+
+    private boolean hasPurposeConnectionOverride(PurposeLlmConnectionConfig config) {
+        return config != null
+            && (hasText(config.getEndpointProfile())
+            || hasText(config.getManagedServiceRef())
+            || hasText(config.getApiKey())
+            || hasText(config.getBaseUrl())
+            || hasText(config.getDeploymentName())
+            || hasText(config.getApiVersion()));
+    }
+
     /**
      * Normalized generation defaults for the active LLM provider.
      *
@@ -201,12 +287,38 @@ public class AIProviderConfig {
     ) {}
 
     @Data
-    public static class OrchestrationLlmConfig {
+    public static class OrchestrationLlmConfig implements PurposeLlmConnectionConfig {
         /**
          * LLM provider for orchestration tasks.
          * Leave null/blank to use {@link #llmProvider}.
          */
         private String llmProvider;
+
+        /**
+         * Optional named endpoint-profile identifier used for diagnostics and release verification.
+         */
+        private String endpointProfile;
+        private String managedServiceRef;
+
+        /**
+         * Optional purpose-scoped API key override. Provisioning resolves this from deployment/provider secrets.
+         */
+        private String apiKey;
+
+        /**
+         * Optional purpose-scoped base URL override (for example OpenAI-compatible local orchestration services).
+         */
+        private String baseUrl;
+
+        /**
+         * Optional purpose-scoped deployment name override (mainly for Azure OpenAI deployments).
+         */
+        private String deploymentName;
+
+        /**
+         * Optional purpose-scoped API version override (mainly for Azure OpenAI).
+         */
+        private String apiVersion;
 
         /**
          * Model identifier for orchestration tasks (optional).
@@ -230,8 +342,14 @@ public class AIProviderConfig {
     }
 
     @Data
-    public static class GenerationLlmConfig {
+    public static class GenerationLlmConfig implements PurposeLlmConnectionConfig {
         private String llmProvider;
+        private String endpointProfile;
+        private String managedServiceRef;
+        private String apiKey;
+        private String baseUrl;
+        private String deploymentName;
+        private String apiVersion;
         private String model;
         private Double temperature = 0.3;
         private Integer maxTokens;
@@ -263,6 +381,8 @@ public class AIProviderConfig {
          * If null, uses model's default dimensions.
          */
         private Integer embeddingDimensions;
+        private String embeddingBaseUrl;
+        private String embeddingApiKey;
 
         GenerationDefaults toGenerationDefaults(String providerName) {
             return new GenerationDefaults(
@@ -293,6 +413,9 @@ public class AIProviderConfig {
         private String endpoint;
         private String deploymentName;
         private String embeddingDeploymentName;
+        private String embeddingEndpoint;
+        private String embeddingApiKey;
+        private String embeddingApiVersion;
         private String apiVersion;
         private Integer timeout;
         private Integer priority;
@@ -460,26 +583,6 @@ public class AIProviderConfig {
          */
         private Boolean flushOnWrite = false;
         private String collectionPrefix;
-    }
-
-    @Data
-    public static class RestConfig {
-        private boolean enabled;
-        /**
-         * When true, performs a health check during provider initialization.
-         *
-         * <p>Default is {@code false} to keep startup fast and avoid failing tests when a local service is absent.</p>
-         */
-        private boolean validateOnStartup = false;
-        private String baseUrl;
-        private String endpoint = "/embed";
-        private String batchEndpoint = "/embed/batch";
-        private Integer timeout = 30000;
-        private String model;
-
-        EmbeddingDefaults toEmbeddingDefaults(String providerName) {
-            return new EmbeddingDefaults(providerName, model);
-        }
     }
 
     @Data

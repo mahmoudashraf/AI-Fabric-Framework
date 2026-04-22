@@ -11,6 +11,9 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicApplyDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.PublicApplyDeploymentResponse;
+import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentCredentialsResponse;
+import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentStatusResponse;
+import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentAccessSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicCreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentCredentialsResponse;
@@ -27,6 +30,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +63,7 @@ public class PublicProvisioningApiService {
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final PlatformAuditService platformAuditService;
     private final PlatformSecretService platformSecretService;
+    private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final ObjectMapper objectMapper;
 
     public PublicProvisioningApiService(PublicApiDeploymentRepository publicApiDeploymentRepository,
@@ -66,12 +71,14 @@ public class PublicProvisioningApiService {
                                         DeploymentVersionRepository deploymentVersionRepository,
                                         PlatformAuditService platformAuditService,
                                         PlatformSecretService platformSecretService,
+                                        PlatformCustomerConsumerService platformCustomerConsumerService,
                                         ObjectMapper objectMapper) {
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.deploymentService = deploymentService;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.platformAuditService = platformAuditService;
         this.platformSecretService = platformSecretService;
+        this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.objectMapper = objectMapper;
     }
 
@@ -223,7 +230,7 @@ public class PublicProvisioningApiService {
     public PublicDeploymentCredentialsResponse getDeploymentCredentials(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
         DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(binding.getDeploymentId());
-        PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(deploymentId));
+        PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(binding.getDeploymentId()));
         return new PublicDeploymentCredentialsResponse(
             binding.getClientId(),
             binding.getExternalDeploymentKey(),
@@ -232,6 +239,24 @@ public class PublicProvisioningApiService {
             access,
             integrationSummary(access)
         );
+    }
+
+    public PublicConsumerDeploymentSummary getConsumerDeployment(String consumerId) {
+        PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        return toPublicConsumerSummary(resolved.consumer().getConsumerId(), overview);
+    }
+
+    public PublicConsumerDeploymentStatusResponse getConsumerDeploymentStatus(String consumerId) {
+        PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        return toPublicConsumerStatusResponse(resolved.consumer().getConsumerId(), overview);
+    }
+
+    public PublicConsumerDeploymentCredentialsResponse getConsumerDeploymentCredentials(String consumerId) {
+        PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        return toPublicConsumerCredentialsResponse(resolved.consumer().getConsumerId(), overview);
     }
 
     public DeploymentIntegrationSummary getInternalIntegrationSummary(String deploymentId) {
@@ -273,6 +298,13 @@ public class PublicProvisioningApiService {
         return versions.isEmpty() ? null : versions.get(0);
     }
 
+    private DeploymentVersionSummary findLatestVersionForExternalResolution(String deploymentId) {
+        return deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .map(this::toVersionSummary)
+            .orElse(null);
+    }
+
     private boolean isReplayable(DeploymentReleaseSummary release) {
         return switch (release.status()) {
             case "APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING", "APPLIED_VERIFIED", "APPLIED_VERIFICATION_FAILED" -> true;
@@ -297,6 +329,19 @@ public class PublicProvisioningApiService {
     private PublicApiDeploymentEntity getBindingByDeploymentId(String clientId, String deploymentId) {
         return publicApiDeploymentRepository.findByClientIdAndDeploymentId(clientId, deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Public deployment not found: " + deploymentId));
+    }
+
+    private DeploymentVersionSummary toVersionSummary(DeploymentVersionEntity version) {
+        return new DeploymentVersionSummary(
+            version.getId(),
+            version.getDeploymentId(),
+            version.getSourceDraftId(),
+            version.getVersionLabel(),
+            version.getStatus(),
+            version.getConfigHash(),
+            version.isReindexRequired(),
+            version.getPublishedAt()
+        );
     }
 
     private PublicDeploymentSummary toPublicSummary(PublicApiDeploymentEntity binding,
@@ -324,6 +369,65 @@ public class PublicProvisioningApiService {
             overview.latestVerification(),
             overview.createdAt(),
             overview.updatedAt()
+        );
+    }
+
+    private PublicConsumerDeploymentSummary toPublicConsumerSummary(String consumerId,
+                                                                    DeploymentOverviewSummary overview) {
+        DeploymentVersionSummary latestVersion = findLatestVersionForExternalResolution(overview.id());
+        PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(overview.id()));
+        return new PublicConsumerDeploymentSummary(
+            consumerId,
+            overview.id(),
+            overview.name(),
+            overview.environment(),
+            overview.templateId(),
+            overview.status(),
+            overview.activeVersion(),
+            latestVersion == null ? null : latestVersion.id(),
+            latestVersion == null ? null : latestVersion.versionLabel(),
+            overview.runtimeBaseUrl(),
+            access,
+            integrationSummary(access),
+            overview.latestRelease(),
+            overview.latestVerification(),
+            overview.createdAt(),
+            overview.updatedAt()
+        );
+    }
+
+    private PublicConsumerDeploymentStatusResponse toPublicConsumerStatusResponse(String consumerId,
+                                                                                  DeploymentOverviewSummary overview) {
+        DeploymentVersionSummary latestVersion = findLatestVersionForExternalResolution(overview.id());
+        PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(overview.id()));
+        return new PublicConsumerDeploymentStatusResponse(
+            consumerId,
+            overview.id(),
+            overview.status(),
+            overview.healthStatus(),
+            overview.healthSummary(),
+            overview.activeVersion(),
+            latestVersion == null ? null : latestVersion.id(),
+            latestVersion == null ? null : latestVersion.versionLabel(),
+            overview.runtimeBaseUrl(),
+            access,
+            integrationSummary(access),
+            overview.latestRelease(),
+            overview.latestVerification(),
+            overview.createdAt(),
+            overview.updatedAt()
+        );
+    }
+
+    private PublicConsumerDeploymentCredentialsResponse toPublicConsumerCredentialsResponse(String consumerId,
+                                                                                           DeploymentOverviewSummary overview) {
+        PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(overview.id()));
+        return new PublicConsumerDeploymentCredentialsResponse(
+            consumerId,
+            overview.id(),
+            overview.runtimeBaseUrl(),
+            access,
+            integrationSummary(access)
         );
     }
 

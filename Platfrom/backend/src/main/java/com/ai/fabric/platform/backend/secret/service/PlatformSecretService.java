@@ -372,6 +372,30 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "SHOPIFY_APP_API_KEY",
+            new SecretDefinition(
+                "Shopify App API Key",
+                "Client identifier used by the shared Shopify Bridge Service for Shopify OAuth install flow and merchant session verification.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_APP_API_SECRET",
+            new SecretDefinition(
+                "Shopify App API Secret",
+                "Client secret used by the shared Shopify Bridge Service for Shopify OAuth install flow, token exchange, and session signature verification.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_WEBHOOK_SHARED_SECRET",
+            new SecretDefinition(
+                "Shopify Webhook Shared Secret",
+                "Optional override secret used by the shared Shopify Bridge Service when verifying incoming Shopify webhooks. When absent, the Shopify app API secret is used.",
+                false
+            )
+        );
+        secrets.put(
             "QDRANT_API_KEY",
             new SecretDefinition(
                 "Qdrant API Key",

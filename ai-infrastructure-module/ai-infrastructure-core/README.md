@@ -563,7 +563,7 @@ ai:
 ```
 
 ```
-ONNX fails? → Try REST provider
+ONNX fails? → Switch to an OpenAI-compatible embedding endpoint
 REST fails? → Try OpenAI
 All fail? → Graceful error with context
 ```

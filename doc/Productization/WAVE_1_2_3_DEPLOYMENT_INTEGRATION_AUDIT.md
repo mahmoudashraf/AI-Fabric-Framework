@@ -159,7 +159,7 @@ Live Railway/runtime behavior now receives:
 Status:
 
 - closed for the current platform-managed support matrix on this branch
-- future expansion to Azure/Cohere/Gemini/REST embeddings is still a follow-up, but the currently exposed managed matrix is authoritative
+- future expansion to Azure/Cohere/Gemini embeddings is still a follow-up, but the currently exposed managed matrix is authoritative
 
 Main evidence:
 

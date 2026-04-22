@@ -10,8 +10,12 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnect
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetSyncRunEntity;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetHandleRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetSyncRunRepository;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
@@ -53,11 +57,15 @@ public class DeploymentReleaseVerificationService {
     private final DeploymentProviderConnectivityService deploymentProviderConnectivityService;
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
+    private final DeploymentConfigCompiler deploymentConfigCompiler;
+    private final MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository;
+    private final MarketplaceDatasetSyncRunRepository marketplaceDatasetSyncRunRepository;
     private final HttpClient httpClient;
 
     DeploymentReleaseVerificationService(ObjectMapper objectMapper,
                                          PlatformVerificationProperties verificationProperties,
                                          PlatformSecretService platformSecretService,
+                                         DeploymentConfigCompiler deploymentConfigCompiler,
                                          DeploymentArtifactService deploymentArtifactService,
                                          RailwayPreflightService railwayPreflightService,
                                          DeploymentProviderConnectivityService deploymentProviderConnectivityService,
@@ -68,11 +76,14 @@ public class DeploymentReleaseVerificationService {
             verificationProperties,
             platformSecretService,
             new DeploymentProviderSecretResolutionService(platformSecretService),
+            deploymentConfigCompiler,
             deploymentArtifactService,
             railwayPreflightService,
             deploymentProviderConnectivityService,
             deploymentTenantScopedVectorService,
-            deploymentVectorizationVerificationService
+            deploymentVectorizationVerificationService,
+            null,
+            null
         );
     }
 
@@ -81,20 +92,52 @@ public class DeploymentReleaseVerificationService {
                                                 PlatformVerificationProperties verificationProperties,
                                                 PlatformSecretService platformSecretService,
                                                 DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                                DeploymentConfigCompiler deploymentConfigCompiler,
                                                 DeploymentArtifactService deploymentArtifactService,
                                                 RailwayPreflightService railwayPreflightService,
                                                 DeploymentProviderConnectivityService deploymentProviderConnectivityService,
                                                 DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                                 DeploymentVectorizationVerificationService deploymentVectorizationVerificationService) {
+        this(
+            objectMapper,
+            verificationProperties,
+            platformSecretService,
+            deploymentProviderSecretResolutionService,
+            deploymentConfigCompiler,
+            deploymentArtifactService,
+            railwayPreflightService,
+            deploymentProviderConnectivityService,
+            deploymentTenantScopedVectorService,
+            deploymentVectorizationVerificationService,
+            null,
+            null
+        );
+    }
+
+    public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
+                                                PlatformVerificationProperties verificationProperties,
+                                                PlatformSecretService platformSecretService,
+                                                DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                                DeploymentConfigCompiler deploymentConfigCompiler,
+                                                DeploymentArtifactService deploymentArtifactService,
+                                                RailwayPreflightService railwayPreflightService,
+                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                                                DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                                MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository,
+                                                MarketplaceDatasetSyncRunRepository marketplaceDatasetSyncRunRepository) {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
         this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
+        this.deploymentConfigCompiler = deploymentConfigCompiler;
         this.deploymentArtifactService = deploymentArtifactService;
         this.railwayPreflightService = railwayPreflightService;
         this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
+        this.marketplaceDatasetHandleRepository = marketplaceDatasetHandleRepository;
+        this.marketplaceDatasetSyncRunRepository = marketplaceDatasetSyncRunRepository;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -110,7 +153,7 @@ public class DeploymentReleaseVerificationService {
         if ("PRE_APPLY".equalsIgnoreCase(verificationType)) {
             verifyPreApply(checks, deployment, version, release, artifacts);
         } else {
-            VerificationExpectations expectations = buildExpectations(version, artifacts);
+            VerificationExpectations expectations = buildExpectations(version, release, artifacts);
             addBooleanCheck(
                 checks,
                 "active_version_matches_release",
@@ -215,12 +258,14 @@ public class DeploymentReleaseVerificationService {
         addArtifactPresenceCheck(checks, "entities_artifact_url_present", "Entities artifact URL", artifacts.entityArtifactUrl());
         addArtifactPresenceCheck(checks, "routing_artifact_url_present", "Routing artifact URL", artifacts.routingArtifactUrl());
         addArtifactPresenceCheck(checks, "prompt_artifact_url_present", "Prompt artifact URL", artifacts.promptArtifactUrl());
+        addArtifactPresenceCheck(checks, "marketplace_dataset_artifact_url_present", "Marketplace dataset artifact URL", artifacts.marketplaceDatasetArtifactUrl());
         addArtifactPresenceCheck(checks, "manifest_artifact_url_present", "Manifest artifact URL", artifacts.manifestUrl());
 
         addArtifactFetchCheck(checks, "actions_artifact_fetch_probe", "Actions artifact", artifacts.actionsArtifactUrl());
         addArtifactFetchCheck(checks, "entities_artifact_fetch_probe", "Entities artifact", artifacts.entityArtifactUrl());
         addArtifactFetchCheck(checks, "routing_artifact_fetch_probe", "Routing artifact", artifacts.routingArtifactUrl());
         addArtifactFetchCheck(checks, "prompt_artifact_fetch_probe", "Prompt artifact", artifacts.promptArtifactUrl());
+        addArtifactFetchCheck(checks, "marketplace_dataset_artifact_fetch_probe", "Marketplace dataset artifact", artifacts.marketplaceDatasetArtifactUrl());
         addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
 
         verifyManagedSecrets(checks, deployment, providerConfig, securityConfig);
@@ -270,7 +315,7 @@ public class DeploymentReleaseVerificationService {
             checks,
             "tenant_scoped_shared_storage_boundary",
             "PASSED",
-            "Tenant-scoped shared storage is bound to a valid customer-owned provider root and is ready for rollout.",
+            "Tenant-scoped shared storage is bound to a valid scoped provider root and is ready for rollout.",
             null
         );
     }
@@ -300,10 +345,16 @@ public class DeploymentReleaseVerificationService {
                 "Runtime config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_prompt_config_matches_expected",
                 "Runtime prompt config validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_knowledge_sources_match_expected",
+                "Runtime knowledge source validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_shell_config_matches_expected",
+                "Runtime shell config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_auth_configuration_matches_expected",
                 "Runtime auth validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_actions_match_expected",
                 "Runtime action validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_action_metadata_matches_expected",
+                "Runtime action metadata validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_entity_types_match_expected",
                 "Runtime entity validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "connector_config_matches_expected",
@@ -330,7 +381,7 @@ public class DeploymentReleaseVerificationService {
         );
 
         Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders(deployment);
-        JsonProbeResult connectorHealth = probeJson(
+        JsonProbeResult connectorHealth = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeConnectorHealthPath(),
             runtimeAdminHeaders
@@ -346,7 +397,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_admin_overview_http_probe", "Runtime admin overview", runtimeOverview);
         validateRuntimeOverview(checks, runtimeOverview, expectations);
 
-        JsonProbeResult runtimeAuthOverview = probeJson(
+        JsonProbeResult runtimeAuthOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeAuthOverviewPath(),
             runtimeAdminHeaders
@@ -354,7 +405,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_auth_overview_http_probe", "Runtime auth overview", runtimeAuthOverview);
         validateRuntimeAuthOverview(checks, runtimeAuthOverview, expectations);
 
-        JsonProbeResult runtimeActionsOverview = probeJson(
+        JsonProbeResult runtimeActionsOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeActionsOverviewPath(),
             runtimeAdminHeaders
@@ -362,7 +413,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_actions_overview_http_probe", "Runtime actions overview", runtimeActionsOverview);
         validateRuntimeActions(checks, runtimeActionsOverview, expectations);
 
-        JsonProbeResult runtimeIndexingOverview = probeJson(
+        JsonProbeResult runtimeIndexingOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeIndexingOverviewPath(),
             runtimeAdminHeaders,
@@ -375,8 +426,9 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview via runtime proxy", connectorOverview);
         validateConnectorOverview(checks, connectorOverview, expectations);
         validateConnectorAuthz(checks, connectorOverview, expectations);
+        validateMarketplaceDatasetSync(checks, deployment, release, expectations);
 
-        JsonProbeResult connectorActionsOverview = probeJson(
+        JsonProbeResult connectorActionsOverview = awaitSuccessfulJsonProbe(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.connectorActionsOverviewPath(),
             runtimeAdminHeaders
@@ -425,6 +477,34 @@ public class DeploymentReleaseVerificationService {
             }
         }
         return new SettledOverviewProbes(runtimeOverview, connectorOverview);
+    }
+
+    private JsonProbeResult awaitSuccessfulJsonProbe(String baseUrl,
+                                                     String path,
+                                                     Map<String, String> headers) {
+        return awaitSuccessfulJsonProbe(baseUrl, path, headers, verificationProperties.timeout());
+    }
+
+    private JsonProbeResult awaitSuccessfulJsonProbe(String baseUrl,
+                                                     String path,
+                                                     Map<String, String> headers,
+                                                     Duration timeout) {
+        JsonProbeResult probe = probeJson(baseUrl, path, headers, timeout);
+        if (probe.success()) {
+            return probe;
+        }
+
+        Instant deadline = Instant.now().plus(verificationProperties.postApplyConsistencyTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            if (!sleepQuietly(verificationProperties.postApplyConsistencyPollInterval())) {
+                break;
+            }
+            probe = probeJson(baseUrl, path, headers, timeout);
+            if (probe.success()) {
+                break;
+            }
+        }
+        return probe;
     }
 
     private boolean adminOverviewsMatchExpected(JsonProbeResult runtimeOverview,
@@ -518,16 +598,18 @@ public class DeploymentReleaseVerificationService {
             if (summary.runner().tokenExpiresAt() != null) {
                 details.put("tokenExpiresAt", summary.runner().tokenExpiresAt().toString());
             }
+            if (summary.runner().lastSessionExpiresAt() != null) {
+                details.put("lastSessionExpiresAt", summary.runner().lastSessionExpiresAt().toString());
+            }
         }
 
+        Instant now = Instant.now();
         if (!requireActiveRegistration && summary.platformManagedRunnerExpected()) {
             addCheck(
                 checks,
                 "vectorization_runner_registration_ready",
                 "PASSED",
-                summary.runner() != null
-                    && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
-                    && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()))
+                VectorizationRunnerReadinessSupport.isExecutionReady(summary.runner(), now)
                     ? "Platform-managed vectorization runner registration is already active before apply."
                     : "Platform-managed vectorization runner registration will be established after provisioning. Pre-apply only requires vectorization control-plane readiness.",
                 details
@@ -535,17 +617,15 @@ public class DeploymentReleaseVerificationService {
             return;
         }
 
-        boolean passed = summary.runner() != null
-            && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
-            && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()));
+        boolean passed = VectorizationRunnerReadinessSupport.isExecutionReady(summary.runner(), now);
 
         addCheck(
             checks,
             "vectorization_runner_registration_ready",
             passed ? "PASSED" : "FAILED",
             passed
-                ? "Vectorization runner registration is active and its token is valid."
-                : "Vectorization execution requires an active runner registration with a valid token.",
+                ? "Vectorization runner registration is active and execution-ready."
+                : "Vectorization execution requires an active runner registration with a valid token or live runner session.",
             details
         );
     }
@@ -603,12 +683,17 @@ public class DeploymentReleaseVerificationService {
     }
 
     private VerificationExpectations buildExpectations(DeploymentVersionEntity version,
+                                                       DeploymentReleaseEntity release,
                                                        DeploymentArtifactBundleSummary artifacts) {
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
-        JsonNode routingConfig = readJson(version.getRoutingConfigJson());
-        JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        JsonNode rawRoutingConfig = readJson(version.getRoutingConfigJson());
+        JsonNode providerConfig = effectiveProviderConfig(version, release);
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
+        JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
+        JsonNode shellConfig = readJson(version.getShellConfigJson());
+        JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
+        JsonNode routingConfig = deploymentConfigCompiler.compileRoutingConfig(actionsConfig, rawRoutingConfig, securityConfig);
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
         JsonNode actions = actionsConfig.path("actions");
@@ -617,6 +702,17 @@ public class DeploymentReleaseVerificationService {
                 String name = action.path("name").asText("").trim();
                 if (hasText(name)) {
                     expectedActionNames.add(name);
+                }
+            }
+        }
+
+        Set<String> expectedConfirmationInterceptorNames = new LinkedHashSet<>();
+        JsonNode confirmationInterceptors = actionsConfig.path("confirmationInterceptors");
+        if (confirmationInterceptors.isArray()) {
+            for (JsonNode rule : confirmationInterceptors) {
+                String name = rule.path("name").asText("").trim();
+                if (hasText(name)) {
+                    expectedConfirmationInterceptorNames.add(name);
                 }
             }
         }
@@ -640,6 +736,27 @@ public class DeploymentReleaseVerificationService {
                 }
             });
         }
+
+        Set<String> expectedKnowledgeSourceIds = textSet(knowledgeSourceConfig.path("sources"), "id");
+        Set<String> expectedKnowledgeSourceTypes = textSet(knowledgeSourceConfig.path("sources"), "type");
+        Set<String> expectedKnowledgeSourceAdapterTypes = textSet(knowledgeSourceConfig.path("sources"), "adapterType");
+        Set<String> expectedMarketplaceDatasetIds = textSet(marketplaceDatasetConfig.path("datasets"), "datasetId");
+        Set<String> expectedMarketplaceDatasetHandleRefs = textSet(marketplaceDatasetConfig.path("datasets"), "handleRef");
+        Set<String> expectedMarketplaceDatasetHashes = textSet(marketplaceDatasetConfig.path("datasets"), "datasetHash");
+        Set<String> expectedShellModuleIds = textSet(shellConfig.path("modules"), "id");
+        Set<String> expectedShellCardIds = textSet(shellConfig.path("cards"), "id");
+        int expectedShellStarterPromptsCount = shellConfig.path("starterPrompts").isArray()
+            ? shellConfig.path("starterPrompts").size()
+            : 0;
+        boolean expectedShellGreetingConfigured = hasText(shellConfig.path("greeting").path("message").asText(""))
+            || hasText(shellConfig.path("greeting").path("title").asText(""));
+        Set<String> expectedActionNamesWithPresentationHints = expectedActionNamesWithPresentationHints(actionsConfig.path("actions"));
+        Set<String> expectedActionNamesWithBuiltInModuleMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInModuleId");
+        Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInCardId");
+        Set<String> expectedActionNamesWithProvenance = Set.copyOf(expectedActionNames);
+        Set<String> expectedActionNamesWithPostActionWebhookPolicies = expectedActionNamesWithArrayField(actionsConfig.path("actions"), "postPolicies");
+        Set<String> expectedWebhookTargetIds = textSet(actionsConfig.path("webhookTargets"), "id");
+        int expectedPostActionWebhookPoliciesCount = expectedPostActionWebhookPoliciesCount(actionsConfig.path("actions"));
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
@@ -667,10 +784,48 @@ public class DeploymentReleaseVerificationService {
             actionsConfig,
             entityConfig,
             routingConfig,
+            providerConfig,
+            knowledgeSourceConfig,
+            shellConfig,
+            marketplaceDatasetConfig,
             securityConfig,
             expectedActionNames,
+            expectedConfirmationInterceptorNames,
             expectedEntityTypes,
             expectedRoutingActions,
+            blankToFallback(knowledgeSourceConfig.path("contractVersion").asText(""), "KNOWLEDGE_SOURCE_CONFIG_V1"),
+            expectedKnowledgeSourceIds,
+            expectedKnowledgeSourceTypes,
+            expectedKnowledgeSourceAdapterTypes,
+            blankToFallback(marketplaceDatasetConfig.path("contractVersion").asText(""), "MARKETPLACE_DATASET_CONFIG_V1"),
+            expectedMarketplaceDatasetIds,
+            expectedMarketplaceDatasetHandleRefs,
+            expectedMarketplaceDatasetHashes,
+            blankToFallback(shellConfig.path("contractVersion").asText(""), "SHELL_CONFIG_V1"),
+            expectedShellModuleIds,
+            expectedShellCardIds,
+            expectedShellStarterPromptsCount,
+            expectedShellGreetingConfigured,
+            expectedActionNamesWithPresentationHints,
+            expectedActionNamesWithBuiltInModuleMappings,
+            expectedActionNamesWithBuiltInCardMappings,
+            expectedActionNamesWithProvenance,
+            expectedActionNamesWithPostActionWebhookPolicies,
+            expectedWebhookTargetIds,
+            expectedPostActionWebhookPoliciesCount,
+            ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationModel(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationEndpointProfile(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationManagedServiceRef(providerConfig),
+            ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.generationModel(providerConfig),
+            ManagedDeploymentProfileCatalog.generationEndpointProfile(providerConfig),
+            ManagedDeploymentProfileCatalog.generationManagedServiceRef(providerConfig),
+            ManagedDeploymentProfileCatalog.embeddingEndpointProfile(providerConfig),
+            ManagedDeploymentProfileCatalog.embeddingManagedServiceRef(providerConfig),
+            ManagedDeploymentProfileCatalog.embeddingServiceMode(providerConfig),
             expectedAuthzEnabled,
             expectedRuntimeProxyEnabled,
             expectedIngressMode,
@@ -689,6 +844,21 @@ public class DeploymentReleaseVerificationService {
         );
     }
 
+    private JsonNode effectiveProviderConfig(DeploymentVersionEntity version,
+                                             DeploymentReleaseEntity release) {
+        JsonNode fallback = readJson(version.getProviderConfigJson());
+        if (release == null || !hasText(release.getProvisioningDetailsJson())) {
+            return fallback;
+        }
+        try {
+            JsonNode details = objectMapper.readTree(release.getProvisioningDetailsJson());
+            JsonNode effective = details.path("effectiveProviderConfig");
+            return effective.isObject() ? effective : fallback;
+        } catch (Exception ex) {
+            return fallback;
+        }
+    }
+
     private void validateRuntimeOverview(ArrayNode checks,
                                          JsonProbeResult probe,
                                          VerificationExpectations expectations) {
@@ -701,6 +871,13 @@ public class DeploymentReleaseVerificationService {
         String promptConfigLocation = probe.body().path("promptConfigLocation").asText("");
         Set<String> actionSourcePaths = textSet(probe.body().path("actionCatalogSources"), "path");
         int actionsCount = probe.body().path("actionsCount").asInt(-1);
+        int confirmationInterceptorsCount = probe.body().path("confirmationInterceptorsCount").asInt(-1);
+        long postActionWebhookPoliciesCount = probe.body().path("postActionWebhookPoliciesCount").asLong(-1L);
+        int webhookTargetsCount = probe.body().path("webhookTargetsCount").asInt(-1);
+        Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
+        Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
+        Set<String> actionNamesWithPostActionWebhookPolicies = textSet(probe.body().path("actionNamesWithPostActionWebhookPolicies"));
+        Set<String> webhookTargetIds = textSet(probe.body().path("webhookTargetIds"));
         Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
 
         ObjectNode details = objectMapper.createObjectNode();
@@ -712,6 +889,19 @@ public class DeploymentReleaseVerificationService {
         details.put("actionsCount", actionsCount);
         details.put("expectedActionsCount", expectations.expectedActionNames().size());
         details.set("actionSourcePaths", toArrayNode(actionSourcePaths));
+        details.put("confirmationInterceptorsCount", confirmationInterceptorsCount);
+        details.put("expectedConfirmationInterceptorsCount", expectations.expectedConfirmationInterceptorNames().size());
+        details.put("postActionWebhookPoliciesCount", postActionWebhookPoliciesCount);
+        details.put("expectedPostActionWebhookPoliciesCount", expectations.expectedPostActionWebhookPoliciesCount());
+        details.put("webhookTargetsCount", webhookTargetsCount);
+        details.put("expectedWebhookTargetsCount", expectations.expectedWebhookTargetIds().size());
+        details.set("confirmationInterceptorRuleNames", toArrayNode(confirmationInterceptorRuleNames));
+        details.set("expectedConfirmationInterceptorRuleNames", toArrayNode(expectations.expectedConfirmationInterceptorNames()));
+        details.set("confirmationInterceptorSources", toArrayNode(confirmationInterceptorSources));
+        details.set("actionNamesWithPostActionWebhookPolicies", toArrayNode(actionNamesWithPostActionWebhookPolicies));
+        details.set("expectedActionNamesWithPostActionWebhookPolicies", toArrayNode(expectations.expectedActionNamesWithPostActionWebhookPolicies()));
+        details.set("webhookTargetIds", toArrayNode(webhookTargetIds));
+        details.set("expectedWebhookTargetIds", toArrayNode(expectations.expectedWebhookTargetIds()));
         details.set("supportedEntityTypes", toArrayNode(supportedEntityTypes));
         details.set("expectedEntityTypes", toArrayNode(expectations.expectedEntityTypes()));
 
@@ -722,8 +912,8 @@ public class DeploymentReleaseVerificationService {
             "runtime_config_matches_expected",
             passed ? "PASSED" : "FAILED",
             passed
-                ? "Runtime loaded the expected action catalog source and entity configuration."
-                : "Runtime admin overview does not match the published platform configuration.",
+                ? "Runtime loaded the expected action catalog source, confirmation interceptor rules, and entity configuration."
+                : "Runtime admin overview does not match the published platform action or entity configuration.",
             details
         );
 
@@ -736,6 +926,58 @@ public class DeploymentReleaseVerificationService {
                 ? "Runtime loaded the expected deployment prompt config artifact."
                 : "Runtime prompt config does not match the published platform prompt artifact.",
             details.deepCopy()
+        );
+
+        ObjectNode knowledgeSourceDetails = details.deepCopy();
+        knowledgeSourceDetails.put("expectedKnowledgeSourceConfigLocation", expectations.artifacts().knowledgeSourceArtifactUrl());
+        knowledgeSourceDetails.put("actualKnowledgeSourceConfigLocation", probe.body().path("knowledgeSourceConfigLocation").asText(""));
+        knowledgeSourceDetails.put("expectedKnowledgeSourceContractVersion", expectations.expectedKnowledgeSourceContractVersion());
+        knowledgeSourceDetails.put("actualKnowledgeSourceContractVersion", probe.body().path("marketplaceSupport").path("knowledgeSourceConfigContractVersion").asText(""));
+        knowledgeSourceDetails.put("knowledgeSourcesCount", probe.body().path("knowledgeSourcesCount").asInt(-1));
+        knowledgeSourceDetails.put("expectedKnowledgeSourcesCount", expectations.expectedKnowledgeSourceIds().size());
+        knowledgeSourceDetails.set("knowledgeSourceIds", toArrayNode(textSet(probe.body().path("knowledgeSourceIds"))));
+        knowledgeSourceDetails.set("expectedKnowledgeSourceIds", toArrayNode(expectations.expectedKnowledgeSourceIds()));
+        knowledgeSourceDetails.set("knowledgeSourceTypes", toArrayNode(textSet(probe.body().path("knowledgeSourceTypes"))));
+        knowledgeSourceDetails.set("expectedKnowledgeSourceTypes", toArrayNode(expectations.expectedKnowledgeSourceTypes()));
+        knowledgeSourceDetails.set("knowledgeSourceAdapterTypes", toArrayNode(textSet(probe.body().path("knowledgeSourceAdapterTypes"))));
+        knowledgeSourceDetails.set("expectedKnowledgeSourceAdapterTypes", toArrayNode(expectations.expectedKnowledgeSourceAdapterTypes()));
+        boolean knowledgeSourcesPassed = runtimeKnowledgeSourcesMatchExpected(probe, expectations);
+        addCheck(
+            checks,
+            "runtime_knowledge_sources_match_expected",
+            knowledgeSourcesPassed ? "PASSED" : "FAILED",
+            knowledgeSourcesPassed
+                ? "Runtime loaded the expected deployment knowledge source configuration."
+                : "Runtime knowledge source state does not match the published deployment knowledge source configuration.",
+            knowledgeSourceDetails
+        );
+
+        ObjectNode shellDetails = details.deepCopy();
+        shellDetails.put("expectedShellConfigLocation", expectations.artifacts().shellArtifactUrl());
+        shellDetails.put("actualShellConfigLocation", probe.body().path("shellConfigLocation").asText(""));
+        shellDetails.put("expectedShellContractVersion", expectations.expectedShellContractVersion());
+        shellDetails.put("actualShellContractVersion", probe.body().path("marketplaceSupport").path("shellConfigContractVersion").asText(""));
+        shellDetails.put("shellModulesCount", probe.body().path("shellModulesCount").asInt(-1));
+        shellDetails.put("expectedShellModulesCount", expectations.expectedShellModuleIds().size());
+        shellDetails.set("shellModuleIds", toArrayNode(textSet(probe.body().path("shellModuleIds"))));
+        shellDetails.set("expectedShellModuleIds", toArrayNode(expectations.expectedShellModuleIds()));
+        shellDetails.put("shellCardsCount", probe.body().path("shellCardsCount").asInt(-1));
+        shellDetails.put("expectedShellCardsCount", expectations.expectedShellCardIds().size());
+        shellDetails.set("shellCardIds", toArrayNode(textSet(probe.body().path("shellCardIds"))));
+        shellDetails.set("expectedShellCardIds", toArrayNode(expectations.expectedShellCardIds()));
+        shellDetails.put("shellStarterPromptsCount", probe.body().path("shellStarterPromptsCount").asInt(-1));
+        shellDetails.put("expectedShellStarterPromptsCount", expectations.expectedShellStarterPromptsCount());
+        shellDetails.put("shellGreetingConfigured", probe.body().path("shellGreetingConfigured").asBoolean(false));
+        shellDetails.put("expectedShellGreetingConfigured", expectations.expectedShellGreetingConfigured());
+        boolean shellPassed = runtimeShellConfigMatchesExpected(probe, expectations);
+        addCheck(
+            checks,
+            "runtime_shell_config_matches_expected",
+            shellPassed ? "PASSED" : "FAILED",
+            shellPassed
+                ? "Runtime loaded the expected deployment shell configuration."
+                : "Runtime shell configuration does not match the published deployment shell configuration.",
+            shellDetails
         );
     }
 
@@ -835,25 +1077,80 @@ public class DeploymentReleaseVerificationService {
 
         Set<String> loadedActionNames = textSet(probe.body().path("actions"), "name");
         int count = probe.body().path("count").asInt(-1);
+        int confirmationInterceptorsCount = probe.body().path("confirmationInterceptorsCount").asInt(-1);
+        long postActionWebhookPoliciesCount = probe.body().path("postActionWebhookPoliciesCount").asLong(-1L);
+        int webhookTargetsCount = probe.body().path("webhookTargetsCount").asInt(-1);
+        Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
+        Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
+        Set<String> actionNamesWithPostActionWebhookPolicies = textSet(probe.body().path("actionNamesWithPostActionWebhookPolicies"));
+        Set<String> webhookTargetIds = textSet(probe.body().path("webhookTargetIds"));
+        Set<String> actionNamesWithPresentationHints = actionNamesWithNonDefaultPresentationHints(probe.body().path("actions"));
+        Set<String> actionNamesWithBuiltInModuleMappings = actionNamesWithTextField(probe.body().path("actions"), "builtInModuleId");
+        Set<String> actionNamesWithBuiltInCardMappings = actionNamesWithTextField(probe.body().path("actions"), "builtInCardId");
+        Set<String> actionNamesWithProvenance = actionNamesWithObjectField(probe.body().path("actions"), "provenance");
 
         ObjectNode details = objectMapper.createObjectNode();
         details.put("count", count);
         details.put("expectedCount", expectations.expectedActionNames().size());
         details.set("loadedActionNames", toArrayNode(loadedActionNames));
         details.set("expectedActionNames", toArrayNode(expectations.expectedActionNames()));
+        details.put("confirmationInterceptorsCount", confirmationInterceptorsCount);
+        details.put("expectedConfirmationInterceptorsCount", expectations.expectedConfirmationInterceptorNames().size());
+        details.put("postActionWebhookPoliciesCount", postActionWebhookPoliciesCount);
+        details.put("expectedPostActionWebhookPoliciesCount", expectations.expectedPostActionWebhookPoliciesCount());
+        details.put("webhookTargetsCount", webhookTargetsCount);
+        details.put("expectedWebhookTargetsCount", expectations.expectedWebhookTargetIds().size());
+        details.set("confirmationInterceptorRuleNames", toArrayNode(confirmationInterceptorRuleNames));
+        details.set("expectedConfirmationInterceptorRuleNames", toArrayNode(expectations.expectedConfirmationInterceptorNames()));
+        details.set("confirmationInterceptorSources", toArrayNode(confirmationInterceptorSources));
+        details.set("actionNamesWithPostActionWebhookPolicies", toArrayNode(actionNamesWithPostActionWebhookPolicies));
+        details.set("expectedActionNamesWithPostActionWebhookPolicies", toArrayNode(expectations.expectedActionNamesWithPostActionWebhookPolicies()));
+        details.set("webhookTargetIds", toArrayNode(webhookTargetIds));
+        details.set("expectedWebhookTargetIds", toArrayNode(expectations.expectedWebhookTargetIds()));
+        details.set("actionNamesWithPresentationHints", toArrayNode(actionNamesWithPresentationHints));
+        details.set("expectedActionNamesWithPresentationHints", toArrayNode(expectations.expectedActionNamesWithPresentationHints()));
+        details.set("actionNamesWithBuiltInModuleMappings", toArrayNode(actionNamesWithBuiltInModuleMappings));
+        details.set("expectedActionNamesWithBuiltInModuleMappings", toArrayNode(expectations.expectedActionNamesWithBuiltInModuleMappings()));
+        details.set("actionNamesWithBuiltInCardMappings", toArrayNode(actionNamesWithBuiltInCardMappings));
+        details.set("expectedActionNamesWithBuiltInCardMappings", toArrayNode(expectations.expectedActionNamesWithBuiltInCardMappings()));
+        details.set("actionNamesWithProvenance", toArrayNode(actionNamesWithProvenance));
+        details.set("expectedActionNamesWithProvenance", toArrayNode(expectations.expectedActionNamesWithProvenance()));
 
         boolean passed = probe.body().path("success").asBoolean(false)
             && count == expectations.expectedActionNames().size()
-            && loadedActionNames.equals(expectations.expectedActionNames());
+            && loadedActionNames.equals(expectations.expectedActionNames())
+            && confirmationInterceptorsCount == expectations.expectedConfirmationInterceptorNames().size()
+            && postActionWebhookPoliciesCount == expectations.expectedPostActionWebhookPoliciesCount()
+            && webhookTargetsCount == expectations.expectedWebhookTargetIds().size()
+            && confirmationInterceptorRuleNames.equals(expectations.expectedConfirmationInterceptorNames())
+            && actionNamesWithPostActionWebhookPolicies.equals(expectations.expectedActionNamesWithPostActionWebhookPolicies())
+            && webhookTargetIds.equals(expectations.expectedWebhookTargetIds())
+            && confirmationInterceptorSources.contains(expectations.artifacts().actionsArtifactUrl());
 
         addCheck(
             checks,
             "runtime_actions_match_expected",
             passed ? "PASSED" : "FAILED",
             passed
-                ? "Runtime actions overview matches the published action catalog."
-                : "Runtime actions overview does not match the published action catalog.",
+                ? "Runtime actions overview matches the published action catalog and confirmation interceptor rules."
+                : "Runtime actions overview does not match the published action catalog or confirmation interceptor rules.",
             details
+        );
+
+        boolean metadataPassed = probe.body().path("success").asBoolean(false)
+            && actionNamesWithPresentationHints.equals(expectations.expectedActionNamesWithPresentationHints())
+            && actionNamesWithBuiltInModuleMappings.equals(expectations.expectedActionNamesWithBuiltInModuleMappings())
+            && actionNamesWithBuiltInCardMappings.equals(expectations.expectedActionNamesWithBuiltInCardMappings())
+            && actionNamesWithProvenance.equals(expectations.expectedActionNamesWithProvenance());
+
+        addCheck(
+            checks,
+            "runtime_action_metadata_matches_expected",
+            metadataPassed ? "PASSED" : "FAILED",
+            metadataPassed
+                ? "Runtime action metadata includes the expected presentation, shell mapping, and provenance hints."
+                : "Runtime action metadata does not match the published action contribution hints.",
+            details.deepCopy()
         );
     }
 
@@ -998,24 +1295,35 @@ public class DeploymentReleaseVerificationService {
                                       DeploymentEntity deployment,
                                       JsonNode providerConfig,
                                       JsonNode securityConfig) {
-        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
-        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
-        for (Map.Entry<String, String> entry : ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig).entrySet()) {
-            addProviderSecretCheck(
-                checks,
-                deployment.getId(),
-                "llm_provider_" + entry.getKey() + "_secret_available",
-                entry.getValue(),
-                entry.getKey() + " credential is available for the selected LLM profile."
-            );
-        }
-        addProviderSecretCheck(
+        addInferenceProviderSecretCheck(
             checks,
             deployment.getId(),
-            "embedding_provider_secret_available",
-            resolveEmbeddingSecretName(embeddingProvider),
-            "Embedding provider credential is available for the selected deployment profile."
+            "default_llm_provider_secret_available",
+            ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
+            null,
+            "Default LLM provider credential is available for the selected deployment profile."
+        );
+        addInferenceProviderSecretCheck(
+            checks,
+            deployment.getId(),
+            "orchestration_provider_secret_available",
+            ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.orchestrationApiKeySecretRef(providerConfig),
+            "Purpose-scoped orchestration credential is available for the selected deployment profile."
+        );
+        addInferenceProviderSecretCheck(
+            checks,
+            deployment.getId(),
+            "generation_provider_secret_available",
+            ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.generationApiKeySecretRef(providerConfig),
+            "Purpose-scoped generation credential is available for the selected deployment profile."
+        );
+        addInferenceEmbeddingSecretCheck(
+            checks,
+            deployment.getId(),
+            providerConfig
         );
         String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
         if (hasText(requiredVectorSecretName)) {
@@ -1029,7 +1337,7 @@ public class DeploymentReleaseVerificationService {
         }
         for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
             DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
-                resolveOptionalProviderSecret(deployment.getId(), optionalVectorSecretName);
+                resolveOptionalVectorSecret(deployment.getId(), optionalVectorSecretName, providerConfig);
             if (resolved.resolved()) {
                 addProviderSecretCheck(
                     checks,
@@ -1098,6 +1406,52 @@ public class DeploymentReleaseVerificationService {
         }
     }
 
+    private void addInferenceProviderSecretCheck(ArrayNode checks,
+                                                 String deploymentId,
+                                                 String checkName,
+                                                 String provider,
+                                                 String directSecretRef,
+                                                 String message) {
+        String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT);
+        if (!hasText(normalizedProvider) && !hasText(directSecretRef)) {
+            addSkippedCheck(checks, checkName, "No purpose-scoped secret is required for this provider surface.");
+            return;
+        }
+        if (hasText(directSecretRef)) {
+            addSecretCheck(checks, checkName, directSecretRef, message);
+            return;
+        }
+        addProviderSecretCheck(
+            checks,
+            deploymentId,
+            checkName,
+            ManagedDeploymentProfileCatalog.secretNameForLlmProvider(normalizedProvider),
+            message
+        );
+    }
+
+    private void addInferenceEmbeddingSecretCheck(ArrayNode checks,
+                                                  String deploymentId,
+                                                  JsonNode providerConfig) {
+        String directSecretRef = ManagedDeploymentProfileCatalog.embeddingApiKeySecretRef(providerConfig);
+        if (hasText(directSecretRef)) {
+            addSecretCheck(
+                checks,
+                "embedding_provider_secret_available",
+                directSecretRef,
+                "Embedding provider credential is available for the selected deployment profile."
+            );
+            return;
+        }
+        addProviderSecretCheck(
+            checks,
+            deploymentId,
+            "embedding_provider_secret_available",
+            resolveEmbeddingSecretName(ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)),
+            "Embedding provider credential is available for the selected deployment profile."
+        );
+    }
+
     private void verifyAuthzDeployability(ArrayNode checks,
                                           JsonNode providerConfig,
                                           JsonNode securityConfig) {
@@ -1111,11 +1465,14 @@ public class DeploymentReleaseVerificationService {
         details.put("configuredAuthzBaseUrl", configuredBaseUrl);
 
         boolean passed = ManagedDeploymentProfileCatalog.AUTHZ_MODE_DENY_ALL.equals(authzMode)
+            || ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED.equals(authzMode)
             || hasText(configuredBaseUrl)
             || ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED.equals(connectorProfile);
         String message;
         if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_DENY_ALL.equals(authzMode)) {
             message = "Runtime authz mode is DENY_ALL, so no upstream authz target is required.";
+        } else if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED.equals(authzMode)) {
+            message = "Runtime authz mode is ALLOW_VERIFIED, so verified caller identity is sufficient without an upstream authz target.";
         } else if (hasText(configuredBaseUrl)) {
             message = "Runtime authz mode has an explicit upstream base URL.";
         } else if (ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED.equals(connectorProfile)) {
@@ -1160,11 +1517,26 @@ public class DeploymentReleaseVerificationService {
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)
             && ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)) {
             ObjectNode details = objectMapper.createObjectNode();
+            details.put("entityTypeCount", entityConfig.path("ai-entities").size());
+            if (ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)
+                && hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig))) {
+                details.put("qdrantHost", ManagedDeploymentProfileCatalog.qdrantHost(providerConfig));
+                boolean ready = entityConfig.path("ai-entities").size() > 0;
+                addCheck(
+                    checks,
+                    "managed_vector_provisioning_ready",
+                    ready ? "PASSED" : "FAILED",
+                    ready
+                        ? "Platform-managed shared-root Qdrant collection provisioning prerequisites are satisfied."
+                        : "Platform-managed shared-root Qdrant provisioning requires at least one configured entity type.",
+                    details
+                );
+                return;
+            }
             details.put("qdrantCloudAccountId", ManagedDeploymentProfileCatalog.qdrantCloudAccountId(providerConfig));
             details.put("qdrantCloudProviderId", ManagedDeploymentProfileCatalog.qdrantCloudProviderId(providerConfig));
             details.put("qdrantCloudRegionId", ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig));
             details.put("qdrantCloudPackageId", ManagedDeploymentProfileCatalog.qdrantCloudPackageId(providerConfig));
-            details.put("entityTypeCount", entityConfig.path("ai-entities").size());
             boolean ready = hasText(ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig))
                 && entityConfig.path("ai-entities").size() > 0
                 && platformSecretService.isSecretPresent("QDRANT_CLOUD_MANAGEMENT_API_KEY");
@@ -1469,6 +1841,19 @@ public class DeploymentReleaseVerificationService {
         };
     }
 
+    private DeploymentProviderSecretResolutionService.ResolvedSecretValue resolveOptionalVectorSecret(String deploymentId,
+                                                                                                      String secretPurpose,
+                                                                                                      JsonNode providerConfig) {
+        return switch (secretPurpose) {
+            case "QDRANT_API_KEY" -> deploymentProviderSecretResolutionService.resolve(
+                deploymentId,
+                "QDRANT_API_KEY",
+                ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig)
+            );
+            default -> resolveOptionalProviderSecret(deploymentId, secretPurpose);
+        };
+    }
+
     private boolean isPlatformManagedSecretPurpose(String secretPurpose) {
         return switch (secretPurpose) {
             case "QDRANT_CLOUD_MANAGEMENT_API_KEY", "ZILLIZ_CLOUD_API_KEY" -> true;
@@ -1587,12 +1972,24 @@ public class DeploymentReleaseVerificationService {
             return false;
         }
         Set<String> actionSourcePaths = textSet(probe.body().path("actionCatalogSources"), "path");
+        Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
+        Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
         Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
         return probe.body().path("success").asBoolean(false)
             && expectations.artifacts().entityArtifactUrl().equals(probe.body().path("entityConfigLocation").asText(""))
             && runtimePromptConfigMatchesExpected(probe, expectations)
+            && runtimeKnowledgeSourcesMatchExpected(probe, expectations)
+            && runtimeShellConfigMatchesExpected(probe, expectations)
+            && runtimeInferenceProfileMatchesExpected(probe, expectations)
             && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
             && probe.body().path("actionsCount").asInt(-1) == expectations.expectedActionNames().size()
+            && probe.body().path("confirmationInterceptorsCount").asInt(-1) == expectations.expectedConfirmationInterceptorNames().size()
+            && probe.body().path("postActionWebhookPoliciesCount").asLong(-1L) == expectations.expectedPostActionWebhookPoliciesCount()
+            && probe.body().path("webhookTargetsCount").asInt(-1) == expectations.expectedWebhookTargetIds().size()
+            && confirmationInterceptorRuleNames.equals(expectations.expectedConfirmationInterceptorNames())
+            && confirmationInterceptorSources.contains(expectations.artifacts().actionsArtifactUrl())
+            && textSet(probe.body().path("actionNamesWithPostActionWebhookPolicies")).equals(expectations.expectedActionNamesWithPostActionWebhookPolicies())
+            && textSet(probe.body().path("webhookTargetIds")).equals(expectations.expectedWebhookTargetIds())
             && supportedEntityTypes.equals(expectations.expectedEntityTypes());
     }
 
@@ -1602,6 +1999,156 @@ public class DeploymentReleaseVerificationService {
             && probe.body() != null
             && probe.body().path("success").asBoolean(false)
             && expectations.artifacts().promptArtifactUrl().equals(probe.body().path("promptConfigLocation").asText(""));
+    }
+
+    private boolean runtimeKnowledgeSourcesMatchExpected(JsonProbeResult probe,
+                                                         VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        JsonNode marketplaceSupport = probe.body().path("marketplaceSupport");
+        return probe.body().path("success").asBoolean(false)
+            && blankToFallback(expectations.artifacts().knowledgeSourceArtifactUrl(), "").equals(probe.body().path("knowledgeSourceConfigLocation").asText(""))
+            && expectations.expectedKnowledgeSourceContractVersion().equals(marketplaceSupport.path("knowledgeSourceContractVersion").asText(""))
+            && probe.body().path("knowledgeSourcesCount").asInt(-1) == expectations.expectedKnowledgeSourceIds().size()
+            && textSet(probe.body().path("knowledgeSourceIds")).equals(expectations.expectedKnowledgeSourceIds())
+            && textSet(probe.body().path("knowledgeSourceTypes")).equals(expectations.expectedKnowledgeSourceTypes())
+            && textSet(probe.body().path("knowledgeSourceAdapterTypes")).equals(expectations.expectedKnowledgeSourceAdapterTypes());
+    }
+
+    private void validateMarketplaceDatasetSync(ArrayNode checks,
+                                                DeploymentEntity deployment,
+                                                DeploymentReleaseEntity release,
+                                                VerificationExpectations expectations) {
+        if (marketplaceDatasetHandleRepository == null || marketplaceDatasetSyncRunRepository == null) {
+            addSkippedCheck(
+                checks,
+                "marketplace_dataset_sync_matches_expected",
+                "Marketplace dataset sync verification is unavailable in this verification context."
+            );
+            return;
+        }
+        if (expectations.expectedMarketplaceDatasetIds().isEmpty()) {
+            addSkippedCheck(
+                checks,
+                "marketplace_dataset_sync_matches_expected",
+                "No marketplace datasets are expected for this release."
+            );
+            return;
+        }
+
+        List<MarketplaceDatasetHandleEntity> handles = marketplaceDatasetHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId());
+        Map<String, MarketplaceDatasetSyncRunEntity> latestRunsByHandleId = new LinkedHashMap<>();
+        marketplaceDatasetSyncRunRepository.findByReleaseIdOrderByCreatedAtAsc(release.getId())
+            .forEach(run -> latestRunsByHandleId.put(run.getDatasetHandleId(), run));
+
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("expectedMarketplaceDatasetContractVersion", expectations.expectedMarketplaceDatasetContractVersion());
+        details.put("actualMarketplaceDatasetContractVersion", expectations.marketplaceDatasetConfig().path("contractVersion").asText(""));
+        details.set("expectedDatasetIds", toArrayNode(expectations.expectedMarketplaceDatasetIds()));
+        details.set("expectedHandleRefs", toArrayNode(expectations.expectedMarketplaceDatasetHandleRefs()));
+        details.set("expectedDatasetHashes", toArrayNode(expectations.expectedMarketplaceDatasetHashes()));
+
+        ArrayNode actualDatasets = objectMapper.createArrayNode();
+        boolean passed = true;
+        for (JsonNode dataset : expectations.marketplaceDatasetConfig().path("datasets")) {
+            String expectedDatasetId = trimToNull(dataset.path("datasetId").asText(""));
+            String expectedHandleRef = trimToNull(dataset.path("handleRef").asText(""));
+            String expectedDatasetHash = trimToNull(dataset.path("datasetHash").asText(""));
+
+            ObjectNode actual = objectMapper.createObjectNode();
+            actual.put("datasetId", blankToFallback(expectedDatasetId, ""));
+            actual.put("handleRef", blankToFallback(expectedHandleRef, ""));
+            actual.put("expectedDatasetHash", blankToFallback(expectedDatasetHash, ""));
+
+            MarketplaceDatasetHandleEntity handle = handles.stream()
+                .filter(item -> expectedHandleRef != null && expectedHandleRef.equals(item.getHandleRef()))
+                .findFirst()
+                .orElse(null);
+            if (handle == null) {
+                actual.put("status", "MISSING");
+                actualDatasets.add(actual);
+                passed = false;
+                continue;
+            }
+
+            actual.put("actualDatasetHash", blankToFallback(handle.getDatasetHash(), ""));
+            actual.put("status", blankToFallback(handle.getStatus(), ""));
+            actual.put("lastSyncAt", handle.getLastSyncAt() != null ? handle.getLastSyncAt().toString() : null);
+            MarketplaceDatasetSyncRunEntity run = latestRunsByHandleId.get(handle.getId());
+            if (run != null) {
+                actual.put("releaseRunStatus", blankToFallback(run.getStatus(), ""));
+                actual.put("releaseRunDocumentCount", run.getDocumentCount() == null ? -1 : run.getDocumentCount());
+                actual.put("releaseRunError", blankToFallback(run.getErrorMessage(), ""));
+            } else {
+                actual.put("releaseRunStatus", "MISSING");
+            }
+            actualDatasets.add(actual);
+
+            boolean runPassed = run != null
+                && ("PASSED".equalsIgnoreCase(run.getStatus()) || "SKIPPED".equalsIgnoreCase(run.getStatus()));
+            boolean documentCountValid = run != null
+                && ("SKIPPED".equalsIgnoreCase(run.getStatus())
+                    || (run.getDocumentCount() != null && run.getDocumentCount() > 0));
+            passed = passed
+                && "READY".equalsIgnoreCase(handle.getStatus())
+                && expectedDatasetHash != null
+                && expectedDatasetHash.equals(handle.getDatasetHash())
+                && runPassed
+                && documentCountValid;
+        }
+        details.set("actualDatasets", actualDatasets);
+
+        addCheck(
+            checks,
+            "marketplace_dataset_sync_matches_expected",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Marketplace DATA plugin datasets were synchronized and are ready for this release."
+                : "Marketplace DATA plugin datasets are missing, stale, or unsynchronized for this release.",
+            details
+        );
+    }
+
+    private boolean runtimeShellConfigMatchesExpected(JsonProbeResult probe,
+                                                      VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        JsonNode marketplaceSupport = probe.body().path("marketplaceSupport");
+        return probe.body().path("success").asBoolean(false)
+            && blankToFallback(expectations.artifacts().shellArtifactUrl(), "").equals(probe.body().path("shellConfigLocation").asText(""))
+            && expectations.expectedShellContractVersion().equals(marketplaceSupport.path("shellConfigContractVersion").asText(""))
+            && probe.body().path("shellModulesCount").asInt(-1) == expectations.expectedShellModuleIds().size()
+            && textSet(probe.body().path("shellModuleIds")).equals(expectations.expectedShellModuleIds())
+            && probe.body().path("shellCardsCount").asInt(-1) == expectations.expectedShellCardIds().size()
+            && textSet(probe.body().path("shellCardIds")).equals(expectations.expectedShellCardIds())
+            && probe.body().path("shellStarterPromptsCount").asInt(-1) == expectations.expectedShellStarterPromptsCount()
+            && probe.body().path("shellGreetingConfigured").asBoolean(false) == expectations.expectedShellGreetingConfigured();
+    }
+
+    private boolean runtimeInferenceProfileMatchesExpected(JsonProbeResult probe,
+                                                           VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        JsonNode inferenceProfile = probe.body().path("inferenceProfile");
+        JsonNode marketplaceSupport = probe.body().path("marketplaceSupport");
+        return probe.body().path("success").asBoolean(false)
+            && "INFERENCE_PROFILE_RUNTIME_V1".equals(marketplaceSupport.path("inferenceProfileContractVersion").asText(""))
+            && expectations.expectedLlmProvider().equals(trimToEmpty(inferenceProfile.path("llmProvider").asText(null)))
+            && expectations.expectedEmbeddingProvider().equals(trimToEmpty(inferenceProfile.path("embeddingProvider").asText(null)))
+            && expectations.expectedOrchestrationProvider().equals(trimToEmpty(inferenceProfile.path("orchestrationProvider").asText(null)))
+            && expectations.expectedOrchestrationModel().equals(trimToEmpty(inferenceProfile.path("orchestrationModel").asText(null)))
+            && expectations.expectedOrchestrationEndpointProfile().equals(trimToEmpty(inferenceProfile.path("orchestrationEndpointProfile").asText(null)))
+            && expectations.expectedOrchestrationManagedServiceRef().equals(trimToEmpty(inferenceProfile.path("orchestrationManagedServiceRef").asText(null)))
+            && expectations.expectedGenerationProvider().equals(trimToEmpty(inferenceProfile.path("generationProvider").asText(null)))
+            && expectations.expectedGenerationModel().equals(trimToEmpty(inferenceProfile.path("generationModel").asText(null)))
+            && expectations.expectedGenerationEndpointProfile().equals(trimToEmpty(inferenceProfile.path("generationEndpointProfile").asText(null)))
+            && expectations.expectedGenerationManagedServiceRef().equals(trimToEmpty(inferenceProfile.path("generationManagedServiceRef").asText(null)))
+            && expectations.expectedEmbeddingEndpointProfile().equals(trimToEmpty(inferenceProfile.path("embeddingEndpointProfile").asText(null)))
+            && expectations.expectedEmbeddingManagedServiceRef().equals(trimToEmpty(inferenceProfile.path("embeddingManagedServiceRef").asText(null)))
+            && expectations.expectedEmbeddingServiceMode().equals(trimToEmpty(inferenceProfile.path("embeddingServiceMode").asText(null)));
     }
 
     private boolean connectorOverviewMatchesExpected(JsonProbeResult probe,
@@ -1620,6 +2167,126 @@ public class DeploymentReleaseVerificationService {
             && (!expectations.expectedRuntimeProxyEnabled() || hasText(runtimeProxyBaseUrl))
             && probe.body().path("actionsCount").asInt(-1) == expectations.expectedRoutingActions().size()
             && apiKeyConfigured == !expectations.routingConfig().path("connector").path("inbound-auth").path("allow-unauthenticated").asBoolean(false);
+    }
+
+    private Set<String> expectedActionNamesWithPresentationHints(JsonNode actions) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (!hasText(actionName)) {
+                continue;
+            }
+            String configuredHint = action.path("resultPresentationHint").asText("").trim();
+            String accessMode = action.path("accessMode").asText("").trim();
+            boolean nonDefaultConfiguredHint = hasText(configuredHint) && !"DEFAULT".equalsIgnoreCase(configuredHint);
+            boolean inferredWriteOnlyStatus = !hasText(configuredHint) && "WRITE_ONLY".equalsIgnoreCase(accessMode);
+            if (nonDefaultConfiguredHint || inferredWriteOnlyStatus) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> expectedActionNamesWithTextField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && hasText(action.path(field).asText("").trim())) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> expectedActionNamesWithObjectField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && action.path(field).isObject() && action.path(field).size() > 0) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> expectedActionNamesWithArrayField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && action.path(field).isArray() && !action.path(field).isEmpty()) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private int expectedPostActionWebhookPoliciesCount(JsonNode actions) {
+        if (!actions.isArray()) {
+            return 0;
+        }
+        int count = 0;
+        for (JsonNode action : actions) {
+            JsonNode postPolicies = action.path("postPolicies");
+            if (postPolicies.isArray()) {
+                count += postPolicies.size();
+            }
+        }
+        return count;
+    }
+
+    private Set<String> actionNamesWithNonDefaultPresentationHints(JsonNode actions) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            String hint = action.path("resultPresentationHint").asText("").trim();
+            if (hasText(actionName) && hasText(hint) && !"DEFAULT".equalsIgnoreCase(hint)) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> actionNamesWithTextField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && hasText(action.path(field).asText("").trim())) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> actionNamesWithObjectField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && action.path(field).isObject() && action.path(field).size() > 0) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
     }
 
     private boolean isRetryableJsonProbeException(Exception ex) {
@@ -1842,6 +2509,10 @@ public class DeploymentReleaseVerificationService {
         return values;
     }
 
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
+    }
+
     private ArrayNode toArrayNode(Set<String> values) {
         ArrayNode arrayNode = objectMapper.createArrayNode();
         values.forEach(arrayNode::add);
@@ -2015,10 +2686,48 @@ public class DeploymentReleaseVerificationService {
         JsonNode actionsConfig,
         JsonNode entityConfig,
         JsonNode routingConfig,
+        JsonNode providerConfig,
+        JsonNode knowledgeSourceConfig,
+        JsonNode shellConfig,
+        JsonNode marketplaceDatasetConfig,
         JsonNode securityConfig,
         Set<String> expectedActionNames,
+        Set<String> expectedConfirmationInterceptorNames,
         Set<String> expectedEntityTypes,
         Set<String> expectedRoutingActions,
+        String expectedKnowledgeSourceContractVersion,
+        Set<String> expectedKnowledgeSourceIds,
+        Set<String> expectedKnowledgeSourceTypes,
+        Set<String> expectedKnowledgeSourceAdapterTypes,
+        String expectedMarketplaceDatasetContractVersion,
+        Set<String> expectedMarketplaceDatasetIds,
+        Set<String> expectedMarketplaceDatasetHandleRefs,
+        Set<String> expectedMarketplaceDatasetHashes,
+        String expectedShellContractVersion,
+        Set<String> expectedShellModuleIds,
+        Set<String> expectedShellCardIds,
+        int expectedShellStarterPromptsCount,
+        boolean expectedShellGreetingConfigured,
+        Set<String> expectedActionNamesWithPresentationHints,
+        Set<String> expectedActionNamesWithBuiltInModuleMappings,
+        Set<String> expectedActionNamesWithBuiltInCardMappings,
+        Set<String> expectedActionNamesWithProvenance,
+        Set<String> expectedActionNamesWithPostActionWebhookPolicies,
+        Set<String> expectedWebhookTargetIds,
+        int expectedPostActionWebhookPoliciesCount,
+        String expectedLlmProvider,
+        String expectedEmbeddingProvider,
+        String expectedOrchestrationProvider,
+        String expectedOrchestrationModel,
+        String expectedOrchestrationEndpointProfile,
+        String expectedOrchestrationManagedServiceRef,
+        String expectedGenerationProvider,
+        String expectedGenerationModel,
+        String expectedGenerationEndpointProfile,
+        String expectedGenerationManagedServiceRef,
+        String expectedEmbeddingEndpointProfile,
+        String expectedEmbeddingManagedServiceRef,
+        String expectedEmbeddingServiceMode,
         boolean expectedAuthzEnabled,
         boolean expectedRuntimeProxyEnabled,
         String expectedIngressMode,

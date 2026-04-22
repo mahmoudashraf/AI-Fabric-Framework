@@ -90,6 +90,8 @@ public class DeploymentHostedVerificationContextService {
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
+        JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
+        JsonNode shellConfig = readJson(version.getShellConfigJson());
 
         String runtimeBaseUrl = trimToNull(deployment.getRuntimeBaseUrl());
         String connectorBaseUrl = trimToNull(deployment.getConnectorBaseUrl());
@@ -114,12 +116,15 @@ public class DeploymentHostedVerificationContextService {
         addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
         addRuntimePrivateVerificationHeaders(env, deployment);
 
-        if ("ecommerce".equals(profile)) {
+        if ("ecommerce".equals(profile) || "marketplace-runtime".equals(profile)) {
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
             if (storeBaseUrl == null) {
                 throw new ResponseStatusException(BAD_REQUEST, "Ecommerce verification requires connector.upstream.base-url to resolve the store URL.");
             }
             env.put("STORE_BASE_URL", storeBaseUrl);
+            if ("marketplace-runtime".equals(profile)) {
+                addMarketplaceRuntimeExpectations(env, providerConfig, knowledgeSourceConfig, shellConfig);
+            }
         } else {
             List<String> entityTypes = resolveEntityTypes(entityConfig);
             if (entityTypes.isEmpty()) {
@@ -129,9 +134,9 @@ public class DeploymentHostedVerificationContextService {
             env.put("EXPECTED_VECTOR_DB", expectedVectorDatabaseService(providerConfig));
         }
 
-        String script = "ecommerce".equals(profile)
-            ? "scripts/verify-ecommerce-deployment.sh"
-            : "scripts/verify-vector-deployment.sh";
+        String script = "vector".equals(profile)
+            ? "scripts/verify-vector-deployment.sh"
+            : "scripts/verify-ecommerce-deployment.sh";
         return new DeploymentHostedVerificationContextSummary(
             profile,
             script,
@@ -363,10 +368,133 @@ public class DeploymentHostedVerificationContextService {
             return storeBaseUrl != null ? "ecommerce" : "vector";
         }
         normalized = normalized.toLowerCase(Locale.ROOT);
-        if (!"vector".equals(normalized) && !"ecommerce".equals(normalized)) {
-            throw new ResponseStatusException(BAD_REQUEST, "profile must be either 'vector' or 'ecommerce'.");
+        if (!"vector".equals(normalized)
+            && !"ecommerce".equals(normalized)
+            && !"marketplace-runtime".equals(normalized)) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "profile must be either 'vector', 'ecommerce', or 'marketplace-runtime'."
+            );
         }
         return normalized;
+    }
+
+    private void addMarketplaceRuntimeExpectations(Map<String, String> env,
+                                                   JsonNode providerConfig,
+                                                   JsonNode knowledgeSourceConfig,
+                                                   JsonNode shellConfig) {
+        env.put("VERIFY_MARKETPLACE_RUNTIME", "true");
+        env.put("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V2");
+        env.put("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
+        env.put("EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION", "INFERENCE_PROFILE_RUNTIME_V1");
+        env.put("MARKETPLACE_SMOKE_QUERY", "What is the refund policy?");
+        putIfPresent(env, "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS", csvTextSet(knowledgeSourceConfig.path("sources"), "id"));
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES",
+            csvTextSet(knowledgeSourceConfig.path("sources"), "adapterType")
+        );
+        putIfPresent(env, "EXPECT_MARKETPLACE_SHELL_MODULE_IDS", csvTextSet(shellConfig.path("modules"), "id"));
+        putIfPresent(env, "EXPECT_MARKETPLACE_SHELL_CARD_IDS", csvTextSet(shellConfig.path("cards"), "id"));
+        env.put(
+            "EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT",
+            Integer.toString(shellConfig.path("starterPrompts").isArray() ? shellConfig.path("starterPrompts").size() : 0)
+        );
+        env.put(
+            "EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED",
+            Boolean.toString(
+                StringUtils.hasText(shellConfig.path("greeting").path("title").asText(""))
+                    || StringUtils.hasText(shellConfig.path("greeting").path("message").asText(""))
+            )
+        );
+        env.put(
+            "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION",
+            blankToFallback(knowledgeSourceConfig.path("contractVersion").asText(""), "KNOWLEDGE_SOURCE_CONFIG_V1")
+        );
+        env.put(
+            "EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION",
+            blankToFallback(shellConfig.path("contractVersion").asText(""), "SHELL_CONFIG_V1")
+        );
+        putIfPresent(env, "EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER", trimToNull(providerConfig.path("llmProvider").asText("")));
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER",
+            trimToNull(providerConfig.path("embeddingProvider").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER",
+            trimToNull(providerConfig.path("orchestrationLlmProvider").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL",
+            trimToNull(providerConfig.path("orchestrationModel").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE",
+            trimToNull(providerConfig.path("orchestrationEndpointProfile").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MANAGED_SERVICE_REF",
+            trimToNull(providerConfig.path("orchestrationManagedServiceRef").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER",
+            trimToNull(providerConfig.path("generationLlmProvider").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL",
+            trimToNull(providerConfig.path("generationModel").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE",
+            trimToNull(providerConfig.path("generationEndpointProfile").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_GENERATION_MANAGED_SERVICE_REF",
+            trimToNull(providerConfig.path("generationManagedServiceRef").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE",
+            trimToNull(providerConfig.path("embeddingEndpointProfile").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_MANAGED_SERVICE_REF",
+            trimToNull(providerConfig.path("embeddingManagedServiceRef").asText(""))
+        );
+        putIfPresent(
+            env,
+            "EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_SERVICE_MODE",
+            trimToNull(providerConfig.path("embeddingServiceMode").asText(""))
+        );
+    }
+
+    private String csvTextSet(JsonNode items, String field) {
+        if (items == null || !items.isArray()) {
+            return null;
+        }
+        List<String> resolved = new ArrayList<>();
+        items.forEach(item -> {
+            String value = trimToNull(item.path(field).asText(""));
+            if (value != null && !resolved.contains(value)) {
+                resolved.add(value);
+            }
+        });
+        return resolved.isEmpty() ? null : String.join(",", resolved);
+    }
+
+    private String blankToFallback(String value, String fallback) {
+        String normalized = trimToNull(value);
+        return normalized == null ? fallback : normalized;
     }
 
     private String normalizeExpectation(String value, String fallback) {

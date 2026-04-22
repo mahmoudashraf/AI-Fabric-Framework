@@ -243,7 +243,7 @@ public class RailwayGraphqlClient {
         }
         """;
 
-    private static final String LOG_FIELDS = """
+    private static final String STANDARD_LOG_FIELDS = """
         timestamp
         severity
         message
@@ -259,6 +259,15 @@ public class RailwayGraphqlClient {
           key
           value
         }
+        """;
+
+    private static final String HTTP_LOG_FIELDS = """
+        timestamp
+        message
+        """;
+
+    private static final String MINIMAL_HTTP_LOG_FIELDS = """
+        timestamp
         """;
 
     private static final String DOMAINS_QUERY = """
@@ -540,6 +549,15 @@ public class RailwayGraphqlClient {
                                       String rootDirectory,
                                       String dockerfilePath,
                                       String healthcheckPath) {
+        updateServiceInstance(serviceId, environmentId, rootDirectory, dockerfilePath, healthcheckPath, null);
+    }
+
+    public void updateServiceInstance(String serviceId,
+                                      String environmentId,
+                                      String rootDirectory,
+                                      String dockerfilePath,
+                                      String healthcheckPath,
+                                      Integer numReplicas) {
         Map<String, Object> input = new LinkedHashMap<>();
         if (rootDirectory != null && !rootDirectory.isBlank()) {
             input.put("rootDirectory", rootDirectory);
@@ -548,6 +566,9 @@ public class RailwayGraphqlClient {
             input.put("dockerfilePath", dockerfilePath);
         }
         input.put("healthcheckPath", healthcheckPath);
+        if (numReplicas != null && numReplicas > 0) {
+            input.put("numReplicas", numReplicas);
+        }
 
         execute(
             SERVICE_INSTANCE_UPDATE_MUTATION,
@@ -558,11 +579,12 @@ public class RailwayGraphqlClient {
             )
         );
         log.info(
-            "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}, dockerfilePath={}",
+            "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}, dockerfilePath={}, numReplicas={}",
             serviceId,
             environmentId,
             rootDirectory,
-            dockerfilePath
+            dockerfilePath,
+            numReplicas
         );
     }
 
@@ -684,7 +706,16 @@ public class RailwayGraphqlClient {
                                                             String filter,
                                                             String startDate,
                                                             String endDate) {
-        return fetchLogs("deploymentLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+        return fetchLogs(
+            "deploymentLogs",
+            "deploymentId",
+            deploymentId,
+            limit,
+            filter,
+            startDate,
+            endDate,
+            STANDARD_LOG_FIELDS
+        );
     }
 
     public List<RailwayLogEntrySummary> fetchBuildLogs(String deploymentId,
@@ -692,7 +723,16 @@ public class RailwayGraphqlClient {
                                                        String filter,
                                                        String startDate,
                                                        String endDate) {
-        return fetchLogs("buildLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+        return fetchLogs(
+            "buildLogs",
+            "deploymentId",
+            deploymentId,
+            limit,
+            filter,
+            startDate,
+            endDate,
+            STANDARD_LOG_FIELDS
+        );
     }
 
     public List<RailwayLogEntrySummary> fetchHttpLogs(String deploymentId,
@@ -700,7 +740,33 @@ public class RailwayGraphqlClient {
                                                       String filter,
                                                       String startDate,
                                                       String endDate) {
-        return fetchLogs("httpLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+        RailwayProvisioningException lastFailure = null;
+        for (String fieldSelection : List.of(HTTP_LOG_FIELDS, MINIMAL_HTTP_LOG_FIELDS)) {
+            try {
+                return fetchLogs(
+                    "httpLogs",
+                    "deploymentId",
+                    deploymentId,
+                    limit,
+                    filter,
+                    startDate,
+                    endDate,
+                    fieldSelection
+                );
+            } catch (RailwayProvisioningException ex) {
+                lastFailure = ex;
+                if (!isGraphQlFieldValidationFailure(ex) || MINIMAL_HTTP_LOG_FIELDS.equals(fieldSelection)) {
+                    throw ex;
+                }
+                log.warn(
+                    "Railway httpLogs field selection failed validation; retrying with a minimal field set: {}",
+                    ex.getMessage()
+                );
+            }
+        }
+        throw lastFailure == null
+            ? new RailwayProvisioningException("Railway http log query failed.")
+            : lastFailure;
     }
 
     public List<RailwayServiceDomainSummary> listServiceDomains(String projectId,
@@ -780,7 +846,8 @@ public class RailwayGraphqlClient {
                                                    Integer limit,
                                                    String filter,
                                                    String startDate,
-                                                   String endDate) {
+                                                   String endDate,
+                                                   String logFields) {
         StringBuilder args = new StringBuilder();
         appendArgument(args, idArgName, graphQlStringLiteral(idValue));
         if (limit != null) {
@@ -802,7 +869,7 @@ public class RailwayGraphqlClient {
                 %s
               }
             }
-            """.formatted(queryField, args, LOG_FIELDS);
+            """.formatted(queryField, args, logFields);
 
         JsonNode data = execute(query, Map.of());
         List<RailwayLogEntrySummary> logs = new ArrayList<>();
@@ -954,6 +1021,11 @@ public class RailwayGraphqlClient {
 
     private boolean isRetryableStatus(int statusCode) {
         return statusCode == 429 || statusCode == 502 || statusCode == 503 || statusCode == 504;
+    }
+
+    private boolean isGraphQlFieldValidationFailure(RailwayProvisioningException ex) {
+        String message = ex.getMessage();
+        return message != null && message.contains("Cannot query field");
     }
 
     private String summarizeBody(String body) {

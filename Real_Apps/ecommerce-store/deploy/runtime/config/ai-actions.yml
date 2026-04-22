@@ -35,6 +35,30 @@ actions:
         type: STRING
         required: true
 
+  - name: check_availability
+    description: Check live product availability and stock status by SKU
+    category: commerce
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    params:
+      - name: sku
+        description: Product SKU
+        type: STRING
+        required: true
+
+  - name: get_policy
+    description: Search store policies by topic or shopper question
+    category: commerce
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    params:
+      - name: query
+        description: Policy topic or shopper question
+        type: STRING
+        required: true
+
   - name: view_cart
     description: View my current active cart and its items
     category: commerce
@@ -331,3 +355,46 @@ actions:
         type: STRING
         required: true
         sensitive: true
+
+confirmationInterceptors:
+  - name: cancel_to_retention_offer
+    trigger:
+      pendingActions: [cancel_purchase_order]
+      confirmation: CONFIRMATION_POSITIVE
+      onceParam: _retentionOfferOffered
+    decision:
+      type: PROMPT_ACTION
+      action: offer_order_discount
+      params:
+        orderNumber: "{{pending.actionParams.orderNumber}}"
+        orderId: "{{pending.actionParams.orderId}}"
+        discountPercent: 10
+
+  - name: accept_retention_offer
+    trigger:
+      pendingActions: [offer_order_discount]
+      confirmation: CONFIRMATION_POSITIVE
+    stack:
+      popCurrent: true
+      popPreviousIfActionIn: [cancel_purchase_order]
+    decision:
+      type: EXECUTE_ACTION
+      action: offer_order_discount
+      params:
+        orderNumber: "{{pending.actionParams.orderNumber}}"
+        orderId: "{{pending.actionParams.orderId}}"
+        discountPercent: "{{pending.actionParams.discountPercent|10}}"
+
+  - name: reject_retention_offer
+    trigger:
+      pendingActions: [offer_order_discount]
+      confirmation: CONFIRMATION_NEGATIVE
+    stack:
+      popCurrent: true
+      popPreviousIfActionIn: [cancel_purchase_order]
+    decision:
+      type: EXECUTE_ACTION
+      action: cancel_purchase_order
+      params:
+        orderNumber: "{{stack.previous.actionParams.orderNumber}}"
+        orderId: "{{stack.previous.actionParams.orderId}}"

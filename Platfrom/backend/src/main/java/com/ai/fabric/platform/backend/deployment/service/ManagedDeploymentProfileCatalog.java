@@ -20,7 +20,6 @@ public final class ManagedDeploymentProfileCatalog {
     public static final String EMBEDDING_PROVIDER_COHERE = "cohere";
     public static final String EMBEDDING_PROVIDER_GEMINI = "gemini";
     public static final String EMBEDDING_PROVIDER_ONNX = "onnx";
-    public static final String EMBEDDING_PROVIDER_REST = "rest";
     public static final String VECTOR_STRATEGY_LUCENE = "lucene";
     public static final String VECTOR_STRATEGY_MEMORY = "memory";
     public static final String VECTOR_STRATEGY_PINECONE = "pinecone";
@@ -37,7 +36,14 @@ public final class ManagedDeploymentProfileCatalog {
     public static final String RUNTIME_PROFILE_DEV = "runtime-dev";
     public static final String CONNECTOR_PROFILE_HOSTED = "connector-hosted";
     public static final String CONNECTOR_PROFILE_PASSIVE = "connector-passive";
+    public static final String INFERENCE_SERVICE_MODE_BUNDLED_RUNTIME = "BUNDLED_RUNTIME";
+    public static final String INFERENCE_SERVICE_MODE_SHARED_PLATFORM_SERVICE = "SHARED_PLATFORM_SERVICE";
+    public static final String INFERENCE_SERVICE_MODE_DEPLOYMENT_DEDICATED_SERVICE = "DEPLOYMENT_DEDICATED_SERVICE";
+    public static final String INFERENCE_SERVICE_AUTOSCALING_MANUAL = "MANUAL";
+    public static final String INFERENCE_SERVICE_AUTOSCALING_POLICY_DRIVEN = "POLICY_DRIVEN";
+    public static final String INFERENCE_PROTOCOL_OPENAI_COMPATIBLE = "OPENAI_COMPATIBLE";
     public static final String AUTHZ_MODE_REMOTE_HTTP = "REMOTE_HTTP";
+    public static final String AUTHZ_MODE_ALLOW_VERIFIED = "ALLOW_VERIFIED";
     public static final String AUTHZ_MODE_DENY_ALL = "DENY_ALL";
     public static final String CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
     public static final int DEFAULT_QDRANT_PORT = 6333;
@@ -83,8 +89,7 @@ public final class ManagedDeploymentProfileCatalog {
         EMBEDDING_PROVIDER_AZURE,
         EMBEDDING_PROVIDER_COHERE,
         EMBEDDING_PROVIDER_GEMINI,
-        EMBEDDING_PROVIDER_ONNX,
-        EMBEDDING_PROVIDER_REST
+        EMBEDDING_PROVIDER_ONNX
     );
     public static final Set<String> SUPPORTED_VECTOR_STRATEGIES = Set.of(
         VECTOR_STRATEGY_LUCENE,
@@ -112,8 +117,18 @@ public final class ManagedDeploymentProfileCatalog {
         CONNECTOR_PROFILE_HOSTED,
         CONNECTOR_PROFILE_PASSIVE
     );
+    public static final Set<String> SUPPORTED_INFERENCE_SERVICE_MODES = Set.of(
+        INFERENCE_SERVICE_MODE_BUNDLED_RUNTIME,
+        INFERENCE_SERVICE_MODE_SHARED_PLATFORM_SERVICE,
+        INFERENCE_SERVICE_MODE_DEPLOYMENT_DEDICATED_SERVICE
+    );
+    public static final Set<String> SUPPORTED_INFERENCE_AUTOSCALING_MODES = Set.of(
+        INFERENCE_SERVICE_AUTOSCALING_MANUAL,
+        INFERENCE_SERVICE_AUTOSCALING_POLICY_DRIVEN
+    );
     public static final Set<String> SUPPORTED_AUTHZ_MODES = Set.of(
         AUTHZ_MODE_REMOTE_HTTP,
+        AUTHZ_MODE_ALLOW_VERIFIED,
         AUTHZ_MODE_DENY_ALL
     );
     public static final String DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS = String.join(",",
@@ -243,16 +258,25 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean supportsSharedVectorStorage(String vectorStrategy, String provisioningMode) {
         String normalizedMode = normalizeVectorProvisioningMode(provisioningMode, "");
-        if (!VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(normalizedMode)) {
+        String normalizedStrategy = normalize(vectorStrategy);
+        if (VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(normalizedMode)) {
+            return switch (normalizedStrategy) {
+                case VECTOR_STRATEGY_PINECONE,
+                    VECTOR_STRATEGY_QDRANT,
+                    VECTOR_STRATEGY_WEAVIATE,
+                    VECTOR_STRATEGY_MILVUS -> true;
+                default -> false;
+            };
+        }
+        return supportsPlatformManagedSharedVectorStorage(normalizedStrategy, normalizedMode);
+    }
+
+    public static boolean supportsPlatformManagedSharedVectorStorage(String vectorStrategy, String provisioningMode) {
+        String normalizedMode = normalizeVectorProvisioningMode(provisioningMode, "");
+        if (!VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(normalizedMode)) {
             return false;
         }
-        return switch (normalize(vectorStrategy)) {
-            case VECTOR_STRATEGY_PINECONE,
-                VECTOR_STRATEGY_QDRANT,
-                VECTOR_STRATEGY_WEAVIATE,
-                VECTOR_STRATEGY_MILVUS -> true;
-            default -> false;
-        };
+        return VECTOR_STRATEGY_QDRANT.equals(normalize(vectorStrategy));
     }
 
     public static boolean sharedVectorStorageRequested(JsonNode providerConfig) {
@@ -390,14 +414,13 @@ public final class ManagedDeploymentProfileCatalog {
             case EMBEDDING_PROVIDER_GEMINI -> "text-embedding-004";
             case EMBEDDING_PROVIDER_ONNX -> "all-MiniLM-L6-v2";
             case EMBEDDING_PROVIDER_OPENAI -> "text-embedding-3-small";
-            case EMBEDDING_PROVIDER_REST -> "all-MiniLM-L6-v2";
             default -> "text-embedding-3-small";
         };
     }
 
     public static int defaultEmbeddingDimensions(String embeddingProvider) {
         return switch (normalize(embeddingProvider)) {
-            case EMBEDDING_PROVIDER_ONNX, EMBEDDING_PROVIDER_REST -> 384;
+            case EMBEDDING_PROVIDER_ONNX -> 384;
             case EMBEDDING_PROVIDER_COHERE -> 1024;
             case EMBEDDING_PROVIDER_GEMINI -> 768;
             case EMBEDDING_PROVIDER_OPENAI -> 1536;
@@ -448,10 +471,6 @@ public final class ManagedDeploymentProfileCatalog {
     public static boolean usesGemini(JsonNode providerConfig) {
         return usesLlmProvider(providerConfig, LLM_PROVIDER_GEMINI)
             || EMBEDDING_PROVIDER_GEMINI.equals(resolveEmbeddingProvider(providerConfig));
-    }
-
-    public static boolean usesRestEmbeddings(JsonNode providerConfig) {
-        return EMBEDDING_PROVIDER_REST.equals(resolveEmbeddingProvider(providerConfig));
     }
 
     public static boolean usesPinecone(JsonNode providerConfig) {
@@ -557,7 +576,7 @@ public final class ManagedDeploymentProfileCatalog {
             case EMBEDDING_PROVIDER_AZURE -> "AZURE_OPENAI_API_KEY";
             case EMBEDDING_PROVIDER_COHERE -> "COHERE_API_KEY";
             case EMBEDDING_PROVIDER_GEMINI -> "GEMINI_API_KEY";
-            case EMBEDDING_PROVIDER_ONNX, EMBEDDING_PROVIDER_REST -> "";
+            case EMBEDDING_PROVIDER_ONNX -> "";
             default -> "";
         };
     }
@@ -627,6 +646,26 @@ public final class ManagedDeploymentProfileCatalog {
         return normalizeToSupported(text(providerConfig, "orchestrationLlmProvider"), SUPPORTED_LLM_PROVIDERS, "");
     }
 
+    public static String orchestrationEndpointProfile(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationEndpointProfile");
+    }
+
+    public static String orchestrationBaseUrl(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationBaseUrl");
+    }
+
+    public static String orchestrationDeploymentName(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationDeploymentName");
+    }
+
+    public static String orchestrationApiVersion(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationApiVersion");
+    }
+
+    public static String orchestrationApiKeySecretRef(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationApiKeySecretRef");
+    }
+
     public static String orchestrationModel(JsonNode providerConfig) {
         return text(providerConfig, "orchestrationModel");
     }
@@ -647,6 +686,26 @@ public final class ManagedDeploymentProfileCatalog {
         return normalizeToSupported(text(providerConfig, "generationLlmProvider"), SUPPORTED_LLM_PROVIDERS, "");
     }
 
+    public static String generationEndpointProfile(JsonNode providerConfig) {
+        return text(providerConfig, "generationEndpointProfile");
+    }
+
+    public static String generationBaseUrl(JsonNode providerConfig) {
+        return text(providerConfig, "generationBaseUrl");
+    }
+
+    public static String generationDeploymentName(JsonNode providerConfig) {
+        return text(providerConfig, "generationDeploymentName");
+    }
+
+    public static String generationApiVersion(JsonNode providerConfig) {
+        return text(providerConfig, "generationApiVersion");
+    }
+
+    public static String generationApiKeySecretRef(JsonNode providerConfig) {
+        return text(providerConfig, "generationApiKeySecretRef");
+    }
+
     public static String generationModel(JsonNode providerConfig) {
         return text(providerConfig, "generationModel");
     }
@@ -665,6 +724,66 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String openAiBaseUrl(JsonNode providerConfig) {
         return text(providerConfig, "openaiBaseUrl");
+    }
+
+    public static String embeddingEndpointProfile(JsonNode providerConfig) {
+        return text(providerConfig, "embeddingEndpointProfile");
+    }
+
+    public static String embeddingApiKeySecretRef(JsonNode providerConfig) {
+        return text(providerConfig, "embeddingApiKeySecretRef");
+    }
+
+    public static String embeddingBaseUrl(JsonNode providerConfig) {
+        return text(providerConfig, "embeddingBaseUrl");
+    }
+
+    public static String embeddingDeploymentName(JsonNode providerConfig) {
+        return text(providerConfig, "embeddingDeploymentName");
+    }
+
+    public static String embeddingApiVersion(JsonNode providerConfig) {
+        return text(providerConfig, "embeddingApiVersion");
+    }
+
+    public static String embeddingManagedServiceRef(JsonNode providerConfig) {
+        return text(providerConfig, "embeddingManagedServiceRef");
+    }
+
+    public static String embeddingServiceMode(JsonNode providerConfig) {
+        return normalizeToSupported(
+            text(providerConfig, "embeddingServiceMode"),
+            SUPPORTED_INFERENCE_SERVICE_MODES,
+            ""
+        );
+    }
+
+    public static String orchestrationManagedServiceRef(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationManagedServiceRef");
+    }
+
+    public static String generationManagedServiceRef(JsonNode providerConfig) {
+        return text(providerConfig, "generationManagedServiceRef");
+    }
+
+    public static String openAiEmbeddingBaseUrl(JsonNode providerConfig) {
+        return text(providerConfig, "openaiEmbeddingBaseUrl");
+    }
+
+    public static String azureEmbeddingEndpoint(JsonNode providerConfig) {
+        return text(providerConfig, "azureEmbeddingEndpoint");
+    }
+
+    public static String azureEmbeddingApiVersion(JsonNode providerConfig) {
+        return text(providerConfig, "azureEmbeddingApiVersion");
+    }
+
+    public static boolean dedicatedEmbeddingServiceRequested(JsonNode providerConfig) {
+        return INFERENCE_SERVICE_MODE_DEPLOYMENT_DEDICATED_SERVICE.equals(embeddingServiceMode(providerConfig));
+    }
+
+    public static boolean sharedEmbeddingServiceRequested(JsonNode providerConfig) {
+        return INFERENCE_SERVICE_MODE_SHARED_PLATFORM_SERVICE.equals(embeddingServiceMode(providerConfig));
     }
 
     public static boolean openAiValidateOnStartup(JsonNode providerConfig) {
@@ -925,33 +1044,6 @@ public final class ManagedDeploymentProfileCatalog {
         return readBoolean(providerConfig, "onnxUseGpu");
     }
 
-    public static String restEmbeddingBaseUrl(JsonNode providerConfig) {
-        return text(providerConfig, "restEmbeddingBaseUrl");
-    }
-
-    public static boolean restEmbeddingValidateOnStartup(JsonNode providerConfig) {
-        return readBoolean(providerConfig, "restEmbeddingValidateOnStartup");
-    }
-
-    public static String restEmbeddingEndpoint(JsonNode providerConfig) {
-        String configured = text(providerConfig, "restEmbeddingEndpoint");
-        return configured.isBlank() ? "/embed" : configured;
-    }
-
-    public static String restEmbeddingBatchEndpoint(JsonNode providerConfig) {
-        String configured = text(providerConfig, "restEmbeddingBatchEndpoint");
-        return configured.isBlank() ? "/embed/batch" : configured;
-    }
-
-    public static String restEmbeddingModel(JsonNode providerConfig) {
-        String configured = text(providerConfig, "restEmbeddingModel");
-        return configured.isBlank() ? defaultEmbeddingModel(EMBEDDING_PROVIDER_REST) : configured;
-    }
-
-    public static int restEmbeddingTimeoutMs(JsonNode providerConfig) {
-        return positiveOrDefault(readInt(providerConfig, "restEmbeddingTimeoutMs"), 30000);
-    }
-
     public static String pineconeEnvironment(JsonNode providerConfig) {
         return text(providerConfig, "pineconeEnvironment");
     }
@@ -1181,7 +1273,12 @@ public final class ManagedDeploymentProfileCatalog {
 
     private static String normalizeToSupported(String raw, Set<String> supported, String fallback) {
         String normalized = normalize(raw);
-        return supported.contains(normalized) ? normalized : fallback;
+        for (String candidate : supported) {
+            if (normalize(candidate).equals(normalized)) {
+                return candidate;
+            }
+        }
+        return fallback;
     }
 
     private static String normalize(String value) {

@@ -108,12 +108,6 @@ type ProviderFormState = {
   qdrantCloudRegionId: string
   qdrantCloudPackageId: string
   qdrantCloudClusterNameOverride: string
-  restEmbeddingValidateOnStartup: boolean
-  restEmbeddingBaseUrl: string
-  restEmbeddingEndpoint: string
-  restEmbeddingBatchEndpoint: string
-  restEmbeddingModel: string
-  restEmbeddingTimeoutMs: string
   pineconeEnvironment: string
   pineconeIndexName: string
   pineconeProjectId: string
@@ -247,12 +241,6 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   qdrantCloudRegionId: '',
   qdrantCloudPackageId: '',
   qdrantCloudClusterNameOverride: '',
-  restEmbeddingValidateOnStartup: false,
-  restEmbeddingBaseUrl: '',
-  restEmbeddingEndpoint: '/embed',
-  restEmbeddingBatchEndpoint: '/embed/batch',
-  restEmbeddingModel: 'all-MiniLM-L6-v2',
-  restEmbeddingTimeoutMs: '30000',
   pineconeEnvironment: '',
   pineconeIndexName: '',
   pineconeProjectId: '',
@@ -361,12 +349,6 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'qdrantCloudRegionId',
   'qdrantCloudPackageId',
   'qdrantCloudClusterNameOverride',
-  'restEmbeddingValidateOnStartup',
-  'restEmbeddingBaseUrl',
-  'restEmbeddingEndpoint',
-  'restEmbeddingBatchEndpoint',
-  'restEmbeddingModel',
-  'restEmbeddingTimeoutMs',
   'pineconeEnvironment',
   'pineconeIndexName',
   'pineconeProjectId',
@@ -935,24 +917,6 @@ function buildVendorSetupGuides(
   const findSecret = (secretName: string) => providerSecrets.find((secret) => secret.secretName === secretName)
   const guides: VendorSetupGuide[] = []
 
-  if (form.embeddingProvider === 'rest') {
-    guides.push({
-      key: 'rest-embeddings',
-      severity: form.restEmbeddingBaseUrl.trim() ? 'info' : 'warning',
-      title: 'REST embedding service onboarding',
-      lines: [
-        form.restEmbeddingBaseUrl.trim()
-          ? `Embedding service base URL: ${form.restEmbeddingBaseUrl.trim()}`
-          : 'Set the REST embedding base URL before publish/apply.',
-        `Embedding endpoint: ${form.restEmbeddingEndpoint.trim() || '/embed'}`,
-        `Batch endpoint: ${form.restEmbeddingBatchEndpoint.trim() || '/embed/batch'}`,
-        form.restEmbeddingValidateOnStartup
-          ? 'Runtime startup validation is enabled for this embedding service.'
-          : 'Runtime startup validation is disabled. Run vendor probes before apply if this endpoint changes.',
-      ],
-    })
-  }
-
   if (form.vectorStrategy === 'qdrant') {
     const qdrantApiKey = findSecret('QDRANT_API_KEY')
     const qdrantCloudManagementKey = findSecret('QDRANT_CLOUD_MANAGEMENT_API_KEY')
@@ -1184,12 +1148,6 @@ function readProviderForm(config: unknown): ProviderFormState {
     qdrantCloudRegionId: readString(record, 'qdrantCloudRegionId'),
     qdrantCloudPackageId: readString(record, 'qdrantCloudPackageId'),
     qdrantCloudClusterNameOverride: readString(record, 'qdrantCloudClusterNameOverride'),
-    restEmbeddingValidateOnStartup: readBoolean(record, 'restEmbeddingValidateOnStartup'),
-    restEmbeddingBaseUrl: readString(record, 'restEmbeddingBaseUrl'),
-    restEmbeddingEndpoint: readString(record, 'restEmbeddingEndpoint', DEFAULT_PROVIDER_FORM_STATE.restEmbeddingEndpoint),
-    restEmbeddingBatchEndpoint: readString(record, 'restEmbeddingBatchEndpoint', DEFAULT_PROVIDER_FORM_STATE.restEmbeddingBatchEndpoint),
-    restEmbeddingModel: readString(record, 'restEmbeddingModel', DEFAULT_PROVIDER_FORM_STATE.restEmbeddingModel),
-    restEmbeddingTimeoutMs: readString(record, 'restEmbeddingTimeoutMs', DEFAULT_PROVIDER_FORM_STATE.restEmbeddingTimeoutMs),
     pineconeEnvironment: readString(record, 'pineconeEnvironment'),
     pineconeIndexName: readString(record, 'pineconeIndexName'),
     pineconeProjectId: readString(record, 'pineconeProjectId'),
@@ -1294,11 +1252,6 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     items.push({ label: 'ONNX model alias', value: form.onnxModelAlias.trim() || 'all-MiniLM-L6-v2' })
     items.push({ label: 'ONNX max sequence length', value: form.onnxMaxSequenceLength.trim() || '512' })
     items.push({ label: 'ONNX GPU acceleration', value: String(form.onnxUseGpu) })
-  }
-  if (form.embeddingProvider === 'rest') {
-    items.push({ label: 'REST embedding base URL', value: form.restEmbeddingBaseUrl.trim() || 'Not configured' })
-    items.push({ label: 'REST embedding endpoint', value: form.restEmbeddingEndpoint.trim() || '/embed' })
-    items.push({ label: 'REST timeout (ms)', value: form.restEmbeddingTimeoutMs.trim() || '30000' })
   }
   if (form.vectorStrategy === 'qdrant') {
     items.push({ label: 'Qdrant provisioning', value: form.vectorProvisioningMode.trim() || 'EXTERNAL_EXISTING' })
@@ -1866,7 +1819,7 @@ export function ProvidersPage() {
                     External vendor probes
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Run on-demand probes for the saved draft to verify Pinecone, Qdrant, Weaviate, or REST embedding reachability before apply.
+                    Run on-demand probes for the saved draft to verify Pinecone, Qdrant, Weaviate, or Milvus reachability before apply.
                   </Typography>
                 </Box>
                 <Button
@@ -2055,7 +2008,6 @@ export function ProvidersPage() {
                             <MenuItem value="cohere">Cohere</MenuItem>
                             <MenuItem value="gemini">Gemini</MenuItem>
                             <MenuItem value="onnx">ONNX</MenuItem>
-                            <MenuItem value="rest">REST embedding service</MenuItem>
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
@@ -2726,67 +2678,6 @@ export function ProvidersPage() {
                                   />
                                 )}
                                 label="Enable ONNX GPU acceleration"
-                              />
-                            </Grid>
-                          </>
-                        ) : null}
-
-                        {formState.embeddingProvider === 'rest' ? (
-                          <>
-                            <Grid item xs={12}>
-                              <FormControlLabel
-                                control={(
-                                  <Checkbox
-                                    checked={formState.restEmbeddingValidateOnStartup}
-                                    onChange={(event) => handleFieldChange('restEmbeddingValidateOnStartup', event.target.checked)}
-                                  />
-                                )}
-                                label="Validate REST embedding service on runtime startup"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={8}>
-                              <TextField
-                                fullWidth
-                                label="REST embedding base URL"
-                                value={formState.restEmbeddingBaseUrl}
-                                onChange={(event) => handleFieldChange('restEmbeddingBaseUrl', event.target.value)}
-                                helperText="Required. Base URL of the external embedding service."
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                label="REST timeout (ms)"
-                                value={formState.restEmbeddingTimeoutMs}
-                                onChange={(event) => handleFieldChange('restEmbeddingTimeoutMs', event.target.value)}
-                                helperText="Default 30000"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                              <TextField
-                                fullWidth
-                                label="REST endpoint"
-                                value={formState.restEmbeddingEndpoint}
-                                onChange={(event) => handleFieldChange('restEmbeddingEndpoint', event.target.value)}
-                                helperText="Default /embed"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                              <TextField
-                                fullWidth
-                                label="REST batch endpoint"
-                                value={formState.restEmbeddingBatchEndpoint}
-                                onChange={(event) => handleFieldChange('restEmbeddingBatchEndpoint', event.target.value)}
-                                helperText="Default /embed/batch"
-                              />
-                            </Grid>
-                            <Grid item xs={12}>
-                              <TextField
-                                fullWidth
-                                label="REST embedding model"
-                                value={formState.restEmbeddingModel}
-                                onChange={(event) => handleFieldChange('restEmbeddingModel', event.target.value)}
-                                helperText="Optional model identifier forwarded to the embedding service."
                               />
                             </Grid>
                           </>

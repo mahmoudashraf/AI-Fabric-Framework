@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-data-policy-folder",
+  "version": "1.0.0",
+  "pluginType": "DATA",
+  "displayName": "Policy Folder Data",
+  "compatibility": {
+    "minPlatformVersion": "0.1.0",
+    "requiredCapabilities": [
+      "knowledgeSources",
+      "shellConfig"
+    ],
+    "supportedDeploymentTargets": [
+      "custom-start-from-scratch",
+      "dev-openai-lucene",
+      "dev-openai-memory",
+      "dev-openai-qdrant",
+      "dev-openai-pinecone",
+      "dev-openai-weaviate",
+      "dev-openai-milvus"
+    ],
+    "supportedAuthModes": [
+      "PLATFORM_PROXY_SESSION",
+      "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+      "PUBLIC_RUNTIME_AUTHENTICATED"
+    ]
+  },
+  "pricing": {
+    "pricingModel": "FREE"
+  },
+  "permissions": {
+    "contributesKnowledgeSources": true,
+    "contributesShellPresentation": true,
+    "requiresSharedDatasetAccess": true
+  },
+  "contributions": {
+    "entityConfig": {
+      "ai-entities": {
+        "support-policy": {
+          "entity-type": "support-policy",
+          "auto-embedding": true,
+          "indexable": true,
+          "enable-search": true
+        }
+      }
+    },
+    "datasets": [
+      {
+        "datasetId": "policy-folder-pack",
+        "entityType": "support-policy",
+        "storageScope": "PLUGIN_SCOPED",
+        "sharingScope": "TENANT_SHARED",
+        "ingestionMode": "EXTERNAL_SYNC_FOLDER",
+        "updateStrategy": "UPSERT_BY_ID",
+        "syncConnector": {
+          "connectorType": "FILE_FOLDER",
+          "folderRef": "classpath*:marketplace/folders/policy-pack/*.md"
+        }
+      }
+    ],
+    "knowledgeSources": [
+      {
+        "sourceType": "shared-index",
+        "sourceKey": "policy-folder",
+        "datasetRef": "policy-folder-pack",
+        "entityType": "support-policy",
+        "attributionLabel": "Policy folder marketplace data",
+        "authModes": [
+          "PLATFORM_PROXY_SESSION",
+          "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+          "PUBLIC_RUNTIME_AUTHENTICATED"
+        ]
+      }
+    ],
+    "shell": {
+      "moduleRefs": [
+        "docs",
+        "ai-search",
+        "support"
+      ]
+    }
+  }
+}

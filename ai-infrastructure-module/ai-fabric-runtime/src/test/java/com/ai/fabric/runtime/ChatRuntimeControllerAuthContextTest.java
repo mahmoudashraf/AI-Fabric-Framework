@@ -136,6 +136,7 @@ class ChatRuntimeControllerAuthContextTest {
                 provider(null),
                 provider(null),
                 provider(null),
+                provider(null),
                 authResolver
             );
         } catch (ReflectiveOperationException ex) {

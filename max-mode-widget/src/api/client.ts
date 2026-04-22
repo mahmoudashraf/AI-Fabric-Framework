@@ -25,6 +25,10 @@ function getChatBaseUrl(): string {
   return getWidgetConfig().apiConfig.chatBaseUrl;
 }
 
+function getFetchCredentials(): RequestCredentials | undefined {
+  return getWidgetConfig().apiConfig.fetchCredentials;
+}
+
 function getCrudBaseUrl(): string {
   return getWidgetConfig().apiConfig.crudBaseUrl?.trim() || "";
 }
@@ -91,6 +95,7 @@ async function bootstrapAnonymousRuntimeToken(baseUrl: string): Promise<string> 
     ? await bootstrap()
     : await fetch(bootstrapUrl, {
       method: "POST",
+      credentials: getFetchCredentials(),
       headers: { "Content-Type": "application/json" },
     }).then(async (res) => {
       if (!res.ok) {
@@ -150,7 +155,10 @@ async function resolveSecureRuntimeHeaders(
 
 async function resolveRequestHeaders(init?: RequestInit, baseUrl?: string): Promise<Record<string, string>> {
   const base = baseUrl ?? getChatBaseUrl();
-  const staticHeaders = normalizeHeaders(init?.headers);
+  const staticHeaders = {
+    ...normalizeHeaders(getWidgetConfig().apiConfig.defaultHeaders),
+    ...normalizeHeaders(init?.headers),
+  };
   return resolveSecureRuntimeHeaders(base, staticHeaders);
 }
 
@@ -160,6 +168,7 @@ async function performFetch(path: string, init?: RequestInit, baseUrl?: string):
   const requestUrl = isAbsoluteUrl(path) ? path : `${base}${path}`;
   const response = await fetch(requestUrl, {
     ...init,
+    credentials: init?.credentials ?? getFetchCredentials(),
     headers,
   });
 
@@ -169,6 +178,7 @@ async function performFetch(path: string, init?: RequestInit, baseUrl?: string):
     const retryHeaders = await resolveRequestHeaders(init, base);
     return fetch(requestUrl, {
       ...init,
+      credentials: init?.credentials ?? getFetchCredentials(),
       headers: retryHeaders,
     });
   }

@@ -3,8 +3,11 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -12,17 +15,72 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class DeploymentDraftValidationService {
 
+    private static final Set<String> SUPPORTED_CONFIRMATION_TYPES = Set.of("CONFIRMATION_POSITIVE", "CONFIRMATION_NEGATIVE");
+    private static final Set<String> SUPPORTED_CONFIRMATION_DECISION_TYPES = Set.of("PROMPT_ACTION", "EXECUTE_ACTION", "REPLY");
+    private static final Set<String> SUPPORTED_POST_POLICY_TYPES = Set.of("WEBHOOK");
+    private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Pattern SAFE_SECRET_REF = Pattern.compile("[A-Z][A-Z0-9_]*");
+    private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
+    private static final Set<String> SUPPORTED_SHELL_MODULE_IDS = Set.of(
+        "search",
+        "ai-search",
+        "product-catalog",
+        "products",
+        "cart",
+        "orders",
+        "purchase-orders",
+        "policies",
+        "docs",
+        "reviews",
+        "actions",
+        "customer-account",
+        "addresses",
+        "support"
+    );
+    private static final Set<String> SUPPORTED_SHELL_CARD_IDS = Set.of(
+        "product-list",
+        "product-detail",
+        "cart-summary",
+        "order-status",
+        "purchase-order-status",
+        "policy-summary",
+        "review-summary",
+        "support-ticket-status",
+        "address-summary",
+        "pricing-summary"
+    );
+
     private final ObjectMapper objectMapper;
+    private final PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService;
+    private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
 
     public DeploymentDraftValidationService(ObjectMapper objectMapper) {
+        this(objectMapper, null, null);
+    }
+
+    public DeploymentDraftValidationService(ObjectMapper objectMapper,
+                                            PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService) {
+        this(objectMapper, platformManagedInferenceEndpointService, null);
+    }
+
+    @Autowired
+    public DeploymentDraftValidationService(ObjectMapper objectMapper,
+                                            PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
+                                            PlatformManagedInferenceServiceService platformManagedInferenceServiceService) {
         this.objectMapper = objectMapper;
+        this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
+        this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
     }
 
     public DraftValidationResponse validate(DeploymentDraftEntity draft) {
@@ -33,15 +91,22 @@ public class DeploymentDraftValidationService {
             JsonNode providerNode = objectMapper.readTree(draft.getProviderConfigJson());
             JsonNode securityNode = objectMapper.readTree(draft.getSecurityConfigJson());
             JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
+            JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
+            JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
+            JsonNode marketplaceDatasetNode = objectMapper.readTree(draft.getMarketplaceDatasetConfigJson());
 
             List<DraftValidationIssue> issues = new ArrayList<>();
-            Set<String> actionNames = validateActions(actionsNode, issues);
+            ActionValidationSummary actionValidation = validateActions(actionsNode, issues);
             validateEntities(entityNode, issues);
-            validateRouting(routingNode, actionNames, issues);
+            validateRouting(routingNode, actionValidation, issues);
             validateProviders(providerNode, issues);
             validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
             validatePrompts(promptNode, issues);
+            validateKnowledgeSources(knowledgeSourceNode, providerNode, issues);
+            validateShellConfig(shellNode, issues);
+            validateMarketplaceDatasetConfig(marketplaceDatasetNode, issues);
+            validateKnowledgeSourceDatasetRefs(knowledgeSourceNode, marketplaceDatasetNode, issues);
 
             int errorCount = countBySeverity(issues, "ERROR");
             int warningCount = countBySeverity(issues, "WARNING");
@@ -77,17 +142,20 @@ public class DeploymentDraftValidationService {
         }
     }
 
-    private Set<String> validateActions(JsonNode actionsNode, List<DraftValidationIssue> issues) {
+    private ActionValidationSummary validateActions(JsonNode actionsNode, List<DraftValidationIssue> issues) {
         Set<String> actionNames = new HashSet<>();
+        Set<String> confirmableActionNames = new HashSet<>();
+        Set<String> webhookTargetIds = validateWebhookTargets(actionsNode.path("webhookTargets"), issues);
+        List<InlineActionRoute> inlineRoutes = new ArrayList<>();
         JsonNode actions = actionsNode.path("actions");
         if (!actions.isArray()) {
             issues.add(error("actions", "ACTIONS_ARRAY_REQUIRED", "$.actions", "actions must be an array."));
-            return actionNames;
+            return new ActionValidationSummary(actionNames, List.of(), webhookTargetIds);
         }
 
         if (actions.isEmpty()) {
             issues.add(warning("actions", "NO_ACTIONS_CONFIGURED", "$.actions", "No actions are currently configured."));
-            return actionNames;
+            return new ActionValidationSummary(actionNames, List.of(), webhookTargetIds);
         }
 
         for (int index = 0; index < actions.size(); index++) {
@@ -119,9 +187,646 @@ public class DeploymentDraftValidationService {
             if (!anonymousAllowed.isMissingNode() && !anonymousAllowed.isBoolean()) {
                 issues.add(error("actions", "ANONYMOUS_ALLOWED_BOOLEAN", basePath + ".anonymousAllowed", "anonymousAllowed must be a boolean."));
             }
+
+            JsonNode route = action.path("route");
+            if (!route.isMissingNode() && !route.isNull()) {
+                if (!route.isObject()) {
+                    issues.add(error("actions", "ACTION_ROUTE_OBJECT_REQUIRED", basePath + ".route", "route must be an object when provided."));
+                } else if (!name.isEmpty()) {
+                    inlineRoutes.add(new InlineActionRoute(name, route, basePath + ".route"));
+                }
+            }
+
+            validatePostPolicies(action.path("postPolicies"), basePath, name, webhookTargetIds, issues);
+
+            if (action.path("requiresConfirmation").asBoolean(false) && !name.isEmpty()) {
+                confirmableActionNames.add(name);
+            }
         }
 
-        return actionNames;
+        validateConfirmationInterceptors(actionsNode.path("confirmationInterceptors"), actionNames, confirmableActionNames, issues);
+
+        return new ActionValidationSummary(actionNames, List.copyOf(inlineRoutes), webhookTargetIds);
+    }
+
+    private Set<String> validateWebhookTargets(JsonNode webhookTargets, List<DraftValidationIssue> issues) {
+        Set<String> ids = new HashSet<>();
+        if (webhookTargets.isMissingNode() || webhookTargets.isNull()) {
+            return ids;
+        }
+        if (!webhookTargets.isArray()) {
+            issues.add(error("actions", "WEBHOOK_TARGETS_ARRAY_REQUIRED", "$.webhookTargets", "webhookTargets must be an array when provided."));
+            return ids;
+        }
+        for (int index = 0; index < webhookTargets.size(); index++) {
+            JsonNode target = webhookTargets.get(index);
+            String basePath = "$.webhookTargets[" + index + "]";
+            if (!target.isObject()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_OBJECT_REQUIRED", basePath, "Each webhook target entry must be an object."));
+                continue;
+            }
+
+            String id = target.path("id").asText("").trim();
+            if (id.isEmpty()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_ID_REQUIRED", basePath + ".id", "Webhook target id is required."));
+            } else if (!ids.add(id)) {
+                issues.add(error("actions", "DUPLICATE_WEBHOOK_TARGET_ID", basePath + ".id", "Duplicate webhook target id: " + id));
+            }
+
+            String urlSecretRef = target.path("urlSecretRef").asText("").trim();
+            if (urlSecretRef.isEmpty()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_URL_SECRET_REF_REQUIRED", basePath + ".urlSecretRef", "Webhook target urlSecretRef is required."));
+            } else if (!SAFE_SECRET_REF.matcher(urlSecretRef).matches()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_URL_SECRET_REF_INVALID", basePath + ".urlSecretRef", "Webhook target urlSecretRef must be an uppercase secret ref."));
+            }
+
+            String signingSecretRef = target.path("signingSecretRef").asText("").trim();
+            if (!signingSecretRef.isEmpty() && !SAFE_SECRET_REF.matcher(signingSecretRef).matches()) {
+                issues.add(error("actions", "WEBHOOK_TARGET_SIGNING_SECRET_REF_INVALID", basePath + ".signingSecretRef", "Webhook target signingSecretRef must be an uppercase secret ref."));
+            }
+
+            if (target.has("timeoutMs") && (!target.path("timeoutMs").canConvertToInt() || target.path("timeoutMs").asInt() <= 0)) {
+                issues.add(error("actions", "WEBHOOK_TARGET_TIMEOUT_INVALID", basePath + ".timeoutMs", "Webhook target timeoutMs must be a positive integer."));
+            }
+            if (target.has("maxAttempts") && (!target.path("maxAttempts").canConvertToInt() || target.path("maxAttempts").asInt() <= 0)) {
+                issues.add(error("actions", "WEBHOOK_TARGET_MAX_ATTEMPTS_INVALID", basePath + ".maxAttempts", "Webhook target maxAttempts must be a positive integer."));
+            }
+        }
+        return ids;
+    }
+
+    private void validatePostPolicies(JsonNode postPolicies,
+                                      String basePath,
+                                      String actionName,
+                                      Set<String> webhookTargetIds,
+                                      List<DraftValidationIssue> issues) {
+        if (postPolicies.isMissingNode() || postPolicies.isNull()) {
+            return;
+        }
+        if (!postPolicies.isArray()) {
+            issues.add(error("actions", "POST_POLICIES_ARRAY_REQUIRED", basePath + ".postPolicies", "postPolicies must be an array when provided."));
+            return;
+        }
+        for (int index = 0; index < postPolicies.size(); index++) {
+            JsonNode postPolicy = postPolicies.get(index);
+            String policyPath = basePath + ".postPolicies[" + index + "]";
+            if (!postPolicy.isObject()) {
+                issues.add(error("actions", "POST_POLICY_OBJECT_REQUIRED", policyPath, "Each post policy must be an object."));
+                continue;
+            }
+            String type = postPolicy.path("type").asText("").trim().toUpperCase(Locale.ROOT);
+            if (!SUPPORTED_POST_POLICY_TYPES.contains(type)) {
+                issues.add(error("actions", "POST_POLICY_TYPE_UNSUPPORTED", policyPath + ".type", "Unsupported post policy type."));
+            }
+            String targetRef = postPolicy.path("targetRef").asText("").trim();
+            if (targetRef.isEmpty()) {
+                issues.add(error("actions", "POST_POLICY_TARGET_REF_REQUIRED", policyPath + ".targetRef", "Webhook post policy targetRef is required."));
+            } else if (!webhookTargetIds.contains(targetRef)) {
+                issues.add(error(
+                    "actions",
+                    "POST_POLICY_TARGET_REF_UNKNOWN",
+                    policyPath + ".targetRef",
+                    "Webhook post policy references unknown target '" + targetRef + "'" + (actionName.isEmpty() ? "." : " for action '" + actionName + "'.")
+                ));
+            }
+            String eventType = postPolicy.path("eventType").asText("").trim();
+            if (eventType.isEmpty()) {
+                issues.add(error("actions", "POST_POLICY_EVENT_TYPE_REQUIRED", policyPath + ".eventType", "Webhook post policy eventType is required."));
+            }
+        }
+    }
+
+    private void validateKnowledgeSources(JsonNode knowledgeSourceNode,
+                                          JsonNode providerNode,
+                                          List<DraftValidationIssue> issues) {
+        if (knowledgeSourceNode == null || !knowledgeSourceNode.isObject()) {
+            issues.add(error(
+                "knowledgeSources",
+                "KNOWLEDGE_SOURCE_CONFIG_OBJECT_REQUIRED",
+                "$.knowledgeSourceConfig",
+                "knowledgeSourceConfig must be an object."
+            ));
+            return;
+        }
+
+        JsonNode contractVersion = knowledgeSourceNode.path("contractVersion");
+        if (!contractVersion.isMissingNode() && !contractVersion.isNull() && !contractVersion.isTextual()) {
+            issues.add(error(
+                "knowledgeSources",
+                "KNOWLEDGE_SOURCE_CONTRACT_VERSION_INVALID",
+                "$.knowledgeSourceConfig.contractVersion",
+                "knowledgeSourceConfig.contractVersion must be a string when provided."
+            ));
+        }
+
+        JsonNode sources = knowledgeSourceNode.path("sources");
+        if (!sources.isMissingNode() && !sources.isArray()) {
+            issues.add(error(
+                "knowledgeSources",
+                "KNOWLEDGE_SOURCE_SOURCES_ARRAY_REQUIRED",
+                "$.knowledgeSourceConfig.sources",
+                "knowledgeSourceConfig.sources must be an array when provided."
+            ));
+            return;
+        }
+
+        if (!sources.isArray()) {
+            return;
+        }
+
+        Set<String> ids = new HashSet<>();
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode);
+        String vectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerNode);
+        String vectorStoragePosture = ManagedDeploymentProfileCatalog.resolveVectorStoragePosture(providerNode);
+        boolean sharedStorageCapable = ManagedDeploymentProfileCatalog.supportsSharedVectorStorage(
+            vectorStrategy,
+            vectorProvisioningMode
+        );
+        boolean sharedStorageSelected = ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_SHARED.equals(
+            vectorStoragePosture
+        );
+        for (int index = 0; index < sources.size(); index++) {
+            JsonNode source = sources.get(index);
+            String basePath = "$.knowledgeSourceConfig.sources[" + index + "]";
+            if (!source.isObject()) {
+                issues.add(error("knowledgeSources", "KNOWLEDGE_SOURCE_OBJECT_REQUIRED", basePath, "Each knowledge source entry must be an object."));
+                continue;
+            }
+            String id = source.path("id").asText("").trim();
+            if (id.isEmpty()) {
+                issues.add(warning("knowledgeSources", "KNOWLEDGE_SOURCE_ID_RECOMMENDED", basePath + ".id", "Knowledge source id should be provided."));
+            } else if (!ids.add(id.toLowerCase(Locale.ROOT))) {
+                issues.add(error("knowledgeSources", "DUPLICATE_KNOWLEDGE_SOURCE_ID", basePath + ".id", "Duplicate knowledge source id: " + id));
+            }
+            JsonNode enabled = source.path("enabled");
+            if (!enabled.isMissingNode() && !enabled.isBoolean()) {
+                issues.add(error("knowledgeSources", "KNOWLEDGE_SOURCE_ENABLED_BOOLEAN", basePath + ".enabled", "enabled must be a boolean when provided."));
+            }
+            String sourceType = source.path("sourceType").asText("").trim();
+            if ("shared-index".equalsIgnoreCase(sourceType) && (!sharedStorageCapable || !sharedStorageSelected)) {
+                issues.add(error(
+                    "knowledgeSources",
+                    "SHARED_INDEX_REQUIRES_SHARED_VECTOR_STORAGE",
+                    basePath + ".sourceType",
+                    "shared-index knowledge sources require vectorStoragePosture=SHARED on a shared-storage-capable vector provider."
+                ));
+            }
+        }
+    }
+
+    private void validateShellConfig(JsonNode shellNode, List<DraftValidationIssue> issues) {
+        if (shellNode == null || !shellNode.isObject()) {
+            issues.add(error(
+                "shell",
+                "SHELL_CONFIG_OBJECT_REQUIRED",
+                "$.shellConfig",
+                "shellConfig must be an object."
+            ));
+            return;
+        }
+
+        JsonNode contractVersion = shellNode.path("contractVersion");
+        if (!contractVersion.isMissingNode() && !contractVersion.isNull() && !contractVersion.isTextual()) {
+            issues.add(error(
+                "shell",
+                "SHELL_CONTRACT_VERSION_INVALID",
+                "$.shellConfig.contractVersion",
+                "shellConfig.contractVersion must be a string when provided."
+            ));
+        }
+
+        JsonNode modules = shellNode.path("modules");
+        if (!modules.isMissingNode() && !modules.isArray()) {
+            issues.add(error(
+                "shell",
+                "SHELL_MODULES_ARRAY_REQUIRED",
+                "$.shellConfig.modules",
+                "shellConfig.modules must be an array when provided."
+            ));
+        } else if (modules.isArray()) {
+            for (int index = 0; index < modules.size(); index++) {
+                JsonNode module = modules.get(index);
+                String basePath = "$.shellConfig.modules[" + index + "]";
+                if (!module.isObject()) {
+                    issues.add(error("shell", "SHELL_MODULE_OBJECT_REQUIRED", basePath, "Each shell module entry must be an object."));
+                    continue;
+                }
+                String id = module.path("id").asText("").trim();
+                if (!id.isEmpty() && !SUPPORTED_SHELL_MODULE_IDS.contains(id)) {
+                    issues.add(error("shell", "SHELL_MODULE_ID_UNSUPPORTED", basePath + ".id", "Unsupported shell module id: " + id));
+                }
+                JsonNode enabled = module.path("enabled");
+                if (!enabled.isMissingNode() && !enabled.isBoolean()) {
+                    issues.add(error("shell", "SHELL_MODULE_ENABLED_BOOLEAN", basePath + ".enabled", "shellConfig.modules[].enabled must be a boolean when provided."));
+                }
+            }
+        }
+
+        JsonNode cards = shellNode.path("cards");
+        if (!cards.isMissingNode() && !cards.isArray()) {
+            issues.add(error(
+                "shell",
+                "SHELL_CARDS_ARRAY_REQUIRED",
+                "$.shellConfig.cards",
+                "shellConfig.cards must be an array when provided."
+            ));
+        } else if (cards.isArray()) {
+            for (int index = 0; index < cards.size(); index++) {
+                JsonNode card = cards.get(index);
+                String basePath = "$.shellConfig.cards[" + index + "]";
+                if (!card.isObject()) {
+                    issues.add(error("shell", "SHELL_CARD_OBJECT_REQUIRED", basePath, "Each shell card entry must be an object."));
+                    continue;
+                }
+                String id = card.path("id").asText("").trim();
+                if (!id.isEmpty() && !SUPPORTED_SHELL_CARD_IDS.contains(id)) {
+                    issues.add(error("shell", "SHELL_CARD_ID_UNSUPPORTED", basePath + ".id", "Unsupported shell card id: " + id));
+                }
+                JsonNode enabled = card.path("enabled");
+                if (!enabled.isMissingNode() && !enabled.isBoolean()) {
+                    issues.add(error("shell", "SHELL_CARD_ENABLED_BOOLEAN", basePath + ".enabled", "shellConfig.cards[].enabled must be a boolean when provided."));
+                }
+            }
+        }
+
+        JsonNode greeting = shellNode.path("greeting");
+        if (!greeting.isMissingNode() && !greeting.isObject()) {
+            issues.add(error("shell", "SHELL_GREETING_OBJECT_REQUIRED", "$.shellConfig.greeting", "shellConfig.greeting must be an object when provided."));
+        }
+
+        JsonNode starterPrompts = shellNode.path("starterPrompts");
+        if (!starterPrompts.isMissingNode() && !starterPrompts.isArray()) {
+            issues.add(error(
+                "shell",
+                "SHELL_STARTER_PROMPTS_ARRAY_REQUIRED",
+                "$.shellConfig.starterPrompts",
+                "shellConfig.starterPrompts must be an array when provided."
+            ));
+        } else if (starterPrompts.isArray()) {
+            for (int index = 0; index < starterPrompts.size(); index++) {
+                JsonNode starterPrompt = starterPrompts.get(index);
+                String basePath = "$.shellConfig.starterPrompts[" + index + "]";
+                if (!starterPrompt.isObject()) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_OBJECT_REQUIRED", basePath, "Each starter prompt entry must be an object."));
+                    continue;
+                }
+                if (!starterPrompt.path("label").isTextual() || starterPrompt.path("label").asText("").trim().isEmpty()) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_LABEL_REQUIRED", basePath + ".label", "shellConfig.starterPrompts[].label is required."));
+                }
+                if (!starterPrompt.path("query").isTextual() || starterPrompt.path("query").asText("").trim().isEmpty()) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_QUERY_REQUIRED", basePath + ".query", "shellConfig.starterPrompts[].query is required."));
+                }
+                String moduleId = starterPrompt.path("moduleId").asText("").trim();
+                if (!moduleId.isEmpty() && !SUPPORTED_SHELL_MODULE_IDS.contains(moduleId)) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_MODULE_UNSUPPORTED", basePath + ".moduleId", "Unsupported starter prompt module id: " + moduleId));
+                }
+                String cardId = starterPrompt.path("cardId").asText("").trim();
+                if (!cardId.isEmpty() && !SUPPORTED_SHELL_CARD_IDS.contains(cardId)) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_CARD_UNSUPPORTED", basePath + ".cardId", "Unsupported starter prompt card id: " + cardId));
+                }
+            }
+        }
+    }
+
+    private void validateMarketplaceDatasetConfig(JsonNode marketplaceDatasetNode,
+                                                  List<DraftValidationIssue> issues) {
+        if (marketplaceDatasetNode == null || !marketplaceDatasetNode.isObject()) {
+            issues.add(error(
+                "marketplaceDatasets",
+                "MARKETPLACE_DATASET_CONFIG_OBJECT_REQUIRED",
+                "$.marketplaceDatasetConfig",
+                "marketplaceDatasetConfig must be an object."
+            ));
+            return;
+        }
+
+        JsonNode contractVersion = marketplaceDatasetNode.path("contractVersion");
+        if (!contractVersion.isMissingNode() && !contractVersion.isNull() && !contractVersion.isTextual()) {
+            issues.add(error(
+                "marketplaceDatasets",
+                "MARKETPLACE_DATASET_CONTRACT_VERSION_INVALID",
+                "$.marketplaceDatasetConfig.contractVersion",
+                "marketplaceDatasetConfig.contractVersion must be a string when provided."
+            ));
+        }
+
+        JsonNode datasets = marketplaceDatasetNode.path("datasets");
+        if (!datasets.isArray()) {
+            issues.add(error(
+                "marketplaceDatasets",
+                "MARKETPLACE_DATASETS_ARRAY_REQUIRED",
+                "$.marketplaceDatasetConfig.datasets",
+                "marketplaceDatasetConfig.datasets must be an array."
+            ));
+            return;
+        }
+
+        Set<String> datasetIds = new HashSet<>();
+        Set<String> handleRefs = new HashSet<>();
+        for (int index = 0; index < datasets.size(); index++) {
+            JsonNode dataset = datasets.get(index);
+            String basePath = "$.marketplaceDatasetConfig.datasets[" + index + "]";
+            if (!dataset.isObject()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_OBJECT_REQUIRED", basePath, "Each marketplace dataset entry must be an object."));
+                continue;
+            }
+
+            String datasetId = dataset.path("datasetId").asText("").trim();
+            if (datasetId.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_ID_REQUIRED", basePath + ".datasetId", "marketplaceDatasetConfig.datasets[].datasetId is required."));
+            } else if (!datasetIds.add(datasetId.toLowerCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_ID_DUPLICATE", basePath + ".datasetId", "Duplicate marketplace dataset id: " + datasetId));
+            }
+
+            String entityType = dataset.path("entityType").asText("").trim();
+            if (entityType.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_ENTITY_TYPE_REQUIRED", basePath + ".entityType", "marketplaceDatasetConfig.datasets[].entityType is required."));
+            }
+
+            String storageScope = dataset.path("storageScope").asText("").trim();
+            if (storageScope.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_REQUIRED", basePath + ".storageScope", "marketplaceDatasetConfig.datasets[].storageScope is required."));
+            } else if (!"PLUGIN_SCOPED".equalsIgnoreCase(storageScope)) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_UNSUPPORTED", basePath + ".storageScope", "Supported marketplace dataset storageScope values: PLUGIN_SCOPED."));
+            }
+
+            String sharingScope = dataset.path("sharingScope").asText("").trim();
+            if (sharingScope.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SHARING_SCOPE_REQUIRED", basePath + ".sharingScope", "marketplaceDatasetConfig.datasets[].sharingScope is required."));
+            } else if (!"TENANT_SHARED".equalsIgnoreCase(sharingScope)) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SHARING_SCOPE_UNSUPPORTED", basePath + ".sharingScope", "Supported marketplace dataset sharingScope values: TENANT_SHARED."));
+            }
+
+            String ingestionMode = dataset.path("ingestionMode").asText("").trim();
+            if (ingestionMode.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_INGESTION_MODE_REQUIRED", basePath + ".ingestionMode", "marketplaceDatasetConfig.datasets[].ingestionMode is required."));
+            } else if (!Set.of("PACKAGED_SEED", "EXTERNAL_SYNC_SQL", "EXTERNAL_SYNC_FOLDER").contains(ingestionMode.toUpperCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_INGESTION_MODE_UNSUPPORTED", basePath + ".ingestionMode", "Unsupported marketplace dataset ingestionMode: " + ingestionMode));
+            }
+
+            String updateStrategy = dataset.path("updateStrategy").asText("").trim();
+            if (updateStrategy.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_UPDATE_STRATEGY_REQUIRED", basePath + ".updateStrategy", "marketplaceDatasetConfig.datasets[].updateStrategy is required."));
+            }
+
+            String handleRef = dataset.path("handleRef").asText("").trim();
+            if (handleRef.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_HANDLE_REF_REQUIRED", basePath + ".handleRef", "marketplaceDatasetConfig.datasets[].handleRef is required."));
+            } else if (!handleRefs.add(handleRef.toLowerCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_HANDLE_REF_DUPLICATE", basePath + ".handleRef", "Duplicate marketplace dataset handleRef: " + handleRef));
+            }
+
+            String datasetHash = dataset.path("datasetHash").asText("").trim();
+            if (datasetHash.isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_HASH_REQUIRED", basePath + ".datasetHash", "marketplaceDatasetConfig.datasets[].datasetHash is required."));
+            }
+
+            if ("PACKAGED_SEED".equalsIgnoreCase(ingestionMode) && dataset.path("seedDatasetRef").asText("").trim().isEmpty()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SEED_REF_REQUIRED", basePath + ".seedDatasetRef", "PACKAGED_SEED datasets require seedDatasetRef."));
+            }
+            if (("EXTERNAL_SYNC_SQL".equalsIgnoreCase(ingestionMode) || "EXTERNAL_SYNC_FOLDER".equalsIgnoreCase(ingestionMode))
+                && !dataset.path("syncConnector").isObject()) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SYNC_CONNECTOR_REQUIRED", basePath + ".syncConnector", "External sync datasets require a syncConnector object."));
+            }
+            if ("EXTERNAL_SYNC_SQL".equalsIgnoreCase(ingestionMode) && dataset.path("syncConnector").isObject()) {
+                if (dataset.path("syncConnector").path("connectionRef").asText("").trim().isEmpty()) {
+                    issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SQL_CONNECTION_REF_REQUIRED", basePath + ".syncConnector.connectionRef", "EXTERNAL_SYNC_SQL datasets require syncConnector.connectionRef."));
+                }
+                if (dataset.path("syncConnector").path("query").asText("").trim().isEmpty()) {
+                    issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SQL_QUERY_REQUIRED", basePath + ".syncConnector.query", "EXTERNAL_SYNC_SQL datasets require syncConnector.query."));
+                }
+            }
+            if ("EXTERNAL_SYNC_FOLDER".equalsIgnoreCase(ingestionMode) && dataset.path("syncConnector").isObject()) {
+                if (dataset.path("syncConnector").path("folderRef").asText("").trim().isEmpty()) {
+                    issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_FOLDER_REF_REQUIRED", basePath + ".syncConnector.folderRef", "EXTERNAL_SYNC_FOLDER datasets require syncConnector.folderRef."));
+                }
+            }
+        }
+    }
+
+    private void validateKnowledgeSourceDatasetRefs(JsonNode knowledgeSourceNode,
+                                                    JsonNode marketplaceDatasetNode,
+                                                    List<DraftValidationIssue> issues) {
+        if (!knowledgeSourceNode.isObject() || !knowledgeSourceNode.path("sources").isArray()) {
+            return;
+        }
+        Set<String> datasetIds = new HashSet<>();
+        if (marketplaceDatasetNode != null && marketplaceDatasetNode.path("datasets").isArray()) {
+            for (JsonNode dataset : marketplaceDatasetNode.path("datasets")) {
+                String datasetId = dataset.path("datasetId").asText("").trim();
+                if (!datasetId.isEmpty()) {
+                    datasetIds.add(datasetId);
+                }
+            }
+        }
+        for (int index = 0; index < knowledgeSourceNode.path("sources").size(); index++) {
+            JsonNode source = knowledgeSourceNode.path("sources").get(index);
+            if (!source.isObject()) {
+                continue;
+            }
+            String datasetRef = source.path("datasetRef").asText("").trim();
+            if (!datasetRef.isEmpty() && !datasetIds.contains(datasetRef)) {
+                issues.add(error(
+                    "knowledgeSources",
+                    "KNOWLEDGE_SOURCE_DATASET_REF_UNKNOWN",
+                    "$.knowledgeSourceConfig.sources[" + index + "].datasetRef",
+                    "Unknown marketplace datasetRef referenced by knowledge source: " + datasetRef
+                ));
+            }
+        }
+    }
+
+    private void validateConfirmationInterceptors(JsonNode confirmationInterceptorsNode,
+                                                  Set<String> actionNames,
+                                                  Set<String> confirmableActionNames,
+                                                  List<DraftValidationIssue> issues) {
+        if (confirmationInterceptorsNode.isMissingNode() || confirmationInterceptorsNode.isNull()) {
+            return;
+        }
+        if (!confirmationInterceptorsNode.isArray()) {
+            issues.add(error(
+                "actions",
+                "CONFIRMATION_INTERCEPTORS_ARRAY_REQUIRED",
+                "$.confirmationInterceptors",
+                "confirmationInterceptors must be an array."
+            ));
+            return;
+        }
+
+        Set<String> ruleNames = new HashSet<>();
+        for (int index = 0; index < confirmationInterceptorsNode.size(); index++) {
+            JsonNode rule = confirmationInterceptorsNode.get(index);
+            String basePath = "$.confirmationInterceptors[" + index + "]";
+            if (!rule.isObject()) {
+                issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_OBJECT_REQUIRED", basePath, "Each confirmation interceptor must be an object."));
+                continue;
+            }
+
+            String name = rule.path("name").asText("").trim();
+            if (name.isEmpty()) {
+                issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_NAME_REQUIRED", basePath + ".name", "Confirmation interceptor name is required."));
+            } else if (!ruleNames.add(name.toLowerCase(Locale.ROOT))) {
+                issues.add(error("actions", "DUPLICATE_CONFIRMATION_INTERCEPTOR_NAME", basePath + ".name", "Duplicate confirmation interceptor name: " + name));
+            }
+
+            JsonNode trigger = rule.path("trigger");
+            if (!trigger.isObject()) {
+                issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_TRIGGER_REQUIRED", basePath + ".trigger", "trigger object is required."));
+            } else {
+                JsonNode pendingActions = trigger.path("pendingActions");
+                if (!pendingActions.isArray() || pendingActions.isEmpty()) {
+                    issues.add(error(
+                        "actions",
+                        "CONFIRMATION_INTERCEPTOR_PENDING_ACTIONS_REQUIRED",
+                        basePath + ".trigger.pendingActions",
+                        "trigger.pendingActions must be a non-empty array."
+                    ));
+                } else {
+                    for (int pendingIndex = 0; pendingIndex < pendingActions.size(); pendingIndex++) {
+                        String actionName = pendingActions.path(pendingIndex).asText("").trim();
+                        if (actionName.isEmpty()) {
+                            issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_PENDING_ACTION_REQUIRED", basePath + ".trigger.pendingActions[" + pendingIndex + "]", "Pending action name is required."));
+                        } else if (!actionNames.contains(actionName)) {
+                            issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_UNKNOWN_PENDING_ACTION", basePath + ".trigger.pendingActions[" + pendingIndex + "]", "Unknown action referenced by trigger.pendingActions: " + actionName));
+                        }
+                    }
+                }
+
+                String confirmation = trigger.path("confirmation").asText("").trim();
+                if (!SUPPORTED_CONFIRMATION_TYPES.contains(confirmation)) {
+                    issues.add(error(
+                        "actions",
+                        "CONFIRMATION_INTERCEPTOR_CONFIRMATION_INVALID",
+                        basePath + ".trigger.confirmation",
+                        "trigger.confirmation must be CONFIRMATION_POSITIVE or CONFIRMATION_NEGATIVE."
+                    ));
+                }
+
+                JsonNode onceParam = trigger.path("onceParam");
+                if (!onceParam.isMissingNode()) {
+                    if (!onceParam.isTextual() || !SAFE_ONCE_PARAM.matcher(onceParam.asText().trim()).matches()) {
+                        issues.add(error(
+                            "actions",
+                            "CONFIRMATION_INTERCEPTOR_ONCE_PARAM_INVALID",
+                            basePath + ".trigger.onceParam",
+                            "trigger.onceParam must match [A-Za-z_][A-Za-z0-9_]*."
+                        ));
+                    }
+                }
+            }
+
+            JsonNode decision = rule.path("decision");
+            String decisionType = "";
+            if (!decision.isObject()) {
+                issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_DECISION_REQUIRED", basePath + ".decision", "decision object is required."));
+            } else {
+                decisionType = decision.path("type").asText("").trim();
+                if (!SUPPORTED_CONFIRMATION_DECISION_TYPES.contains(decisionType)) {
+                    issues.add(error(
+                        "actions",
+                        "CONFIRMATION_INTERCEPTOR_DECISION_TYPE_INVALID",
+                        basePath + ".decision.type",
+                        "decision.type must be PROMPT_ACTION, EXECUTE_ACTION, or REPLY."
+                    ));
+                }
+
+                if (Set.of("PROMPT_ACTION", "EXECUTE_ACTION").contains(decisionType)) {
+                    String actionName = decision.path("action").asText("").trim();
+                    if (actionName.isEmpty()) {
+                        issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_DECISION_ACTION_REQUIRED", basePath + ".decision.action", "decision.action is required for action decisions."));
+                    } else if (!actionNames.contains(actionName)) {
+                        issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_DECISION_UNKNOWN_ACTION", basePath + ".decision.action", "Unknown action referenced by decision.action: " + actionName));
+                    } else if ("PROMPT_ACTION".equals(decisionType) && !confirmableActionNames.contains(actionName)) {
+                        issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_PROMPT_ACTION_NOT_CONFIRMABLE", basePath + ".decision.action", "PROMPT_ACTION targets must reference actions with requiresConfirmation=true."));
+                    }
+                }
+                if ("REPLY".equals(decisionType) && decision.path("message").asText("").trim().isEmpty()) {
+                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_DECISION_MESSAGE_REQUIRED", basePath + ".decision.message", "decision.message is required for REPLY decisions."));
+                }
+
+                JsonNode params = decision.path("params");
+                if (!params.isMissingNode() && !params.isObject()) {
+                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_PARAMS_OBJECT_REQUIRED", basePath + ".decision.params", "decision.params must be an object when provided."));
+                } else if (params.isObject()) {
+                    validateConfirmationTemplatePlaceholders(params, basePath + ".decision.params", issues);
+                }
+                if (decision.path("message").isTextual()) {
+                    validateConfirmationTemplatePlaceholders(decision.path("message"), basePath + ".decision.message", issues);
+                }
+            }
+
+            JsonNode stack = rule.path("stack");
+            if (!stack.isMissingNode()) {
+                if (!stack.isObject()) {
+                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_STACK_OBJECT_REQUIRED", basePath + ".stack", "stack must be an object when provided."));
+                } else {
+                    JsonNode popCurrent = stack.path("popCurrent");
+                    if (!popCurrent.isMissingNode() && !popCurrent.isBoolean()) {
+                        issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_POP_CURRENT_BOOLEAN", basePath + ".stack.popCurrent", "stack.popCurrent must be a boolean."));
+                    }
+                    JsonNode popPreviousIfActionIn = stack.path("popPreviousIfActionIn");
+                    if (!popPreviousIfActionIn.isMissingNode()) {
+                        if (!popPreviousIfActionIn.isArray()) {
+                            issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_POP_PREVIOUS_ARRAY", basePath + ".stack.popPreviousIfActionIn", "stack.popPreviousIfActionIn must be an array when provided."));
+                        } else {
+                            for (int stackIndex = 0; stackIndex < popPreviousIfActionIn.size(); stackIndex++) {
+                                String actionName = popPreviousIfActionIn.path(stackIndex).asText("").trim();
+                                if (actionName.isEmpty()) {
+                                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_POP_PREVIOUS_ACTION_REQUIRED", basePath + ".stack.popPreviousIfActionIn[" + stackIndex + "]", "Action name is required."));
+                                } else if (!actionNames.contains(actionName)) {
+                                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_POP_PREVIOUS_UNKNOWN_ACTION", basePath + ".stack.popPreviousIfActionIn[" + stackIndex + "]", "Unknown action referenced by stack.popPreviousIfActionIn: " + actionName));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void validateConfirmationTemplatePlaceholders(JsonNode node,
+                                                          String path,
+                                                          List<DraftValidationIssue> issues) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        if (node.isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = fields.next();
+                validateConfirmationTemplatePlaceholders(entry.getValue(), path + "." + entry.getKey(), issues);
+            }
+            return;
+        }
+        if (node.isArray()) {
+            for (int index = 0; index < node.size(); index++) {
+                validateConfirmationTemplatePlaceholders(node.get(index), path + "[" + index + "]", issues);
+            }
+            return;
+        }
+        if (!node.isTextual()) {
+            return;
+        }
+
+        Matcher matcher = TEMPLATE_PLACEHOLDER.matcher(node.asText());
+        while (matcher.find()) {
+            String expression = matcher.group(1) != null ? matcher.group(1).trim() : "";
+            String targetPath = expression;
+            int fallbackSeparator = expression.indexOf('|');
+            if (fallbackSeparator >= 0) {
+                targetPath = expression.substring(0, fallbackSeparator).trim();
+            }
+            boolean supported = targetPath.startsWith("pending.actionParams.")
+                || targetPath.startsWith("stack.previous.actionParams.");
+            if (!supported) {
+                issues.add(error(
+                    "actions",
+                    "CONFIRMATION_INTERCEPTOR_TEMPLATE_UNSUPPORTED",
+                    path,
+                    "Unsupported confirmation interceptor template placeholder: {{" + expression + "}}. Supported roots are pending.actionParams.* and stack.previous.actionParams.*."
+                ));
+            }
+        }
     }
 
     private void validateEntities(JsonNode entityNode, List<DraftValidationIssue> issues) {
@@ -196,7 +901,8 @@ public class DeploymentDraftValidationService {
         }
     }
 
-    private void validateRouting(JsonNode routingNode, Set<String> actionNames, List<DraftValidationIssue> issues) {
+    private void validateRouting(JsonNode routingNode, ActionValidationSummary actionValidation, List<DraftValidationIssue> issues) {
+        Set<String> actionNames = actionValidation.actionNames();
         JsonNode connector = routingNode.path("connector");
         if (!connector.isObject()) {
             issues.add(error("routing", "CONNECTOR_OBJECT_REQUIRED", "$.connector", "connector object is required."));
@@ -210,16 +916,21 @@ public class DeploymentDraftValidationService {
         }
 
         JsonNode actionRoutes = routingNode.path("actions");
-        if (!actionRoutes.isObject()) {
+        if (!actionRoutes.isMissingNode() && !actionRoutes.isNull() && !actionRoutes.isObject()) {
             issues.add(error("routing", "ROUTES_OBJECT_REQUIRED", "$.actions", "actions routing object is required."));
             return;
         }
+        JsonNode explicitRoutes = actionRoutes.isObject() ? actionRoutes : objectMapper.createObjectNode();
+        Map<String, JsonNode> inlineRoutesByAction = new LinkedHashMap<>();
+        for (InlineActionRoute inlineRoute : actionValidation.inlineRoutes()) {
+            inlineRoutesByAction.put(inlineRoute.actionName(), inlineRoute.route());
+        }
 
-        if (actionRoutes.isEmpty()) {
+        if (explicitRoutes.isEmpty() && actionValidation.inlineRoutes().isEmpty()) {
             issues.add(warning("routing", "NO_ROUTES_CONFIGURED", "$.actions", "No action routes are configured yet."));
         }
 
-        Iterator<String> routeNames = actionRoutes.fieldNames();
+        Iterator<String> routeNames = explicitRoutes.fieldNames();
         while (routeNames.hasNext()) {
             String routeName = routeNames.next();
             if (!actionNames.contains(routeName)) {
@@ -227,17 +938,26 @@ public class DeploymentDraftValidationService {
                 continue;
             }
 
-            JsonNode route = actionRoutes.path(routeName);
+            JsonNode route = explicitRoutes.path(routeName);
             if (!route.isObject()) {
                 issues.add(error("routing", "ROUTE_OBJECT_REQUIRED", "$.actions." + routeName, "Each action route must be an object."));
                 continue;
             }
 
-            validateRoute(routeName, route, connector, issues);
+            JsonNode mergedRoute = inlineRoutesByAction.containsKey(routeName)
+                ? mergeRouteNodes(inlineRoutesByAction.get(routeName), route)
+                : route;
+            validateRoute("$.actions." + routeName, mergedRoute, connector, issues);
+        }
+
+        Set<String> actionsWithInlineRoutes = new HashSet<>();
+        for (InlineActionRoute inlineRoute : actionValidation.inlineRoutes()) {
+            actionsWithInlineRoutes.add(inlineRoute.actionName());
+            validateRoute(inlineRoute.path(), inlineRoute.route(), connector, issues);
         }
 
         for (String actionName : actionNames) {
-            if (!actionRoutes.has(actionName)) {
+            if (!explicitRoutes.has(actionName) && !actionsWithInlineRoutes.contains(actionName)) {
                 issues.add(warning("routing", "ACTION_WITHOUT_ROUTE", "$.actions", "No route is configured yet for action: " + actionName));
             }
         }
@@ -299,11 +1019,10 @@ public class DeploymentDraftValidationService {
         }
     }
 
-    private void validateRoute(String routeName,
+    private void validateRoute(String basePath,
                                JsonNode route,
                                JsonNode connector,
                                List<DraftValidationIssue> issues) {
-        String basePath = "$.actions." + routeName;
         String url = route.path("url").asText("").trim();
         String path = route.path("path").asText("").trim();
 
@@ -341,6 +1060,39 @@ public class DeploymentDraftValidationService {
                 }
             }
         }
+    }
+
+    private JsonNode mergeRouteNodes(JsonNode baseRoute, JsonNode overrideRoute) {
+        if (!(baseRoute instanceof com.fasterxml.jackson.databind.node.ObjectNode baseObject)) {
+            return overrideRoute;
+        }
+        if (!(overrideRoute instanceof com.fasterxml.jackson.databind.node.ObjectNode overrideObject)) {
+            return baseRoute;
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode merged = baseObject.deepCopy();
+        mergeInto(merged, overrideObject);
+        String url = merged.path("url").asText("").trim();
+        String path = merged.path("path").asText("").trim();
+        if (!url.isEmpty()) {
+            merged.remove("path");
+        } else if (!path.isEmpty()) {
+            merged.remove("url");
+        }
+        return merged;
+    }
+
+    private void mergeInto(com.fasterxml.jackson.databind.node.ObjectNode target,
+                           com.fasterxml.jackson.databind.node.ObjectNode source) {
+        source.fields().forEachRemaining(entry -> {
+            JsonNode existing = target.get(entry.getKey());
+            JsonNode overrideValue = entry.getValue();
+            if (existing instanceof com.fasterxml.jackson.databind.node.ObjectNode existingObject
+                && overrideValue instanceof com.fasterxml.jackson.databind.node.ObjectNode overrideObject) {
+                mergeInto(existingObject, overrideObject);
+                return;
+            }
+            target.set(entry.getKey(), overrideValue.deepCopy());
+        });
     }
 
     private void validateProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
@@ -444,15 +1196,20 @@ public class DeploymentDraftValidationService {
                     "providers",
                     "SHARED_VECTOR_STORAGE_UNSUPPORTED",
                     "$.vectorStoragePosture",
-                    "Shared vector storage currently requires an EXTERNAL_EXISTING provider-native isolation target."
+                    "Shared vector storage requires a shared-storage-capable provider and supported provisioning mode."
                 ));
             }
-            if (ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerNode)) {
+            if (ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(effectiveVectorProvisioningMode)
+                && ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerNode)
+                && !ManagedDeploymentProfileCatalog.supportsPlatformManagedSharedVectorStorage(
+                    vectorStrategy,
+                    effectiveVectorProvisioningMode
+                )) {
                 issues.add(error(
                     "providers",
                     "SHARED_VECTOR_STORAGE_MANAGED_PROVISIONING_UNSUPPORTED",
                     "$.vectorStoragePosture",
-                    "Shared vector storage currently requires a customer-managed EXTERNAL_EXISTING provider target. Platform-managed shared vector roots are not supported."
+                    "Platform-managed shared vector storage is currently supported only for Qdrant Cloud."
                 ));
             }
         }
@@ -479,6 +1236,17 @@ public class DeploymentDraftValidationService {
             ));
         }
 
+        String embeddingServiceMode = providerNode.path("embeddingServiceMode").asText("").trim();
+        if (!embeddingServiceMode.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_INFERENCE_SERVICE_MODES.contains(embeddingServiceMode.toUpperCase(Locale.ROOT))) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_EMBEDDING_SERVICE_MODE",
+                "$.embeddingServiceMode",
+                "embeddingServiceMode must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_INFERENCE_SERVICE_MODES + "."
+            ));
+        }
+
         validateAzureProviders(providerNode, issues);
         validateProviderBaseUrls(providerNode, issues);
         validatePurposeSpecificLlmProviders(providerNode, issues);
@@ -486,7 +1254,6 @@ public class DeploymentDraftValidationService {
         validateOpenAiProvider(providerNode, issues);
         validateAnthropicProvider(providerNode, issues);
         validateOnnxProvider(providerNode, issues);
-        validateRestEmbeddingProvider(providerNode, issues);
         validateQdrantVectorProvider(providerNode, issues);
         validatePineconeVectorProvider(providerNode, issues);
         validateWeaviateVectorProvider(providerNode, issues);
@@ -535,14 +1302,168 @@ public class DeploymentDraftValidationService {
 
     private void validateProviderBaseUrls(JsonNode providerNode, List<DraftValidationIssue> issues) {
         validateOptionalAbsoluteHttpUrl(providerNode, "openaiBaseUrl", "OPENAI_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "openaiEmbeddingBaseUrl", "OPENAI_EMBEDDING_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "anthropicBaseUrl", "ANTHROPIC_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "cohereBaseUrl", "COHERE_BASE_URL_INVALID", issues);
         validateOptionalAbsoluteHttpUrl(providerNode, "geminiBaseUrl", "GEMINI_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "embeddingBaseUrl", "EMBEDDING_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "azureEmbeddingEndpoint", "AZURE_EMBEDDING_ENDPOINT_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "orchestrationBaseUrl", "ORCHESTRATION_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "generationBaseUrl", "GENERATION_BASE_URL_INVALID", issues);
+        validateManagedServiceRef(providerNode, "orchestrationManagedServiceRef", "ORCHESTRATION", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerNode), issues);
+        validateManagedServiceRef(providerNode, "generationManagedServiceRef", "GENERATION", ManagedDeploymentProfileCatalog.generationLlmProvider(providerNode), issues);
+        validateManagedServiceRef(providerNode, "embeddingManagedServiceRef", "EMBEDDING", ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode), issues);
+        validateManagedEndpointProfile(providerNode, "orchestrationEndpointProfile", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerNode), issues);
+        validateManagedEndpointProfile(providerNode, "generationEndpointProfile", ManagedDeploymentProfileCatalog.generationLlmProvider(providerNode), issues);
+        validateManagedEndpointProfile(providerNode, "embeddingEndpointProfile", ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode), issues);
     }
 
     private void validatePurposeSpecificLlmProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
         validateOptionalProviderSelection(providerNode, "orchestrationLlmProvider", "ORCHESTRATION_PROVIDER_INVALID", issues);
         validateOptionalProviderSelection(providerNode, "generationLlmProvider", "GENERATION_PROVIDER_INVALID", issues);
+        validatePurposeSpecificLlmOverride(providerNode, "orchestration", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerNode), issues);
+        validatePurposeSpecificLlmOverride(providerNode, "generation", ManagedDeploymentProfileCatalog.generationLlmProvider(providerNode), issues);
+    }
+
+    private void validatePurposeSpecificLlmOverride(JsonNode providerNode,
+                                                    String purpose,
+                                                    String provider,
+                                                    List<DraftValidationIssue> issues) {
+        if (provider.isBlank()) {
+            return;
+        }
+        String baseUrlField = purpose + "BaseUrl";
+        String deploymentField = purpose + "DeploymentName";
+        String apiVersionField = purpose + "ApiVersion";
+        String baseUrl = text(providerNode, baseUrlField);
+        switch (provider) {
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI,
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC,
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE,
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI -> {
+                if (!baseUrl.isBlank() && !isAbsoluteHttpUrl(baseUrl)) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_BASE_URL_INVALID",
+                        "$." + baseUrlField,
+                        baseUrlField + " must be a valid absolute http(s) URL."
+                    ));
+                }
+            }
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE -> {
+                if (!baseUrl.isBlank() && !isAbsoluteHttpUrl(baseUrl)) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_AZURE_ENDPOINT_INVALID",
+                        "$." + baseUrlField,
+                        baseUrlField + " must be a valid absolute http(s) URL."
+                    ));
+                }
+                if (baseUrl.isBlank() && ManagedDeploymentProfileCatalog.azureEndpoint(providerNode).isBlank()) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_AZURE_ENDPOINT_REQUIRED",
+                        "$." + baseUrlField,
+                        baseUrlField + " or azureEndpoint is required when " + purpose + "LlmProvider=azure."
+                    ));
+                }
+                if (text(providerNode, deploymentField).isBlank()
+                    && ManagedDeploymentProfileCatalog.azureDeploymentName(providerNode).isBlank()) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_AZURE_DEPLOYMENT_REQUIRED",
+                        "$." + deploymentField,
+                        deploymentField + " or azureDeploymentName is required when " + purpose + "LlmProvider=azure."
+                    ));
+                }
+                String apiVersion = text(providerNode, apiVersionField);
+                if (!apiVersion.isBlank() && apiVersion.length() > 100) {
+                    issues.add(error(
+                        "providers",
+                        purpose.toUpperCase(Locale.ROOT) + "_AZURE_API_VERSION_INVALID",
+                        "$." + apiVersionField,
+                        apiVersionField + " must be a reasonable API version string."
+                    ));
+                }
+            }
+            default -> {
+            }
+        }
+    }
+
+    private void validateManagedEndpointProfile(JsonNode providerNode,
+                                                String fieldName,
+                                                String selectedProvider,
+                                                List<DraftValidationIssue> issues) {
+        String endpointProfile = text(providerNode, fieldName);
+        if (endpointProfile.isBlank() || platformManagedInferenceEndpointService == null) {
+            return;
+        }
+        if (skipDedicatedEmbeddingServiceValidation(providerNode, fieldName, endpointProfile)) {
+            return;
+        }
+        try {
+            var endpoint = platformManagedInferenceEndpointService.requireActive(endpointProfile);
+            String expectedProvider = selectedProvider == null ? "" : selectedProvider.trim().toLowerCase(Locale.ROOT);
+            String actualProvider = endpoint.getProviderType() == null ? "" : endpoint.getProviderType().trim().toLowerCase(Locale.ROOT);
+            if (!expectedProvider.isBlank() && !actualProvider.isBlank() && !expectedProvider.equals(actualProvider)) {
+                issues.add(error(
+                    "providers",
+                    fieldName.toUpperCase(Locale.ROOT) + "_PROVIDER_MISMATCH",
+                    "$." + fieldName,
+                    "Endpoint profile '" + endpointProfile + "' uses provider '" + endpoint.getProviderType()
+                        + "' but the deployment selects '" + selectedProvider + "'."
+                ));
+            }
+        } catch (Exception ex) {
+            issues.add(error(
+                "providers",
+                fieldName.toUpperCase(Locale.ROOT) + "_UNKNOWN",
+                "$." + fieldName,
+                ex.getMessage()
+            ));
+        }
+    }
+
+    private void validateManagedServiceRef(JsonNode providerNode,
+                                           String fieldName,
+                                           String purpose,
+                                           String selectedProvider,
+                                           List<DraftValidationIssue> issues) {
+        String serviceRef = text(providerNode, fieldName);
+        if (serviceRef.isBlank() || platformManagedInferenceServiceService == null) {
+            return;
+        }
+        if (skipDedicatedEmbeddingServiceValidation(providerNode, fieldName, serviceRef)) {
+            return;
+        }
+        try {
+            platformManagedInferenceServiceService.requireActiveEndpointForService(serviceRef, purpose, selectedProvider);
+        } catch (Exception ex) {
+            issues.add(error(
+                "providers",
+                fieldName.toUpperCase(Locale.ROOT) + "_UNKNOWN",
+                "$." + fieldName,
+                ex.getMessage()
+            ));
+        }
+    }
+
+    private boolean skipDedicatedEmbeddingServiceValidation(JsonNode providerNode,
+                                                            String fieldName,
+                                                            String value) {
+        if (!"embeddingManagedServiceRef".equals(fieldName) && !"embeddingEndpointProfile".equals(fieldName)) {
+            return false;
+        }
+        if (ManagedDeploymentProfileCatalog.dedicatedEmbeddingServiceRequested(providerNode)) {
+            return true;
+        }
+        if ("embeddingManagedServiceRef".equals(fieldName) && value.startsWith("dedicated-embedding-")) {
+            return true;
+        }
+        return "embeddingEndpointProfile".equals(fieldName)
+            && value.startsWith("dep-")
+            && value.endsWith("-embedding-worker");
     }
 
     private void validateProviderTuning(JsonNode providerNode, List<DraftValidationIssue> issues) {
@@ -575,7 +1496,6 @@ public class DeploymentDraftValidationService {
         validatePositiveInteger(providerNode, "geminiPriority", "providers", issues);
         validateTemperature(providerNode, "geminiTemperature", "GEMINI_TEMPERATURE_INVALID", issues);
 
-        validateBooleanIfPresent(providerNode, "restEmbeddingValidateOnStartup", "REST_VALIDATE_ON_STARTUP_BOOLEAN_REQUIRED", issues);
         validatePositiveInteger(providerNode, "weaviateTimeout", "providers", issues);
         validatePositiveInteger(providerNode, "milvusTimeout", "providers", issues);
 
@@ -625,31 +1545,6 @@ public class DeploymentDraftValidationService {
                 "onnxUseGpu must be a boolean when provided."
             ));
         }
-    }
-
-    private void validateRestEmbeddingProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
-        if (!ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(
-            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
-        )) {
-            return;
-        }
-        String baseUrl = ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerNode);
-        if (baseUrl.isBlank()) {
-            issues.add(error(
-                "providers",
-                "REST_EMBEDDING_BASE_URL_REQUIRED",
-                "$.restEmbeddingBaseUrl",
-                "restEmbeddingBaseUrl is required when embeddingProvider=rest."
-            ));
-        } else if (!isAbsoluteHttpUrl(baseUrl)) {
-            issues.add(error(
-                "providers",
-                "REST_EMBEDDING_BASE_URL_INVALID",
-                "$.restEmbeddingBaseUrl",
-                "restEmbeddingBaseUrl must be a valid absolute http(s) URL."
-            ));
-        }
-        validatePositiveInteger(providerNode, "restEmbeddingTimeoutMs", "providers", issues);
     }
 
     private void validatePineconeVectorProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
@@ -1183,6 +2078,13 @@ public class DeploymentDraftValidationService {
         }
     }
 
+    private String text(JsonNode node, String key) {
+        if (node == null || key == null) {
+            return "";
+        }
+        return node.path(key).asText("").trim();
+    }
+
     private int countBySeverity(List<DraftValidationIssue> issues, String severity) {
         int count = 0;
         for (DraftValidationIssue issue : issues) {
@@ -1308,5 +2210,13 @@ public class DeploymentDraftValidationService {
             && !remainder.contains("?")
             && !remainder.contains("#")
             && !remainder.contains(" ");
+    }
+
+    private record ActionValidationSummary(Set<String> actionNames,
+                                           List<InlineActionRoute> inlineRoutes,
+                                           Set<String> webhookTargetIds) {
+    }
+
+    private record InlineActionRoute(String actionName, JsonNode route, String path) {
     }
 }

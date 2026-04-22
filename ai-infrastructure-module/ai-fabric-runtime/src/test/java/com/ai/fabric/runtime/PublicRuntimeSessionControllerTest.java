@@ -38,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE=storefront-chat",
     "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=true",
     "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS=https://shop.example",
+    "ai.shell.deployment.config-file=classpath:test-runtime-shell-config.json",
     "AI_FABRIC_RUNTIME_DEPLOYMENT_ID=dep-public",
     "AI_FABRIC_RUNTIME_CUSTOMER_ID=cus-public",
     "AI_FABRIC_RUNTIME_TENANT_ID=ten-public"
@@ -68,6 +69,10 @@ class PublicRuntimeSessionControllerTest {
             .andExpect(jsonPath("$.grantedScopes[1]").value("chat:suggestions"))
             .andExpect(jsonPath("$.grantedScopes[2]").value("chat:conversations"))
             .andExpect(jsonPath("$.audiences[0]").value("storefront-chat"))
+            .andExpect(jsonPath("$.shellConfig.contractVersion").value("SHELL_CONFIG_V1"))
+            .andExpect(jsonPath("$.shellConfig.greetingTitle").value("Commerce Assistant"))
+            .andExpect(jsonPath("$.shellConfig.greetingMessage").value("Ask about products, orders, or policy."))
+            .andExpect(jsonPath("$.shellConfig.starterPrompts[0].label").value("Browse featured products"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(CACHE_CONTROL, "no-store"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(PRAGMA, "no-cache"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(EXPIRES, "0"))
@@ -93,6 +98,14 @@ class PublicRuntimeSessionControllerTest {
             .andExpect(jsonPath("$.deploymentId").value("dep-public"))
             .andExpect(jsonPath("$.customerId").value("cus-public"))
             .andExpect(jsonPath("$.tenantId").value("ten-public"));
+
+        mockMvc.perform(get("/api/chat/me/shell-config")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.contractVersion").value("SHELL_CONFIG_V1"))
+            .andExpect(jsonPath("$.supportedModuleIds[0]").value("search"))
+            .andExpect(jsonPath("$.moduleIds[0]").value("product-catalog"))
+            .andExpect(jsonPath("$.starterPrompts[1].query").value("Track my latest order"));
     }
 
     @Test
@@ -370,5 +383,64 @@ class PublicRuntimeAuthenticatedChatTest {
         mockMvc.perform(get("/api/chat/auth-context")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isNotFound());
+    }
+}
+
+@SpringBootTest(properties = {
+    "OPENAI_ENABLED=true",
+    "OPENAI_API_KEY=test",
+    "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
+    "ACTIONS_CONNECTOR_API_KEY=test",
+    "spring.datasource.url=jdbc:h2:mem:public-runtime-session-default-shell;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
+    "spring.jpa.hibernate.ddl-auto=create-drop",
+    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
+    "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
+    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-trusted-backend-secret",
+    "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
+    "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS=platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM",
+    "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES=dep-public",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS=runtime-public-bootstrap",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES=storefront-chat",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE=storefront-chat",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=true",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS=https://shop.example",
+    "AI_FABRIC_RUNTIME_DEPLOYMENT_ID=dep-public",
+    "AI_FABRIC_RUNTIME_CUSTOMER_ID=cus-public",
+    "AI_FABRIC_RUNTIME_TENANT_ID=ten-public"
+})
+@AutoConfigureMockMvc
+class PublicRuntimeSessionControllerDefaultShellConfigTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void bootstrapReturnsDefaultShellContractWhenNoDeploymentShellConfigIsPresent() throws Exception {
+        MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
+                .header("Origin", "https://shop.example")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.shellConfig.contractVersion").value("SHELL_CONFIG_V1"))
+            .andExpect(jsonPath("$.shellConfig.moduleIds").isEmpty())
+            .andExpect(jsonPath("$.shellConfig.cardIds").isEmpty())
+            .andExpect(jsonPath("$.shellConfig.starterPrompts").isEmpty())
+            .andExpect(jsonPath("$.shellConfig.supportedModuleIds[0]").value("search"))
+            .andReturn();
+
+        String token = OBJECT_MAPPER.readTree(bootstrapResult.getResponse().getContentAsString()).path("token").asText();
+
+        mockMvc.perform(get("/api/chat/me/shell-config")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.contractVersion").value("SHELL_CONFIG_V1"))
+            .andExpect(jsonPath("$.moduleIds").isEmpty())
+            .andExpect(jsonPath("$.cardIds").isEmpty())
+            .andExpect(jsonPath("$.starterPrompts").isEmpty())
+            .andExpect(jsonPath("$.supportedModuleIds[0]").value("search"));
     }
 }

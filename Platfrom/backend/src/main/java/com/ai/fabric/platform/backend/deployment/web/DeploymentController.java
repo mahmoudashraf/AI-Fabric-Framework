@@ -78,12 +78,14 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentRemediationSe
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentWebhookOperationsService;
 import com.ai.fabric.platform.backend.deployment.service.EcommerceDemoBootstrapService;
 import com.ai.fabric.platform.backend.deployment.service.PublicProvisioningApiService;
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingCatalogSummary;
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingSummary;
 import com.ai.fabric.platform.backend.secret.model.UpsertDeploymentProviderSecretBindingRequest;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
@@ -120,6 +122,7 @@ public class DeploymentController {
     private final DeploymentRemediationService deploymentRemediationService;
     private final EcommerceDemoBootstrapService ecommerceDemoBootstrapService;
     private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
+    private final DeploymentWebhookOperationsService deploymentWebhookOperationsService;
     private final PublicProvisioningApiService publicProvisioningApiService;
 
     public DeploymentController(DeploymentService deploymentService,
@@ -137,6 +140,7 @@ public class DeploymentController {
                                 DeploymentRemediationService deploymentRemediationService,
                                 EcommerceDemoBootstrapService ecommerceDemoBootstrapService,
                                 DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService,
+                                DeploymentWebhookOperationsService deploymentWebhookOperationsService,
                                 PublicProvisioningApiService publicProvisioningApiService) {
         this.deploymentService = deploymentService;
         this.deploymentActivityService = deploymentActivityService;
@@ -153,6 +157,7 @@ public class DeploymentController {
         this.deploymentRemediationService = deploymentRemediationService;
         this.ecommerceDemoBootstrapService = ecommerceDemoBootstrapService;
         this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
+        this.deploymentWebhookOperationsService = deploymentWebhookOperationsService;
         this.publicProvisioningApiService = publicProvisioningApiService;
     }
 
@@ -300,6 +305,18 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/workspace")
     public DeploymentWorkspaceSummary getDeploymentWorkspace(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentWorkspace(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/webhooks/overview")
+    public JsonNode getDeploymentWebhookOverview(@PathVariable String deploymentId,
+                                                 @RequestParam(defaultValue = "50") int limit) {
+        return deploymentWebhookOperationsService.getOverview(deploymentId, limit);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/webhooks/deliveries/{deliveryId}/retry")
+    public JsonNode retryDeploymentWebhookDelivery(@PathVariable String deploymentId,
+                                                   @PathVariable String deliveryId) {
+        return deploymentWebhookOperationsService.retryDelivery(deploymentId, deliveryId);
     }
 
     @GetMapping("/deployments/{deploymentId}/config-diff-center")
@@ -508,6 +525,53 @@ public class DeploymentController {
     public DeploymentPocRuntimeAuthContextSummary getPocRuntimeAuthContext(@PathVariable String deploymentId,
                                                                            @RequestParam(required = false) DeploymentPocAuthPath authPath) {
         return deploymentPocChatService.getRuntimeAuthContext(deploymentId, authPath);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc-widget/chat/me/query")
+    public JsonNode queryPocWidget(@PathVariable String deploymentId,
+                                   @RequestBody(required = false) JsonNode request,
+                                   @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetQuery(deploymentId, request, authPath);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc-widget/chat/me/suggestions")
+    public JsonNode suggestPocWidget(@PathVariable String deploymentId,
+                                     @RequestBody(required = false) JsonNode request,
+                                     @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetSuggestions(deploymentId, request, authPath);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/auth-context")
+    public JsonNode getPocWidgetRuntimeAuthContext(@PathVariable String deploymentId,
+                                                   @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetRuntimeAuthContext(deploymentId, authPath);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/shell-config")
+    public JsonNode getPocWidgetShellConfig(@PathVariable String deploymentId,
+                                            @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetShellConfig(deploymentId, authPath);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/conversations")
+    public JsonNode listPocWidgetConversations(@PathVariable String deploymentId,
+                                               @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.listConversations(deploymentId, authPath);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/conversations/{conversationId}")
+    public JsonNode getPocWidgetConversation(@PathVariable String deploymentId,
+                                             @PathVariable String conversationId,
+                                             @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetConversation(deploymentId, conversationId, authPath);
+    }
+
+    @DeleteMapping("/deployments/{deploymentId}/poc-widget/chat/me/conversations/{conversationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePocWidgetConversation(@PathVariable String deploymentId,
+                                            @PathVariable String conversationId,
+                                            @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        deploymentPocChatService.deleteConversation(deploymentId, conversationId, authPath);
     }
 
     @GetMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")

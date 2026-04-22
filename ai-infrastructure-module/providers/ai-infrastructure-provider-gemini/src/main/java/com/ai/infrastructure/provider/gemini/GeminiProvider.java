@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
+import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
 import com.ai.infrastructure.http.HttpClient;
 import lombok.RequiredArgsConstructor;
@@ -89,7 +90,12 @@ public class GeminiProvider implements AIProvider {
                 model = "gemini-2.5-flash"; // Default Gemini model
             }
             
-            String url = GEMINI_BASE_URL + "/models/" + model + ":generateContent?key=" + config.getApiKey();
+            ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
+                ProviderRequestOverrideSupport.read(request.getParameters());
+            String baseUrl = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : config.getBaseUrl();
+            String apiKey = hasText(connectionOverride.apiKey()) ? connectionOverride.apiKey() : config.getApiKey();
+            String url = normalizeBaseUrl(baseUrl != null ? baseUrl : GEMINI_BASE_URL)
+                + "/models/" + model + ":generateContent?key=" + apiKey;
             String safeUrl = url.replaceAll("([?&]key=)[^&]+", "$1***");
             
             HttpHeaders headers = new HttpHeaders();
@@ -541,5 +547,16 @@ public class GeminiProvider implements AIProvider {
         return value.contains("planning")
             || value.contains("intent_extraction")
             || value.contains("intent-extraction");
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return GEMINI_BASE_URL;
+        }
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

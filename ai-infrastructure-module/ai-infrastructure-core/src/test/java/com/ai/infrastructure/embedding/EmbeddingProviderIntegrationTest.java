@@ -21,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * 
  * Tests the EmbeddingProvider abstraction with different providers:
  * - ONNXEmbeddingProvider (default)
- * - RestEmbeddingProvider (if configured)
  * - OpenAIEmbeddingProvider (if configured)
  * 
  * @author AI Infrastructure Team
@@ -51,8 +50,8 @@ public class EmbeddingProviderIntegrationTest {
         // Test that embedding provider is configured
         assertNotNull(embeddingProvider, "EmbeddingProvider should be configured");
         assertNotNull(embeddingProvider.getProviderName(), "Provider name should be available");
-        assertTrue(embeddingProvider.getProviderName().matches("onnx|rest|openai"), 
-                   "Provider should be onnx, rest, or openai");
+        assertTrue(embeddingProvider.getProviderName().matches("onnx|openai"),
+                   "Provider should be onnx or openai");
     }
     
     @Test
@@ -207,4 +206,3 @@ public class EmbeddingProviderIntegrationTest {
         System.out.println("✅ Embedding dimension: " + dimension);
     }
 }
-

@@ -39,6 +39,185 @@ class DeploymentHostedVerificationContextServiceTest {
     private static final PlatformSecretService NO_PLATFORM_SECRETS = null;
 
     @Test
+    void marketplaceRuntimeProfilePublishesShellAndKnowledgeExpectations() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-marketplace");
+        deployment.setName("Marketplace Runtime Verification");
+        deployment.setEnvironmentName("dev");
+        deployment.setActiveVersionId("ver-marketplace");
+        deployment.setRuntimeBaseUrl("https://runtime.marketplace");
+        deployment.setConnectorBaseUrl("https://connector.marketplace");
+        deployment.setCustomerId("cus-marketplace");
+        deployment.setTenantId("ten-marketplace");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-marketplace");
+        release.setDeploymentId("dep-marketplace");
+        release.setDeploymentVersionId("ver-marketplace");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-marketplace");
+        version.setDeploymentId("dep-marketplace");
+        version.setProviderConfigJson("""
+            {
+              "llmProvider":"openai",
+              "embeddingProvider":"openai",
+              "embeddingEndpointProfile":"openai-cloud-default",
+              "orchestrationLlmProvider":"openai",
+              "orchestrationEndpointProfile":"openai-cloud-orchestration",
+              "orchestrationModel":"gpt-4.1-mini",
+              "generationLlmProvider":"openai",
+              "generationEndpointProfile":"openai-cloud-default",
+              "generationModel":"gpt-4.1-mini",
+              "vectorStrategy":"weaviate",
+              "vectorProvisioningMode":"EXTERNAL_EXISTING",
+              "vectorStoragePosture":"SHARED",
+              "weaviateHost":"tenant.weaviate.local",
+              "weaviateNativeMultiTenancyEnabled":true
+            }
+            """);
+        version.setEntityConfigJson("""
+            {"ai-config":{"vector-dimensions":512},"ai-entities":{"product":{},"policy":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("""
+            {"connector":{"upstream":{"base-url":"https://store.example"}}}
+            """);
+        version.setKnowledgeSourceConfigJson("""
+            {
+              "contractVersion":"KNOWLEDGE_SOURCE_CONFIG_V1",
+              "sources":[
+                {
+                  "id":"deployment-marketplace-knowledge",
+                  "type":"deployment-private-vector",
+                  "adapterType":"deployment-private-vector",
+                  "attributionLabel":"Deployment marketplace knowledge"
+                },
+                {
+                  "id":"shared-marketplace-refund-policy",
+                  "type":"shared-vector",
+                  "adapterType":"shared-index",
+                  "attributionLabel":"Shared refund policy knowledge",
+                  "entityType":"policy",
+                  "handleRef":"commerce-catalog/refund-policy",
+                  "filters":{"classification":"refund"},
+                  "authModes":["PUBLIC_RUNTIME_AUTHENTICATED","PLATFORM_PROXY_SESSION","PRIVATE_RUNTIME_BACKEND_MEDIATED"]
+                }
+              ]
+            }
+            """);
+        version.setShellConfigJson("""
+            {
+              "contractVersion":"SHELL_CONFIG_V1",
+              "greeting":{"title":"Marketplace Assistant","message":"Browse catalog and policy evidence."},
+              "starterPrompts":[
+                {"id":"marketplace-featured-products","label":"Browse featured products","query":"Show me featured products","moduleId":"product-catalog","cardId":"product-list"},
+                {"id":"marketplace-return-policy","label":"Summarize return policy","query":"Summarize return policy","moduleId":"policies","cardId":"policy-summary"}
+              ],
+              "modules":[
+                {"id":"product-catalog","enabled":true},
+                {"id":"policies","enabled":true},
+                {"id":"orders","enabled":true}
+              ],
+              "cards":[
+                {"id":"product-list","enabled":true},
+                {"id":"policy-summary","enabled":true},
+                {"id":"order-status","enabled":true}
+              ]
+            }
+            """);
+
+        when(deploymentRepository.findById(eq("dep-marketplace"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-marketplace"), eq("ver-marketplace")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-marketplace"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-marketplace"))).thenReturn("marketplace-runtime");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "lucene",
+                "LOCAL_MANAGED",
+                "DEDICATED",
+                false,
+                "CUSTOMER_PROVIDER",
+                "cus-marketplace",
+                "Customer Marketplace",
+                "ten-marketplace",
+                "Tenant Marketplace",
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                "migration-locked",
+                "platform-managed",
+                new DeploymentTenantScopedVectorRegistrySummary("INFO", null, 0, 0, null, "INFO", "Not applicable.", "Not shared."),
+                "Dedicated scope"
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-marketplace", null, false);
+
+        assertThat(context.profile()).isEqualTo("marketplace-runtime");
+        assertThat(context.script()).isEqualTo("scripts/verify-ecommerce-deployment.sh");
+        assertThat(context.env()).containsEntry("VERIFY_MARKETPLACE_RUNTIME", "true");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V2");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
+        assertThat(context.env()).containsEntry("STORE_BASE_URL", "https://store.example");
+        assertThat(context.env()).containsEntry(
+            "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS",
+            "deployment-marketplace-knowledge,shared-marketplace-refund-policy"
+        );
+        assertThat(context.env()).containsEntry(
+            "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES",
+            "deployment-private-vector,shared-index"
+        );
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION", "SHELL_CONFIG_V1");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_MODULE_IDS", "product-catalog,policies,orders");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_CARD_IDS", "product-list,policy-summary,order-status");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT", "2");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED", "true");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION", "INFERENCE_PROFILE_RUNTIME_V1");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_LLM_PROVIDER", "openai");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_PROVIDER", "openai");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_PROVIDER", "openai");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_MODEL", "gpt-4.1-mini");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_ORCHESTRATION_ENDPOINT_PROFILE", "openai-cloud-orchestration");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_PROVIDER", "openai");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL", "gpt-4.1-mini");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE", "openai-cloud-default");
+        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE", "openai-cloud-default");
+        assertThat(context.env()).containsEntry("MARKETPLACE_SMOKE_QUERY", "What is the refund policy?");
+    }
+
+    @Test
     void canonicalRolloutUsesCanonicalProfileEvenWhenOperatorRequestsVector() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);

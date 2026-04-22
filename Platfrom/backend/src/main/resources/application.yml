@@ -119,6 +119,53 @@ platform:
       dockerfile-path: ${PLATFORM_VECTORIZATION_RUNNER_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile}
       service-name-prefix: ${PLATFORM_VECTORIZATION_RUNNER_SERVICE_NAME_PREFIX:vectorization-runner}
       poll-interval: ${PLATFORM_VECTORIZATION_RUNNER_POLL_INTERVAL:15s}
+  inference:
+    provisioning:
+      shared-project-name-prefix: ${PLATFORM_INFERENCE_SHARED_PROJECT_NAME_PREFIX:loom-inference}
+      shared-embedding-service-root: ${PLATFORM_SHARED_EMBEDDING_SERVICE_ROOT:.}
+      shared-embedding-dockerfile-path: ${PLATFORM_SHARED_EMBEDDING_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile}
+      shared-embedding-service-name-prefix: ${PLATFORM_SHARED_EMBEDDING_SERVICE_NAME_PREFIX:shared-embeddings}
+      shared-embedding-health-path: ${PLATFORM_SHARED_EMBEDDING_HEALTH_PATH:/actuator/health}
+      shared-ollama-service-root: ${PLATFORM_SHARED_OLLAMA_SERVICE_ROOT:ai-fabric-product/ai-fabric-shared-ollama-service}
+      shared-ollama-dockerfile-path: ${PLATFORM_SHARED_OLLAMA_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-shared-ollama-service/deploy/railway/Dockerfile}
+      shared-ollama-service-name-prefix: ${PLATFORM_SHARED_OLLAMA_SERVICE_NAME_PREFIX:shared-ollama}
+      shared-ollama-health-path: ${PLATFORM_SHARED_OLLAMA_HEALTH_PATH:/api/tags}
+      dedicated-embedding-service-root: ${PLATFORM_DEDICATED_EMBEDDING_SERVICE_ROOT:.}
+      dedicated-embedding-dockerfile-path: ${PLATFORM_DEDICATED_EMBEDDING_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile}
+      dedicated-embedding-service-name-prefix: ${PLATFORM_DEDICATED_EMBEDDING_SERVICE_NAME_PREFIX:embedding-worker}
+      dedicated-embedding-health-path: ${PLATFORM_DEDICATED_EMBEDDING_HEALTH_PATH:/actuator/health}
+      poll-interval: ${PLATFORM_INFERENCE_PROVISIONING_POLL_INTERVAL:15s}
+      request-timeout: ${PLATFORM_INFERENCE_PROVISIONING_REQUEST_TIMEOUT:5m}
+  product-service:
+    provisioning:
+      shared-project-name-prefix: ${PLATFORM_PRODUCT_SHARED_PROJECT_NAME_PREFIX:loom-product}
+      shopify-bridge-service-root: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_ROOT:product-services/shopify-bridge-service}
+      shopify-bridge-dockerfile-path: ${PLATFORM_SHOPIFY_BRIDGE_DOCKERFILE_PATH:product-services/shopify-bridge-service/deploy/railway/Dockerfile}
+      shopify-bridge-service-name-prefix: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_NAME_PREFIX:shopify-bridge}
+      shopify-bridge-health-path: ${PLATFORM_SHOPIFY_BRIDGE_HEALTH_PATH:/actuator/health}
+      shopify-bridge-admin-api-version: ${PLATFORM_SHOPIFY_BRIDGE_ADMIN_API_VERSION:2026-04}
+      shopify-bridge-shopify-api-key-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_KEY_SECRET_NAME:}
+      shopify-bridge-shopify-api-secret-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_SECRET_SECRET_NAME:}
+      shopify-bridge-webhook-shared-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET_NAME:}
+      poll-interval: ${PLATFORM_PRODUCT_PROVISIONING_POLL_INTERVAL:15s}
+      request-timeout: ${PLATFORM_PRODUCT_PROVISIONING_REQUEST_TIMEOUT:5m}
+
+shopify:
+  companion:
+    bootstrap:
+      default-environment: ${SHOPIFY_COMPANION_DEFAULT_ENVIRONMENT:dev}
+      default-template-id: ${SHOPIFY_COMPANION_DEFAULT_TEMPLATE_ID:dev-openai-qdrant}
+      default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:}
+      default-qdrant-host: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_HOST:}
+      default-qdrant-source-deployment-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_SOURCE_DEPLOYMENT_ID:}
+      default-qdrant-runtime-api-key-secret-name: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_RUNTIME_API_KEY_SECRET_NAME:}
+      template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
+      template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
+      default-plugin-ids:
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-companion-read}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_2:mkp-data-shopify-catalog}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_3:mkp-data-shopify-policies}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_4:mkp-inference-shared-embeddings}
 
 logging:
   level:

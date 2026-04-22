@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.DefaultResourceLoader;
 
@@ -24,12 +25,38 @@ class ConnectorActionCatalogLoaderTest {
 
         ConnectorActionDefinition action = actions.get(0);
         assertThat(action.name()).isEqualTo("create_purchase_order");
+        assertThat(action.displayName()).isEqualTo("Create Purchase Order");
         assertThat(action.accessMode()).isEqualTo(ActionAccessMode.WRITE_ONLY);
         assertThat(action.anonymousAllowed()).isTrue();
         assertThat(action.requiresConfirmation()).isTrue();
+        assertThat(action.groundingEligible()).isFalse();
+        assertThat(action.resultPresentationHint()).isEqualTo(ActionResultPresentationHint.STATUS);
+        assertThat(action.builtInModuleId()).isEqualTo("purchase-orders");
+        assertThat(action.builtInCardId()).isEqualTo("purchase-order-status");
+        assertThat(action.provenance()).isNotNull();
+        assertThat(action.provenance().getSourceType()).isEqualTo("ACTION_CATALOG");
+        assertThat(action.provenance().getPublisher()).isEqualTo("internal-test");
         assertThat(action.confirmationMessage()).contains("{{quantity}}").contains("{{sku}}");
         assertThat(action.params()).hasSize(2);
+        assertThat(action.postPolicies()).hasSize(1);
+        assertThat(action.postPolicies().getFirst().type()).isEqualTo("webhook");
+        assertThat(action.postPolicies().getFirst().targetRef()).isEqualTo("zapier_purchase_orders");
         assertThat(action.params().stream().anyMatch(p -> "sku".equals(p.name()) && p.required())).isTrue();
+    }
+
+    @Test
+    void loadCatalog_shouldLoadWebhookTargets() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/valid-actions.yml");
+
+        ConnectorActionCatalog catalog = loader.loadCatalog(List.of(source));
+
+        assertThat(catalog.webhookTargets()).hasSize(1);
+        assertThat(catalog.webhookTargets().getFirst().id()).isEqualTo("zapier_purchase_orders");
+        assertThat(catalog.webhookTargets().getFirst().urlSecretRef()).isEqualTo("ZAPIER_PURCHASE_ORDERS_URL");
     }
 
     @Test
@@ -69,5 +96,61 @@ class ConnectorActionCatalogLoaderTest {
 
         List<ConnectorActionDefinition> actions = loader.loadActions(List.of(source));
         assertThat(actions).isEmpty();
+    }
+
+    @Test
+    void loadCatalog_shouldLoadConfirmationInterceptors() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/valid-actions-with-confirmation-interceptors.yml");
+
+        ConnectorActionCatalog catalog = loader.loadCatalog(List.of(source));
+
+        assertThat(catalog.actions()).hasSize(2);
+        assertThat(catalog.confirmationInterceptors()).hasSize(1);
+        assertThat(catalog.confirmationInterceptors().getFirst().name()).isEqualTo("cancel_to_retention_offer");
+        assertThat(catalog.confirmationInterceptors().getFirst().decision().action()).isEqualTo("offer_order_discount");
+    }
+
+    @Test
+    void loadCatalog_shouldRejectPromptActionTargetThatDoesNotRequireConfirmation() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/invalid-confirmation-interceptors.yml");
+
+        assertThatThrownBy(() -> loader.loadCatalog(List.of(source)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("PROMPT_ACTION")
+            .hasMessageContaining("non-confirmable action");
+    }
+
+    @Test
+    void loadActions_shouldRejectUnsupportedBuiltInShellMappings() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/invalid-built-in-shell-mapping.yml");
+
+        assertThatThrownBy(() -> loader.loadActions(List.of(source)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("unsupported builtInModuleId");
+    }
+
+    @Test
+    void loadCatalog_shouldRejectUnknownWebhookTargetReference() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/invalid-webhook-target.yml");
+
+        assertThatThrownBy(() -> loader.loadCatalog(List.of(source)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("unknown webhook target");
     }
 }

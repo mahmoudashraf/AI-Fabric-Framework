@@ -28,7 +28,7 @@ export function QuickActionsDesktop({
 }) {
   return (
     <>
-      <div className="hidden md:block absolute top-0 left-0 right-0 px-6 py-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border-b z-10">
+      <div className="hidden md:block absolute top-0 left-0 right-0 z-10 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-950">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           {quickActions.slice(0, 8).map((action, idx) => (
             <div key={idx}>
@@ -166,4 +166,3 @@ export function QuickActionsDesktop({
     </>
   );
 }
-

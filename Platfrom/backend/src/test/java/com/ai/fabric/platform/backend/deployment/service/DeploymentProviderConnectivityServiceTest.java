@@ -9,11 +9,19 @@ import org.junit.jupiter.api.Test;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
+import java.net.http.HttpRequest;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DeploymentProviderConnectivityServiceTest {
@@ -70,7 +78,7 @@ class DeploymentProviderConnectivityServiceTest {
     @Test
     void probeMarksQdrantCollectionsApiReadyWhenClusterResponds() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
-        when(secretService.resolveSecret("QDRANT_API_KEY")).thenReturn("qdrant-secret");
+        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED")).thenReturn("qdrant-secret");
 
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -94,7 +102,8 @@ class DeploymentProviderConnectivityServiceTest {
                   "llmProvider": "openai",
                   "embeddingProvider": "openai",
                   "vectorStrategy": "qdrant",
-                  "qdrantHost": "https://cluster.example"
+                  "qdrantHost": "https://cluster.example",
+                  "qdrantRuntimeApiKeySecretName": "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED"
                 }
                 """)
         );
@@ -103,6 +112,109 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.probes().get(0).status()).isEqualTo("READY");
         assertThat(summary.probes().get(0).endpoint()).isEqualTo("https://cluster.example/collections");
         assertThat(summary.managedVectorProvisioningEnabled()).isFalse();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksWeaviateReadyApiFailedWhenReadinessAndMetadataEndpointsReturnNotFound() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn("weaviate-secret");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> readinessResponse = mock(HttpResponse.class);
+        when(readinessResponse.statusCode()).thenReturn(404);
+        HttpResponse<String> metadataResponse = mock(HttpResponse.class);
+        when(metadataResponse.statusCode()).thenReturn(404);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://weaviate.example:443/v1/.well-known/ready")
+                && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(readinessResponse);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://weaviate.example:443/v1/meta")
+                && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(metadataResponse);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-weaviate", "Weaviate"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "weaviate",
+                  "weaviateScheme": "https",
+                  "weaviateHost": "weaviate.example",
+                  "weaviatePort": 443
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(1);
+        assertThat(summary.probes().get(0).key()).isEqualTo("weaviate_ready_api");
+        assertThat(summary.probes().get(0).status()).isEqualTo("FAILED");
+        assertThat(summary.probes().get(0).endpoint()).isEqualTo("https://weaviate.example:443/v1/.well-known/ready");
+        assertThat(summary.probes().get(0).message()).contains("both returned HTTP 404");
+        assertThat(summary.probes().get(0).message()).contains("stale");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksWeaviateReadyWhenMetadataEndpointSucceedsAfterReadinessNotFound() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn("weaviate-secret");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> readinessResponse = mock(HttpResponse.class);
+        when(readinessResponse.statusCode()).thenReturn(404);
+        HttpResponse<String> metadataResponse = mock(HttpResponse.class);
+        when(metadataResponse.statusCode()).thenReturn(200);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://weaviate.example:443/v1/.well-known/ready")
+                && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(readinessResponse);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://weaviate.example:443/v1/meta")
+                && "Bearer weaviate-secret".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(metadataResponse);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-weaviate", "Weaviate"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "weaviate",
+                  "weaviateScheme": "https",
+                  "weaviateHost": "weaviate.example",
+                  "weaviatePort": 443
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(1);
+        assertThat(summary.probes().get(0).key()).isEqualTo("weaviate_ready_api");
+        assertThat(summary.probes().get(0).status()).isEqualTo("READY");
+        assertThat(summary.probes().get(0).endpoint()).isEqualTo("https://weaviate.example:443/v1/meta");
+        assertThat(summary.probes().get(0).message()).contains("metadata API responded with HTTP 200");
     }
 
     @Test
@@ -231,10 +343,35 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.managedVectorTargets().get(0)).contains("gcp-us-west1");
     }
 
+    @SuppressWarnings("unchecked")
     @Test
-    void probeBlocksRestEmbeddingConnectivityWhenBaseUrlIsMissing() {
+    void probeMarksLlmEndpointReadyOnlyAfterAuthenticatedChatResponse() throws Exception {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("llm-key");
+
         HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+            {
+              "choices": [
+                {
+                  "message": {
+                    "content": "ok"
+                  }
+                }
+              ]
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().equals("https://shared-llm.example/v1/chat/completions")
+                && "Bearer llm-key".equals(request.headers().firstValue("Authorization").orElse(null))
+                && requestBody(request).contains("\"model\":\"llama3.1:8b\"")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
         DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
             secretService,
             objectMapper,
@@ -242,22 +379,245 @@ class DeploymentProviderConnectivityServiceTest {
         );
 
         DeploymentProviderConnectivitySummary summary = service.probe(
-            deployment("dep-789", "Private Embeddings"),
+            deployment("dep-llm-ready", "Shared LLM"),
             draft("""
                 {
-                  "llmProvider": "openai",
-                  "embeddingProvider": "rest",
-                  "vectorStrategy": "lucene"
+                  "embeddingProvider": "openai",
+                  "orchestrationLlmProvider": "openai",
+                  "orchestrationBaseUrl": "https://shared-llm.example/v1",
+                  "orchestrationModel": "llama3.1:8b",
+                  "openaiModel": "gpt-4.1-mini"
                 }
                 """)
         );
 
-        assertThat(summary.probes()).hasSize(2);
         assertThat(summary.probes())
-            .anySatisfy(probe -> {
-                assertThat(probe.key()).isEqualTo("rest_embedding_base_url");
-                assertThat(probe.status()).isEqualTo("BLOCKED");
+            .filteredOn(item -> "orchestration_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("READY");
+                assertThat(item.endpoint()).isEqualTo("https://shared-llm.example/v1/chat/completions");
+                assertThat(item.message()).contains("accepted an authenticated probe");
             });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksLlmEndpointFailedWhenAuthenticatedChatProbeReturnsUnauthorized() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("bad-llm-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(401);
+        when(response.body()).thenReturn("""
+            {
+              "error": {
+                "message": "invalid api key"
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://shared-llm.example/v1/chat/completions")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-llm-failed", "Shared LLM"),
+            draft("""
+                {
+                  "embeddingProvider": "openai",
+                  "orchestrationLlmProvider": "openai",
+                  "orchestrationBaseUrl": "https://shared-llm.example/v1"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "orchestration_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("FAILED");
+                assertThat(item.endpoint()).isEqualTo("https://shared-llm.example/v1/chat/completions");
+                assertThat(item.message()).contains("HTTP 401");
+            });
+    }
+
+    @Test
+    void probeBlocksLlmEndpointWhenResolvedSecretIsMissing() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        HttpClient httpClient = mock(HttpClient.class);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-llm-blocked", "Shared LLM"),
+            draft("""
+                {
+                  "embeddingProvider": "openai",
+                  "orchestrationLlmProvider": "openai",
+                  "orchestrationBaseUrl": "https://shared-llm.example/v1",
+                  "orchestrationApiKeySecretRef": "DEPLOYMENT_OPENAI_LLM"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "orchestration_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("BLOCKED");
+                assertThat(item.endpoint()).isEqualTo("https://shared-llm.example/v1");
+                assertThat(item.message()).contains("No effective secret is available");
+            });
+        verifyNoInteractions(httpClient);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksEmbeddingEndpointReadyOnlyAfterAuthenticatedEmbeddingResponse() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("emb-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+            {
+              "data": [
+                {
+                  "embedding": [0.11, 0.22]
+                }
+              ]
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().equals("https://shared.example/v1/embeddings")
+                && "Bearer emb-key".equals(request.headers().firstValue("Authorization").orElse(null))),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-embed-ready", "Shared Embeddings"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "embeddingBaseUrl": "https://shared.example/v1"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "embedding_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("READY");
+                assertThat(item.endpoint()).isEqualTo("https://shared.example/v1/embeddings");
+                assertThat(item.message()).contains("accepted an authenticated probe");
+            });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksEmbeddingEndpointFailedWhenAuthenticatedProbeReturnsUnauthorized() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("OPENAI_API_KEY")).thenReturn("bad-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(401);
+        when(response.body()).thenReturn("""
+            {
+              "error": {
+                "message": "invalid api key"
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://shared.example/v1/embeddings")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-embed-failed", "Shared Embeddings"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "embeddingBaseUrl": "https://shared.example/v1"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "embedding_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("FAILED");
+                assertThat(item.endpoint()).isEqualTo("https://shared.example/v1/embeddings");
+                assertThat(item.message()).contains("HTTP 401");
+            });
+    }
+
+    @Test
+    void probeBlocksEmbeddingEndpointWhenResolvedSecretIsMissing() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        HttpClient httpClient = mock(HttpClient.class);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-embed-blocked", "Shared Embeddings"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "embeddingBaseUrl": "https://shared.example/v1",
+                  "embeddingApiKeySecretRef": "DEPLOYMENT_OPENAI_EMBEDDINGS"
+                }
+                """)
+        );
+
+        assertThat(summary.probes())
+            .filteredOn(item -> "embedding_inference_endpoint".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.status()).isEqualTo("BLOCKED");
+                assertThat(item.endpoint()).isEqualTo("https://shared.example/v1");
+                assertThat(item.message()).contains("No effective secret is available");
+            });
+        verifyNoInteractions(httpClient);
     }
 
     private DeploymentEntity deployment(String id, String name) {
@@ -265,6 +625,43 @@ class DeploymentProviderConnectivityServiceTest {
         deployment.setId(id);
         deployment.setName(name);
         return deployment;
+    }
+
+    private String requestBody(HttpRequest request) {
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            CountDownLatch finished = new CountDownLatch(1);
+            request.bodyPublisher().orElseThrow().subscribe(new Flow.Subscriber<>() {
+                private Flow.Subscription subscription;
+
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    this.subscription = subscription;
+                    subscription.request(Long.MAX_VALUE);
+                }
+
+                @Override
+                public void onNext(ByteBuffer item) {
+                    byte[] bytes = new byte[item.remaining()];
+                    item.get(bytes);
+                    output.write(bytes, 0, bytes.length);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    finished.countDown();
+                }
+
+                @Override
+                public void onComplete() {
+                    finished.countDown();
+                }
+            });
+            finished.await(1, TimeUnit.SECONDS);
+            return output.toString(StandardCharsets.UTF_8);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read request body", ex);
+        }
     }
 
     private DeploymentDraftEntity draft(String providerConfigJson) {

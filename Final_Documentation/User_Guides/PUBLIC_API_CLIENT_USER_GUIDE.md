@@ -27,6 +27,7 @@ Public API Client responsibilities:
 - inspect deployment state
 - request apply/re-apply
 - fetch runtime and connector base URLs
+- resolve a stable `consumerId` to the currently bound deployment integration contract
 
 Public API Client should **not**:
 
@@ -70,8 +71,20 @@ Supported routes:
 - `GET /api/public/deployments/{deploymentId}/status`
 - `POST /api/public/deployments/{deploymentId}/apply`
 - `GET /api/public/deployments/{deploymentId}/credentials`
+- `GET /api/public/consumers/{consumerId}`
+- `GET /api/public/consumers/{consumerId}/status`
+- `GET /api/public/consumers/{consumerId}/credentials`
 
 These routes are intentionally narrower than the internal operator API.
+
+Consumer routes are the preferred external discovery surface once a deployment has been assigned to a consumer by the customer admin team. They return the same integration contract shape as deployment-based status and credentials routes, but they let the platform swap the bound deployment without forcing the external client to change identifiers.
+
+Consumer routes use the same platform public API client authentication headers as the deployment-based public routes:
+
+- `X-PLATFORM-CLIENT-ID`
+- `X-PLATFORM-PUBLIC-API-KEY`
+
+`consumerId` is a stable lookup key. It is not a credential by itself.
 
 ---
 
@@ -101,6 +114,14 @@ Persist:
 - your own `externalDeploymentKey`
 - returned `deploymentId`
 - latest published version if you care about rollout tracking
+
+At this stage the deployment id is still the correct control-plane id for:
+
+- apply requests
+- rollout tracking
+- provisioning reconciliation
+
+It is not the preferred long-lived runtime discovery key for external traffic once the customer has created a consumer.
 
 ### 4.3 Apply
 
@@ -149,6 +170,29 @@ Preferred interpretation:
 
 Do not treat `connectorBaseUrl` as a customer-facing entrypoint. The public API intentionally withholds the internal connector URL.
 
+### 4.6 Prefer Consumer-Based Runtime Discovery
+
+Once a customer admin creates a consumer and binds it to a deployment, external backend or frontend callers should switch to:
+
+- `GET /api/public/consumers/{consumerId}/status`
+- `GET /api/public/consumers/{consumerId}/credentials`
+
+This is the preferred production pattern for stable integrations.
+
+The platform resolves:
+
+- `consumerId -> current bound deploymentId -> current access/integration contract`
+
+That lets the customer admin rebind the consumer to a different deployment without changing the external caller’s lookup key.
+
+Important boundaries:
+
+- consumer routes are read/discovery routes only
+- create/apply still use deployment-oriented public provisioning routes
+- current runtime auth modes do not change
+- `consumerId` is a stable lookup key, not a credential
+- external callers still authenticate with the platform public API client headers before the platform resolves the bound deployment
+
 ---
 
 ## 5) Idempotency Rules
@@ -188,10 +232,16 @@ At minimum, store:
 - your own external customer/shop/account id
 - `externalDeploymentKey`
 - returned `deploymentId`
+- `consumerId` once the customer admin has created and bound one
 - last known `integration.preferredChatBaseUrl`
 - last known `integration.preferredCrudBaseUrl`
 - last known `integration.preferredAuthContextUrl`
 - last known `integration.preferredIntegrationMode`
+
+Preferred production lookup behavior:
+
+- use `deploymentId` for provisioning and apply operations
+- use `consumerId` for runtime discovery and refresh
 
 Only store bootstrap/token transport details when your integration actually uses public-runtime mode:
 
@@ -230,6 +280,11 @@ For credentials:
 
 - only persist connection points after apply/status indicates the deployment is ready
 
+For consumer-bound integrations:
+
+- refresh status and credentials through `consumerId`
+- do not assume previously cached runtime URLs stay valid after customer-side rebinding
+
 ---
 
 ## 8) Error Handling
@@ -242,6 +297,8 @@ Common response codes:
   - authenticated but not permitted for that resource
 - `404`
   - deployment/version not found for that client
+- `404`
+  - consumer not found or not currently bound
 - `409`
   - external deployment key reused with a conflicting request
 - `400`
@@ -260,7 +317,9 @@ Do:
 - treat the platform as the only provisioning system
 - keep your own stable `externalDeploymentKey`
 - persist `deploymentId` after first create
+- prefer `consumerId` over raw `deploymentId` for long-lived runtime discovery
 - use status/credentials instead of guessing deployment readiness
+- re-fetch consumer credentials after customer-side rebinding
 
 Do not:
 
@@ -277,8 +336,10 @@ This is especially important for Shopify and future vertical wrappers.
 For a future Shopify backend, the mapping should look like:
 
 - Shopify shop/install id -> `externalDeploymentKey`
+- Shopify storefront/backend consumer -> `consumerId`
 - Shopify backend -> public provisioning API
 - platform -> creates deployment
+- customer admin -> binds consumer to the chosen deployment
 - Shopify backend -> polls status and stores deployment urls
 
 Shopify should consume this API, not reimplement provisioning itself.

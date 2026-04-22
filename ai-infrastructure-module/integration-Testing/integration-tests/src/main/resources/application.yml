@@ -61,14 +61,6 @@ ai:
       use-gpu: false
       model-alias: all-MiniLM-L6-v2
     
-    rest:
-      enabled: ${REST_EMBEDDING_ENABLED:false}
-      base-url: ${REST_EMBEDDING_URL:http://localhost:8000}
-      endpoint: /embed
-      batch-endpoint: /embed/batch
-      timeout: 30000
-      model: all-MiniLM-L6-v2
-    
     openai:
       enabled: ${OPENAI_ENABLED:false}
       api-key: ${OPENAI_API_KEY:test-key}

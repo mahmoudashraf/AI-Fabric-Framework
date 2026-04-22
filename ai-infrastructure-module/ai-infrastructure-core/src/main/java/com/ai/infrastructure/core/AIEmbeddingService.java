@@ -22,13 +22,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * Service for AI embedding generation
  * 
  * This service handles the generation of vector embeddings for text content
- * using swappable embedding providers (ONNX, REST, OpenAI).
+ * using swappable embedding providers (ONNX, OpenAI, Azure, Cohere, Gemini).
  * It provides caching and batch processing capabilities for efficient embedding generation.
  * 
  * Uses EmbeddingProvider abstraction for easy swapping between providers:
- * - ONNX (default): Local, no API calls
- * - REST: Docker/sentence-transformers container
- * - OpenAI: Cloud API (fallback)
+ * - ONNX: Local bundled embeddings
+ * - OpenAI-compatible / cloud providers: external embedding APIs
  * 
  * @author AI Infrastructure Team
  * @version 2.0.0
@@ -79,7 +78,7 @@ public class AIEmbeddingService {
     /**
      * Generate embedding for text content with caching
      * 
-     * Delegates to configured EmbeddingProvider (ONNX, REST, or OpenAI)
+ * Delegates to the configured EmbeddingProvider implementation.
      * 
      * @param request the embedding request
      * @return embedding response with vector data

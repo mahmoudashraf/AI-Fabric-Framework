@@ -4,10 +4,18 @@ import { AlertCircle, Ban, Bot, CheckCircle2, HelpCircle, Info, XCircle, Zap } f
 
 import { useToast } from "@/hooks/use-toast";
 
+import type { QuickAction } from "@/constants";
 import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_CATEGORIES } from "@/constants";
-import { emitEvent, getWidgetConfig, getWidgetIdentity, isCartCrudEnabled } from "@/config";
-import { fetchRuntimeAuthContext } from "@/api/chat";
-import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary } from "@/types";
+import {
+  emitEvent,
+  getWidgetConfig,
+  getWidgetIdentity,
+  isCartCrudEnabled,
+  type MaxModeHostAttachment,
+  type MaxModeHostConfig,
+} from "@/config";
+import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
+import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary, RuntimeShellConfigSummary } from "@/types";
 import { useAttachmentsController } from "./useAttachmentsController";
 import { useCartController } from "./useCartController";
 import { useChatFlow } from "./useChatFlow";
@@ -53,10 +61,159 @@ function validateRuntimeAuthContext(
   return null;
 }
 
-export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
-  const { toast } = useToast();
+function shellPromptMode(moduleId?: string): "navigator" | "navigator_deep" | "cart_assistant" | "executor" {
+  switch (moduleId) {
+    case "cart":
+    case "orders":
+    case "purchase-orders":
+    case "customer-account":
+    case "addresses":
+    case "support":
+      return "executor";
+    case "policies":
+    case "reviews":
+      return "navigator_deep";
+    default:
+      return "navigator";
+  }
+}
 
-  const quickActions = QUICK_ACTIONS;
+function shellPromptPosition(moduleId?: string): "landing" | "catalog" | "search" | "cart" {
+  switch (moduleId) {
+    case "cart":
+    case "orders":
+    case "purchase-orders":
+    case "customer-account":
+    case "addresses":
+    case "support":
+      return "cart";
+    case "product-catalog":
+    case "reviews":
+      return "catalog";
+    default:
+      return "search";
+  }
+}
+
+function shellPromptPalette(index: number) {
+  const palettes = [
+    { color: "text-blue-600", bg: "bg-blue-500/10", border: "border-blue-500/30" },
+    { color: "text-green-600", bg: "bg-green-500/10", border: "border-green-500/30" },
+    { color: "text-indigo-600", bg: "bg-indigo-500/10", border: "border-indigo-500/30" },
+    { color: "text-orange-600", bg: "bg-orange-500/10", border: "border-orange-500/30" },
+  ];
+  return palettes[index % palettes.length];
+}
+
+function deriveQuickActions(
+  hostConfig: MaxModeHostConfig | undefined,
+  shellConfig: RuntimeShellConfigSummary | null,
+): QuickAction[] {
+  const hostStarterPrompts = hostConfig?.starterPrompts?.filter(
+    (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
+  );
+  if (hostStarterPrompts?.length) {
+    return hostStarterPrompts.map((prompt, index) => {
+      const palette = shellPromptPalette(index);
+      return {
+        icon: Zap,
+        label: prompt.label.trim(),
+        query: prompt.query.trim(),
+        color: palette.color,
+        bg: palette.bg,
+        border: palette.border,
+        position: prompt.position ?? "search",
+        mode: prompt.mode ?? "navigator",
+      };
+    });
+  }
+
+  const starterPrompts = shellConfig?.starterPrompts?.filter(
+    (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
+  );
+  if (!starterPrompts?.length) {
+    return QUICK_ACTIONS;
+  }
+  return starterPrompts.map((prompt, index) => {
+    const palette = shellPromptPalette(index);
+    return {
+      icon: Zap,
+      label: prompt.label!.trim(),
+      query: prompt.query!.trim(),
+      color: palette.color,
+      bg: palette.bg,
+      border: palette.border,
+      position: shellPromptPosition(prompt.moduleId),
+      mode: shellPromptMode(prompt.moduleId),
+    };
+  });
+}
+
+function deriveWelcomeMessage(hostConfig: MaxModeHostConfig | undefined, shellConfig: RuntimeShellConfigSummary | null) {
+  const hostMessage = hostConfig?.welcomeMessage?.trim();
+  if (hostMessage) {
+    return hostMessage;
+  }
+  const title = shellConfig?.greetingTitle?.trim();
+  const message = shellConfig?.greetingMessage?.trim();
+  if (title && message) {
+    return `${title}\n${message}`;
+  }
+  if (message) {
+    return message;
+  }
+  return "👋 Welcome to MAX Mode - your AI-powered shopping assistant! I can help you find products, manage orders, apply coupons, and much more. Try the quick actions above or just ask me anything!";
+}
+
+function deriveStarterSuggestions(hostConfig: MaxModeHostConfig | undefined) {
+  const suggestions = hostConfig?.starterSuggestions
+    ?.map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+  if (suggestions?.length) {
+    return suggestions.slice(0, 4);
+  }
+  return [];
+}
+
+function sanitizeRequestContext(hostConfig: MaxModeHostConfig | undefined) {
+  if (!hostConfig?.requestContext || typeof hostConfig.requestContext !== "object") {
+    return undefined;
+  }
+  return { ...hostConfig.requestContext };
+}
+
+function sanitizeHostAttachments(hostAttachments: MaxModeHostAttachment[] | undefined) {
+  if (!hostAttachments?.length) {
+    return [];
+  }
+  return hostAttachments
+    .filter((attachment) => attachment && attachment.type?.trim() && attachment.data && typeof attachment.data === "object")
+    .map((attachment) => ({
+      type: attachment.type.trim(),
+      data: attachment.data,
+    }));
+}
+
+export function useMaxModeController({
+  isOpen,
+  assistantLabel,
+  showUtilityPanel,
+}: {
+  isOpen: boolean;
+  assistantLabel?: string;
+  showUtilityPanel?: boolean;
+}) {
+  const { toast } = useToast();
+  const widgetConfig = getWidgetConfig();
+  const hostConfig = widgetConfig.host;
+  const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
+  const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
+  const hostStarterSuggestions = useMemo(() => deriveStarterSuggestions(hostConfig), [hostConfig]);
+  const hostRequestContext = useMemo(() => sanitizeRequestContext(hostConfig), [hostConfig]);
+  const hostInitialAttachments = useMemo(() => sanitizeHostAttachments(hostConfig?.initialAttachments), [hostConfig]);
+
+  const [runtimeShellConfig, setRuntimeShellConfig] = useState<RuntimeShellConfigSummary | null>(null);
+  const quickActions = useMemo(() => deriveQuickActions(hostConfig, runtimeShellConfig), [hostConfig, runtimeShellConfig]);
   const searchCategories = SEARCH_CATEGORIES;
   const aiSearchCategories = AI_SEARCH_CATEGORIES;
   const browseProductCategories = BROWSE_PRODUCT_CATEGORIES;
@@ -96,7 +253,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const [isSearchCategoryOpen, setIsSearchCategoryOpen] = useState(false);
   const [isBrowseProductsOpen, setIsBrowseProductsOpen] = useState(false);
   const [searchCategory, setSearchCategory] = useState<string | null>(null);
-  const widgetConfig = getWidgetConfig();
   const cartEnabled = isCartCrudEnabled(widgetConfig);
   const identity = useMemo(
     () => getWidgetIdentity(),
@@ -104,6 +260,8 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   );
   const authContextProbeKeyRef = useRef<string | null>(null);
   const authContextProbeInFlightRef = useRef(false);
+  const shellConfigProbeKeyRef = useRef<string | null>(null);
+  const shellConfigProbeInFlightRef = useRef(false);
 
   const {
     suggestions,
@@ -113,7 +271,11 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setShowSuggestions,
     shownSuggestions,
     setShownSuggestions,
-  } = useSuggestionsController({ attachedItems });
+  } = useSuggestionsController({
+    attachedItems,
+    starterSuggestions: hostStarterSuggestions,
+    requestContext: hostRequestContext,
+  });
 
   const {
     cartData,
@@ -176,6 +338,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setSelectedDebugMessage,
     currentPosition,
     currentMode,
+    requestContext: hostRequestContext,
   });
 
   const { handleConfirmation } = useConfirmationFlow({
@@ -297,6 +460,61 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     toast,
   ]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const shouldProbeShellConfig = widgetConfig.apiConfig.probeShellConfigOnOpen ?? true;
+    if (!shouldProbeShellConfig) {
+      return;
+    }
+
+    const probeKey = JSON.stringify({
+      integrationMode: identity.integrationMode,
+      chatBaseUrl: widgetConfig.apiConfig.chatBaseUrl,
+      shellConfigUrl: widgetConfig.apiConfig.runtimeRoutes?.shellConfigUrl ?? null,
+    });
+
+    if (shellConfigProbeInFlightRef.current || shellConfigProbeKeyRef.current === probeKey) {
+      return;
+    }
+
+    shellConfigProbeInFlightRef.current = true;
+    shellConfigProbeKeyRef.current = probeKey;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const shellConfig = await fetchRuntimeShellConfig();
+        if (!cancelled) {
+          setRuntimeShellConfig(shellConfig ?? null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          emitEvent("error", {
+            code: "runtime-shell-config-probe-failed",
+            message: error instanceof Error ? error.message : "Runtime shell-config probe failed.",
+            integrationMode: identity.integrationMode,
+          });
+        }
+      } finally {
+        shellConfigProbeInFlightRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      shellConfigProbeInFlightRef.current = false;
+    };
+  }, [
+    isOpen,
+    identity.integrationMode,
+    widgetConfig.apiConfig.chatBaseUrl,
+    widgetConfig.apiConfig.probeShellConfigOnOpen,
+    widgetConfig.apiConfig.runtimeRoutes?.shellConfigUrl,
+  ]);
+
   useMaxModePersistence({
     chatMessages,
     setChatMessages,
@@ -310,6 +528,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentConversationId,
     contextDocuments,
     setContextDocuments,
+    hostInitialAttachments,
   });
 
   useMaxModeViewSync({
@@ -330,6 +549,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setNewDocuments,
     setIsNewDocsPreviewOpen,
     setViewedDocumentIds,
+    welcomeContent: deriveWelcomeMessage(hostConfig, runtimeShellConfig),
   });
 
   const {
@@ -557,6 +777,8 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     shownSuggestions,
     setShownSuggestions,
     identity,
+    assistantLabel: resolvedAssistantLabel,
+    showUtilityPanel: resolvedShowUtilityPanel,
     collectingItem,
     setCollectingItem,
     isQuickActionsOpen,

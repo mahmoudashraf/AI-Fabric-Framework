@@ -3,7 +3,6 @@ package com.ai.fabric.runtime;
 import com.ai.infrastructure.provider.azure.AzureOpenAIAutoConfiguration;
 import com.ai.infrastructure.provider.cohere.CohereAutoConfiguration;
 import com.ai.infrastructure.provider.gemini.GeminiAutoConfiguration;
-import com.ai.infrastructure.provider.rest.RestEmbeddingAutoConfiguration;
 import com.ai.infrastructure.vector.memory.MemoryVectorAutoConfiguration;
 import com.ai.infrastructure.vector.milvus.MilvusVectorAutoConfiguration;
 import com.ai.infrastructure.vector.pinecone.PineconeVectorAutoConfiguration;
@@ -21,7 +20,6 @@ class RuntimePackagingCoverageTest {
         assertThat(AzureOpenAIAutoConfiguration.class).isNotNull();
         assertThat(CohereAutoConfiguration.class).isNotNull();
         assertThat(GeminiAutoConfiguration.class).isNotNull();
-        assertThat(RestEmbeddingAutoConfiguration.class).isNotNull();
         assertThat(MemoryVectorAutoConfiguration.class).isNotNull();
         assertThat(MilvusVectorAutoConfiguration.class).isNotNull();
         assertThat(PineconeVectorAutoConfiguration.class).isNotNull();
@@ -40,5 +38,11 @@ class RuntimePackagingCoverageTest {
             .contains(MilvusVectorAutoConfiguration.class.getName())
             .contains(PineconeVectorAutoConfiguration.class.getName())
             .contains(WeaviateVectorAutoConfiguration.class.getName());
+    }
+
+    @Test
+    void runtimeClasspathIncludesSupportCuratedPack() {
+        assertThat(RuntimePackagingCoverageTest.class.getClassLoader().getResource("ai-curated/packs/support.yml"))
+            .isNotNull();
     }
 }

@@ -293,6 +293,43 @@ class DeploymentReleaseRecoveryServiceTest {
         verifyNoRailwayInteractions(railwayGraphqlClient);
     }
 
+    @Test
+    void reconcileLatestInProgressReleaseFailsStaleEnsureVectorBackendStep() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = staleProvisioningRelease();
+        release.setCurrentStepKey("ensure_vector_backend");
+        release.setCurrentStepDescription("Create or reconcile managed external vector resources before runtime deployment.");
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        verify(deploymentReleaseExecutionService).markFailed(
+            eq(release.getId()),
+            eq(deployment.getId()),
+            argThat(ex -> ex instanceof IllegalStateException
+                && ex.getMessage() != null
+                && ex.getMessage().contains("ensure_vector_backend"))
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
     private void verifyNoRailwayInteractions(RailwayGraphqlClient railwayGraphqlClient) {
         verify(railwayGraphqlClient, never()).getDeployment(any());
     }

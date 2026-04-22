@@ -40,6 +40,16 @@ public class ProviderConfig {
      * Default model for embeddings
      */
     private String defaultEmbeddingModel;
+
+    /**
+     * Optional embedding-specific API key.
+     */
+    private String embeddingApiKey;
+
+    /**
+     * Optional embedding-specific base URL.
+     */
+    private String embeddingBaseUrl;
     
     /**
      * Maximum tokens for generation

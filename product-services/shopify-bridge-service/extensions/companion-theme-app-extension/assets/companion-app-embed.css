@@ -1,0 +1,225 @@
+.loom-companion-embed-root {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 9999;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.loom-companion-embed-root[data-status="configuration-required"]::before {
+  content: "Companion embed requires a bridge_base_url setting.";
+  display: block;
+  max-width: 18rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  background: #fff8dc;
+  color: #49370d;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.loom-companion-launcher {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.85rem 1.15rem;
+  background: #111827;
+  color: #ffffff;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 14px 36px rgba(17, 24, 39, 0.32);
+}
+
+.loom-companion-panel {
+  margin-top: 0.75rem;
+  width: min(25rem, calc(100vw - 2rem));
+  max-height: min(36rem, calc(100vh - 6rem));
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.2rem;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.2);
+  overflow: hidden;
+}
+
+.loom-companion-panel__header {
+  padding: 0.85rem 1rem;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.loom-companion-panel__subhead {
+  margin-top: 0.2rem;
+  color: #6b7280;
+  font-size: 0.78rem;
+}
+
+.loom-companion-panel__context {
+  padding: 0.65rem 1rem 0.75rem;
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.loom-companion-close,
+.loom-companion-reset {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.84rem;
+  padding: 0;
+}
+
+.loom-companion-messages {
+  flex: 1 1 auto;
+  min-height: 12rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  padding: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+}
+
+.loom-companion-message {
+  max-width: 85%;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 1rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.loom-companion-message--assistant {
+  background: #eef2ff;
+  color: #1f2937;
+  border-bottom-left-radius: 0.35rem;
+}
+
+.loom-companion-message--user {
+  margin-left: auto;
+  background: #111827;
+  color: #ffffff;
+  border-bottom-right-radius: 0.35rem;
+}
+
+.loom-companion-card-group {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.loom-companion-card-group__title {
+  font-size: 0.74rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.loom-companion-card {
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #dbe2ea;
+}
+
+.loom-companion-card__title {
+  font-weight: 600;
+  color: #111827;
+}
+
+.loom-companion-card__meta {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.loom-companion-card__link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.loom-companion-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 1rem 0.75rem;
+}
+
+.loom-companion-suggestion {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.loom-companion-status {
+  padding: 0 1rem 0.75rem;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+.loom-companion-composer {
+  border-top: 1px solid #e5e7eb;
+  padding: 0.9rem 1rem 1rem;
+  background: #ffffff;
+}
+
+.loom-companion-input {
+  width: 100%;
+  resize: none;
+  border: 1px solid #d1d5db;
+  border-radius: 0.9rem;
+  padding: 0.75rem 0.85rem;
+  font: inherit;
+  color: #111827;
+  background: #ffffff;
+}
+
+.loom-companion-composer__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.loom-companion-send {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  background: #111827;
+  color: #ffffff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.loom-companion-send:disabled,
+.loom-companion-input:disabled {
+  opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+  .loom-companion-embed-root {
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  .loom-companion-panel {
+    width: min(22rem, calc(100vw - 1.5rem));
+    max-height: calc(100vh - 4rem);
+  }
+}

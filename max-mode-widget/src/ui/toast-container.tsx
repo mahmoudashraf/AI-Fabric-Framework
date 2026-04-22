@@ -13,7 +13,7 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="mxw-fixed mxw-bottom-4 mxw-right-4 mxw-z-[99999] mxw-flex mxw-flex-col mxw-gap-2 mxw-max-w-[360px]">
+    <div className="fixed bottom-4 right-4 z-[99999] flex max-w-[360px] flex-col gap-2">
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />
       ))}
@@ -38,29 +38,29 @@ function ToastItem({
   return (
     <div
       className={cn(
-        "mxw-pointer-events-auto mxw-relative mxw-flex mxw-w-full mxw-items-center mxw-justify-between mxw-gap-3 mxw-overflow-hidden mxw-rounded-lg mxw-border mxw-p-4 mxw-pr-8 mxw-shadow-lg mxw-transition-all mxw-duration-300",
+        "pointer-events-auto relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-lg border p-4 pr-8 shadow-lg transition-all duration-300",
         toast.variant === "destructive"
-          ? "mxw-border-destructive mxw-bg-destructive mxw-text-destructive-foreground"
-          : "mxw-border mxw-bg-background mxw-text-foreground",
+          ? "border-destructive bg-destructive text-destructive-foreground"
+          : "border bg-background text-foreground",
         isVisible
-          ? "mxw-translate-x-0 mxw-opacity-100"
-          : "mxw-translate-x-full mxw-opacity-0",
+          ? "translate-x-0 opacity-100"
+          : "translate-x-full opacity-0",
       )}
     >
-      <div className="mxw-grid mxw-gap-1">
+      <div className="grid gap-1">
         {toast.title && (
-          <div className="mxw-text-sm mxw-font-semibold">{toast.title}</div>
+          <div className="text-sm font-semibold">{toast.title}</div>
         )}
         {toast.description && (
-          <div className="mxw-text-sm mxw-opacity-90">{toast.description}</div>
+          <div className="text-sm opacity-90">{toast.description}</div>
         )}
       </div>
       <button
         onClick={onDismiss}
-        className="mxw-absolute mxw-right-2 mxw-top-2 mxw-rounded-md mxw-p-1 mxw-text-foreground/50 mxw-opacity-0 mxw-transition-opacity hover:mxw-text-foreground group-hover:mxw-opacity-100"
+        className="absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
         style={{ opacity: 1 }}
       >
-        <X className="mxw-h-4 mxw-w-4" />
+        <X className="h-4 w-4" />
       </button>
     </div>
   );

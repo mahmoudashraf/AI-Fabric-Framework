@@ -2,12 +2,20 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
+import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class DeploymentDraftValidationServiceTest {
 
@@ -102,6 +110,322 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsInlineActionRouteWithoutExplicitRoutingEntry() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products",
+                      "route": {
+                        "method": "GET",
+                        "url": "https://customer.example/api/products/search",
+                        "request": {
+                          "query": {
+                            "q": "{{params.query}}"
+                          }
+                        },
+                        "response": {
+                          "success-http-status": [200]
+                        }
+                      },
+                      "requiredParameters": ["query"]
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("ACTION_WITHOUT_ROUTE", "NO_ROUTES_CONFIGURED");
+    }
+
+    @Test
+    void validateRejectsInvalidInlineActionRouteUrl() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products",
+                      "route": {
+                        "method": "GET",
+                        "url": "customer.example/products"
+                      }
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "actions": {}
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ROUTE_URL_INVALID");
+    }
+
+    @Test
+    void validateRejectsSharedIndexKnowledgeSourceOnEmbeddedVectorProvider() {
+        DeploymentDraftEntity draft = draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "search_docs",
+                      "description": "Search docs"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "faq-article": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "ALLOW_VERIFIED",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        );
+        draft.setKnowledgeSourceConfigJson(
+            """
+                {
+                  "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                  "sources": [
+                    {
+                      "id": "help-center",
+                      "sourceType": "shared-index",
+                      "adapterType": "shared-index",
+                      "handleRef": "plugin/help-center",
+                      "entityType": "faq-article"
+                    }
+                  ]
+                }
+                """
+        );
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("SHARED_INDEX_REQUIRES_SHARED_VECTOR_STORAGE");
+    }
+
+    @Test
+    void validateAcceptsPartialExplicitOverrideOverInlineActionRoute() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_orders",
+                      "description": "List orders",
+                      "route": {
+                        "method": "GET",
+                        "path": "/api/orders/default",
+                        "request": {
+                          "query": {
+                            "status": "{{params.status}}"
+                          }
+                        },
+                        "response": {
+                          "success-http-status": [200],
+                          "message": "Orders"
+                        }
+                      },
+                      "requiredParameters": ["status"]
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "order": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  },
+                  "actions": {
+                    "list_orders": {
+                      "url": "https://customer.example/api/orders",
+                      "response": {
+                        "message": "Orders override"
+                      }
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("ROUTE_METHOD_REQUIRED", "ROUTE_TARGET_REQUIRED");
+    }
+
+    @Test
     void validateRejectsLuceneVectorDimensionsAboveBackendLimit() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -169,6 +493,195 @@ class DeploymentDraftValidationServiceTest {
         assertThat(response.issues())
             .extracting("code")
             .contains("VECTOR_DIMENSIONS_EXCEED_BACKEND_LIMIT");
+    }
+
+    @Test
+    void validateAcceptsConfirmationInterceptorsWithKnownConfirmableActions() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "cancel_purchase_order",
+                      "description": "Cancel purchase order",
+                      "requiresConfirmation": true
+                    },
+                    {
+                      "name": "offer_order_discount",
+                      "description": "Offer discount",
+                      "requiresConfirmation": true
+                    }
+                  ],
+                  "confirmationInterceptors": [
+                    {
+                      "name": "cancel_to_retention_offer",
+                      "trigger": {
+                        "pendingActions": ["cancel_purchase_order"],
+                        "confirmation": "CONFIRMATION_POSITIVE",
+                        "onceParam": "_retentionOfferOffered"
+                      },
+                      "decision": {
+                        "type": "PROMPT_ACTION",
+                        "action": "offer_order_discount",
+                        "params": {
+                          "orderNumber": "{{pending.actionParams.orderNumber}}",
+                          "discountPercent": 10
+                        }
+                      }
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "cancel_purchase_order": {
+                      "method": "POST",
+                      "path": "/api/orders/cancel"
+                    },
+                    "offer_order_discount": {
+                      "method": "POST",
+                      "path": "/api/orders/offer-discount"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+    }
+
+    @Test
+    void validateRejectsPromptActionTargetThatIsNotConfirmable() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "cancel_purchase_order",
+                      "description": "Cancel purchase order",
+                      "requiresConfirmation": true
+                    },
+                    {
+                      "name": "list_orders",
+                      "description": "List orders",
+                      "requiresConfirmation": false
+                    }
+                  ],
+                  "confirmationInterceptors": [
+                    {
+                      "name": "cancel_to_list_orders",
+                      "trigger": {
+                        "pendingActions": ["cancel_purchase_order"],
+                        "confirmation": "CONFIRMATION_POSITIVE"
+                      },
+                      "decision": {
+                        "type": "PROMPT_ACTION",
+                        "action": "list_orders"
+                      }
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "cancel_purchase_order": {
+                      "method": "POST",
+                      "path": "/api/orders/cancel"
+                    },
+                    "list_orders": {
+                      "method": "GET",
+                      "path": "/api/orders"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("CONFIRMATION_INTERCEPTOR_PROMPT_ACTION_NOT_CONFIRMABLE");
     }
 
     @Test
@@ -1138,6 +1651,133 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsPlatformManagedSharedQdrant() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 1536 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "qdrant",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "vectorStoragePosture": "SHARED",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "qdrantManagedCollectionsEnabled": true,
+                  "qdrantCloudProviderId": "aws",
+                  "qdrantCloudRegionId": "eu-west-1"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+    }
+
+    @Test
+    void validateAcceptsExternalExistingSharedQdrantWithManagedCollections() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 1536 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "qdrant",
+                  "vectorProvisioningMode": "EXTERNAL_EXISTING",
+                  "vectorStoragePosture": "SHARED",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "qdrantManagedCollectionsEnabled": true,
+                  "qdrantHost": "https://shared-qdrant.example"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+    }
+
+    @Test
     void validateRejectsPlatformManagedMilvusWithoutZillizProjectAndRegion() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -1563,76 +2203,6 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
-    void validateRejectsRestEmbeddingWithoutBaseUrl() {
-        DraftValidationResponse response = service.validate(draft(
-            """
-                {
-                  "actions": [
-                    {
-                      "name": "list_products",
-                      "description": "List products"
-                    }
-                  ]
-                }
-                """,
-            """
-                {
-                  "ai-config": { "vector-dimensions": 384 },
-                  "ai-entities": {
-                    "product": {
-                      "fields": []
-                    }
-                  }
-                }
-                """,
-            """
-                {
-                  "connector": {
-                    "inbound-auth": {
-                      "allow-unauthenticated": false,
-                      "api-key": {
-                        "enabled": true,
-                        "header": "X-AIFABRIC-API-KEY",
-                        "value": "${CONNECTOR_API_KEY}"
-                      }
-                    },
-                    "upstream": {
-                      "base-url": "https://customer.example"
-                    }
-                  },
-                  "actions": {
-                    "list_products": {
-                      "method": "GET",
-                      "path": "/api/products/search"
-                    }
-                  }
-                }
-                """,
-            """
-                {
-                  "llmProvider": "gemini",
-                  "embeddingProvider": "rest",
-                  "vectorStrategy": "lucene",
-                  "runtimeProfile": "runtime-managed",
-                  "connectorProfile": "connector-hosted"
-                }
-                """,
-            """
-                {
-                  "authzMode": "REMOTE_HTTP",
-                  "adminApiKeyEnabled": true,
-                  "connectorApiKeyEnabled": true
-                }
-                """
-        ));
-
-        assertThat(response.publishReady()).isFalse();
-        assertThat(response.issues())
-            .extracting("code")
-            .contains("REST_EMBEDDING_BASE_URL_REQUIRED");
-    }
-
-    @Test
     void validateRejectsMilvusWithoutHost() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -2000,6 +2570,301 @@ class DeploymentDraftValidationServiceTest {
             .contains("PUBLIC_RUNTIME_ACCEPTED_AUDIENCE_INVALID");
     }
 
+    @Test
+    void validateRejectsUnsupportedShellModuleAndStarterPromptCard() {
+        DeploymentDraftEntity draft = draft(
+            """
+                {
+                  "actions": []
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {}
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        );
+        draft.setShellConfigJson(
+            """
+                {
+                  "contractVersion": "SHELL_CONFIG_V1",
+                  "modules": [
+                    { "id": "custom-module" }
+                  ],
+                  "starterPrompts": [
+                    {
+                      "label": "Browse",
+                      "query": "Show products",
+                      "cardId": "custom-card"
+                    }
+                  ]
+                }
+                """
+        );
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("SHELL_MODULE_ID_UNSUPPORTED", "SHELL_STARTER_PROMPT_CARD_UNSUPPORTED");
+    }
+
+    @Test
+    void validateRejectsUnknownManagedInferenceEndpointProfile() {
+        PlatformManagedInferenceEndpointService endpointService = mock(PlatformManagedInferenceEndpointService.class);
+        when(endpointService.requireActive("missing-profile"))
+            .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "missing"));
+
+        DraftValidationResponse response = service(endpointService).validate(draft(
+            """
+                {
+                  "actions": []
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "onnx",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "orchestrationLlmProvider": "openai",
+                  "orchestrationEndpointProfile": "missing-profile"
+                }
+                """,
+            """
+                {
+                  "authzMode": "ALLOW_VERIFIED",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ORCHESTRATIONENDPOINTPROFILE_UNKNOWN");
+    }
+
+    @Test
+    void validateRejectsManagedInferenceEndpointProfileWhenProviderMismatches() {
+        PlatformManagedInferenceEndpointEntity endpoint = new PlatformManagedInferenceEndpointEntity();
+        endpoint.setId("pmie-1");
+        endpoint.setProfileRef("openai-cloud-default");
+        endpoint.setProviderType("openai");
+        endpoint.setStatus("ACTIVE");
+
+        PlatformManagedInferenceEndpointService endpointService = mock(PlatformManagedInferenceEndpointService.class);
+        when(endpointService.requireActive("openai-cloud-default")).thenReturn(endpoint);
+
+        DraftValidationResponse response = service(endpointService).validate(draft(
+            """
+                {
+                  "actions": []
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "anthropic",
+                  "embeddingProvider": "onnx",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "generationLlmProvider": "anthropic",
+                  "generationEndpointProfile": "openai-cloud-default"
+                }
+                """,
+            """
+                {
+                  "authzMode": "ALLOW_VERIFIED",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("GENERATIONENDPOINTPROFILE_PROVIDER_MISMATCH");
+    }
+
+    @Test
+    void validateAcceptsDedicatedEmbeddingWorkerRefsBeforeManagedServiceExists() {
+        PlatformManagedInferenceEndpointService endpointService = mock(PlatformManagedInferenceEndpointService.class);
+        PlatformManagedInferenceServiceService inferenceService = mock(PlatformManagedInferenceServiceService.class);
+        when(endpointService.requireActive(anyString()))
+            .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "endpoint should not be resolved"));
+        when(inferenceService.requireActiveEndpointForService(anyString(), anyString(), anyString()))
+            .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "service should not be resolved"));
+
+        DraftValidationResponse response = service(endpointService, inferenceService).validate(draft(
+            """
+                {
+                  "actions": []
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {}
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "embeddingServiceMode": "DEPLOYMENT_DEDICATED_SERVICE",
+                  "embeddingManagedServiceRef": "dedicated-embedding-dep-123-mpi-abc",
+                  "embeddingEndpointProfile": "dep-dep-123-embedding-worker"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """,
+            """
+                {
+                  "systemPrompt": "You are helpful.",
+                  "intentExtractionPrompt": "Extract the user intent.",
+                  "actionSelectionPrompt": "Select actions when needed.",
+                  "clarificationPrompt": "Ask for missing information.",
+                  "answerGenerationPrompt": "Answer using grounded information.",
+                  "retrievalPrompt": "Use retrieval when relevant.",
+                  "assistantUiPrompt": "Be concise."
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("EMBEDDINGMANAGEDSERVICEREF_UNKNOWN", "EMBEDDINGENDPOINTPROFILE_UNKNOWN");
+    }
+
     private DeploymentDraftEntity draft(String actionsConfig,
                                         String entityConfig,
                                         String routingConfig,
@@ -2045,5 +2910,14 @@ class DeploymentDraftValidationServiceTest {
         draft.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         draft.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return draft;
+    }
+
+    private DeploymentDraftValidationService service(PlatformManagedInferenceEndpointService endpointService) {
+        return new DeploymentDraftValidationService(new ObjectMapper(), endpointService);
+    }
+
+    private DeploymentDraftValidationService service(PlatformManagedInferenceEndpointService endpointService,
+                                                     PlatformManagedInferenceServiceService inferenceService) {
+        return new DeploymentDraftValidationService(new ObjectMapper(), endpointService, inferenceService);
     }
 }

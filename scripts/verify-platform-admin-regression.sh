@@ -9,10 +9,14 @@ set -euo pipefail
 # - deployment assignment visibility
 # - async deletion and notification flow
 # - canonical rollout inventory
+# - consumer-bound deployment resolution
+# - inference-service admin UI and API verification
+# - managed inference service restart/scale/rotate-secret/force-recreate
 # - optional manual canonical rollout mutation
 #
 # Usage:
 #   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
+#   PLATFORM_UI_BASE_URL="https://<platform-ui>.up.railway.app" \
 #   ADMIN_TARGET_DEPLOYMENT_ID="dep-xxxxxxxx" \
 #   PLATFORM_LOGIN_EMAIL="admin@example.com" \
 #   PLATFORM_LOGIN_PASSWORD="<password>" \
@@ -24,6 +28,7 @@ set -euo pipefail
 #   ./scripts/verify-platform-admin-regression.sh
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-${PLATFORM_PUBLIC_BASE_URL:-}}"
+PLATFORM_UI_BASE_URL="${PLATFORM_UI_BASE_URL:-}"
 ADMIN_TARGET_DEPLOYMENT_ID="${ADMIN_TARGET_DEPLOYMENT_ID:-}"
 
 PLATFORM_API_KEY_HEADER="${PLATFORM_API_KEY_HEADER:-X-PLATFORM-API-KEY}"
@@ -31,12 +36,23 @@ PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_COOKIE="${PLATFORM_COOKIE:-}"
 PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
+PLATFORM_PUBLIC_API_CLIENT_ID_HEADER="${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:-X-PLATFORM-CLIENT-ID}"
+PLATFORM_PUBLIC_API_KEY_HEADER="${PLATFORM_PUBLIC_API_KEY_HEADER:-X-PLATFORM-PUBLIC-API-KEY}"
+PLATFORM_PUBLIC_API_CLIENT_ID="${PLATFORM_PUBLIC_API_CLIENT_ID:-}"
+PLATFORM_PUBLIC_API_KEY="${PLATFORM_PUBLIC_API_KEY:-}"
 
 VERIFY_ASYNC_DELETE_SMOKE="${VERIFY_ASYNC_DELETE_SMOKE:-true}"
 VERIFY_DEPLOYMENT_OVERRIDE_SMOKE="${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE:-true}"
 VERIFY_CANONICAL_ROLLOUT_READONLY="${VERIFY_CANONICAL_ROLLOUT_READONLY:-true}"
 VERIFY_CANONICAL_ROLLOUT_MUTATION="${VERIFY_CANONICAL_ROLLOUT_MUTATION:-false}"
 CANONICAL_ROLLOUT_KEYS="${CANONICAL_ROLLOUT_KEYS:-}"
+VERIFY_CONSUMER_RESOLUTION_SMOKE="${VERIFY_CONSUMER_RESOLUTION_SMOKE:-true}"
+VERIFY_INFERENCE_SERVICE_UI="${VERIFY_INFERENCE_SERVICE_UI:-true}"
+VERIFY_INFERENCE_SERVICE_ADMIN_READONLY="${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY:-true}"
+VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION:-false}"
+INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF:-shared-ollama-orchestration}"
+INFERENCE_SERVICE_ROTATE_SECRET_VALUE="${INFERENCE_SERVICE_ROTATE_SECRET_VALUE:-}"
+INFERENCE_SERVICE_SCALE_TARGET="${INFERENCE_SERVICE_SCALE_TARGET:-}"
 
 DELETE_SMOKE_TEMPLATE_ID="${DELETE_SMOKE_TEMPLATE_ID:-dev-openai-lucene}"
 DELETE_SMOKE_ENVIRONMENT="${DELETE_SMOKE_ENVIRONMENT:-dev}"
@@ -55,6 +71,9 @@ PLATFORM_COOKIE_JAR=""
 TEMP_DEPLOYMENT_ID=""
 TEMP_DEPLOYMENT_CLEANED_UP="false"
 TEMP_OVERRIDE_SECRET_NAME=""
+TEMP_CONSUMER_CUSTOMER_ID=""
+TEMP_CONSUMER_ID=""
+TEMP_CONSUMER_DEPLOYMENT_ID=""
 PLATFORM_CURRENT_ACTOR_ID=""
 PLATFORM_CURRENT_USER_ID=""
 
@@ -140,6 +159,80 @@ except Exception as exc:
 PY
 }
 
+json_extract() {
+  local py="$1"
+  JSON_EXTRACT_BODY="${HTTP_BODY}" JSON_EXTRACT_PY="${py}" python3 - <<'PY'
+import json
+import os
+
+raw = os.environ.get("JSON_EXTRACT_BODY", "").strip()
+data = json.loads(raw) if raw else None
+namespace = {"data": data}
+exec(os.environ["JSON_EXTRACT_PY"].replace("\\n", "\n"), namespace, namespace)
+PY
+}
+
+public_http_get() {
+  local url="$1"
+
+  local tmp
+  tmp="$(mktemp)"
+
+  local status=""
+  local attempt=1
+  while true; do
+    status="$(curl -sS -L -o "${tmp}" -w "%{http_code}" "${url}" || true)"
+    if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient public GET ${url} returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
+
+  HTTP_STATUS="${status}"
+  HTTP_BODY="$(cat "${tmp}")"
+  rm -f "${tmp}"
+}
+
+consumer_resolution_http_get() {
+  local url="$1"
+
+  if [[ -n "${PLATFORM_PUBLIC_API_CLIENT_ID}" && -n "${PLATFORM_PUBLIC_API_KEY}" ]]; then
+    local tmp
+    tmp="$(mktemp)"
+
+    local status=""
+    local attempt=1
+    while true; do
+      status="$(
+        curl -sS -o "${tmp}" -w "%{http_code}" \
+          -H "Accept: application/json" \
+          -H "${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER}: ${PLATFORM_PUBLIC_API_CLIENT_ID}" \
+          -H "${PLATFORM_PUBLIC_API_KEY_HEADER}: ${PLATFORM_PUBLIC_API_KEY}" \
+          "${url}" || true
+      )"
+      if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+          && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+        echo "WARN: transient consumer resolution GET ${url} returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+        sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+        attempt=$((attempt + 1))
+        continue
+      fi
+      break
+    done
+
+    HTTP_STATUS="${status}"
+    HTTP_BODY="$(cat "${tmp}")"
+    rm -f "${tmp}"
+    return 0
+  fi
+
+  platform_http GET "${url}"
+}
+
 platform_http() {
   local method="$1"
   local url="$2"
@@ -198,36 +291,55 @@ platform_http() {
 }
 
 platform_login() {
-  if [[ -n "${PLATFORM_API_KEY}" || -n "${PLATFORM_COOKIE}" ]]; then
+  if [[ -n "${PLATFORM_COOKIE}" ]]; then
     return 0
   fi
+
+  if [[ -n "${PLATFORM_LOGIN_EMAIL}" && -n "${PLATFORM_LOGIN_PASSWORD}" ]]; then
+    local tmp
+    tmp="$(mktemp)"
+    local payload
+    payload="$(mktemp)"
+    cat > "${payload}" <<EOF
+{"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
+EOF
+    local status=""
+    local attempt=1
+    while true; do
+      status="$(
+        curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
+          -H "Content-Type: application/json" \
+          --data "@${payload}" \
+          "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
+      )"
+      if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+          && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+        echo "WARN: transient platform login returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+        sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+        attempt=$((attempt + 1))
+        continue
+      fi
+      break
+    done
+    rm -f "${payload}"
+    if [[ "${status}" != "200" ]]; then
+      echo "Platform login failed (HTTP ${status})."
+      cat "${tmp}"
+      rm -f "${tmp}"
+      exit 1
+    fi
+    rm -f "${tmp}"
+    return 0
+  fi
+
+  if [[ -n "${PLATFORM_API_KEY}" ]]; then
+    return 0
+  fi
+
   if [[ -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ]]; then
     echo "Platform verification requires PLATFORM_API_KEY, PLATFORM_COOKIE, or PLATFORM_LOGIN_EMAIL/PLATFORM_LOGIN_PASSWORD."
     exit 2
   fi
-
-  local tmp
-  tmp="$(mktemp)"
-  local payload
-  payload="$(mktemp)"
-  cat > "${payload}" <<EOF
-{"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
-EOF
-  local status
-  status="$(
-    curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
-      -H "Content-Type: application/json" \
-      --data "@${payload}" \
-      "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
-  )"
-  rm -f "${payload}"
-  if [[ "${status}" != "200" ]]; then
-    echo "Platform login failed (HTTP ${status})."
-    cat "${tmp}"
-    rm -f "${tmp}"
-    exit 1
-  fi
-  rm -f "${tmp}"
 }
 
 poll_until() {
@@ -271,6 +383,15 @@ cleanup() {
     platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}/archive" || true
     local payload='{"hardDelete":false,"reason":"Best-effort cleanup from verify-platform-admin-regression.sh"}'
     platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}" "${payload}" || true
+  fi
+  if [[ -n "${TEMP_CONSUMER_ID}" && -n "${TEMP_CONSUMER_CUSTOMER_ID}" ]]; then
+    platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" '{"deploymentId":null,"reason":"Best-effort cleanup from verify-platform-admin-regression.sh"}' || true
+    platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}" || true
+  fi
+  if [[ -n "${TEMP_CONSUMER_DEPLOYMENT_ID}" ]]; then
+    platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${TEMP_CONSUMER_DEPLOYMENT_ID}/archive" || true
+    local consumer_payload='{"hardDelete":false,"reason":"Best-effort cleanup from verify-platform-admin-regression.sh consumer smoke"}'
+    platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_CONSUMER_DEPLOYMENT_ID}" "${consumer_payload}" || true
   fi
   if [[ -n "${TEMP_OVERRIDE_SECRET_NAME}" ]]; then
     platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/secrets/deployment-overrides/${TEMP_OVERRIDE_SECRET_NAME}" || true
@@ -317,10 +438,344 @@ print(json.dumps({"rolloutKeys": keys}))
 PY
 }
 
+assert_inference_service_summary() {
+  local label="$1"
+  local expected_operation="${2:-}"
+  local expected_replicas="${3:-}"
+
+  INFERENCE_EXPECTED_OPERATION="${expected_operation}" \
+  INFERENCE_EXPECTED_REPLICAS="${expected_replicas}" \
+  json_assert "${label}" $'assert (data or {}).get("serviceRef") == "'"${INFERENCE_SERVICE_REF}"'"\nassert bool((data or {}).get("displayName"))\nassert bool((data or {}).get("serviceKind"))\nassert bool((data or {}).get("providerType"))\nassert bool((data or {}).get("status"))\nassert isinstance((data or {}).get("dependentDeploymentsCount"), int)\nassert isinstance((data or {}).get("dependentActiveDeploymentsCount"), int)\nendpoints = (data or {}).get("endpoints") or []\nassert isinstance(endpoints, list)\nassert len(endpoints) >= 1, endpoints\nexpected_operation = "'"${expected_operation}"'".strip()\nif expected_operation:\n  assert (data or {}).get("lastVerifiedOperation") == expected_operation, data\n  assert (data or {}).get("lastVerifiedStatus") == "READY", data\n  assert bool((data or {}).get("lastVerifiedAt")), data\n  assert bool((data or {}).get("lastVerifiedMessage")), data\n  assert (data or {}).get("driftStatus") == "NO_DRIFT", data\nexpected_replicas = "'"${expected_replicas}"'".strip()\nif expected_replicas:\n  expected = int(expected_replicas)\n  assert (data or {}).get("desiredReplicas") == expected, data\n  assert (data or {}).get("actualReplicas") == expected, data\nprint("ok")'
+}
+
+assert_inference_service_health() {
+  local label="$1"
+
+  json_assert "${label}" $'assert (data or {}).get("serviceRef") == "'"${INFERENCE_SERVICE_REF}"'"\nassert (data or {}).get("status") == "READY", data\nassert (data or {}).get("driftStatus") == "NO_DRIFT", data\nassert (data or {}).get("secretConfigured") is True, data\nhealth_probe = (data or {}).get("healthProbe") or {}\ninference_probe = (data or {}).get("inferenceProbe") or {}\nassert (health_probe or {}).get("status") == "READY", health_probe\nassert bool((health_probe or {}).get("endpoint")), health_probe\nassert (inference_probe or {}).get("status") == "READY", inference_probe\nassert bool((inference_probe or {}).get("endpoint")), inference_probe\nassert bool((inference_probe or {}).get("message")), inference_probe\nprint("ok")'
+}
+
+verify_inference_service_ui() {
+  echo ""
+  echo "== Inference Service UI =="
+
+  public_http_get "${PLATFORM_UI_BASE_URL}/inference-services"
+  assert_status 200 "inference services ui route"
+
+  local html_file
+  html_file="$(mktemp "${TMP_DIR}/inference-ui-html.XXXXXX")"
+  printf '%s' "${HTTP_BODY}" > "${html_file}"
+
+  local bundle_url
+  bundle_url="$(
+    python3 - <<'PY' "${html_file}" "${PLATFORM_UI_BASE_URL}"
+import re
+import sys
+import urllib.parse
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    html = handle.read()
+base_url = sys.argv[2]
+matches = re.findall(r'<script[^>]+src="([^"]+\.js)"', html)
+if not matches:
+    raise SystemExit("No JavaScript bundle found in UI HTML")
+preferred = next((value for value in matches if "/assets/" in value), matches[0])
+print(urllib.parse.urljoin(base_url.rstrip("/") + "/", preferred))
+PY
+  )"
+
+  public_http_get "${bundle_url}"
+  assert_status 200 "inference services ui bundle"
+
+  local bundle_file
+  bundle_file="$(mktemp "${TMP_DIR}/inference-ui-bundle.XXXXXX")"
+  printf '%s' "${HTTP_BODY}" > "${bundle_file}"
+
+  python3 - <<'PY' "${bundle_file}"
+import pathlib
+import sys
+
+bundle = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+required_tokens = [
+    "Inference Services",
+    "Run health check",
+    "Restart",
+    "Rotate secret",
+    "Force recreate",
+    "Apply scale",
+    "Recent activity",
+    "Dependents",
+]
+missing = [token for token in required_tokens if token not in bundle]
+if missing:
+    raise SystemExit(f"Missing UI bundle tokens: {', '.join(missing)}")
+PY
+
+  pass "public UI /inference-services bundle"
+}
+
+verify_inference_service_admin() {
+  echo ""
+  echo "== Inference Service Admin =="
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/marketplace/inference-services"
+  assert_status 200 "list inference services"
+  json_assert "list inference services" $'items = data or []\nassert isinstance(items, list)\nmatching = [item for item in items if (item or {}).get("serviceRef") == "'"${INFERENCE_SERVICE_REF}"'"]\nassert len(matching) == 1, items\nservice = matching[0]\nassert bool((service or {}).get("displayName"))\nassert bool((service or {}).get("serviceKind"))\nassert bool((service or {}).get("providerType"))\nassert bool((service or {}).get("status"))\nprint("ok")'
+  pass "platform GET /api/marketplace/inference-services"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}"
+  assert_status 200 "get inference service"
+  assert_inference_service_summary "get inference service"
+  local replica_state
+  replica_state="$(
+    SERVICE_BODY="${HTTP_BODY}" SCALE_TARGET_OVERRIDE="${INFERENCE_SERVICE_SCALE_TARGET}" python3 - <<'PY'
+import json
+import os
+
+service = json.loads(os.environ.get("SERVICE_BODY", "") or "{}")
+current = service.get("desiredReplicas")
+if not isinstance(current, int) or current <= 0:
+    current = service.get("actualReplicas")
+if not isinstance(current, int) or current <= 0:
+    current = 1
+min_replicas = service.get("minReplicas")
+max_replicas = service.get("maxReplicas")
+lower = min_replicas if isinstance(min_replicas, int) and min_replicas > 0 else 1
+upper = max_replicas if isinstance(max_replicas, int) and max_replicas > 0 else None
+override = (os.environ.get("SCALE_TARGET_OVERRIDE") or "").strip()
+if override:
+    target = int(override)
+    if target == current:
+        raise SystemExit(f"Configured scale target {target} matches current replica count")
+    if target < lower:
+        raise SystemExit(f"Configured scale target {target} is below lower bound {lower}")
+    if upper is not None and target > upper:
+        raise SystemExit(f"Configured scale target {target} is above upper bound {upper}")
+else:
+    candidates = []
+    if upper is None or current + 1 <= upper:
+        candidates.append(current + 1)
+    if current - 1 >= lower:
+        candidates.append(current - 1)
+    if 2 >= lower and (upper is None or 2 <= upper):
+        candidates.append(2)
+    target = next((candidate for candidate in candidates if candidate != current), None)
+    if target is None:
+        raise SystemExit("Unable to find an alternate replica count for scale verification")
+print(f"{current}:{target}")
+PY
+  )"
+  local original_replicas="${replica_state%%:*}"
+  local target_replicas="${replica_state##*:}"
+  pass "platform GET /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/dependents"
+  assert_status 200 "list inference service dependents"
+  json_assert "list inference service dependents" $'items = data or []\nassert isinstance(items, list)\nfor item in items:\n  assert bool((item or {}).get("deploymentId")), item\n  assert bool((item or {}).get("deploymentName")), item\n  assert isinstance((item or {}).get("usages"), list), item\nprint("ok")'
+  pass "platform GET /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/dependents"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/activity"
+  assert_status 200 "list inference service activity"
+  json_assert "list inference service activity" $'items = data or []\nassert isinstance(items, list)\nfor item in items[:10]:\n  assert bool((item or {}).get("id")), item\n  assert bool((item or {}).get("action")), item\n  assert bool((item or {}).get("createdAt")), item\nprint("ok")'
+  pass "platform GET /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/activity"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/health"
+  assert_status 200 "get inference service health"
+  assert_inference_service_health "get inference service health"
+  pass "platform GET /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/health"
+
+  if [[ "${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION}" == "true" ]]; then
+    platform_http POST "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/restart"
+    assert_status 200 "restart inference service"
+    assert_inference_service_summary "restart inference service" "RESTART"
+    pass "platform POST /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/restart"
+
+    local scale_payload
+    scale_payload="$(DESIRED_REPLICAS="${target_replicas}" python3 - <<'PY'
+import json
+import os
+print(json.dumps({"desiredReplicas": int(os.environ["DESIRED_REPLICAS"])}))
+PY
+)"
+    platform_http PUT "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/scale" "${scale_payload}"
+    assert_status 200 "scale inference service up"
+    assert_inference_service_summary "scale inference service up" "SCALE" "${target_replicas}"
+    pass "platform PUT /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/scale -> ${target_replicas}"
+
+    scale_payload="$(DESIRED_REPLICAS="${original_replicas}" python3 - <<'PY'
+import json
+import os
+print(json.dumps({"desiredReplicas": int(os.environ["DESIRED_REPLICAS"])}))
+PY
+)"
+    platform_http PUT "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/scale" "${scale_payload}"
+    assert_status 200 "scale inference service restore"
+    assert_inference_service_summary "scale inference service restore" "SCALE" "${original_replicas}"
+    pass "platform PUT /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/scale -> ${original_replicas}"
+
+    local rotate_payload
+    rotate_payload="$(ROTATE_VALUE="${INFERENCE_SERVICE_ROTATE_SECRET_VALUE}" python3 - <<'PY'
+import json
+import os
+print(json.dumps({"value": os.environ["ROTATE_VALUE"]}))
+PY
+)"
+    platform_http PUT "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/rotate-secret" "${rotate_payload}"
+    assert_status 200 "rotate inference service secret"
+    assert_inference_service_summary "rotate inference service secret" "ROTATE_SECRET" "${original_replicas}"
+    pass "platform PUT /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/rotate-secret"
+
+    platform_http POST "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/force-recreate"
+    assert_status 200 "force recreate inference service"
+    assert_inference_service_summary "force recreate inference service" "FORCE_RECREATE" "${original_replicas}"
+    pass "platform POST /api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/force-recreate"
+
+    platform_http GET "${PLATFORM_BASE_URL}/api/marketplace/inference-services/${INFERENCE_SERVICE_REF}/activity"
+    assert_status 200 "list inference service activity after mutations"
+    json_assert "list inference service activity after mutations" $'items = data or []\nassert isinstance(items, list)\nverified = set()\nfor item in items:\n  if (item or {}).get("action") != "MANAGED_INFERENCE_OPERATION_VERIFIED":\n    continue\n  details = (item or {}).get("details") or {}\n  action = (details or {}).get("action")\n  if action:\n    verified.add(action)\nexpected = {"RESTART", "SCALE", "ROTATE_SECRET", "FORCE_RECREATE"}\nmissing = expected - verified\nassert not missing, {"missing": sorted(missing), "verified": sorted(verified)}\nprint("ok")'
+    pass "inference service activity recorded verification actions"
+  fi
+}
+
+verify_consumer_resolution_smoke() {
+  echo ""
+  echo "== Consumer Resolution Smoke =="
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/deployments/overview?includeArchived=false"
+  assert_status 200 "list deployment overviews for consumer smoke"
+
+  TEMP_CONSUMER_CUSTOMER_ID="$(
+    TARGET_DEPLOYMENT_ID="${ADMIN_TARGET_DEPLOYMENT_ID}" JSON_EXTRACT_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+
+items = json.loads(os.environ.get("JSON_EXTRACT_BODY", "") or "[]")
+target = os.environ["TARGET_DEPLOYMENT_ID"]
+for item in items:
+    if (item or {}).get("id") != target:
+        continue
+    binding = (item or {}).get("binding") or {}
+    customer_id = binding.get("customerId")
+    if not customer_id:
+        raise SystemExit(f"Missing customer binding for deployment {target}")
+    print(customer_id)
+    break
+else:
+    raise SystemExit(f"Deployment not found in overview payload: {target}")
+PY
+  )"
+
+  local consumer_timestamp
+  consumer_timestamp="$(date -u +%Y%m%d%H%M%S)"
+  local consumer_create_payload
+  consumer_create_payload="$(
+    CREATE_NAME="Consumer Resolution Smoke ${consumer_timestamp}" \
+    CUSTOMER_ID="${TEMP_CONSUMER_CUSTOMER_ID}" \
+    python3 - <<'PY'
+import json
+import os
+
+payload = {
+    "name": os.environ["CREATE_NAME"],
+    "environment": "dev",
+    "templateId": "dev-openai-lucene",
+    "customerId": os.environ["CUSTOMER_ID"],
+}
+print(json.dumps(payload))
+PY
+  )"
+  platform_http POST "${PLATFORM_BASE_URL}/api/deployments" "${consumer_create_payload}"
+  assert_status 201 "create consumer smoke deployment"
+  json_assert "create consumer smoke deployment" $'assert bool((data or {}).get("id"))\nassert (data or {}).get("binding", {}).get("customerId") == "'"${TEMP_CONSUMER_CUSTOMER_ID}"'"\nprint("ok")'
+  TEMP_CONSUMER_DEPLOYMENT_ID="$(json_extract 'print((data or {}).get("id") or "")')"
+  pass "platform POST /api/deployments (consumer smoke deployment)"
+
+  TEMP_CONSUMER_ID="consumer-smoke-${consumer_timestamp}"
+  local consumer_payload
+  consumer_payload="$(
+    CONSUMER_ID="${TEMP_CONSUMER_ID}" \
+    DEPLOYMENT_ID="${ADMIN_TARGET_DEPLOYMENT_ID}" \
+    python3 - <<'PY'
+import json
+import os
+
+payload = {
+    "consumerId": os.environ["CONSUMER_ID"],
+    "displayName": "Consumer smoke",
+    "description": "Live regression consumer-bound deployment resolution smoke.",
+    "deploymentId": os.environ["DEPLOYMENT_ID"],
+    "bindingReason": "Initial live regression binding."
+}
+print(json.dumps(payload))
+PY
+  )"
+  platform_http POST "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers" "${consumer_payload}"
+  assert_status 201 "create consumer smoke binding"
+  json_assert "create consumer smoke binding" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'"\nprint("ok")'
+  pass "platform POST /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers"
+
+  public_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
+  assert_status 401 "anonymous consumer credentials blocked"
+  pass "anonymous GET /api/public/consumers/${TEMP_CONSUMER_ID}/credentials is blocked"
+
+  consumer_resolution_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
+  assert_status 200 "public consumer credentials"
+  json_assert "public consumer credentials" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("deploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'"\nassert bool(((data or {}).get("integration") or {}).get("preferredIntegrationMode"))\nprint("ok")'
+  pass "public GET /api/public/consumers/${TEMP_CONSUMER_ID}/credentials"
+
+  local rebind_payload
+  rebind_payload="$(
+    DEPLOYMENT_ID="${TEMP_CONSUMER_DEPLOYMENT_ID}" python3 - <<'PY'
+import json
+import os
+
+payload = {
+    "deploymentId": os.environ["DEPLOYMENT_ID"],
+    "reason": "Rebind consumer to the replacement deployment during live regression."
+}
+print(json.dumps(payload))
+PY
+  )"
+  platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" "${rebind_payload}"
+  assert_status 200 "rebind consumer smoke"
+  json_assert "rebind consumer smoke" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'"\nprint("ok")'
+  pass "platform PUT /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding"
+
+  consumer_resolution_http_get "${PLATFORM_BASE_URL}/api/public/consumers/${TEMP_CONSUMER_ID}/status"
+  assert_status 200 "public consumer status"
+  json_assert "public consumer status" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("deploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'"\nassert bool((data or {}).get("status"))\nprint("ok")'
+  pass "public GET /api/public/consumers/${TEMP_CONSUMER_ID}/status"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/history"
+  assert_status 200 "consumer binding history"
+  json_assert "consumer binding history" $'items = data or []\nassert isinstance(items, list)\nassert len(items) >= 2, items\nassert any((item or {}).get("toDeploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'" for item in items), items\nassert any((item or {}).get("toDeploymentId") == "'"${TEMP_CONSUMER_DEPLOYMENT_ID}"'" for item in items), items\nprint("ok")'
+  pass "platform GET /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/history"
+
+  platform_http PUT "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding" '{"deploymentId":null,"reason":"Unbind consumer after live regression."}'
+  assert_status 200 "unbind consumer smoke"
+  json_assert "unbind consumer smoke" $'assert (data or {}).get("consumerId") == "'"${TEMP_CONSUMER_ID}"'"\nassert (data or {}).get("boundDeploymentId") in (None, "")\nprint("ok")'
+  pass "platform PUT /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}/binding -> unbound"
+
+  platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}"
+  assert_status 204 "delete consumer smoke"
+  pass "platform DELETE /api/platform/customers/${TEMP_CONSUMER_CUSTOMER_ID}/consumers/${TEMP_CONSUMER_ID}"
+  TEMP_CONSUMER_ID=""
+
+  platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${TEMP_CONSUMER_DEPLOYMENT_ID}/archive"
+  assert_status 200 "archive consumer smoke deployment"
+  platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_CONSUMER_DEPLOYMENT_ID}" '{"hardDelete":false,"reason":"Cleanup consumer smoke deployment"}'
+  assert_status 202 "delete consumer smoke deployment"
+  pass "consumer smoke deployment cleanup queued"
+  TEMP_CONSUMER_DEPLOYMENT_ID=""
+}
+
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
 PLATFORM_LOGIN_PASSWORD="$(resolve_secret_value PLATFORM_LOGIN_PASSWORD)"
+PLATFORM_PUBLIC_API_CLIENT_ID="$(resolve_secret_value PLATFORM_PUBLIC_API_CLIENT_ID)"
+PLATFORM_PUBLIC_API_KEY="$(resolve_secret_value PLATFORM_PUBLIC_API_KEY)"
+PLATFORM_UI_BASE_URL="$(resolve_secret_value PLATFORM_UI_BASE_URL)"
+INFERENCE_SERVICE_ROTATE_SECRET_VALUE="$(resolve_secret_value INFERENCE_SERVICE_ROTATE_SECRET_VALUE)"
 
 require_cmd curl
 require_cmd python3
@@ -341,8 +796,23 @@ if [[ "${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}" == "true" && "${VERIFY_ASYNC_DELETE_
   echo "VERIFY_DEPLOYMENT_OVERRIDE_SMOKE=true requires VERIFY_ASYNC_DELETE_SMOKE=true because the smoke proves hard-delete cleanup."
   exit 2
 fi
+if [[ "${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION}" == "true" && "${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY}" != "true" ]]; then
+  echo "VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION=true requires VERIFY_INFERENCE_SERVICE_ADMIN_READONLY=true."
+  exit 2
+fi
+if [[ "${VERIFY_INFERENCE_SERVICE_UI}" == "true" && -z "${PLATFORM_UI_BASE_URL}" ]]; then
+  echo "VERIFY_INFERENCE_SERVICE_UI=true requires PLATFORM_UI_BASE_URL."
+  exit 2
+fi
+if [[ "${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION}" == "true" && -z "${INFERENCE_SERVICE_ROTATE_SECRET_VALUE}" ]]; then
+  echo "VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION=true requires INFERENCE_SERVICE_ROTATE_SECRET_VALUE."
+  exit 2
+fi
 
 PLATFORM_BASE_URL="$(trim_slash "${PLATFORM_BASE_URL}")"
+if [[ -n "${PLATFORM_UI_BASE_URL}" ]]; then
+  PLATFORM_UI_BASE_URL="$(trim_slash "${PLATFORM_UI_BASE_URL}")"
+fi
 TMP_DIR="$(mktemp -d)"
 PLATFORM_COOKIE_JAR="${TMP_DIR}/platform-cookie.txt"
 trap cleanup EXIT
@@ -355,6 +825,13 @@ echo "Verify async delete smoke: ${VERIFY_ASYNC_DELETE_SMOKE}"
 echo "Verify deployment override smoke: ${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}"
 echo "Verify canonical rollout inventory: ${VERIFY_CANONICAL_ROLLOUT_READONLY}"
 echo "Verify canonical rollout mutation: ${VERIFY_CANONICAL_ROLLOUT_MUTATION}"
+echo "Verify consumer resolution smoke: ${VERIFY_CONSUMER_RESOLUTION_SMOKE}"
+echo "Verify inference service UI: ${VERIFY_INFERENCE_SERVICE_UI}"
+echo "Verify inference service admin read-only: ${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY}"
+echo "Verify inference service admin mutation: ${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION}"
+if [[ "${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY}" == "true" || "${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION}" == "true" ]]; then
+  echo "Inference service ref: ${INFERENCE_SERVICE_REF}"
+fi
 
 platform_login
 
@@ -421,6 +898,10 @@ if [[ -n "${ADMIN_TARGET_DEPLOYMENT_ID}" ]]; then
   assert_status 200 "existing deployment assignments"
   json_assert "existing deployment assignments" $'items = data or []\nassert isinstance(items, list)\nfor item in items:\n  assert (item or {}).get("deploymentId") == "'"${ADMIN_TARGET_DEPLOYMENT_ID}"'", item\n  assert (item or {}).get("assignmentRole"), item\n  assert (item or {}).get("userId"), item\nprint("ok")'
   pass "platform GET /api/deployments/${ADMIN_TARGET_DEPLOYMENT_ID}/assignments"
+fi
+
+if [[ "${VERIFY_CONSUMER_RESOLUTION_SMOKE}" == "true" && -n "${ADMIN_TARGET_DEPLOYMENT_ID}" ]]; then
+  verify_consumer_resolution_smoke
 fi
 
 echo ""
@@ -598,6 +1079,14 @@ PY
 
   TEMP_DEPLOYMENT_CLEANED_UP="true"
   TEMP_DEPLOYMENT_ID=""
+fi
+
+if [[ "${VERIFY_INFERENCE_SERVICE_UI}" == "true" ]]; then
+  verify_inference_service_ui
+fi
+
+if [[ "${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY}" == "true" ]]; then
+  verify_inference_service_admin
 fi
 
 echo ""

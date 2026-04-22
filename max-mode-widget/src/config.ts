@@ -6,11 +6,29 @@
  * Internal code reads the singleton via `getWidgetConfig()`.
  */
 
+import type { RuntimeShellConfigSummary } from "@/types";
+import type { MaxModeMode, MaxModePosition } from "@/constants";
+
 export interface MaxModeApiConfig {
   /** Base URL for the chat / orchestration API */
   chatBaseUrl: string;
   /** Optional base URL for business CRUD operations such as cart APIs */
   crudBaseUrl?: string;
+  /**
+   * Optional static headers added to every widget API request.
+   *
+   * Useful when the host authenticates platform adapter routes with an
+   * operator-scoped API key rather than a browser cookie session.
+   */
+  defaultHeaders?: Record<string, string>;
+  /**
+   * Fetch credentials policy for widget API requests.
+   *
+   * Use `"include"` when the host serves the widget from one origin and the
+   * backing adapter/API lives on another origin but still relies on browser
+   * session cookies.
+   */
+  fetchCredentials?: RequestCredentials;
   /**
    * Optional explicit runtime route URLs.
    *
@@ -22,6 +40,13 @@ export interface MaxModeApiConfig {
   runtimeRoutes?: MaxModeRuntimeRouteConfig;
   /** Optional public-runtime auth helpers for secure browser-facing modes */
   runtimeAuth?: MaxModeRuntimeAuthConfig;
+  /**
+   * When true, probe the runtime shell-config route when the widget opens.
+   *
+   * Defaults to true. Hosts with explicitly managed welcome/actions can disable
+   * this to avoid unnecessary route probes.
+   */
+  probeShellConfigOnOpen?: boolean;
 }
 
 export interface MaxModeRuntimeBootstrapResult {
@@ -31,12 +56,14 @@ export interface MaxModeRuntimeBootstrapResult {
   subjectType?: string;
   sessionId?: string;
   expiresAt?: string;
+  shellConfig?: RuntimeShellConfigSummary;
 }
 
 export interface MaxModeRuntimeRouteConfig {
   chatQueryUrl?: string;
   suggestionsUrl?: string;
   authContextUrl?: string;
+  shellConfigUrl?: string;
   conversationsUrl?: string;
   conversationItemUrlTemplate?: string;
 }
@@ -101,6 +128,41 @@ export interface MaxModeThemeConfig {
   darkMode?: boolean | "auto";
 }
 
+export interface MaxModeHostAttachment {
+  type: string;
+  data: Record<string, any>;
+}
+
+export interface MaxModeHostStarterPrompt {
+  label: string;
+  query: string;
+  position?: MaxModePosition;
+  mode?: MaxModeMode;
+}
+
+export interface MaxModeHostConfig {
+  /** Visible launcher label for storefront/product hosts */
+  launcherLabel?: string;
+  /** Accessible launcher label override */
+  launcherAriaLabel?: string;
+  /** Visual launcher style for hosts that want a pill instead of an icon button */
+  launcherVariant?: "icon" | "pill";
+  /** Assistant label shown in the widget header */
+  assistantLabel?: string;
+  /** Optional host-owned welcome message */
+  welcomeMessage?: string;
+  /** Optional host-owned starter prompts shown as quick actions */
+  starterPrompts?: MaxModeHostStarterPrompt[];
+  /** Optional host-owned starter suggestions shown above the composer */
+  starterSuggestions?: string[];
+  /** Optional host-owned request payload merged into query and suggestions calls */
+  requestContext?: Record<string, any>;
+  /** Optional host-owned initial attachments/context */
+  initialAttachments?: MaxModeHostAttachment[];
+  /** Hide POC-only utility controls when embedding in storefronts */
+  showUtilityPanel?: boolean;
+}
+
 export interface MaxModeWidgetConfig {
   /** API endpoints and auth */
   apiConfig: MaxModeApiConfig;
@@ -121,6 +183,8 @@ export interface MaxModeWidgetConfig {
   position?: "bottom-right" | "bottom-left";
   /** Set to false to hide the default floating launcher button */
   launcher?: boolean;
+  /** Optional host-owned UX overrides and initial context */
+  host?: MaxModeHostConfig;
   /** Callback for widget events (cart changes, messages, etc.) */
   onEvent?: (event: MaxModeEvent) => void;
   /** Callback when widget is closed */
@@ -152,7 +216,10 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   apiConfig: {
     chatBaseUrl: "",
     crudBaseUrl: undefined,
+    defaultHeaders: undefined,
+    fetchCredentials: undefined,
     runtimeRoutes: undefined,
+    probeShellConfigOnOpen: true,
   },
   integrationMode: "backend-mediated-private-runtime",
   features: {
@@ -169,6 +236,18 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   },
   position: "bottom-right",
   launcher: true,
+  host: {
+    launcherLabel: undefined,
+    launcherAriaLabel: undefined,
+    launcherVariant: "icon",
+    assistantLabel: undefined,
+    welcomeMessage: undefined,
+    starterPrompts: undefined,
+    starterSuggestions: undefined,
+    requestContext: undefined,
+    initialAttachments: undefined,
+    showUtilityPanel: true,
+  },
   onEvent: undefined,
   onClose: undefined,
 };
@@ -186,6 +265,8 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
         ...DEFAULT_CONFIG.apiConfig.runtimeRoutes,
         ...config.apiConfig?.runtimeRoutes,
       },
+      probeShellConfigOnOpen:
+        config.apiConfig?.probeShellConfigOnOpen ?? DEFAULT_CONFIG.apiConfig.probeShellConfigOnOpen,
     },
     features: {
       ...DEFAULT_CONFIG.features,
@@ -194,6 +275,10 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
     theme: {
       ...DEFAULT_CONFIG.theme,
       ...config.theme,
+    },
+    host: {
+      ...DEFAULT_CONFIG.host,
+      ...config.host,
     },
   };
 

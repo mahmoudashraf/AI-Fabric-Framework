@@ -43,7 +43,7 @@
 #     * GEMINI_API_KEY (for Gemini)
 #     * COHERE_API_KEY (for Cohere)
 #     * AZURE_API_KEY + AZURE_ENDPOINT (for Azure)
-#   - ONNX and REST providers don't require API keys
+#   - ONNX provider doesn't require API keys
 #
 # Note: This script assumes dependencies are already built. In CI/CD workflows,
 #       the build step should run 'mvn clean install -DskipTests' first.
@@ -253,7 +253,7 @@ check_provider_api_keys() {
                 providers_checked+=("Azure LLM")
             fi
             ;;
-        onnx|rest)
+        onnx)
             # ONNX and REST don't require API keys
             providers_checked+=("$llm_provider LLM (no API key required)")
             ;;
@@ -304,7 +304,7 @@ check_provider_api_keys() {
                 providers_checked+=("Azure Embedding")
             fi
             ;;
-        onnx|rest)
+        onnx)
             # ONNX and REST don't require API keys
             providers_checked+=("$embedding_provider Embedding (no API key required)")
             ;;

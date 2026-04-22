@@ -20,22 +20,17 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class ConnectorActionsRegistryContributor implements AIActionRegistryContributor {
 
-    private final AIActionCatalogProperties catalogProperties;
     private final AIActionConnectorProperties connectorProperties;
-    private final ConnectorActionCatalogLoader catalogLoader;
+    private final ConnectorActionCatalogService catalogService;
     private final ActionConnectorExecutor executor;
 
     @Override
     public List<AIActionHandler> getHandlers() {
-        if (catalogProperties == null
-            || catalogProperties.getSources() == null
-            || catalogProperties.getSources().isEmpty()) {
+        ConnectorActionCatalog catalog = catalogService != null ? catalogService.getCatalog() : null;
+        if (catalog == null) {
             return List.of();
         }
-
-        List<ConnectorActionDefinition> definitions = catalogLoader != null
-            ? catalogLoader.loadActions(catalogProperties.getSources())
-            : List.of();
+        List<ConnectorActionDefinition> definitions = catalog != null ? catalog.actions() : List.of();
 
         if (definitions.isEmpty()) {
             return List.of();
@@ -61,7 +56,7 @@ public class ConnectorActionsRegistryContributor implements AIActionRegistryCont
             ));
         }
 
-        log.info("Loaded {} connector action(s) from {} source(s).", out.size(), catalogProperties.getSources().size());
+        log.info("Loaded {} connector action(s) from {} source(s).", out.size(), catalog.sourceLocations().size());
         return List.copyOf(out);
     }
 
@@ -70,4 +65,3 @@ public class ConnectorActionsRegistryContributor implements AIActionRegistryCont
         return "connector-catalog";
     }
 }
-

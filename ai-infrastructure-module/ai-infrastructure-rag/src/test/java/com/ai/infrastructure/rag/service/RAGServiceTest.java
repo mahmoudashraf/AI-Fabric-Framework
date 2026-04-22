@@ -63,7 +63,8 @@ class RAGServiceTest {
             embeddingService,
             vectorDatabaseService,
             vectorDatabase,
-            searchService
+            searchService,
+            null
         );
 
         AIEmbeddingResponse embeddingResponse = AIEmbeddingResponse.builder()

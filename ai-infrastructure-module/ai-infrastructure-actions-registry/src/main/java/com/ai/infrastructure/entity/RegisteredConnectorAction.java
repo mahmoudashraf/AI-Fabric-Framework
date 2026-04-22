@@ -3,6 +3,7 @@ package com.ai.infrastructure.entity;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.connector.ConnectorActionDefinition;
 import com.ai.infrastructure.intent.action.connector.ConnectorActionParamDefinition;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -110,13 +111,22 @@ public class RegisteredConnectorAction {
             : List.of();
         return new ConnectorActionDefinition(
             name,
+            name,
             description,
             category,
             accessMode,
             requiresConfirmation,
             confirmationMessage,
             paramDefs,
-            anonymousAllowed
+            anonymousAllowed,
+            accessMode == ActionAccessMode.READ || accessMode == ActionAccessMode.READ_WRITE,
+            accessMode == ActionAccessMode.WRITE_ONLY
+                ? ActionResultPresentationHint.STATUS
+                : ActionResultPresentationHint.DEFAULT,
+            null,
+            null,
+            null,
+            List.of()
         );
     }
 }

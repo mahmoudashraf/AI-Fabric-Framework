@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretOverrideCleanupSummary;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationDeploymentCleanupService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -53,6 +54,7 @@ public class DeploymentDeletionExecutionService {
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final PlatformCustomerConsumerService platformCustomerConsumerService;
 
     public DeploymentDeletionExecutionService(DeploymentDeletionOperationRepository deletionOperationRepository,
                                               DeploymentRepository deploymentRepository,
@@ -70,7 +72,8 @@ public class DeploymentDeletionExecutionService {
                                               DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService,
                                               PlatformAuditService platformAuditService,
                                               ObjectMapper objectMapper,
-                                              PlatformTransactionManager transactionManager) {
+                                              PlatformTransactionManager transactionManager,
+                                              PlatformCustomerConsumerService platformCustomerConsumerService) {
         this.deletionOperationRepository = deletionOperationRepository;
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
@@ -88,6 +91,7 @@ public class DeploymentDeletionExecutionService {
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.platformCustomerConsumerService = platformCustomerConsumerService;
     }
 
     @Async("deploymentDeletionExecutor")
@@ -161,6 +165,9 @@ public class DeploymentDeletionExecutionService {
             .orElseThrow(() -> new IllegalStateException("Deletion operation disappeared: " + context.operation().getId()));
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(context.deployment().getId())
             .orElseThrow(() -> new IllegalStateException("Deployment disappeared before deletion completed: " + context.deployment().getId()));
+        if (platformCustomerConsumerService.hasBoundConsumer(deployment.getId())) {
+            throw new IllegalStateException("Deployment cannot be deleted while a consumer is bound to it.");
+        }
 
         deploymentTenantScopedVectorRegistryService.detachForDeletedDeployment(deployment, context.operation().getRequestReason());
         vectorizationDeploymentCleanupService.deleteForDeployment(deployment);

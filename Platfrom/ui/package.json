@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "sync:max-mode-widget": "node scripts/sync-max-mode-widget.mjs",
     "preview": "vite preview",
     "smoke:phase18": "node scripts/phase18-ui-smoke.mjs",
     "smoke:phase19": "node scripts/phase19-ui-auth-smoke.mjs",

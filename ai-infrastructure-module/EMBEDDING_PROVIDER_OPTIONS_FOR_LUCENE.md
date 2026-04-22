@@ -95,8 +95,7 @@ mvn test "-Dtest=RealAPIVectorLifecycleIntegrationTest" \
 mvn test "-Dtest=RealAPIVectorLifecycleIntegrationTest" \
   "-Dspring.profiles.active=realapi" \
   "-Dai.providers.llm-provider=openai" \
-  "-Dai.providers.embedding-provider=rest" \
-  "-Dai.providers.rest.base-url=YOUR_REST_SERVICE_URL" \
+  "-Dai.providers.embedding-provider=openai" \
   "-Dai.vector-db.type=lucene"
 ```
 

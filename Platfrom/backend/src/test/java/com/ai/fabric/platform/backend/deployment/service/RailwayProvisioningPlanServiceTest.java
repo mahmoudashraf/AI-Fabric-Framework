@@ -10,16 +10,22 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleS
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -91,6 +97,79 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_COMPATIBILITY_VERSION", "2026.04")
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_REQUEST_TIMEOUT", "PT5M")
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_REGISTRATION_TOKEN", "${secret:MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_DEP_123}");
+    }
+
+    @Test
+    void buildPlanAddsDedicatedEmbeddingWorkerWhenDeploymentRequestsDedicatedEmbeddingService() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            new PlatformVectorizationProperties(
+                Duration.ofDays(7),
+                Duration.ofHours(6),
+                Duration.ofMinutes(15),
+                100,
+                "2026.04.05",
+                "2026.04"
+            ),
+            new PlatformVectorizationRunnerProvisioningProperties(
+                "ai-fabric-product/ai-fabric-vectorization-runner",
+                "ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile",
+                "vectorization-runner",
+                Duration.ofSeconds(10),
+                Duration.ofMinutes(5)
+            ),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            mock(VectorizationPlanRepository.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "embeddingServiceMode": "DEPLOYMENT_DEDICATED_SERVICE",
+              "embeddingManagedServiceRef": "dedicated-embedding-dep-123-install-1",
+              "embeddingEndpointProfile": "dep-dep-123-embedding-worker",
+              "openaiEmbeddingModel": "text-embedding-3-small"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+
+        assertThat(plan.services().embeddingWorker()).isNotNull();
+        assertThat(plan.services().embeddingWorker().serviceName()).isEqualTo("embedding-worker-dep-123");
+        assertThat(plan.services().embeddingWorker().dockerfilePath())
+            .isEqualTo("ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile");
+        Map<String, String> workerEnv = envMap(plan.services().embeddingWorker().env());
+        assertThat(workerEnv)
+            .containsEntry("AI_SERVICE_FEATURES_ENABLE_GENERATION", "false")
+            .containsEntry("AI_SERVICE_FEATURES_ENABLE_EMBEDDINGS", "true")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "onnx")
+            .containsEntry("AI_PROVIDERS_ENABLE_FALLBACK", "false");
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_EMBEDDING_SERVICE_MODE", "DEPLOYMENT_DEDICATED_SERVICE")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_MANAGED_SERVICE_REF", "dedicated-embedding-dep-123-install-1")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_ENDPOINT_PROFILE", "dep-dep-123-embedding-worker");
     }
 
     @Test
@@ -186,6 +265,49 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanAddsShopifyBridgeSharedSecretWhenDeploymentMapsToBridgeService() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+
+        ShopifyStoreConnectionEntity store = new ShopifyStoreConnectionEntity();
+        store.setDeploymentId("dep-123");
+        store.setProductServiceId("ps-1");
+        when(storeRepository.findByDeploymentId("dep-123")).thenReturn(Optional.of(store));
+        when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        ReflectionTestUtils.setField(service, "shopifyStoreConnectionRepository", storeRepository);
+        ReflectionTestUtils.setField(service, "platformManagedProductServiceRepository", productServiceRepository);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version());
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
+
+        assertThat(connectorEnv)
+            .containsEntry("SHOPIFY_BRIDGE_SHARED_SECRET", "${secret:SHOPIFY_BRIDGE_SHARED_SECRET_PROD}");
+    }
+
+    @Test
     void buildPlanUsesSecurityCorsOverridesWhenPresent() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
@@ -235,6 +357,61 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("CORS_ALLOWED_ORIGIN_PATTERNS", "https://*lovable*")
             .containsEntry("CORS_ALLOW_CREDENTIALS", "false");
+    }
+
+    @Test
+    void buildPlanExportsPurposeSpecificInferenceEndpointProfiles() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider":"openai",
+              "embeddingProvider":"openai",
+              "orchestrationLlmProvider":"openai",
+              "orchestrationEndpointProfile":"openai-cloud-orchestration",
+              "orchestrationModel":"gpt-4.1-mini",
+              "generationLlmProvider":"openai",
+              "generationEndpointProfile":"openai-cloud-default",
+              "generationModel":"gpt-4.1-mini",
+              "embeddingEndpointProfile":"openai-cloud-default",
+              "openaiEmbeddingModel":"text-embedding-3-small",
+              "openaiEmbeddingDimensions":1536,
+              "vectorStrategy":"lucene"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_ENDPOINT_PROFILE", "openai-cloud-orchestration")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_MODEL", "gpt-4.1-mini")
+            .containsEntry("AI_PROVIDERS_GENERATION_ENDPOINT_PROFILE", "openai-cloud-default")
+            .containsEntry("AI_PROVIDERS_GENERATION_MODEL", "gpt-4.1-mini")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_ENDPOINT_PROFILE", "openai-cloud-default");
     }
 
     @Test
@@ -411,6 +588,7 @@ class RailwayProvisioningPlanServiceTest {
                 "${secret:AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}"
             )
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER", "shopify-app")
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS", "shopify-app,runtime-public-bootstrap")
             .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES", "storefront-chat")
@@ -1120,84 +1298,6 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
-    void buildPlanCompilesGeminiRestAndMilvusSettingsIntoLiveEnv() {
-        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
-        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
-            new DeploymentArtifactBundleSummary(
-                "dep-123",
-                "ver-123",
-                "v1",
-                "hash-123",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
-                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
-            )
-        );
-        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
-        when(platformSecretService.isSecretPresent("MILVUS_USERNAME")).thenReturn(true);
-        when(platformSecretService.isSecretPresent("MILVUS_PASSWORD")).thenReturn(true);
-
-        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
-            properties(),
-            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
-            artifactService,
-            new DeploymentSourceResolver(properties()),
-            platformSecretService,
-            new ObjectMapper()
-        );
-
-        DeploymentVersionEntity version = version();
-        version.setProviderConfigJson("""
-            {
-              "llmProvider": "gemini",
-              "embeddingProvider": "rest",
-              "vectorStrategy": "milvus",
-              "runtimeProfile": "runtime-managed",
-              "connectorProfile": "connector-hosted",
-              "geminiModel": "gemini-1.5-flash",
-              "restEmbeddingBaseUrl": "https://embedder.example",
-              "restEmbeddingEndpoint": "/embed",
-              "restEmbeddingBatchEndpoint": "/embed/batch",
-              "restEmbeddingModel": "custom-embedder",
-              "restEmbeddingTimeoutMs": "45000",
-              "milvusHost": "milvus.internal",
-              "milvusPort": "19530",
-              "milvusDatabaseName": "customer",
-              "milvusSecure": true,
-              "milvusFlushOnWrite": true
-            }
-            """);
-
-        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
-        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
-
-        assertThat(runtimeEnv)
-            .containsEntry("AI_PROVIDERS_LLM_PROVIDER", "gemini")
-            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "rest")
-            .containsEntry("AI_VECTOR_DB_TYPE", "milvus")
-            .containsEntry("AI_PROVIDERS_GEMINI_ENABLED", "true")
-            .containsEntry("AI_PROVIDERS_GEMINI_API_KEY", "${secret:GEMINI_API_KEY}")
-            .containsEntry("AI_PROVIDERS_GEMINI_MODEL", "gemini-1.5-flash")
-            .containsEntry("AI_PROVIDERS_REST_ENABLED", "true")
-            .containsEntry("AI_PROVIDERS_REST_BASE_URL", "https://embedder.example")
-            .containsEntry("AI_PROVIDERS_REST_ENDPOINT", "/embed")
-            .containsEntry("AI_PROVIDERS_REST_BATCH_ENDPOINT", "/embed/batch")
-            .containsEntry("AI_PROVIDERS_REST_MODEL", "custom-embedder")
-            .containsEntry("AI_PROVIDERS_REST_TIMEOUT", "45000")
-            .containsEntry("AI_PROVIDERS_MILVUS_ENABLED", "true")
-            .containsEntry("AI_PROVIDERS_MILVUS_HOST", "milvus.internal")
-            .containsEntry("AI_PROVIDERS_MILVUS_PORT", "19530")
-            .containsEntry("AI_PROVIDERS_MILVUS_DATABASE_NAME", "customer")
-            .containsEntry("AI_PROVIDERS_MILVUS_SECURE", "true")
-            .containsEntry("AI_PROVIDERS_MILVUS_FLUSH_ON_WRITE", "true")
-            .containsEntry("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MILVUS_USERNAME}")
-            .containsEntry("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MILVUS_PASSWORD}")
-            .containsEntry("OPENAI_ENABLED", "false");
-    }
-
-    @Test
     void buildPlanUsesManagedMilvusRuntimeSecretsWhenZillizCloudProvisioningHasBoundThem() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
@@ -1420,5 +1520,15 @@ class RailwayProvisioningPlanServiceTest {
         version.setManifestJson("{}");
         version.setPublishedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return version;
+    }
+
+    private PlatformManagedProductServiceEntity productService(String id) {
+        PlatformManagedProductServiceEntity entity = new PlatformManagedProductServiceEntity();
+        entity.setId(id);
+        entity.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+        entity.setSecretName("SHOPIFY_BRIDGE_SHARED_SECRET_PROD");
+        entity.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
+        return entity;
     }
 }

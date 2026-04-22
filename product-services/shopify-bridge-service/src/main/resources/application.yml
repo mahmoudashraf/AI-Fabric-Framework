@@ -1,0 +1,65 @@
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: shopify-bridge-service
+  datasource:
+    url: ${SHOPIFY_BRIDGE_DATASOURCE_URL:jdbc:h2:mem:shopifybridge;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE}
+    username: ${SHOPIFY_BRIDGE_DATASOURCE_USERNAME:sa}
+    password: ${SHOPIFY_BRIDGE_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SHOPIFY_BRIDGE_DATASOURCE_DRIVER:org.h2.Driver}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+shopify:
+  bridge:
+    app-name: ${SHOPIFY_BRIDGE_APP_NAME:Shopify Bridge Service}
+    service-ref: ${SHOPIFY_BRIDGE_SERVICE_REF:shopify-bridge-local}
+    product-family: ${SHOPIFY_BRIDGE_PRODUCT_FAMILY:SHOPIFY}
+    service-kind: ${SHOPIFY_BRIDGE_SERVICE_KIND:SHOPIFY_BRIDGE_SERVICE}
+    environment-scope: ${SHOPIFY_BRIDGE_ENVIRONMENT_SCOPE:local}
+    public-base-url: ${SHOPIFY_BRIDGE_PUBLIC_BASE_URL:}
+    merchant-ui-directory: ${SHOPIFY_BRIDGE_MERCHANT_UI_DIRECTORY:}
+    shopify-admin-api-version: ${SHOPIFY_BRIDGE_ADMIN_API_VERSION:2026-04}
+    shopify-api-key: ${SHOPIFY_BRIDGE_SHOPIFY_API_KEY:}
+    shopify-api-secret: ${SHOPIFY_BRIDGE_SHOPIFY_API_SECRET:}
+    platform-base-url: ${SHOPIFY_BRIDGE_PLATFORM_BASE_URL:}
+    platform-admin-api-key: ${SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY:}
+    platform-admin-api-key-header: ${SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY_HEADER:X-PLATFORM-API-KEY}
+    webhook-shared-secret: ${SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET:}
+    admin-api-key: ${SHOPIFY_BRIDGE_SHARED_SECRET:}
+    admin-api-key-header: ${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER:X-BRIDGE-API-KEY}
+    billing:
+      mode: ${SHOPIFY_BRIDGE_BILLING_MODE:FREE}
+      plan-name: ${SHOPIFY_BRIDGE_BILLING_PLAN_NAME:Companion Free}
+      app-subscription-plan-handle: ${SHOPIFY_BRIDGE_BILLING_PLAN_HANDLE:}
+      app-subscription-amount: ${SHOPIFY_BRIDGE_BILLING_AMOUNT:}
+      app-subscription-currency-code: ${SHOPIFY_BRIDGE_BILLING_CURRENCY_CODE:USD}
+      app-subscription-interval: ${SHOPIFY_BRIDGE_BILLING_INTERVAL:EVERY_30_DAYS}
+      app-subscription-trial-days: ${SHOPIFY_BRIDGE_BILLING_TRIAL_DAYS:0}
+      app-subscription-test: ${SHOPIFY_BRIDGE_BILLING_TEST:false}
+
+logging:
+  level:
+    com.ai.fabric.product.shopify.bridge: INFO

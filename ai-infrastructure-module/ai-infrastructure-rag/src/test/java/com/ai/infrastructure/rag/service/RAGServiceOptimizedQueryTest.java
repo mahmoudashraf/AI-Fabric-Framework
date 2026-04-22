@@ -54,7 +54,7 @@ class RAGServiceOptimizedQueryTest {
         config = new AIProviderConfig();
         config.setEmbeddingProvider("openai");
 
-        ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService);
+        ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService, null);
 
         when(embeddingResponse.getEmbedding()).thenReturn(List.of(0.1, 0.2));
         when(embeddingService.executeEmbedding(any(AIEmbeddingRequest.class))).thenReturn(

@@ -18,6 +18,7 @@ export function useMaxModePersistence({
   setCurrentConversationId,
   contextDocuments,
   setContextDocuments,
+  hostInitialAttachments,
 }: {
   chatMessages: ChatMessage[];
   setChatMessages: Dispatch<SetStateAction<ChatMessage[]>>;
@@ -31,6 +32,7 @@ export function useMaxModePersistence({
   setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
   contextDocuments: Document[];
   setContextDocuments: Dispatch<SetStateAction<Document[]>>;
+  hostInitialAttachments: Array<{ type: string; data: any }>;
 }) {
   const maxModeContext = useMaxModeContextOptional();
   const hasLoadedPersistedState = useRef(false);
@@ -47,6 +49,19 @@ export function useMaxModePersistence({
       if (persistedState.currentMode) setCurrentMode(persistedState.currentMode as "navigator" | "navigator_deep" | "cart_assistant" | "executor");
       if (persistedState.conversationId) setCurrentConversationId(persistedState.conversationId);
       if (persistedState.contextDocuments && persistedState.contextDocuments.length > 0) setContextDocuments(persistedState.contextDocuments);
+    }
+    if (!persistedState && hostInitialAttachments.length > 0) {
+      setAttachedItems((prev) => {
+        const newItems = hostInitialAttachments.filter(
+          (hostAttachment) =>
+            !prev.some(
+              (existing) =>
+                existing.type === hostAttachment.type &&
+                (existing.data.id === hostAttachment.data.id || existing.data.sku === hostAttachment.data.sku),
+            ),
+        );
+        return newItems.length > 0 ? [...prev, ...newItems] : prev;
+      });
     }
 
     const pending = maxModeContext.getPendingAttachments();
@@ -71,6 +86,7 @@ export function useMaxModePersistence({
     setCurrentConversationId,
     setCurrentMode,
     setCurrentPosition,
+    hostInitialAttachments,
   ]);
 
   useEffect(() => {
@@ -86,4 +102,3 @@ export function useMaxModePersistence({
     });
   }, [attachedItems, chatMessages, contextDocuments, currentConversationId, currentMode, currentPosition, maxModeContext]);
 }
-

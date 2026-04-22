@@ -70,7 +70,7 @@ export function DesktopContextPanel({
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className={`hidden md:flex absolute top-[165px] right-0 bottom-0 mr-2 ${
               selectedProduct || isCartView ? "w-[700px] max-w-[700px]" : "w-[420px] max-w-[420px]"
-            } border-l-2 border-blue-500/30 bg-gradient-to-b from-blue-50/95 to-white/95 dark:from-gray-900/95 dark:via-blue-900/20 dark:to-gray-900/95 backdrop-blur-xl p-6 shadow-2xl z-10 flex-col transition-all duration-300`}
+            } border-l-2 border-blue-500/30 bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-950 p-6 shadow-2xl z-10 flex-col transition-all duration-300`}
           >
             <div className="bg-gradient-to-br from-blue-600 to-blue-500 backdrop-blur-md p-5 rounded-2xl mb-6 shadow-2xl border-2 border-white/20">
               <div className="flex items-center justify-between mb-3">

@@ -59,6 +59,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -113,6 +114,7 @@ public class DeploymentService {
     private final DeploymentDeletionService deploymentDeletionService;
     private final DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService;
     private final PlatformCustomerTenantService platformCustomerTenantService;
+    private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -220,17 +222,6 @@ public class DeploymentService {
             true,
             "MANAGED_ZILLIZ_CLOUD_CLUSTER",
             "After create, open Providers to choose the Zilliz Cloud project, region, and plan. Apply will create or reuse a deployment-owned Zilliz Cloud cluster and bind deployment-scoped Milvus runtime credentials automatically."
-        ),
-        template(
-            "dev-openai-rest-pinecone",
-            "OpenAI / REST Embeddings / Pinecone",
-            "OpenAI generation with an external REST embedding service and a platform-managed Pinecone serverless index.",
-            "openai",
-            "rest",
-            "pinecone",
-            true,
-            "MANAGED_SERVERLESS_INDEX",
-            "After create, point the deployment at the external embedding service and review the generated Pinecone index name. Apply will create or reconcile the serverless index and bind runtime to the managed host when PINECONE_API_KEY is configured."
         )
     );
 
@@ -261,6 +252,7 @@ public class DeploymentService {
                              DeploymentDeletionService deploymentDeletionService,
                              DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService,
                              PlatformCustomerTenantService platformCustomerTenantService,
+                             PlatformCustomerConsumerService platformCustomerConsumerService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
@@ -291,6 +283,7 @@ public class DeploymentService {
         this.deploymentDeletionService = deploymentDeletionService;
         this.deploymentCuratedModuleCatalogService = deploymentCuratedModuleCatalogService;
         this.platformCustomerTenantService = platformCustomerTenantService;
+        this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -371,6 +364,12 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return toOverview(getDeployment(deploymentId));
+    }
+
+    public DeploymentOverviewSummary getDeploymentOverviewForExternalResolution(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return toOverview(deployment);
     }
 
     public DeploymentWorkspaceSummary getDeploymentWorkspace(String deploymentId) {
@@ -731,6 +730,13 @@ public class DeploymentService {
             request.customerId(),
             request.tenantId()
         );
+        if (!deployment.getCustomerId().equals(binding.customer().getId())
+            && platformCustomerConsumerService.hasBoundConsumer(deployment.getId())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Deployment customer binding cannot be moved while a consumer is bound to the deployment."
+            );
+        }
         deployment.setCustomerId(binding.customer().getId());
         deployment.setTenantId(binding.tenant().getId());
         deployment.setUpdatedAt(Instant.now());
@@ -990,6 +996,7 @@ public class DeploymentService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
             : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "update draft");
+        assertActiveEditableDraft(deployment, draft, "be updated");
 
         if (request.actionsConfig() != null) {
             draft.setActionsConfigJson(writeJson(request.actionsConfig()));
@@ -1008,6 +1015,15 @@ public class DeploymentService {
         }
         if (request.promptConfig() != null) {
             draft.setPromptConfigJson(writeJson(request.promptConfig()));
+        }
+        if (request.knowledgeSourceConfig() != null) {
+            draft.setKnowledgeSourceConfigJson(writeJson(request.knowledgeSourceConfig()));
+        }
+        if (request.shellConfig() != null) {
+            draft.setShellConfigJson(writeJson(request.shellConfig()));
+        }
+        if (request.marketplaceDatasetConfig() != null) {
+            draft.setMarketplaceDatasetConfigJson(writeJson(request.marketplaceDatasetConfig()));
         }
 
         draft.setStatus("MODIFIED");
@@ -1107,6 +1123,7 @@ public class DeploymentService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
             : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "publish draft");
+        assertActiveEditableDraft(deployment, draft, "be published");
         Instant now = Instant.now();
         DraftValidationResponse validation = deploymentDraftValidationService.validate(draft);
         if (!validation.publishReady()) {
@@ -1149,6 +1166,9 @@ public class DeploymentService {
         version.setProviderConfigJson(draft.getProviderConfigJson());
         version.setSecurityConfigJson(draft.getSecurityConfigJson());
         version.setPromptConfigJson(draft.getPromptConfigJson());
+        version.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
+        version.setShellConfigJson(draft.getShellConfigJson());
+        version.setMarketplaceDatasetConfigJson(draft.getMarketplaceDatasetConfigJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setRoutingArtifactYaml(compiled.routingArtifactYaml());
@@ -1171,6 +1191,9 @@ public class DeploymentService {
         nextDraft.setProviderConfigJson(draft.getProviderConfigJson());
         nextDraft.setSecurityConfigJson(draft.getSecurityConfigJson());
         nextDraft.setPromptConfigJson(draft.getPromptConfigJson());
+        nextDraft.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
+        nextDraft.setShellConfigJson(draft.getShellConfigJson());
+        nextDraft.setMarketplaceDatasetConfigJson(draft.getMarketplaceDatasetConfigJson());
         nextDraft.setCreatedAt(now);
         nextDraft.setUpdatedAt(now);
         draftRepository.save(nextDraft);
@@ -1553,6 +1576,9 @@ public class DeploymentService {
         )));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
         draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
+        draft.setKnowledgeSourceConfigJson(writeJson(defaultKnowledgeSourceConfig()));
+        draft.setShellConfigJson(writeJson(defaultShellConfig(curatedModuleId)));
+        draft.setMarketplaceDatasetConfigJson(writeJson(defaultMarketplaceDatasetConfig()));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -1588,6 +1614,55 @@ public class DeploymentService {
         ObjectNode upstream = connector.putObject("upstream");
         upstream.put("base-url", "https://customer-api.example");
         root.putObject("actions");
+        return root;
+    }
+
+    private JsonNode defaultKnowledgeSourceConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        root.set("sources", objectMapper.createArrayNode());
+        return root;
+    }
+
+    private JsonNode defaultShellConfig(String curatedModuleId) {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "SHELL_CONFIG_V1");
+        root.set("modules", objectMapper.createArrayNode());
+        root.set("cards", objectMapper.createArrayNode());
+        root.set("starterPrompts", objectMapper.createArrayNode());
+        root.set("greeting", objectMapper.createObjectNode());
+        String normalizedCuratedModuleId = deploymentCuratedModuleCatalogService.normalizeModuleId(curatedModuleId);
+        if ("support".equals(normalizedCuratedModuleId)) {
+            root.put("defaultConversationMode", "guided-support");
+            root.with("greeting")
+                .put("title", "Support Desk")
+                .put("message", "Ask about help-center guidance, troubleshooting steps, support policies, or available support actions.");
+            root.withArray("starterPrompts")
+                .addObject()
+                .put("id", "support-capabilities")
+                .put("label", "What can you help me with?")
+                .put("query", "What can you help me with?")
+                .put("moduleId", "support");
+            root.withArray("starterPrompts")
+                .addObject()
+                .put("id", "refund-policy")
+                .put("label", "Summarize refund policy")
+                .put("query", "Summarize the refund policy from the help center")
+                .put("moduleId", "docs");
+            root.withArray("starterPrompts")
+                .addObject()
+                .put("id", "notification-troubleshooting")
+                .put("label", "Troubleshoot notifications")
+                .put("query", "Help me troubleshoot why notifications are not sending")
+                .put("moduleId", "support");
+        }
+        return root;
+    }
+
+    private JsonNode defaultMarketplaceDatasetConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "MARKETPLACE_DATASET_CONFIG_V1");
+        root.set("datasets", objectMapper.createArrayNode());
         return root;
     }
 
@@ -1652,12 +1727,6 @@ public class DeploymentService {
             root.put("onnxModelAlias", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX));
             root.put("onnxMaxSequenceLength", 512);
             root.put("onnxUseGpu", false);
-        }
-        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(embeddingProvider)) {
-            root.put("restEmbeddingEndpoint", ManagedDeploymentProfileCatalog.restEmbeddingEndpoint(null));
-            root.put("restEmbeddingBatchEndpoint", ManagedDeploymentProfileCatalog.restEmbeddingBatchEndpoint(null));
-            root.put("restEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST));
-            root.put("restEmbeddingTimeoutMs", 30000);
         }
     }
 
@@ -2162,6 +2231,9 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getProviderConfigJson()),
                 objectMapper.readTree(draft.getSecurityConfigJson()),
                 objectMapper.readTree(draft.getPromptConfigJson()),
+                objectMapper.readTree(draft.getKnowledgeSourceConfigJson()),
+                objectMapper.readTree(draft.getShellConfigJson()),
+                objectMapper.readTree(draft.getMarketplaceDatasetConfigJson()),
                 draft.getCreatedAt(),
                 draft.getUpdatedAt()
             );
@@ -2287,7 +2359,9 @@ public class DeploymentService {
             && safeEquals(draft.getRoutingConfigJson(), version.getRoutingConfigJson())
             && safeEquals(draft.getProviderConfigJson(), version.getProviderConfigJson())
             && safeEquals(draft.getSecurityConfigJson(), version.getSecurityConfigJson())
-            && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson());
+            && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson())
+            && safeEquals(draft.getKnowledgeSourceConfigJson(), version.getKnowledgeSourceConfigJson())
+            && safeEquals(draft.getShellConfigJson(), version.getShellConfigJson());
     }
 
     private boolean safeEquals(String left, String right) {
@@ -2439,6 +2513,21 @@ public class DeploymentService {
     private void assertNotArchived(DeploymentEntity deployment, String action) {
         if (isArchived(deployment)) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment is archived and cannot " + action + ".");
+        }
+    }
+
+    private void assertActiveEditableDraft(DeploymentEntity deployment, DeploymentDraftEntity draft, String action) {
+        if (!draft.getId().equals(deployment.getActiveDraftId())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Only the active draft can " + action + ". Requested draft is historical: " + draft.getId()
+            );
+        }
+        if ("PUBLISHED".equalsIgnoreCase(draft.getStatus())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Published drafts are immutable and cannot " + action + "."
+            );
         }
     }
 

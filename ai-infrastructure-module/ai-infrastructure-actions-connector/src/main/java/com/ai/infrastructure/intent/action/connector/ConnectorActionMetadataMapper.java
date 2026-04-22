@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent.action.connector;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionSideEffectLevel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 
@@ -70,10 +71,18 @@ public final class ConnectorActionMetadataMapper {
         ActionAccessMode accessMode = definition.accessMode() != null ? definition.accessMode() : ActionAccessMode.READ;
         return AIActionMetaData.builder()
             .name(definition.name().trim())
+            .displayName(StringUtils.hasText(definition.displayName()) ? definition.displayName().trim() : definition.name().trim())
             .description(StringUtils.hasText(definition.description()) ? definition.description().trim() : null)
             .category(StringUtils.hasText(definition.category()) ? definition.category().trim() : null)
             .accessMode(accessMode)
             .anonymousAllowed(definition.anonymousAllowed())
+            .confirmationRequired(definition.requiresConfirmation())
+            .groundingEligible(definition.groundingEligible())
+            .sideEffectLevel(ActionSideEffectLevel.fromAccessMode(accessMode))
+            .resultPresentationHint(definition.resultPresentationHint())
+            .builtInModuleId(StringUtils.hasText(definition.builtInModuleId()) ? definition.builtInModuleId().trim() : null)
+            .builtInCardId(StringUtils.hasText(definition.builtInCardId()) ? definition.builtInCardId().trim() : null)
+            .provenance(definition.provenance())
             .parameters(Collections.unmodifiableMap(parameters))
             .parameterSchemas(Collections.unmodifiableMap(schemas))
             .requiredParameters(Collections.unmodifiableSet(required))

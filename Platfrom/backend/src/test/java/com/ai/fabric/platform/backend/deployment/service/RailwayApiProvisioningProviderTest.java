@@ -106,6 +106,60 @@ class RailwayApiProvisioningProviderTest {
     }
 
     @Test
+    void awaitSuccessfulDeploymentAcceptsHealthyServiceAfterGracePeriodWhenRailwayStatusLags() {
+        AtomicInteger healthChecks = new AtomicInteger();
+
+        RailwayGraphqlClient.RailwayDeploymentSummary deployment = RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
+            "dep-123",
+            "runtime",
+            Duration.ofMillis(80),
+            Duration.ofMillis(5),
+            () -> new RailwayGraphqlClient.RailwayDeploymentSummary(
+                "dep-123",
+                "BUILDING",
+                null,
+                "runtime.example",
+                Instant.now().minusSeconds(90).toString()
+            ),
+            ignored -> Thread.sleep(Math.max(ignored.toMillis(), 1L)),
+            ignored -> {
+            },
+            () -> healthChecks.incrementAndGet() >= 2,
+            Duration.ZERO,
+            2
+        );
+
+        assertThat(deployment.status()).isEqualTo("BUILDING");
+        assertThat(healthChecks.get()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void awaitSuccessfulDeploymentDoesNotAcceptHealthyServiceBeforeGracePeriod() {
+        assertThatThrownBy(() -> RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
+            "dep-123",
+            "runtime",
+            Duration.ofMillis(20),
+            Duration.ofMillis(5),
+            () -> new RailwayGraphqlClient.RailwayDeploymentSummary(
+                "dep-123",
+                "BUILDING",
+                null,
+                "runtime.example",
+                Instant.now().toString()
+            ),
+            ignored -> Thread.sleep(Math.max(ignored.toMillis(), 1L)),
+            ignored -> {
+            },
+            () -> true,
+            Duration.ofSeconds(30),
+            2
+        ))
+            .isInstanceOf(RailwayActivationUnconfirmedException.class)
+            .hasMessageContaining("Last observed Railway status")
+            .hasMessageContaining("BUILDING");
+    }
+
+    @Test
     void resolveOrTriggerDeploymentTriggersFreshDeploymentEvenWhenRecentDeploymentExists() {
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         when(railwayGraphqlClient.listServiceDeployments(eq("svc-1"), anyInt()))

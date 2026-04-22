@@ -29,11 +29,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -212,6 +215,71 @@ class VectorizationRunnerServiceTest {
 
         verify(revisionRepository).save(any());
         verify(planRepository).save(any());
+    }
+
+    @Test
+    void completeRunPrefersActiveIndexedOutputHashWhenRevisionHashIsStale() {
+        when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
+            .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
+        when(runRepository.findById("vrn-1")).thenReturn(Optional.of(run("PLATFORM_MANAGED_AUTO")));
+        when(planRepository.findById("vpl-1")).thenReturn(Optional.of(plan("active-hash")));
+        VectorizationPlanRevisionEntity revision = revision("vcn-1");
+        revision.setIndexedOutputHash("stale-hash");
+        when(revisionRepository.findById("vpr-1")).thenReturn(Optional.of(revision));
+
+        service().completeRun(new VectorizationRunnerCompletionRequest(
+            "session-token",
+            "vrn-1",
+            "COMPLETED",
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createArrayNode()
+        ));
+
+        verify(revisionRepository).save(argThat(saved ->
+            "active-hash".equals(saved.getIndexedOutputHash())
+                && saved.getUpdatedAt() != null
+        ));
+        verify(planRepository).save(argThat(saved ->
+            "vrn-1".equals(saved.getLastSuccessfulRunId())
+                && "active-hash".equals(saved.getLastSuccessfulIndexedOutputHash())
+        ));
+    }
+
+    @Test
+    void completeRunCancelsOlderSupersededInFlightRuns() {
+        when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
+            .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
+        VectorizationRunEntity completedRun = run("PLATFORM_MANAGED_AUTO");
+        completedRun.setCreatedAt(Instant.parse("2026-04-19T18:41:56Z"));
+        when(runRepository.findById("vrn-1")).thenReturn(Optional.of(completedRun));
+        when(planRepository.findById("vpl-1")).thenReturn(Optional.of(plan("active-hash")));
+        when(revisionRepository.findById("vpr-1")).thenReturn(Optional.of(revision("vcn-1")));
+
+        VectorizationRunEntity staleRun = run("PLATFORM_MANAGED_AUTO");
+        staleRun.setId("vrn-old");
+        staleRun.setPlanRevisionId("vpr-old");
+        staleRun.setStatus("RUNNING");
+        staleRun.setRequestedStatus("CANCEL_REQUESTED");
+        staleRun.setCreatedAt(Instant.parse("2026-04-19T17:13:46Z"));
+        when(runRepository.findByDeploymentIdOrderByCreatedAtDesc("dep-1")).thenReturn(List.of(completedRun, staleRun));
+
+        service().completeRun(new VectorizationRunnerCompletionRequest(
+            "session-token",
+            "vrn-1",
+            "COMPLETED",
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createArrayNode()
+        ));
+
+        verify(runRepository, atLeastOnce()).save(argThat(run ->
+            "vrn-old".equals(run.getId())
+                && "CANCELLED".equals(run.getStatus())
+                && "CANCELLED".equals(run.getRequestedStatus())
+                && run.getCompletedAt() != null
+                && jsonSupport.readObject(run.getErrorSummaryJson()).path("supersededByRunId").asText().equals("vrn-1")
+        ));
     }
 
     private VectorizationRunnerService service() {

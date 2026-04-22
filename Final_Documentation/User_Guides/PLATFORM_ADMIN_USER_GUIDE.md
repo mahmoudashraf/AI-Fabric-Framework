@@ -10,6 +10,7 @@ Companion guide:
 
 - `Final_Documentation/User_Guides/PLATFORM_USER_TYPES_GUIDE.md`
 - `Final_Documentation/User_Guides/PLATFORM_CONFIG_AND_SECRETS_MANAGEMENT_GUIDE.md`
+- `Final_Documentation/User_Guides/MARKETPLACE_ADMIN_USER_GUIDE.md`
 
 ---
 
@@ -18,6 +19,7 @@ Companion guide:
 Platform Admin responsibilities:
 
 - create and manage deployments
+- create customers and consumer bindings for external integrations
 - edit and publish deployment drafts
 - apply versions to target environments
 - review verification and diagnostics
@@ -76,7 +78,30 @@ Use this screen to manage:
 - connector route mappings
 - upstream/action execution behavior
 
-### 3.3 Knowledge
+### 3.3 Marketplace
+
+Use this global screen to:
+
+- bootstrap deployments from template plugins
+- install marketplace plugins onto a selected deployment
+- manage entitlement state
+- inspect plugin impact before publish/apply
+- manage publisher and submission workflow
+
+Marketplace is intentionally global, not a deployment-workspace page.
+
+### 3.4 Customers
+
+Use this screen to manage:
+
+- customers and their tenant grouping
+- external consumers owned by a customer
+- consumer to deployment binding and rebinding
+- consumer binding history for external routing changes
+
+Consumers are the stable external lookup key for runtime discovery. External clients can use `consumerId` while the platform admin rebinds that consumer to a different deployment behind the scenes.
+
+### 3.5 Knowledge
 
 Use this screen to manage:
 
@@ -86,7 +111,7 @@ Use this screen to manage:
 - embeddable fields
 - metadata fields
 
-### 3.4 Providers
+### 3.6 Providers
 
 Use this screen to manage:
 
@@ -94,7 +119,7 @@ Use this screen to manage:
 - embedding model settings
 - vector strategy and related provider configuration
 
-### 3.5 Security
+### 3.7 Security
 
 Use this screen to manage:
 
@@ -104,14 +129,14 @@ Use this screen to manage:
 
 This is the only screen where secret mutation is allowed for Platform Admin.
 
-### 3.6 Verification
+### 3.8 Verification
 
 Use this screen to:
 
 - validate draft readiness before publish
 - review warnings/errors before rollout
 
-### 3.7 Revisions
+### 3.9 Revisions
 
 Use this screen to:
 
@@ -120,7 +145,7 @@ Use this screen to:
 - publish the current draft
 - apply a selected version
 
-### 3.8 Diagnostics
+### 3.10 Diagnostics
 
 Use this screen to:
 
@@ -145,7 +170,30 @@ Use this screen to:
 2. Update the active draft for the selected deployment.
 3. Save each section.
 
-### 4.3 Validate And Publish
+If the deployment uses marketplace plugins:
+
+1. Open `Marketplace`.
+2. Select the target deployment.
+3. Install or update the plugin.
+4. Resolve the install before returning to deployment draft editing.
+
+### 4.3 Create Or Rebind A Consumer
+
+If the deployment will be consumed by an external backend or frontend:
+
+1. Open `Customers`.
+2. Select the owning customer.
+3. Create a consumer with a stable `consumerId`.
+4. Bind that consumer to the target deployment.
+5. If you need a cutover later, rebind the same consumer to a different deployment.
+
+Use consumer rebinding when you need:
+
+- blue/green cutover
+- migration to a replacement deployment
+- rollback without changing the external client identifier
+
+### 4.4 Validate And Publish
 
 1. Open `Verification`.
 2. Run or review validation for the active draft.
@@ -153,13 +201,13 @@ Use this screen to:
 4. Open `Revisions`.
 5. Publish the draft to create a version.
 
-### 4.4 Apply
+### 4.5 Apply
 
 1. In `Revisions`, apply the published version.
 2. Watch release state progress.
 3. Open `Diagnostics` to confirm provisioning and verification.
 
-### 4.5 Verify Deployment State
+### 4.6 Verify Deployment State
 
 Look for:
 
@@ -238,6 +286,10 @@ If runtime or connector URLs are missing:
 - confirm provisioning mode and plan are valid
 
 If a public API client reports an issue:
+
+- confirm the correct customer consumer is bound to the intended deployment
+- check consumer binding history for unexpected rebinding
+- verify the external client is using `consumerId` for runtime discovery and not a stale cached deployment URL
 
 - review audit events for `PUBLIC_API_*`
 - confirm the client id and external deployment key mapping

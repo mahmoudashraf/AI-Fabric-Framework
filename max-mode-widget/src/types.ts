@@ -137,3 +137,24 @@ export interface RuntimeAuthContextSummary {
   grantedScopes?: string[];
   warnings?: string[];
 }
+
+export interface RuntimeShellStarterPromptSummary {
+  id?: string;
+  label?: string;
+  query?: string;
+  moduleId?: string;
+  cardId?: string;
+}
+
+export interface RuntimeShellConfigSummary {
+  success?: boolean;
+  contractVersion?: string;
+  greetingTitle?: string;
+  greetingMessage?: string;
+  starterPrompts?: RuntimeShellStarterPromptSummary[];
+  moduleIds?: string[];
+  cardIds?: string[];
+  supportedModuleIds?: string[];
+  supportedCardIds?: string[];
+  supportedEvidenceBlockIds?: string[];
+}

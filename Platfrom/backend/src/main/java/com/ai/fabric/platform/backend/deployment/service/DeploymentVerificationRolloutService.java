@@ -77,13 +77,22 @@ public class DeploymentVerificationRolloutService {
     private static final String PUBLIC_RUNTIME_DEFAULT_AUDIENCE = "ecommerce-demo-chat";
     private static final double DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.1d;
     private static final boolean DEFAULT_SMART_SUGGESTIONS_ENABLED = false;
+    private static final String MARKETPLACE_KNOWLEDGE_SOURCE_ID = "deployment-marketplace-knowledge";
+    private static final String MARKETPLACE_SHARED_POLICY_SOURCE_ID = "shared-marketplace-refund-policy";
+    private static final String MARKETPLACE_SHARED_POLICY_HANDLE_REF = "commerce-catalog/refund-policy";
+    private static final String MARKETPLACE_SHARED_POLICY_DATASET_ID = "shared-marketplace-refund-policy-seed";
+    private static final String MARKETPLACE_SHARED_POLICY_PLUGIN_ID = "platform-marketplace-runtime-rollout";
+    private static final String MARKETPLACE_SHARED_POLICY_PLUGIN_VERSION_ID = "platform-marketplace-runtime-rollout-v1";
+    private static final String MARKETPLACE_SHARED_POLICY_DATASET_HASH = "marketplace-runtime-refund-policy-v1";
+    private static final String MARKETPLACE_SHARED_POLICY_DATASET_REF =
+        "classpath:marketplace/datasets/verification/refund-policy.jsonl";
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
     private static final int DEFAULT_PAGE_SIZE = 500;
     private static final int DEFAULT_BATCH_SIZE = 25;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
-    private static final String WEAVIATE_HOST = "l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud";
+    private static final String DEFAULT_WEAVIATE_HOST = "weaviate-external-verify-dev.up.railway.app";
     private static final String ZILLIZ_PROJECT_ID = "proj-a58a34b87ccfe2c80d6ec2";
     private static final String ZILLIZ_REGION_ID = "aws-eu-central-1";
 
@@ -595,6 +604,23 @@ public class DeploymentVerificationRolloutService {
                 "This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so the runtime URL and internal connector service are attached."
             );
         }
+        if (latestRelease == null) {
+            return new RolloutReadiness(
+                false,
+                "Runtime and the internal connector service are live, but no release record is available for hosted verification evidence yet."
+            );
+        }
+        if (!"APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())
+            || !"PASSED".equalsIgnoreCase(latestRelease.getVerificationStatus())) {
+            return new RolloutReadiness(
+                false,
+                "The latest release is not in a verified ready state (status="
+                    + firstNonBlank(latestRelease.getStatus(), "UNKNOWN")
+                    + ", verification="
+                    + firstNonBlank(latestRelease.getVerificationStatus(), "UNKNOWN")
+                    + "). Resolve the latest rollout failure before using this canonical deployment as verification-ready."
+            );
+        }
 
         DeploymentVectorizationVerificationSummary vectorization = deploymentVectorizationVerificationService == null
             ? null
@@ -714,6 +740,52 @@ public class DeploymentVerificationRolloutService {
                 }
             },
             new VerificationRolloutDefinition(
+                "marketplace",
+                "Marketplace Runtime Verification",
+                "Canonical marketplace-runtime verification deployment with resolved shell config, two-source retrieval, and rollout-owned shared vector backing.",
+                "dev-openai-qdrant",
+                "PLATFORM_MANAGED",
+                "marketplace-runtime",
+                false
+            ) {
+                @Override
+                UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft) {
+                    ObjectNode provider = ensureObject(draft.providerConfig());
+                    provider.put("llmProvider", "openai");
+                    provider.put("orchestrationLlmProvider", "openai");
+                    provider.remove("orchestrationEndpointProfile");
+                    provider.remove("orchestrationManagedServiceRef");
+                    provider.put("orchestrationModel", ManagedDeploymentProfileCatalog.recommendedOrchestrationModel("openai"));
+                    provider.put("generationLlmProvider", "openai");
+                    provider.remove("generationEndpointProfile");
+                    provider.remove("generationManagedServiceRef");
+                    provider.put("generationModel", ManagedDeploymentProfileCatalog.recommendedGenerationModel("openai"));
+                    provider.put("embeddingProvider", "openai");
+                    provider.remove("embeddingEndpointProfile");
+                    provider.remove("embeddingManagedServiceRef");
+                    provider.remove("embeddingServiceMode");
+                    provider.put("openaiEmbeddingModel", "text-embedding-3-small");
+                    provider.put("openaiEmbeddingDimensions", OPENAI_VECTOR_DIMENSIONS);
+                    provider.put("vectorStrategy", "qdrant");
+                    provider.put("vectorProvisioningMode", "PLATFORM_MANAGED");
+                    provider.put("vectorStoragePosture", "SHARED");
+                    provider.put("qdrantManagedCollectionsEnabled", true);
+                    provider.put("qdrantCloudProviderId", QDRANT_PROVIDER);
+                    provider.put("qdrantCloudRegionId", QDRANT_REGION);
+                    return new UpdateDeploymentDraftRequest(
+                        ensureObject(readYaml(ECOMMERCE_ACTIONS_RESOURCE)),
+                        ecommerceEntityConfig(OPENAI_VECTOR_DIMENSIONS),
+                        ecommerceRoutingConfig(),
+                        normalizeProviderConfig(provider, OPENAI_VECTOR_DIMENSIONS),
+                        ecommerceSecurityConfig(draft.securityConfig()),
+                        withDefaultPromptLatencyTuning(ensureObject(draft.promptConfig())),
+                        marketplaceKnowledgeSourceConfig(),
+                        marketplaceShellConfig(),
+                        marketplaceDatasetConfig()
+                    );
+                }
+            },
+            new VerificationRolloutDefinition(
                 "qdrant",
                 "OpenAI Qdrant Verification",
                 "Canonical OpenAI plus platform-managed Qdrant Cloud verification deployment.",
@@ -810,7 +882,7 @@ public class DeploymentVerificationRolloutService {
                     ObjectNode provider = ensureObject(draft.providerConfig());
                     provider.put("vectorProvisioningMode", "EXTERNAL_EXISTING");
                     provider.put("weaviateScheme", "https");
-                    provider.put("weaviateHost", WEAVIATE_HOST);
+                    provider.put("weaviateHost", verificationWeaviateHost());
                     provider.put("weaviatePort", 443);
                     return vectorDraftUpdate(draft, provider);
                 }
@@ -1126,6 +1198,106 @@ public class DeploymentVerificationRolloutService {
         return root;
     }
 
+    private ObjectNode marketplaceKnowledgeSourceConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        root.putArray("sources")
+            .addObject()
+            .put("id", MARKETPLACE_KNOWLEDGE_SOURCE_ID)
+            .put("type", "deployment-private-vector")
+            .put("adapterType", "deployment-private-vector")
+            .put("attributionLabel", "Deployment marketplace knowledge");
+        ObjectNode sharedPolicySource = root.withArray("sources")
+            .addObject()
+            .put("id", MARKETPLACE_SHARED_POLICY_SOURCE_ID)
+            .put("type", "shared-vector")
+            .put("adapterType", "shared-index")
+            .put("attributionLabel", "Shared refund policy knowledge")
+            .put("datasetRef", MARKETPLACE_SHARED_POLICY_DATASET_ID)
+            .put("entityType", "policy")
+            .put("handleRef", MARKETPLACE_SHARED_POLICY_HANDLE_REF)
+            .put("enabled", true);
+        sharedPolicySource.putArray("authModes")
+            .add("PUBLIC_RUNTIME_AUTHENTICATED")
+            .add("PLATFORM_PROXY_SESSION")
+            .add("PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        sharedPolicySource.putObject("filters")
+            .put("classification", "refund");
+        return root;
+    }
+
+    private ObjectNode marketplaceDatasetConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "MARKETPLACE_DATASET_CONFIG_V1");
+        ObjectNode dataset = root.putArray("datasets")
+            .addObject()
+            .put("systemManaged", true)
+            .put("marketplacePluginId", MARKETPLACE_SHARED_POLICY_PLUGIN_ID)
+            .put("marketplacePluginVersionId", MARKETPLACE_SHARED_POLICY_PLUGIN_VERSION_ID)
+            .put("datasetId", MARKETPLACE_SHARED_POLICY_DATASET_ID)
+            .put("entityType", "policy")
+            .put("storageScope", "PLUGIN_SCOPED")
+            .put("sharingScope", "TENANT_SHARED")
+            .put("ingestionMode", "PACKAGED_SEED")
+            .put("updateStrategy", "UPSERT_BY_ID")
+            .put("handleRef", MARKETPLACE_SHARED_POLICY_HANDLE_REF)
+            .put("datasetHash", MARKETPLACE_SHARED_POLICY_DATASET_HASH)
+            .put("seedDatasetRef", MARKETPLACE_SHARED_POLICY_DATASET_REF);
+        dataset.putObject("config")
+            .put("scope", "all");
+        return root;
+    }
+
+    private ObjectNode marketplaceShellConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("contractVersion", "SHELL_CONFIG_V1");
+        root.putObject("greeting")
+            .put("title", "Marketplace Assistant")
+            .put("message", "Browse products, policy, and order flows through the resolved shell config.");
+
+        root.putArray("starterPrompts")
+            .addObject()
+            .put("id", "marketplace-featured-products")
+            .put("label", "Browse featured products")
+            .put("query", "Show me featured products")
+            .put("moduleId", "product-catalog")
+            .put("cardId", "product-list");
+        root.withArray("starterPrompts")
+            .addObject()
+            .put("id", "marketplace-return-policy")
+            .put("label", "Summarize return policy")
+            .put("query", "Summarize return policy")
+            .put("moduleId", "policies")
+            .put("cardId", "policy-summary");
+
+        root.putArray("modules")
+            .addObject()
+            .put("id", "product-catalog")
+            .put("enabled", true);
+        root.withArray("modules")
+            .addObject()
+            .put("id", "policies")
+            .put("enabled", true);
+        root.withArray("modules")
+            .addObject()
+            .put("id", "orders")
+            .put("enabled", true);
+
+        root.putArray("cards")
+            .addObject()
+            .put("id", "product-list")
+            .put("enabled", true);
+        root.withArray("cards")
+            .addObject()
+            .put("id", "policy-summary")
+            .put("enabled", true);
+        root.withArray("cards")
+            .addObject()
+            .put("id", "order-status")
+            .put("enabled", true);
+        return root;
+    }
+
     private JsonNode readYaml(String configuredLocation) {
         try {
             Resource resource = resolveConfiguredResource(configuredLocation);
@@ -1199,14 +1371,24 @@ public class DeploymentVerificationRolloutService {
         return value != null && !value.isBlank();
     }
 
+    private String verificationWeaviateHost() {
+        String override = System.getenv("PLATFORM_VERIFICATION_WEAVIATE_HOST");
+        if (!hasText(override)) {
+            override = System.getenv("WEAVIATE_HOST");
+        }
+        return hasText(override) ? override.trim() : DEFAULT_WEAVIATE_HOST;
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        return hasText(value) ? value : fallback;
+    }
+
     private boolean hasConcreteValue(String value) {
         return hasText(value) && !isPlaceholderExpression(value);
     }
 
     private boolean runnerRegistrationReady(DeploymentVectorizationVerificationSummary summary) {
-        return summary.runner() != null
-            && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
-            && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()));
+        return VectorizationRunnerReadinessSupport.isExecutionReady(summary.runner(), Instant.now());
     }
 
     private boolean runnerServiceProvisioned(DeploymentReleaseEntity latestRelease) {

@@ -22,6 +22,8 @@ public final class RuntimePrivateAccessSupport {
     public static final String SCOPE_RUNTIME_ADMIN_OVERVIEW = "runtime:admin:overview";
     public static final String SCOPE_RUNTIME_AUTH_OVERVIEW = "runtime:admin:auth-overview";
     public static final String SCOPE_RUNTIME_ACTIONS_OVERVIEW = "runtime:admin:actions";
+    public static final String SCOPE_RUNTIME_WEBHOOKS_OVERVIEW = "runtime:admin:webhooks";
+    public static final String SCOPE_RUNTIME_WEBHOOKS_RETRY = "runtime:admin:webhooks:retry";
     public static final String SCOPE_RUNTIME_INDEXING_OVERVIEW = "runtime:index:overview";
     public static final String SCOPE_RUNTIME_INDEXING_VECTORS = "runtime:index:vectors";
     public static final String SCOPE_RUNTIME_CONNECTOR_READ = "runtime:connector:read";
@@ -35,6 +37,7 @@ public final class RuntimePrivateAccessSupport {
             SCOPE_RUNTIME_ADMIN_OVERVIEW,
             SCOPE_RUNTIME_AUTH_OVERVIEW,
             SCOPE_RUNTIME_ACTIONS_OVERVIEW,
+            SCOPE_RUNTIME_WEBHOOKS_OVERVIEW,
             SCOPE_RUNTIME_INDEXING_OVERVIEW,
             SCOPE_RUNTIME_INDEXING_VECTORS,
             SCOPE_RUNTIME_CONNECTOR_READ

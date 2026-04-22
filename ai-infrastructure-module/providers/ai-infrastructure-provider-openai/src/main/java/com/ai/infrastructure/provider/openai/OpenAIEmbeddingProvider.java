@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * OpenAI Embedding Provider
  * 
  * Wraps existing OpenAI embedding logic as an EmbeddingProvider.
- * Fallback option when ONNX/REST providers are unavailable.
+ * Cloud embedding provider used when OpenAI-compatible embeddings are selected.
  * 
  * Uses OpenAI's embedding API (text-embedding-3-small, etc.)
  * 
@@ -64,14 +64,15 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
                 openai.getEmbeddingDimensions(),
                 openai.getApiKey() != null ? "***" : "null");
 
-            if (openai.getApiKey() == null || openai.getApiKey().trim().isEmpty()) {
+            String apiKey = embeddingApiKey(openai);
+            if (apiKey == null || apiKey.trim().isEmpty()) {
                 log.warn("OpenAI API key not configured. Provider will not be available.");
                 available = false;
                 return;
             }
             
             openAiService = new OpenAiService(
-                openai.getApiKey(),
+                apiKey,
                 Duration.ofSeconds(openai.getTimeout())
             );
             
@@ -244,12 +245,12 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
     private AIEmbeddingResponse generateEmbeddingViaHttp(AIEmbeddingRequest request, Integer dimensions, long startTime) {
         try {
             AIProviderConfig.OpenAIConfig openai = config.getOpenai();
-            String baseUrl = openai.getBaseUrl() != null ? openai.getBaseUrl() : "https://api.openai.com/v1";
+            String baseUrl = embeddingBaseUrl(openai) != null ? embeddingBaseUrl(openai) : "https://api.openai.com/v1";
             String url = baseUrl + "/embeddings";
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(openai.getApiKey());
+            headers.setBearerAuth(embeddingApiKey(openai));
             
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", request.getModel() != null ? request.getModel() : openai.getEmbeddingModel());
@@ -485,6 +486,24 @@ public class OpenAIEmbeddingProvider implements EmbeddingProvider {
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private String embeddingApiKey(AIProviderConfig.OpenAIConfig openai) {
+        if (openai == null) {
+            return null;
+        }
+        return hasText(openai.getEmbeddingApiKey()) ? openai.getEmbeddingApiKey() : openai.getApiKey();
+    }
+
+    private String embeddingBaseUrl(AIProviderConfig.OpenAIConfig openai) {
+        if (openai == null) {
+            return null;
+        }
+        return hasText(openai.getEmbeddingBaseUrl()) ? openai.getEmbeddingBaseUrl() : openai.getBaseUrl();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
     
     @Override

@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.security;
 
 import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
 import com.ai.fabric.platform.backend.config.PlatformPublicApiProperties;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.service.PlatformIdentityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,17 +33,20 @@ public class PlatformSecurityConfiguration {
     private final ObjectMapper objectMapper;
     private final PlatformIdentityService platformIdentityService;
     private final PlatformSecretService platformSecretService;
+    private final PlatformManagedProductServiceRepository productServiceRepository;
 
     public PlatformSecurityConfiguration(PlatformAuthProperties properties,
                                          PlatformPublicApiProperties publicApiProperties,
                                          ObjectMapper objectMapper,
                                          PlatformIdentityService platformIdentityService,
-                                         PlatformSecretService platformSecretService) {
+                                         PlatformSecretService platformSecretService,
+                                         PlatformManagedProductServiceRepository productServiceRepository) {
         this.properties = properties;
         this.publicApiProperties = publicApiProperties;
         this.objectMapper = objectMapper;
         this.platformIdentityService = platformIdentityService;
         this.platformSecretService = platformSecretService;
+        this.productServiceRepository = productServiceRepository;
     }
 
     @PostConstruct
@@ -73,7 +77,7 @@ public class PlatformSecurityConfiguration {
             AnonymousAuthenticationFilter.class
         );
         http.addFilterBefore(
-            new PlatformApiKeyAuthenticationFilter(properties, platformSecretService),
+            new PlatformApiKeyAuthenticationFilter(properties, platformSecretService, productServiceRepository),
             AnonymousAuthenticationFilter.class
         );
         http.authorizeHttpRequests(authorize -> {
@@ -89,6 +93,9 @@ public class PlatformSecurityConfiguration {
                 "/api/deployments/*/versions/*/artifacts/ai-entity-config.yml",
                 "/api/deployments/*/versions/*/artifacts/actions-routing.yml",
                 "/api/deployments/*/versions/*/artifacts/ai-prompt-config.json",
+                "/api/deployments/*/versions/*/artifacts/ai-marketplace-dataset-config.json",
+                "/api/deployments/*/versions/*/artifacts/ai-knowledge-source-config.json",
+                "/api/deployments/*/versions/*/artifacts/ai-shell-config.json",
                 "/api/deployments/*/versions/*/artifacts/deployment-manifest.json"
             ).permitAll();
             authorize.anyRequest().authenticated();

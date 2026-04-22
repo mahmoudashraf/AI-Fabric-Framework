@@ -2,6 +2,7 @@ package com.ai.infrastructure.chat.util;
 
 import com.ai.infrastructure.intent.action.PendingAction;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -52,6 +53,43 @@ public final class ConfirmationStack {
         metadata.remove(METADATA_KEY_STACK);
     }
 
+    public static List<PendingAction> getAll(Map<String, Object> metadata) {
+        List<Map<String, Object>> stack = getStack(metadata);
+        if (stack.isEmpty()) {
+            return List.of();
+        }
+        List<PendingAction> out = new ArrayList<>();
+        for (int index = stack.size() - 1; index >= 0; index--) {
+            PendingAction pendingAction = PendingAction.fromMap(stack.get(index));
+            if (pendingAction != null) {
+                out.add(pendingAction);
+            }
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    public static void replace(Map<String, Object> metadata, List<PendingAction> stackTopFirst) {
+        if (metadata == null) {
+            return;
+        }
+        if (stackTopFirst == null || stackTopFirst.isEmpty()) {
+            clear(metadata);
+            return;
+        }
+        List<Map<String, Object>> persisted = new ArrayList<>();
+        for (int index = stackTopFirst.size() - 1; index >= 0; index--) {
+            PendingAction pendingAction = stackTopFirst.get(index);
+            if (pendingAction != null) {
+                persisted.add(pendingAction.toMap());
+            }
+        }
+        if (persisted.isEmpty()) {
+            clear(metadata);
+            return;
+        }
+        metadata.put(METADATA_KEY_STACK, persisted);
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> getStack(Map<String, Object> metadata) {
         if (metadata == null) {
@@ -70,4 +108,3 @@ public final class ConfirmationStack {
         return new ArrayList<>();
     }
 }
-

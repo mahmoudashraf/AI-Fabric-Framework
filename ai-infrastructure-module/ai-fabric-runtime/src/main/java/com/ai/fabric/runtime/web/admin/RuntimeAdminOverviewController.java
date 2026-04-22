@@ -4,12 +4,20 @@ import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
+import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
+import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
+import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.rag.source.SearchSourceRegistry;
+import com.ai.infrastructure.shell.BuiltInShellCatalog;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -30,15 +38,27 @@ public class RuntimeAdminOverviewController {
     private final AIActionRegistry actionRegistry;
     private final RuntimeActionCatalogGateway actionCatalogGateway;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
+    private final AIProviderConfig aiProviderConfig;
     private final VectorDatabaseService vectorDatabaseService;
     private final RuntimeAuthProperties runtimeAuthProperties;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
+    private final ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
+    private final ObjectProvider<ConnectorActionWebhookPolicyCatalog> webhookPolicyCatalogProvider;
+    private final ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigServiceProvider;
+    private final ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigServiceProvider;
+    private final ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider;
 
     @Value("${ai.config.default-file:ai-entity-config.yml}")
     private String entityConfigLocation;
 
     @Value("${ai.prompts.deployment.config-file:}")
     private String promptConfigLocation;
+
+    @Value("${ai.knowledge-sources.deployment.config-file:}")
+    private String knowledgeSourceConfigLocation;
+
+    @Value("${ai.shell.deployment.config-file:}")
+    private String shellConfigLocation;
 
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
@@ -47,6 +67,23 @@ public class RuntimeAdminOverviewController {
         List<AIActionMetaData> actions = actionRegistry != null ? actionRegistry.getAllMetadata() : List.of();
         long actionCount = actions.stream()
             .filter(action -> action != null && StringUtils.hasText(action.getName()))
+            .count();
+        long groundingEligibleActionCount = actions.stream()
+            .filter(action -> action != null && action.isGroundingEligible())
+            .count();
+        long presentationHintedActionCount = actions.stream()
+            .filter(action -> action != null
+                && action.getResultPresentationHint() != null
+                && action.getResultPresentationHint() != com.ai.infrastructure.intent.action.ActionResultPresentationHint.DEFAULT)
+            .count();
+        long moduleMappedActionCount = actions.stream()
+            .filter(action -> action != null && StringUtils.hasText(action.getBuiltInModuleId()))
+            .count();
+        long cardMappedActionCount = actions.stream()
+            .filter(action -> action != null && StringUtils.hasText(action.getBuiltInCardId()))
+            .count();
+        long actionProvenanceCount = actions.stream()
+            .filter(action -> action != null && action.getProvenance() != null)
             .count();
 
         Set<String> entityTypes = entityConfigurationLoader != null
@@ -66,15 +103,63 @@ public class RuntimeAdminOverviewController {
             : List.of();
 
         Map<String, Object> body = new LinkedHashMap<>();
+        ConfirmationInterceptorCatalogProvider confirmationProvider = confirmationInterceptorCatalogProvider.getIfAvailable();
+        RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService = knowledgeSourceConfigServiceProvider.getIfAvailable();
+        RuntimeDeploymentShellConfigService shellConfigService = shellConfigServiceProvider.getIfAvailable();
+        ConnectorActionWebhookPolicyCatalog webhookPolicyCatalog = webhookPolicyCatalogProvider.getIfAvailable();
+        SearchSourceRegistry searchSourceRegistry = searchSourceRegistryProvider.getIfAvailable();
+        Map<String, Object> searchSourceDiagnostics = searchSourceRegistry != null
+            ? searchSourceRegistry.adminDiagnostics()
+            : Map.of();
         body.put("success", true);
         body.put("entityConfigLocation", entityConfigLocation);
         body.put("promptConfigLocation", promptConfigLocation);
+        body.put("knowledgeSourceConfigLocation", knowledgeSourceConfigLocation);
+        body.put("shellConfigLocation", shellConfigLocation);
         body.put("actionCatalogSources", sources);
         body.put("actionsCount", actionCount);
+        body.put("groundingEligibleActionsCount", groundingEligibleActionCount);
+        body.put("actionsWithPresentationHintsCount", presentationHintedActionCount);
+        body.put("actionsWithBuiltInModuleMappingsCount", moduleMappedActionCount);
+        body.put("actionsWithBuiltInCardMappingsCount", cardMappedActionCount);
+        body.put("actionsWithProvenanceCount", actionProvenanceCount);
+        body.put("confirmationInterceptorsCount", confirmationProvider != null ? confirmationProvider.getRules().size() : 0);
+        body.put("confirmationInterceptorRuleNames", confirmationProvider != null
+            ? confirmationProvider.getRules().stream().map(rule -> rule != null ? rule.name() : null).filter(StringUtils::hasText).toList()
+            : List.of());
+        body.put("confirmationInterceptorSources", confirmationProvider != null ? confirmationProvider.getSourceLocations() : List.of());
+        body.put("postActionWebhookPoliciesCount", webhookPolicyCatalog != null ? webhookPolicyCatalog.postPolicyCount() : 0L);
+        body.put(
+            "actionNamesWithPostActionWebhookPolicies",
+            webhookPolicyCatalog != null ? List.copyOf(webhookPolicyCatalog.actionNamesWithPostPolicies()) : List.of()
+        );
+        body.put("webhookTargetsCount", webhookPolicyCatalog != null ? webhookPolicyCatalog.webhookTargets().size() : 0);
+        body.put(
+            "webhookTargetIds",
+            webhookPolicyCatalog != null
+                ? webhookPolicyCatalog.webhookTargets().stream()
+                    .map(target -> target != null ? target.id() : null)
+                    .filter(StringUtils::hasText)
+                    .toList()
+                : List.of()
+        );
         body.put("supportedEntityTypes", entityTypes);
         body.put("vectorDb", vectorDatabaseService.getClass().getSimpleName());
         body.put("supportsVectorScan", vectorDatabaseService.supportsVectorScan());
         body.put("vectorScope", vectorDatabaseService.adminDiagnostics());
+        body.put("inferenceProfile", inferenceProfile(aiProviderConfig));
+        body.put("knowledgeSourcesCount", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceCount() : 0);
+        body.put("knowledgeSourceIds", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceIds() : List.of());
+        body.put("knowledgeSourceTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceTypes() : List.of());
+        body.put("knowledgeSourceAdapterTypes", knowledgeSourceConfigService != null ? knowledgeSourceConfigService.currentSourceAdapterTypes() : List.of());
+        body.put("shellModulesCount", shellConfigService != null ? shellConfigService.currentModuleCount() : 0);
+        body.put("shellModuleIds", shellConfigService != null ? shellConfigService.currentModuleIds() : List.of());
+        body.put("shellCardsCount", shellConfigService != null ? shellConfigService.currentCardCount() : 0);
+        body.put("shellCardIds", shellConfigService != null ? shellConfigService.currentCardIds() : List.of());
+        body.put("shellStarterPromptsCount", shellConfigService != null ? shellConfigService.currentStarterPromptCount() : 0);
+        body.put("shellGreetingConfigured", shellConfigService != null && StringUtils.hasText(shellConfigService.currentGreetingMessage()));
+        body.put("searchSourceDiagnostics", searchSourceDiagnostics);
+        body.put("marketplaceSupport", marketplaceSupport(knowledgeSourceConfigService, shellConfigService, searchSourceRegistry, searchSourceDiagnostics));
         body.put("auth", authDiagnostics(runtimeAuthProperties));
         body.put("authWarnings", authWarnings(runtimeAuthProperties));
         return ResponseEntity.ok(body);
@@ -159,6 +244,7 @@ public class RuntimeAdminOverviewController {
             "/api/chat/me/query",
             "/api/chat/me/suggestions",
             "/api/chat/me/auth-context",
+            "/api/chat/me/shell-config",
             "/api/chat/me/conversations",
             "/api/chat/me/conversations/{conversationId}"
         ));
@@ -171,5 +257,91 @@ public class RuntimeAdminOverviewController {
 
     private static List<String> authErrors(RuntimeAuthProperties properties) {
         return new RuntimeAuthStartupValidator(properties).validationErrors();
+    }
+
+    private Map<String, Object> marketplaceSupport(RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService,
+                                                   RuntimeDeploymentShellConfigService shellConfigService,
+                                                   SearchSourceRegistry searchSourceRegistry,
+                                                   Map<String, Object> searchSourceDiagnostics) {
+        Map<String, Object> support = new LinkedHashMap<>();
+        support.put("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V2");
+        support.put("resolvedKnowledgeSourcesSupported", knowledgeSourceConfigService != null);
+        support.put("resolvedShellConfigSupported", shellConfigService != null);
+        support.put("resolvedActionMetadataSupported", true);
+        support.put("postActionWebhookPoliciesSupported", true);
+        support.put("postActionWebhookPolicyContractVersion", "ACTION_WEBHOOK_POLICY_V1");
+        support.put("resolvedSearchSourcesSupported", searchSourceRegistry != null);
+        support.put("degradedSearchSupported", searchSourceRegistry != null);
+        support.put("actionMetadataContractVersion", "ACTION_METADATA_V2");
+        support.put(
+            "knowledgeSourceContractVersion",
+            knowledgeSourceConfigService != null
+                ? knowledgeSourceConfigService.currentContractVersion()
+                : RuntimeDeploymentKnowledgeSourceConfigService.CONTRACT_VERSION
+        );
+        support.put(
+            "shellConfigContractVersion",
+            shellConfigService != null
+                ? shellConfigService.currentContractVersion()
+                : RuntimeDeploymentShellConfigService.CONTRACT_VERSION
+        );
+        support.put(
+            "searchSourceContractVersion",
+            searchSourceRegistry != null
+                ? searchSourceRegistry.contractVersion()
+                : "SEARCH_SOURCE_REGISTRY_V1"
+        );
+        support.put(
+            "searchSourceDiagnosticsContractVersion",
+            searchSourceDiagnostics.getOrDefault("contractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1")
+        );
+        support.put(
+            "supportedKnowledgeSourceAdapterTypes",
+            searchSourceRegistry != null
+                ? searchSourceRegistry.supportedAdapterTypes()
+                : List.of()
+        );
+        support.put("inferenceProfileContractVersion", "INFERENCE_PROFILE_RUNTIME_V1");
+        support.put("supportedShellModuleIds", BuiltInShellCatalog.MODULE_IDS);
+        support.put("supportedShellCardIds", BuiltInShellCatalog.CARD_IDS);
+        support.put("supportedEvidenceBlockIds", BuiltInShellCatalog.EVIDENCE_BLOCK_IDS);
+        return support;
+    }
+
+    private Map<String, Object> inferenceProfile(AIProviderConfig providerConfig) {
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("llmProvider", providerConfig != null ? providerConfig.getLlmProvider() : null);
+        profile.put("embeddingProvider", providerConfig != null ? providerConfig.getEmbeddingProvider() : null);
+        profile.put("embeddingEndpointProfile", providerConfig != null ? providerConfig.getEmbeddingEndpointProfile() : null);
+        profile.put("embeddingManagedServiceRef", providerConfig != null ? providerConfig.getEmbeddingManagedServiceRef() : null);
+        profile.put("embeddingServiceMode", providerConfig != null ? providerConfig.getEmbeddingServiceMode() : null);
+        profile.put("embeddingHasConnectionOverride", providerConfig != null && providerConfig.embeddingHasConnectionOverride());
+        profile.put("orchestrationProvider", providerConfig != null && providerConfig.getOrchestration() != null
+            ? providerConfig.getOrchestration().getLlmProvider()
+            : null);
+        profile.put("orchestrationModel", providerConfig != null && providerConfig.getOrchestration() != null
+            ? providerConfig.getOrchestration().getModel()
+            : null);
+        profile.put("orchestrationEndpointProfile", providerConfig != null && providerConfig.getOrchestration() != null
+            ? providerConfig.getOrchestration().getEndpointProfile()
+            : null);
+        profile.put("orchestrationManagedServiceRef", providerConfig != null && providerConfig.getOrchestration() != null
+            ? providerConfig.getOrchestration().getManagedServiceRef()
+            : null);
+        profile.put("orchestrationHasConnectionOverride", providerConfig != null && providerConfig.orchestrationHasConnectionOverride());
+        profile.put("generationProvider", providerConfig != null && providerConfig.getGeneration() != null
+            ? providerConfig.getGeneration().getLlmProvider()
+            : null);
+        profile.put("generationModel", providerConfig != null && providerConfig.getGeneration() != null
+            ? providerConfig.getGeneration().getModel()
+            : null);
+        profile.put("generationEndpointProfile", providerConfig != null && providerConfig.getGeneration() != null
+            ? providerConfig.getGeneration().getEndpointProfile()
+            : null);
+        profile.put("generationManagedServiceRef", providerConfig != null && providerConfig.getGeneration() != null
+            ? providerConfig.getGeneration().getManagedServiceRef()
+            : null);
+        profile.put("generationHasConnectionOverride", providerConfig != null && providerConfig.generationHasConnectionOverride());
+        return profile;
     }
 }

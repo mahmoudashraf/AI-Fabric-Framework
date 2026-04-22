@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentR
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ class PublicProvisioningApiServiceTest {
         DeploymentService deploymentService = mock(DeploymentService.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();
         binding.setId("pub-1");
@@ -96,6 +98,7 @@ class PublicProvisioningApiServiceTest {
             deploymentVersionRepository,
             mock(PlatformAuditService.class),
             platformSecretService,
+            platformCustomerConsumerService,
             new ObjectMapper()
         );
 
@@ -180,6 +183,7 @@ class PublicProvisioningApiServiceTest {
         DeploymentService deploymentService = mock(DeploymentService.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();
         binding.setId("pub-both");
@@ -235,6 +239,7 @@ class PublicProvisioningApiServiceTest {
             deploymentVersionRepository,
             mock(PlatformAuditService.class),
             platformSecretService,
+            platformCustomerConsumerService,
             new ObjectMapper()
         );
 
@@ -270,6 +275,7 @@ class PublicProvisioningApiServiceTest {
         DeploymentService deploymentService = mock(DeploymentService.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();
         binding.setId("pub-2");
@@ -325,6 +331,7 @@ class PublicProvisioningApiServiceTest {
             deploymentVersionRepository,
             mock(PlatformAuditService.class),
             platformSecretService,
+            platformCustomerConsumerService,
             new ObjectMapper()
         );
 
@@ -408,6 +415,7 @@ class PublicProvisioningApiServiceTest {
         DeploymentService deploymentService = mock(DeploymentService.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();
         binding.setId("pub-custom");
@@ -465,6 +473,7 @@ class PublicProvisioningApiServiceTest {
             deploymentVersionRepository,
             mock(PlatformAuditService.class),
             platformSecretService,
+            platformCustomerConsumerService,
             new ObjectMapper()
         );
 
@@ -496,6 +505,7 @@ class PublicProvisioningApiServiceTest {
         DeploymentService deploymentService = mock(DeploymentService.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
 
         when(deploymentService.getDeploymentOverview("dep-789")).thenReturn(new DeploymentOverviewSummary(
             "dep-789",
@@ -542,6 +552,7 @@ class PublicProvisioningApiServiceTest {
             deploymentVersionRepository,
             mock(PlatformAuditService.class),
             platformSecretService,
+            platformCustomerConsumerService,
             new ObjectMapper()
         );
 

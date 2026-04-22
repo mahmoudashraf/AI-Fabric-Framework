@@ -23,7 +23,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  fetchDeploymentWebhookOverview,
   fetchDeploymentDraft,
+  retryDeploymentWebhookDelivery,
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -48,12 +50,134 @@ type RouteEditorState = {
   message: string
 }
 
+type WebhookTargetPreview = {
+  id: string
+  urlSecretRef: string
+  signingSecretRef: string
+  timeoutMs: number | null
+  maxAttempts: number | null
+  linkedActions: string[]
+}
+
+type ActionWebhookPolicyPreview = {
+  actionName: string
+  index: number
+  type: string
+  targetRef: string
+  eventType: string
+  targetExists: boolean
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value ?? null)) as T
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function normalizeActionsConfigForEdit(config: unknown): Record<string, unknown> {
+  const root = cloneJson(asRecord(config))
+  root.actions = asArray(root.actions)
+  root.webhookTargets = asArray(root.webhookTargets)
+  return root
+}
+
+function readOptionalPositiveInteger(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key]
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
+}
+
+function setOptionalPositiveInteger(record: Record<string, unknown>, key: string, rawValue: string) {
+  const trimmed = rawValue.trim()
+  if (trimmed.length === 0) {
+    delete record[key]
+    return
+  }
+  const parsed = Number(trimmed)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${key} must be a positive integer.`)
+  }
+  record[key] = parsed
+}
+
+function nextWebhookTargetId(config: unknown): string {
+  const existingIds = new Set(
+    asArray(asRecord(config).webhookTargets)
+      .flatMap((candidate) => (isRecord(candidate) && typeof candidate.id === 'string' ? [candidate.id] : [])),
+  )
+  let counter = 1
+  while (existingIds.has(`webhook_target_${counter}`)) {
+    counter += 1
+  }
+  return `webhook_target_${counter}`
+}
+
+function extractWebhookTargets(config: unknown): WebhookTargetPreview[] {
+  const root = asRecord(config)
+  const actionLinks = new Map<string, Set<string>>()
+
+  for (const action of asArray(root.actions)) {
+    if (!isRecord(action) || typeof action.name !== 'string') {
+      continue
+    }
+    for (const policy of asArray(action.postPolicies)) {
+      if (!isRecord(policy) || typeof policy.targetRef !== 'string') {
+        continue
+      }
+      const linked = actionLinks.get(policy.targetRef) ?? new Set<string>()
+      linked.add(action.name)
+      actionLinks.set(policy.targetRef, linked)
+    }
+  }
+
+  return asArray(root.webhookTargets).flatMap((candidate) => {
+    if (!isRecord(candidate)) {
+      return []
+    }
+    const id = typeof candidate.id === 'string' ? candidate.id : 'unnamed_target'
+    return [{
+      id,
+      urlSecretRef: typeof candidate.urlSecretRef === 'string' ? candidate.urlSecretRef : '',
+      signingSecretRef: typeof candidate.signingSecretRef === 'string' ? candidate.signingSecretRef : '',
+      timeoutMs: readOptionalPositiveInteger(candidate, 'timeoutMs'),
+      maxAttempts: readOptionalPositiveInteger(candidate, 'maxAttempts'),
+      linkedActions: Array.from(actionLinks.get(id) ?? []).sort(),
+    }]
+  })
+}
+
+function extractActionWebhookPolicies(config: unknown, actionName: string): ActionWebhookPolicyPreview[] {
+  const root = asRecord(config)
+  const targetIds = new Set(extractWebhookTargets(config).map((target) => target.id))
+
+  for (const action of asArray(root.actions)) {
+    if (!isRecord(action) || action.name !== actionName) {
+      continue
+    }
+    return asArray(action.postPolicies).flatMap((candidate, index) => {
+      if (!isRecord(candidate)) {
+        return []
+      }
+      const type = typeof candidate.type === 'string' ? candidate.type : 'webhook'
+      const targetRef = typeof candidate.targetRef === 'string' ? candidate.targetRef : ''
+      const eventType = typeof candidate.eventType === 'string' ? candidate.eventType : ''
+      return [{
+        actionName,
+        index,
+        type,
+        targetRef,
+        eventType,
+        targetExists: targetIds.has(targetRef),
+      }]
+    })
+  }
+
+  return []
 }
 
 function extractActions(config: unknown): ActionPreview[] {
@@ -171,6 +295,57 @@ function routeRecordForAction(routingConfig: Record<string, unknown>, actionName
   return asRecord(actions[actionName])
 }
 
+function inlineRouteRecordForAction(actionsConfig: unknown, actionName: string): Record<string, unknown> {
+  if (!isRecord(actionsConfig) || !Array.isArray(actionsConfig.actions)) {
+    return {}
+  }
+
+  for (const candidate of actionsConfig.actions) {
+    if (!isRecord(candidate) || candidate.name !== actionName) {
+      continue
+    }
+    return cloneJson(asRecord(candidate.route))
+  }
+
+  return {}
+}
+
+function mergeRouteRecords(baseRoute: Record<string, unknown>, overrideRoute: Record<string, unknown>): Record<string, unknown> {
+  const merged = cloneJson(baseRoute)
+
+  const mergeInto = (target: Record<string, unknown>, source: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(source)) {
+      if (isRecord(value) && isRecord(target[key])) {
+        mergeInto(target[key] as Record<string, unknown>, value)
+      } else {
+        target[key] = cloneJson(value)
+      }
+    }
+  }
+
+  mergeInto(merged, overrideRoute)
+
+  const url = typeof merged.url === 'string' ? merged.url.trim() : ''
+  const path = typeof merged.path === 'string' ? merged.path.trim() : ''
+  if (url.length > 0) {
+    delete merged.path
+  } else if (path.length > 0) {
+    delete merged.url
+  }
+
+  return merged
+}
+
+function resolvedRouteRecordForAction(
+  routingConfig: Record<string, unknown>,
+  actionsConfig: unknown,
+  actionName: string,
+): Record<string, unknown> {
+  const inlineRoute = inlineRouteRecordForAction(actionsConfig, actionName)
+  const explicitRoute = routeRecordForAction(routingConfig, actionName)
+  return mergeRouteRecords(inlineRoute, explicitRoute)
+}
+
 function createRouteEditor(route: unknown): RouteEditorState {
   const routeRecord = asRecord(route)
   const request = asRecord(routeRecord.request)
@@ -191,9 +366,13 @@ function createRouteEditor(route: unknown): RouteEditorState {
   }
 }
 
-function buildRouteEditors(actionNames: string[], routingConfig: Record<string, unknown>): Record<string, RouteEditorState> {
+function buildRouteEditors(
+  actionNames: string[],
+  routingConfig: Record<string, unknown>,
+  actionsConfig: unknown,
+): Record<string, RouteEditorState> {
   return actionNames.reduce<Record<string, RouteEditorState>>((accumulator, actionName) => {
-    accumulator[actionName] = createRouteEditor(routeRecordForAction(routingConfig, actionName))
+    accumulator[actionName] = createRouteEditor(resolvedRouteRecordForAction(routingConfig, actionsConfig, actionName))
     return accumulator
   }, {})
 }
@@ -240,8 +419,11 @@ export function ActionsPage() {
   const [routingConfig, setRoutingConfig] = useState<Record<string, unknown>>(normalizeRoutingConfig(null))
   const [routeEditors, setRouteEditors] = useState<Record<string, RouteEditorState>>({})
   const [selectedRouteActionName, setSelectedRouteActionName] = useState('')
+  const [selectedPolicyActionName, setSelectedPolicyActionName] = useState('')
+  const [selectedWebhookTargetId, setSelectedWebhookTargetId] = useState('')
   const [routingError, setRoutingError] = useState<string | null>(null)
   const canEdit = workspace?.access.canEdit ?? false
+  const canOperate = workspace?.access.canOperate ?? false
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -259,10 +441,17 @@ export function ActionsPage() {
 
     const nextRoutingConfig = normalizeRoutingConfig(draftQuery.data.routingConfig)
     const draftActionNames = actionNamesFromConfig(draftQuery.data.actionsConfig)
+    const draftWebhookTargets = extractWebhookTargets(draftQuery.data.actionsConfig)
     setRoutingConfig(nextRoutingConfig)
-    setRouteEditors(buildRouteEditors(draftActionNames, nextRoutingConfig))
+    setRouteEditors(buildRouteEditors(draftActionNames, nextRoutingConfig, draftQuery.data.actionsConfig))
     setSelectedRouteActionName((current) =>
       draftActionNames.includes(current) ? current : (draftActionNames[0] ?? ''),
+    )
+    setSelectedPolicyActionName((current) =>
+      draftActionNames.includes(current) ? current : (draftActionNames[0] ?? ''),
+    )
+    setSelectedWebhookTargetId((current) =>
+      draftWebhookTargets.some((target) => target.id === current) ? current : (draftWebhookTargets[0]?.id ?? ''),
     )
     setRoutingError(null)
   }, [draftQuery.data])
@@ -283,12 +472,46 @@ export function ActionsPage() {
     }
   }, [draftQuery.data, editorValue])
 
+  const effectiveActionsConfig = useMemo(() => {
+    try {
+      return JSON.parse(editorValue) as unknown
+    } catch {
+      return draftQuery.data?.actionsConfig ?? {}
+    }
+  }, [draftQuery.data, editorValue])
+
+  const webhookTargets = useMemo(
+    () => extractWebhookTargets(effectiveActionsConfig),
+    [effectiveActionsConfig],
+  )
+  const selectedActionForPolicies = selectedPolicyActionName || actionPreview[0]?.name || ''
+  const selectedActionWebhookPolicies = useMemo(
+    () => extractActionWebhookPolicies(effectiveActionsConfig, selectedActionForPolicies),
+    [effectiveActionsConfig, selectedActionForPolicies],
+  )
+  const selectedWebhookTarget = useMemo(
+    () => webhookTargets.find((target) => target.id === selectedWebhookTargetId) ?? null,
+    [selectedWebhookTargetId, webhookTargets],
+  )
+
+  useEffect(() => {
+    if (webhookTargets.length === 0) {
+      if (selectedWebhookTargetId !== '') {
+        setSelectedWebhookTargetId('')
+      }
+      return
+    }
+    if (!webhookTargets.some((target) => target.id === selectedWebhookTargetId)) {
+      setSelectedWebhookTargetId(webhookTargets[0]?.id ?? '')
+    }
+  }, [selectedWebhookTargetId, webhookTargets])
+
   useEffect(() => {
     setRouteEditors((previous) => {
       const next: Record<string, RouteEditorState> = {}
       for (const actionName of routingActionNames) {
         next[actionName] =
-          previous[actionName] ?? createRouteEditor(routeRecordForAction(routingConfig, actionName))
+          previous[actionName] ?? createRouteEditor(resolvedRouteRecordForAction(routingConfig, effectiveActionsConfig, actionName))
       }
       return next
     })
@@ -303,7 +526,20 @@ export function ActionsPage() {
     if (!routingActionNames.includes(selectedRouteActionName)) {
       setSelectedRouteActionName(routingActionNames[0])
     }
-  }, [routingActionNames, routingConfig, selectedRouteActionName])
+  }, [effectiveActionsConfig, routingActionNames, routingConfig, selectedRouteActionName])
+
+  useEffect(() => {
+    if (routingActionNames.length === 0) {
+      if (selectedPolicyActionName !== '') {
+        setSelectedPolicyActionName('')
+      }
+      return
+    }
+
+    if (!routingActionNames.includes(selectedPolicyActionName)) {
+      setSelectedPolicyActionName(routingActionNames[0])
+    }
+  }, [routingActionNames, selectedPolicyActionName])
 
   const connector = asRecord(routingConfig.connector)
   const inboundAuth = asRecord(connector['inbound-auth'])
@@ -315,7 +551,7 @@ export function ActionsPage() {
   const authzUpstreamAuth = asRecord(authzUpstream.auth)
 
   const selectedRouteEditor = selectedRouteActionName
-    ? routeEditors[selectedRouteActionName] ?? createRouteEditor(routeRecordForAction(routingConfig, selectedRouteActionName))
+    ? routeEditors[selectedRouteActionName] ?? createRouteEditor(resolvedRouteRecordForAction(routingConfig, effectiveActionsConfig, selectedRouteActionName))
     : null
 
   const selectedRouteSummary = summarizeRoute(selectedRouteEditor)
@@ -378,6 +614,20 @@ export function ActionsPage() {
     },
   })
 
+  const webhookOverviewQuery = useQuery({
+    queryKey: ['deployment-webhooks-overview', selectedDeploymentId],
+    queryFn: () => fetchDeploymentWebhookOverview(selectedDeploymentId, 50),
+    enabled: selectedDeploymentId.length > 0 && canOperate && Boolean(workspace?.deployment.runtimeBaseUrl),
+    refetchInterval: 10_000,
+  })
+
+  const retryWebhookMutation = useMutation({
+    mutationFn: (deliveryId: string) => retryDeploymentWebhookDelivery(selectedDeploymentId, deliveryId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['deployment-webhooks-overview', selectedDeploymentId] })
+    },
+  })
+
   const handleSaveActions = () => {
     if (!draftQuery.data) {
       return
@@ -404,6 +654,158 @@ export function ActionsPage() {
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Invalid JSON')
     }
+  }
+
+  const applyActionsConfigMutation = (mutator: (next: Record<string, unknown>) => void) => {
+    try {
+      const baseConfig = (() => {
+        try {
+          return JSON.parse(editorValue) as unknown
+        } catch {
+          return draftQuery.data?.actionsConfig ?? {}
+        }
+      })()
+      const nextConfig = normalizeActionsConfigForEdit(baseConfig)
+      mutator(nextConfig)
+      setEditorValue(JSON.stringify(nextConfig, null, 2))
+      setParseError(null)
+    } catch (error) {
+      setParseError(error instanceof Error ? error.message : 'Invalid webhook configuration')
+    }
+  }
+
+  const handleAddWebhookTarget = () => {
+    applyActionsConfigMutation((nextConfig) => {
+      const webhookTargets = asArray(nextConfig.webhookTargets)
+      const targetId = nextWebhookTargetId(nextConfig)
+      webhookTargets.push({
+        id: targetId,
+        urlSecretRef: '',
+        signingSecretRef: '',
+      })
+      nextConfig.webhookTargets = webhookTargets
+      setSelectedWebhookTargetId(targetId)
+    })
+  }
+
+  const handleUpdateWebhookTargetField = (
+    targetId: string,
+    key: 'id' | 'urlSecretRef' | 'signingSecretRef' | 'timeoutMs' | 'maxAttempts',
+    value: string,
+  ) => {
+    applyActionsConfigMutation((nextConfig) => {
+      const webhookTargets = asArray(nextConfig.webhookTargets)
+      const target = webhookTargets.find((candidate) => isRecord(candidate) && candidate.id === targetId)
+      if (!isRecord(target)) {
+        throw new Error(`Webhook target ${targetId} was not found.`)
+      }
+
+      if (key === 'id') {
+        const nextId = value.trim()
+        if (!nextId) {
+          throw new Error('Webhook target id is required.')
+        }
+        if (nextId !== targetId && webhookTargets.some((candidate) => isRecord(candidate) && candidate.id === nextId)) {
+          throw new Error(`Webhook target id ${nextId} is already in use.`)
+        }
+        target.id = nextId
+        for (const action of asArray(nextConfig.actions)) {
+          if (!isRecord(action)) {
+            continue
+          }
+          action.postPolicies = asArray(action.postPolicies).map((policy) => {
+            if (!isRecord(policy) || policy.targetRef !== targetId) {
+              return policy
+            }
+            return {
+              ...policy,
+              targetRef: nextId,
+            }
+          })
+        }
+        setSelectedWebhookTargetId(nextId)
+        return
+      }
+
+      if (key === 'timeoutMs' || key === 'maxAttempts') {
+        setOptionalPositiveInteger(target, key, value)
+        return
+      }
+
+      target[key] = value
+    })
+  }
+
+  const handleDeleteWebhookTarget = (targetId: string) => {
+    applyActionsConfigMutation((nextConfig) => {
+      nextConfig.webhookTargets = asArray(nextConfig.webhookTargets).filter(
+        (candidate) => !(isRecord(candidate) && candidate.id === targetId),
+      )
+      nextConfig.actions = asArray(nextConfig.actions).map((action) => {
+        if (!isRecord(action)) {
+          return action
+        }
+        return {
+          ...action,
+          postPolicies: asArray(action.postPolicies).filter(
+            (policy) => !(isRecord(policy) && policy.targetRef === targetId),
+          ),
+        }
+      })
+    })
+  }
+
+  const handleAddWebhookPolicy = (actionName: string) => {
+    if (!actionName) {
+      return
+    }
+    applyActionsConfigMutation((nextConfig) => {
+      const defaultTargetRef = extractWebhookTargets(nextConfig)[0]?.id ?? ''
+      if (!defaultTargetRef) {
+        throw new Error('Create at least one webhook target before adding a post-action webhook.')
+      }
+      const action = asArray(nextConfig.actions).find((candidate) => isRecord(candidate) && candidate.name === actionName)
+      if (!isRecord(action)) {
+        throw new Error(`Action ${actionName} was not found.`)
+      }
+      const postPolicies = asArray(action.postPolicies)
+      postPolicies.push({
+        type: 'webhook',
+        targetRef: defaultTargetRef,
+        eventType: '',
+      })
+      action.postPolicies = postPolicies
+    })
+  }
+
+  const handleUpdateWebhookPolicyField = (
+    actionName: string,
+    index: number,
+    key: 'targetRef' | 'eventType',
+    value: string,
+  ) => {
+    applyActionsConfigMutation((nextConfig) => {
+      const action = asArray(nextConfig.actions).find((candidate) => isRecord(candidate) && candidate.name === actionName)
+      if (!isRecord(action)) {
+        throw new Error(`Action ${actionName} was not found.`)
+      }
+      const postPolicies = asArray(action.postPolicies)
+      const policy = postPolicies[index]
+      if (!isRecord(policy)) {
+        throw new Error(`Webhook policy ${index + 1} for ${actionName} was not found.`)
+      }
+      policy[key] = value
+    })
+  }
+
+  const handleDeleteWebhookPolicy = (actionName: string, index: number) => {
+    applyActionsConfigMutation((nextConfig) => {
+      const action = asArray(nextConfig.actions).find((candidate) => isRecord(candidate) && candidate.name === actionName)
+      if (!isRecord(action)) {
+        return
+      }
+      action.postPolicies = asArray(action.postPolicies).filter((_, candidateIndex) => candidateIndex !== index)
+    })
   }
 
   const updateRoutingConfig = (mutator: (next: Record<string, unknown>) => void) => {
@@ -504,7 +906,7 @@ export function ActionsPage() {
     const nextRoutingConfig = normalizeRoutingConfig(draftQuery.data.routingConfig)
     const draftActionNames = actionNamesFromConfig(draftQuery.data.actionsConfig)
     setRoutingConfig(nextRoutingConfig)
-    setRouteEditors(buildRouteEditors(draftActionNames, nextRoutingConfig))
+    setRouteEditors(buildRouteEditors(draftActionNames, nextRoutingConfig, draftQuery.data.actionsConfig))
     setSelectedRouteActionName((current) =>
       draftActionNames.includes(current) ? current : (draftActionNames[0] ?? ''),
     )
@@ -659,6 +1061,11 @@ export function ActionsPage() {
                         label={`${actionPreview.filter((action) => action.anonymousAllowed).length} anonymous-enabled`}
                         variant="outlined"
                       />
+                      <Chip label={`${webhookTargets.length} webhook targets`} variant="outlined" />
+                      <Chip
+                        label={`${actionPreview.reduce((count, action) => count + extractActionWebhookPolicies(effectiveActionsConfig, action.name).length, 0)} post-action webhooks`}
+                        variant="outlined"
+                      />
                     </Stack>
 
                     <Divider />
@@ -717,6 +1124,389 @@ export function ActionsPage() {
               </Card>
             </Grid>
           </Grid>
+
+          <Grid container spacing={2.5}>
+            <Grid item xs={12} lg={6}>
+              <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="h6">Webhook targets</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        Define the reusable outbound targets once, then attach them to action post-policies. URLs stay secret-backed.
+                      </Typography>
+                    </Box>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`${webhookTargets.length} targets`} color="primary" />
+                      <Chip
+                        label={`${webhookTargets.filter((target) => target.linkedActions.length > 0).length} connected`}
+                        variant="outlined"
+                      />
+                    </Stack>
+
+                    {webhookTargets.length === 0 ? (
+                      <Alert severity="info">
+                        No webhook targets are configured yet. Add one here instead of hand-editing <code>webhookTargets</code>.
+                      </Alert>
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Target</TableCell>
+                            <TableCell>URL secret</TableCell>
+                            <TableCell>Linked actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {webhookTargets.map((target) => (
+                            <TableRow
+                              key={target.id}
+                              hover
+                              selected={target.id === selectedWebhookTargetId}
+                              onClick={() => setSelectedWebhookTargetId(target.id)}
+                              sx={{ cursor: 'pointer' }}
+                            >
+                              <TableCell sx={{ fontWeight: 600 }}>{target.id}</TableCell>
+                              <TableCell>{target.urlSecretRef || 'Unset'}</TableCell>
+                              <TableCell>{target.linkedActions.length}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+
+                    <Stack direction="row" spacing={1.5}>
+                      <Button variant="outlined" onClick={handleAddWebhookTarget} disabled={!canEdit}>
+                        Add target
+                      </Button>
+                      <Button
+                        color="error"
+                        variant="outlined"
+                        onClick={() => selectedWebhookTarget && handleDeleteWebhookTarget(selectedWebhookTarget.id)}
+                        disabled={!canEdit || !selectedWebhookTarget}
+                      >
+                        Delete target
+                      </Button>
+                    </Stack>
+
+                    {selectedWebhookTarget ? (
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Target id"
+                            value={selectedWebhookTarget.id}
+                            onChange={(event) => handleUpdateWebhookTargetField(selectedWebhookTarget.id, 'id', event.target.value)}
+                            helperText="Stable reference used by action post-policies."
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="URL secret ref"
+                            value={selectedWebhookTarget.urlSecretRef}
+                            onChange={(event) => handleUpdateWebhookTargetField(selectedWebhookTarget.id, 'urlSecretRef', event.target.value)}
+                            helperText="Runtime resolves the real target URL from this secret."
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Signing secret ref"
+                            value={selectedWebhookTarget.signingSecretRef}
+                            onChange={(event) => handleUpdateWebhookTargetField(selectedWebhookTarget.id, 'signingSecretRef', event.target.value)}
+                            helperText="Optional HMAC signing secret."
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            label="Timeout ms"
+                            value={selectedWebhookTarget.timeoutMs ?? ''}
+                            onChange={(event) => handleUpdateWebhookTargetField(selectedWebhookTarget.id, 'timeoutMs', event.target.value)}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            label="Max attempts"
+                            value={selectedWebhookTarget.maxAttempts ?? ''}
+                            onChange={(event) => handleUpdateWebhookTargetField(selectedWebhookTarget.id, 'maxAttempts', event.target.value)}
+                          />
+                        </Grid>
+                      </Grid>
+                    ) : null}
+
+                    <Alert severity="info">
+                      These controls update the draft action JSON. Use <strong>Save actions config</strong> to persist them.
+                    </Alert>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} lg={6}>
+              <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="h6">Selected action post-action webhooks</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        Attach async webhooks to the currently selected action without dropping into raw JSON.
+                      </Typography>
+                    </Box>
+
+                    <TextField
+                      select
+                      fullWidth
+                      label="Action"
+                      value={selectedActionForPolicies}
+                      onChange={(event) => setSelectedPolicyActionName(event.target.value)}
+                      disabled={routingActionNames.length === 0}
+                      helperText="Choose which action receives post-action webhook deliveries."
+                    >
+                      {routingActionNames.map((actionName) => (
+                        <MenuItem key={actionName} value={actionName}>
+                          {actionName}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+
+                    {selectedActionForPolicies ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={selectedActionForPolicies} color="primary" />
+                        <Chip label={`${selectedActionWebhookPolicies.length} webhook policies`} variant="outlined" />
+                      </Stack>
+                    ) : null}
+
+                    {!selectedActionForPolicies ? (
+                      <Alert severity="info">Add or select an action to attach post-action webhooks.</Alert>
+                    ) : selectedActionWebhookPolicies.length === 0 ? (
+                      <Alert severity="info">
+                        No post-action webhooks are configured for <strong>{selectedActionForPolicies}</strong> yet.
+                      </Alert>
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Target</TableCell>
+                            <TableCell>Event type</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell align="right">Remove</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {selectedActionWebhookPolicies.map((policy) => (
+                            <TableRow key={`${policy.actionName}-${policy.index}`}>
+                              <TableCell sx={{ minWidth: 220 }}>
+                                <TextField
+                                  select
+                                  fullWidth
+                                  size="small"
+                                  value={policy.targetRef}
+                                  onChange={(event) =>
+                                    handleUpdateWebhookPolicyField(policy.actionName, policy.index, 'targetRef', event.target.value)
+                                  }
+                                >
+                                  {webhookTargets.map((target) => (
+                                    <MenuItem key={target.id} value={target.id}>
+                                      {target.id}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                              </TableCell>
+                              <TableCell sx={{ minWidth: 240 }}>
+                                <TextField
+                                  fullWidth
+                                  size="small"
+                                  value={policy.eventType}
+                                  onChange={(event) =>
+                                    handleUpdateWebhookPolicyField(policy.actionName, policy.index, 'eventType', event.target.value)
+                                  }
+                                  placeholder="order.cancelled"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  size="small"
+                                  label={policy.targetExists ? 'Target found' : 'Missing target'}
+                                  color={policy.targetExists ? 'success' : 'warning'}
+                                  variant={policy.targetExists ? 'filled' : 'outlined'}
+                                />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Button
+                                  color="error"
+                                  size="small"
+                                  onClick={() => handleDeleteWebhookPolicy(policy.actionName, policy.index)}
+                                  disabled={!canEdit}
+                                >
+                                  Remove
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+
+                    <Stack direction="row" spacing={1.5}>
+                      <Button
+                        variant="outlined"
+                        onClick={() => handleAddWebhookPolicy(selectedActionForPolicies)}
+                        disabled={!canEdit || !selectedActionForPolicies || webhookTargets.length === 0}
+                      >
+                        Add webhook policy
+                      </Button>
+                      <Button
+                        variant="contained"
+                        startIcon={<SaveRoundedIcon />}
+                        onClick={handleSaveActions}
+                        disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading}
+                      >
+                        {saveMutation.isPending ? 'Saving...' : 'Save webhook changes'}
+                      </Button>
+                    </Stack>
+
+                    {webhookTargets.length === 0 ? (
+                      <Alert severity="warning">
+                        Create a webhook target first. Post-action policies only reference target ids; they do not carry raw URLs inline.
+                      </Alert>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Live webhook deliveries</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Inspect async delivery state on the active runtime and retry failed webhook jobs from the platform.
+                  </Typography>
+                </Box>
+
+                {!workspace?.deployment.runtimeBaseUrl ? (
+                  <Alert severity="info">
+                    Apply the deployment before expecting live webhook delivery operations. This panel reads the runtime admin surface.
+                  </Alert>
+                ) : !canOperate ? (
+                  <Alert severity="info">
+                    Viewing live webhook deliveries requires deployment operator access or higher.
+                  </Alert>
+                ) : webhookOverviewQuery.isLoading ? (
+                  <Alert severity="info">Loading live webhook deliveries…</Alert>
+                ) : webhookOverviewQuery.isError ? (
+                  <Alert severity="error">
+                    {webhookOverviewQuery.error instanceof Error
+                      ? webhookOverviewQuery.error.message
+                      : 'Failed to load live webhook deliveries'}
+                  </Alert>
+                ) : webhookOverviewQuery.data ? (
+                  <>
+                    <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
+                      {Object.entries(webhookOverviewQuery.data.counts).map(([status, count]) => (
+                        <Chip key={status} label={`${status}: ${count}`} variant="outlined" />
+                      ))}
+                      <Chip label={`Retry eligible: ${webhookOverviewQuery.data.retryEligibleCount}`} color="primary" />
+                      <Button
+                        variant="outlined"
+                        onClick={() => webhookOverviewQuery.refetch()}
+                        disabled={webhookOverviewQuery.isFetching}
+                      >
+                        {webhookOverviewQuery.isFetching ? 'Refreshing...' : 'Refresh deliveries'}
+                      </Button>
+                    </Stack>
+
+                    {retryWebhookMutation.isError ? (
+                      <Alert severity="error">
+                        {retryWebhookMutation.error instanceof Error
+                          ? retryWebhookMutation.error.message
+                          : 'Failed to retry webhook delivery'}
+                      </Alert>
+                    ) : null}
+                    {retryWebhookMutation.isSuccess ? (
+                      <Alert severity="success">{retryWebhookMutation.data.summaryMessage}</Alert>
+                    ) : null}
+
+                    {webhookOverviewQuery.data.recentDeliveries.length === 0 ? (
+                      <Alert severity="info">No webhook delivery rows have been recorded by the active runtime yet.</Alert>
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Delivery</TableCell>
+                            <TableCell>Action</TableCell>
+                            <TableCell>Target</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Attempts</TableCell>
+                            <TableCell>Last error</TableCell>
+                            <TableCell align="right">Retry</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {webhookOverviewQuery.data.recentDeliveries.map((delivery) => (
+                            <TableRow key={delivery.id}>
+                              <TableCell sx={{ fontWeight: 600 }}>
+                                <Stack spacing={0.25}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    {delivery.eventType}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {delivery.id}
+                                  </Typography>
+                                </Stack>
+                              </TableCell>
+                              <TableCell>{delivery.actionName}</TableCell>
+                              <TableCell>{delivery.targetRef}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  size="small"
+                                  label={delivery.status}
+                                  color={
+                                    delivery.status === 'DELIVERED'
+                                      ? 'success'
+                                      : delivery.status === 'FAILED'
+                                        ? 'error'
+                                        : delivery.status === 'IN_PROGRESS'
+                                          ? 'warning'
+                                          : 'default'
+                                  }
+                                  variant={delivery.status === 'DELIVERED' ? 'filled' : 'outlined'}
+                                />
+                              </TableCell>
+                              <TableCell>{delivery.attemptCount} / {delivery.maxAttempts}</TableCell>
+                              <TableCell>
+                                <Typography variant="body2" color="text.secondary">
+                                  {delivery.lastError || '—'}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => retryWebhookMutation.mutate(delivery.id)}
+                                  disabled={!delivery.retryEligible || retryWebhookMutation.isPending}
+                                >
+                                  Retry
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>

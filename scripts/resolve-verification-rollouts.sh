@@ -10,7 +10,7 @@ set -euo pipefail
 #   ./scripts/resolve-verification-rollouts.sh
 #
 # Optional rollout ensure/recreate:
-#   REQUIRED_ROLLOUT_KEYS="ecommerce,qdrant,pinecone,milvus,weaviate" \
+#   REQUIRED_ROLLOUT_KEYS="ecommerce,marketplace,qdrant,pinecone,milvus,weaviate" \
 #   ALLOW_ROLLOUT_MUTATION=true \
 #   ./scripts/resolve-verification-rollouts.sh
 
@@ -21,7 +21,7 @@ PLATFORM_COOKIE="${PLATFORM_COOKIE:-}"
 PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 
-REQUIRED_ROLLOUT_KEYS="${REQUIRED_ROLLOUT_KEYS-ecommerce,qdrant,pinecone,milvus,weaviate}"
+REQUIRED_ROLLOUT_KEYS="${REQUIRED_ROLLOUT_KEYS-ecommerce,marketplace,qdrant,pinecone,milvus,weaviate}"
 ALLOW_ROLLOUT_MUTATION="${ALLOW_ROLLOUT_MUTATION:-false}"
 WAIT_FOR_VERIFICATION_READY="${WAIT_FOR_VERIFICATION_READY:-true}"
 ROLLOUT_READY_TIMEOUT_ATTEMPTS="${ROLLOUT_READY_TIMEOUT_ATTEMPTS:-120}"
@@ -163,13 +163,24 @@ platform_session_login() {
   cat > "${payload}" <<EOF
 {"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
 EOF
-  local status
-  status="$(
-    curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
-      -H "Content-Type: application/json" \
-      --data "@${payload}" \
-      "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
-  )"
+  local status=""
+  local attempt=1
+  while true; do
+    status="$(
+      curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
+        -H "Content-Type: application/json" \
+        --data "@${payload}" \
+        "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
+    )"
+    if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient platform login returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
   rm -f "${payload}"
   if [[ "${status}" != "200" ]]; then
     echo "Platform login failed (HTTP ${status})." >&2
@@ -248,7 +259,7 @@ resolved = {
     "mutatedKeys": mutated_keys,
     "allRequiredReady": True,
     "unreadyKeys": [],
-    "items": {key: item_summary(key) for key in ["ecommerce", "qdrant", "pinecone", "milvus", "weaviate"]},
+    "items": {key: item_summary(key) for key in ["ecommerce", "marketplace", "qdrant", "pinecone", "milvus", "weaviate"]},
 }
 
 for required in required_keys:
@@ -258,6 +269,7 @@ for required in required_keys:
         resolved["unreadyKeys"].append(required)
 
 resolved["ecommerceDeploymentId"] = (item_map.get("ecommerce") or {}).get("deploymentId")
+resolved["marketplaceDeploymentId"] = (item_map.get("marketplace") or {}).get("deploymentId")
 resolved["qdrantDeploymentId"] = (item_map.get("qdrant") or {}).get("deploymentId")
 resolved["pineconeDeploymentId"] = (item_map.get("pinecone") or {}).get("deploymentId")
 resolved["milvusDeploymentId"] = (item_map.get("milvus") or {}).get("deploymentId")
@@ -293,6 +305,7 @@ lines = [
     ("unready_keys", ",".join(payload.get("unreadyKeys") or [])),
     ("mutated_keys", ",".join(payload.get("mutatedKeys") or [])),
     ("ecommerce_deployment_id", payload.get("ecommerceDeploymentId") or ""),
+    ("marketplace_deployment_id", payload.get("marketplaceDeploymentId") or ""),
     ("qdrant_deployment_id", payload.get("qdrantDeploymentId") or ""),
     ("pinecone_deployment_id", payload.get("pineconeDeploymentId") or ""),
     ("milvus_deployment_id", payload.get("milvusDeploymentId") or ""),

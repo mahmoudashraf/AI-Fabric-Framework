@@ -192,7 +192,13 @@ public class DeploymentManagedVectorProvisioningService {
         if (ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)) {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT);
-            ensureManagedQdrantCloudCluster(deploymentId, effectiveProviderConfig, entityConfig, details);
+            if (reuseManagedQdrantSharedRoot(effectiveProviderConfig)) {
+                ensureManagedQdrantCollections(deploymentId, effectiveProviderConfig, entityConfig, details);
+                details.put("mode", "MANAGED_SHARED_COLLECTIONS");
+                details.put("sharedRootReused", true);
+            } else {
+                ensureManagedQdrantCloudCluster(deploymentId, effectiveProviderConfig, entityConfig, details);
+            }
             return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
         }
 
@@ -293,13 +299,22 @@ public class DeploymentManagedVectorProvisioningService {
                                                 ObjectNode details) {
         String baseUrl = buildQdrantBaseUrl(effectiveProviderConfig);
         int vectorDimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
-        String apiKey = resolveOptionalProviderSecret(deploymentId, "QDRANT_API_KEY");
+        String apiKey = resolveOptionalProviderSecret(
+            deploymentId,
+            "QDRANT_API_KEY",
+            ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(effectiveProviderConfig)
+        );
         ArrayNode collections = reconcileQdrantCollections(baseUrl, resolveEntityTypes(entityConfig), vectorDimensions, apiKey);
 
         details.put("mode", "MANAGED_COLLECTIONS");
         details.put("baseUrl", baseUrl);
         details.put("vectorDimensions", vectorDimensions);
         details.set("collections", collections);
+    }
+
+    private boolean reuseManagedQdrantSharedRoot(JsonNode providerConfig) {
+        return ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)
+            && StringUtils.hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig));
     }
 
     private void ensureManagedQdrantCloudCluster(String deploymentId,
@@ -650,15 +665,15 @@ public class DeploymentManagedVectorProvisioningService {
                                                                      int vectorDimensions,
                                                                      String apiKey) {
         RailwayProvisioningException lastFailure = null;
-        for (int attempt = 1; attempt <= 10; attempt += 1) {
+        for (int attempt = 1; attempt <= 15; attempt += 1) {
             try {
                 return reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, apiKey);
             } catch (RailwayProvisioningException ex) {
-                if (!isQdrantPermissionPropagationFailure(ex) || attempt == 10) {
+                if (!isQdrantStartupPropagationFailure(ex) || attempt == 15) {
                     throw ex;
                 }
                 lastFailure = ex;
-                sleep(500L, "Interrupted while waiting for Qdrant database API key propagation.");
+                sleep(2000L, "Interrupted while waiting for Qdrant collection provisioning prerequisites.");
             }
         }
         throw lastFailure == null
@@ -964,11 +979,15 @@ public class DeploymentManagedVectorProvisioningService {
         }
     }
 
-    private boolean isQdrantPermissionPropagationFailure(RailwayProvisioningException ex) {
+    private boolean isQdrantStartupPropagationFailure(RailwayProvisioningException ex) {
         String message = ex.getMessage();
         return StringUtils.hasText(message)
             && message.contains("Qdrant")
-            && message.contains("HTTP 403");
+            && (message.contains("HTTP 403")
+            || message.contains("HTTP 429")
+            || message.contains("HTTP 502")
+            || message.contains("HTTP 503")
+            || message.contains("HTTP 504"));
     }
 
     private void sleep(long millis, String message) {
@@ -1002,8 +1021,14 @@ public class DeploymentManagedVectorProvisioningService {
     }
 
     private String resolveOptionalProviderSecret(String deploymentId, String secretPurpose) {
+        return resolveOptionalProviderSecret(deploymentId, secretPurpose, null);
+    }
+
+    private String resolveOptionalProviderSecret(String deploymentId,
+                                                 String secretPurpose,
+                                                 String managedSecretName) {
         DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
-            deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+            deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, managedSecretName);
         return resolved.resolved() ? resolved.value() : null;
     }
 

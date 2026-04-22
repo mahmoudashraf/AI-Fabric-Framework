@@ -119,7 +119,7 @@ on:
         description: Current Weaviate Cloud host.
         required: false
         type: string
-        default: l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud
+        default: weaviate-external-verify-dev.up.railway.app
       weaviate_port:
         description: Weaviate port.
         required: false
@@ -241,7 +241,7 @@ on:
         description: Current Weaviate Cloud host.
         required: false
         type: string
-        default: l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud
+        default: weaviate-external-verify-dev.up.railway.app
       weaviate_port:
         description: Weaviate port.
         required: false

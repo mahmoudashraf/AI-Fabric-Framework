@@ -1,5 +1,5 @@
 import { getWidgetConfig } from "@/config";
-import type { RuntimeAuthContextSummary } from "@/types";
+import type { RuntimeAuthContextSummary, RuntimeShellConfigSummary } from "@/types";
 import { apiFetchJson, apiFetchResponse } from "./client";
 
 export type SuggestionsResponse = {
@@ -26,7 +26,7 @@ function normalizePath(value: string): string {
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
-function routeOverride(name: "chatQueryUrl" | "suggestionsUrl" | "authContextUrl") {
+function routeOverride(name: "chatQueryUrl" | "suggestionsUrl" | "authContextUrl" | "shellConfigUrl") {
   const routes = getWidgetConfig().apiConfig.runtimeRoutes;
   return trimToNull(routes?.[name]);
 }
@@ -54,6 +54,14 @@ function authContextPath() {
     return normalizePath(configuredPath);
   }
   return "/chat/me/auth-context";
+}
+
+function shellConfigPath() {
+  const configuredPath = routeOverride("shellConfigUrl");
+  if (configuredPath) {
+    return normalizePath(configuredPath);
+  }
+  return "/chat/me/shell-config";
 }
 
 function resolveUrl(path: string): string {
@@ -122,4 +130,16 @@ export function resolvedAuthContextUrl() {
 
 export async function fetchRuntimeAuthContext() {
   return apiFetchJson<RuntimeAuthContextSummary>(authContextPath());
+}
+
+export function resolvedShellConfigPath() {
+  return shellConfigPath();
+}
+
+export function resolvedShellConfigUrl() {
+  return resolveUrl(shellConfigPath());
+}
+
+export async function fetchRuntimeShellConfig() {
+  return apiFetchJson<RuntimeShellConfigSummary>(shellConfigPath());
 }

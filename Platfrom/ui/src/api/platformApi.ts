@@ -238,6 +238,805 @@ export type DeploymentWorkspaceSummary = {
   verificationRunCount: number
 }
 
+export type MarketplacePluginContributionSummary = {
+  templateCuratedModuleId: string | null
+  actionIds: string[]
+  knowledgeSourceIds: string[]
+  shellModuleIds: string[]
+  shellCardIds: string[]
+  automationWorkflowIds: string[]
+  inferenceProfileIds: string[]
+  inferenceEndpointProfileRefs: string[]
+  inferenceManagedServiceRefs: string[]
+}
+
+export type PlatformManagedInferenceEndpointSummary = {
+  id: string
+  profileRef: string
+  serviceId: string | null
+  endpointPurpose: string | null
+  displayName: string
+  providerType: string
+  protocolType: string | null
+  baseUrl: string | null
+  deploymentName: string | null
+  apiVersion: string | null
+  secretName: string | null
+  status: string
+}
+
+export type PlatformManagedInferenceServiceSummary = {
+  id: string
+  serviceRef: string
+  displayName: string
+  serviceKind: string
+  deploymentMode: string
+  providerType: string
+  protocolType: string
+  modelId: string | null
+  environmentScope: string | null
+  tierScope: string | null
+  deploymentId: string | null
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  railwayServiceId: string | null
+  desiredReplicas: number | null
+  actualReplicas: number | null
+  minReplicas: number | null
+  maxReplicas: number | null
+  autoscalingMode: string | null
+  baseUrl: string | null
+  privateNetworkUrl: string | null
+  healthPath: string | null
+  secretName: string | null
+  status: string
+  secretConfigured: boolean
+  lastDeploymentId: string | null
+  lastReconciledAt: string | null
+  lastReconcileStatus: string | null
+  lastReconcileMessage: string | null
+  lastHealthyAt: string | null
+  lastProbeAt: string | null
+  lastSuccessfulProbeAt: string | null
+  lastFailedProbeAt: string | null
+  lastProbeStatus: string | null
+  lastProbeMessage: string | null
+  lastVerifiedOperation: string | null
+  lastVerifiedAt: string | null
+  lastVerifiedStatus: string | null
+  lastVerifiedMessage: string | null
+  driftStatus: string | null
+  driftMessage: string | null
+  dependentDeploymentsCount: number
+  dependentActiveDeploymentsCount: number
+  endpoints: PlatformManagedInferenceEndpointSummary[]
+}
+
+export type UpdatePlatformManagedInferenceServiceScaleRequest = {
+  desiredReplicas: number
+}
+
+export type RotatePlatformManagedInferenceServiceSecretRequest = {
+  value: string
+}
+
+export type PlatformManagedInferenceProbeSummary = {
+  key: string
+  label: string
+  status: string
+  endpoint: string | null
+  method: string
+  message: string
+  checkedAt: string
+}
+
+export type PlatformManagedInferenceHealthSummary = {
+  serviceRef: string
+  status: string
+  railwayLifecycleManaged: boolean
+  secretConfigured: boolean
+  driftStatus: string
+  driftMessage: string
+  lastHealthyAt: string | null
+  lastProbeAt: string | null
+  lastSuccessfulProbeAt: string | null
+  lastFailedProbeAt: string | null
+  lastProbeStatus: string | null
+  lastProbeMessage: string | null
+  healthProbe: PlatformManagedInferenceProbeSummary
+  inferenceProbe: PlatformManagedInferenceProbeSummary
+}
+
+export type PlatformManagedInferenceDependentDeploymentSummary = {
+  deploymentId: string
+  deploymentName: string
+  environmentName: string
+  deploymentStatus: string
+  activeVersionId: string | null
+  currentDraftUsesService: boolean
+  activeVersionUsesService: boolean
+  runtimeActive: boolean
+  usages: string[]
+}
+
+export type PlatformManagedProductServiceSummary = {
+  id: string
+  serviceRef: string
+  displayName: string
+  productFamily: string
+  serviceKind: string
+  deploymentMode: string
+  tenantMode: string
+  environmentScope: string | null
+  deploymentId: string | null
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  railwayServiceId: string | null
+  desiredReplicas: number | null
+  actualReplicas: number | null
+  minReplicas: number | null
+  maxReplicas: number | null
+  baseUrl: string | null
+  privateNetworkUrl: string | null
+  healthPath: string | null
+  serviceRoot: string | null
+  dockerfilePath: string | null
+  secretName: string | null
+  status: string
+  secretConfigured: boolean
+  lastDeploymentId: string | null
+  lastReconciledAt: string | null
+  lastReconcileStatus: string | null
+  lastReconcileMessage: string | null
+  lastHealthyAt: string | null
+  lastProbeAt: string | null
+  lastSuccessfulProbeAt: string | null
+  lastFailedProbeAt: string | null
+  lastProbeStatus: string | null
+  lastProbeMessage: string | null
+  lastVerifiedOperation: string | null
+  lastVerifiedAt: string | null
+  lastVerifiedStatus: string | null
+  lastVerifiedMessage: string | null
+  driftStatus: string | null
+  driftMessage: string | null
+  dependentStoresCount: number
+  activeDependentStoresCount: number
+}
+
+export type PlatformManagedProductServiceProbeSummary = {
+  status: string
+  method: string
+  endpoint: string | null
+  statusCode: number
+  message: string
+  checkedAt: string
+}
+
+export type PlatformManagedProductServiceHealthSummary = {
+  serviceRef: string
+  status: string
+  railwayLifecycleManaged: boolean
+  secretConfigured: boolean
+  driftStatus: string
+  driftMessage: string
+  lastHealthyAt: string | null
+  lastProbeAt: string | null
+  lastSuccessfulProbeAt: string | null
+  lastFailedProbeAt: string | null
+  lastProbeStatus: string | null
+  lastProbeMessage: string | null
+  healthProbe: PlatformManagedProductServiceProbeSummary
+}
+
+export type PlatformManagedProductServiceOverviewSummary = {
+  serviceRef: string
+  status: string
+  summaryMessage: string
+  appName: string | null
+  productFamily: string | null
+  serviceKind: string | null
+  environmentScope: string | null
+  platformBaseUrl: string | null
+  publicBaseUrl: string | null
+  adminApiKeyConfigured: boolean
+  serverStartedAt: string | null
+  installs: {
+    totalCount: number
+    installedCount: number
+    uninstalledCount: number
+    credentialReadyCount: number
+    lastAuthenticatedAt: string | null
+    lastUninstalledAt: string | null
+  }
+  stores: {
+    platformAccessStatus: string
+    platformAccessMessage: string
+    totalCount: number
+    readyForGoLiveCount: number
+    storefrontReadyCount: number
+    liveCount: number
+    blockedCount: number
+    lastWebhookAt: string | null
+  }
+  webhookSubscriptions: {
+    status: string
+    message: string
+    webhookUri: string | null
+    expectedCount: number
+    expectedTopics: string[]
+  }
+  billing: {
+    mode: string | null
+    planName: string | null
+    status: string | null
+    merchantApprovalRequired: boolean
+    launchBlocked: boolean
+    message: string | null
+  } | null
+  usage: {
+    generatedAt: string | null
+    lastActivityAt: string | null
+    activeShopsToday: number
+    activeShopsLast7Days: number
+    totalToday: number
+    totalLast7Days: number
+    todayBreakdown: Array<{
+      eventType: string
+      count: number
+    }>
+    last7DayBreakdown: Array<{
+      eventType: string
+      count: number
+    }>
+  } | null
+  capabilities: string[]
+  notYetImplemented: string[]
+}
+
+export type PlatformManagedProductServiceBillingSummary = {
+  mode: string | null
+  planName: string | null
+  status: string | null
+  merchantApprovalRequired: boolean
+  launchBlocked: boolean
+  message: string | null
+}
+
+export type PlatformManagedProductServiceStoreBillingSummary = PlatformManagedProductServiceBillingSummary & {
+  shopDomain: string | null
+}
+
+export type PlatformManagedProductServiceRailwayDeploymentSummary = {
+  id: string
+  status: string | null
+  url: string | null
+  staticUrl: string | null
+  createdAt: string | null
+}
+
+export type PlatformManagedProductServiceDeploymentHistorySummary = {
+  serviceRef: string
+  available: boolean
+  message: string
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  railwayServiceId: string | null
+  generatedAt: string
+  deployments: PlatformManagedProductServiceRailwayDeploymentSummary[]
+}
+
+export type PlatformManagedProductServiceRailwayLogsSummary = {
+  serviceRef: string
+  source: string
+  available: boolean
+  message: string
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  railwayServiceId: string | null
+  railwayDeploymentId: string | null
+  requestedLimit: number
+  filter: string | null
+  startDate: string | null
+  endDate: string | null
+  queriedAt: string
+  entries: RailwayLogEntrySummary[]
+}
+
+export type PlatformManagedProductServiceWebhookSubscriptionSummary = {
+  shopDomain: string | null
+  status: string
+  message: string
+  webhookUri: string | null
+  expectedCount: number
+  readyCount: number
+  missingCount: number
+  driftedCount: number
+  checkedAt: string | null
+  topics: Array<{
+    topic: string | null
+    expectedName: string | null
+    status: string
+    subscriptionId: string | null
+    subscriptionName: string | null
+    subscriptionUri: string | null
+    message: string | null
+  }>
+}
+
+export type CreatePlatformManagedProductServiceRequest = {
+  serviceRef: string
+  displayName: string
+  productFamily: string
+  serviceKind: string
+  deploymentMode: string
+  tenantMode: string
+  environmentScope: string | null
+  deploymentId: string | null
+  desiredReplicas: number | null
+  minReplicas: number | null
+  maxReplicas: number | null
+  baseUrl: string | null
+  healthPath: string | null
+  serviceRoot: string | null
+  dockerfilePath: string | null
+  secretName: string | null
+}
+
+export type UpdatePlatformManagedProductServiceScaleRequest = {
+  desiredReplicas: number
+}
+
+export type RotatePlatformManagedProductServiceSecretRequest = {
+  value: string
+}
+
+export type ShopifyStoreSourcePreflightCategorySummary = {
+  category: string
+  enabled: boolean
+  status: string
+  itemCount: number
+  message: string | null
+}
+
+export type ShopifyStoreSourcePreflightSummary = {
+  overallStatus: string
+  checkedAt: string | null
+  categories: ShopifyStoreSourcePreflightCategorySummary[]
+}
+
+export type ShopifyStoreSyncSummary = {
+  status: string
+  checkedAt: string | null
+  mode: string | null
+  documentCount: number
+  message: string | null
+}
+
+export type ShopifyStoreWidgetSummary = {
+  status: string
+  checkedAt: string | null
+  channel: string | null
+  message: string | null
+  settings: {
+    launcherLabel: string | null
+    welcomeMessage: string | null
+  } | null
+}
+
+export type ShopifyStoreCredentialSummary = {
+  status: string
+  accessTokenPresent: boolean
+  refreshTokenPresent: boolean
+  accessTokenSecretRef: string | null
+  refreshTokenSecretRef: string | null
+  checkedAt: string | null
+  accessTokenExpiresAt: string | null
+  refreshTokenExpiresAt: string | null
+  scopesText: string | null
+  expiring: boolean
+}
+
+export type ShopifyStoreWebhookSummary = {
+  topic: string | null
+  eventType: string | null
+  sourceCategory: string | null
+  receivedAt: string | null
+  invalidateSync: boolean
+  message: string | null
+}
+
+export type ShopifyStoreCapabilitySummary = {
+  actionCount: number
+  knowledgeSourceCount: number
+  shellModuleCount: number
+  marketplaceDatasetCount: number
+  actionNames: string[]
+  knowledgeSourceIds: string[]
+  shellModuleIds: string[]
+  marketplaceDatasetIds: string[]
+}
+
+export type ShopifyStoreLinkedCustomerSummary = {
+  id: string
+  name: string | null
+  slug: string | null
+  status: string | null
+  platformManaged: boolean
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyStoreLinkedDeploymentSummary = {
+  id: string
+  name: string | null
+  environment: string | null
+  templateId: string | null
+  status: string | null
+  customerId: string | null
+  tenantId: string | null
+  activeVersionId: string | null
+  runtimeBaseUrl: string | null
+  connectorBaseUrl: string | null
+  approvalRequiredForApply: boolean
+  approvalRequiredForDelete: boolean
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyStoreLinkedConsumerSummary = {
+  consumerId: string
+  customerId: string | null
+  displayName: string | null
+  status: string | null
+  boundDeploymentId: string | null
+  boundDeploymentName: string | null
+  boundDeploymentEnvironment: string | null
+  boundDeploymentStatus: string | null
+  lastBoundAt: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyStoreBindingInspectionSummary = {
+  shopDomain: string
+  productServiceRef: string
+  customer: ShopifyStoreLinkedCustomerSummary | null
+  deployment: ShopifyStoreLinkedDeploymentSummary | null
+  consumer: ShopifyStoreLinkedConsumerSummary | null
+  latestVersion: DeploymentVersionSummary | null
+  latestRelease: DeploymentReleaseSummary | null
+  warnings: string[]
+}
+
+export type ShopifyStoreConnectionSummary = {
+  id: string
+  shopDomain: string
+  displayName: string | null
+  productServiceId: string
+  productServiceRef: string
+  productServiceDisplayName: string
+  customerId: string | null
+  customerName: string | null
+  deploymentId: string | null
+  deploymentName: string | null
+  deploymentStatus: string | null
+  consumerId: string | null
+  consumerDisplayName: string | null
+  installStatus: string
+  syncStatus: string
+  sourceReadinessStatus: string
+  widgetStatus: string
+  onboardingStatus: string
+  productsEnabled: boolean
+  collectionsEnabled: boolean
+  pagesEnabled: boolean
+  policiesEnabled: boolean
+  credentials: ShopifyStoreCredentialSummary | null
+  sourcePreflight: ShopifyStoreSourcePreflightSummary | null
+  syncDetail: ShopifyStoreSyncSummary | null
+  webhookDetail: ShopifyStoreWebhookSummary | null
+  widgetDetail: ShopifyStoreWidgetSummary | null
+  capabilities: ShopifyStoreCapabilitySummary | null
+  readiness: {
+    overallStatus: string
+    goLiveEligible: boolean
+    storefrontReady: boolean
+    goLiveBlockingReasons: string[]
+    storefrontBlockingReasons: string[]
+    nextActions: string[]
+  } | null
+  latestVersion: DeploymentVersionSummary | null
+  latestRelease: DeploymentReleaseSummary | null
+  lastSourcePreflightAt: string | null
+  lastSyncAt: string | null
+  lastWebhookAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpsertShopifyStoreConnectionRequest = {
+  shopDomain: string
+  displayName: string | null
+  productServiceRef: string
+  customerId: string | null
+  deploymentId: string | null
+  consumerId: string | null
+  installStatus: string | null
+  syncStatus: string | null
+  sourceReadinessStatus: string | null
+  widgetStatus: string | null
+  onboardingStatus: string | null
+  productsEnabled: boolean | null
+  collectionsEnabled: boolean | null
+  pagesEnabled: boolean | null
+  policiesEnabled: boolean | null
+}
+
+export type BootstrapShopifyStoreRequest = {
+  customerName?: string | null
+  deploymentName?: string | null
+  environment?: string | null
+  consumerId?: string | null
+  templatePluginId?: string | null
+  templatePluginVersion?: string | null
+  pluginIds?: string[] | null
+}
+
+export type ShopifyStoreBootstrapSummary = {
+  shopDomain: string
+  customerId: string
+  deploymentId: string
+  consumerId: string
+  createdCustomer: boolean
+  createdDeployment: boolean
+  createdConsumer: boolean
+  installedPluginIds: string[]
+  store: ShopifyStoreConnectionSummary
+}
+
+export type RecordShopifyStoreSourcePreflightRequest = {
+  categories: ShopifyStoreSourcePreflightCategorySummary[]
+}
+
+export type MarketplacePluginPricingSummary = {
+  pricingModel: string
+  amount: number | null
+  currency: string | null
+  billingInterval: string | null
+  trialDays: number | null
+  requiresEntitlement: boolean
+}
+
+export type MarketplacePluginSummary = {
+  id: string
+  slug: string
+  displayName: string
+  pluginType: string
+  publisherSlug: string
+  publisherDisplayName: string
+  shortDescription: string
+  status: string
+  latestVersion: string | null
+  pricing: MarketplacePluginPricingSummary
+  categories: string[]
+  contributions: MarketplacePluginContributionSummary | null
+  updatedAt: string
+}
+
+export type MarketplacePluginVersionSummary = {
+  id: string
+  pluginId: string
+  version: string
+  releaseChannel: string
+  status: string
+  manifest: unknown
+  pricing: MarketplacePluginPricingSummary
+  compatibility: {
+    minPlatformVersion: string | null
+    maxPlatformVersion: string | null
+    requiredCapabilities: string[]
+    supportedDeploymentTargets: string[]
+    supportedAuthModes: string[]
+    supportedProviderModes: string[]
+  }
+  installForm: Array<{
+    id: string
+    label: string
+    type: string
+    required: boolean
+    description: string | null
+    options: string[]
+  }>
+  permissions: {
+    contributesTemplate: boolean
+    contributesActions: boolean
+    contributesKnowledgeSources: boolean
+    contributesProviders: boolean
+    contributesShellPresentation: boolean
+    requiresExternalHttpExecution: boolean
+    requiresSharedDatasetAccess: boolean
+    requiresDeploymentSecrets: boolean
+  }
+  contributions: MarketplacePluginContributionSummary
+  recommendedPluginIds: string[]
+  publishedAt: string
+}
+
+export type MarketplacePluginDetailSummary = {
+  plugin: MarketplacePluginSummary
+  versions: MarketplacePluginVersionSummary[]
+}
+
+export type MarketplaceCategorySummary = {
+  id: string
+  label: string
+  pluginCount: number
+}
+
+export type MarketplacePublisherSummary = {
+  id: string
+  slug: string
+  displayName: string
+  contactEmail: string
+  ownerUserId: string
+  verificationStatus: string
+  status: string
+  submissionCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type MarketplacePublisherSubmissionSummary = {
+  pluginVersionId: string
+  publisherId: string
+  pluginId: string
+  pluginSlug: string
+  pluginDisplayName: string
+  pluginType: string
+  version: string
+  releaseChannel: string
+  status: string
+  bundleSha256: string | null
+  reviewNotes: string | null
+  manifest: unknown
+  submittedAt: string
+  submittedByActorId: string | null
+  reviewedAt: string | null
+  reviewedByActorId: string | null
+}
+
+export type MarketplacePublisherDetailSummary = {
+  publisher: MarketplacePublisherSummary
+  submissions: MarketplacePublisherSubmissionSummary[]
+}
+
+export type CreateMarketplacePublisherRequest = {
+  slug: string
+  displayName: string
+  contactEmail: string
+}
+
+export type UpdateMarketplacePublisherVerificationRequest = {
+  verificationStatus?: string
+  status?: string
+}
+
+export type CreateMarketplacePublisherSubmissionRequest = {
+  pluginSlug?: string
+  releaseChannel?: string
+  manifest: unknown
+}
+
+export type ReviewMarketplacePublisherSubmissionRequest = {
+  reviewNotes?: string | null
+}
+
+export type DeploymentMarketplaceInstallSummary = {
+  id: string
+  deploymentId: string
+  pluginId: string
+  pluginSlug: string
+  pluginDisplayName: string
+  pluginType: string
+  pluginVersionId: string
+  pluginVersion: string
+  status: string
+  config: unknown
+  secretRefs: unknown
+  contributions: MarketplacePluginContributionSummary
+  readinessStatus: string
+  warnings: string[]
+  entitlement: {
+    pricingModel: string
+    amount: number | null
+    currency: string | null
+    billingInterval: string | null
+    status: string
+    requiresEntitlement: boolean
+    entitledForCompilation: boolean
+    graceEndsAt: string | null
+    accessEndsAt: string | null
+    note: string | null
+    updatedAt: string | null
+  }
+  liveState: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeploymentMarketplaceInstallImpactSummary = {
+  installId: string
+  pluginId: string
+  pluginDisplayName: string
+  pluginType: string
+  pluginVersion: string
+  actionIds: string[]
+  knowledgeSourceIds: string[]
+  shellModuleIds: string[]
+  shellCardIds: string[]
+  automationWorkflowIds: string[]
+  inferenceProfileIds: string[]
+  inferenceEndpointProfileRefs: string[]
+}
+
+export type DeploymentMarketplaceImpactSummary = {
+  deploymentId: string
+  totalInstalls: number
+  actionPluginCount: number
+  dataPluginCount: number
+  templatePluginCount: number
+  automationPluginCount: number
+  inferenceProfilePluginCount: number
+  installedPluginIds: string[]
+  actionIds: string[]
+  knowledgeSourceIds: string[]
+  shellModuleIds: string[]
+  shellCardIds: string[]
+  automationWorkflowIds: string[]
+  inferenceProfileIds: string[]
+  inferenceEndpointProfileRefs: string[]
+  installs: DeploymentMarketplaceInstallImpactSummary[]
+  recommendedPluginIds: string[]
+  warnings: string[]
+}
+
+export type DeploymentMarketplaceInstallResolutionSummary = {
+  install: DeploymentMarketplaceInstallSummary
+  impact: DeploymentMarketplaceImpactSummary
+}
+
+export type CreateDeploymentMarketplaceInstallRequest = {
+  pluginId: string
+  pluginVersion: string
+  config?: unknown
+  secretRefs?: unknown
+}
+
+export type UpdateDeploymentMarketplaceInstallRequest = {
+  pluginVersion?: string
+  status?: string
+  config?: unknown
+  secretRefs?: unknown
+}
+
+export type UpdateDeploymentMarketplaceEntitlementRequest = {
+  status: string
+  graceEndsAt?: string | null
+  accessEndsAt?: string | null
+  note?: string | null
+}
+
+export type CreateMarketplaceTemplateBootstrapRequest = {
+  pluginVersion?: string
+  name: string
+  environment: string
+  templateId?: string
+  vectorProvisioningMode?: string
+  customerId?: string
+  tenantId?: string
+}
+
 export type DeploymentConfigReferenceSummary = {
   stage: string
   referenceId: string | null
@@ -771,8 +1570,49 @@ export type DeploymentDraftResponse = {
   providerConfig: unknown
   securityConfig: unknown
   promptConfig: unknown
+  knowledgeSourceConfig: unknown
+  shellConfig: unknown
   createdAt: string
   updatedAt: string
+}
+
+export type DeploymentWebhookDeliverySummary = {
+  id: string
+  actionName: string
+  eventType: string
+  targetRef: string
+  status: string
+  attemptCount: number
+  maxAttempts: number
+  lastStatusCode: number | null
+  lastError: string | null
+  deploymentId: string | null
+  conversationId: string | null
+  requestId: string | null
+  nextAttemptAt: string | null
+  claimedAt: string | null
+  deliveredAt: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  retryEligible: boolean
+}
+
+export type DeploymentWebhookOverviewSummary = {
+  success: boolean
+  contractVersion: string
+  retrySupported: boolean
+  counts: Record<string, number>
+  recentDeliveries: DeploymentWebhookDeliverySummary[]
+  retryEligibleCount: number
+  limit: number
+}
+
+export type DeploymentWebhookRetrySummary = {
+  success: boolean
+  deliveryId: string
+  status: string
+  nextAttemptAt: string | null
+  summaryMessage: string
 }
 
 export type DeploymentPromptRevisionSummary = {
@@ -1278,6 +2118,73 @@ export type DeploymentVerificationRolloutSummary = {
   items: DeploymentVerificationRolloutItemSummary[]
 }
 
+export type PlatformVerificationSuiteStageDefinitionSummary = {
+  key: string
+  label: string
+  stageType: string
+  targetRef: string | null
+  blocking: boolean
+  description: string
+}
+
+export type PlatformVerificationSuiteDefinitionSummary = {
+  key: string
+  label: string
+  description: string
+  releaseBlocking: boolean
+  stages: PlatformVerificationSuiteStageDefinitionSummary[]
+}
+
+export type PlatformVerificationSuiteStageRunSummary = {
+  id: string
+  stageOrder: number
+  stageKey: string
+  stageLabel: string
+  stageType: string
+  targetRef: string | null
+  blocking: boolean
+  status: string
+  summaryMessage: string
+  details: unknown
+  logOutput: string
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
+export type PlatformVerificationSuiteRunSummary = {
+  id: string
+  suiteKey: string
+  suiteLabel: string
+  status: string
+  releaseBlocking: boolean
+  summaryMessage: string
+  requestedByActorId: string
+  requestedByRole: string
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  stages: PlatformVerificationSuiteStageRunSummary[]
+}
+
+export type PlatformVerificationSuiteDispatchSummary = {
+  suiteKey: string
+  summaryMessage: string
+  run: PlatformVerificationSuiteRunSummary
+}
+
+export type PlatformVerificationReleaseGateSummary = {
+  suiteKey: string
+  suiteLabel: string
+  ready: boolean
+  status: string
+  summaryMessage: string
+  freshnessWindow: string
+  evaluatedAt: string
+  expiresAt: string | null
+  latestRun: PlatformVerificationSuiteRunSummary | null
+}
+
 export type PlatformRailwayServiceDiscoverySummary = {
   available: boolean
   summaryMessage: string
@@ -1574,6 +2481,34 @@ export type PurgePlatformTenantSharedVectorHandlesSummary = {
   message: string
 }
 
+export type PlatformConsumerSummary = {
+  consumerId: string
+  customerId: string
+  displayName: string
+  description: string | null
+  status: string
+  boundDeploymentId: string | null
+  boundDeploymentName: string | null
+  boundDeploymentEnvironment: string | null
+  boundDeploymentStatus: string | null
+  lastBoundAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type PlatformConsumerBindingHistorySummary = {
+  consumerId: string
+  customerId: string
+  fromDeploymentId: string | null
+  fromDeploymentName: string | null
+  toDeploymentId: string | null
+  toDeploymentName: string | null
+  reason: string | null
+  actorId: string
+  actorRole: string
+  createdAt: string
+}
+
 export type PlatformCustomerSummary = {
   id: string
   name: string
@@ -1583,9 +2518,11 @@ export type PlatformCustomerSummary = {
   platformManaged: boolean
   tenantCount: number
   deploymentCount: number
+  consumerCount: number
   createdAt: string
   updatedAt: string
   tenants: PlatformTenantSummary[]
+  consumers: PlatformConsumerSummary[]
 }
 
 export type PlatformLoginRequest = {
@@ -1772,6 +2709,10 @@ export class PlatformApiError extends Error {
 
 export function getStoredPlatformApiKey(): string {
   return platformApiKey
+}
+
+export function getPlatformApiBaseUrl(): string {
+  return apiBaseUrl
 }
 
 export function setStoredPlatformApiKey(value: string) {
@@ -2005,6 +2946,446 @@ export function fetchDeploymentDraft(deploymentId: string) {
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
   return request<DeploymentWorkspaceSummary>(`/api/deployments/${deploymentId}/workspace`)
+}
+
+export function fetchDeploymentWebhookOverview(deploymentId: string, limit = 50) {
+  return request<DeploymentWebhookOverviewSummary>(
+    `/api/deployments/${deploymentId}/webhooks/overview?limit=${encodeURIComponent(String(limit))}`,
+  )
+}
+
+export function retryDeploymentWebhookDelivery(deploymentId: string, deliveryId: string) {
+  return request<DeploymentWebhookRetrySummary>(
+    `/api/deployments/${deploymentId}/webhooks/deliveries/${encodeURIComponent(deliveryId)}/retry`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function fetchMarketplacePlugins() {
+  return request<MarketplacePluginSummary[]>('/api/marketplace/plugins')
+}
+
+export function fetchMarketplacePlugin(pluginId: string) {
+  return request<MarketplacePluginDetailSummary>(`/api/marketplace/plugins/${encodeURIComponent(pluginId)}`)
+}
+
+export function fetchMarketplacePluginVersion(pluginId: string, version: string) {
+  return request<MarketplacePluginVersionSummary>(
+    `/api/marketplace/plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}`,
+  )
+}
+
+export function fetchMarketplaceCategories() {
+  return request<MarketplaceCategorySummary[]>('/api/marketplace/categories')
+}
+
+export function fetchMarketplacePublishers() {
+  return request<MarketplacePublisherSummary[]>('/api/marketplace/publishers')
+}
+
+export function fetchMarketplacePublisher(publisherId: string) {
+  return request<MarketplacePublisherDetailSummary>(`/api/marketplace/publishers/${encodeURIComponent(publisherId)}`)
+}
+
+export function fetchMarketplaceInferenceServices() {
+  return request<PlatformManagedInferenceServiceSummary[]>('/api/marketplace/inference-services')
+}
+
+export function fetchMarketplaceInferenceService(serviceRef: string) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}`,
+  )
+}
+
+export function fetchMarketplaceInferenceServiceDependents(serviceRef: string) {
+  return request<PlatformManagedInferenceDependentDeploymentSummary[]>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/dependents`,
+  )
+}
+
+export function fetchMarketplaceInferenceServiceActivity(serviceRef: string) {
+  return request<PlatformAuditEventSummary[]>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/activity`,
+  )
+}
+
+export function fetchMarketplaceInferenceServiceHealth(serviceRef: string) {
+  return request<PlatformManagedInferenceHealthSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/health`,
+  )
+}
+
+export function reconcileMarketplaceInferenceService(serviceRef: string) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/reconcile`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function scaleMarketplaceInferenceService(
+  serviceRef: string,
+  payload: UpdatePlatformManagedInferenceServiceScaleRequest,
+) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/scale`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function restartMarketplaceInferenceService(serviceRef: string) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/restart`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function forceRecreateMarketplaceInferenceService(serviceRef: string) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/force-recreate`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function rotateMarketplaceInferenceServiceSecret(
+  serviceRef: string,
+  payload: RotatePlatformManagedInferenceServiceSecretRequest,
+) {
+  return request<PlatformManagedInferenceServiceSummary>(
+    `/api/marketplace/inference-services/${encodeURIComponent(serviceRef)}/rotate-secret`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function fetchProductServices() {
+  return request<PlatformManagedProductServiceSummary[]>('/api/product-services')
+}
+
+export function createProductService(payload: CreatePlatformManagedProductServiceRequest) {
+  return request<PlatformManagedProductServiceSummary>('/api/product-services', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}`)
+}
+
+export function fetchProductServiceDependents(serviceRef: string) {
+  return request<ShopifyStoreConnectionSummary[]>(`/api/product-services/${encodeURIComponent(serviceRef)}/dependents`)
+}
+
+export function fetchProductServiceActivity(serviceRef: string) {
+  return request<PlatformAuditEventSummary[]>(`/api/product-services/${encodeURIComponent(serviceRef)}/activity`)
+}
+
+export function fetchProductServiceHealth(serviceRef: string) {
+  return request<PlatformManagedProductServiceHealthSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/health`)
+}
+
+export function fetchProductServiceOverview(serviceRef: string) {
+  return request<PlatformManagedProductServiceOverviewSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/overview`)
+}
+
+export function fetchProductServiceWebhookSubscriptions(serviceRef: string, shopDomain: string) {
+  return request<PlatformManagedProductServiceWebhookSubscriptionSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/webhook-subscriptions`,
+  )
+}
+
+export function fetchProductServiceStoreBillingSummary(serviceRef: string, shopDomain: string) {
+  return request<PlatformManagedProductServiceStoreBillingSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/billing-summary`,
+  )
+}
+
+export function fetchProductServiceStoreBinding(serviceRef: string, shopDomain: string) {
+  return request<ShopifyStoreBindingInspectionSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/binding`,
+  )
+}
+
+export function runProductServiceStoreSourcePreflight(serviceRef: string, shopDomain: string) {
+  return request<ShopifyStoreConnectionSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/stores/${encodeURIComponent(shopDomain)}/run-source-preflight`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function fetchProductServiceDeploymentHistory(serviceRef: string, limit = 10) {
+  return request<PlatformManagedProductServiceDeploymentHistorySummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/railway/deployments?limit=${encodeURIComponent(String(limit))}`,
+  )
+}
+
+export function fetchProductServiceRailwayLogs(options: {
+  serviceRef: string
+  source?: string
+  deploymentId?: string
+  limit?: number
+  filter?: string
+}) {
+  const params = new URLSearchParams()
+  if (options.source) params.set('source', options.source)
+  if (options.deploymentId) params.set('deploymentId', options.deploymentId)
+  if (options.limit != null) params.set('limit', String(options.limit))
+  if (options.filter) params.set('filter', options.filter)
+  const suffix = params.toString() ? `?${params.toString()}` : ''
+  return request<PlatformManagedProductServiceRailwayLogsSummary>(
+    `/api/product-services/${encodeURIComponent(options.serviceRef)}/railway/logs${suffix}`,
+  )
+}
+
+export function reconcileProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/reconcile`, {
+    method: 'POST',
+  })
+}
+
+export function scaleProductService(serviceRef: string, payload: UpdatePlatformManagedProductServiceScaleRequest) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/scale`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function restartProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/restart`, {
+    method: 'POST',
+  })
+}
+
+export function forceRecreateProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/force-recreate`, {
+    method: 'POST',
+  })
+}
+
+export function decommissionProductService(serviceRef: string) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/decommission`, {
+    method: 'POST',
+  })
+}
+
+export function rotateProductServiceSecret(
+  serviceRef: string,
+  payload: RotatePlatformManagedProductServiceSecretRequest,
+) {
+  return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/rotate-secret`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchShopifyStores() {
+  return request<ShopifyStoreConnectionSummary[]>('/api/shopify/stores')
+}
+
+export function fetchShopifyStore(shopDomain: string) {
+  return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}`)
+}
+
+export function fetchShopifyStoreBinding(shopDomain: string) {
+  return request<ShopifyStoreBindingInspectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/binding`)
+}
+
+export function deleteShopifyStore(shopDomain: string, force = false) {
+  return request<void>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}?force=${force ? 'true' : 'false'}`, {
+    method: 'DELETE',
+  })
+}
+
+export function upsertShopifyStore(payload: UpsertShopifyStoreConnectionRequest) {
+  return request<ShopifyStoreConnectionSummary>('/api/shopify/stores', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function bootstrapShopifyStore(shopDomain: string, payload: BootstrapShopifyStoreRequest = {}) {
+  return request<ShopifyStoreBootstrapSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/bootstrap`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function goLiveShopifyStore(shopDomain: string) {
+  return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/go-live`, {
+    method: 'POST',
+  })
+}
+
+export function recordShopifyStoreSourcePreflight(shopDomain: string, payload: RecordShopifyStoreSourcePreflightRequest) {
+  return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/source-preflight`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createMarketplacePublisher(payload: CreateMarketplacePublisherRequest) {
+  return request<MarketplacePublisherSummary>('/api/marketplace/publishers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateMarketplacePublisherVerification(
+  publisherId: string,
+  payload: UpdateMarketplacePublisherVerificationRequest,
+) {
+  return request<MarketplacePublisherSummary>(`/api/marketplace/publishers/${encodeURIComponent(publisherId)}/verification`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createMarketplacePublisherSubmission(
+  publisherId: string,
+  payload: CreateMarketplacePublisherSubmissionRequest,
+) {
+  return request<MarketplacePublisherSubmissionSummary>(
+    `/api/marketplace/publishers/${encodeURIComponent(publisherId)}/submissions`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function validateMarketplaceSubmission(
+  pluginVersionId: string,
+  payload: ReviewMarketplacePublisherSubmissionRequest,
+) {
+  return request<MarketplacePublisherSubmissionSummary>(
+    `/api/marketplace/submissions/${encodeURIComponent(pluginVersionId)}/validate`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function publishMarketplaceSubmission(
+  pluginVersionId: string,
+  payload: ReviewMarketplacePublisherSubmissionRequest,
+) {
+  return request<MarketplacePublisherSubmissionSummary>(
+    `/api/marketplace/submissions/${encodeURIComponent(pluginVersionId)}/publish`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function rejectMarketplaceSubmission(
+  pluginVersionId: string,
+  payload: ReviewMarketplacePublisherSubmissionRequest,
+) {
+  return request<MarketplacePublisherSubmissionSummary>(
+    `/api/marketplace/submissions/${encodeURIComponent(pluginVersionId)}/reject`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function bootstrapMarketplaceTemplatePlugin(
+  pluginId: string,
+  payload: CreateMarketplaceTemplateBootstrapRequest,
+) {
+  return request<DeploymentSummary>(`/api/marketplace/templates/${encodeURIComponent(pluginId)}/bootstrap`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchDeploymentMarketplaceInstalls(deploymentId: string) {
+  return request<DeploymentMarketplaceInstallSummary[]>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs`,
+  )
+}
+
+export function fetchDeploymentMarketplaceImpact(deploymentId: string) {
+  return request<DeploymentMarketplaceImpactSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-impact`,
+  )
+}
+
+export function createDeploymentMarketplaceInstall(
+  deploymentId: string,
+  payload: CreateDeploymentMarketplaceInstallRequest,
+) {
+  return request<DeploymentMarketplaceInstallSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function updateDeploymentMarketplaceInstall(
+  deploymentId: string,
+  installId: string,
+  payload: UpdateDeploymentMarketplaceInstallRequest,
+) {
+  return request<DeploymentMarketplaceInstallSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function deleteDeploymentMarketplaceInstall(deploymentId: string, installId: string) {
+  return request<void>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}`,
+    {
+      method: 'DELETE',
+    },
+  )
+}
+
+export function updateDeploymentMarketplaceInstallEntitlement(
+  deploymentId: string,
+  installId: string,
+  payload: UpdateDeploymentMarketplaceEntitlementRequest,
+) {
+  return request<DeploymentMarketplaceInstallSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}/entitlement`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function resolveDeploymentMarketplaceInstall(deploymentId: string, installId: string) {
+  return request<DeploymentMarketplaceInstallResolutionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}/resolve`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function fetchDeploymentConfigDiffCenter(deploymentId: string) {
@@ -2257,6 +3638,59 @@ export function updatePlatformTenant(tenantId: string, payload: {
   })
 }
 
+export function fetchPlatformConsumers(customerId: string) {
+  return request<PlatformConsumerSummary[]>(`/api/platform/customers/${customerId}/consumers`)
+}
+
+export function createPlatformConsumer(customerId: string, payload: {
+  consumerId: string
+  displayName: string
+  description?: string
+  deploymentId?: string
+  bindingReason?: string
+}) {
+  return request<PlatformConsumerSummary>(`/api/platform/customers/${customerId}/consumers`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformConsumer(customerId: string, consumerId: string, payload: {
+  displayName: string
+  description?: string
+  status: string
+}) {
+  return request<PlatformConsumerSummary>(`/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformConsumerBinding(customerId: string, consumerId: string, payload: {
+  deploymentId?: string
+  reason?: string
+}) {
+  return request<PlatformConsumerSummary>(
+    `/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}/binding`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function deletePlatformConsumer(customerId: string, consumerId: string) {
+  return request<void>(`/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export function fetchPlatformConsumerBindingHistory(customerId: string, consumerId: string) {
+  return request<PlatformConsumerBindingHistorySummary[]>(
+    `/api/platform/customers/${customerId}/consumers/${encodeURIComponent(consumerId)}/history`,
+  )
+}
+
 export function fetchPlatformTenantSharedVectorHandles(tenantId: string) {
   return request<PlatformTenantSharedVectorHandleSummary[]>(
     `/api/platform/customers/tenants/${tenantId}/shared-vector-handles`,
@@ -2410,6 +3844,36 @@ export function recreateDeploymentVerificationRollouts(rolloutKeys?: string[]) {
     ...(rolloutKeys && rolloutKeys.length > 0
       ? { body: JSON.stringify({ rolloutKeys }) }
       : {}),
+  })
+}
+
+export function fetchPlatformVerificationSuiteDefinitions() {
+  return request<PlatformVerificationSuiteDefinitionSummary[]>('/api/verification-suites')
+}
+
+export function fetchPlatformVerificationSuiteRuns() {
+  return request<PlatformVerificationSuiteRunSummary[]>('/api/verification-suites/runs')
+}
+
+export function fetchPlatformVerificationSuiteRun(runId: string) {
+  return request<PlatformVerificationSuiteRunSummary>(`/api/verification-suites/runs/${runId}`)
+}
+
+export function fetchPlatformVerificationReleaseGate() {
+  return request<PlatformVerificationReleaseGateSummary>('/api/verification-suites/release-gate')
+}
+
+export function dispatchPlatformVerificationSuiteRun(
+  suiteKey: string,
+  payload?: {
+    allowControlPlaneRepair?: boolean
+  },
+) {
+  return request<PlatformVerificationSuiteDispatchSummary>(`/api/verification-suites/${suiteKey}/runs`, {
+    method: 'POST',
+    body: JSON.stringify({
+      allowControlPlaneRepair: payload?.allowControlPlaneRepair ?? false,
+    }),
   })
 }
 

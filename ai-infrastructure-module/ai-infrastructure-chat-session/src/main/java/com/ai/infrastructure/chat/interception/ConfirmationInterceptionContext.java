@@ -7,6 +7,7 @@ import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.util.StringUtils;
@@ -76,6 +77,19 @@ public final class ConfirmationInterceptionContext {
     public void replaceTopPending(PendingAction updatedTop) {
         popPending();
         pushPending(updatedTop);
+    }
+
+    public List<PendingAction> pendingStack() {
+        return pendingActionStore.getPendingActionStack(conversationId(), ownerId());
+    }
+
+    public PendingAction previousPending() {
+        List<PendingAction> stack = pendingStack();
+        return stack.size() > 1 ? stack.get(1) : null;
+    }
+
+    public void replacePendingStack(List<PendingAction> stackTopFirst) {
+        pendingActionStore.replacePendingActionStack(conversationId(), ownerId(), stackTopFirst);
     }
 
     /**

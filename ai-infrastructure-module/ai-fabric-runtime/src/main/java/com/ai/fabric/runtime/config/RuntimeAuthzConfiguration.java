@@ -1,5 +1,6 @@
 package com.ai.fabric.runtime.config;
 
+import com.ai.fabric.runtime.authz.AllowVerifiedEntityAccessPolicy;
 import com.ai.fabric.runtime.authz.RemoteHttpEntityAccessPolicy;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,6 +30,13 @@ class RuntimeAuthzConfiguration {
     EntityAccessPolicy remoteHttpEntityAccessPolicy(RuntimeAuthzProperties properties,
                                                     ObjectMapper objectMapper) {
         return new RemoteHttpEntityAccessPolicy(properties, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(EntityAccessPolicy.class)
+    @ConditionalOnProperty(prefix = "ai.fabric.runtime.authz", name = "mode", havingValue = "ALLOW_VERIFIED")
+    EntityAccessPolicy allowVerifiedEntityAccessPolicy() {
+        return new AllowVerifiedEntityAccessPolicy();
     }
 
     @Bean

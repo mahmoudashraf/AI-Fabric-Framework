@@ -65,9 +65,37 @@ ZILLIZ_CREATE_EPHEMERAL_CLUSTER="${ZILLIZ_CREATE_EPHEMERAL_CLUSTER:-false}"
 ZILLIZ_EPHEMERAL_CLUSTER_NAME="${ZILLIZ_EPHEMERAL_CLUSTER_NAME:-gha-verify-zilliz-${RUN_ID_SUFFIX}}"
 
 WEAVIATE_SCHEME="${WEAVIATE_SCHEME:-https}"
-WEAVIATE_HOST="${WEAVIATE_HOST:-l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud}"
+WEAVIATE_HOST="${WEAVIATE_HOST:-${PLATFORM_VERIFICATION_WEAVIATE_HOST:-}}"
 WEAVIATE_PORT="${WEAVIATE_PORT:-443}"
 WEAVIATE_API_KEY="${WEAVIATE_API_KEY:-}"
+
+resolve_secret_value() {
+  local var_name="$1"
+  local file_var_name="${var_name}_FILE"
+  local direct_value="${!var_name:-}"
+  local file_path="${!file_var_name:-}"
+
+  if [[ -n "${file_path}" ]]; then
+    if [[ ! -f "${file_path}" ]]; then
+      echo "Missing secret file for ${var_name}: ${file_path}"
+      exit 2
+    fi
+    python3 - <<'PY' "${file_path}"
+import pathlib
+import sys
+print(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+PY
+    return
+  fi
+
+  printf '%s' "${direct_value}"
+}
+
+PINECONE_API_KEY="$(resolve_secret_value PINECONE_API_KEY)"
+QDRANT_CLOUD_MANAGEMENT_API_KEY="$(resolve_secret_value QDRANT_CLOUD_MANAGEMENT_API_KEY)"
+QDRANT_API_KEY="$(resolve_secret_value QDRANT_API_KEY)"
+ZILLIZ_CLOUD_API_KEY="$(resolve_secret_value ZILLIZ_CLOUD_API_KEY)"
+WEAVIATE_API_KEY="$(resolve_secret_value WEAVIATE_API_KEY)"
 
 TMP_DIR="$(mktemp -d)"
 HTTP_STATUS=""
@@ -533,6 +561,10 @@ verify_zilliz() {
 }
 
 verify_weaviate() {
+  if [[ -z "${WEAVIATE_HOST}" ]]; then
+    echo "FAIL: Weaviate verification requires WEAVIATE_HOST or PLATFORM_VERIFICATION_WEAVIATE_HOST"
+    return 1
+  fi
   local base_url
   base_url="${WEAVIATE_SCHEME}://${WEAVIATE_HOST}"
   if [[ -n "${WEAVIATE_PORT}" && "${WEAVIATE_PORT}" != "443" && "${WEAVIATE_PORT}" != "80" ]]; then
@@ -540,7 +572,14 @@ verify_weaviate() {
   fi
 
   weaviate_http GET "${base_url}/v1/.well-known/ready" ""
-  require_2xx "Weaviate readiness probe" || return 1
+  if [[ ! "${HTTP_STATUS}" =~ ^2 ]]; then
+    if [[ "${HTTP_STATUS}" != "404" ]]; then
+      echo "FAIL: Weaviate readiness probe -> HTTP ${HTTP_STATUS}"
+      [[ -n "${HTTP_BODY}" ]] && echo "${HTTP_BODY}"
+      return 1
+    fi
+    echo "INFO: Weaviate readiness probe returned HTTP 404, falling back to metadata probe."
+  fi
 
   weaviate_http GET "${base_url}/v1/meta" ""
   require_2xx "Weaviate metadata probe" || return 1

@@ -266,7 +266,6 @@ public class AIConfigurationService {
         details.put("anthropic", providerConfig.getAnthropic());
         details.put("cohere", providerConfig.getCohere());
         details.put("onnx", providerConfig.getOnnx());
-        details.put("rest", providerConfig.getRest());
         details.put("pinecone", providerConfig.getPinecone());
         return details;
     }

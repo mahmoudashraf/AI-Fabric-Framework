@@ -8,6 +8,7 @@ import com.ai.infrastructure.core.AISearchService;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.rag.service.AdvancedRAGService;
 import com.ai.infrastructure.rag.service.RAGService;
+import com.ai.infrastructure.rag.source.SearchSourceRegistry;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -19,6 +20,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 
 /**
@@ -113,7 +115,8 @@ public class RAGAutoConfiguration {
             AIEmbeddingService embeddingService,
             VectorDatabaseService vectorDatabaseService,
             VectorDatabase vectorDatabase,
-            AISearchService searchService) {
+            AISearchService searchService,
+            ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider) {
         
         log.info(LOG_RAG_SERVICE_CREATED);
         
@@ -122,7 +125,8 @@ public class RAGAutoConfiguration {
             embeddingService,
             vectorDatabaseService,
             vectorDatabase,
-            searchService
+            searchService,
+            searchSourceRegistryProvider.getIfAvailable()
         );
     }
     

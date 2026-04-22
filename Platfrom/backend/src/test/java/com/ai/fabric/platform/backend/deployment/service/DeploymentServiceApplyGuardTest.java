@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentDeletionService deploymentDeletionService = mock(DeploymentDeletionService.class);
         DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
         PlatformCustomerTenantService platformCustomerTenantService = mock(PlatformCustomerTenantService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentService service = new DeploymentService(
@@ -87,6 +89,7 @@ class DeploymentServiceApplyGuardTest {
             deploymentDeletionService,
             deploymentCuratedModuleCatalogService,
             platformCustomerTenantService,
+            platformCustomerConsumerService,
             provisioningProperties(),
             platformAuditService,
             new ObjectMapper()

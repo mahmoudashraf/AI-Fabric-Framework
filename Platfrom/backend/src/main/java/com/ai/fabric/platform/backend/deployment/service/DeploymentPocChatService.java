@@ -129,7 +129,6 @@ public class DeploymentPocChatService {
         }
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentPocAuthPath authPath = DeploymentPocAuthPath.defaultValue(request.authPath());
-        boolean promptPreviewSupported = authPath == DeploymentPocAuthPath.PLATFORM_PRIVATE;
 
         ObjectNode body = objectMapper.createObjectNode();
         body.put("query", request.query().trim());
@@ -142,29 +141,15 @@ public class DeploymentPocChatService {
         if (StringUtils.hasText(request.position())) {
             body.put("position", request.position().trim());
         }
-        ObjectNode requestPromptPreview = promptPreviewSupported
-            ? DeploymentPocPromptPreviewSupport.sanitizePromptPreview(objectMapper, request.promptPreview())
-            : null;
-        ObjectNode sessionPromptPreview = promptPreviewSupported && requestPromptPreview == null
-            ? deploymentPocPromptSessionService.effectivePromptPreview(deployment.getId())
-            : null;
-        ObjectNode promptPreview = requestPromptPreview != null ? requestPromptPreview : sessionPromptPreview;
-        String promptPreviewSource = !promptPreviewSupported
-            ? "UNSUPPORTED_AUTH_PATH"
-            : requestPromptPreview != null
-            ? "REQUEST"
-            : sessionPromptPreview != null ? "SESSION" : "NONE";
-        if (promptPreview != null) {
-            body.set("promptPreview", promptPreview);
-        }
+        QueryPayload queryPayload = prepareQueryPayload(deployment, authPath, body, request.promptPreview());
 
         JsonNode response = sendJson(
             deployment,
             "POST",
             "/api/chat/me/query",
-            objectMapper.valueToTree(body),
+            queryPayload.body(),
             authPath,
-            queryScopes(promptPreview != null)
+            queryScopes(queryPayload.promptPreview() != null)
         );
         DeploymentPocChatQueryResponse summary = new DeploymentPocChatQueryResponse(
             response.path("success").asBoolean(false),
@@ -183,13 +168,36 @@ public class DeploymentPocChatService {
                 "conversationId", summary.conversationId() == null ? "" : summary.conversationId(),
                 "queryLength", request.query().trim().length(),
                 "authPath", authPath.name(),
-                "promptPreview", promptPreview != null,
-                "promptPreviewKeys", promptPreview == null ? 0 : promptPreview.size(),
-                "promptPreviewSource", promptPreviewSource
+                "promptPreview", queryPayload.promptPreview() != null,
+                "promptPreviewKeys", queryPayload.promptPreview() == null ? 0 : queryPayload.promptPreview().size(),
+                "promptPreviewSource", queryPayload.promptPreviewSource()
             )
         );
 
         return summary;
+    }
+
+    public JsonNode widgetQuery(String deploymentId,
+                                JsonNode request,
+                                DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        ObjectNode body = request != null && request.isObject()
+            ? (ObjectNode) request.deepCopy()
+            : objectMapper.createObjectNode();
+        String query = trimToNull(textOrNull(body, "query"));
+        if (!StringUtils.hasText(query)) {
+            throw new ResponseStatusException(BAD_REQUEST, "query is required.");
+        }
+        body.put("query", query);
+        QueryPayload queryPayload = prepareQueryPayload(deployment, DeploymentPocAuthPath.defaultValue(authPath), body, null);
+        return sendJson(
+            deployment,
+            "POST",
+            "/api/chat/me/query",
+            queryPayload.body(),
+            DeploymentPocAuthPath.defaultValue(authPath),
+            queryScopes(queryPayload.promptPreview() != null)
+        );
     }
 
     public DeploymentPocChatSuggestionsResponse suggestions(String deploymentId,
@@ -216,6 +224,72 @@ public class DeploymentPocChatService {
             textOrNull(response, "message"),
             toStringList(response.path("suggestions")),
             textOrNull(response, "raw")
+        );
+    }
+
+    public JsonNode widgetSuggestions(String deploymentId,
+                                      JsonNode request,
+                                      DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        JsonNode body = request != null && request.isObject()
+            ? request.deepCopy()
+            : objectMapper.createObjectNode();
+        return sendJson(
+            deployment,
+            "POST",
+            "/api/chat/me/suggestions",
+            body,
+            DeploymentPocAuthPath.defaultValue(authPath),
+            List.of(SCOPE_CHAT_SUGGESTIONS)
+        );
+    }
+
+    public JsonNode listConversations(String deploymentId,
+                                      DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        return sendJson(
+            deployment,
+            "GET",
+            "/api/chat/me/conversations",
+            null,
+            DeploymentPocAuthPath.defaultValue(authPath),
+            List.of(SCOPE_CHAT_CONVERSATIONS)
+        );
+    }
+
+    public JsonNode widgetConversation(String deploymentId,
+                                       String conversationId,
+                                       DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        if (!StringUtils.hasText(conversationId)) {
+            throw new ResponseStatusException(BAD_REQUEST, "conversationId is required.");
+        }
+        return sendJson(
+            deployment,
+            "GET",
+            "/api/chat/me/conversations/" + encodePathSegment(conversationId.trim()),
+            null,
+            DeploymentPocAuthPath.defaultValue(authPath),
+            List.of(SCOPE_CHAT_CONVERSATIONS)
+        );
+    }
+
+    public JsonNode widgetRuntimeAuthContext(String deploymentId,
+                                             DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        return sendAuthContextRequest(deployment, DeploymentPocAuthPath.defaultValue(authPath));
+    }
+
+    public JsonNode widgetShellConfig(String deploymentId,
+                                      DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        return sendJson(
+            deployment,
+            "GET",
+            "/api/chat/me/shell-config",
+            null,
+            DeploymentPocAuthPath.defaultValue(authPath),
+            List.of(SCOPE_CHAT_QUERY)
         );
     }
 
@@ -476,6 +550,31 @@ public class DeploymentPocChatService {
             textOrNull(response, "lastInteractionAt"),
             turns
         );
+    }
+
+    private QueryPayload prepareQueryPayload(DeploymentEntity deployment,
+                                             DeploymentPocAuthPath authPath,
+                                             ObjectNode body,
+                                             JsonNode requestedPromptPreview) {
+        boolean promptPreviewSupported = authPath == DeploymentPocAuthPath.PLATFORM_PRIVATE;
+        ObjectNode requestPromptPreview = promptPreviewSupported
+            ? DeploymentPocPromptPreviewSupport.sanitizePromptPreview(objectMapper, requestedPromptPreview)
+            : null;
+        ObjectNode sessionPromptPreview = promptPreviewSupported && requestPromptPreview == null
+            ? deploymentPocPromptSessionService.effectivePromptPreview(deployment.getId())
+            : null;
+        ObjectNode promptPreview = requestPromptPreview != null ? requestPromptPreview : sessionPromptPreview;
+        String promptPreviewSource = !promptPreviewSupported
+            ? "UNSUPPORTED_AUTH_PATH"
+            : requestPromptPreview != null
+            ? "REQUEST"
+            : sessionPromptPreview != null ? "SESSION" : "NONE";
+        if (promptPreview != null) {
+            body.set("promptPreview", promptPreview);
+        } else {
+            body.remove("promptPreview");
+        }
+        return new QueryPayload(body, promptPreview, promptPreviewSource);
     }
 
     private DeploymentPocTraceSummary summarizeTrace(JsonNode result) {
@@ -1192,6 +1291,8 @@ public class DeploymentPocChatService {
             return Integer.toHexString(value.hashCode());
         }
     }
+
+    private record QueryPayload(ObjectNode body, ObjectNode promptPreview, String promptPreviewSource) {}
 
     private String encodePathSegment(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");

@@ -6,6 +6,7 @@ import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
+import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
@@ -81,12 +82,15 @@ public class OpenAIProvider implements AIProvider {
         try {
             log.debug("Generating content with OpenAI: model={}, prompt={}", 
                      request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
-            
-            String url = normalizeBaseUrl(config.getBaseUrl()) + PATH_CHAT_COMPLETIONS;
+            ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
+                ProviderRequestOverrideSupport.read(request.getParameters());
+            String baseUrl = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : config.getBaseUrl();
+            String apiKey = hasText(connectionOverride.apiKey()) ? connectionOverride.apiKey() : config.getApiKey();
+            String url = normalizeBaseUrl(baseUrl) + PATH_CHAT_COMPLETIONS;
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + config.getApiKey());
+            headers.set("Authorization", "Bearer " + apiKey);
             
             // Build messages with system and user roles for better prompt control
             List<Map<String, String>> messages = new ArrayList<>();
@@ -228,11 +232,11 @@ public class OpenAIProvider implements AIProvider {
             log.debug("Generating embedding with OpenAI: model={}, text={}", 
                      request.getModel(), request.getText().substring(0, Math.min(100, request.getText().length())));
             
-            String url = normalizeBaseUrl(config.getBaseUrl()) + PATH_EMBEDDINGS;
+            String url = normalizeBaseUrl(firstNonBlank(config.getEmbeddingBaseUrl(), config.getBaseUrl())) + PATH_EMBEDDINGS;
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + config.getApiKey());
+            headers.set("Authorization", "Bearer " + firstNonBlank(config.getEmbeddingApiKey(), config.getApiKey()));
             
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultEmbeddingModel());
@@ -445,6 +449,14 @@ public class OpenAIProvider implements AIProvider {
             return trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        return hasText(primary) ? primary : fallback;
     }
 
     private void applyResponseFormat(Map<String, Object> requestBody, Map<String, Object> parameters) {

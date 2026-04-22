@@ -78,6 +78,9 @@ public class DeploymentArtifactService {
             artifactUrl(version, "ai-entity-config.yml"),
             artifactUrl(version, "actions-routing.yml"),
             artifactUrl(version, "ai-prompt-config.json"),
+            artifactUrl(version, "ai-knowledge-source-config.json"),
+            artifactUrl(version, "ai-shell-config.json"),
+            artifactUrl(version, "ai-marketplace-dataset-config.json"),
             artifactUrl(version, "deployment-manifest.json")
         );
     }
@@ -112,6 +115,30 @@ public class DeploymentArtifactService {
                                      String signature) {
         return authorizeArtifactAccess(deploymentId, versionId, "ai-prompt-config.json", expires, signature)
             .getPromptConfigJson();
+    }
+
+    public String readKnowledgeSourceArtifact(String deploymentId,
+                                              String versionId,
+                                              Long expires,
+                                              String signature) {
+        return authorizeArtifactAccess(deploymentId, versionId, "ai-knowledge-source-config.json", expires, signature)
+            .getKnowledgeSourceConfigJson();
+    }
+
+    public String readShellArtifact(String deploymentId,
+                                    String versionId,
+                                    Long expires,
+                                    String signature) {
+        return authorizeArtifactAccess(deploymentId, versionId, "ai-shell-config.json", expires, signature)
+            .getShellConfigJson();
+    }
+
+    public String readMarketplaceDatasetArtifact(String deploymentId,
+                                                 String versionId,
+                                                 Long expires,
+                                                 String signature) {
+        return authorizeArtifactAccess(deploymentId, versionId, "ai-marketplace-dataset-config.json", expires, signature)
+            .getMarketplaceDatasetConfigJson();
     }
 
     public String readManifestArtifact(String deploymentId,

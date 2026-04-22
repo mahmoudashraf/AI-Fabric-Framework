@@ -259,14 +259,58 @@ public class AIActionRegistry {
 
         return AIActionMetaData.builder()
             .name(action.name())
+            .displayName(humanizeActionName(action.name()))
             .description(action.description())
             .category(action.category())
             .accessMode(action.accessMode())
             .anonymousAllowed(action.anonymousAllowed())
+            .confirmationRequired(action.requiresConfirmation())
+            .groundingEligible(defaultGroundingEligible(action.accessMode()))
+            .sideEffectLevel(ActionSideEffectLevel.fromAccessMode(action.accessMode()))
+            .resultPresentationHint(defaultPresentationHint(action.accessMode()))
+            .provenance(AIContributionProvenance.builder()
+                .contributionType("ACTION")
+                .sourceType("ANNOTATION")
+                .sourceId(action.name())
+                .sourceLocation(executeMethod.getDeclaringClass().getName())
+                .build())
             .parameters(Collections.unmodifiableMap(parameters))
             .parameterSchemas(Collections.unmodifiableMap(parameterSchemas))
             .requiredParameters(Collections.unmodifiableSet(requiredParameters))
             .build();
+    }
+
+    private String humanizeActionName(String actionName) {
+        if (!StringUtils.hasText(actionName)) {
+            return null;
+        }
+        String[] parts = actionName.trim().split("[_\\-\\s]+");
+        StringBuilder out = new StringBuilder(actionName.length() + 8);
+        for (String part : parts) {
+            if (!StringUtils.hasText(part)) {
+                continue;
+            }
+            if (!out.isEmpty()) {
+                out.append(' ');
+            }
+            String normalized = part.trim().toLowerCase(Locale.ROOT);
+            out.append(Character.toUpperCase(normalized.charAt(0)));
+            if (normalized.length() > 1) {
+                out.append(normalized.substring(1));
+            }
+        }
+        return out.isEmpty() ? actionName.trim() : out.toString();
+    }
+
+    private boolean defaultGroundingEligible(ActionAccessMode accessMode) {
+        return accessMode == ActionAccessMode.READ || accessMode == ActionAccessMode.READ_WRITE;
+    }
+
+    private ActionResultPresentationHint defaultPresentationHint(ActionAccessMode accessMode) {
+        if (accessMode == ActionAccessMode.WRITE_ONLY) {
+            return ActionResultPresentationHint.STATUS;
+        }
+        return ActionResultPresentationHint.DEFAULT;
     }
 
     private AIActionParamSchema buildParamSchema(String name,

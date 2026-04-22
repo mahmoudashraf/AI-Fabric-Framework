@@ -1,6 +1,8 @@
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import BookmarkAddRoundedIcon from '@mui/icons-material/BookmarkAddRounded'
+import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded'
 import DeleteSweepRoundedIcon from '@mui/icons-material/DeleteSweepRounded'
+import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded'
 import SendRoundedIcon from '@mui/icons-material/SendRounded'
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded'
@@ -36,6 +38,8 @@ import {
   fetchDeploymentPocRuntimeAuthContext,
   fetchDeploymentPocScenarios,
   fetchDeploymentPocWorkspace,
+  getPlatformApiBaseUrl,
+  getStoredPlatformApiKey,
   PlatformApiError,
   queryDeploymentPocChat,
   runDeploymentPocImport,
@@ -235,6 +239,82 @@ function availablePocAuthPaths(integration: DeploymentIntegrationSummary | null 
   return options.length > 0 ? options : ['PLATFORM_PRIVATE']
 }
 
+const MAX_MODE_WIDGET_SCRIPT_ID = 'platform-poc-max-mode-widget-script'
+const MAX_MODE_WIDGET_SCRIPT_VERSION = '2026-04-14-opaque-shell-v1'
+const MAX_MODE_WIDGET_SCRIPT_SRC = `/max-mode-widget.iife.js?v=${MAX_MODE_WIDGET_SCRIPT_VERSION}`
+const MAX_MODE_WIDGET_STATE_KEY = 'maxmode_widget_state'
+const MAX_MODE_WIDGET_PENDING_ATTACHMENTS_KEY = 'maxmode_widget_pending_attachments'
+
+let maxModeWidgetScriptPromise: Promise<void> | null = null
+
+function loadMaxModeWidgetScript() {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Max Mode widget can only load in a browser context.'))
+  }
+  if (window.MaxMode) {
+    return Promise.resolve()
+  }
+  if (maxModeWidgetScriptPromise) {
+    return maxModeWidgetScriptPromise
+  }
+
+  maxModeWidgetScriptPromise = new Promise<void>((resolve, reject) => {
+    const existingScript = document.getElementById(MAX_MODE_WIDGET_SCRIPT_ID) as HTMLScriptElement | null
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(), { once: true })
+      existingScript.addEventListener('error', () => reject(new Error('Failed to load Max Mode widget bundle.')), {
+        once: true,
+      })
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = MAX_MODE_WIDGET_SCRIPT_ID
+    script.src = MAX_MODE_WIDGET_SCRIPT_SRC
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load Max Mode widget bundle.'))
+    document.head.appendChild(script)
+  }).catch((error) => {
+    maxModeWidgetScriptPromise = null
+    throw error
+  })
+
+  return maxModeWidgetScriptPromise
+}
+
+function clearMaxModeWidgetSession() {
+  if (typeof window === 'undefined') {
+    return
+  }
+  window.sessionStorage.removeItem(MAX_MODE_WIDGET_STATE_KEY)
+  window.sessionStorage.removeItem(MAX_MODE_WIDGET_PENDING_ATTACHMENTS_KEY)
+}
+
+function readMaxModeWidgetConversationId() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+  try {
+    const raw = window.sessionStorage.getItem(MAX_MODE_WIDGET_STATE_KEY)
+    if (!raw) {
+      return null
+    }
+    const parsed = JSON.parse(raw) as unknown
+    if (!isRecord(parsed)) {
+      return null
+    }
+    const conversationId = parsed.conversationId
+    return typeof conversationId === 'string' && conversationId.trim().length > 0 ? conversationId.trim() : null
+  } catch {
+    return null
+  }
+}
+
+function widgetAdapterBaseUrl(deploymentId: string) {
+  return `${getPlatformApiBaseUrl().replace(/\/$/, '')}/api/deployments/${encodeURIComponent(deploymentId)}/poc-widget`
+}
+
 function sampleImportRecordsForVectorSpace(vectorSpace: string): DeploymentPocImportRecordRequest[] {
   switch (vectorSpace.trim().toLowerCase()) {
     case 'review':
@@ -383,6 +463,12 @@ export function PocPage() {
     ),
   )
   const [lastImportRun, setLastImportRun] = useState<DeploymentPocImportRunSummary | null>(null)
+  const [widgetScriptReady, setWidgetScriptReady] = useState(false)
+  const [widgetScriptError, setWidgetScriptError] = useState<string | null>(null)
+  const [widgetLifecycleLabel, setWidgetLifecycleLabel] = useState<'closed' | 'open' | 'error'>('closed')
+  const [widgetLifecycleDetail, setWidgetLifecycleDetail] = useState<string | null>(null)
+  const [widgetVersion, setWidgetVersion] = useState<string | null>(null)
+  const [widgetReloadNonce, setWidgetReloadNonce] = useState(0)
   const importFileInputRef = useRef<HTMLInputElement | null>(null)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
   const canOperate = workspace?.access.canOperate ?? false
@@ -471,20 +557,27 @@ export function PocPage() {
 
   const resetConversationMutation = useMutation({
     mutationFn: async () => {
-      if (!conversationId) {
-        return
+      const widgetConversationId = readMaxModeWidgetConversationId()
+      if (widgetConversationId) {
+        await deleteDeploymentPocConversation(selectedDeploymentId, widgetConversationId, selectedAuthPath)
       }
-      await deleteDeploymentPocConversation(selectedDeploymentId, conversationId, selectedAuthPath)
     },
     onSuccess: async () => {
-      const previousConversationId = conversationId
+      const previousConversationId = readMaxModeWidgetConversationId()
+      clearMaxModeWidgetSession()
+      window.MaxMode?.destroy()
+      setWidgetLifecycleLabel('closed')
+      setWidgetLifecycleDetail(null)
+      setWidgetReloadNonce((current) => current + 1)
       setConversationId('')
       setLastQueryText('')
       setLastResult(null)
       setLastTraceSummary(null)
-      await queryClient.invalidateQueries({
-        queryKey: ['deployment-poc-conversation', selectedDeploymentId, previousConversationId, selectedAuthPath],
-      })
+      if (previousConversationId) {
+        await queryClient.invalidateQueries({
+          queryKey: ['deployment-poc-conversation', selectedDeploymentId, previousConversationId, selectedAuthPath],
+        })
+      }
     },
   })
 
@@ -555,6 +648,11 @@ export function PocPage() {
     setMigrationStep(0)
     setMigrationSource('TEMPLATE_SAMPLE')
     setSelectedAuthPath('PLATFORM_PRIVATE')
+    clearMaxModeWidgetSession()
+    window.MaxMode?.destroy()
+    setWidgetLifecycleLabel('closed')
+    setWidgetLifecycleDetail(null)
+    setWidgetScriptError(null)
     setConversationId('')
     setLastQueryText('')
     setLastResult(null)
@@ -584,6 +682,18 @@ export function PocPage() {
     [integrationSummary],
   )
   const promptPreviewCompatible = selectedAuthPath === 'PLATFORM_PRIVATE'
+  const widgetBaseUrl = useMemo(
+    () => (selectedDeploymentId ? widgetAdapterBaseUrl(selectedDeploymentId) : ''),
+    [selectedDeploymentId],
+  )
+  const widgetAuthSuffix = useMemo(
+    () => `authPath=${encodeURIComponent(selectedAuthPath)}`,
+    [selectedAuthPath],
+  )
+  const widgetConversationItemUrlTemplate = useMemo(
+    () => (widgetBaseUrl ? `${widgetBaseUrl}/chat/me/conversations/{conversationId}?${widgetAuthSuffix}` : ''),
+    [widgetAuthSuffix, widgetBaseUrl],
+  )
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
   const migrationGuide = pocWorkspaceQuery.data?.migration
   const migrationSources = migrationGuide?.supportedSources ?? []
@@ -639,11 +749,93 @@ export function PocPage() {
   }, [selectedAuthPath, supportedAuthPaths])
 
   useEffect(() => {
+    clearMaxModeWidgetSession()
+    window.MaxMode?.destroy()
+    setWidgetLifecycleLabel('closed')
+    setWidgetLifecycleDetail(null)
+    setWidgetReloadNonce((current) => current + 1)
     setConversationId('')
     setLastQueryText('')
     setLastResult(null)
     setLastTraceSummary(null)
   }, [selectedAuthPath])
+
+  useEffect(() => {
+    if (!selectedDeploymentId || runtimeUnavailable || !canOperate || !widgetBaseUrl) {
+      return
+    }
+
+    let cancelled = false
+    setWidgetScriptError(null)
+
+    loadMaxModeWidgetScript()
+      .then(() => {
+        if (cancelled || !window.MaxMode) {
+          return
+        }
+        const platformApiKey = getStoredPlatformApiKey()
+        window.MaxMode.destroy()
+        window.MaxMode.init({
+          apiConfig: {
+            chatBaseUrl: widgetBaseUrl,
+            defaultHeaders: platformApiKey ? { 'X-PLATFORM-API-KEY': platformApiKey } : undefined,
+            fetchCredentials: 'include',
+            runtimeRoutes: {
+              chatQueryUrl: `${widgetBaseUrl}/chat/me/query?${widgetAuthSuffix}`,
+              suggestionsUrl: `${widgetBaseUrl}/chat/me/suggestions?${widgetAuthSuffix}`,
+              authContextUrl: `${widgetBaseUrl}/chat/me/auth-context?${widgetAuthSuffix}`,
+              shellConfigUrl: `${widgetBaseUrl}/chat/me/shell-config?${widgetAuthSuffix}`,
+              conversationsUrl: `${widgetBaseUrl}/chat/me/conversations?${widgetAuthSuffix}`,
+              conversationItemUrlTemplate: widgetConversationItemUrlTemplate,
+            },
+            runtimeAuth: {
+              probeAuthContextOnOpen: false,
+            },
+          },
+          integrationMode: 'backend-mediated-private-runtime',
+          launcher: false,
+          position: 'bottom-right',
+          features: {
+            cart: false,
+            debug: true,
+            conversations: true,
+            quickActions: true,
+          },
+          onEvent: (event) => {
+            if (event.type === 'widget:opened') {
+              setWidgetLifecycleLabel('open')
+            } else if (event.type === 'widget:closed') {
+              setWidgetLifecycleLabel('closed')
+            } else if (event.type === 'error') {
+              setWidgetLifecycleLabel('error')
+              setWidgetLifecycleDetail(readString((event.data as { message?: unknown } | undefined)?.message) ?? 'Widget error')
+            }
+          },
+        })
+        setWidgetScriptReady(true)
+        setWidgetVersion(window.MaxMode.version ?? null)
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return
+        }
+        setWidgetScriptError(error instanceof Error ? error.message : 'Failed to load Max Mode widget.')
+        setWidgetLifecycleLabel('error')
+      })
+
+    return () => {
+      cancelled = true
+      window.MaxMode?.destroy()
+    }
+  }, [
+    canOperate,
+    runtimeUnavailable,
+    selectedDeploymentId,
+    widgetAuthSuffix,
+    widgetBaseUrl,
+    widgetConversationItemUrlTemplate,
+    widgetReloadNonce,
+  ])
 
   const canContinueFromScope = importVectorSpace.trim().length > 0
     && parsedImport.error == null
@@ -687,6 +879,31 @@ export function PocPage() {
     } finally {
       event.target.value = ''
     }
+  }
+
+  const openMaxModeWidget = () => {
+    if (!widgetScriptReady || !window.MaxMode) {
+      return
+    }
+    window.MaxMode.open()
+  }
+
+  const closeMaxModeWidget = () => {
+    window.MaxMode?.close()
+  }
+
+  const openWidgetForPrompt = async (prompt: string) => {
+    const trimmedPrompt = prompt.trim()
+    if (!trimmedPrompt) {
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(trimmedPrompt)
+      setWidgetLifecycleDetail('Prompt copied. Paste it into the widget composer.')
+    } catch {
+      setWidgetLifecycleDetail('Open the widget and paste the scenario prompt manually.')
+    }
+    openMaxModeWidget()
   }
 
   return (
@@ -1346,21 +1563,104 @@ export function PocPage() {
       </Card>
 
       <Stack direction={{ xs: 'column', xl: 'row' }} spacing={3} alignItems="stretch">
-        <Card sx={{ flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <Card sx={{ flex: 1.1, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
           <CardContent>
             <Stack spacing={2.5}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6">Chatbot</Typography>
-                <Button
-                  variant="outlined"
-                  color="warning"
-                  startIcon={<DeleteSweepRoundedIcon />}
-                  disabled={!canOperate || !conversationId || resetConversationMutation.isPending}
-                  onClick={() => resetConversationMutation.mutate()}
-                >
-                  {resetConversationMutation.isPending ? 'Resetting...' : 'Reset conversation'}
-                </Button>
+              <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" spacing={1.5}>
+                <Box>
+                  <Typography variant="h6">Live widget POC</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                    The dummy chat console has been replaced by the deployed Max Mode widget bundle. The widget talks
+                    to a platform-owned adapter that still honors the selected POC auth path for runtime simulation.
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button
+                    variant="contained"
+                    startIcon={<OpenInNewRoundedIcon />}
+                    disabled={!canOperate || runtimeUnavailable || !widgetScriptReady}
+                    onClick={openMaxModeWidget}
+                  >
+                    Open widget
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    disabled={!widgetScriptReady}
+                    onClick={closeMaxModeWidget}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<DeleteSweepRoundedIcon />}
+                    disabled={!canOperate || runtimeUnavailable || resetConversationMutation.isPending}
+                    onClick={() => resetConversationMutation.mutate()}
+                  >
+                    {resetConversationMutation.isPending ? 'Resetting...' : 'Reset widget conversation'}
+                  </Button>
+                </Stack>
               </Stack>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={`Bundle: ${widgetScriptReady ? 'loaded' : 'loading'}`} color={widgetScriptReady ? 'success' : 'default'} variant="outlined" />
+                <Chip label={`Lifecycle: ${widgetLifecycleLabel}`} color={widgetLifecycleLabel === 'error' ? 'warning' : 'primary'} variant="outlined" />
+                <Chip label={`Auth path: ${authPathLabel(selectedAuthPath)}`} color="primary" variant="outlined" />
+                <Chip label="Transport: Platform adapter" variant="outlined" />
+                {widgetVersion ? <Chip label={`Widget v${widgetVersion}`} variant="outlined" /> : null}
+                {promptSession?.active ? (
+                  <Chip
+                    label={promptPreviewCompatible ? 'Prompt hot apply: active' : 'Prompt hot apply: private path only'}
+                    color={promptPreviewCompatible ? 'secondary' : 'default'}
+                    variant="outlined"
+                  />
+                ) : null}
+              </Stack>
+
+              {widgetScriptError ? <Alert severity="error">{widgetScriptError}</Alert> : null}
+              {resetConversationMutation.isError ? (
+                <Alert severity="error">
+                  {resetConversationMutation.error instanceof Error
+                    ? resetConversationMutation.error.message
+                    : 'Widget conversation reset failed'}
+                </Alert>
+              ) : null}
+              {!widgetScriptError && widgetLifecycleDetail ? (
+                <Alert severity={widgetLifecycleLabel === 'error' ? 'warning' : 'info'}>
+                  {widgetLifecycleDetail}
+                </Alert>
+              ) : null}
+
+              <Card variant="outlined" sx={{ borderStyle: 'dashed', borderColor: 'divider' }}>
+                <CardContent>
+                  <Stack spacing={1.25}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Operator flow
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Use the buttons above to launch the real widget overlay. Scenario prompts below copy to the
+                      clipboard and open the widget because the published IIFE bundle does not yet expose a composer
+                      prefill API.
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        component="a"
+                        href={MAX_MODE_WIDGET_SCRIPT_SRC}
+                        target="_blank"
+                        rel="noreferrer"
+                        startIcon={<OpenInNewRoundedIcon />}
+                      >
+                        Open deployed bundle
+                      </Button>
+                      <Chip label={widgetBaseUrl || 'Widget adapter unavailable'} size="small" variant="outlined" sx={{ maxWidth: '100%' }} />
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Divider />
 
               <Stack spacing={1.5}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -1395,10 +1695,11 @@ export function PocPage() {
                             <Button
                               size="small"
                               variant="outlined"
-                              startIcon={<AutoFixHighRoundedIcon />}
-                              onClick={() => setDraftQueryText(scenario.prompt)}
+                              startIcon={<ContentCopyRoundedIcon />}
+                              onClick={() => void openWidgetForPrompt(scenario.prompt)}
+                              disabled={!canOperate || runtimeUnavailable || !widgetScriptReady}
                             >
-                              Use
+                              Copy & open
                             </Button>
                             {scenario.editable ? (
                               <Button
@@ -1432,107 +1733,13 @@ export function PocPage() {
                         key={suggestion}
                         label={suggestion}
                         clickable
-                        onClick={() => setDraftQueryText(suggestion)}
+                        onClick={() => void openWidgetForPrompt(suggestion)}
                         icon={<AutoFixHighRoundedIcon />}
                         variant="outlined"
                       />
                     ))}
                   </Stack>
                 ) : null}
-              </Stack>
-
-              <TextField
-                label="Ask the deployment"
-                placeholder="Ask a grounded question or try an action-oriented workflow"
-                multiline
-                minRows={4}
-                value={draftQueryText}
-                disabled={runtimeUnavailable || !canOperate}
-                onChange={(event) => setDraftQueryText(event.target.value)}
-              />
-
-              {queryMutation.isError ? (
-                <Alert severity="error">
-                  {queryMutation.error instanceof Error ? queryMutation.error.message : 'POC query failed'}
-                </Alert>
-              ) : null}
-
-              {saveScenarioMutation.isError ? (
-                <Alert severity="error">
-                  {saveScenarioMutation.error instanceof Error
-                    ? saveScenarioMutation.error.message
-                    : 'Scenario save failed'}
-                </Alert>
-              ) : null}
-
-              <Stack direction="row" spacing={1.5}>
-                <Button
-                  variant="contained"
-                  startIcon={<SendRoundedIcon />}
-                  disabled={!canOperate || runtimeUnavailable || queryMutation.isPending || draftQueryText.trim().length === 0}
-                  onClick={() => queryMutation.mutate(draftQueryText.trim())}
-                >
-                  {queryMutation.isPending ? 'Sending...' : 'Send to deployment'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<BookmarkAddRoundedIcon />}
-                  disabled={!canOperate || runtimeUnavailable || saveScenarioMutation.isPending || draftQueryText.trim().length === 0}
-                  onClick={() => {
-                    const title = window.prompt('Save this prompt as a reusable scenario title?')
-                    if (!title || title.trim().length === 0) {
-                      return
-                    }
-                    saveScenarioMutation.mutate(title.trim())
-                  }}
-                >
-                  {saveScenarioMutation.isPending ? 'Saving...' : 'Save as scenario'}
-                </Button>
-              </Stack>
-
-              <Divider />
-
-              <Stack spacing={1.5}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Conversation transcript
-                </Typography>
-                {transcriptUnavailable && fallbackTranscriptTurn ? (
-                  <Alert severity="info">
-                    This runtime result was returned immediately, but no stored transcript turn was found for the current
-                    conversation id. Showing the last response from the live query result.
-                  </Alert>
-                ) : null}
-                {transcriptTurns.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    No turns yet. Start the conversation with one of the suggested scenarios or your own query.
-                  </Typography>
-                ) : (
-                  transcriptTurns.map((turn, index) => (
-                    <Card key={`${turn.timestamp ?? 'turn'}-${index}`} variant="outlined" sx={{ borderColor: 'divider' }}>
-                      <CardContent>
-                        <Stack spacing={1.25}>
-                          <Typography variant="caption" color="text.secondary">
-                            {turn.timestamp ? formatDateTime(turn.timestamp) : 'Latest live result'}
-                          </Typography>
-                          <Box>
-                            <Typography variant="overline" color="text.secondary">
-                              User
-                            </Typography>
-                            <Typography variant="body1">{turn.userQuery || '—'}</Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="overline" color="text.secondary">
-                              Assistant
-                            </Typography>
-                            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                              {turn.aiResponse || '—'}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
               </Stack>
             </Stack>
           </CardContent>
@@ -1541,372 +1748,71 @@ export function PocPage() {
         <Card sx={{ width: { xs: '100%', xl: 420 }, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
           <CardContent>
             <Stack spacing={2.5}>
-              <Typography variant="h6">Latest orchestration trace</Typography>
+              <Typography variant="h6">Widget integration details</Typography>
 
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip label={`Conversation: ${conversationId || 'new'}`} variant="outlined" />
-                <Chip label={`Turns: ${transcriptTurns.length}`} variant="outlined" />
-                <Chip label={`Suggestions: ${suggestionsQuery.data?.suggestions.length ?? 0}`} variant="outlined" />
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Browser boundary
+                </Typography>
+                <Typography variant="body2">
+                  The widget stays browser-to-platform. The selected POC auth path is applied server-side by the
+                  platform adapter when it calls the deployment runtime.
+                </Typography>
               </Stack>
 
-              {lastResult ? (
-                <>
-                  {lastTraceSummary ? (
-                    <>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Chip label={`Type: ${lastTraceSummary.resultType ?? '—'}`} variant="outlined" />
-                        <Chip
-                          label={`Success: ${lastTraceSummary.success ? 'true' : 'false'}`}
-                          color={lastTraceSummary.success ? 'success' : 'warning'}
-                          variant="outlined"
-                        />
-                        {lastTraceSummary.executedAction ? (
-                          <Chip label={`Action: ${lastTraceSummary.executedAction}`} color="primary" variant="outlined" />
-                        ) : null}
-                        {lastTraceSummary.documentCount > 0 ? (
-                          <Chip label={`Documents: ${lastTraceSummary.documentCount}`} variant="outlined" />
-                        ) : null}
-                        {lastTraceSummary.errorCode ? (
-                          <Chip label={`Error: ${lastTraceSummary.errorCode}`} color="warning" variant="outlined" />
-                        ) : null}
-                      </Stack>
-
-                      <Stack spacing={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Operator-facing message
-                        </Typography>
-                        <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {lastTraceSummary.answer
-                            ?? lastTraceSummary.actionSummary
-                            ?? lastTraceSummary.message
-                            ?? readResultLabel(lastResult, 'message')}
-                        </Typography>
-                      </Stack>
-
-                      {lastTraceSummary.vectorSpaces.length > 0 || lastTraceSummary.candidateVectorSpaces.length > 0 ? (
-                        <Stack spacing={1}>
-                          <Typography variant="body2" color="text.secondary">
-                            Retrieval routing
-                          </Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            {lastTraceSummary.routingStrategy ? (
-                              <Chip label={`Strategy: ${lastTraceSummary.routingStrategy}`} size="small" />
-                            ) : null}
-                            {lastTraceSummary.vectorSpaces.map((vectorSpace) => (
-                              <Chip key={`space-${vectorSpace}`} label={`Used: ${vectorSpace}`} size="small" variant="outlined" />
-                            ))}
-                            {lastTraceSummary.candidateVectorSpaces.map((vectorSpace) => (
-                              <Chip
-                                key={`candidate-${vectorSpace}`}
-                                label={`Candidate: ${vectorSpace}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ))}
-                          </Stack>
-                        </Stack>
-                      ) : null}
-
-                      {lastTraceSummary.runtimeRequestDurationMs != null ||
-                      lastTraceSummary.pipelineDurationMs != null ||
-                      lastTraceSummary.extractionProcessingTimeMs != null ||
-                      lastTraceSummary.retrievalProcessingTimeMs != null ||
-                      lastTraceSummary.responseGenerationProcessingTimeMs != null ||
-                      Object.keys(lastTraceSummary.stepDurationsMs).length > 0 ? (
-                        <Stack spacing={1}>
-                          <Typography variant="body2" color="text.secondary">
-                            Timing
-                          </Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            {formatDuration(lastTraceSummary.runtimeRequestDurationMs) ? (
-                              <Chip
-                                label={`Runtime request: ${formatDuration(lastTraceSummary.runtimeRequestDurationMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.pipelineDurationMs) ? (
-                              <Chip
-                                label={`Pipeline: ${formatDuration(lastTraceSummary.pipelineDurationMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.extractionProcessingTimeMs) ? (
-                              <Chip
-                                label={`Intent extraction: ${formatDuration(lastTraceSummary.extractionProcessingTimeMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.extractionProviderProcessingTimeMs) ? (
-                              <Chip
-                                label={`Extraction provider: ${formatDuration(lastTraceSummary.extractionProviderProcessingTimeMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.retrievalProcessingTimeMs) ? (
-                              <Chip
-                                label={`Retrieval: ${formatDuration(lastTraceSummary.retrievalProcessingTimeMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.embeddingProcessingTimeMs) ? (
-                              <Chip
-                                label={`Embedding: ${formatDuration(lastTraceSummary.embeddingProcessingTimeMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.embeddingProviderProcessingTimeMs) ? (
-                              <Chip
-                                label={`Embedding provider: ${formatDuration(lastTraceSummary.embeddingProviderProcessingTimeMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.responseGenerationProcessingTimeMs) ? (
-                              <Chip
-                                label={`Response generation: ${formatDuration(lastTraceSummary.responseGenerationProcessingTimeMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.responseGenerationProviderProcessingTimeMs) ? (
-                              <Chip
-                                label={`Generation provider: ${formatDuration(lastTraceSummary.responseGenerationProviderProcessingTimeMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.searchProcessingTimeMs) ? (
-                              <Chip
-                                label={`Search: ${formatDuration(lastTraceSummary.searchProcessingTimeMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.runtimeAuthResolutionMs) ? (
-                              <Chip
-                                label={`Auth: ${formatDuration(lastTraceSummary.runtimeAuthResolutionMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.runtimeContextBuildMs) ? (
-                              <Chip
-                                label={`Context: ${formatDuration(lastTraceSummary.runtimeContextBuildMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {formatDuration(lastTraceSummary.runtimeOrchestrationCallDurationMs) ? (
-                              <Chip
-                                label={`Orchestration: ${formatDuration(lastTraceSummary.runtimeOrchestrationCallDurationMs)}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {lastTraceSummary.embeddingProviderName ? (
-                              <Chip
-                                label={`Embedding engine: ${lastTraceSummary.embeddingProviderName}${lastTraceSummary.embeddingModel ? ` (${lastTraceSummary.embeddingModel})` : ''}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {lastTraceSummary.extractionModel ? (
-                              <Chip
-                                label={`Extraction model: ${lastTraceSummary.extractionModel}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {lastTraceSummary.extractionPath ? (
-                              <Chip
-                                label={`Extraction path: ${lastTraceSummary.extractionPath}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {lastTraceSummary.extractionLlmCalls != null ? (
-                              <Chip
-                                label={`Extraction LLM calls: ${lastTraceSummary.extractionLlmCalls}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {lastTraceSummary.extractionAttempts != null ? (
-                              <Chip
-                                label={`Extraction attempts: ${lastTraceSummary.extractionAttempts}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {lastTraceSummary.responseGenerationModel ? (
-                              <Chip
-                                label={`Generation model: ${lastTraceSummary.responseGenerationModel}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {lastTraceSummary.responseGenerationPath ? (
-                              <Chip
-                                label={`Generation path: ${lastTraceSummary.responseGenerationPath}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                            {lastTraceSummary.embeddingCacheHit != null ? (
-                              <Chip
-                                label={`Embedding cache: ${lastTraceSummary.embeddingCacheHit ? 'hit' : 'miss'}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ) : null}
-                          </Stack>
-                          {Object.keys(lastTraceSummary.stepDurationsMs).length > 0 ? (
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                              {Object.entries(lastTraceSummary.stepDurationsMs).map(([stepName, durationMs]) => (
-                                <Chip
-                                  key={stepName}
-                                  label={`${stepName}: ${formatDuration(durationMs) ?? '—'}`}
-                                  size="small"
-                                  variant="outlined"
-                                />
-                              ))}
-                            </Stack>
-                          ) : null}
-                        </Stack>
-                      ) : null}
-
-                      {lastTraceSummary.documents.length > 0 ? (
-                        <Stack spacing={1.25}>
-                          <Typography variant="body2" color="text.secondary">
-                            Grounding evidence
-                          </Typography>
-                          {lastTraceSummary.documents.map((document, index) => (
-                            <Card key={`${document.id ?? document.title ?? 'doc'}-${index}`} variant="outlined" sx={{ borderColor: 'divider' }}>
-                              <CardContent sx={{ '&:last-child': { pb: 2 } }}>
-                                <Stack spacing={1}>
-                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                    {document.title ?? document.id ?? 'Document'}
-                                  </Typography>
-                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                    {document.vectorSpace ? <Chip label={document.vectorSpace} size="small" variant="outlined" /> : null}
-                                    {document.score != null ? (
-                                      <Chip label={`Score: ${document.score.toFixed(2)}`} size="small" variant="outlined" />
-                                    ) : null}
-                                    {document.source ? <Chip label={document.source} size="small" variant="outlined" /> : null}
-                                  </Stack>
-                                  {document.url ? (
-                                    <Typography
-                                      component="a"
-                                      href={document.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      variant="caption"
-                                      sx={{ wordBreak: 'break-all' }}
-                                    >
-                                      {document.url}
-                                    </Typography>
-                                  ) : null}
-                                </Stack>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </Stack>
-                      ) : null}
-
-                      {actionValidationSummary.missing.length > 0 || actionValidationSummary.provenanceMissing.length > 0 ? (
-                        <Stack spacing={1}>
-                          <Typography variant="body2" color="text.secondary">
-                            Action validation
-                          </Typography>
-                          {actionValidationSummary.missing.length > 0 ? (
-                            <Alert severity="warning">
-                              Missing action parameters: {actionValidationSummary.missing.join(', ')}
-                            </Alert>
-                          ) : null}
-                          {actionValidationSummary.provenanceMissing.length > 0 ? (
-                            <Alert severity="warning">
-                              Provenance gaps: {actionValidationSummary.provenanceMissing.join(', ')}
-                            </Alert>
-                          ) : null}
-                          {actionValidationSummary.sourcesUsed.length > 0 ? (
-                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                              {actionValidationSummary.sourcesUsed.map((source) => (
-                                <Chip key={source} label={`Evidence: ${source}`} size="small" variant="outlined" />
-                              ))}
-                            </Stack>
-                          ) : null}
-                        </Stack>
-                      ) : null}
-
-                      {lastTraceSummary.childResultTypes.length > 0 ? (
-                        <Stack spacing={1}>
-                          <Typography variant="body2" color="text.secondary">
-                            Child results
-                          </Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            {lastTraceSummary.childResultTypes.map((type, index) => (
-                              <Chip key={`${type}-${index}`} label={type} size="small" variant="outlined" />
-                            ))}
-                          </Stack>
-                        </Stack>
-                      ) : null}
-                    </>
-                  ) : (
-                    <>
-                      <Stack spacing={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Result type
-                        </Typography>
-                        <Typography variant="body1">{readResultLabel(lastResult, 'type')}</Typography>
-                      </Stack>
-                      <Stack spacing={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Success
-                        </Typography>
-                        <Typography variant="body1">{readResultLabel(lastResult, 'success')}</Typography>
-                      </Stack>
-                      <Stack spacing={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Message
-                        </Typography>
-                        <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {readResultLabel(lastResult, 'message')}
-                        </Typography>
-                      </Stack>
-                    </>
-                  )}
-                  <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Raw result
-                    </Typography>
-                    <Box
-                      component="pre"
-                      sx={{
-                        m: 0,
-                        p: 1.5,
-                        borderRadius: 2,
-                        bgcolor: 'grey.950',
-                        color: 'grey.100',
-                        overflow: 'auto',
-                        fontSize: 12,
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {jsonPreview(lastResult)}
-                    </Box>
-                  </Box>
-                </>
-              ) : (
+              <Stack spacing={1}>
                 <Typography variant="body2" color="text.secondary">
-                  Send a query to capture the latest orchestration result and inspect it from the platform.
+                  Session and auth
                 </Typography>
-              )}
+                <Typography variant="body2">
+                  The widget adapter uses platform credentials with cross-origin cookie support and an operator API-key
+                  fallback when present.
+                </Typography>
+              </Stack>
+
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Prompt preview
+                </Typography>
+                <Typography variant="body2">
+                  Prompt hot-apply still works on the platform-private path because the platform adapter injects the
+                  effective prompt preview before proxying widget queries to runtime.
+                </Typography>
+              </Stack>
+
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Current adapter routes
+                </Typography>
+                <Box
+                  component="pre"
+                  sx={{
+                    m: 0,
+                    p: 1.5,
+                    borderRadius: 2,
+                    bgcolor: 'grey.950',
+                    color: 'grey.100',
+                    overflow: 'auto',
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {jsonPreview({
+                    chatBaseUrl: widgetBaseUrl,
+                    chatQueryUrl: `${widgetBaseUrl}/chat/me/query?${widgetAuthSuffix}`,
+                    suggestionsUrl: `${widgetBaseUrl}/chat/me/suggestions?${widgetAuthSuffix}`,
+                    authContextUrl: `${widgetBaseUrl}/chat/me/auth-context?${widgetAuthSuffix}`,
+                    shellConfigUrl: `${widgetBaseUrl}/chat/me/shell-config?${widgetAuthSuffix}`,
+                    conversationsUrl: `${widgetBaseUrl}/chat/me/conversations?${widgetAuthSuffix}`,
+                    conversationItemUrlTemplate: widgetConversationItemUrlTemplate,
+                  })}
+                </Box>
+              </Stack>
+
+              <Alert severity="info">
+                Widget debug mode is enabled for the POC. Use the widget’s own inspector for request and result
+                details until the POC page is wired to consume widget message events.
+              </Alert>
             </Stack>
           </CardContent>
         </Card>

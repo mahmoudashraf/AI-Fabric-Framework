@@ -21,6 +21,7 @@ export function useMaxModeViewSync({
   setNewDocuments,
   setIsNewDocsPreviewOpen,
   setViewedDocumentIds,
+  welcomeContent,
 }: {
   isOpen: boolean;
   chatMessages: ChatMessage[];
@@ -39,6 +40,7 @@ export function useMaxModeViewSync({
   setNewDocuments: (docs: Document[] | ((prev: Document[]) => Document[])) => void;
   setIsNewDocsPreviewOpen: (open: boolean) => void;
   setViewedDocumentIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+  welcomeContent: string;
 }) {
   useEffect(() => {
     if (latestMessageRef.current && chatMessages.length > 0) {
@@ -159,12 +161,10 @@ export function useMaxModeViewSync({
     const welcomeMessage: ChatMessage = {
       id: "welcome",
       type: "ai",
-      content:
-        "👋 Welcome to MAX Mode - your AI-powered shopping assistant! I can help you find products, manage orders, apply coupons, and much more. Try the quick actions above or just ask me anything!",
+      content: welcomeContent,
       timestamp: new Date().toISOString(),
       resultType: "INFORMATION_PROVIDED",
     };
     setChatMessages([welcomeMessage]);
-  }, [isOpen, chatMessages.length, setChatMessages]);
+  }, [isOpen, chatMessages.length, setChatMessages, welcomeContent]);
 }
-

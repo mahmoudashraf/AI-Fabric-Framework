@@ -9,18 +9,38 @@ import com.ai.fabric.runtime.auth.RuntimePrivateAssertionService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
+import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
+import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminOverviewController;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
+import com.ai.infrastructure.config.AIProviderConfig;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
 import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.dto.VectorScanPage;
 import com.ai.infrastructure.dto.VectorScanRequest;
+import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.AIContributionProvenance;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
+import com.ai.infrastructure.intent.action.ActionSideEffectLevel;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import com.ai.infrastructure.intent.action.connector.ConnectorWebhookTargetDefinition;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
 import com.ai.infrastructure.rag.VectorDatabaseService;
+import com.ai.infrastructure.rag.source.SearchSourceRegistry;
+import com.ai.infrastructure.shell.BuiltInShellCatalog;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -59,7 +79,27 @@ class RuntimeAdminOverviewControllerTest {
         authProperties.getPublicTokens().getBootstrap().setEnabled(true);
         authProperties.getPublicTokens().getBootstrap().getAllowedOrigins().add("https://storefront.example");
 
-        when(actionRegistry.getAllMetadata()).thenReturn(java.util.List.of());
+        when(actionRegistry.getAllMetadata()).thenReturn(java.util.List.of(
+            AIActionMetaData.builder()
+                .name("create_purchase_order")
+                .displayName("Create Purchase Order")
+                .category("commerce")
+                .description("Create a new purchase order")
+                .accessMode(ActionAccessMode.WRITE_ONLY)
+                .confirmationRequired(true)
+                .groundingEligible(false)
+                .sideEffectLevel(ActionSideEffectLevel.MUTATING)
+                .resultPresentationHint(ActionResultPresentationHint.STATUS)
+                .builtInModuleId("purchase-orders")
+                .builtInCardId("purchase-order-status")
+                .provenance(AIContributionProvenance.builder()
+                    .contributionType("ACTION")
+                    .sourceType("ACTION_CATALOG")
+                    .sourceId("create_purchase_order")
+                    .sourceLocation("classpath:test-actions.yml")
+                    .build())
+                .build()
+        ));
         when(entityConfigurationLoader.getSupportedEntityTypes()).thenReturn(Set.of("product", "policy", "review"));
         Map<String, Object> vectorScope = new LinkedHashMap<>();
         vectorScope.put("sharedStorage", true);
@@ -75,10 +115,17 @@ class RuntimeAdminOverviewControllerTest {
             entityConfigurationLoader,
             vectorDatabaseService,
             authProperties,
-            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
+            confirmationProvider(),
+            webhookPolicyProvider(),
+            knowledgeSourceConfigProvider(),
+            shellConfigProvider(),
+            searchSourceRegistryProvider()
         );
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigLocation", "https://platform.example/entities");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "knowledgeSourceConfigLocation", "https://platform.example/knowledge-sources");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "shellConfigLocation", "https://platform.example/shell");
 
         ResponseEntity<?> response = controller.overview(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW));
 
@@ -89,8 +136,88 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
         assertThat(body).containsEntry("supportsVectorScan", true);
+        assertThat(body).containsEntry("actionsCount", 1L);
+        assertThat(body).containsEntry("groundingEligibleActionsCount", 0L);
+        assertThat(body).containsEntry("actionsWithPresentationHintsCount", 1L);
+        assertThat(body).containsEntry("actionsWithBuiltInModuleMappingsCount", 1L);
+        assertThat(body).containsEntry("actionsWithBuiltInCardMappingsCount", 1L);
+        assertThat(body).containsEntry("actionsWithProvenanceCount", 1L);
+        assertThat(body).containsEntry("confirmationInterceptorsCount", 1);
+        assertThat(body).containsEntry("postActionWebhookPoliciesCount", 1L);
+        assertThat(body).containsEntry("webhookTargetsCount", 1);
+        assertThat(body.get("confirmationInterceptorRuleNames")).isEqualTo(List.of("cancel_to_retention_offer"));
+        assertThat(body.get("confirmationInterceptorSources")).isEqualTo(List.of("classpath:test-actions.yml"));
+        assertThat(body.get("actionNamesWithPostActionWebhookPolicies")).isEqualTo(List.of("create_purchase_order"));
+        assertThat(body.get("webhookTargetIds")).isEqualTo(List.of("zapier_purchase_orders"));
+        assertThat(body).containsEntry("knowledgeSourcesCount", 2);
+        assertThat(body.get("knowledgeSourceIds")).isEqualTo(List.of("shared-catalog", "shared-policy"));
+        assertThat(body.get("knowledgeSourceTypes")).isEqualTo(List.of("shared-vector", "shared-vector"));
+        assertThat(body.get("knowledgeSourceAdapterTypes")).isEqualTo(List.of("shared-index"));
+        assertThat(body).containsEntry("shellModulesCount", 2);
+        assertThat(body.get("shellModuleIds")).isEqualTo(List.of("product-catalog", "policies"));
+        assertThat(body).containsEntry("shellCardsCount", 1);
+        assertThat(body.get("shellCardIds")).isEqualTo(List.of("policy-summary"));
+        assertThat(body).containsEntry("shellStarterPromptsCount", 2);
+        assertThat(body).containsEntry("shellGreetingConfigured", true);
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
+        assertThat(body.get("inferenceProfile")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> inferenceProfile = (Map<String, Object>) body.get("inferenceProfile");
+        assertThat(inferenceProfile).containsEntry("llmProvider", "openai");
+        assertThat(inferenceProfile).containsEntry("embeddingProvider", "onnx");
+        assertThat(inferenceProfile).containsEntry("embeddingEndpointProfile", "onnx-bundled");
+        assertThat(inferenceProfile).containsEntry("embeddingHasConnectionOverride", true);
+        assertThat(inferenceProfile).containsEntry("orchestrationProvider", "openai");
+        assertThat(inferenceProfile).containsEntry("orchestrationModel", "gpt-4o-mini");
+        assertThat(inferenceProfile).containsEntry("orchestrationEndpointProfile", "openai-cloud-orchestration");
+        assertThat(inferenceProfile).containsEntry("orchestrationHasConnectionOverride", true);
+        assertThat(inferenceProfile).containsEntry("generationProvider", "openai");
+        assertThat(inferenceProfile).containsEntry("generationModel", "gpt-4o");
+        assertThat(inferenceProfile).containsEntry("generationEndpointProfile", "openai-cloud-default");
+        assertThat(inferenceProfile).containsEntry("generationHasConnectionOverride", true);
+        assertThat(body.get("searchSourceDiagnostics")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> searchSourceDiagnostics = (Map<String, Object>) body.get("searchSourceDiagnostics");
+        assertThat(searchSourceDiagnostics).containsEntry("contractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1");
+        assertThat(searchSourceDiagnostics).containsEntry("degradedSearchSupported", true);
+        assertThat(searchSourceDiagnostics).containsEntry("configuredSourcesCount", 2);
+        assertThat(searchSourceDiagnostics).containsEntry("degradedSourcesCount", 1L);
+        assertThat(searchSourceDiagnostics).containsEntry("disabledSourcesCount", 0L);
+        assertThat(searchSourceDiagnostics.get("sources")).isEqualTo(List.of(
+            Map.of(
+                "sourceId", "deployment-private-vector",
+                "healthStatus", "READY"
+            ),
+            Map.of(
+                "sourceId", "shared-catalog",
+                "healthStatus", "DEGRADED"
+            )
+        ));
+        assertThat(body.get("marketplaceSupport")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> marketplaceSupport = (Map<String, Object>) body.get("marketplaceSupport");
+        assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V2");
+        assertThat(marketplaceSupport).containsEntry("resolvedActionMetadataSupported", true);
+        assertThat(marketplaceSupport).containsEntry("postActionWebhookPoliciesSupported", true);
+        assertThat(marketplaceSupport).containsEntry("postActionWebhookPolicyContractVersion", "ACTION_WEBHOOK_POLICY_V1");
+        assertThat(marketplaceSupport).containsEntry("actionMetadataContractVersion", "ACTION_METADATA_V2");
+        assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", true);
+        assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", true);
+        assertThat(marketplaceSupport).containsEntry("resolvedSearchSourcesSupported", true);
+        assertThat(marketplaceSupport).containsEntry("degradedSearchSupported", true);
+        assertThat(marketplaceSupport).containsEntry("knowledgeSourceContractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        assertThat(marketplaceSupport).containsEntry("shellConfigContractVersion", "SHELL_CONFIG_V1");
+        assertThat(marketplaceSupport).containsEntry("searchSourceContractVersion", "SEARCH_SOURCE_REGISTRY_V1");
+        assertThat(marketplaceSupport).containsEntry("searchSourceDiagnosticsContractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1");
+        assertThat(marketplaceSupport.get("supportedKnowledgeSourceAdapterTypes"))
+            .isEqualTo(List.of("deployment-private-vector", "shared-index"));
+        assertThat(marketplaceSupport.get("supportedShellModuleIds"))
+            .isEqualTo(BuiltInShellCatalog.MODULE_IDS);
+        assertThat(marketplaceSupport.get("supportedShellCardIds"))
+            .isEqualTo(BuiltInShellCatalog.CARD_IDS);
+        assertThat(marketplaceSupport.get("supportedEvidenceBlockIds"))
+            .isEqualTo(BuiltInShellCatalog.EVIDENCE_BLOCK_IDS);
         assertThat(body.get("auth")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> auth = (Map<String, Object>) body.get("auth");
@@ -129,6 +256,7 @@ class RuntimeAdminOverviewControllerTest {
                 "/api/chat/me/query",
                 "/api/chat/me/suggestions",
                 "/api/chat/me/auth-context",
+                "/api/chat/me/shell-config",
                 "/api/chat/me/conversations",
                 "/api/chat/me/conversations/{conversationId}"
             ));
@@ -155,7 +283,12 @@ class RuntimeAdminOverviewControllerTest {
                 requestAuthProperties,
                 new RuntimePrivateAssertionService(requestAuthProperties),
                 null
-            )
+            ),
+            confirmationProvider(),
+            webhookPolicyProvider(),
+            knowledgeSourceConfigProvider(),
+            shellConfigProvider(),
+            searchSourceRegistryProvider()
         );
 
         ResponseEntity<?> response = controller.authOverview(
@@ -191,12 +324,100 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(auth).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
     }
 
+    @Test
+    void overviewKeepsActionOnlyDeploymentsDefaultSafeWithoutMarketplaceArtifacts() {
+        AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
+        RuntimeActionCatalogGateway actionCatalogGateway = mock(RuntimeActionCatalogGateway.class);
+        AIEntityConfigurationLoader entityConfigurationLoader = mock(AIEntityConfigurationLoader.class);
+        VectorDatabaseService vectorDatabaseService = new TestVectorDatabaseService();
+        RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
+        authProperties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        authProperties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        authProperties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-secret");
+        authProperties.getIngress().setAcceptedIssuers(List.of("platform-poc:SESSION"));
+        authProperties.getIngress().setAcceptedAudiences(List.of("dep-auth"));
+
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(
+            AIActionMetaData.builder()
+                .name("list_products")
+                .displayName("List Products")
+                .category("commerce")
+                .description("List products")
+                .accessMode(ActionAccessMode.READ)
+                .confirmationRequired(false)
+                .build()
+        ));
+        when(actionCatalogGateway.getSources()).thenReturn(List.of());
+        when(entityConfigurationLoader.getSupportedEntityTypes()).thenReturn(Set.of("product"));
+
+        RuntimeAdminOverviewController controller = instantiateController(
+            actionRegistry,
+            actionCatalogGateway,
+            entityConfigurationLoader,
+            vectorDatabaseService,
+            authProperties,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
+            emptyProvider(ConfirmationInterceptorCatalogProvider.class),
+            emptyProvider(ConnectorActionWebhookPolicyCatalog.class),
+            emptyProvider(RuntimeDeploymentKnowledgeSourceConfigService.class),
+            emptyProvider(RuntimeDeploymentShellConfigService.class),
+            emptyProvider(SearchSourceRegistry.class)
+        );
+
+        ResponseEntity<?> response = controller.overview(
+            authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW)
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isInstanceOf(Map.class);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertThat(body).containsEntry("success", true);
+        assertThat(body).containsEntry("actionsCount", 1L);
+        assertThat(body).containsEntry("confirmationInterceptorsCount", 0);
+        assertThat(body).containsEntry("postActionWebhookPoliciesCount", 0L);
+        assertThat(body).containsEntry("webhookTargetsCount", 0);
+        assertThat(body).containsEntry("knowledgeSourcesCount", 0);
+        assertThat(body).containsEntry("knowledgeSourceIds", List.of());
+        assertThat(body).containsEntry("knowledgeSourceTypes", List.of());
+        assertThat(body).containsEntry("knowledgeSourceAdapterTypes", List.of());
+        assertThat(body).containsEntry("shellModulesCount", 0);
+        assertThat(body).containsEntry("shellModuleIds", List.of());
+        assertThat(body).containsEntry("shellCardsCount", 0);
+        assertThat(body).containsEntry("shellCardIds", List.of());
+        assertThat(body).containsEntry("shellStarterPromptsCount", 0);
+        assertThat(body).containsEntry("shellGreetingConfigured", false);
+        assertThat(body).containsEntry("searchSourceDiagnostics", Map.of());
+        assertThat(body.get("marketplaceSupport")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> marketplaceSupport = (Map<String, Object>) body.get("marketplaceSupport");
+        assertThat(marketplaceSupport).containsEntry("contractVersion", "MARKETPLACE_RUNTIME_SUPPORT_V2");
+        assertThat(marketplaceSupport).containsEntry("resolvedActionMetadataSupported", true);
+        assertThat(marketplaceSupport).containsEntry("postActionWebhookPoliciesSupported", true);
+        assertThat(marketplaceSupport).containsEntry("postActionWebhookPolicyContractVersion", "ACTION_WEBHOOK_POLICY_V1");
+        assertThat(marketplaceSupport).containsEntry("resolvedKnowledgeSourcesSupported", false);
+        assertThat(marketplaceSupport).containsEntry("resolvedShellConfigSupported", false);
+        assertThat(marketplaceSupport).containsEntry("resolvedSearchSourcesSupported", false);
+        assertThat(marketplaceSupport).containsEntry("degradedSearchSupported", false);
+        assertThat(marketplaceSupport).containsEntry("knowledgeSourceContractVersion", "KNOWLEDGE_SOURCE_CONFIG_V1");
+        assertThat(marketplaceSupport).containsEntry("shellConfigContractVersion", "SHELL_CONFIG_V1");
+        assertThat(marketplaceSupport).containsEntry("searchSourceContractVersion", "SEARCH_SOURCE_REGISTRY_V1");
+        assertThat(marketplaceSupport).containsEntry("searchSourceDiagnosticsContractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1");
+        assertThat(marketplaceSupport).containsEntry("supportedKnowledgeSourceAdapterTypes", List.of());
+    }
+
     private RuntimeAdminOverviewController instantiateController(AIActionRegistry actionRegistry,
                                                                  RuntimeActionCatalogGateway actionCatalogGateway,
                                                                  AIEntityConfigurationLoader entityConfigurationLoader,
                                                                  VectorDatabaseService vectorDatabaseService,
                                                                  RuntimeAuthProperties authProperties,
-                                                                 RuntimeRequestAuthResolver runtimeRequestAuthResolver) {
+                                                                 RuntimeRequestAuthResolver runtimeRequestAuthResolver,
+                                                                 ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider,
+                                                                 ObjectProvider<ConnectorActionWebhookPolicyCatalog> webhookPolicyProvider,
+                                                                 ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceProvider,
+                                                                 ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider,
+                                                                 ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider) {
         try {
             Constructor<?> constructor = RuntimeAdminOverviewController.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
@@ -204,13 +425,127 @@ class RuntimeAdminOverviewControllerTest {
                 actionRegistry,
                 actionCatalogGateway,
                 entityConfigurationLoader,
+                aiProviderConfig(),
                 vectorDatabaseService,
                 authProperties,
-                runtimeRequestAuthResolver
+                runtimeRequestAuthResolver,
+                confirmationProvider,
+                webhookPolicyProvider,
+                knowledgeSourceProvider,
+                shellConfigProvider,
+                searchSourceRegistryProvider
             );
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private AIProviderConfig aiProviderConfig() {
+        AIProviderConfig providerConfig = new AIProviderConfig();
+        providerConfig.setLlmProvider("openai");
+        providerConfig.setEmbeddingProvider("onnx");
+        providerConfig.setEmbeddingEndpointProfile("onnx-bundled");
+
+        AIProviderConfig.OrchestrationLlmConfig orchestration = new AIProviderConfig.OrchestrationLlmConfig();
+        orchestration.setLlmProvider("openai");
+        orchestration.setModel("gpt-4o-mini");
+        orchestration.setEndpointProfile("openai-cloud-orchestration");
+        orchestration.setBaseUrl("https://api.openai.com/v1");
+        orchestration.setApiKey("platform-openai-key");
+        providerConfig.setOrchestration(orchestration);
+
+        AIProviderConfig.GenerationLlmConfig generation = new AIProviderConfig.GenerationLlmConfig();
+        generation.setLlmProvider("openai");
+        generation.setModel("gpt-4o");
+        generation.setEndpointProfile("openai-cloud-default");
+        generation.setBaseUrl("https://api.openai.com/v1");
+        generation.setApiKey("platform-openai-key");
+        providerConfig.setGeneration(generation);
+        return providerConfig;
+    }
+
+    private ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider() {
+        ConfirmationInterceptorCatalogProvider provider = new ConfirmationInterceptorCatalogProvider() {
+            @Override
+            public List<ConfirmationInterceptorRule> getRules() {
+                return List.of(new ConfirmationInterceptorRule(
+                    "cancel_to_retention_offer",
+                    new ConfirmationInterceptorTrigger(List.of("cancel_purchase_order"), com.ai.infrastructure.dto.IntentType.CONFIRMATION_POSITIVE, "_retentionOfferOffered"),
+                    new ConfirmationInterceptorDecision(ConfirmationInterceptorDecisionType.PROMPT_ACTION, "offer_order_discount", Map.of(), null),
+                    ConfirmationInterceptorStackPolicy.NONE
+                ));
+            }
+
+            @Override
+            public List<String> getSourceLocations() {
+                return List.of("classpath:test-actions.yml");
+            }
+        };
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("confirmationInterceptorCatalogProvider", provider);
+        return beanFactory.getBeanProvider(ConfirmationInterceptorCatalogProvider.class);
+    }
+
+    private <T> ObjectProvider<T> emptyProvider(Class<T> type) {
+        return new StaticListableBeanFactory().getBeanProvider(type);
+    }
+
+    private ObjectProvider<ConnectorActionWebhookPolicyCatalog> webhookPolicyProvider() {
+        ConnectorActionWebhookPolicyCatalog provider = mock(ConnectorActionWebhookPolicyCatalog.class);
+        when(provider.postPolicyCount()).thenReturn(1L);
+        when(provider.actionNamesWithPostPolicies()).thenReturn(Set.of("create_purchase_order"));
+        when(provider.webhookTargets()).thenReturn(List.of(
+            new ConnectorWebhookTargetDefinition("zapier_purchase_orders", "ZAPIER_URL", "ZAPIER_SIGNING_SECRET", 3000, 5)
+        ));
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("connectorActionWebhookPolicyCatalog", provider);
+        return beanFactory.getBeanProvider(ConnectorActionWebhookPolicyCatalog.class);
+    }
+
+    private ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigProvider() {
+        RuntimeDeploymentKnowledgeSourceConfigService service = mock(RuntimeDeploymentKnowledgeSourceConfigService.class);
+        when(service.currentSourceCount()).thenReturn(2);
+        when(service.currentSourceIds()).thenReturn(List.of("shared-catalog", "shared-policy"));
+        when(service.currentSourceTypes()).thenReturn(List.of("shared-vector", "shared-vector"));
+        when(service.currentSourceAdapterTypes()).thenReturn(List.of("shared-index"));
+        when(service.currentContractVersion()).thenReturn("KNOWLEDGE_SOURCE_CONFIG_V1");
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("runtimeDeploymentKnowledgeSourceConfigService", service);
+        return beanFactory.getBeanProvider(RuntimeDeploymentKnowledgeSourceConfigService.class);
+    }
+
+    private ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider() {
+        SearchSourceRegistry registry = mock(SearchSourceRegistry.class);
+        when(registry.contractVersion()).thenReturn("SEARCH_SOURCE_REGISTRY_V1");
+        when(registry.supportedAdapterTypes()).thenReturn(List.of("deployment-private-vector", "shared-index"));
+        when(registry.adminDiagnostics()).thenReturn(Map.of(
+            "contractVersion", "SEARCH_SOURCE_DIAGNOSTICS_V1",
+            "degradedSearchSupported", true,
+            "configuredSourcesCount", 2,
+            "degradedSourcesCount", 1L,
+            "disabledSourcesCount", 0L,
+            "sources", List.of(
+                Map.of("sourceId", "deployment-private-vector", "healthStatus", "READY"),
+                Map.of("sourceId", "shared-catalog", "healthStatus", "DEGRADED")
+            )
+        ));
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("runtimeDeploymentSearchSourceRegistry", registry);
+        return beanFactory.getBeanProvider(SearchSourceRegistry.class);
+    }
+
+    private ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider() {
+        RuntimeDeploymentShellConfigService service = mock(RuntimeDeploymentShellConfigService.class);
+        when(service.currentModuleCount()).thenReturn(2);
+        when(service.currentModuleIds()).thenReturn(List.of("product-catalog", "policies"));
+        when(service.currentCardCount()).thenReturn(1);
+        when(service.currentCardIds()).thenReturn(List.of("policy-summary"));
+        when(service.currentStarterPromptCount()).thenReturn(2);
+        when(service.currentGreetingMessage()).thenReturn("Ask about products or policy.");
+        when(service.currentContractVersion()).thenReturn("SHELL_CONFIG_V1");
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("runtimeDeploymentShellConfigService", service);
+        return beanFactory.getBeanProvider(RuntimeDeploymentShellConfigService.class);
     }
 
     private HttpServletRequest authorizedRequest(RuntimeAuthProperties authProperties, String scope) {

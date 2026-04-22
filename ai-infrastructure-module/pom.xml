@@ -45,6 +45,7 @@
         <module>ai-fabric-provider-starter</module>
         <module>curated/ai-curated-default</module>
         <module>curated/ai-curated-commerce</module>
+        <module>curated/ai-curated-support</module>
         <module>ai-infrastructure-rag</module>
         <module>ai-infrastructure-web</module>
         <module>providers/ai-infrastructure-provider-openai</module>
@@ -52,7 +53,6 @@
         <module>providers/ai-infrastructure-provider-cohere</module>
         <module>providers/ai-infrastructure-provider-anthropic</module>
         <module>providers/ai-infrastructure-provider-gemini</module>
-        <module>providers/ai-infrastructure-provider-rest</module>
         <module>providers/ai-infrastructure-onnx-starter</module>
         <module>ai-infrastructure-relationship-query</module>
         <module>ai-infrastructure-chat-session</module>
@@ -182,6 +182,11 @@
                 <artifactId>ai-curated-commerce</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.ai.fabric</groupId>
+                <artifactId>ai-curated-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             
             <!-- Provider Modules -->
             <dependency>
@@ -209,12 +214,6 @@
                 <artifactId>ai-infrastructure-provider-gemini</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-provider-rest</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
             <!-- Vector Modules -->
             <dependency>
                 <groupId>com.ai.fabric</groupId>

@@ -1,16 +1,26 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.deployment.model.RailwayLogEntrySummary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -145,6 +155,122 @@ class RailwayGraphqlClientTest {
         verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
 
+    @Test
+    void fetchHttpLogsRequestsOnlySupportedHttpLogFields() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        AtomicReference<HttpRequest> capturedRequest = new AtomicReference<>();
+        RailwayGraphqlClient client = new RailwayGraphqlClient(
+            objectMapper,
+            provisioningProperties(),
+            httpClient,
+            duration -> {
+            }
+        );
+
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+            {
+              "data": {
+                "httpLogs": [
+                  {
+                    "timestamp": "2026-04-20T21:19:00Z",
+                    "message": "GET /api/admin/indexing/overview 200"
+                  }
+                ]
+              }
+            }
+            """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenAnswer(invocation -> {
+                capturedRequest.set(invocation.getArgument(0));
+                return response;
+            });
+
+        List<RailwayLogEntrySummary> logs = client.fetchHttpLogs(
+            "dep-123",
+            25,
+            "indexing",
+            "2026-04-20T21:00:00Z",
+            "2026-04-20T21:30:00Z"
+        );
+
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).timestamp()).isEqualTo("2026-04-20T21:19:00Z");
+        assertThat(logs.get(0).message()).contains("/api/admin/indexing/overview");
+        assertThat(logs.get(0).severity()).isNull();
+        assertThat(logs.get(0).attributes()).isEmpty();
+
+        String body = requestBody(capturedRequest.get());
+        assertThat(body).contains("httpLogs");
+        assertThat(body).contains("timestamp");
+        assertThat(body).contains("message");
+        assertThat(body).doesNotContain("severity");
+        assertThat(body).doesNotContain("tags");
+        assertThat(body).doesNotContain("attributes");
+    }
+
+    @Test
+    void fetchHttpLogsFallsBackToMinimalFieldSetAfterGraphQlValidationFailure() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> failure = mock(HttpResponse.class);
+        HttpResponse<String> success = mock(HttpResponse.class);
+        List<String> requestBodies = new ArrayList<>();
+        RailwayGraphqlClient client = new RailwayGraphqlClient(
+            objectMapper,
+            provisioningProperties(),
+            httpClient,
+            duration -> {
+            }
+        );
+
+        when(failure.statusCode()).thenReturn(200);
+        when(failure.body()).thenReturn("""
+            {
+              "errors": [
+                {
+                  "message": "Cannot query field \\\"message\\\" on type \\\"HttpLog\\\"."
+                }
+              ]
+            }
+            """);
+        when(success.statusCode()).thenReturn(200);
+        when(success.body()).thenReturn("""
+            {
+              "data": {
+                "httpLogs": [
+                  {
+                    "timestamp": "2026-04-20T21:29:00Z"
+                  }
+                ]
+              }
+            }
+            """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenAnswer(invocation -> {
+                requestBodies.add(requestBody(invocation.getArgument(0)));
+                return requestBodies.size() == 1 ? failure : success;
+            });
+
+        List<RailwayLogEntrySummary> logs = client.fetchHttpLogs(
+            "dep-123",
+            10,
+            null,
+            null,
+            null
+        );
+
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).timestamp()).isEqualTo("2026-04-20T21:29:00Z");
+        assertThat(logs.get(0).message()).isNull();
+        assertThat(logs.get(0).severity()).isNull();
+        assertThat(requestBodies).hasSize(2);
+        assertThat(requestBodies.get(0)).contains("message");
+        assertThat(requestBodies.get(1)).contains("timestamp");
+        assertThat(requestBodies.get(1)).doesNotContain("message");
+        verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
     private PlatformProvisioningProperties provisioningProperties() {
         return new PlatformProvisioningProperties(
             "RAILWAY_API",
@@ -169,5 +295,39 @@ class RailwayGraphqlClientTest {
             Duration.ofSeconds(1),
             Duration.ofMinutes(1)
         );
+    }
+
+    private String requestBody(HttpRequest request) {
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            CountDownLatch finished = new CountDownLatch(1);
+            request.bodyPublisher().orElseThrow().subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE);
+                }
+
+                @Override
+                public void onNext(ByteBuffer item) {
+                    byte[] bytes = new byte[item.remaining()];
+                    item.get(bytes);
+                    output.write(bytes, 0, bytes.length);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    finished.countDown();
+                }
+
+                @Override
+                public void onComplete() {
+                    finished.countDown();
+                }
+            });
+            finished.await(1, TimeUnit.SECONDS);
+            return output.toString(StandardCharsets.UTF_8);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read request body", ex);
+        }
     }
 }
