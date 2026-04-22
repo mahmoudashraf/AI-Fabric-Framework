@@ -178,6 +178,5 @@ set manifest_json = '{
     }
   }
 }',
-    updated_at = current_timestamp,
     published_at = coalesce(published_at, current_timestamp)
 where id = 'mkv-action-shopify-companion-read-v1';
