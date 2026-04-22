@@ -203,6 +203,38 @@ public class PlatformVerificationSuiteService {
         return new PlatformVerificationSuiteDispatchSummary(run.getSuiteKey(), run.getSummaryMessage(), toSummary(run, stages));
     }
 
+    public PlatformVerificationSuiteRunSummary cancelRun(String runId) {
+        PlatformVerificationSuiteRunEntity run = runRepository.findById(runId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Verification suite run not found: " + runId));
+        if (!ACTIVE_STATUSES.contains(run.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Verification suite run is not active: " + runId);
+        }
+        Instant now = Instant.now();
+        List<PlatformVerificationSuiteRunStageEntity> stages = stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId());
+        run.setStatus("CANCELLED");
+        run.setCompletedAt(now);
+        run.setSummaryMessage("Verification suite was cancelled by a platform admin.");
+        runRepository.save(run);
+        stages.stream()
+            .filter(stage -> ACTIVE_STATUSES.contains(stage.getStatus()))
+            .forEach(stage -> {
+                stage.setStatus("CANCELLED");
+                stage.setCompletedAt(now);
+                stage.setSummaryMessage("Stage was cancelled by a platform admin.");
+                stageRepository.save(stage);
+            });
+        platformAuditService.record(
+            "PLATFORM_VERIFICATION_SUITE_CANCELLED",
+            "PLATFORM_VERIFICATION_SUITE",
+            run.getId(),
+            Map.of(
+                "suiteKey", run.getSuiteKey(),
+                "status", "CANCELLED"
+            )
+        );
+        return toSummary(run, stages);
+    }
+
     private PlatformVerificationSuiteRunStageEntity toStageEntity(PlatformVerificationSuiteRunEntity run,
                                                                   com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageDefinitionSummary stage,
                                                                   Instant createdAt) {

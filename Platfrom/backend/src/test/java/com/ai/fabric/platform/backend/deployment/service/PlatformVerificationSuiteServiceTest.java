@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuit
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationReleaseGateSummary;
+import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteRunSummary;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunStageRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -130,6 +131,64 @@ class PlatformVerificationSuiteServiceTest {
         ));
         assertThat(summary.run().stages()).hasSize(12);
         verify(executionService).execute(summary.run().id(), false);
+    }
+
+    @Test
+    void cancelRunMarksActiveRunAndStageCancelled() {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+        PlatformVerificationSuiteExecutionService executionService = mock(PlatformVerificationSuiteExecutionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        PlatformVerificationSuiteRunEntity run = new PlatformVerificationSuiteRunEntity();
+        run.setId("vsr-cancel");
+        run.setSuiteKey(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
+        run.setSuiteLabel("Full platform release readiness");
+        run.setStatus("RUNNING");
+        run.setReleaseBlocking(true);
+        run.setSummaryMessage("running");
+        run.setRequestedByActorId("admin");
+        run.setRequestedByRole("PLATFORM_ADMIN");
+        run.setCreatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+        run.setStartedAt(Instant.now().minus(Duration.ofMinutes(5)));
+
+        PlatformVerificationSuiteRunStageEntity stage = new PlatformVerificationSuiteRunStageEntity();
+        stage.setId("vss-cancel");
+        stage.setSuiteRunId(run.getId());
+        stage.setStageOrder(1);
+        stage.setStageKey("marketplace-install-flow");
+        stage.setStageLabel("Marketplace install flow");
+        stage.setStageType("SCRIPT_VERIFICATION");
+        stage.setTargetRef(PlatformVerificationSuiteScriptContextService.SCRIPT_MARKETPLACE_INSTALL_FLOW);
+        stage.setBlocking(true);
+        stage.setStatus("RUNNING");
+        stage.setSummaryMessage("running");
+        stage.setDetailsJson("{}");
+        stage.setCreatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+        stage.setStartedAt(Instant.now().minus(Duration.ofMinutes(5)));
+
+        when(runRepository.findById(run.getId())).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId())).thenReturn(List.of(stage));
+        when(stageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformVerificationSuiteService service = new PlatformVerificationSuiteService(
+            new PlatformVerificationSuiteCatalog(),
+            runRepository,
+            stageRepository,
+            executionService,
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            auditService,
+            new ObjectMapper()
+        );
+
+        PlatformVerificationSuiteRunSummary summary = service.cancelRun(run.getId());
+
+        assertThat(summary.status()).isEqualTo("CANCELLED");
+        assertThat(run.getStatus()).isEqualTo("CANCELLED");
+        assertThat(run.getCompletedAt()).isNotNull();
+        assertThat(stage.getStatus()).isEqualTo("CANCELLED");
+        assertThat(stage.getCompletedAt()).isNotNull();
     }
 
     @Test
