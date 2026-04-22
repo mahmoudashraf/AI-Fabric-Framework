@@ -41,6 +41,44 @@ actions:
         type: STRING
         required: true
 
+  - name: find_similar_products
+    description: Find similar products for a reference SKU using category, tags, price band, and stock signal.
+    category: commerce
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    groundingEligible: true
+    readActionResolutionEligible: true
+    params:
+      - name: sku
+        description: Reference product SKU
+        type: STRING
+        required: true
+      - name: limit
+        description: Max number of similar products to return
+        type: INTEGER
+        required: false
+        min: 1
+        max: 10
+
+  - name: compare_products
+    description: Compare two products by SKU using price, stock, category, tags, and review signal.
+    category: commerce
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    groundingEligible: true
+    readActionResolutionEligible: true
+    params:
+      - name: referenceSku
+        description: Reference product SKU
+        type: STRING
+        required: true
+      - name: comparisonSku
+        description: Product SKU to compare against the reference
+        type: STRING
+        required: true
+
   - name: check_availability
     description: Check live product availability and stock status by SKU
     category: commerce

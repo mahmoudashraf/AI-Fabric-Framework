@@ -1,6 +1,9 @@
 package com.ai.fabric.realapps.chat.catalog.web;
 
 import com.ai.fabric.realapps.chat.catalog.domain.Product;
+import com.ai.fabric.realapps.chat.catalog.model.ProductComparisonModels.ProductComparisonResponse;
+import com.ai.fabric.realapps.chat.catalog.model.ProductComparisonModels.SimilarProductsResponse;
+import com.ai.fabric.realapps.chat.catalog.service.ProductComparisonService;
 import com.ai.fabric.realapps.chat.catalog.service.ProductService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -28,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductController {
 
     private final ProductService productService;
+    private final ProductComparisonService productComparisonService;
 
     @GetMapping("/count")
     public Map<String, Object> count() {
@@ -65,6 +69,18 @@ public class ProductController {
     @GetMapping("/trending")
     public List<Product> trending(@RequestParam(value = "limit", defaultValue = "10") int limit) {
         return productService.trending(limit);
+    }
+
+    @GetMapping("/similar")
+    public SimilarProductsResponse similar(@RequestParam("sku") String sku,
+                                           @RequestParam(value = "limit", defaultValue = "5") int limit) {
+        return productComparisonService.findSimilarProducts(sku, limit);
+    }
+
+    @GetMapping("/compare")
+    public ProductComparisonResponse compare(@RequestParam("referenceSku") String referenceSku,
+                                             @RequestParam("comparisonSku") String comparisonSku) {
+        return productComparisonService.compareProducts(referenceSku, comparisonSku);
     }
 
     @PostMapping

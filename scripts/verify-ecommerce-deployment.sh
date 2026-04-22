@@ -123,6 +123,8 @@ VERIFY_READ_ACTION_RESOLUTION="${VERIFY_READ_ACTION_RESOLUTION:-true}"
 EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="${EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN:-}"
 ECOMMERCE_RESOLVER_MODE="${ECOMMERCE_RESOLVER_MODE:-resolver_assistant}"
 ECOMMERCE_RESOLVER_SMOKE_QUERY="${ECOMMERCE_RESOLVER_SMOKE_QUERY:-Check live availability for SKU-0001.}"
+VERIFY_COMPARE_READ_ACTION_RESOLUTION="${VERIFY_COMPARE_READ_ACTION_RESOLUTION:-true}"
+ECOMMERCE_COMPARE_SMOKE_QUERY="${ECOMMERCE_COMPARE_SMOKE_QUERY:-Compare SKU-0001 with SKU-0002 and summarize the main differences.}"
 VERIFY_THINKER_READ_ACTION_RESOLUTION="${VERIFY_THINKER_READ_ACTION_RESOLUTION:-true}"
 ECOMMERCE_THINKER_MODE="${ECOMMERCE_THINKER_MODE:-thinker}"
 ECOMMERCE_THINKER_SMOKE_QUERY="${ECOMMERCE_THINKER_SMOKE_QUERY:-Check live availability for SKU-0001 and summarize the refund policy.}"
@@ -188,7 +190,7 @@ if [[ -z "${EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN}" ]]; then
       EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="0"
       ;;
     *)
-      EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="4"
+      EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="6"
       ;;
   esac
 fi
@@ -1602,6 +1604,18 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
       assert_status 400 "store clear (confirm required)"
       pass "store POST /api/admin/demo/clear exists (confirm required)"
     fi
+
+    echo ""
+    echo "== Store Comparison APIs =="
+    http GET "${STORE_BASE_URL}/api/products/similar?sku=SKU-0001&limit=3"
+    assert_status 200 "store similar products"
+    json_assert "store similar products" $'assert (data or {}).get("referenceProduct", {}).get("sku") == "SKU-0001", data\nassert int((data or {}).get("count") or 0) >= 1, data\nassert ((data or {}).get("items") or [])[0].get("product", {}).get("sku"), data\nprint("ok")'
+    pass "store GET /api/products/similar"
+
+    http GET "${STORE_BASE_URL}/api/products/compare?referenceSku=SKU-0001&comparisonSku=SKU-0002"
+    assert_status 200 "store compare products"
+    json_assert "store compare products" $'assert (data or {}).get("referenceProduct", {}).get("sku") == "SKU-0001", data\nassert (data or {}).get("comparisonProduct", {}).get("sku") == "SKU-0002", data\nassert "highlights" in (data or {}), data\nassert isinstance((data or {}).get("keyDifferences"), list), data\nprint("ok")'
+    pass "store GET /api/products/compare"
   fi
 
   echo ""
@@ -1665,7 +1679,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     echo "== Runtime Action Catalog =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/actions/overview"
     assert_status 200 "runtime actions overview"
-    json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nassert int((data or {}).get("readActionResolutionEligibleCount") or 0) >= 4, data\nactions = (data or {}).get("actions") or []\nresolver_names = {item.get("name") for item in actions if isinstance(item, dict) and item.get("readActionResolutionEligible") is True}\nfor req in ["search_products", "get_product_details", "check_availability", "get_policy"]:\n  assert req in resolver_names, {"required": req, "actual": sorted([v for v in resolver_names if v])}\nprint("ok")'
+    json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nassert int((data or {}).get("readActionResolutionEligibleCount") or 0) >= 6, data\nactions = (data or {}).get("actions") or []\nresolver_names = {item.get("name") for item in actions if isinstance(item, dict) and item.get("readActionResolutionEligible") is True}\nfor req in ["search_products", "get_product_details", "find_similar_products", "compare_products", "check_availability", "get_policy"]:\n  assert req in resolver_names, {"required": req, "actual": sorted([v for v in resolver_names if v])}\nprint("ok")'
     assert_expected_confirmation_interceptors "runtime actions confirmation interceptor alignment" "${HTTP_BODY}"
     pass "runtime GET /api/admin/actions/overview"
 
@@ -1675,8 +1689,18 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
         "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
         "$(build_chat_query_payload_with_mode "${ECOMMERCE_RESOLVER_SMOKE_QUERY}" "${resolver_conversation_id}" "${ECOMMERCE_RESOLVER_MODE}")"
       assert_status 200 "ecommerce resolver assistant smoke query"
-      json_assert "ecommerce resolver assistant smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresolution = metadata.get("readActionResolution") or ((result.get("data") or {}).get("readActionResolution") or {})\nassert resolution.get("attempted") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nprint("ok")'
+      json_assert "ecommerce resolver assistant smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresolution = metadata.get("readActionResolution") or ((result.get("data") or {}).get("readActionResolution") or {})\nassert resolution.get("attempted") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "find_similar_products", "compare_products", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nprint("ok")'
       pass "platform ecommerce resolver assistant smoke query"
+    fi
+
+    if [[ "${VERIFY_COMPARE_READ_ACTION_RESOLUTION}" == "true" && "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
+      compare_conversation_id="ecommerce-compare-verify-$(date +%s)"
+      platform_marketplace_smoke_query_http \
+        "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+        "$(build_chat_query_payload_with_mode "${ECOMMERCE_COMPARE_SMOKE_QUERY}" "${compare_conversation_id}" "${ECOMMERCE_RESOLVER_MODE}")"
+      assert_status 200 "ecommerce compare smoke query"
+      json_assert "ecommerce compare smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresolution = metadata.get("readActionResolution") or ((result.get("data") or {}).get("readActionResolution") or {})\nassert resolution.get("attempted") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert "compare_products" in actions, {"executedActions": executed}\nprint("ok")'
+      pass "platform ecommerce compare smoke query"
     fi
 
     if [[ "${VERIFY_THINKER_READ_ACTION_RESOLUTION}" == "true" && "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
@@ -1685,7 +1709,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
         "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
         "$(build_chat_query_payload_with_mode "${ECOMMERCE_THINKER_SMOKE_QUERY}" "${thinker_conversation_id}" "${ECOMMERCE_THINKER_MODE}")"
       assert_status 200 "ecommerce thinker smoke query"
-      json_assert "ecommerce thinker smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresolution = metadata.get("readActionResolution") or ((result.get("data") or {}).get("readActionResolution") or {})\nassert resolution.get("attempted") is True, resolution\nassert resolution.get("planningMode") == "ITERATIVE", resolution\nassert resolution.get("useRag") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nprint("ok")'
+      json_assert "ecommerce thinker smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresolution = metadata.get("readActionResolution") or ((result.get("data") or {}).get("readActionResolution") or {})\nassert resolution.get("attempted") is True, resolution\nassert resolution.get("planningMode") == "ITERATIVE", resolution\nassert resolution.get("useRag") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "find_similar_products", "compare_products", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nprint("ok")'
       pass "platform ecommerce thinker smoke query"
     fi
 

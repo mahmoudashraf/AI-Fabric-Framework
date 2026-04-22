@@ -1,6 +1,7 @@
 package com.ai.fabric.realapps.chat.catalog.web;
 
 import com.ai.fabric.realapps.chat.catalog.domain.Product;
+import com.ai.fabric.realapps.chat.catalog.service.ProductComparisonService;
 import com.ai.fabric.realapps.chat.catalog.service.ProductService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -24,6 +25,9 @@ class ProductControllerTrendingTest {
     @MockBean
     private ProductService productService;
 
+    @MockBean
+    private ProductComparisonService productComparisonService;
+
     @Test
     void trendingEndpointReturnsProducts() throws Exception {
         Product p = new Product();
@@ -44,4 +48,3 @@ class ProductControllerTrendingTest {
             .andExpect(jsonPath("$[0].sku").value("IPHONE-15"));
     }
 }
-
