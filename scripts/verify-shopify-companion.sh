@@ -33,10 +33,15 @@ set -euo pipefail
 #   EXPECT_GO_LIVE_ELIGIBLE=true
 #   EXPECT_EMBEDDED_APP_UI=true
 #   EXPECT_SHELL_MODE_PROFILE=SHOPIFY_COMPANION
-#   EXPECT_ENABLED_SURFACES=ai-search,contextual-pill,product-insight,policy-strip,product-faq,comparison
+#   EXPECT_ENABLED_SURFACES=<optional effective surfaces override; defaults to live billing allowedSurfaces>
+#   EXPECT_CONFIGURED_ENABLED_SURFACES=<optional configured widget surfaces override>
 #   EXPECT_WEBHOOK_STATUS=READY
 #   EXPECT_BILLING_STATUS=ACTIVE
+#   EXPECT_BILLING_TIER=FREE
 #   EXPECT_BILLING_LAUNCH_BLOCKED=false
+#   EXPECT_CATALOG_PRODUCT_CAP=50
+#   EXPECT_POWERED_BY_BADGE_REQUIRED=true
+#   EXPECT_CHAT_FALLBACK_ENABLED=false
 #   SHOPIFY_ADMIN_ACCESS_TOKEN=<offline-access-token>
 #   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
@@ -64,10 +69,15 @@ EXPECT_STOREFRONT_READY="${EXPECT_STOREFRONT_READY:-true}"
 EXPECT_GO_LIVE_ELIGIBLE="${EXPECT_GO_LIVE_ELIGIBLE:-true}"
 EXPECT_EMBEDDED_APP_UI="${EXPECT_EMBEDDED_APP_UI:-true}"
 EXPECT_SHELL_MODE_PROFILE="${EXPECT_SHELL_MODE_PROFILE:-SHOPIFY_COMPANION}"
-EXPECT_ENABLED_SURFACES="${EXPECT_ENABLED_SURFACES:-ai-search,contextual-pill,product-insight,policy-strip,product-faq,comparison}"
+EXPECT_ENABLED_SURFACES="${EXPECT_ENABLED_SURFACES:-}"
+EXPECT_CONFIGURED_ENABLED_SURFACES="${EXPECT_CONFIGURED_ENABLED_SURFACES:-}"
 EXPECT_WEBHOOK_STATUS="${EXPECT_WEBHOOK_STATUS:-}"
 EXPECT_BILLING_STATUS="${EXPECT_BILLING_STATUS:-}"
+EXPECT_BILLING_TIER="${EXPECT_BILLING_TIER:-}"
 EXPECT_BILLING_LAUNCH_BLOCKED="${EXPECT_BILLING_LAUNCH_BLOCKED:-}"
+EXPECT_CATALOG_PRODUCT_CAP="${EXPECT_CATALOG_PRODUCT_CAP:-}"
+EXPECT_POWERED_BY_BADGE_REQUIRED="${EXPECT_POWERED_BY_BADGE_REQUIRED:-}"
+EXPECT_CHAT_FALLBACK_ENABLED="${EXPECT_CHAT_FALLBACK_ENABLED:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
@@ -169,6 +179,46 @@ elif isinstance(current, (dict, list)):
     print(json.dumps(current, separators=(",", ":")))
 else:
     print(str(current))
+PY
+}
+
+json_array_to_csv() {
+  local payload="$1"
+  local path="$2"
+  JSON_PAYLOAD="${payload}" JSON_PATH="${path}" python3 - <<'PY'
+import json
+import os
+import sys
+
+payload = os.environ["JSON_PAYLOAD"]
+path = os.environ["JSON_PATH"]
+
+try:
+    value = json.loads(payload)
+except json.JSONDecodeError as exc:
+    print(f"Invalid JSON: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+current = value
+for part in [segment for segment in path.split(".") if segment]:
+    if isinstance(current, list):
+        try:
+            current = current[int(part)]
+        except Exception:
+            current = None
+            break
+    elif isinstance(current, dict):
+        current = current.get(part)
+    else:
+        current = None
+        break
+
+if not isinstance(current, list):
+    print("")
+    raise SystemExit(0)
+
+values = [str(item).strip() for item in current if str(item).strip()]
+print(",".join(values))
 PY
 }
 
@@ -595,7 +645,18 @@ platform_store_billing_json="${HTTP_BODY}"
 assert_equals "$(json_get "${platform_store_billing_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store billing shopDomain"
 assert_nonempty "$(json_get "${platform_store_billing_json}" "mode")" "platform store billing mode"
 assert_optional_equals "$(json_get "${platform_store_billing_json}" "status")" "${EXPECT_BILLING_STATUS}" "platform store billing status"
+assert_optional_equals "$(json_get "${platform_store_billing_json}" "tierKey")" "${EXPECT_BILLING_TIER}" "platform store billing tier"
 assert_optional_equals "$(json_get "${platform_store_billing_json}" "launchBlocked")" "${EXPECT_BILLING_LAUNCH_BLOCKED}" "platform store billing launchBlocked"
+assert_optional_equals "$(json_get "${platform_store_billing_json}" "catalogProductCap")" "${EXPECT_CATALOG_PRODUCT_CAP}" "platform store billing catalogProductCap"
+assert_optional_equals "$(json_get "${platform_store_billing_json}" "poweredByBadgeRequired")" "${EXPECT_POWERED_BY_BADGE_REQUIRED}" "platform store billing poweredByBadgeRequired"
+assert_optional_equals "$(json_get "${platform_store_billing_json}" "chatFallbackEnabled")" "${EXPECT_CHAT_FALLBACK_ENABLED}" "platform store billing chatFallbackEnabled"
+billing_allowed_surfaces_csv="$(json_array_to_csv "${platform_store_billing_json}" "allowedSurfaces")"
+assert_nonempty "${billing_allowed_surfaces_csv}" "platform store billing allowedSurfaces"
+effective_expected_surfaces="${EXPECT_ENABLED_SURFACES:-${billing_allowed_surfaces_csv}}"
+effective_expected_billing_tier="${EXPECT_BILLING_TIER:-$(json_get "${platform_store_billing_json}" "tierKey")}"
+effective_expected_catalog_product_cap="${EXPECT_CATALOG_PRODUCT_CAP:-$(json_get "${platform_store_billing_json}" "catalogProductCap")}"
+effective_expected_powered_by_badge_required="${EXPECT_POWERED_BY_BADGE_REQUIRED:-$(json_get "${platform_store_billing_json}" "poweredByBadgeRequired")}"
+effective_expected_chat_fallback_enabled="${EXPECT_CHAT_FALLBACK_ENABLED:-$(json_get "${platform_store_billing_json}" "chatFallbackEnabled")}"
 
 echo "== Platform store webhook diagnostics =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]-}"
@@ -692,6 +753,10 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   bridge_admin_billing_json="${HTTP_BODY}"
   assert_nonempty "$(json_get "${bridge_admin_billing_json}" "mode")" "bridge admin store billing mode"
   assert_optional_equals "$(json_get "${bridge_admin_billing_json}" "status")" "${EXPECT_BILLING_STATUS}" "bridge admin store billing status"
+  assert_optional_equals "$(json_get "${bridge_admin_billing_json}" "tierKey")" "${effective_expected_billing_tier}" "bridge admin store billing tier"
+  assert_optional_equals "$(json_get "${bridge_admin_billing_json}" "catalogProductCap")" "${effective_expected_catalog_product_cap}" "bridge admin store billing catalogProductCap"
+  assert_optional_equals "$(json_get "${bridge_admin_billing_json}" "poweredByBadgeRequired")" "${effective_expected_powered_by_badge_required}" "bridge admin store billing poweredByBadgeRequired"
+  assert_optional_equals "$(json_get "${bridge_admin_billing_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "bridge admin store billing chatFallbackEnabled"
 
   http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
   assert_equals "${HTTP_STATUS}" "200" "bridge admin store webhook diagnostics status"
@@ -734,8 +799,13 @@ assert_equals "$(json_get "${bootstrap_json}" "shopDomain")" "${SHOP_DOMAIN}" "s
 assert_equals "$(json_get "${bootstrap_json}" "available")" "${EXPECT_STOREFRONT_READY}" "storefront bootstrap availability"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeQueryUrl")" "storefront bridgeQueryUrl"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeSuggestionsUrl")" "storefront bridgeSuggestionsUrl"
+assert_optional_equals "$(json_get "${bootstrap_json}" "billingTier")" "${effective_expected_billing_tier}" "storefront bootstrap billingTier"
+assert_optional_equals "$(json_get "${bootstrap_json}" "billingStatus")" "${EXPECT_BILLING_STATUS}" "storefront bootstrap billingStatus"
+assert_optional_equals "$(json_get "${bootstrap_json}" "catalogProductCap")" "${effective_expected_catalog_product_cap}" "storefront bootstrap catalogProductCap"
+assert_optional_equals "$(json_get "${bootstrap_json}" "poweredByBadgeRequired")" "${effective_expected_powered_by_badge_required}" "storefront bootstrap poweredByBadgeRequired"
+assert_optional_equals "$(json_get "${bootstrap_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "storefront bootstrap chatFallbackEnabled"
 assert_optional_equals "$(json_get "${bootstrap_json}" "shellModeProfile")" "${EXPECT_SHELL_MODE_PROFILE}" "storefront bootstrap shellModeProfile"
-assert_json_array_contains_csv "${bootstrap_json}" "enabledSurfaces" "${EXPECT_ENABLED_SURFACES}" "storefront bootstrap enabledSurfaces"
+assert_json_array_contains_csv "${bootstrap_json}" "enabledSurfaces" "${effective_expected_surfaces}" "storefront bootstrap enabledSurfaces"
 
 echo "== Storefront suggestions =="
 http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/suggestions" '{"content":"","maxSuggestions":4}' "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
@@ -764,7 +834,11 @@ store_after_bootstrap_json="${HTTP_BODY}"
 assert_equals "$(json_get "${store_after_bootstrap_json}" "widgetStatus")" "${EXPECT_WIDGET_STATUS}" "platform store widgetStatus"
 assert_nonempty "$(json_get "${store_after_bootstrap_json}" "widgetDetail.message")" "platform widget message"
 assert_optional_equals "$(json_get "${store_after_bootstrap_json}" "widgetDetail.settings.shellModeProfile")" "${EXPECT_SHELL_MODE_PROFILE}" "platform widget shellModeProfile"
-assert_json_array_contains_csv "${store_after_bootstrap_json}" "widgetDetail.settings.enabledSurfaces" "${EXPECT_ENABLED_SURFACES}" "platform widget enabledSurfaces"
+if [[ -n "${EXPECT_CONFIGURED_ENABLED_SURFACES}" ]]; then
+  assert_json_array_contains_csv "${store_after_bootstrap_json}" "widgetDetail.settings.enabledSurfaces" "${EXPECT_CONFIGURED_ENABLED_SURFACES}" "platform widget configured enabledSurfaces"
+else
+  assert_nonempty "$(json_get "${store_after_bootstrap_json}" "widgetDetail.settings.enabledSurfaces.0")" "platform widget enabledSurfaces.0"
+fi
 
 if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   echo "== Merchant session =="
@@ -784,7 +858,11 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   merchant_billing_json="${HTTP_BODY}"
   assert_nonempty "$(json_get "${merchant_billing_json}" "mode")" "merchant billing mode"
   assert_optional_equals "$(json_get "${merchant_billing_json}" "status")" "${EXPECT_BILLING_STATUS}" "merchant billing status"
+  assert_optional_equals "$(json_get "${merchant_billing_json}" "tierKey")" "${effective_expected_billing_tier}" "merchant billing tier"
   assert_optional_equals "$(json_get "${merchant_billing_json}" "launchBlocked")" "${EXPECT_BILLING_LAUNCH_BLOCKED}" "merchant billing launchBlocked"
+  assert_optional_equals "$(json_get "${merchant_billing_json}" "catalogProductCap")" "${effective_expected_catalog_product_cap}" "merchant billing catalogProductCap"
+  assert_optional_equals "$(json_get "${merchant_billing_json}" "poweredByBadgeRequired")" "${effective_expected_powered_by_badge_required}" "merchant billing poweredByBadgeRequired"
+  assert_optional_equals "$(json_get "${merchant_billing_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "merchant billing chatFallbackEnabled"
 
   echo "== Merchant webhook diagnostics =="
   http_request GET "${bridge_base}/api/app/store/webhook-subscriptions" "" "${merchant_headers[@]-}"

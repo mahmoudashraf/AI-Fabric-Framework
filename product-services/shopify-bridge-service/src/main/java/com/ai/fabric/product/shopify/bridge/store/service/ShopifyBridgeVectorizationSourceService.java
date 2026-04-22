@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
@@ -159,11 +160,14 @@ public class ShopifyBridgeVectorizationSourceService {
 
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
+    private final ShopifyBridgeBillingService billingService;
 
     public ShopifyBridgeVectorizationSourceService(ShopifyBridgeInstallCredentialService installCredentialService,
-                                                   ShopifyAdminGraphqlClient shopifyAdminGraphqlClient) {
+                                                   ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
+                                                   ShopifyBridgeBillingService billingService) {
         this.installCredentialService = installCredentialService;
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
+        this.billingService = billingService;
     }
 
     public ShopifyBridgeVectorizationSourcePageResponse page(String shopDomain,
@@ -195,9 +199,25 @@ public class ShopifyBridgeVectorizationSourceService {
             throw new ResponseStatusException(CONFLICT, "Unsupported Shopify vectorization cursor category: " + parsedCursor.category());
         }
         String accessToken = acquisition.tokenExchangeMaterial().accessToken();
-        int totalCount = totalCount(store, accessToken, categories);
+        Integer catalogProductCap = billingService.catalogProductCap(store.shopDomain(), accessToken);
+        int totalCount = totalCount(store, accessToken, categories, catalogProductCap);
+        int remainingProductBudget = remainingProductBudget(parsedCursor.category(), parsedCursor.seenCount(), catalogProductCap, effectiveLimit);
+        if ("products".equals(parsedCursor.category()) && remainingProductBudget <= 0) {
+            int currentIndex = categories.indexOf(parsedCursor.category());
+            String nextCursor = currentIndex >= 0 && currentIndex + 1 < categories.size()
+                ? encodeCursor(categories.get(currentIndex + 1), null, 0)
+                : null;
+            return new ShopifyBridgeVectorizationSourcePageResponse(
+                store.shopDomain(),
+                normalizedEntityType,
+                totalCount,
+                nextCursor != null,
+                nextCursor,
+                List.of()
+            );
+        }
         PageResult page = switch (parsedCursor.category()) {
-            case "products" -> loadProductsPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
+            case "products" -> loadProductsPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), remainingProductBudget, catalogProductCap);
             case "collections" -> loadCollectionsPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
             case "pages" -> loadPagesPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
             case "policies" -> loadPoliciesPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
@@ -206,13 +226,17 @@ public class ShopifyBridgeVectorizationSourceService {
 
         String nextCursor = null;
         boolean hasMore = false;
-        if (page.hasMore() && page.nextCursor() != null) {
-            nextCursor = encodeCursor(parsedCursor.category(), page.nextCursor());
+        boolean productCapReached = "products".equals(parsedCursor.category())
+            && catalogProductCap != null
+            && catalogProductCap > 0
+            && parsedCursor.seenCount() + page.items().size() >= catalogProductCap;
+        if (!productCapReached && page.hasMore() && page.nextCursor() != null) {
+            nextCursor = encodeCursor(parsedCursor.category(), page.nextCursor(), parsedCursor.seenCount() + page.items().size());
             hasMore = true;
         } else {
             int currentIndex = categories.indexOf(parsedCursor.category());
             if (currentIndex >= 0 && currentIndex + 1 < categories.size()) {
-                nextCursor = encodeCursor(categories.get(currentIndex + 1), null);
+                nextCursor = encodeCursor(categories.get(currentIndex + 1), null, 0);
                 hasMore = true;
             }
         }
@@ -241,8 +265,9 @@ public class ShopifyBridgeVectorizationSourceService {
             throw new ResponseStatusException(CONFLICT, "sourceObjectId is required.");
         }
         String accessToken = acquisition.tokenExchangeMaterial().accessToken();
+        Integer catalogProductCap = billingService.catalogProductCap(store.shopDomain(), accessToken);
         return switch (normalizedCategory) {
-            case "products" -> loadNodeRecord(
+            case "products" -> requireProductWithinTierCap(store.shopDomain(), accessToken, sourceObjectId, catalogProductCap, loadNodeRecord(
                 store.shopDomain(),
                 accessToken,
                 sourceObjectId,
@@ -265,7 +290,7 @@ public class ShopifyBridgeVectorizationSourceService {
                     text(node, "productType"),
                     null
                 )
-            );
+            ));
             case "collections" -> loadNodeRecord(
                 store.shopDomain(),
                 accessToken,
@@ -319,16 +344,16 @@ public class ShopifyBridgeVectorizationSourceService {
         };
     }
 
-    private int totalCount(ShopifyBridgeStoreSummary store, String accessToken, List<String> categories) {
+    private int totalCount(ShopifyBridgeStoreSummary store, String accessToken, List<String> categories, Integer catalogProductCap) {
         int total = 0;
         for (String category : categories) {
             total += switch (category) {
-                case "products" -> countFromConnection(
+                case "products" -> applyProductCap(countFromConnection(
                     store.shopDomain(),
                     accessToken,
                     PRODUCTS_COUNT_QUERY,
                     "productsCount"
-                );
+                ), catalogProductCap);
                 case "collections" -> countFromConnection(
                     store.shopDomain(),
                     accessToken,
@@ -393,14 +418,15 @@ public class ShopifyBridgeVectorizationSourceService {
     private PageResult loadProductsPage(String shopDomain,
                                         String accessToken,
                                         String cursor,
-                                        int limit) {
+                                        int limit,
+                                        Integer catalogProductCap) {
         Map<String, Object> response = shopifyAdminGraphqlClient.execute(
             shopDomain,
             accessToken,
             PRODUCTS_QUERY,
             variablesWithCursor(cursor, limit)
         );
-        return pageFromConnection(
+        return applyProductCap(pageFromConnection(
             response,
             "products",
             node -> new ShopifyBridgeVectorizationSourceRecord(
@@ -421,6 +447,41 @@ public class ShopifyBridgeVectorizationSourceService {
                 text(node, "productType"),
                 null
             )
+        ), catalogProductCap);
+    }
+
+    private ShopifyBridgeVectorizationSourceRecord requireProductWithinTierCap(String shopDomain,
+                                                                               String accessToken,
+                                                                               String sourceObjectId,
+                                                                               Integer catalogProductCap,
+                                                                               ShopifyBridgeVectorizationSourceRecord record) {
+        if (catalogProductCap == null || catalogProductCap <= 0) {
+            return record;
+        }
+        List<String> accessibleIds = loadProductsPage(shopDomain, accessToken, null, catalogProductCap, catalogProductCap).items().stream()
+            .map(ShopifyBridgeVectorizationSourceRecord::id)
+            .toList();
+        if (accessibleIds.contains(sourceObjectId)) {
+            return record;
+        }
+        throw new ResponseStatusException(CONFLICT, "Requested product is outside the current tier product cap.");
+    }
+
+    private int applyProductCap(int count, Integer catalogProductCap) {
+        if (catalogProductCap == null || catalogProductCap <= 0) {
+            return count;
+        }
+        return Math.min(count, catalogProductCap);
+    }
+
+    private PageResult applyProductCap(PageResult page, Integer catalogProductCap) {
+        if (catalogProductCap == null || catalogProductCap <= 0 || page.items().size() <= catalogProductCap) {
+            return page;
+        }
+        return new PageResult(
+            List.copyOf(page.items().subList(0, catalogProductCap)),
+            page.nextCursor(),
+            page.hasMore()
         );
     }
 
@@ -566,16 +627,24 @@ public class ShopifyBridgeVectorizationSourceService {
 
     private ParsedCursor parseCursor(String cursor, String defaultCategory) {
         if (cursor == null || cursor.isBlank()) {
-            return new ParsedCursor(defaultCategory, null);
+            return new ParsedCursor(defaultCategory, null, 0);
         }
-        String[] parts = cursor.split("\\|", 2);
+        String[] parts = cursor.split("\\|", 3);
         String category = parts[0].trim().toLowerCase(Locale.ROOT);
         String nativeCursor = parts.length > 1 && !parts[1].isBlank() ? parts[1].trim() : null;
-        return new ParsedCursor(category, nativeCursor);
+        int seenCount = parts.length > 2 ? parseOffset(parts[2]) : 0;
+        return new ParsedCursor(category, nativeCursor, seenCount);
     }
 
-    private String encodeCursor(String category, String nativeCursor) {
-        return category + "|" + (nativeCursor == null ? "" : nativeCursor);
+    private String encodeCursor(String category, String nativeCursor, int seenCount) {
+        return category + "|" + (nativeCursor == null ? "" : nativeCursor) + "|" + Math.max(seenCount, 0);
+    }
+
+    private int remainingProductBudget(String category, int seenCount, Integer catalogProductCap, int requestedLimit) {
+        if (!"products".equals(category) || catalogProductCap == null || catalogProductCap <= 0) {
+            return requestedLimit;
+        }
+        return Math.max(Math.min(requestedLimit, catalogProductCap - Math.max(seenCount, 0)), 0);
     }
 
     private int parseOffset(String cursor) {
@@ -735,7 +804,7 @@ public class ShopifyBridgeVectorizationSourceService {
         ShopifyBridgeVectorizationSourceRecord create(Map<String, Object> node);
     }
 
-    private record ParsedCursor(String category, String nativeCursor) {
+    private record ParsedCursor(String category, String nativeCursor, int seenCount) {
     }
 
     private record PageResult(List<ShopifyBridgeVectorizationSourceRecord> items, String nextCursor, boolean hasMore) {

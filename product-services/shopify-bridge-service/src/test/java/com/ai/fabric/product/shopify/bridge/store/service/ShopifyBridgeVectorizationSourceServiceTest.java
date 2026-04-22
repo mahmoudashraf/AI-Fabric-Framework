@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
@@ -28,9 +29,11 @@ class ShopifyBridgeVectorizationSourceServiceTest {
     void pageReturnsProductsThenCollectionsUsingCompositeCursor() {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
 
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com"))
             .thenReturn(Optional.of(acquisition(productsAndCollectionsStore())));
+        when(billingService.catalogProductCap("alpha.myshopify.com", "access-token")).thenReturn(null);
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), contains("ProductsVectorizationCount")))
             .thenReturn(Map.of("data", Map.of("productsCount", Map.of("count", 1))));
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), contains("CollectionsVectorizationCount")))
@@ -91,14 +94,14 @@ class ShopifyBridgeVectorizationSourceServiceTest {
         ));
 
         ShopifyBridgeVectorizationSourceService service =
-            new ShopifyBridgeVectorizationSourceService(installCredentialService, shopifyAdminGraphqlClient);
+            new ShopifyBridgeVectorizationSourceService(installCredentialService, shopifyAdminGraphqlClient, billingService);
 
         ShopifyBridgeVectorizationSourcePageResponse firstPage = service.page("alpha.myshopify.com", "product", null, 25);
-        ShopifyBridgeVectorizationSourcePageResponse secondPage = service.page("alpha.myshopify.com", "product", "collections|", 25);
+        ShopifyBridgeVectorizationSourcePageResponse secondPage = service.page("alpha.myshopify.com", "product", "collections||0", 25);
 
         assertThat(firstPage.totalCount()).isEqualTo(3);
         assertThat(firstPage.hasMore()).isTrue();
-        assertThat(firstPage.nextCursor()).isEqualTo("collections|");
+        assertThat(firstPage.nextCursor()).isEqualTo("collections||0");
         assertThat(firstPage.items()).singleElement().satisfies(item -> {
             assertThat(item.sourceCategory()).isEqualTo("products");
             assertThat(item.documentType()).isEqualTo("product");
@@ -119,9 +122,11 @@ class ShopifyBridgeVectorizationSourceServiceTest {
     void pageReturnsPoliciesWithOffsetCursor() {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
 
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com"))
             .thenReturn(Optional.of(acquisition(policiesOnlyStore())));
+        when(billingService.catalogProductCap("alpha.myshopify.com", "access-token")).thenReturn(null);
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), contains("PoliciesVectorizationPage")))
             .thenReturn(Map.of(
                 "data",
@@ -152,14 +157,14 @@ class ShopifyBridgeVectorizationSourceServiceTest {
             ));
 
         ShopifyBridgeVectorizationSourceService service =
-            new ShopifyBridgeVectorizationSourceService(installCredentialService, shopifyAdminGraphqlClient);
+            new ShopifyBridgeVectorizationSourceService(installCredentialService, shopifyAdminGraphqlClient, billingService);
 
         ShopifyBridgeVectorizationSourcePageResponse firstPage = service.page("alpha.myshopify.com", "support-policy", null, 1);
-        ShopifyBridgeVectorizationSourcePageResponse secondPage = service.page("alpha.myshopify.com", "support-policy", "policies|1", 1);
+        ShopifyBridgeVectorizationSourcePageResponse secondPage = service.page("alpha.myshopify.com", "support-policy", "policies|1|1", 1);
 
         assertThat(firstPage.totalCount()).isEqualTo(2);
         assertThat(firstPage.hasMore()).isTrue();
-        assertThat(firstPage.nextCursor()).isEqualTo("policies|1");
+        assertThat(firstPage.nextCursor()).isEqualTo("policies|1|1");
         assertThat(firstPage.items().getFirst().policyType()).isEqualTo("REFUND_POLICY");
 
         assertThat(secondPage.totalCount()).isEqualTo(2);

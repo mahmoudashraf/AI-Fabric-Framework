@@ -466,14 +466,7 @@ export type PlatformManagedProductServiceOverviewSummary = {
     expectedCount: number
     expectedTopics: string[]
   }
-  billing: {
-    mode: string | null
-    planName: string | null
-    status: string | null
-    merchantApprovalRequired: boolean
-    launchBlocked: boolean
-    message: string | null
-  } | null
+  billing: PlatformManagedProductServiceBillingSummary | null
   usage: {
     generatedAt: string | null
     lastActivityAt: string | null
@@ -496,10 +489,18 @@ export type PlatformManagedProductServiceOverviewSummary = {
 
 export type PlatformManagedProductServiceBillingSummary = {
   mode: string | null
+  tierKey: string | null
   planName: string | null
   status: string | null
   merchantApprovalRequired: boolean
   launchBlocked: boolean
+  paidTier: boolean
+  actionCapable: boolean
+  catalogProductCap: number | null
+  syncCadence: string | null
+  poweredByBadgeRequired: boolean
+  chatFallbackEnabled: boolean
+  allowedSurfaces: string[]
   message: string | null
 }
 

@@ -90,7 +90,23 @@ class ShopifyBridgeAdminControllerTest {
             new ShopifyBridgeInstallOverview(10, 8, 2, 7, Instant.parse("2026-04-18T10:10:00Z"), Instant.parse("2026-04-18T09:00:00Z")),
             new ShopifyBridgeStoreOverview("READY", "Platform store mappings resolved successfully.", 6, 3, 2, 1, 1, Instant.parse("2026-04-18T10:15:00Z")),
             new ShopifyBridgeWebhookSubscriptionOverview("READY", "Diagnostics available.", "https://bridge.example.com/api/webhooks/shopify", 9, List.of("APP_UNINSTALLED")),
-            new ShopifyBridgeBillingSummary("FREE", "Companion Free", "ACTIVE", false, false, "Free mode."),
+            new ShopifyBridgeBillingSummary(
+                "FREE",
+                "FREE",
+                "Companion Free",
+                "ACTIVE",
+                false,
+                false,
+                false,
+                false,
+                50,
+                "DAILY",
+                true,
+                false,
+                List.of("ai-search"),
+                List.of(),
+                "Free mode."
+            ),
             new ShopifyBridgeUsageOverview(Instant.parse("2026-04-18T10:20:00Z"), Instant.parse("2026-04-18T10:18:00Z"), 1, 2, 4, 9, List.of(), List.of()),
             List.of("managed-service-health"),
             List.of()
@@ -142,17 +158,27 @@ class ShopifyBridgeAdminControllerTest {
     void adminBillingSummaryIsReturnedWhenApiKeyMatches() throws Exception {
         when(storeAdminService.billingSummary("alpha.myshopify.com")).thenReturn(new ShopifyBridgeBillingSummary(
             "PAID",
-            "Companion Growth",
+            "STARTER",
+            "Companion Starter",
             "READY_FOR_APPROVAL",
             true,
             true,
+            false,
+            false,
+            null,
+            null,
+            false,
+            true,
+            List.of("ai-search"),
+            List.of(),
             "Merchant approval is required before go-live."
         ));
 
         mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/billing-summary").header("X-BRIDGE-API-KEY", "test-admin-key"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.mode").value("PAID"))
-            .andExpect(jsonPath("$.planName").value("Companion Growth"))
+            .andExpect(jsonPath("$.tierKey").value("STARTER"))
+            .andExpect(jsonPath("$.planName").value("Companion Starter"))
             .andExpect(jsonPath("$.status").value("READY_FOR_APPROVAL"))
             .andExpect(jsonPath("$.merchantApprovalRequired").value(true))
             .andExpect(jsonPath("$.launchBlocked").value(true));

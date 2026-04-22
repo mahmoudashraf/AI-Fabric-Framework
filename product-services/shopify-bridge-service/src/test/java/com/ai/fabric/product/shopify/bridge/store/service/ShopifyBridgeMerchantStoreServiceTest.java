@@ -2,7 +2,9 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalRequest;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingPlanSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
@@ -243,10 +245,19 @@ class ShopifyBridgeMerchantStoreServiceTest {
             .thenReturn(acquisition(store("alpha.myshopify.com")));
         when(billingService.summarizeForShop("alpha.myshopify.com", "shpat_access")).thenReturn(new ShopifyBridgeBillingSummary(
             "FREE",
+            "FREE",
             "Companion Free",
             "ACTIVE",
             false,
             false,
+            false,
+            false,
+            50,
+            "DAILY",
+            true,
+            false,
+            List.of("ai-search"),
+            List.of(),
             "Companion launch is available."
         ));
         when(client.goLive("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
@@ -283,10 +294,19 @@ class ShopifyBridgeMerchantStoreServiceTest {
             .thenReturn(acquisition(store("alpha.myshopify.com")));
         when(billingService.summarizeForShop("alpha.myshopify.com", "shpat_access")).thenReturn(new ShopifyBridgeBillingSummary(
             "SHOPIFY_APP_SUBSCRIPTION",
+            "STARTER",
             "Companion Pro",
             "SETUP_REQUIRED",
             true,
             true,
+            true,
+            false,
+            null,
+            "TWO_HOURS",
+            false,
+            true,
+            List.of("ai-search", "contextual-pill"),
+            List.of(),
             "Shopify billing setup is incomplete for this bridge environment."
         ));
 
@@ -319,16 +339,42 @@ class ShopifyBridgeMerchantStoreServiceTest {
             .thenReturn(java.util.Optional.of(acquisition(store("alpha.myshopify.com"))));
         when(billingService.summarizeForShop("alpha.myshopify.com", "shpat_access")).thenReturn(new ShopifyBridgeBillingSummary(
             "SHOPIFY_APP_SUBSCRIPTION",
-            "Companion Pro",
-            "READY_FOR_APPROVAL",
+            "FREE",
+            "Loom Companion Free",
+            "ACTIVE",
+            false,
+            false,
+            false,
+            false,
+            50,
+            "DAILY",
             true,
-            true,
-            "Merchant approval is still required before Shopify Companion can go live."
+            false,
+            List.of("ai-search"),
+            List.of(
+                new ShopifyBridgeBillingPlanSummary(
+                    "STARTER",
+                    "Loom Companion Starter",
+                    "29.00",
+                    "USD",
+                    "EVERY_30_DAYS",
+                    false,
+                    true,
+                    true,
+                    false,
+                    null,
+                    "TWO_HOURS",
+                    false,
+                    "Available for merchant approval through Shopify billing."
+                )
+            ),
+            "Free tier is active."
         ));
 
         ShopifyBridgeBillingSummary summary = service.billingSummary(session());
 
-        assertThat(summary.status()).isEqualTo("READY_FOR_APPROVAL");
+        assertThat(summary.status()).isEqualTo("ACTIVE");
+        assertThat(summary.tierKey()).isEqualTo("FREE");
         verify(billingService).summarizeForShop("alpha.myshopify.com", "shpat_access");
     }
 
@@ -353,17 +399,21 @@ class ShopifyBridgeMerchantStoreServiceTest {
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(installCredentialService.acquireAndPersistMaterial(session(), "Bearer session-token"))
             .thenReturn(acquisition(store("alpha.myshopify.com")));
-        when(billingService.createApproval("alpha.myshopify.com", "shpat_access")).thenReturn(new ShopifyBridgeBillingApprovalResponse(
+        when(billingService.createApproval("alpha.myshopify.com", "shpat_access", "STARTER")).thenReturn(new ShopifyBridgeBillingApprovalResponse(
             "READY_FOR_APPROVAL",
             "https://alpha.myshopify.com/admin/charges/confirm",
             "Redirect the merchant to Shopify to approve the app subscription."
         ));
 
-        ShopifyBridgeBillingApprovalResponse response = service.requestBillingApproval(session(), "Bearer session-token");
+        ShopifyBridgeBillingApprovalResponse response = service.requestBillingApproval(
+            session(),
+            "Bearer session-token",
+            new ShopifyBridgeBillingApprovalRequest("STARTER")
+        );
 
         assertThat(response.confirmationUrl()).isEqualTo("https://alpha.myshopify.com/admin/charges/confirm");
         verify(installCredentialService).acquireAndPersistMaterial(session(), "Bearer session-token");
-        verify(billingService).createApproval("alpha.myshopify.com", "shpat_access");
+        verify(billingService).createApproval("alpha.myshopify.com", "shpat_access", "STARTER");
         verify(usageService).recordEvent("alpha.myshopify.com", "MERCHANT_BILLING_APPROVAL_REQUESTED");
     }
 

@@ -450,12 +450,12 @@ export default function App() {
     }
   }
 
-  async function handleBillingApproval() {
+  async function handleBillingApproval(tierKey = 'STARTER') {
     setBusyAction('billing-approval')
     setActionError(null)
     setActionMessage(null)
     try {
-      const response = await requestBillingApproval()
+      const response = await requestBillingApproval(tierKey)
       if (response.confirmationUrl) {
         redirectTopLevel(response.confirmationUrl)
         return
@@ -725,8 +725,14 @@ export default function App() {
   const usageSummary = state.usageSummary
   const billingSummary = state.billingSummary
   const billingApprovalRequired = Boolean(
-    billingSummary?.merchantApprovalRequired && billingSummary?.status === 'READY_FOR_APPROVAL',
+    billingSummary?.availablePlans?.some(
+      (plan) => !plan.active && plan.merchantApprovalSupported && plan.commerciallyAvailable,
+    ),
   )
+  const billingAllowedSurfaces =
+    billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const billingPaidPlanOptions =
+    billingSummary?.availablePlans?.filter((plan) => plan.tierKey !== 'FREE' && !plan.active) ?? []
   const webhookSubscriptions = state.webhookSubscriptions
   const vectorizationSummary = state.vectorizationSummary
   const supportBundleText = buildSupportBundle(
@@ -1413,7 +1419,10 @@ export default function App() {
                       <List.Item>Last successful sync: {formatTimestamp(store.lastSyncAt)}</List.Item>
                       <List.Item>Widget status: {store.widgetDetail?.status ?? store.widgetStatus}</List.Item>
                       <List.Item>Billing mode: {billingSummary?.mode ?? 'UNKNOWN'}</List.Item>
+                      <List.Item>Billing tier: {billingSummary?.tierKey ?? 'UNKNOWN'}</List.Item>
                       <List.Item>Billing status: {billingSummary?.status ?? 'UNKNOWN'}</List.Item>
+                      <List.Item>Tier surfaces: {billingAllowedSurfaces.join(' · ') || '—'}</List.Item>
+                      <List.Item>Product cap: {billingSummary?.catalogProductCap ?? 'unlimited'}</List.Item>
                       <List.Item>Webhook subscriptions: {webhookSubscriptions?.status ?? 'UNKNOWN'}</List.Item>
                       <List.Item>Actions: {store.capabilities?.actionCount ?? 0}</List.Item>
                       <List.Item>Knowledge sources: {store.capabilities?.knowledgeSourceCount ?? 0}</List.Item>
@@ -1433,17 +1442,25 @@ export default function App() {
                   {billingSummary ? (
                     <BlockStack gap="150">
                       <Text as="p" variant="bodySm" tone={billingSummary.launchBlocked ? 'critical' : 'subdued'}>
-                        Billing {billingSummary.mode} / {billingSummary.status} · {billingSummary.message}
+                        Billing {billingSummary.mode} / {billingSummary.tierKey} / {billingSummary.status} · {billingSummary.message}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Surfaces {billingAllowedSurfaces.join(' · ')} · Product cap {billingSummary.catalogProductCap ?? 'unlimited'} ·
+                        {' '}Sync {billingSummary.syncCadence ?? 'platform default'} · Badge {billingSummary.poweredByBadgeRequired ? 'required' : 'optional'}
                       </Text>
                       {billingApprovalRequired ? (
                         <InlineStack gap="200">
-                          <Button
-                            variant="primary"
-                            onClick={() => void handleBillingApproval()}
-                            loading={busyAction === 'billing-approval'}
-                          >
-                            Approve Shopify billing
-                          </Button>
+                          {billingPaidPlanOptions.map((plan) => (
+                            <Button
+                              key={plan.tierKey}
+                              variant="primary"
+                              onClick={() => void handleBillingApproval(plan.tierKey)}
+                              loading={busyAction === 'billing-approval'}
+                              disabled={!plan.merchantApprovalSupported || !plan.commerciallyAvailable}
+                            >
+                              Activate {plan.planName}
+                            </Button>
+                          ))}
                         </InlineStack>
                       ) : null}
                     </BlockStack>
@@ -1518,17 +1535,23 @@ export default function App() {
                     options={SHELL_MODE_PROFILE_OPTIONS}
                     value={widgetSettings.shellModeProfile}
                     onChange={(value) => setWidgetSettings((current) => ({ ...current, shellModeProfile: value }))}
-                    helpText="This controls how the storefront surfaces phrase prompts and shopper guidance."
+                    helpText={
+                      billingSummary?.chatFallbackEnabled === false
+                        ? 'Current tier is embedded-surface only. Chat fallback is disabled until a paid tier is active.'
+                        : 'This controls how the storefront surfaces phrase prompts and shopper guidance.'
+                    }
+                    disabled={billingSummary?.chatFallbackEnabled === false}
                   />
                   <BlockStack gap="150">
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Embedded surfaces
+                      Embedded surfaces · current tier allows {billingAllowedSurfaces.join(' · ')}
                     </Text>
                     {WIDGET_SURFACE_OPTIONS.map((surface) => (
                       <Checkbox
                         key={surface.value}
                         label={surface.label}
                         checked={widgetSettings.enabledSurfaces.includes(surface.value)}
+                        disabled={!billingAllowedSurfaces.includes(surface.value)}
                         onChange={(checked) =>
                           setWidgetSettings((current) => ({
                             ...current,
@@ -1759,15 +1782,19 @@ export default function App() {
                     <Text as="p" variant="bodyMd">
                       {billingSummary?.message ?? 'Billing setup is incomplete. Shopify Companion go-live is blocked until billing is configured.'}
                     </Text>
-                    {billingApprovalRequired ? (
+                    {billingApprovalRequired && billingPaidPlanOptions.length > 0 ? (
                       <InlineStack gap="200">
-                        <Button
-                          variant="primary"
-                          onClick={() => void handleBillingApproval()}
-                          loading={busyAction === 'billing-approval'}
-                        >
-                          Approve Shopify billing
-                        </Button>
+                        {billingPaidPlanOptions.map((plan) => (
+                          <Button
+                            key={plan.tierKey}
+                            variant="primary"
+                            onClick={() => void handleBillingApproval(plan.tierKey)}
+                            loading={busyAction === 'billing-approval'}
+                            disabled={!plan.merchantApprovalSupported || !plan.commerciallyAvailable}
+                          >
+                            Activate {plan.planName}
+                          </Button>
+                        ))}
                       </InlineStack>
                     ) : null}
                   </BlockStack>

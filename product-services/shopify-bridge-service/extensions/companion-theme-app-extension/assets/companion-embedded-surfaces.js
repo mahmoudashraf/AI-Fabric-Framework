@@ -20,7 +20,7 @@
     host.id = ROOT_ID
     host.className = 'loom-companion-surfaces'
 
-    if (enabledSurfaces.indexOf('ai-search') >= 0 && pageType !== 'product') {
+    if (enabledSurfaces.indexOf('ai-search') >= 0) {
       host.appendChild(renderSearchDock(options, shellModeProfile))
     }
 
@@ -63,6 +63,10 @@
     description.className = 'loom-companion-surface-copy'
     description.textContent = searchDockDescription(options.storefrontContext)
     dock.appendChild(description)
+
+    if (options.payload.poweredByBadgeRequired) {
+      dock.appendChild(renderPoweredByBadge())
+    }
 
     var form = document.createElement('form')
     form.className = 'loom-companion-search-form'
@@ -249,6 +253,13 @@
     button.textContent = label
     button.addEventListener('click', onClick)
     return button
+  }
+
+  function renderPoweredByBadge() {
+    var badge = document.createElement('div')
+    badge.className = 'loom-companion-powered-by'
+    badge.textContent = 'Powered by Loom Companion'
+    return badge
   }
 
   function resolveSurfaceSummary(options, surfaceId, query, mode, shellModeProfile) {

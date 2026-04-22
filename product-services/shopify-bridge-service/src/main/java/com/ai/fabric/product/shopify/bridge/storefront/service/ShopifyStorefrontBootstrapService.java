@@ -1,8 +1,11 @@
 package com.ai.fabric.product.shopify.bridge.storefront.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicConsumerDeploymentCredentialsResponse;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
@@ -19,21 +22,20 @@ public class ShopifyStorefrontBootstrapService {
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
-    private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
-        "ai-search",
-        "contextual-pill",
-        "product-insight",
-        "policy-strip",
-        "product-faq",
-        "comparison"
-    );
+    private static final List<String> DEFAULT_ENABLED_SURFACES = List.of("ai-search");
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeInstallCredentialService installCredentialService;
+    private final ShopifyBridgeBillingService billingService;
     private final ShopifyBridgeProperties properties;
 
     public ShopifyStorefrontBootstrapService(PlatformShopifyStoreClient platformShopifyStoreClient,
+                                             ShopifyBridgeInstallCredentialService installCredentialService,
+                                             ShopifyBridgeBillingService billingService,
                                              ShopifyBridgeProperties properties) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.installCredentialService = installCredentialService;
+        this.billingService = billingService;
         this.properties = properties;
     }
 
@@ -62,6 +64,9 @@ public class ShopifyStorefrontBootstrapService {
             ? null
             : credentials.integration().posture().runtimeAuthMode();
         String guidance = credentials.integration() == null ? null : credentials.integration().guidance();
+        ShopifyBridgeBillingSummary billingSummary = installCredentialService.resolvePersistedMaterial(updated.shopDomain())
+            .map(acquisition -> billingService.summarizeForShop(updated.shopDomain(), acquisition.tokenExchangeMaterial().accessToken()))
+            .orElseGet(() -> billingService.summarizeForShop(updated.shopDomain(), null));
         String launcherLabel = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().launcherLabel() != null && !updated.widgetDetail().settings().launcherLabel().isBlank()
             ? updated.widgetDetail().settings().launcherLabel().trim()
@@ -79,7 +84,8 @@ public class ShopifyStorefrontBootstrapService {
             && updated.widgetDetail().settings().enabledSurfaces() != null
             && !updated.widgetDetail().settings().enabledSurfaces().isEmpty()
             ? List.copyOf(updated.widgetDetail().settings().enabledSurfaces())
-            : DEFAULT_ENABLED_SURFACES;
+            : billingSummary.allowedSurfaces();
+        enabledSurfaces = billingService.effectiveAllowedSurfaces(updated.shopDomain(), null, enabledSurfaces);
 
         return new ShopifyStorefrontBootstrapResponse(
             true,
@@ -88,6 +94,11 @@ public class ShopifyStorefrontBootstrapService {
             updated.deploymentId(),
             updated.widgetStatus(),
             updated.sourceReadinessStatus(),
+            billingSummary.tierKey(),
+            billingSummary.status(),
+            billingSummary.catalogProductCap(),
+            billingSummary.poweredByBadgeRequired(),
+            billingSummary.chatFallbackEnabled(),
             launcherLabel,
             welcomeMessage,
             shellModeProfile,
@@ -110,6 +121,11 @@ public class ShopifyStorefrontBootstrapService {
             store.deploymentId(),
             store.widgetStatus(),
             store.sourceReadinessStatus(),
+            "FREE",
+            "ACTIVE",
+            50,
+            true,
+            false,
             DEFAULT_LAUNCHER_LABEL,
             DEFAULT_WELCOME_MESSAGE,
             DEFAULT_SHELL_MODE_PROFILE,

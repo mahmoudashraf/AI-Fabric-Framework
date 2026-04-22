@@ -61,10 +61,15 @@ class ShopifyStorefrontControllerTest {
             "dep-1",
             "ENABLED",
             "READY",
+            "FREE",
+            "ACTIVE",
+            50,
+            true,
+            false,
             "Need help?",
             "Ask me about products and policies.",
             "SHOPIFY_COMPANION",
-            List.of("ai-search", "contextual-pill"),
+            List.of("ai-search"),
             "PRIVATE_RUNTIME_BACKEND_MEDIATED",
             "SIGNED_PRIVATE_RUNTIME",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query",
@@ -78,6 +83,8 @@ class ShopifyStorefrontControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.available").value(true))
             .andExpect(jsonPath("$.consumerId").value("consumer-alpha"))
+            .andExpect(jsonPath("$.billingTier").value("FREE"))
+            .andExpect(jsonPath("$.chatFallbackEnabled").value(false))
             .andExpect(jsonPath("$.shellModeProfile").value("SHOPIFY_COMPANION"))
             .andExpect(jsonPath("$.enabledSurfaces[0]").value("ai-search"))
             .andExpect(jsonPath("$.bridgeQueryUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query"))

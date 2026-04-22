@@ -4,7 +4,9 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalRequest;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingPlanSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
@@ -243,16 +245,42 @@ class ShopifyMerchantControllerTest {
     void billingSummaryUsesMerchantSessionContext() throws Exception {
         when(merchantStoreService.billingSummary(any())).thenReturn(new ShopifyBridgeBillingSummary(
             "FREE",
-            "Companion Free",
+            "FREE",
+            "Loom Companion Free",
             "ACTIVE",
             false,
             false,
+            false,
+            false,
+            50,
+            "DAILY",
+            true,
+            false,
+            List.of("ai-search"),
+            List.of(
+                new ShopifyBridgeBillingPlanSummary(
+                    "FREE",
+                    "Loom Companion Free",
+                    null,
+                    null,
+                    null,
+                    true,
+                    true,
+                    false,
+                    false,
+                    50,
+                    "DAILY",
+                    true,
+                    "Free tier is always available."
+                )
+            ),
             "The Shopify Companion app is currently running in free mode. No merchant billing approval is required."
         ));
 
         mockMvc.perform(get("/api/app/store/billing-summary").header("Authorization", "Bearer " + token()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.mode").value("FREE"))
+            .andExpect(jsonPath("$.tierKey").value("FREE"))
             .andExpect(jsonPath("$.status").value("ACTIVE"))
             .andExpect(jsonPath("$.launchBlocked").value(false));
 
@@ -261,18 +289,21 @@ class ShopifyMerchantControllerTest {
 
     @Test
     void billingApprovalUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.requestBillingApproval(any(), anyString())).thenReturn(new ShopifyBridgeBillingApprovalResponse(
+        when(merchantStoreService.requestBillingApproval(any(), anyString(), any())).thenReturn(new ShopifyBridgeBillingApprovalResponse(
             "READY_FOR_APPROVAL",
             "https://alpha.myshopify.com/admin/charges/confirm",
             "Redirect the merchant to Shopify to approve the app subscription."
         ));
 
-        mockMvc.perform(post("/api/app/store/billing/approval").header("Authorization", "Bearer " + token()))
+        mockMvc.perform(post("/api/app/store/billing/approval")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(new ShopifyBridgeBillingApprovalRequest("STARTER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("READY_FOR_APPROVAL"))
             .andExpect(jsonPath("$.confirmationUrl").value("https://alpha.myshopify.com/admin/charges/confirm"));
 
-        verify(merchantStoreService).requestBillingApproval(any(), anyString());
+        verify(merchantStoreService).requestBillingApproval(any(), anyString(), any());
     }
 
     @Test

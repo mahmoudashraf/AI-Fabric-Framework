@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -57,16 +58,20 @@ public class ShopifyBridgeSourcePreflightService {
 
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeBillingService billingService;
 
     public ShopifyBridgeSourcePreflightService(ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
-                                               PlatformShopifyStoreClient platformShopifyStoreClient) {
+                                               PlatformShopifyStoreClient platformShopifyStoreClient,
+                                               ShopifyBridgeBillingService billingService) {
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.billingService = billingService;
     }
 
     public ShopifyBridgeStoreSummary run(ShopifyBridgeCredentialAcquisition acquisition) {
         ShopifyBridgeStoreSummary store = acquisition.store();
         String accessToken = acquisition.tokenExchangeMaterial().accessToken();
+        Integer catalogProductCap = billingService.catalogProductCap(store.shopDomain(), accessToken);
         List<ShopifyBridgeStoreSourcePreflightCategorySummary> categories = new ArrayList<>();
         categories.add(evaluateCountCategory(
             store.shopDomain(),
@@ -75,7 +80,8 @@ public class ShopifyBridgeSourcePreflightService {
             store.productsEnabled(),
             PRODUCTS_QUERY,
             "productsCount",
-            "Products"
+            "Products",
+            catalogProductCap
         ));
         categories.add(evaluateCountCategory(
             store.shopDomain(),
@@ -84,7 +90,8 @@ public class ShopifyBridgeSourcePreflightService {
             store.collectionsEnabled(),
             COLLECTIONS_QUERY,
             "collectionsCount",
-            "Collections"
+            "Collections",
+            null
         ));
         categories.add(evaluateCountCategory(
             store.shopDomain(),
@@ -93,7 +100,8 @@ public class ShopifyBridgeSourcePreflightService {
             store.pagesEnabled(),
             PAGES_QUERY,
             "pagesCount",
-            "Pages"
+            "Pages",
+            null
         ));
         categories.add(evaluateCategory(
             "policies",
@@ -112,15 +120,33 @@ public class ShopifyBridgeSourcePreflightService {
                                                                                    boolean enabled,
                                                                                    String query,
                                                                                    String rootField,
-                                                                                   String label) {
+                                                                                   String label,
+                                                                                   Integer cap) {
         return evaluateCategory(category, enabled, () -> {
             int count = extractCount(shopifyAdminGraphqlClient.execute(shopDomain, accessToken, query), rootField);
+            int effectiveCount = applyProductCap(category, count, cap);
             return new CategoryResult(
                 "READY",
-                count,
-                count > 0 ? label + " reachable (" + count + " items)." : "No " + category + " found in the store."
+                effectiveCount,
+                count > 0
+                    ? describeCountMessage(label, count, effectiveCount, cap)
+                    : "No " + category + " found in the store."
             );
         });
+    }
+
+    private int applyProductCap(String category, int count, Integer cap) {
+        if (!"products".equalsIgnoreCase(category) || cap == null || cap <= 0) {
+            return count;
+        }
+        return Math.min(count, cap);
+    }
+
+    private String describeCountMessage(String label, int actualCount, int effectiveCount, Integer cap) {
+        if (cap != null && cap > 0 && effectiveCount < actualCount) {
+            return label + " reachable (" + actualCount + " total, " + effectiveCount + " accessible at the current tier cap).";
+        }
+        return label + " reachable (" + actualCount + " items).";
     }
 
     private CategoryResult fetchPolicies(String shopDomain, String accessToken) {

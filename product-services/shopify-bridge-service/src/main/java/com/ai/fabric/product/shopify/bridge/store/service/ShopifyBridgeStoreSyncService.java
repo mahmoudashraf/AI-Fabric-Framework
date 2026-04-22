@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -105,11 +106,14 @@ public class ShopifyBridgeStoreSyncService {
 
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeBillingService billingService;
 
     public ShopifyBridgeStoreSyncService(ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
-                                         PlatformShopifyStoreClient platformShopifyStoreClient) {
+                                         PlatformShopifyStoreClient platformShopifyStoreClient,
+                                         ShopifyBridgeBillingService billingService) {
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.billingService = billingService;
     }
 
     public ShopifyBridgeStoreSummary sync(ShopifyBridgeCredentialAcquisition acquisition) {
@@ -128,10 +132,11 @@ public class ShopifyBridgeStoreSyncService {
         ShopifyBridgeStoreSummary store = acquisition.store();
         String shopDomain = store.shopDomain();
         String accessToken = acquisition.tokenExchangeMaterial().accessToken();
+        Integer catalogProductCap = billingService.catalogProductCap(shopDomain, accessToken);
         try {
             List<ShopifyBridgeStoreSyncDocument> documents = new ArrayList<>();
             if (store.productsEnabled()) {
-                documents.addAll(loadProducts(shopDomain, accessToken));
+                documents.addAll(loadProducts(shopDomain, accessToken, catalogProductCap));
             }
             if (store.collectionsEnabled()) {
                 documents.addAll(loadCollections(shopDomain, accessToken));
@@ -165,8 +170,8 @@ public class ShopifyBridgeStoreSyncService {
         }
     }
 
-    private List<ShopifyBridgeStoreSyncDocument> loadProducts(String shopDomain, String accessToken) {
-        return paginate(shopDomain, accessToken, PRODUCTS_QUERY, "products").stream()
+    private List<ShopifyBridgeStoreSyncDocument> loadProducts(String shopDomain, String accessToken, Integer catalogProductCap) {
+        return paginate(shopDomain, accessToken, PRODUCTS_QUERY, "products", catalogProductCap).stream()
             .map(node -> new ShopifyBridgeStoreSyncDocument(
                 requiredText(node, "id"),
                 "products",
@@ -191,7 +196,7 @@ public class ShopifyBridgeStoreSyncService {
     }
 
     private List<ShopifyBridgeStoreSyncDocument> loadCollections(String shopDomain, String accessToken) {
-        return paginate(shopDomain, accessToken, COLLECTIONS_QUERY, "collections").stream()
+        return paginate(shopDomain, accessToken, COLLECTIONS_QUERY, "collections", null).stream()
             .map(node -> new ShopifyBridgeStoreSyncDocument(
                 requiredText(node, "id"),
                 "collections",
@@ -213,7 +218,7 @@ public class ShopifyBridgeStoreSyncService {
     }
 
     private List<ShopifyBridgeStoreSyncDocument> loadPages(String shopDomain, String accessToken) {
-        return paginate(shopDomain, accessToken, PAGES_QUERY, "pages").stream()
+        return paginate(shopDomain, accessToken, PAGES_QUERY, "pages", null).stream()
             .map(node -> new ShopifyBridgeStoreSyncDocument(
                 requiredText(node, "id"),
                 "pages",
@@ -267,7 +272,8 @@ public class ShopifyBridgeStoreSyncService {
     private List<Map<String, Object>> paginate(String shopDomain,
                                                String accessToken,
                                                String query,
-                                               String connectionField) {
+                                               String connectionField,
+                                               Integer itemCap) {
         List<Map<String, Object>> nodes = new ArrayList<>();
         String cursor = null;
         while (true) {
@@ -287,6 +293,9 @@ public class ShopifyBridgeStoreSyncService {
             for (Object edge : edges) {
                 Map<String, Object> edgeMap = requireMapFromListItem(edge);
                 nodes.add(requireMap(edgeMap.get("node"), "Shopify Admin API response is missing node for " + connectionField + "."));
+                if (itemCap != null && itemCap > 0 && nodes.size() >= itemCap) {
+                    return nodes;
+                }
             }
             Map<String, Object> pageInfo = requireMap(connection.get("pageInfo"), "Shopify Admin API response is missing pageInfo for " + connectionField + ".");
             boolean hasNextPage = Boolean.TRUE.equals(pageInfo.get("hasNextPage"));

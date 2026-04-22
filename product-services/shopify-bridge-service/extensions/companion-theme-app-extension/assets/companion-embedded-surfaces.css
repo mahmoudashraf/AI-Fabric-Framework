@@ -62,6 +62,19 @@
   color: #374151;
 }
 
+.loom-companion-powered-by {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.65rem;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.08);
+  color: #4338ca;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.28rem 0.7rem;
+}
+
 .loom-companion-search-form {
   display: flex;
   gap: 0.6rem;

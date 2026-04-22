@@ -189,10 +189,33 @@ export type ShopifyBridgeUsageSummary = {
 
 export type ShopifyBridgeBillingSummary = {
   mode: string
+  tierKey: string
   planName: string
   status: string
   merchantApprovalRequired: boolean
   launchBlocked: boolean
+  paidTier: boolean
+  actionCapable: boolean
+  catalogProductCap: number | null
+  syncCadence: string | null
+  poweredByBadgeRequired: boolean
+  chatFallbackEnabled: boolean
+  allowedSurfaces: string[]
+  availablePlans: Array<{
+    tierKey: string
+    planName: string
+    amount: string | null
+    currencyCode: string | null
+    interval: string | null
+    active: boolean
+    commerciallyAvailable: boolean
+    merchantApprovalSupported: boolean
+    actionCapable: boolean
+    catalogProductCap: number | null
+    syncCadence: string | null
+    poweredByBadgeRequired: boolean
+    message: string
+  }>
   message: string
 }
 
@@ -449,8 +472,14 @@ export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary
   return authenticatedFetchJson('/api/app/store/billing-summary', { method: 'GET' })
 }
 
-export async function requestBillingApproval(): Promise<ShopifyBridgeBillingApprovalResponse> {
-  return authenticatedFetchJson('/api/app/store/billing/approval', { method: 'POST' })
+export async function requestBillingApproval(tierKey?: string): Promise<ShopifyBridgeBillingApprovalResponse> {
+  return authenticatedFetchJson('/api/app/store/billing/approval', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ tierKey: tierKey ?? 'STARTER' }),
+  })
 }
 
 export async function fetchWebhookSubscriptions(): Promise<ShopifyWebhookSubscriptionStatusSummary> {

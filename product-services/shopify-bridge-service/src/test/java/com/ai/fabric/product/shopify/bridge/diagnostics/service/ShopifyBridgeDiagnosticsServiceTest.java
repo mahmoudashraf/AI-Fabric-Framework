@@ -40,10 +40,19 @@ class ShopifyBridgeDiagnosticsServiceTest {
         ));
         when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
             "FREE",
+            "FREE",
             "Companion Free",
             "ACTIVE",
             false,
             false,
+            false,
+            false,
+            50,
+            "DAILY",
+            true,
+            false,
+            List.of("ai-search"),
+            List.of(),
             "Free mode."
         ));
         when(usageService.summarizeAllShops()).thenReturn(new ShopifyBridgeUsageOverview(
@@ -96,10 +105,19 @@ class ShopifyBridgeDiagnosticsServiceTest {
         when(platformShopifyStoreClient.listStores()).thenThrow(new IllegalStateException("Platform store API unavailable"));
         when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
             "FREE",
+            "FREE",
             "Companion Free",
             "ACTIVE",
             false,
             false,
+            false,
+            false,
+            50,
+            "DAILY",
+            true,
+            false,
+            List.of("ai-search"),
+            List.of(),
             "Free mode."
         ));
         when(usageService.summarizeAllShops()).thenReturn(new ShopifyBridgeUsageOverview(

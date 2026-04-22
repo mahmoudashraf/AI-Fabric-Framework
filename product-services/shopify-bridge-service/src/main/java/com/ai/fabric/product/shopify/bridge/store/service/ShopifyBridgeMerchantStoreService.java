@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalRequest;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
@@ -116,11 +117,13 @@ public class ShopifyBridgeMerchantStoreService {
     }
 
     public ShopifyBridgeBillingApprovalResponse requestBillingApproval(ShopifyMerchantSession merchantSession,
-                                                                       String authorizationHeader) {
+                                                                       String authorizationHeader,
+                                                                       ShopifyBridgeBillingApprovalRequest request) {
         ShopifyBridgeCredentialAcquisition acquisition = acquireConnectedCredentials(merchantSession, authorizationHeader);
         ShopifyBridgeBillingApprovalResponse response = billingService.createApproval(
             merchantSession.shopDomain(),
-            acquisition.tokenExchangeMaterial().accessToken()
+            acquisition.tokenExchangeMaterial().accessToken(),
+            request == null ? null : request.tierKey()
         );
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_BILLING_APPROVAL_REQUESTED");
         return response;

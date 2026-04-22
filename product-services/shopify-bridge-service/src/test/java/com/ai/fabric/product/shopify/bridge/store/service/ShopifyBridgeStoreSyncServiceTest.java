@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -30,7 +31,9 @@ class ShopifyBridgeStoreSyncServiceTest {
     void syncCollectsEnabledStoreDocumentsAndCallsPlatformSync() {
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient, billingService);
+        when(billingService.catalogProductCap("alpha.myshopify.com", "shpat_access")).thenReturn(null);
 
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
         query ShopifyCompanionProductsSync($cursor: String) {
@@ -122,7 +125,9 @@ class ShopifyBridgeStoreSyncServiceTest {
     void syncMapsPagesIntoSupportPolicyDocuments() {
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient, billingService);
+        when(billingService.catalogProductCap("alpha.myshopify.com", "shpat_access")).thenReturn(null);
 
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
         query ShopifyCompanionPagesSync($cursor: String) {
@@ -173,7 +178,9 @@ class ShopifyBridgeStoreSyncServiceTest {
     void syncNormalizesAndBoundsShopifyPolicyBodies() {
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient, billingService);
+        when(billingService.catalogProductCap("alpha.myshopify.com", "shpat_access")).thenReturn(null);
 
         String repeatedClause = String.join(" ", Collections.nCopies(2_000, "policy-clause"));
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""

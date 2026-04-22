@@ -881,10 +881,18 @@ public class PlatformManagedProductAdminService {
         }
         return new PlatformManagedProductServiceBillingSummary(
             text(node, "mode", null),
+            text(node, "tierKey", null),
             text(node, "planName", null),
             text(node, "status", null),
             node.path("merchantApprovalRequired").asBoolean(false),
             node.path("launchBlocked").asBoolean(false),
+            node.path("paidTier").asBoolean(false),
+            node.path("actionCapable").asBoolean(false),
+            node.path("catalogProductCap").isNumber() ? node.path("catalogProductCap").asInt() : null,
+            text(node, "syncCadence", null),
+            node.path("poweredByBadgeRequired").asBoolean(false),
+            node.path("chatFallbackEnabled").asBoolean(true),
+            stringList(node.path("allowedSurfaces")),
             text(node, "message", null)
         );
     }
@@ -939,10 +947,18 @@ public class PlatformManagedProductAdminService {
         return new PlatformManagedProductServiceStoreBillingSummary(
             shopDomain,
             text(node, "mode", null),
+            text(node, "tierKey", null),
             text(node, "planName", null),
             text(node, "status", "UNKNOWN"),
             node.path("merchantApprovalRequired").asBoolean(false),
             node.path("launchBlocked").asBoolean(false),
+            node.path("paidTier").asBoolean(false),
+            node.path("actionCapable").asBoolean(false),
+            node.path("catalogProductCap").isNumber() ? node.path("catalogProductCap").asInt() : null,
+            text(node, "syncCadence", null),
+            node.path("poweredByBadgeRequired").asBoolean(false),
+            node.path("chatFallbackEnabled").asBoolean(true),
+            stringList(node.path("allowedSurfaces")),
             text(node, "message", "Managed product service did not return store billing diagnostics.")
         );
     }

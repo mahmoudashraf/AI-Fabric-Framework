@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -28,7 +29,9 @@ class ShopifyBridgeSourcePreflightServiceTest {
     void runCollectsEnabledCategoriesAndRecordsPreflight() {
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeSourcePreflightService service = new ShopifyBridgeSourcePreflightService(graphqlClient, platformClient);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeSourcePreflightService service = new ShopifyBridgeSourcePreflightService(graphqlClient, platformClient, billingService);
+        when(billingService.catalogProductCap("alpha.myshopify.com", "shpat_access")).thenReturn(null);
 
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
         query ShopifyCompanionProductsPreflight {
@@ -74,7 +77,9 @@ class ShopifyBridgeSourcePreflightServiceTest {
     void runMarksBlockedCategoryWhenShopifyDeniesAccess() {
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeSourcePreflightService service = new ShopifyBridgeSourcePreflightService(graphqlClient, platformClient);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeSourcePreflightService service = new ShopifyBridgeSourcePreflightService(graphqlClient, platformClient, billingService);
+        when(billingService.catalogProductCap("alpha.myshopify.com", "shpat_access")).thenReturn(null);
 
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
         query ShopifyCompanionProductsPreflight {

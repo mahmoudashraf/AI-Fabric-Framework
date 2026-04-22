@@ -727,9 +727,20 @@ export function ProductServicesPage() {
                     ) : null}
                     {overviewQuery.data?.billing ? (
                       <Alert severity={overviewQuery.data.billing.launchBlocked ? 'warning' : 'info'}>
-                        Billing {detailValue(overviewQuery.data.billing.mode)} · {detailValue(overviewQuery.data.billing.status)} · plan{' '}
-                        {detailValue(overviewQuery.data.billing.planName)}. {detailValue(overviewQuery.data.billing.message)}
+                        Billing {detailValue(overviewQuery.data.billing.mode)} · tier {detailValue(overviewQuery.data.billing.tierKey)} ·{' '}
+                        {detailValue(overviewQuery.data.billing.status)} · plan {detailValue(overviewQuery.data.billing.planName)}.{' '}
+                        {detailValue(overviewQuery.data.billing.message)}
                       </Alert>
+                    ) : null}
+                    {overviewQuery.data?.billing ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Surfaces {overviewQuery.data.billing.allowedSurfaces.length ? overviewQuery.data.billing.allowedSurfaces.join(' · ') : '—'} ·
+                        {' '}Product cap {detailValue(overviewQuery.data.billing.catalogProductCap ?? 'unlimited')} ·
+                        {' '}Sync cadence {detailValue(overviewQuery.data.billing.syncCadence)} ·
+                        {' '}Badge {overviewQuery.data.billing.poweredByBadgeRequired ? 'required' : 'optional'} ·
+                        {' '}Chat fallback {overviewQuery.data.billing.chatFallbackEnabled ? 'enabled' : 'disabled'} ·
+                        {' '}Actions {overviewQuery.data.billing.actionCapable ? 'enabled' : 'read-only'}
+                      </Typography>
                     ) : null}
                     {overviewQuery.data?.capabilities?.length ? (
                       <Typography variant="body2" color="text.secondary">
@@ -841,6 +852,11 @@ export function ProductServicesPage() {
                                 {store.syncDetail ? (
                                   <Typography variant="body2" color="text.secondary">
                                     Sync {store.syncDetail.status.toLowerCase()} · mode {detailValue(store.syncDetail.mode)} · documents {store.syncDetail.documentCount}
+                                  </Typography>
+                                ) : null}
+                                {store.widgetDetail?.settings?.enabledSurfaces?.length ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Configured widget surfaces {store.widgetDetail.settings.enabledSurfaces.join(' · ')}
                                   </Typography>
                                 ) : null}
                                 {store.capabilities ? (
@@ -1037,16 +1053,24 @@ export function ProductServicesPage() {
             ) : storeBillingSummaryQuery.data ? (
               <Stack spacing={1.5}>
                 <Alert severity={billingSeverity(storeBillingSummaryQuery.data)}>
-                  Billing {detailValue(storeBillingSummaryQuery.data.mode)} · {detailValue(storeBillingSummaryQuery.data.status)} · plan{' '}
-                  {detailValue(storeBillingSummaryQuery.data.planName)}. {detailValue(storeBillingSummaryQuery.data.message)}
+                  Billing {detailValue(storeBillingSummaryQuery.data.mode)} · tier {detailValue(storeBillingSummaryQuery.data.tierKey)} ·{' '}
+                  {detailValue(storeBillingSummaryQuery.data.status)} · plan {detailValue(storeBillingSummaryQuery.data.planName)}.{' '}
+                  {detailValue(storeBillingSummaryQuery.data.message)}
                 </Alert>
                 <Grid container spacing={2}>
                   {[
                     ['Mode', storeBillingSummaryQuery.data.mode],
+                    ['Tier', storeBillingSummaryQuery.data.tierKey],
                     ['Plan', storeBillingSummaryQuery.data.planName],
                     ['Status', storeBillingSummaryQuery.data.status],
                     ['Merchant approval', storeBillingSummaryQuery.data.merchantApprovalRequired ? 'required' : 'not required'],
                     ['Go-live blocking', storeBillingSummaryQuery.data.launchBlocked ? 'yes' : 'no'],
+                    ['Paid tier', storeBillingSummaryQuery.data.paidTier ? 'yes' : 'no'],
+                    ['Action capable', storeBillingSummaryQuery.data.actionCapable ? 'yes' : 'no'],
+                    ['Product cap', storeBillingSummaryQuery.data.catalogProductCap ?? 'unlimited'],
+                    ['Sync cadence', storeBillingSummaryQuery.data.syncCadence],
+                    ['Powered-by badge', storeBillingSummaryQuery.data.poweredByBadgeRequired ? 'required' : 'optional'],
+                    ['Chat fallback', storeBillingSummaryQuery.data.chatFallbackEnabled ? 'enabled' : 'disabled'],
                   ].map(([label, value]) => (
                     <Grid item xs={12} sm={6} key={label}>
                       <Typography variant="caption" color="text.secondary">
@@ -1056,6 +1080,9 @@ export function ProductServicesPage() {
                     </Grid>
                   ))}
                 </Grid>
+                <Typography variant="body2" color="text.secondary">
+                  Allowed surfaces {storeBillingSummaryQuery.data.allowedSurfaces.length ? storeBillingSummaryQuery.data.allowedSurfaces.join(' · ') : '—'}
+                </Typography>
               </Stack>
             ) : (
               <Alert severity="info">Billing posture is not available for this store yet.</Alert>

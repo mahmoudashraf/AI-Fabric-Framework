@@ -19,7 +19,7 @@ class ShopifyBridgeBillingServiceTest {
     @Test
     void freeModeIsActiveAndNotBlocked() {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
-            billingProperties("FREE", "", "", "", 0, false),
+            billingProperties("FREE", "", "", "", 0, false, false),
             properties("https://bridge.example.com", "shopify-api-key"),
             mock(ShopifyAdminGraphqlClient.class)
         );
@@ -27,15 +27,18 @@ class ShopifyBridgeBillingServiceTest {
         var summary = service.summarize();
 
         assertThat(summary.mode()).isEqualTo("FREE");
+        assertThat(summary.tierKey()).isEqualTo("FREE");
         assertThat(summary.status()).isEqualTo("ACTIVE");
         assertThat(summary.launchBlocked()).isFalse();
         assertThat(summary.merchantApprovalRequired()).isFalse();
+        assertThat(summary.catalogProductCap()).isEqualTo(50);
+        assertThat(summary.allowedSurfaces()).containsExactly("ai-search");
     }
 
     @Test
-    void paidModeWithoutRecurringPricingConfigIsBlocked() {
+    void paidModeWithoutRecurringPricingConfigKeepsFreeTierActive() {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
-            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "", "", "", 0, false),
+            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "", "", "", 0, false, false),
             properties("https://bridge.example.com", "shopify-api-key"),
             mock(ShopifyAdminGraphqlClient.class)
         );
@@ -43,24 +46,45 @@ class ShopifyBridgeBillingServiceTest {
         var summary = service.summarize();
 
         assertThat(summary.mode()).isEqualTo("SHOPIFY_APP_SUBSCRIPTION");
-        assertThat(summary.status()).isEqualTo("SETUP_REQUIRED");
-        assertThat(summary.launchBlocked()).isTrue();
-        assertThat(summary.merchantApprovalRequired()).isTrue();
+        assertThat(summary.tierKey()).isEqualTo("FREE");
+        assertThat(summary.status()).isEqualTo("ACTIVE");
+        assertThat(summary.launchBlocked()).isFalse();
+        assertThat(summary.merchantApprovalRequired()).isFalse();
+        assertThat(summary.availablePlans())
+            .anySatisfy(plan -> {
+                assertThat(plan.tierKey()).isEqualTo("STARTER");
+                assertThat(plan.commerciallyAvailable()).isFalse();
+            });
     }
 
     @Test
-    void paidModeWithRecurringPricingConfigIsReadyForApproval() {
+    void paidModeWithRecurringPricingConfigAdvertisesStarterUpgrade() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(activeSubscriptionsQuery())))
+            .thenReturn(Map.of(
+                "data", Map.of(
+                    "currentAppInstallation", Map.of(
+                        "activeSubscriptions", List.of()
+                    )
+                )
+            ));
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
-            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 7, true),
+            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 7, true, false),
             properties("https://bridge.example.com", "shopify-api-key"),
-            mock(ShopifyAdminGraphqlClient.class)
+            client
         );
 
-        var summary = service.summarize();
+        var summary = service.summarizeForShop("alpha.myshopify.com", "token");
 
-        assertThat(summary.status()).isEqualTo("READY_FOR_APPROVAL");
-        assertThat(summary.launchBlocked()).isTrue();
-        assertThat(summary.merchantApprovalRequired()).isTrue();
+        assertThat(summary.status()).isEqualTo("ACTIVE");
+        assertThat(summary.tierKey()).isEqualTo("FREE");
+        assertThat(summary.merchantApprovalRequired()).isFalse();
+        assertThat(summary.availablePlans())
+            .anySatisfy(plan -> {
+                assertThat(plan.tierKey()).isEqualTo("STARTER");
+                assertThat(plan.commerciallyAvailable()).isTrue();
+                assertThat(plan.merchantApprovalSupported()).isTrue();
+            });
     }
 
     @Test
@@ -81,7 +105,7 @@ class ShopifyBridgeBillingServiceTest {
                 )
             ));
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
-            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 0, false),
+            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 0, false, false),
             properties("https://bridge.example.com", "shopify-api-key"),
             client
         );
@@ -89,8 +113,10 @@ class ShopifyBridgeBillingServiceTest {
         var summary = service.summarizeForShop("alpha.myshopify.com", "token");
 
         assertThat(summary.status()).isEqualTo("ACTIVE");
+        assertThat(summary.tierKey()).isEqualTo("STARTER");
         assertThat(summary.launchBlocked()).isFalse();
         assertThat(summary.merchantApprovalRequired()).isFalse();
+        assertThat(summary.paidTier()).isTrue();
     }
 
     @Test
@@ -115,12 +141,12 @@ class ShopifyBridgeBillingServiceTest {
                 )
             ));
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
-            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 7, true),
+            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 7, true, false),
             properties("https://bridge.example.com", "shopify-api-key"),
             client
         );
 
-        var response = service.createApproval("alpha.myshopify.com", "token");
+        var response = service.createApproval("alpha.myshopify.com", "token", "STARTER");
 
         assertThat(response.status()).isEqualTo("READY_FOR_APPROVAL");
         assertThat(response.confirmationUrl()).isEqualTo("https://alpha.myshopify.com/admin/charges/confirm");
@@ -131,16 +157,33 @@ class ShopifyBridgeBillingServiceTest {
                                                              String currencyCode,
                                                              String interval,
                                                              int trialDays,
-                                                             boolean test) {
+                                                             boolean test,
+                                                             boolean eliteEnabled) {
         return new ShopifyBridgeBillingProperties(
             mode,
-            "Companion Pro",
-            "companion-pro",
+            "Companion Free",
+            "",
+            "",
+            currencyCode,
+            interval,
+            0,
+            false,
+            amount != null && !amount.isBlank(),
+            "Loom Companion Starter",
+            "loom-companion-starter",
             amount,
             currencyCode,
             interval,
             trialDays,
-            test
+            test,
+            eliteEnabled,
+            "Loom Companion Elite",
+            "loom-companion-elite",
+            eliteEnabled ? "179.00" : "",
+            "USD",
+            "EVERY_30_DAYS",
+            0,
+            false
         );
     }
 

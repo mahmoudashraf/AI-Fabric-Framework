@@ -67,6 +67,12 @@
           root.textContent = payload && payload.message ? payload.message : 'Store assistant is not ready yet.'
           return
         }
+        if (payload.chatFallbackEnabled === false) {
+          teardownActiveShell(root)
+          teardownEmbeddedSurfaces(root)
+          root.dataset.status = 'ready'
+          return renderEmbeddedSurfaces(root, config, payload)
+        }
         return loadShellRenderer(config.widgetShell, config).then(function (renderer) {
           teardownActiveShell(root)
           teardownEmbeddedSurfaces(root)

@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalRequest;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
@@ -161,8 +162,9 @@ public class ShopifyMerchantController {
 
     @PostMapping("/store/billing/approval")
     public ShopifyBridgeBillingApprovalResponse billingApproval(Authentication authentication,
-                                                                @RequestHeader("Authorization") String authorizationHeader) {
-        return merchantStoreService.requestBillingApproval(requireMerchant(authentication), authorizationHeader);
+                                                                @RequestHeader("Authorization") String authorizationHeader,
+                                                                @RequestBody(required = false) ShopifyBridgeBillingApprovalRequest request) {
+        return merchantStoreService.requestBillingApproval(requireMerchant(authentication), authorizationHeader, request);
     }
 
     @GetMapping("/store/webhook-subscriptions")
