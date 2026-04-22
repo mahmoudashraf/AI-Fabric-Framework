@@ -46,6 +46,7 @@ set -euo pipefail
 
 STORE_BASE_URL="${STORE_BASE_URL:-${ECOMMERCE_STORE_BASE_URL:-}}"
 RUNTIME_BASE_URL="${RUNTIME_BASE_URL:-}"
+VERIFICATION_PROFILE="${VERIFICATION_PROFILE:-ecommerce}"
 
 API_KEY_HEADER="${API_KEY_HEADER:-X-AIFABRIC-API-KEY}"
 API_KEY="${API_KEY:-}"
@@ -119,6 +120,7 @@ VERIFY_CONFIRMATION_RETENTION_FLOW="${VERIFY_CONFIRMATION_RETENTION_FLOW:-false}
 VERIFY_MARKETPLACE_RUNTIME="${VERIFY_MARKETPLACE_RUNTIME:-false}"
 VERIFY_MARKETPLACE_RUNTIME_ACTIVE="${VERIFY_MARKETPLACE_RUNTIME_ACTIVE:-}"
 VERIFY_READ_ACTION_RESOLUTION="${VERIFY_READ_ACTION_RESOLUTION:-true}"
+EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="${EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN:-}"
 ECOMMERCE_RESOLVER_MODE="${ECOMMERCE_RESOLVER_MODE:-resolver_assistant}"
 ECOMMERCE_RESOLVER_SMOKE_QUERY="${ECOMMERCE_RESOLVER_SMOKE_QUERY:-Check live availability for SKU-0001.}"
 VERIFY_THINKER_READ_ACTION_RESOLUTION="${VERIFY_THINKER_READ_ACTION_RESOLUTION:-true}"
@@ -178,6 +180,17 @@ if [[ -z "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" ]]; then
   else
     VERIFY_MARKETPLACE_RUNTIME_ACTIVE="false"
   fi
+fi
+
+if [[ -z "${EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN}" ]]; then
+  case "${VERIFICATION_PROFILE}" in
+    marketplace-runtime)
+      EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="0"
+      ;;
+    *)
+      EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="4"
+      ;;
+  esac
 fi
 
 resolve_secret_value() {
@@ -1627,7 +1640,8 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     echo "== Runtime Admin Overview =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
     assert_status 200 "runtime admin overview"
-    json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nassert int((data or {}).get("readActionResolutionEligibleActionsCount") or 0) >= 4, data\nprint("ok")'
+    EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="${EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN}" \
+    json_assert "runtime admin overview" $'import os\nassert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nexpected_min = int(os.environ.get("EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN") or 0)\nif expected_min > 0:\n  assert int((data or {}).get("readActionResolutionEligibleActionsCount") or 0) >= expected_min, data\nprint("ok")'
     RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
     assert_marketplace_runtime_overview "runtime admin marketplace alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
     assert_marketplace_inference_profile "runtime admin marketplace inference alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"

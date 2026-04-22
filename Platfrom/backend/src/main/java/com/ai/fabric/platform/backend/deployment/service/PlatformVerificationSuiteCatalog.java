@@ -20,6 +20,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String MARKETPLACE_INSTALL_FLOW_SUITE_KEY = "marketplace-install-flow";
     public static final String SHOPIFY_COMPANION_VERIFICATION_SUITE_KEY = "shopify-companion-verification";
     public static final String SHARED_INFERENCE_SERVICE_REF = "shared-ollama-orchestration";
+    public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
         "marketplace",
         "ecommerce",
@@ -67,7 +68,7 @@ public class PlatformVerificationSuiteCatalog {
                     "canonical-rollout-inventory",
                     "Canonical rollout inventory",
                     "CANONICAL_ROLLOUTS",
-                    "canonical-verification-fleet",
+                    CANONICAL_FLEET_TARGET_REF,
                     true,
                     "Resolve canonical verification deployments, confirm they are present, and validate platform-visible secret readiness."
                 ),
@@ -158,7 +159,7 @@ public class PlatformVerificationSuiteCatalog {
                     "canonical-rollout-inventory",
                     "Canonical rollout inventory",
                     "CANONICAL_ROLLOUTS",
-                    "canonical-verification-fleet",
+                    CANONICAL_FLEET_TARGET_REF,
                     true,
                     "Resolve canonical verification deployments, confirm they are present, and validate platform-visible secret readiness."
                 ),

@@ -264,7 +264,7 @@ Important runtime behavior:
 
 - with `allowControlPlaneRepair=true`, the suite may perform bounded repair only:
   - shared inference reconcile
-  - canonical rollout recreation
+  - canonical rollout recreation or refresh before hosted verification
   - governed vectorization bootstrap or reindex before hosted verification when a canonical deployment is only blocked by sync drift
 
 ### 6.1 Rollout resolution

@@ -200,6 +200,9 @@ Current ordered stages for `canonical-release-readiness`:
 These suites are intentionally fixed-order.
 They encode the operational dependency chain instead of asking each operator or CI workflow to reconstruct it.
 
+When `allowControlPlaneRepair=true`, the canonical rollout stage is not only an inventory read.
+It may recreate the canonical fleet before hosted verification so the release gate does not rely on stale rollout runtime contracts.
+
 ## 5. What The UI Now Does
 
 The `Verification Ops` page now exposes:

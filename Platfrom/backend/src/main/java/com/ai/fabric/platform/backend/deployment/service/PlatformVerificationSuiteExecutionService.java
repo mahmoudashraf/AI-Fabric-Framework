@@ -176,9 +176,8 @@ public class PlatformVerificationSuiteExecutionService {
         DeploymentVerificationRolloutSummary summary = deploymentVerificationRolloutService.listRollouts();
         List<RolloutAssessment> assessments = assessRollouts(summary);
         boolean repaired = false;
-        if (allowControlPlaneRepair && assessments.stream().anyMatch(assessment -> assessment.structurallyBlocked)) {
+        if (allowControlPlaneRepair && shouldRefreshCanonicalRollouts(stage, assessments)) {
             List<String> selected = assessments.stream()
-                .filter(assessment -> assessment.structurallyBlocked)
                 .map(assessment -> assessment.rollout.key())
                 .toList();
             deploymentVerificationRolloutService.recreateRollouts(selected);
@@ -222,6 +221,14 @@ public class PlatformVerificationSuiteExecutionService {
         }
         completeStage(stage, "FAILED", String.join(" | ", blockers), details, "");
         return false;
+    }
+
+    private boolean shouldRefreshCanonicalRollouts(PlatformVerificationSuiteRunStageEntity stage,
+                                                   List<RolloutAssessment> assessments) {
+        if (assessments.stream().anyMatch(assessment -> assessment.structurallyBlocked)) {
+            return true;
+        }
+        return PlatformVerificationSuiteCatalog.CANONICAL_FLEET_TARGET_REF.equalsIgnoreCase(defaultText(stage.getTargetRef(), ""));
     }
 
     private boolean executeScriptVerification(PlatformVerificationSuiteRunStageEntity stage) throws InterruptedException, java.io.IOException {
