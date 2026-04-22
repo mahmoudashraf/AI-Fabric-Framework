@@ -43,7 +43,7 @@ public class ProductController {
         return productService.list(limit);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public Product get(@PathVariable long id) {
         return productService.get(id);
     }
@@ -99,7 +99,7 @@ public class ProductController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public Product update(@PathVariable long id, @Valid @RequestBody UpdateProductRequest request) {
         return productService.updateProduct(
             id,
@@ -115,7 +115,7 @@ public class ProductController {
         );
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public Product delete(@PathVariable long id) {
         return productService.deleteProduct(id);
     }
