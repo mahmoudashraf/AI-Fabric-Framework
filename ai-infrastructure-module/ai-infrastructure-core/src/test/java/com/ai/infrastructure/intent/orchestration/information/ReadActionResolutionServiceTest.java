@@ -42,6 +42,113 @@ import static org.mockito.Mockito.when;
 class ReadActionResolutionServiceTest {
 
     @Test
+    void shouldPreferPurposeBuiltCompareActionForExplicitSkuComparisonRequests() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
+        PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
+
+        AIActionMetaData compareProducts = AIActionMetaData.builder()
+            .name("compare_products")
+            .description("Compare two products by SKU and return key differences.")
+            .category("commerce")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .requiredParameters(Set.of("referenceSku", "comparisonSku"))
+            .build();
+        AIActionMetaData productDetails = AIActionMetaData.builder()
+            .name("get_product_details")
+            .description("Get full product details by SKU.")
+            .category("commerce")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .requiredParameters(Set.of("sku"))
+            .build();
+
+        AIActionHandler compareHandler = mock(AIActionHandler.class);
+        AIActionHandler detailsHandler = mock(AIActionHandler.class);
+        when(compareHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
+        when(compareHandler.executeAction(eq(Map.of("referenceSku", "SKU-AAA-100", "comparisonSku", "SKU-BBB-200")), any(ActionContext.class)))
+            .thenReturn(ActionResult.builder()
+                .success(true)
+                .message("Product comparison")
+                .data(ActionPayload.object(Map.of(
+                    "referenceSku", "SKU-AAA-100",
+                    "comparisonSku", "SKU-BBB-200",
+                    "highlights", List.of("price", "stock"),
+                    "keyDifferences", List.of("price")
+                )))
+                .build());
+        when(compareHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class))).thenReturn(
+            Optional.of(Map.of(
+                "referenceSku", "SKU-AAA-100",
+                "comparisonSku", "SKU-BBB-200",
+                "keyDifferences", List.of("price", "stock")
+            ))
+        );
+
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(compareProducts, productDetails));
+        when(actionRegistry.findHandler("compare_products")).thenReturn(Optional.of(compareHandler));
+        when(actionRegistry.findHandler("get_product_details")).thenReturn(Optional.of(detailsHandler));
+        when(actionRegistry.findMetadata("compare_products")).thenReturn(Optional.of(compareProducts));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
+            .thenReturn(resolvedTemplate("system", ""));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
+            .thenReturn(resolvedTemplate("user",
+                "mode={{mode}}\nquery={{query}}\nintent={{intent_json}}\nactions={{eligible_actions_json}}\nprior={{prior_evidence_json}}\n"
+                    + "max={{max_actions_per_iteration}}\ntotal={{max_total_actions}}\nrag={{rag_cooperation_mode}}\n"
+                    + "iteration={{iteration}}\niterations={{max_iterations}}"));
+        when(aiCoreService.generateContent(any(), eq(LlmPurpose.ORCHESTRATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+                      "actions": [
+                        {"name": "get_product_details", "params": {"sku": "SKU-AAA-100"}, "priority": 1},
+                        {"name": "get_product_details", "params": {"sku": "SKU-BBB-200"}, "priority": 2}
+                      ],
+                      "needsMoreSteps": false
+                    }
+                    """)
+                .build()
+        );
+
+        ReadActionResolutionService service = new ReadActionResolutionService(
+            aiCoreService,
+            actionRegistry,
+            new IntentExtractionJsonSupport(new ObjectMapper()),
+            templateResolver,
+            new PromptRenderer()
+        );
+
+        ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(
+            Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("Compare SKU-AAA-100 with SKU-BBB-200.")
+                .optimizedQuery("Compare SKU-AAA-100 with SKU-BBB-200 and summarize the differences.")
+                .build(),
+            OrchestrationContext.forUser("user-1"),
+            PipelineContext.from("Compare SKU-AAA-100 with SKU-BBB-200.", OrchestrationContext.forUser("user-1"))
+                .toBuilder()
+                .orchestrationPolicy(readActionPolicy("resolver_assistant", List.of("compare_products", "get_product_details"),
+                    OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
+                    OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT))
+                .build()
+        );
+
+        assertThat(outcome.attempted()).isTrue();
+        assertThat(outcome.useRag()).isFalse();
+        assertThat(outcome.canAnswerFromActionEvidenceOnly()).isTrue();
+        assertThat(outcome.executedActions()).hasSize(1);
+        assertThat(outcome.executedActions().getFirst().actionName()).isEqualTo("compare_products");
+        assertThat(outcome.diagnostics()).containsEntry("executedActionsCount", 1);
+        assertThat(outcome.diagnostics()).containsEntry("finalDecision", "EXECUTE_READ_ACTIONS");
+        verify(compareHandler).executeAction(eq(Map.of("referenceSku", "SKU-AAA-100", "comparisonSku", "SKU-BBB-200")), any(ActionContext.class));
+        verify(detailsHandler, never()).executeAction(any(), any(ActionContext.class));
+    }
+
+    @Test
     void shouldExecuteOnlyPlannerEligibleReadActionsFromAllowlist() {
         AICoreService aiCoreService = mock(AICoreService.class);
         AIActionRegistry actionRegistry = mock(AIActionRegistry.class);

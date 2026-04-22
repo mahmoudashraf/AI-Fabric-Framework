@@ -36,6 +36,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Bounded planner for live informational resolution using allowlisted read-only actions.
@@ -47,6 +49,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class ReadActionResolutionService {
+    private static final Pattern SKU_TOKEN_PATTERN = Pattern.compile("\\bSKU-[A-Z0-9-]+\\b", Pattern.CASE_INSENSITIVE);
 
     private static final String TEMPLATE_FAMILY = "orchestration/read-action-resolution";
     private static final String TEMPLATE_SYSTEM = "system";
@@ -125,6 +128,7 @@ public class ReadActionResolutionService {
                 ));
                 break;
             }
+            decision = applyHighConfidenceActionOverrides(query, decision, eligibleActions);
             lastDecision = decision;
             plannerIterations.add(decision.diagnostics());
 
@@ -375,6 +379,195 @@ public class ReadActionResolutionService {
             approved.add(new PlannerActionProposal(eligible.name(), proposal.params(), proposal.priority()));
         }
         return approved.isEmpty() ? List.of() : List.copyOf(approved);
+    }
+
+    private PlannerDecision applyHighConfidenceActionOverrides(String query,
+                                                               PlannerDecision decision,
+                                                               List<EligibleReadAction> eligibleActions) {
+        if (!StringUtils.hasText(query) || decision == null || eligibleActions == null || eligibleActions.isEmpty()) {
+            return decision;
+        }
+
+        Map<String, EligibleReadAction> eligibleByName = new LinkedHashMap<>();
+        for (EligibleReadAction action : eligibleActions) {
+            if (action == null || !StringUtils.hasText(action.name())) {
+                continue;
+            }
+            eligibleByName.put(action.name().trim().toLowerCase(Locale.ROOT), action);
+        }
+
+        PlannerDecision override = maybeBuildCompareOverride(query, decision, eligibleByName);
+        if (override != null) {
+            return override;
+        }
+        override = maybeBuildSimilarOverride(query, decision, eligibleByName);
+        if (override != null) {
+            return override;
+        }
+        override = maybeBuildAvailabilityOverride(query, decision, eligibleByName);
+        return override != null ? override : decision;
+    }
+
+    private PlannerDecision maybeBuildCompareOverride(String query,
+                                                      PlannerDecision decision,
+                                                      Map<String, EligibleReadAction> eligibleByName) {
+        if (!containsComparisonIntent(query)) {
+            return null;
+        }
+        if (plannerAlreadyTargets(decision, "compare_products")) {
+            return null;
+        }
+        EligibleReadAction compare = eligibleByName.get("compare_products");
+        if (compare == null) {
+            return null;
+        }
+        List<String> skus = extractSkuTokens(query, 2);
+        if (skus.size() < 2) {
+            return null;
+        }
+        Map<String, Object> params = Map.of(
+            "referenceSku", skus.get(0),
+            "comparisonSku", skus.get(1)
+        );
+        if (!hasRequiredParams(compare.metadata(), params)) {
+            return null;
+        }
+        return overrideDecision(decision, "compare_products", params, "HIGH_CONFIDENCE_COMPARE_MATCH");
+    }
+
+    private PlannerDecision maybeBuildSimilarOverride(String query,
+                                                      PlannerDecision decision,
+                                                      Map<String, EligibleReadAction> eligibleByName) {
+        if (!containsSimilarityIntent(query)) {
+            return null;
+        }
+        if (plannerAlreadyTargets(decision, "find_similar_products")) {
+            return null;
+        }
+        EligibleReadAction similar = eligibleByName.get("find_similar_products");
+        if (similar == null) {
+            return null;
+        }
+        List<String> skus = extractSkuTokens(query, 1);
+        if (skus.isEmpty()) {
+            return null;
+        }
+        Map<String, Object> params = Map.of("sku", skus.get(0));
+        if (!hasRequiredParams(similar.metadata(), params)) {
+            return null;
+        }
+        return overrideDecision(decision, "find_similar_products", params, "HIGH_CONFIDENCE_SIMILAR_MATCH");
+    }
+
+    private PlannerDecision maybeBuildAvailabilityOverride(String query,
+                                                           PlannerDecision decision,
+                                                           Map<String, EligibleReadAction> eligibleByName) {
+        if (!containsAvailabilityIntent(query)) {
+            return null;
+        }
+        if (plannerAlreadyTargets(decision, "check_availability")) {
+            return null;
+        }
+        EligibleReadAction availability = eligibleByName.get("check_availability");
+        if (availability == null) {
+            return null;
+        }
+        List<String> skus = extractSkuTokens(query, 1);
+        if (skus.isEmpty()) {
+            return null;
+        }
+        Map<String, Object> params = Map.of("sku", skus.get(0));
+        if (!hasRequiredParams(availability.metadata(), params)) {
+            return null;
+        }
+        return overrideDecision(decision, "check_availability", params, "HIGH_CONFIDENCE_AVAILABILITY_MATCH");
+    }
+
+    private PlannerDecision overrideDecision(PlannerDecision decision,
+                                             String actionName,
+                                             Map<String, Object> params,
+                                             String reason) {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        if (decision.diagnostics() != null) {
+            diagnostics.putAll(decision.diagnostics());
+        }
+        diagnostics.put("status", "PLANNED_WITH_SPECIALIZATION_OVERRIDE");
+        diagnostics.put("specializationOverride", actionName);
+        diagnostics.put("specializationOverrideReason", reason);
+        diagnostics.put("proposedActions", List.of(
+            new PlannerActionProposal(actionName, params, 1).toDiagnosticMap()
+        ));
+        diagnostics.put("needsMoreSteps", Boolean.FALSE);
+        return new PlannerDecision(
+            PlannerDecisionType.EXECUTE_READ_ACTIONS,
+            List.of(new PlannerActionProposal(actionName, params, 1)),
+            false,
+            reason,
+            decision.suggestedVectorSpaces(),
+            Collections.unmodifiableMap(diagnostics)
+        );
+    }
+
+    private boolean plannerAlreadyTargets(PlannerDecision decision, String actionName) {
+        if (decision == null || decision.actions() == null || !StringUtils.hasText(actionName)) {
+            return false;
+        }
+        return decision.actions().stream()
+            .filter(Objects::nonNull)
+            .anyMatch(action -> actionName.equalsIgnoreCase(action.name()));
+    }
+
+    private List<String> extractSkuTokens(String query, int limit) {
+        if (!StringUtils.hasText(query) || limit <= 0) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        Matcher matcher = SKU_TOKEN_PATTERN.matcher(query);
+        while (matcher.find() && values.size() < limit) {
+            String sku = matcher.group();
+            if (!StringUtils.hasText(sku)) {
+                continue;
+            }
+            String normalized = sku.toUpperCase(Locale.ROOT);
+            if (!values.contains(normalized)) {
+                values.add(normalized);
+            }
+        }
+        return values.isEmpty() ? List.of() : List.copyOf(values);
+    }
+
+    private boolean containsComparisonIntent(String query) {
+        String normalized = normalizePlannerText(query);
+        return normalized.contains(" compare ")
+            || normalized.contains(" versus ")
+            || normalized.contains(" vs ")
+            || normalized.contains(" difference ")
+            || normalized.contains(" differences ")
+            || normalized.contains(" better ");
+    }
+
+    private boolean containsSimilarityIntent(String query) {
+        String normalized = normalizePlannerText(query);
+        return normalized.contains(" similar ")
+            || normalized.contains(" alternative ")
+            || normalized.contains(" alternatives ")
+            || normalized.contains(" comparable ")
+            || normalized.contains(" another option ");
+    }
+
+    private boolean containsAvailabilityIntent(String query) {
+        String normalized = normalizePlannerText(query);
+        return normalized.contains(" availability ")
+            || normalized.contains(" available ")
+            || normalized.contains(" in stock ")
+            || normalized.contains(" stock ");
+    }
+
+    private String normalizePlannerText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return " ";
+        }
+        return " " + value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ") + " ";
     }
 
     private ExecutedReadAction executeAction(PlannerActionProposal proposal,
