@@ -128,6 +128,9 @@ ECOMMERCE_COMPARE_SMOKE_QUERY="${ECOMMERCE_COMPARE_SMOKE_QUERY:-Compare SKU-0001
 VERIFY_THINKER_READ_ACTION_RESOLUTION="${VERIFY_THINKER_READ_ACTION_RESOLUTION:-true}"
 ECOMMERCE_THINKER_MODE="${ECOMMERCE_THINKER_MODE:-thinker}"
 ECOMMERCE_THINKER_SMOKE_QUERY="${ECOMMERCE_THINKER_SMOKE_QUERY:-Check live availability for SKU-0001 and summarize the refund policy.}"
+ECOMMERCE_SAMPLE_PRIMARY_SKU="${ECOMMERCE_SAMPLE_PRIMARY_SKU:-}"
+ECOMMERCE_SAMPLE_SECONDARY_SKU="${ECOMMERCE_SAMPLE_SECONDARY_SKU:-}"
+ECOMMERCE_SAMPLE_PRODUCTS_LIMIT="${ECOMMERCE_SAMPLE_PRODUCTS_LIMIT:-10}"
 EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION:-MARKETPLACE_RUNTIME_SUPPORT_V2}"
 EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION:-SEARCH_SOURCE_DIAGNOSTICS_V1}"
 EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}"
@@ -1365,6 +1368,69 @@ PY
   return "${rc}"
 }
 
+resolve_ecommerce_sample_skus() {
+  if [[ -z "${STORE_BASE_URL}" ]]; then
+    return
+  fi
+
+  if [[ -n "${ECOMMERCE_SAMPLE_PRIMARY_SKU}" && -n "${ECOMMERCE_SAMPLE_SECONDARY_SKU}" ]]; then
+    return
+  fi
+
+  http GET "${STORE_BASE_URL}/api/products?limit=${ECOMMERCE_SAMPLE_PRODUCTS_LIMIT}"
+  assert_status 200 "store sample products lookup"
+
+  local resolved_skus
+  resolved_skus="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+
+raw = os.environ.get("PARSE_BODY") or "[]"
+data = json.loads(raw)
+if not isinstance(data, list):
+    raise SystemExit("Expected /api/products to return a list.")
+
+skus = []
+for item in data:
+    if not isinstance(item, dict):
+        continue
+    sku = item.get("sku")
+    if isinstance(sku, str) and sku and sku not in skus:
+        skus.append(sku)
+    if len(skus) >= 2:
+        break
+
+if len(skus) < 2:
+    raise SystemExit("Expected at least two products with distinct SKUs for comparison verification.")
+
+print("\n".join(skus[:2]))
+PY
+)"
+
+  local resolved_primary_sku
+  local resolved_secondary_sku
+  resolved_primary_sku="$(printf '%s\n' "${resolved_skus}" | sed -n '1p')"
+  resolved_secondary_sku="$(printf '%s\n' "${resolved_skus}" | sed -n '2p')"
+
+  if [[ -z "${ECOMMERCE_SAMPLE_PRIMARY_SKU}" ]]; then
+    ECOMMERCE_SAMPLE_PRIMARY_SKU="${resolved_primary_sku}"
+  fi
+  if [[ -z "${ECOMMERCE_SAMPLE_SECONDARY_SKU}" ]]; then
+    ECOMMERCE_SAMPLE_SECONDARY_SKU="${resolved_secondary_sku}"
+  fi
+
+  ECOMMERCE_RESOLVER_SMOKE_QUERY="${ECOMMERCE_RESOLVER_SMOKE_QUERY//SKU-0001/${ECOMMERCE_SAMPLE_PRIMARY_SKU}}"
+  ECOMMERCE_RESOLVER_SMOKE_QUERY="${ECOMMERCE_RESOLVER_SMOKE_QUERY//SKU-0002/${ECOMMERCE_SAMPLE_SECONDARY_SKU}}"
+  ECOMMERCE_COMPARE_SMOKE_QUERY="${ECOMMERCE_COMPARE_SMOKE_QUERY//SKU-0001/${ECOMMERCE_SAMPLE_PRIMARY_SKU}}"
+  ECOMMERCE_COMPARE_SMOKE_QUERY="${ECOMMERCE_COMPARE_SMOKE_QUERY//SKU-0002/${ECOMMERCE_SAMPLE_SECONDARY_SKU}}"
+  ECOMMERCE_THINKER_SMOKE_QUERY="${ECOMMERCE_THINKER_SMOKE_QUERY//SKU-0001/${ECOMMERCE_SAMPLE_PRIMARY_SKU}}"
+  ECOMMERCE_THINKER_SMOKE_QUERY="${ECOMMERCE_THINKER_SMOKE_QUERY//SKU-0002/${ECOMMERCE_SAMPLE_SECONDARY_SKU}}"
+
+  if [[ "${RETENTION_TEST_SKU}" == "SKU-0001" ]]; then
+    RETENTION_TEST_SKU="${ECOMMERCE_SAMPLE_PRIMARY_SKU}"
+  fi
+}
+
 poll_until() {
   local label="$1"
   local attempts="$2"
@@ -1605,16 +1671,31 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
       pass "store POST /api/admin/demo/clear exists (confirm required)"
     fi
 
+    resolve_ecommerce_sample_skus
+
     echo ""
     echo "== Store Comparison APIs =="
-    http GET "${STORE_BASE_URL}/api/products/similar?sku=SKU-0001&limit=3"
+    http GET "${STORE_BASE_URL}/api/products/similar?sku=${ECOMMERCE_SAMPLE_PRIMARY_SKU}&limit=3"
     assert_status 200 "store similar products"
-    json_assert "store similar products" $'assert (data or {}).get("referenceProduct", {}).get("sku") == "SKU-0001", data\nassert int((data or {}).get("count") or 0) >= 1, data\nassert ((data or {}).get("items") or [])[0].get("product", {}).get("sku"), data\nprint("ok")'
+    json_assert "store similar products" "$(cat <<PY
+assert (data or {}).get("referenceProduct", {}).get("sku") == "${ECOMMERCE_SAMPLE_PRIMARY_SKU}", data
+assert int((data or {}).get("count") or 0) >= 1, data
+assert ((data or {}).get("items") or [])[0].get("product", {}).get("sku"), data
+print("ok")
+PY
+)"
     pass "store GET /api/products/similar"
 
-    http GET "${STORE_BASE_URL}/api/products/compare?referenceSku=SKU-0001&comparisonSku=SKU-0002"
+    http GET "${STORE_BASE_URL}/api/products/compare?referenceSku=${ECOMMERCE_SAMPLE_PRIMARY_SKU}&comparisonSku=${ECOMMERCE_SAMPLE_SECONDARY_SKU}"
     assert_status 200 "store compare products"
-    json_assert "store compare products" $'assert (data or {}).get("referenceProduct", {}).get("sku") == "SKU-0001", data\nassert (data or {}).get("comparisonProduct", {}).get("sku") == "SKU-0002", data\nassert "highlights" in (data or {}), data\nassert isinstance((data or {}).get("keyDifferences"), list), data\nprint("ok")'
+    json_assert "store compare products" "$(cat <<PY
+assert (data or {}).get("referenceProduct", {}).get("sku") == "${ECOMMERCE_SAMPLE_PRIMARY_SKU}", data
+assert (data or {}).get("comparisonProduct", {}).get("sku") == "${ECOMMERCE_SAMPLE_SECONDARY_SKU}", data
+assert "highlights" in (data or {}), data
+assert isinstance((data or {}).get("keyDifferences"), list), data
+print("ok")
+PY
+)"
     pass "store GET /api/products/compare"
   fi
 
