@@ -186,6 +186,19 @@ print_blockers() {
   fi
 }
 
+readiness_mentions_archived_binding() {
+  local store_json="$1"
+  local blockers
+  blockers="$(
+    {
+      json_lines "${store_json}" "readiness.goLiveBlockingReasons"
+      json_lines "${store_json}" "readiness.storefrontBlockingReasons"
+      json_lines "${store_json}" "readiness.nextActions"
+    } | tr '[:upper:]' '[:lower:]'
+  )"
+  [[ "${blockers}" == *"archived"* && "${blockers}" == *"bootstrap"* ]]
+}
+
 require_cmd curl
 require_cmd python3
 require_env PLATFORM_BASE_URL
@@ -258,6 +271,17 @@ store_json="${HTTP_BODY}"
 print_store_summary "${store_json}"
 echo "install URL: ${install_url}"
 
+if readiness_mentions_archived_binding "${store_json}"; then
+  echo
+  echo "== Re-bootstrap archived deployment binding =="
+  platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/bootstrap" "{}" "${platform_headers[@]-}"
+  [[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to re-bootstrap archived store binding: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
+  platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]-}"
+  [[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to reload store summary after re-bootstrap: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
+  store_json="${HTTP_BODY}"
+  print_store_summary "${store_json}"
+fi
+
 install_status="$(json_get "${store_json}" "installStatus")"
 credential_status="$(json_get "${store_json}" "credentials.status")"
 if [[ "${install_status}" != "INSTALLED" || "${credential_status}" != "READY" ]]; then
@@ -287,6 +311,12 @@ if [[ "${AUTO_REQUEST_GO_LIVE}" == "true" && "${go_live_eligible}" == "true" ]];
   echo
   echo "== Request go-live =="
   platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/go-live" "" "${platform_headers[@]-}"
+  if [[ "${HTTP_STATUS}" == "400" && "${HTTP_BODY}" == *"Deployment is archived and cannot"* ]]; then
+    echo "Archived deployment binding detected during go-live. Re-running bootstrap once."
+    platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/bootstrap" "{}" "${platform_headers[@]-}"
+    [[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to bootstrap archived store binding after go-live rejection: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
+    platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/go-live" "" "${platform_headers[@]-}"
+  fi
   [[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to request go-live: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
   store_json="${HTTP_BODY}"
   print_store_summary "${store_json}"

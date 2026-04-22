@@ -551,7 +551,14 @@ public class ShopifyStoreBootstrapService {
     }
 
     private DeploymentEntity resolveDeployment(String deploymentId) {
-        return hasText(deploymentId) ? deploymentRepository.findById(deploymentId).orElse(null) : null;
+        if (!hasText(deploymentId)) {
+            return null;
+        }
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId).orElse(null);
+        if (deployment == null || deployment.getArchivedAt() != null) {
+            return null;
+        }
+        return deployment;
     }
 
     private PlatformConsumerEntity resolveConsumer(String consumerId) {

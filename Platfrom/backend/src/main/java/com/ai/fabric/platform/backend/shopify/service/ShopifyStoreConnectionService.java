@@ -282,7 +282,15 @@ public class ShopifyStoreConnectionService {
             webhookDetail,
             widgetDetail,
             capabilities,
-            readinessEvaluator.evaluate(entity, credentials, sourcePreflight, syncDetail, widgetDetail, latestReleaseSummary),
+            readinessEvaluator.evaluate(
+                entity,
+                credentials,
+                sourcePreflight,
+                syncDetail,
+                widgetDetail,
+                latestReleaseSummary,
+                context.deployment() != null && context.deployment().getArchivedAt() != null
+            ),
             toVersionSummary(context.latestVersion()),
             latestReleaseSummary,
             entity.getLastSourcePreflightAt(),

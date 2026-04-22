@@ -160,6 +160,91 @@ class ShopifyStoreBootstrapServiceTest {
     }
 
     @Test
+    void bootstrapRecreatesArchivedDeploymentBindings() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentManagedVectorResourceRepository managedVectorResourceRepository = mock(DeploymentManagedVectorResourceRepository.class);
+        PlatformCustomerTenantService customerTenantService = mock(PlatformCustomerTenantService.class);
+        PlatformCustomerConsumerService customerConsumerService = mock(PlatformCustomerConsumerService.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        MarketplaceTemplateBootstrapService templateBootstrapService = mock(MarketplaceTemplateBootstrapService.class);
+        DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        ShopifyStoreConnectionEntity store = store("demo.myshopify.com");
+        store.setCustomerId("cus-123");
+        store.setDeploymentId("dep-123");
+        store.setConsumerId("shopify-demo");
+
+        PlatformCustomerEntity customer = customerEntity("cus-123");
+        DeploymentEntity archivedDeployment = new DeploymentEntity();
+        archivedDeployment.setId("dep-123");
+        archivedDeployment.setArchivedAt(Instant.parse("2026-04-20T10:00:00Z"));
+
+        PlatformConsumerEntity consumerEntity = new PlatformConsumerEntity();
+        consumerEntity.setId("con-123");
+        consumerEntity.setCustomerId("cus-123");
+        consumerEntity.setConsumerId("shopify-demo");
+        consumerEntity.setDisplayName("Demo Shop");
+        consumerEntity.setStatus("ACTIVE");
+        consumerEntity.setBoundDeploymentId("dep-123");
+        consumerEntity.setCreatedAt(Instant.now());
+        consumerEntity.setUpdatedAt(Instant.now());
+
+        DeploymentSummary replacementDeployment = deploymentSummary("dep-456", "Shopify Companion demo.myshopify.com", "dev", "dev-openai-qdrant");
+        PlatformConsumerSummary reboundConsumer = new PlatformConsumerSummary("shopify-demo", "cus-123", "Demo Shop", null, "ACTIVE", "dep-456", "Shopify Companion demo.myshopify.com", "dev", "DRAFT", Instant.now(), Instant.now(), Instant.now());
+        ShopifyStoreConnectionSummary persisted = storeSummary("demo.myshopify.com", "cus-123", "dep-456", "shopify-demo", "PLATFORM_BOOTSTRAPPED");
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(store));
+        when(customerRepository.findById("cus-123")).thenReturn(Optional.of(customer));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(archivedDeployment));
+        when(deploymentService.listTemplates()).thenReturn(List.of(templateSummary("dev-openai-qdrant", "qdrant")));
+        when(templateBootstrapService.bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class))).thenReturn(replacementDeployment);
+        when(deploymentService.getActiveDraftForDeployment("dep-456")).thenReturn(draftResponse("dep-456"));
+        when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.of(consumerEntity));
+        when(customerConsumerService.updateBinding(eq("cus-123"), eq("shopify-demo"), any())).thenReturn(reboundConsumer);
+        when(installService.listInstalls("dep-456")).thenReturn(List.of());
+        when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService("psv-123")));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(connectionService.getConnection("demo.myshopify.com")).thenReturn(persisted);
+
+        ShopifyStoreBootstrapService service = new ShopifyStoreBootstrapService(
+            repository,
+            customerRepository,
+            consumerRepository,
+            deploymentRepository,
+            managedVectorResourceRepository,
+            customerTenantService,
+            customerConsumerService,
+            deploymentService,
+            templateBootstrapService,
+            installService,
+            marketplaceCatalogService,
+            productServiceRepository,
+            connectionService,
+            vectorizationService,
+            new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", List.of()),
+            auditService
+        );
+
+        ShopifyStoreBootstrapSummary summary = service.bootstrap("demo.myshopify.com", new BootstrapShopifyStoreRequest(null, null, null, null, null, null, null));
+
+        assertThat(summary.deploymentId()).isEqualTo("dep-456");
+        assertThat(summary.createdDeployment()).isTrue();
+        verify(templateBootstrapService).bootstrap(eq("mkp-template-shopify-companion"), any(CreateMarketplaceTemplateBootstrapRequest.class));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesSharedQdrantDefaults));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesAllowVerifiedSecurity));
+        verify(deploymentService).updateDraft(eq("drf-123"), argThat(this::matchesShopifyBridgeRoutingDefaults));
+        verify(customerConsumerService).updateBinding(eq("cus-123"), eq("shopify-demo"), any());
+    }
+
+    @Test
     void bootstrapReusesExistingPlatformObjectsAndOnlyInstallsMissingPlugins() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
