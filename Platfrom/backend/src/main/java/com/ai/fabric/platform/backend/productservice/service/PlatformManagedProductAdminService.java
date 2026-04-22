@@ -645,7 +645,15 @@ public class PlatformManagedProductAdminService {
             webhookDetail,
             widgetDetail,
             capabilities,
-            readinessEvaluator.evaluate(entity, credentials, sourcePreflight, syncDetail, widgetDetail, latestReleaseSummary),
+            readinessEvaluator.evaluate(
+                entity,
+                credentials,
+                sourcePreflight,
+                syncDetail,
+                widgetDetail,
+                latestReleaseSummary,
+                deployment != null && deployment.getArchivedAt() != null
+            ),
             toVersionSummary(latestVersion),
             latestReleaseSummary,
             entity.getLastSourcePreflightAt(),

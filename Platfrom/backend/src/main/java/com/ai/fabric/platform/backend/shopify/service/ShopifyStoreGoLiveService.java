@@ -6,7 +6,6 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
-import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -104,11 +103,10 @@ public class ShopifyStoreGoLiveService {
     private DeploymentDraftResponse ensureShopifyCompanionSecurityDefaults(String deploymentId) {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode securityConfig = ensureObject(draft.securityConfig());
-        String authzMode = securityConfig.path("authzMode").asText(null);
-        if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED.equalsIgnoreCase(authzMode)) {
+        boolean changed = ShopifyCompanionRuntimeSecurityDefaults.apply(securityConfig, deploymentId);
+        if (!changed) {
             return draft;
         }
-        securityConfig.put("authzMode", ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED);
         return deploymentService.updateDraft(
             draft.id(),
             new UpdateDeploymentDraftRequest(

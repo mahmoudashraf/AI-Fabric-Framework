@@ -119,11 +119,102 @@ class ShopifyStoreGoLiveServiceTest {
         assertThat(result.onboardingStatus()).isEqualTo("GO_LIVE_REQUESTED");
         assertThat(store.getOnboardingStatus()).isEqualTo("GO_LIVE_REQUESTED");
         verify(deploymentService).updateDraft(eq("drf-1"), argThat(request ->
-            request.securityConfig() != null && "ALLOW_VERIFIED".equals(request.securityConfig().path("authzMode").asText())
+            matchesShopifyCompanionSecurityDefaults(request)
         ));
         verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyBridgeRoutingDefaults));
         verify(deploymentService).publishDraft("drf-1");
         verify(deploymentService).applyVersion("dep-1", "ver-1");
+    }
+
+    @Test
+    void goLiveRepairsMissingBridgePrivateRuntimeIssuerEvenWhenAllowVerifiedAlreadySet() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        ShopifyStoreConnectionEntity store = store("READY");
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
+        when(repository.save(any(ShopifyStoreConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
+
+        ObjectNode securityConfig = JsonNodeFactory.instance.objectNode();
+        securityConfig.put("authzMode", "ALLOW_VERIFIED");
+        when(deploymentService.getActiveDraftForDeployment("dep-1")).thenReturn(new DeploymentDraftResponse(
+            "drf-1",
+            "dep-1",
+            3,
+            "DRAFT",
+            null,
+            null,
+            null,
+            null,
+            securityConfig,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T10:00:00Z"),
+            Instant.parse("2026-04-18T10:00:00Z")
+        ));
+        when(deploymentService.updateDraft(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
+            "drf-1",
+            "dep-1",
+            3,
+            "MODIFIED",
+            null,
+            null,
+            null,
+            null,
+            securityConfig,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T10:00:00Z"),
+            Instant.parse("2026-04-18T10:01:00Z")
+        ));
+        when(deploymentService.publishDraft("drf-1")).thenReturn(new DeploymentVersionSummary(
+            "ver-1",
+            "dep-1",
+            "drf-1",
+            "v4",
+            "PUBLISHED",
+            "hash-1",
+            false,
+            Instant.parse("2026-04-18T10:05:00Z")
+        ));
+        when(deploymentService.applyVersion("dep-1", "ver-1")).thenReturn(new DeploymentReleaseSummary(
+            "rel-1",
+            "dep-1",
+            "ver-1",
+            "APPLY_REQUESTED",
+            "PENDING",
+            "QUEUED",
+            "RAILWAY",
+            "queue_release",
+            "Apply request accepted and queued.",
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-18T10:05:10Z"),
+            Instant.parse("2026-04-18T10:05:10Z"),
+            Instant.parse("2026-04-18T10:05:10Z")
+        ));
+        when(connectionService.getConnection("alpha.myshopify.com")).thenReturn(summary("alpha.myshopify.com", "GO_LIVE_REQUESTED"));
+
+        ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
+            repository,
+            deploymentService,
+            productServiceRepository,
+            connectionService,
+            auditService
+        );
+
+        service.goLive("alpha.myshopify.com");
+
+        verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyCompanionSecurityDefaults));
     }
 
     @Test
@@ -253,6 +344,18 @@ class ShopifyStoreGoLiveServiceTest {
             && "{{params}}".equals(requestBody.path("params").asText())
             && "{{idempotencyKey}}".equals(requestBody.path("idempotencyKey").asText())
             && "{{trace}}".equals(requestBody.path("trace").asText());
+    }
+
+    private boolean matchesShopifyCompanionSecurityDefaults(UpdateDeploymentDraftRequest request) {
+        if (request == null || !(request.securityConfig() instanceof ObjectNode security)) {
+            return false;
+        }
+        String issuers = security.path("privateRuntimeAcceptedIssuers").asText("");
+        String audiences = security.path("privateRuntimeAcceptedAudiences").asText("");
+        return "ALLOW_VERIFIED".equals(security.path("authzMode").asText())
+            && issuers.contains("platform-consumer-bridge")
+            && issuers.contains("platform-poc:SESSION")
+            && audiences.contains("dep-1");
     }
 
     private PlatformManagedProductServiceEntity productService(String id) {

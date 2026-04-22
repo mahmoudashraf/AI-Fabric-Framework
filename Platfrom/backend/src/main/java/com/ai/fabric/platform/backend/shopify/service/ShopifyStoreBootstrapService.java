@@ -426,11 +426,7 @@ public class ShopifyStoreBootstrapService {
     private void ensureShopifyCompanionSecurityDefaults(String deploymentId) {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode securityConfig = ensureObject(draft.securityConfig());
-        boolean changed = putText(
-            securityConfig,
-            "authzMode",
-            ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED
-        );
+        boolean changed = ShopifyCompanionRuntimeSecurityDefaults.apply(securityConfig, deploymentId);
         if (!changed) {
             return;
         }

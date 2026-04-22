@@ -651,7 +651,12 @@ class ShopifyStoreBootstrapServiceTest {
         if (request == null || !(request.securityConfig() instanceof ObjectNode security)) {
             return false;
         }
-        return "ALLOW_VERIFIED".equals(security.path("authzMode").asText());
+        String issuers = security.path("privateRuntimeAcceptedIssuers").asText("");
+        String audiences = security.path("privateRuntimeAcceptedAudiences").asText("");
+        return "ALLOW_VERIFIED".equals(security.path("authzMode").asText())
+            && issuers.contains("platform-consumer-bridge")
+            && issuers.contains("platform-poc:SESSION")
+            && audiences.contains("dep-");
     }
 
     private boolean matchesShopifyBridgeRoutingDefaults(UpdateDeploymentDraftRequest request) {
