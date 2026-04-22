@@ -26,8 +26,10 @@ import java.util.Map;
 public class RailwayGraphqlClient {
 
     private static final Logger log = LoggerFactory.getLogger(RailwayGraphqlClient.class);
-    private static final int MAX_REQUEST_ATTEMPTS = 3;
+    private static final int MAX_REQUEST_ATTEMPTS = 5;
     private static final Duration INITIAL_RETRY_BACKOFF = Duration.ofMillis(250);
+    private static final Duration MIN_REQUEST_TIMEOUT = Duration.ofSeconds(45);
+    private static final Duration MAX_REQUEST_TIMEOUT = Duration.ofSeconds(90);
 
     private static final String PROJECTS_QUERY = """
         query workspaceProjects($workspaceId: String!) {
@@ -322,9 +324,7 @@ public class RailwayGraphqlClient {
                                 PlatformProvisioningProperties provisioningProperties) {
         this.objectMapper = objectMapper;
         this.provisioningProperties = provisioningProperties;
-        this.requestTimeout = provisioningProperties.deploymentPollInterval().compareTo(Duration.ofSeconds(30)) > 0
-            ? Duration.ofSeconds(30)
-            : provisioningProperties.deploymentPollInterval().plusSeconds(10);
+        this.requestTimeout = resolveRequestTimeout(provisioningProperties);
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(this.requestTimeout)
             .build();
@@ -337,11 +337,20 @@ public class RailwayGraphqlClient {
                          RetrySleeper retrySleeper) {
         this.objectMapper = objectMapper;
         this.provisioningProperties = provisioningProperties;
-        this.requestTimeout = provisioningProperties.deploymentPollInterval().compareTo(Duration.ofSeconds(30)) > 0
-            ? Duration.ofSeconds(30)
-            : provisioningProperties.deploymentPollInterval().plusSeconds(10);
+        this.requestTimeout = resolveRequestTimeout(provisioningProperties);
         this.httpClient = httpClient;
         this.retrySleeper = retrySleeper;
+    }
+
+    private Duration resolveRequestTimeout(PlatformProvisioningProperties provisioningProperties) {
+        Duration candidate = provisioningProperties.deploymentPollInterval().plusSeconds(15);
+        if (candidate.compareTo(MIN_REQUEST_TIMEOUT) < 0) {
+            return MIN_REQUEST_TIMEOUT;
+        }
+        if (candidate.compareTo(MAX_REQUEST_TIMEOUT) > 0) {
+            return MAX_REQUEST_TIMEOUT;
+        }
+        return candidate;
     }
 
     public RailwayProjectSnapshot findProjectByName(String workspaceId, String projectName) {
