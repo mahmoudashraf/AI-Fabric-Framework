@@ -62,6 +62,7 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 |---|---|---|
 | Multiple embedded intelligence surfaces | Theme app extension currently ships one block: `companion-app-embed.liquid`. | Missing product insight block, policy strip, FAQ, comparison, search block, contextual pill block. |
 | Embedded intelligence product shape | Storefront still primarily loads a launcher shell (`legacy` or `max-mode`) through the app embed. | The product still behaves like a widget-first experience. |
+| Max Mode storefront convergence | The Shopify embed loader already supports `legacy` and `max-mode`, and there is already a Shopify-specific Max Mode wrapper. | This is a real convergence track, but it is only partially complete and should not be treated as a standalone product milestone. |
 | Richer Shopify data coverage | No code-backed evidence yet for blogs/articles, metaobjects, metafields, or review-provider ingestion. | Wave 1 data-expansion work still missing beyond current catalog/content/policy coverage. |
 | Read-first action breadth from strategy docs | Current read action bundle is `list_products`, `search_products`, `get_product_details`, `check_availability`, `get_policy`. | `compare_products`, `find_similar`, `get_size_guide`, and structured discovery modules are not implemented yet. |
 | Tiered commercial model | Bridge billing is one bridge-level free-or-paid posture with one plan name/amount configuration. | `Free / Starter / Elite` entitlements are not implemented yet. |
@@ -158,6 +159,13 @@ Missing:
 - product FAQ block
 - comparison surface
 - clean host contract between Shopify theme extension and shared Max Mode shell
+- full removal of long-term dual-shell maintenance as a product dependency
+
+Important rule:
+
+- the Max Mode refactor is required here, but only as an enabling convergence track
+- it should make new storefront intelligence surfaces cheaper and safer to build
+- it should not be run as an isolated cleanup milestone while the actual product surfaces are still missing
 
 ### 5.2 Data coverage
 
@@ -280,6 +288,12 @@ Required supporting work:
 - storefront host contract cleanup
 - lightweight block runtime or shared block host
 - no operator/debug leakage in shopper surfaces
+
+Milestone rule:
+
+- treat the Max Mode refactor as a required enabling track inside Milestone 2
+- do not treat it as a standalone milestone that can be declared complete while embedded surfaces are still absent
+- all new Shopify storefront intelligence surfaces should build on the converged host contract rather than creating another Shopify-only shell path
 
 Exit criteria:
 
@@ -485,6 +499,7 @@ Do not do these before Milestones 1–4 are complete:
 - ship WooCommerce because the platform can support it
 - treat Deep Resolver as the next product
 - spin up Smart Brain work inside the Shopify stream
+- run the Max Mode refactor as a standalone cleanup project disconnected from embedded surface delivery
 - keep refining platform abstractions while the storefront product remains incomplete
 - keep outdated `Free / Growth / Pro` docs as if they were current pricing truth
 
