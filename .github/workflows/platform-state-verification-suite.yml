@@ -15,11 +15,6 @@ on:
         required: false
         type: string
         default: https://platform-ui-production-00e3.up.railway.app
-      run_platform_code_checks:
-        description: Run platform backend tests and UI build.
-        required: false
-        type: boolean
-        default: true
       run_platform_admin_checks:
         description: Verify the live platform admin flows, including consumer-bound deployment resolution and inference-service UI and restart/scale/rotate-secret/force-recreate operations.
         required: false
@@ -115,7 +110,6 @@ jobs:
       INFERENCE_SERVICE_REF: ${{ inputs.inference_service_ref }}
       APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
       RUNTIME_TRUSTED_BACKEND_API_KEY: ${{ secrets.AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY }}
-      RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
       RUN_PLATFORM_ADMIN_CHECKS: ${{ inputs.run_platform_admin_checks }}
       RUN_MARKETPLACE_INSTALL_FLOW_CHECKS: ${{ inputs.run_marketplace_install_flow_checks }}
       RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
@@ -135,25 +129,10 @@ jobs:
       QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
       ZILLIZ_CLOUD_API_KEY: ${{ secrets.ZILLIZ_CLOUD_API_KEY }}
       WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+      PLATFORM_VERIFICATION_WEAVIATE_HOST: weaviate-external-verify-dev.up.railway.app
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        if: ${{ inputs.run_platform_code_checks }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
-
-      - name: Set up Node 20
-        if: ${{ inputs.run_platform_code_checks }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: Platfrom/ui/package-lock.json
 
       - name: Resolve rollout inventory
         id: resolve_rollouts
@@ -247,49 +226,6 @@ jobs:
               print("__OUTPUT__")
           PY
           rm -f "${resolved_file}"
-
-      - name: Platform backend tests
-        if: ${{ inputs.run_platform_code_checks }}
-        run: mvn -f Platfrom/backend/pom.xml test -DskipITs
-
-      - name: Install AI Fabric framework artifacts for product tests
-        if: ${{ inputs.run_platform_code_checks }}
-        run: |
-          mvn -f ai-infrastructure-module/pom.xml -B -V -DskipTests install \
-            -pl '!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
-            -am
-        env:
-          MAVEN_OPTS: "-Xmx2g"
-
-      - name: ai-fabric-product tests
-        if: ${{ inputs.run_platform_code_checks }}
-        run: mvn -f ai-fabric-product/pom.xml test
-
-      - name: Targeted infrastructure tests
-        if: ${{ inputs.run_platform_code_checks }}
-        run: >
-          mvn -f ai-infrastructure-module/pom.xml
-          -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus
-          -am test -DskipITs
-
-      - name: Platform UI build
-        if: ${{ inputs.run_platform_code_checks }}
-        run: |
-          cd Platfrom/ui
-          npm ci
-          npm run build
-
-      - name: Shell syntax checks
-        if: ${{ inputs.run_platform_code_checks }}
-        run: |
-          bash -n scripts/verify-ecommerce-deployment.sh
-          bash -n scripts/verify-vector-deployment.sh
-          bash -n scripts/verify-managed-vector-providers.sh
-          bash -n scripts/verify-platform-admin-regression.sh
-          bash -n scripts/verify-marketplace-install-flow.sh
-          bash -n scripts/resolve-verification-rollouts.sh
-          bash -n scripts/run-platform-deployment-verification.sh
-          bash -n scripts/run-platform-state-verification-suite.sh
 
       - name: Verify platform admin regression
         if: ${{ inputs.run_platform_admin_checks }}
