@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -283,33 +284,77 @@ public class PlatformVerificationSuiteService {
             if (!ACTIVE_STATUSES.contains(run.getStatus())) {
                 continue;
             }
+            List<PlatformVerificationSuiteRunStageEntity> stages = stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId());
+            if (definitionDrifted(run, stages)) {
+                recoverRun(
+                    run,
+                    stages,
+                    now,
+                    "SUPERSEDED",
+                    "Verification suite was recovered because the active run no longer matches the current suite definition.",
+                    "Stage was superseded because the parent verification suite definition changed while the run was active."
+                );
+                continue;
+            }
             Instant baseline = run.getStartedAt() != null ? run.getStartedAt() : run.getCreatedAt();
             if (baseline == null || !now.isAfter(baseline.plus(suiteProperties.timeout()))) {
                 continue;
             }
-            run.setStatus("TIMED_OUT");
-            run.setCompletedAt(now);
-            run.setSummaryMessage("Verification suite timed out after " + suiteProperties.timeout() + " without a completion signal.");
-            runRepository.save(run);
-            List<PlatformVerificationSuiteRunStageEntity> stages = stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId());
-            stages.stream()
-                .filter(stage -> ACTIVE_STATUSES.contains(stage.getStatus()))
-                .forEach(stage -> {
-                    stage.setStatus("TIMED_OUT");
-                    stage.setCompletedAt(now);
-                    stage.setSummaryMessage("Stage timed out because the parent verification suite exceeded the configured timeout.");
-                    stageRepository.save(stage);
-                });
-            platformAuditService.record(
-                "PLATFORM_VERIFICATION_SUITE_RECOVERED",
-                "PLATFORM_VERIFICATION_SUITE",
-                run.getId(),
-                Map.of(
-                    "suiteKey", run.getSuiteKey(),
-                    "status", "TIMED_OUT"
-                )
+            recoverRun(
+                run,
+                stages,
+                now,
+                "TIMED_OUT",
+                "Verification suite timed out after " + suiteProperties.timeout() + " without a completion signal.",
+                "Stage timed out because the parent verification suite exceeded the configured timeout."
             );
         }
+    }
+
+    private boolean definitionDrifted(PlatformVerificationSuiteRunEntity run,
+                                      List<PlatformVerificationSuiteRunStageEntity> stages) {
+        Optional<PlatformVerificationSuiteDefinitionSummary> definition = catalog.listDefinitions().stream()
+            .filter(candidate -> candidate.key().equalsIgnoreCase(run.getSuiteKey()))
+            .findFirst();
+        if (definition.isEmpty()) {
+            return true;
+        }
+        List<String> currentSignature = definition.get().stages().stream()
+            .map(stage -> stage.key() + "|" + stage.stageType() + "|" + stage.targetRef() + "|" + stage.blocking())
+            .toList();
+        List<String> runSignature = stages.stream()
+            .map(stage -> stage.getStageKey() + "|" + stage.getStageType() + "|" + stage.getTargetRef() + "|" + stage.isBlocking())
+            .toList();
+        return !currentSignature.equals(runSignature);
+    }
+
+    private void recoverRun(PlatformVerificationSuiteRunEntity run,
+                            List<PlatformVerificationSuiteRunStageEntity> stages,
+                            Instant now,
+                            String recoveredStatus,
+                            String runSummary,
+                            String stageSummary) {
+        run.setStatus(recoveredStatus);
+        run.setCompletedAt(now);
+        run.setSummaryMessage(runSummary);
+        runRepository.save(run);
+        stages.stream()
+            .filter(stage -> ACTIVE_STATUSES.contains(stage.getStatus()))
+            .forEach(stage -> {
+                stage.setStatus(recoveredStatus);
+                stage.setCompletedAt(now);
+                stage.setSummaryMessage(stageSummary);
+                stageRepository.save(stage);
+            });
+        platformAuditService.record(
+            "PLATFORM_VERIFICATION_SUITE_RECOVERED",
+            "PLATFORM_VERIFICATION_SUITE",
+            run.getId(),
+            Map.of(
+                "suiteKey", run.getSuiteKey(),
+                "status", recoveredStatus
+            )
+        );
     }
 
     private String generateRunId() {
