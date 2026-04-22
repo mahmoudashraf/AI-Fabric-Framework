@@ -235,11 +235,17 @@ public class PlatformVerificationSuiteExecutionService {
         markStageRunning(stage, "Running allowlisted platform verification script.");
         PlatformVerificationScriptContextSummary context = scriptContextService.build(stage.getTargetRef());
         PlatformVerificationScriptRunnerService.ScriptRunResult result = scriptRunnerService.run(context);
+        boolean retryAttempted = false;
+        if (shouldRetryScriptVerification(stage, result)) {
+            retryAttempted = true;
+            result = scriptRunnerService.run(context);
+        }
         ObjectNode details = objectMapper.createObjectNode()
             .put("scriptPath", context.scriptPath())
             .put("targetRef", defaultText(stage.getTargetRef(), ""))
             .put("exitCode", result.exitCode() == null ? -1 : result.exitCode())
-            .put("timedOut", result.timedOut());
+            .put("timedOut", result.timedOut())
+            .put("retryAttempted", retryAttempted);
         String summary = switch (result.status()) {
             case "PASSED" -> "Verification script completed successfully.";
             case "TIMED_OUT" -> "Verification script timed out before completion.";
@@ -247,6 +253,12 @@ public class PlatformVerificationSuiteExecutionService {
         };
         completeStage(stage, result.status(), summary, details, result.output());
         return result.passed();
+    }
+
+    private boolean shouldRetryScriptVerification(PlatformVerificationSuiteRunStageEntity stage,
+                                                  PlatformVerificationScriptRunnerService.ScriptRunResult result) {
+        return PlatformVerificationSuiteScriptContextService.SCRIPT_MARKETPLACE_INSTALL_FLOW.equalsIgnoreCase(defaultText(stage.getTargetRef(), ""))
+            && !result.passed();
     }
 
     private boolean executeHostedDeploymentVerification(PlatformVerificationSuiteRunStageEntity stage,

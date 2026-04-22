@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutItemSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSummary;
+import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationScriptContextSummary;
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunStageEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentHostedVerificationRunRepository;
@@ -27,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -239,5 +241,79 @@ class PlatformVerificationSuiteExecutionServiceTest {
         assertThat(stage.getSummaryMessage()).contains("Canonical rollout inventory is present");
         assertThat(stage.getDetailsJson()).contains("\"repairAttempted\":true");
         verify(rolloutService).recreateRollouts(PlatformVerificationSuiteCatalog.CANONICAL_ROLLOUT_ORDER);
+    }
+
+    @Test
+    void executeInlineRetriesMarketplaceInstallFlowOnce() throws Exception {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+        PlatformManagedInferenceAdminService inferenceAdminService = mock(PlatformManagedInferenceAdminService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentHostedVerificationService hostedVerificationService = mock(DeploymentHostedVerificationService.class);
+        DeploymentHostedVerificationRunRepository hostedRunRepository = mock(DeploymentHostedVerificationRunRepository.class);
+        PlatformVerificationSuiteScriptContextService scriptContextService = mock(PlatformVerificationSuiteScriptContextService.class);
+        PlatformVerificationScriptRunnerService scriptRunnerService = mock(PlatformVerificationScriptRunnerService.class);
+        VectorizationService vectorizationService = mock(VectorizationService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        PlatformVerificationSuiteRunEntity run = new PlatformVerificationSuiteRunEntity();
+        run.setId("vsr-marketplace-script");
+        run.setSuiteKey(PlatformVerificationSuiteCatalog.MARKETPLACE_INSTALL_FLOW_SUITE_KEY);
+        run.setSuiteLabel("Marketplace install flow");
+        run.setStatus("QUEUED");
+        run.setReleaseBlocking(false);
+        run.setSummaryMessage("queued");
+        run.setRequestedByActorId("actor-1");
+        run.setRequestedByRole("PLATFORM_ADMIN");
+        run.setCreatedAt(Instant.now());
+
+        PlatformVerificationSuiteRunStageEntity stage = new PlatformVerificationSuiteRunStageEntity();
+        stage.setId("vss-marketplace-script");
+        stage.setSuiteRunId(run.getId());
+        stage.setStageOrder(1);
+        stage.setStageKey("marketplace-install-flow");
+        stage.setStageLabel("Marketplace install flow");
+        stage.setStageType("SCRIPT_VERIFICATION");
+        stage.setTargetRef(PlatformVerificationSuiteScriptContextService.SCRIPT_MARKETPLACE_INSTALL_FLOW);
+        stage.setBlocking(true);
+        stage.setStatus("QUEUED");
+        stage.setSummaryMessage("queued");
+        stage.setDetailsJson("{}");
+        stage.setCreatedAt(Instant.now());
+
+        when(runRepository.findById(run.getId())).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId())).thenReturn(List.of(stage));
+        when(stageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(scriptContextService.build(PlatformVerificationSuiteScriptContextService.SCRIPT_MARKETPLACE_INSTALL_FLOW))
+            .thenReturn(new PlatformVerificationScriptContextSummary("scripts/verify-marketplace-install-flow.sh", java.util.Map.of(), java.util.Map.of()));
+        when(scriptRunnerService.run(any()))
+            .thenReturn(new PlatformVerificationScriptRunnerService.ScriptRunResult("FAILED", 1, "FAIL: release rel-1 ended in FAILED/SKIPPED at step wait_for_active:"))
+            .thenReturn(new PlatformVerificationScriptRunnerService.ScriptRunResult("PASSED", 0, "PASS: marketplace install flow live verification"));
+
+        PlatformVerificationSuiteExecutionService service = new PlatformVerificationSuiteExecutionService(
+            runRepository,
+            stageRepository,
+            new PlatformVerificationSuiteCatalog(),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofMillis(10), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            inferenceAdminService,
+            rolloutService,
+            deploymentService,
+            hostedVerificationService,
+            hostedRunRepository,
+            scriptContextService,
+            scriptRunnerService,
+            vectorizationService,
+            auditService,
+            new ObjectMapper()
+        );
+
+        service.executeInline(run.getId(), true);
+
+        assertThat(run.getStatus()).isEqualTo("PASSED");
+        assertThat(stage.getStatus()).isEqualTo("PASSED");
+        assertThat(stage.getDetailsJson()).contains("\"retryAttempted\":true");
+        verify(scriptRunnerService, times(2)).run(any());
     }
 }
