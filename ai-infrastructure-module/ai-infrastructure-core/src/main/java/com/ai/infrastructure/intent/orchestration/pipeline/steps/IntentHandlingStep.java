@@ -2959,8 +2959,13 @@ public class IntentHandlingStep implements PipelineStep {
         double threshold = vectorSpaceRoutingProperties != null
             ? vectorSpaceRoutingProperties.getClarificationThreshold()
             : 0.4d;
+        boolean hasReadActionEvidence = readActionResolution != null
+            && readActionResolution.hasGroundingEvidence()
+            && StringUtils.hasText(readActionResolution.evidenceContext());
 
-        if (!deterministic && (merged.isEmpty() || (bestScore != null && bestScore < threshold))) {
+        if (!deterministic
+            && (merged.isEmpty() || (bestScore != null && bestScore < threshold))
+            && !hasReadActionEvidence) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, vectorSpaces);
             data.put(DATA_KEY_ROUTING_STRATEGY, "FAN_OUT");
@@ -2976,6 +2981,12 @@ public class IntentHandlingStep implements PipelineStep {
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
+        }
+        if (!deterministic && hasReadActionEvidence && (merged.isEmpty() || (bestScore != null && bestScore < threshold))) {
+            metadata.put("fanoutClarificationSuppressedByReadActionEvidence", true);
+            if (bestScore != null) {
+                metadata.put("fanoutSuppressedBestScore", bestScore);
+            }
         }
 
         int docsForContext = Math.min(resolveGenerationContextDocumentLimit(ragBudgets), merged.size());

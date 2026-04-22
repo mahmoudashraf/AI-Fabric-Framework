@@ -42,6 +42,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -161,6 +162,80 @@ class IntentHandlingStepReadActionResolutionTest {
         assertThat(result.getMetadata()).containsKey("readActionResolution");
         assertThat(result.getData()).containsKey("ragResponse");
         verify(ragProvider).performRAGQuery(any());
+    }
+
+    @Test
+    void shouldUseReadActionEvidenceInsteadOfFanoutClarificationWhenRagIsAmbiguous() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder()
+                .content("SKU-001 is in stock, but I could not find a refund policy in the indexed knowledge base.")
+                .build());
+        when(ragProvider.performRAGQuery(any())).thenReturn(RAGResponse.builder()
+            .documents(List.of())
+            .context("")
+            .success(true)
+            .build());
+
+        ReadActionResolutionService readActionResolutionService = mock(ReadActionResolutionService.class);
+        when(readActionResolutionService.resolve(any(), any(), any())).thenReturn(
+            ReadActionResolutionService.ResolutionOutcome.continueWithRag(
+                "READ ACTION EVIDENCE\n- action: check_availability\n  success: true\n  evidence: SKU-001 is in stock.\n"
+                    + "- action: get_policy\n  success: true\n  evidence: No refund policy was found in live policy search.",
+                List.of("policies", "commerce"),
+                List.of(
+                    new ReadActionResolutionService.ExecutedReadAction(
+                        "check_availability",
+                        Map.of("sku", "SKU-001"),
+                        null,
+                        null,
+                        true,
+                        "SKU-001 is in stock.",
+                        null
+                    ),
+                    new ReadActionResolutionService.ExecutedReadAction(
+                        "get_policy",
+                        Map.of("query", "refund policy"),
+                        null,
+                        null,
+                        true,
+                        "No refund policy was found in live policy search.",
+                        null
+                    )
+                ),
+                Map.of("attempted", true, "useRag", true, "executedActionsCount", 2)
+            )
+        );
+
+        IntentHandlingStep step = buildStep(ragProvider, aiCoreService);
+        ReflectionTestUtils.setField(step, "readActionResolutionServiceProvider", providerOf(readActionResolutionService));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("Check live availability for SKU-001 and summarize the refund policy.")
+            .requiresRetrieval(true)
+            .requiresGeneration(true)
+            .optimizedQuery("SKU-001 availability; refund policy")
+            .build();
+
+        PipelineContext context = PipelineContext.from(
+                "Check live availability for SKU-001 and summarize the refund policy.",
+                OrchestrationContext.forUser("user-1")
+            )
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = step.process(context).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isEqualTo(
+            "SKU-001 is in stock, but I could not find a refund policy in the indexed knowledge base."
+        );
+        assertThat(result.getMetadata()).containsKey("readActionResolution");
+        verify(ragProvider, times(2)).performRAGQuery(any());
     }
 
     private IntentHandlingStep buildStep(RAGProvider ragProvider, AICoreService aiCoreService) {
