@@ -46,6 +46,55 @@ ai:
         information-mode: LLM_DRIVEN
         # In cart flows, prefer ACTION intents (e.g., list_orders) over generic RAG answers.
         actions-preferred: true
+      resolver_assistant:
+        information-mode: LLM_DRIVEN
+        actions-enabled: false
+        retrieval-enabled: true
+        suggestions-enabled: false
+        actions-preferred: false
+        knowledge-base-overview-enabled: true
+        read-action-resolution:
+          enabled: true
+          planning-mode: SINGLE_PASS
+          require-allowlist: true
+          allowed-read-actions:
+            - list_products
+            - search_products
+            - get_product_details
+            - check_availability
+            - get_policy
+            - view_cart
+          max-actions-per-iteration: 2
+          max-total-actions: 2
+          max-parallel-actions: 1
+          rag-cooperation-mode: RAG_IF_ACTIONS_INSUFFICIENT
+          require-grounding-eligible: true
+      thinker:
+        information-mode: LLM_DRIVEN
+        actions-enabled: false
+        retrieval-enabled: true
+        deep-retrieval-enabled: true
+        force-retrieval-when-targets-present: true
+        force-retrieval-consider-stored-targets: true
+        minimize-rag-when-pinned-targets-cover-request: false
+        rag-target-hint-enabled: true
+        read-action-resolution:
+          enabled: true
+          planning-mode: ITERATIVE
+          require-allowlist: true
+          allowed-read-actions:
+            - list_products
+            - search_products
+            - get_product_details
+            - check_availability
+            - get_policy
+            - view_cart
+          max-iterations: 2
+          max-actions-per-iteration: 2
+          max-total-actions: 3
+          max-parallel-actions: 1
+          rag-cooperation-mode: PARALLEL_ACTIONS_AND_RAG
+          require-grounding-eligible: true
     position-routing:
       landing: navigator
       catalog: navigator

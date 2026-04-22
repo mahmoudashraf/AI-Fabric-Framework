@@ -71,6 +71,9 @@ public class RuntimeAdminOverviewController {
         long groundingEligibleActionCount = actions.stream()
             .filter(action -> action != null && action.isGroundingEligible())
             .count();
+        long readActionResolutionEligibleActionCount = actions.stream()
+            .filter(action -> action != null && action.isReadActionResolutionEligible())
+            .count();
         long presentationHintedActionCount = actions.stream()
             .filter(action -> action != null
                 && action.getResultPresentationHint() != null
@@ -119,6 +122,7 @@ public class RuntimeAdminOverviewController {
         body.put("actionCatalogSources", sources);
         body.put("actionsCount", actionCount);
         body.put("groundingEligibleActionsCount", groundingEligibleActionCount);
+        body.put("readActionResolutionEligibleActionsCount", readActionResolutionEligibleActionCount);
         body.put("actionsWithPresentationHintsCount", presentationHintedActionCount);
         body.put("actionsWithBuiltInModuleMappingsCount", moduleMappedActionCount);
         body.put("actionsWithBuiltInCardMappingsCount", cardMappedActionCount);

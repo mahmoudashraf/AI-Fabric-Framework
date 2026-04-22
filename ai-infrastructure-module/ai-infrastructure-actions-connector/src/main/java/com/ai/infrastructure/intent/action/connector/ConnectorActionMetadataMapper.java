@@ -78,6 +78,7 @@ public final class ConnectorActionMetadataMapper {
             .anonymousAllowed(definition.anonymousAllowed())
             .confirmationRequired(definition.requiresConfirmation())
             .groundingEligible(definition.groundingEligible())
+            .readActionResolutionEligible(definition.readActionResolutionEligible())
             .sideEffectLevel(ActionSideEffectLevel.fromAccessMode(accessMode))
             .resultPresentationHint(definition.resultPresentationHint())
             .builtInModuleId(StringUtils.hasText(definition.builtInModuleId()) ? definition.builtInModuleId().trim() : null)

@@ -37,6 +37,13 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes()).containsKey("navigator_deep");
         assertThat(props.getModes().get("navigator_deep").getUseAdvancedRag()).isEqualTo(true);
         assertThat(props.getModes()).containsKey("cart_assistant");
+        assertThat(props.getModes()).containsKey("resolver_assistant");
+        assertThat(props.getModes()).containsKey("thinker");
+        assertThat(props.getModes().get("resolver_assistant").getReadActionResolution()).isNotNull();
+        assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getEnabled()).isTrue();
+        assertThat(props.getModes().get("thinker").getReadActionResolution()).isNotNull();
+        assertThat(props.getModes().get("thinker").getReadActionResolution().getPlanningMode())
+            .isEqualTo(OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE);
 
         // Commerce pack intentionally uses the default prompt bundle (no overlays) to avoid duplication.
         assertThat(environment.getProperty("ai.prompts.bundle.overlays[0]")).isNull();

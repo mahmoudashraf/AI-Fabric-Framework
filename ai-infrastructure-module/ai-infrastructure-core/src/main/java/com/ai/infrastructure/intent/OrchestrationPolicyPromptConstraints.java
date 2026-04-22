@@ -22,6 +22,7 @@ public final class OrchestrationPolicyPromptConstraints {
         }
 
         OrchestrationPolicy.OrchestrationCapabilities capabilities = policy.capabilities();
+        OrchestrationPolicy.ReadActionResolutionPolicy readActionResolutionPolicy = policy.readActionResolutionPolicy();
         OrchestrationPolicy.RagBudgets budgets = policy.ragBudgets();
 
         boolean isDefaultCapabilities =
@@ -47,6 +48,10 @@ public final class OrchestrationPolicyPromptConstraints {
         out.append("- knowledgeBaseOverviewEnabled=").append(capabilities.knowledgeBaseOverviewEnabled()).append("\n");
         out.append("- retrievalAllowlistRequired=").append(capabilities.retrievalAllowlistRequired()).append("\n");
         out.append("- vectorSpaceSelectionRequired=").append(capabilities.vectorSpaceSelectionRequired()).append("\n");
+        if (readActionResolutionPolicy != null) {
+            out.append("- readActionResolutionEnabled=").append(readActionResolutionPolicy.enabled()).append("\n");
+            out.append("- readActionResolutionPlanningMode=").append(readActionResolutionPolicy.planningMode()).append("\n");
+        }
 
         if (!capabilities.actionsEnabled()) {
             out.append("- Do NOT output ACTION intents in this mode.\n");
@@ -56,6 +61,11 @@ public final class OrchestrationPolicyPromptConstraints {
         }
         if (capabilities.actionsPreferred() && capabilities.actionsEnabled()) {
             out.append("- Prefer ACTION intents when the user request is actionable.\n");
+        }
+        if (readActionResolutionPolicy != null && readActionResolutionPolicy.enabled()) {
+            out.append("- For factual or lookup-style requests that need live system reads, keep intent.type=INFORMATION.\n");
+            out.append("- The server may plan eligible READ actions after extraction; do NOT force those requests into ACTION just because a READ action exists.\n");
+            out.append("- Reserve ACTION intents for explicit user-requested operations, especially mutating flows or direct operator commands.\n");
         }
         if (capabilities.retrievalAllowlistRequired()) {
             out.append("- Retrieval requires a configured vectorSpace allowlist in this mode (fail-closed).\n");

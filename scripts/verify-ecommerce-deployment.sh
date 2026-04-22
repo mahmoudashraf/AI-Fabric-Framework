@@ -118,6 +118,12 @@ EXPECT_CONFIRMATION_INTERCEPTOR_RULES="${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-
 VERIFY_CONFIRMATION_RETENTION_FLOW="${VERIFY_CONFIRMATION_RETENTION_FLOW:-false}"
 VERIFY_MARKETPLACE_RUNTIME="${VERIFY_MARKETPLACE_RUNTIME:-false}"
 VERIFY_MARKETPLACE_RUNTIME_ACTIVE="${VERIFY_MARKETPLACE_RUNTIME_ACTIVE:-}"
+VERIFY_READ_ACTION_RESOLUTION="${VERIFY_READ_ACTION_RESOLUTION:-true}"
+ECOMMERCE_RESOLVER_MODE="${ECOMMERCE_RESOLVER_MODE:-resolver_assistant}"
+ECOMMERCE_RESOLVER_SMOKE_QUERY="${ECOMMERCE_RESOLVER_SMOKE_QUERY:-Check live availability for SKU-0001.}"
+VERIFY_THINKER_READ_ACTION_RESOLUTION="${VERIFY_THINKER_READ_ACTION_RESOLUTION:-true}"
+ECOMMERCE_THINKER_MODE="${ECOMMERCE_THINKER_MODE:-thinker}"
+ECOMMERCE_THINKER_SMOKE_QUERY="${ECOMMERCE_THINKER_SMOKE_QUERY:-Check live availability for SKU-0001 and summarize the refund policy.}"
 EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION:-MARKETPLACE_RUNTIME_SUPPORT_V2}"
 EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION:-SEARCH_SOURCE_DIAGNOSTICS_V1}"
 EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}"
@@ -1148,6 +1154,25 @@ print(json.dumps(payload))
 PY
 }
 
+build_chat_query_payload_with_mode() {
+  local query="$1"
+  local conversation_id="$2"
+  local mode="$3"
+  CHAT_QUERY="${query}" CHAT_CONVERSATION_ID="${conversation_id}" CHAT_MODE="${mode}" python3 - <<'PY'
+import json
+import os
+
+payload = {"query": os.environ["CHAT_QUERY"]}
+conversation_id = os.environ.get("CHAT_CONVERSATION_ID", "").strip()
+mode = os.environ.get("CHAT_MODE", "").strip()
+if conversation_id:
+    payload["conversationId"] = conversation_id
+if mode:
+    payload["mode"] = mode
+print(json.dumps(payload))
+PY
+}
+
 create_order_payload() {
   local user_id="$1"
   local sku="$2"
@@ -1602,7 +1627,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     echo "== Runtime Admin Overview =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
     assert_status 200 "runtime admin overview"
-    json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nprint("ok")'
+    json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nassert int((data or {}).get("readActionResolutionEligibleActionsCount") or 0) >= 4, data\nprint("ok")'
     RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
     assert_marketplace_runtime_overview "runtime admin marketplace alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
     assert_marketplace_inference_profile "runtime admin marketplace inference alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
@@ -1626,9 +1651,29 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     echo "== Runtime Action Catalog =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/actions/overview"
     assert_status 200 "runtime actions overview"
-    json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
+    json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nassert int((data or {}).get("readActionResolutionEligibleCount") or 0) >= 4, data\nactions = (data or {}).get("actions") or []\nresolver_names = {item.get("name") for item in actions if isinstance(item, dict) and item.get("readActionResolutionEligible") is True}\nfor req in ["search_products", "get_product_details", "check_availability", "get_policy"]:\n  assert req in resolver_names, {"required": req, "actual": sorted([v for v in resolver_names if v])}\nprint("ok")'
     assert_expected_confirmation_interceptors "runtime actions confirmation interceptor alignment" "${HTTP_BODY}"
     pass "runtime GET /api/admin/actions/overview"
+
+    if [[ "${VERIFY_READ_ACTION_RESOLUTION}" == "true" && "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
+      resolver_conversation_id="ecommerce-resolver-verify-$(date +%s)"
+      platform_marketplace_smoke_query_http \
+        "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+        "$(build_chat_query_payload_with_mode "${ECOMMERCE_RESOLVER_SMOKE_QUERY}" "${resolver_conversation_id}" "${ECOMMERCE_RESOLVER_MODE}")"
+      assert_status 200 "ecommerce resolver assistant smoke query"
+      json_assert "ecommerce resolver assistant smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresolution = metadata.get("readActionResolution") or ((result.get("data") or {}).get("readActionResolution") or {})\nassert resolution.get("attempted") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nprint("ok")'
+      pass "platform ecommerce resolver assistant smoke query"
+    fi
+
+    if [[ "${VERIFY_THINKER_READ_ACTION_RESOLUTION}" == "true" && "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
+      thinker_conversation_id="ecommerce-thinker-verify-$(date +%s)"
+      platform_marketplace_smoke_query_http \
+        "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+        "$(build_chat_query_payload_with_mode "${ECOMMERCE_THINKER_SMOKE_QUERY}" "${thinker_conversation_id}" "${ECOMMERCE_THINKER_MODE}")"
+      assert_status 200 "ecommerce thinker smoke query"
+      json_assert "ecommerce thinker smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresolution = metadata.get("readActionResolution") or ((result.get("data") or {}).get("readActionResolution") or {})\nassert resolution.get("attempted") is True, resolution\nassert resolution.get("planningMode") == "ITERATIVE", resolution\nassert resolution.get("useRag") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nprint("ok")'
+      pass "platform ecommerce thinker smoke query"
+    fi
 
     run_marketplace_runtime_verification
   fi
