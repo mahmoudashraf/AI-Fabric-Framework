@@ -225,13 +225,13 @@ Now materially real:
 
 Missing:
 
-- richer per-surface analytics beyond bounded query/surface summaries
 - feature/tier explanations that match the actual product
 - no debug leakage in shopper-facing surfaces
 
 Now materially real:
 
 - bounded per-surface shopper analytics
+- shopper-journey summaries now connect questions, interactions, comparison read-actions, and governed-commerce completions by surface instead of only showing raw counts
 - clear freshness/indexing-health view for merchants
 - bridge-admin investigation endpoints for store usage and vectorization state
 - platform-admin investigation surface for recent governed commerce actions
@@ -365,7 +365,7 @@ Must ship:
 
 Progress note:
 
-- query volume, top shopper questions, and bounded shopper surface usage are now materially real in the merchant app
+- query volume, top shopper questions, bounded shopper surface usage, and shopper-journey-by-surface summaries are now materially real in the merchant app
 - published articles/blog content is now materially real in the Shopify source pipeline
 - multi-provider review-aware metafield support is now materially real across Judge.me, Stamped, Okendo, Loox, Yotpo, and Shopify Product Reviews compatible Shopify metadata
 - plan-aware merchant UI is now materially real in the bridge admin app

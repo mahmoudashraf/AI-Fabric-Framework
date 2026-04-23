@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.analytics.service;
 
 import com.ai.fabric.product.shopify.bridge.analytics.entity.ShopifyBridgeQueryInsightDailyEntity;
 import com.ai.fabric.product.shopify.bridge.analytics.entity.ShopifyBridgeUsageDailyEntity;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceJourneySummary;
 import com.ai.fabric.product.shopify.bridge.analytics.repository.ShopifyBridgeQueryInsightDailyRepository;
 import com.ai.fabric.product.shopify.bridge.analytics.repository.ShopifyBridgeUsageDailyRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,11 +51,18 @@ class ShopifyBridgeUsageServiceTest {
         ShopifyBridgeUsageService service = new ShopifyBridgeUsageService(repository, queryInsightRepository, clock);
 
         ShopifyBridgeUsageDailyEntity today = row("alpha.myshopify.com", "STOREFRONT_QUERY", LocalDate.parse("2026-04-18"), 5, Instant.parse("2026-04-18T11:59:00Z"));
+        ShopifyBridgeUsageDailyEntity comparisonReadAction = row(
+            "alpha.myshopify.com",
+            "STOREFRONT_READ_ACTION_COMPARISON",
+            LocalDate.parse("2026-04-18"),
+            2,
+            Instant.parse("2026-04-18T11:57:00Z")
+        );
         ShopifyBridgeUsageDailyEntity previous = row("alpha.myshopify.com", "MERCHANT_PLAYGROUND_QUERY", LocalDate.parse("2026-04-16"), 3, Instant.parse("2026-04-16T09:00:00Z"));
         when(repository.findByShopDomainIgnoreCaseAndUsageDateGreaterThanEqualOrderByUsageDateAscEventTypeAsc(
             "alpha.myshopify.com",
             LocalDate.parse("2026-04-12")
-        )).thenReturn(List.of(previous, today));
+        )).thenReturn(List.of(previous, comparisonReadAction, today));
         when(queryInsightRepository.findByShopDomainIgnoreCaseAndUsageDateGreaterThanEqualOrderByUsageDateAscSurfaceIdAscSampleQueryAsc(
             "alpha.myshopify.com",
             LocalDate.parse("2026-04-12")
@@ -83,15 +91,13 @@ class ShopifyBridgeUsageServiceTest {
 
         var summary = service.summarize("alpha.myshopify.com");
 
-        assertThat(summary.totalToday()).isEqualTo(5);
-        assertThat(summary.totalLast7Days()).isEqualTo(8);
+        assertThat(summary.totalToday()).isEqualTo(7);
+        assertThat(summary.totalLast7Days()).isEqualTo(10);
         assertThat(summary.lastActivityAt()).isEqualTo(Instant.parse("2026-04-18T11:59:00Z"));
-        assertThat(summary.todayBreakdown()).singleElement().satisfies(event -> {
-            assertThat(event.eventType()).isEqualTo("STOREFRONT_QUERY");
-            assertThat(event.count()).isEqualTo(5);
-        });
+        assertThat(summary.todayBreakdown()).extracting("eventType")
+            .containsExactly("STOREFRONT_READ_ACTION_COMPARISON", "STOREFRONT_QUERY");
         assertThat(summary.last7DayBreakdown()).extracting("eventType")
-            .containsExactly("MERCHANT_PLAYGROUND_QUERY", "STOREFRONT_QUERY");
+            .containsExactly("MERCHANT_PLAYGROUND_QUERY", "STOREFRONT_READ_ACTION_COMPARISON", "STOREFRONT_QUERY");
         assertThat(summary.todaySurfaceUsage()).singleElement().satisfies(surface -> {
             assertThat(surface.surfaceId()).isEqualTo("ai-search");
             assertThat(surface.count()).isEqualTo(2);
@@ -100,6 +106,21 @@ class ShopifyBridgeUsageServiceTest {
             .containsExactly("launcher", "ai-search");
         assertThat(summary.topQuestionsLast7Days()).hasSize(2);
         assertThat(summary.topQuestionsLast7Days().getFirst().queryText()).isEqualTo("What is your return policy?");
+        assertThat(summary.last7DaySurfaceJourneys()).extracting(ShopifyBridgeUsageSurfaceJourneySummary::surfaceId)
+            .containsExactly("launcher", "comparison", "ai-search");
+        assertThat(summary.last7DaySurfaceJourneys().getFirst()).satisfies(surface -> {
+            assertThat(surface.surfaceId()).isEqualTo("launcher");
+            assertThat(surface.shopperQuestions()).isEqualTo(4);
+        });
+        assertThat(summary.last7DaySurfaceJourneys().get(1)).satisfies(surface -> {
+            assertThat(surface.surfaceId()).isEqualTo("comparison");
+            assertThat(surface.readActions()).isEqualTo(2);
+            assertThat(surface.shopperQuestions()).isZero();
+        });
+        assertThat(summary.last7DaySurfaceJourneys().get(2)).satisfies(surface -> {
+            assertThat(surface.surfaceId()).isEqualTo("ai-search");
+            assertThat(surface.shopperQuestions()).isEqualTo(2);
+        });
     }
 
     @Test

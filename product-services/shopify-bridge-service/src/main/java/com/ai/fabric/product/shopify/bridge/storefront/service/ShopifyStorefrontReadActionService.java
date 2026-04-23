@@ -96,7 +96,7 @@ public class ShopifyStorefrontReadActionService {
                 buildTrace(surfaceId, shopperSessionId)
             )
         );
-        usageService.recordEvent(normalizedShopDomain, "STOREFRONT_READ_ACTION");
+        usageService.recordEvent(normalizedShopDomain, "STOREFRONT_READ_ACTION_" + surfaceId.replace('-', '_').toUpperCase(Locale.ROOT));
         return result;
     }
 

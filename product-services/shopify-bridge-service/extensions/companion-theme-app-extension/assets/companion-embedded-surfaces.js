@@ -533,7 +533,7 @@
       prompts: compareSurfacePrompts(options.storefrontContext, shellModeProfile),
       promptVariant: 'chip',
       loadingLabel: 'Loading companion comparison…',
-      emptyLabel: 'Choose a comparison prompt to surface grounded tradeoffs before opening chat.',
+      emptyLabel: 'Choose a comparison prompt to see the strongest alternatives before opening chat.',
       analyticsEventType: 'COMPARISON_CLICKED',
       shellModeProfile: shellModeProfile,
     })
@@ -555,7 +555,7 @@
 
     var description = document.createElement('p')
     description.className = 'loom-companion-surface-copy'
-    description.textContent = 'Companion is surfacing grounded alternatives for this product using bridge-backed comparison evidence.'
+    description.textContent = 'See similar options for this product, then compare the tradeoffs side by side.'
     card.appendChild(description)
 
     if (options.payload.poweredByBadgeRequired) {
@@ -579,7 +579,7 @@
 
     var candidatesSummary = document.createElement('div')
     candidatesSummary.className = 'loom-companion-surface-copy loom-companion-surface-copy--results'
-    candidatesSummary.textContent = 'Loading grounded alternatives…'
+    candidatesSummary.textContent = 'Loading similar options…'
     candidatesHost.appendChild(candidatesSummary)
 
     var candidateCards = document.createElement('div')
@@ -593,7 +593,7 @@
 
     var comparisonLabel = document.createElement('div')
     comparisonLabel.className = 'loom-companion-surface-results__label'
-    comparisonLabel.textContent = 'Comparison detail'
+    comparisonLabel.textContent = 'Tradeoff summary'
     comparisonHost.appendChild(comparisonLabel)
 
     var comparisonSummary = document.createElement('div')
@@ -657,13 +657,13 @@
         .then(function (result) {
           state.candidates = extractSimilarCandidates(result)
           if (!state.candidates.length) {
-            state.errorMessage = 'Companion could not find grounded alternatives for the current product yet.'
+            state.errorMessage = 'No close alternatives are available for this product yet.'
           }
         })
         .catch(function (error) {
           state.errorMessage = error && error.message
             ? error.message
-            : 'Companion comparison is not available right now.'
+            : 'Comparison is not available right now.'
         })
         .finally(function () {
           state.loading = false
@@ -689,7 +689,7 @@
         .catch(function (error) {
           state.errorMessage = error && error.message
             ? error.message
-            : 'Companion could not compare these products right now.'
+            : 'We could not compare these products right now.'
         })
         .finally(function () {
           state.comparing = false
@@ -700,9 +700,9 @@
     function render() {
       status.hidden = !(state.loading || state.comparing || state.errorMessage)
       if (state.loading) {
-        status.textContent = 'Finding grounded alternatives…'
+        status.textContent = 'Looking for similar options…'
       } else if (state.comparing) {
-        status.textContent = 'Comparing the strongest grounded match…'
+        status.textContent = 'Comparing the best match…'
       } else if (state.errorMessage) {
         status.textContent = state.errorMessage
       } else {
@@ -711,8 +711,8 @@
 
       candidatesHost.hidden = state.candidates.length === 0 && !state.loading && !state.errorMessage
       candidatesSummary.textContent = state.candidates.length
-        ? 'These alternatives were ranked from live Shopify product evidence and review-aware signals.'
-        : 'Companion is checking the store catalog for grounded alternatives.'
+        ? 'These picks are based on product details, availability, and store content.'
+        : 'Checking the store catalog for similar options.'
       candidateCards.innerHTML = ''
       state.candidates.forEach(function (candidate) {
         candidateCards.appendChild(renderComparisonCandidateCard(candidate, loadComparison))
@@ -726,7 +726,7 @@
         state.comparison.chips.forEach(function (chip) {
           comparisonChips.appendChild(createMetaChip(chip))
         })
-        comparisonCards.appendChild(renderCardGroup('Compared products', state.comparison.products, 'Open product'))
+        comparisonCards.appendChild(renderCardGroup('Side-by-side view', state.comparison.products, 'Open product'))
       }
 
       assistantButton.hidden = !window.MaxMode || typeof window.MaxMode.sendMessage !== 'function'
@@ -958,7 +958,7 @@
 
     var copy = document.createElement('p')
     copy.className = 'loom-companion-surface-copy loom-companion-surface-copy--muted'
-    copy.textContent = 'Companion can add the current variant to cart and update quantity with explicit confirmation and bridge audit.'
+    copy.textContent = 'Companion can add this variant to cart or change quantity, but only after you confirm the action.'
     panel.appendChild(copy)
 
     var status = document.createElement('div')
@@ -1015,7 +1015,7 @@
         )
       ) {
         status.hidden = false
-        status.textContent = 'Open the assistant shell to continue with variant guidance.'
+        status.textContent = 'Open chat to continue with variant guidance.'
       }
     })
     buttons.appendChild(guidanceButton)
@@ -1910,7 +1910,7 @@
 
   function executeReadAction(options, surfaceId, actionId, params) {
     if (!options || !options.payload || !options.payload.bridgeReadActionUrl) {
-      return Promise.reject(new Error('Storefront comparison actions are not configured for this store.'))
+      return Promise.reject(new Error('Comparison is not configured for this store.'))
     }
     return fetchJson(options.payload.bridgeReadActionUrl, {
       method: 'POST',
@@ -1922,7 +1922,7 @@
       }),
     }).then(function (response) {
       if (response && response.success === false) {
-        throw new Error(response.message || 'Storefront comparison action failed.')
+        throw new Error(response.message || 'We could not load comparison details right now.')
       }
       return response
     })
@@ -1983,7 +1983,7 @@
       summaryParts.push('Shared signals: ' + joinUniqueTexts(data.sharedSignals).slice(0, 3).join(' · ') + '.')
     }
     if (!summaryParts.length && comparisonProduct && comparisonProduct.title) {
-      summaryParts.push('Companion compared ' + referenceTitle + ' with ' + comparisonProduct.title + ' using live Shopify evidence.')
+      summaryParts.push('We compared ' + referenceTitle + ' with ' + comparisonProduct.title + ' using live store details.')
     }
     var chips = []
     if (trimValue(data.cheaperSku)) {

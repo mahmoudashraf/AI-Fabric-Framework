@@ -264,14 +264,16 @@ class ShopifyBridgeAdminControllerTest {
                 "What is your return policy?",
                 3,
                 Instant.parse("2026-04-18T11:55:00Z")
-            ))
+            )),
+            List.of()
         ));
 
         mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/usage-summary").header("X-BRIDGE-API-KEY", "test-admin-key"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
             .andExpect(jsonPath("$.last7DaySurfaceUsage[0].surfaceId").value("launcher"))
-            .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"));
+            .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"))
+            .andExpect(jsonPath("$.last7DaySurfaceJourneys").isArray());
     }
 
     @Test

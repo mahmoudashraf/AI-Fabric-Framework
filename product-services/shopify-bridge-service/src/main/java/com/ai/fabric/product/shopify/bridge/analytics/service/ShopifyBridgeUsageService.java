@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.analytics.entity.ShopifyBridgeQueryI
 import com.ai.fabric.product.shopify.bridge.analytics.entity.ShopifyBridgeUsageDailyEntity;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceJourneySummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageTopQuerySummary;
@@ -114,6 +115,7 @@ public class ShopifyBridgeUsageService {
         Map<String, Long> todaySurfaceUsage = new LinkedHashMap<>();
         Map<String, Long> last7dSurfaceUsage = new LinkedHashMap<>();
         Map<String, QueryAggregate> topQueries = new LinkedHashMap<>();
+        Map<String, SurfaceJourneyAggregate> surfaceJourneys = new LinkedHashMap<>();
         long totalToday = 0L;
         long totalLast7Days = 0L;
         Instant lastActivityAt = null;
@@ -127,6 +129,18 @@ public class ShopifyBridgeUsageService {
             if (lastActivityAt == null || row.getLastEventAt().isAfter(lastActivityAt)) {
                 lastActivityAt = row.getLastEventAt();
             }
+            SurfaceJourneyEvent surfaceJourneyEvent = surfaceJourneyEvent(row.getEventType());
+            if (surfaceJourneyEvent != null) {
+                SurfaceJourneyAggregate aggregate = surfaceJourneys.computeIfAbsent(
+                    surfaceJourneyEvent.surfaceId,
+                    ignored -> new SurfaceJourneyAggregate(surfaceJourneyEvent.surfaceId, surfaceLabel(surfaceJourneyEvent.surfaceId))
+                );
+                aggregate.shopperInteractions += surfaceJourneyEvent.shopperInteractions * row.getEventCount();
+                aggregate.readActions += surfaceJourneyEvent.readActions * row.getEventCount();
+                aggregate.governedActionGrants += surfaceJourneyEvent.governedActionGrants * row.getEventCount();
+                aggregate.governedActionCompletions += surfaceJourneyEvent.governedActionCompletions * row.getEventCount();
+                aggregate.governedActionFailures += surfaceJourneyEvent.governedActionFailures * row.getEventCount();
+            }
         }
         for (ShopifyBridgeQueryInsightDailyEntity row : queryRows) {
             if (lastActivityAt == null || row.getLastQueriedAt().isAfter(lastActivityAt)) {
@@ -135,6 +149,11 @@ public class ShopifyBridgeUsageService {
             if (!"STOREFRONT_QUERY".equals(row.getEventType())) {
                 continue;
             }
+            SurfaceJourneyAggregate surfaceJourneyAggregate = surfaceJourneys.computeIfAbsent(
+                row.getSurfaceId(),
+                ignored -> new SurfaceJourneyAggregate(row.getSurfaceId(), surfaceLabel(row.getSurfaceId()))
+            );
+            surfaceJourneyAggregate.shopperQuestions += row.getQueryCount();
             last7dSurfaceUsage.merge(row.getSurfaceId(), row.getQueryCount(), Long::sum);
             if (today.equals(row.getUsageDate())) {
                 todaySurfaceUsage.merge(row.getSurfaceId(), row.getQueryCount(), Long::sum);
@@ -172,6 +191,24 @@ public class ShopifyBridgeUsageService {
                     value.queryText,
                     value.count,
                     value.lastAskedAt
+                ))
+                .toList(),
+            surfaceJourneys.values().stream()
+                .filter(value -> value.totalSignals() > 0)
+                .sorted(Comparator
+                    .comparingLong(SurfaceJourneyAggregate::totalSignals).reversed()
+                    .thenComparing(Comparator.comparingLong((SurfaceJourneyAggregate value) -> value.governedActionCompletions).reversed())
+                    .thenComparing(Comparator.comparingLong((SurfaceJourneyAggregate value) -> value.readActions).reversed())
+                    .thenComparing(value -> value.label))
+                .map(value -> new ShopifyBridgeUsageSurfaceJourneySummary(
+                    value.surfaceId,
+                    value.label,
+                    value.shopperQuestions,
+                    value.shopperInteractions,
+                    value.readActions,
+                    value.governedActionGrants,
+                    value.governedActionCompletions,
+                    value.governedActionFailures
                 ))
                 .toList()
         );
@@ -316,6 +353,53 @@ public class ShopifyBridgeUsageService {
         return StringUtils.hasText(normalized) ? normalized : fallback;
     }
 
+    private SurfaceJourneyEvent surfaceJourneyEvent(String eventType) {
+        if (!StringUtils.hasText(eventType)) {
+            return null;
+        }
+        String normalized = eventType.trim().toUpperCase(Locale.ROOT);
+        if (normalized.startsWith("STOREFRONT_SEARCH_SUBMITTED_")) {
+            return SurfaceJourneyEvent.interaction("ai-search");
+        }
+        if (normalized.startsWith("STOREFRONT_CONTEXTUAL_PROMPT_CLICKED_")) {
+            return SurfaceJourneyEvent.interaction("contextual-pill");
+        }
+        if (normalized.startsWith("STOREFRONT_PRODUCT_FAQ_CLICKED_")) {
+            return SurfaceJourneyEvent.interaction("product-faq");
+        }
+        if (normalized.startsWith("STOREFRONT_COMPARISON_CLICKED_")) {
+            return SurfaceJourneyEvent.interaction("comparison");
+        }
+        if (normalized.startsWith("STOREFRONT_WIDGET_OPENED_") || "STOREFRONT_CHAT_RESET".equals(normalized)) {
+            return SurfaceJourneyEvent.interaction("launcher");
+        }
+        if ("STOREFRONT_READ_ACTION".equals(normalized)) {
+            return SurfaceJourneyEvent.readAction("comparison");
+        }
+        if (normalized.startsWith("STOREFRONT_READ_ACTION_")) {
+            return SurfaceJourneyEvent.readAction(surfaceFromEventSuffix(normalized, "STOREFRONT_READ_ACTION_"));
+        }
+        if (normalized.startsWith("STOREFRONT_ACTION_GRANTED_")) {
+            return SurfaceJourneyEvent.actionGranted(surfaceFromEventSuffix(normalized, "STOREFRONT_ACTION_GRANTED_"));
+        }
+        if (normalized.startsWith("STOREFRONT_ACTION_COMPLETED_")) {
+            return SurfaceJourneyEvent.actionCompleted(surfaceFromEventSuffix(normalized, "STOREFRONT_ACTION_COMPLETED_"));
+        }
+        if (normalized.startsWith("STOREFRONT_ACTION_FAILED_")) {
+            return SurfaceJourneyEvent.actionFailed(surfaceFromEventSuffix(normalized, "STOREFRONT_ACTION_FAILED_"));
+        }
+        return null;
+    }
+
+    private String surfaceFromEventSuffix(String eventType, String prefix) {
+        return normalizeSurfaceId(
+            eventType.substring(prefix.length())
+                .toLowerCase(Locale.ROOT)
+                .replace('_', '-'),
+            "launcher"
+        );
+    }
+
     private String surfaceLabel(String surfaceId) {
         return switch (normalizeSurfaceId(surfaceId, "launcher")) {
             case "ai-search" -> "AI search";
@@ -343,6 +427,55 @@ public class ShopifyBridgeUsageService {
             this.queryText = queryText;
             this.count = count;
             this.lastAskedAt = lastAskedAt;
+        }
+    }
+
+    private static final class SurfaceJourneyAggregate {
+        private final String surfaceId;
+        private final String label;
+        private long shopperQuestions;
+        private long shopperInteractions;
+        private long readActions;
+        private long governedActionGrants;
+        private long governedActionCompletions;
+        private long governedActionFailures;
+
+        private SurfaceJourneyAggregate(String surfaceId, String label) {
+            this.surfaceId = surfaceId;
+            this.label = label;
+        }
+
+        private long totalSignals() {
+            return shopperQuestions + shopperInteractions + readActions + governedActionGrants + governedActionCompletions + governedActionFailures;
+        }
+    }
+
+    private record SurfaceJourneyEvent(
+        String surfaceId,
+        long shopperInteractions,
+        long readActions,
+        long governedActionGrants,
+        long governedActionCompletions,
+        long governedActionFailures
+    ) {
+        private static SurfaceJourneyEvent interaction(String surfaceId) {
+            return new SurfaceJourneyEvent(surfaceId, 1L, 0L, 0L, 0L, 0L);
+        }
+
+        private static SurfaceJourneyEvent readAction(String surfaceId) {
+            return new SurfaceJourneyEvent(surfaceId, 0L, 1L, 0L, 0L, 0L);
+        }
+
+        private static SurfaceJourneyEvent actionGranted(String surfaceId) {
+            return new SurfaceJourneyEvent(surfaceId, 0L, 0L, 1L, 0L, 0L);
+        }
+
+        private static SurfaceJourneyEvent actionCompleted(String surfaceId) {
+            return new SurfaceJourneyEvent(surfaceId, 0L, 0L, 0L, 1L, 0L);
+        }
+
+        private static SurfaceJourneyEvent actionFailed(String surfaceId) {
+            return new SurfaceJourneyEvent(surfaceId, 0L, 0L, 0L, 0L, 1L);
         }
     }
 }

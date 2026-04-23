@@ -127,8 +127,8 @@ class ShopifyStorefrontGovernedActionServiceTest {
         assertThat(completed.resultingQuantity()).isEqualTo(2);
         assertThat(savedAudit.get().getStatus()).isEqualTo("COMPLETED");
         assertThat(savedAudit.get().getCartLineKey()).isEqualTo("line-1");
-        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_ACTION_GRANTED");
-        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_ACTION_COMPLETED");
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_ACTION_GRANTED_PRODUCT_INSIGHT");
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_ACTION_COMPLETED_PRODUCT_INSIGHT");
     }
 
     private ShopifyBridgeInstallCredentialService emptyCredentialService() {

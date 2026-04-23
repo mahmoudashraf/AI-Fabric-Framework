@@ -752,6 +752,7 @@ export default function App() {
   const vectorizationSummary = state.vectorizationSummary
   const shopperSurfaceUsage = usageSummary?.last7DaySurfaceUsage ?? []
   const topShopperQuestions = usageSummary?.topQuestionsLast7Days ?? []
+  const shopperSurfaceJourneys = usageSummary?.last7DaySurfaceJourneys ?? []
   const sourceCoverageSignals = buildSourceCoverageSignals(store)
   const intelligenceReadiness = buildStoreIntelligenceReadiness(
     store,
@@ -1651,6 +1652,25 @@ export default function App() {
                       Shopper surface usage appears after real storefront queries run through the live bridge.
                     </Text>
                   )}
+                  {shopperSurfaceJourneys.length ? (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Shopper journeys by surface, last 7 days
+                      </Text>
+                      {shopperSurfaceJourneys.slice(0, 4).map((journey) => (
+                        <Box key={journey.surfaceId} padding="200" borderWidth="025" borderColor="border" borderRadius="200">
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodySm">
+                              {journey.label}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {formatSurfaceJourneySummary(journey)}
+                            </Text>
+                          </BlockStack>
+                        </Box>
+                      ))}
+                    </BlockStack>
+                  ) : null}
                   {sourceCoverageSignals.length ? (
                     <BlockStack gap="150">
                       <Text as="p" variant="bodySm" tone="subdued">
@@ -2109,6 +2129,9 @@ export default function App() {
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Shopper surfaces {formatSurfaceUsageBreakdown(usageSummary.last7DaySurfaceUsage)}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Shopper journeys {(usageSummary.last7DaySurfaceJourneys ?? []).slice(0, 3).map((entry) => `${entry.label}: ${formatSurfaceJourneySummary(entry)}`).join(' | ') || 'No surface journeys yet'}
                       </Text>
                     </BlockStack>
                   ) : null}
@@ -2884,6 +2907,18 @@ function formatSurfaceUsageBreakdown(entries: Array<{ surfaceId: string; label: 
   return entries.map((entry) => `${entry.label} ${entry.count}`).join(' · ')
 }
 
+function formatSurfaceJourneySummary(entry: ShopifyBridgeUsageSummary['last7DaySurfaceJourneys'][number]): string {
+  const parts = [`Questions ${entry.shopperQuestions}`, `Interactions ${entry.shopperInteractions}`, `Read actions ${entry.readActions}`]
+  if (entry.governedActionGrants || entry.governedActionCompletions || entry.governedActionFailures) {
+    parts.push(
+      `Grants ${entry.governedActionGrants}`,
+      `Completed ${entry.governedActionCompletions}`,
+      `Failed ${entry.governedActionFailures}`,
+    )
+  }
+  return parts.join(' · ')
+}
+
 function formatPlanPrice(plan: ShopifyBridgeBillingSummary['availablePlans'][number]): string {
   if (!plan.amount || !plan.currencyCode || !plan.interval) {
     return plan.tierKey === 'FREE' ? 'Free' : 'Pricing unavailable'
@@ -3082,7 +3117,11 @@ function buildLaunchReadiness(
       elitePlan?.auditTrailAvailable &&
       (elitePlan?.actionPackages?.length ?? 0) > 0
   )
-  const shopperSignalsReady = Boolean((usageSummary?.last7DaySurfaceUsage?.length ?? 0) > 0 || (usageSummary?.topQuestionsLast7Days?.length ?? 0) > 0)
+  const shopperSignalsReady = Boolean(
+    (usageSummary?.last7DaySurfaceUsage?.length ?? 0) > 0 ||
+      (usageSummary?.topQuestionsLast7Days?.length ?? 0) > 0 ||
+      (usageSummary?.last7DaySurfaceJourneys?.length ?? 0) > 0,
+  )
   const webhookReady = !webhookSubscriptions || webhookSubscriptions.status === 'READY'
   const storefrontReady = Boolean(storefrontPreview?.ready)
   const goLiveReady = Boolean(store?.readiness?.goLiveEligible)
@@ -3443,6 +3482,7 @@ function buildLaunchDossier(
     '## Merchant signal',
     `- Last 7 days total events: ${usageSummary?.totalLast7Days ?? 0}`,
     `- Top shopper questions: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 5).map((item) => `${item.label}: ${item.queryText}`).join(' | ') || 'None yet'}`,
+    `- Surface journeys: ${(usageSummary?.last7DaySurfaceJourneys ?? []).slice(0, 5).map((item) => `${item.label}: ${formatSurfaceJourneySummary(item)}`).join(' | ') || 'None yet'}`,
     '',
     '## Go-live checklist',
     ...goLiveChecklist.items.map((item) => `- ${item.label}: ${item.status}. ${item.detail}`),
@@ -3615,6 +3655,7 @@ function buildDesignPartnerRolloutPacket(
     '## Merchant value prompts',
     `- Run at least one product discovery question, one policy question, and one comparison flow${billingSummary?.actionCapable ? ', then one governed commerce flow if Elite is active.' : '.'}`,
     `- Capture top shopper questions and surface usage after traffic: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'no traffic yet'}`,
+    `- Capture surface journey evidence after traffic: ${(usageSummary?.last7DaySurfaceJourneys ?? []).slice(0, 3).map((item) => `${item.label} (${formatSurfaceJourneySummary(item)})`).join(' | ') || 'no journey signal yet'}`,
     '',
     '## Sign-off criteria',
     `- Launch packet posture: ${launchPacket.status}`,

@@ -65,7 +65,7 @@ class ShopifyStorefrontReadActionServiceTest {
 
         assertThat(result.success()).isTrue();
         verify(actionExecutionService).execute(eq("alpha.myshopify.com"), any());
-        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_READ_ACTION");
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_READ_ACTION_COMPARISON");
     }
 
     @Test

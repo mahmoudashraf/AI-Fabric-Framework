@@ -218,6 +218,16 @@ export type ShopifyBridgeUsageSummary = {
     count: number
     lastAskedAt: string
   }>
+  last7DaySurfaceJourneys: Array<{
+    surfaceId: string
+    label: string
+    shopperQuestions: number
+    shopperInteractions: number
+    readActions: number
+    governedActionGrants: number
+    governedActionCompletions: number
+    governedActionFailures: number
+  }>
 }
 
 export type ShopifyBridgeGovernedActionAuditSummary = {

@@ -172,7 +172,7 @@ public class ShopifyStorefrontGovernedActionService {
             cartLineKey,
             expiresAt.getEpochSecond()
         ));
-        usageService.recordEvent(normalizedShop, "STOREFRONT_ACTION_GRANTED");
+        usageService.recordEvent(normalizedShop, "STOREFRONT_ACTION_GRANTED_" + surfaceId.replace('-', '_').toUpperCase(Locale.ROOT));
         return new ShopifyStorefrontGovernedActionGrantResponse(
             entity.getId(),
             token,
@@ -221,7 +221,13 @@ public class ShopifyStorefrontGovernedActionService {
         entity.setCompletedAt(now);
         entity.setUpdatedAt(now);
         repository.save(entity);
-        usageService.recordEvent(normalizedShop, "COMPLETED".equals(status) ? "STOREFRONT_ACTION_COMPLETED" : "STOREFRONT_ACTION_FAILED");
+        String surfaceEventKey = normalizeEnumLike(entity.getSurfaceId(), "launcher").replace('-', '_').toUpperCase(Locale.ROOT);
+        usageService.recordEvent(
+            normalizedShop,
+            "COMPLETED".equals(status)
+                ? "STOREFRONT_ACTION_COMPLETED_" + surfaceEventKey
+                : "STOREFRONT_ACTION_FAILED_" + surfaceEventKey
+        );
         return toSummary(entity);
     }
 

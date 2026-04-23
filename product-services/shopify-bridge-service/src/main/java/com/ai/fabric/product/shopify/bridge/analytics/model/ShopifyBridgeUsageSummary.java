@@ -13,6 +13,7 @@ public record ShopifyBridgeUsageSummary(
     List<ShopifyBridgeUsageEventCountSummary> last7DayBreakdown,
     List<ShopifyBridgeUsageSurfaceSummary> todaySurfaceUsage,
     List<ShopifyBridgeUsageSurfaceSummary> last7DaySurfaceUsage,
-    List<ShopifyBridgeUsageTopQuerySummary> topQuestionsLast7Days
+    List<ShopifyBridgeUsageTopQuerySummary> topQuestionsLast7Days,
+    List<ShopifyBridgeUsageSurfaceJourneySummary> last7DaySurfaceJourneys
 ) {
 }
