@@ -294,6 +294,35 @@ class ShopifyStoreGoLiveServiceTest {
             .hasMessageContaining("scope approval");
     }
 
+    @Test
+    void goLiveRejectsWhenMerchantHandoffIsNotConfigured() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store("READY")));
+        when(connectionService.getConnection("alpha.myshopify.com")).thenReturn(summary("alpha.myshopify.com", "PREFLIGHT_READY"));
+        when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
+        when(productAdminService.getStoreSupportReadiness("shopify-bridge-prod", "alpha.myshopify.com"))
+            .thenReturn(supportReadiness("READY", true, true, false));
+
+        ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
+            repository,
+            deploymentService,
+            productServiceRepository,
+            productAdminService,
+            connectionService,
+            auditService
+        );
+
+        assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("support handoff");
+    }
+
     private ShopifyStoreConnectionEntity store(String sourceReadinessStatus) {
         ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
         entity.setId("shp-1");
@@ -417,6 +446,13 @@ class ShopifyStoreGoLiveServiceTest {
     private PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness(String status,
                                                                                        boolean orderLookupSupported,
                                                                                        boolean scopesWebhookReady) {
+        return supportReadiness(status, orderLookupSupported, scopesWebhookReady, true);
+    }
+
+    private PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness(String status,
+                                                                                       boolean orderLookupSupported,
+                                                                                       boolean scopesWebhookReady,
+                                                                                       boolean merchantHandoffConfigured) {
         return new PlatformManagedProductServiceStoreSupportReadinessSummary(
             "alpha.myshopify.com",
             status,
@@ -440,15 +476,17 @@ class ShopifyStoreGoLiveServiceTest {
             java.util.List.of("Companion Free"),
             java.util.List.of(),
             new PlatformManagedProductServiceStoreSupportProfileSummary(
-                "support@example.com",
+                merchantHandoffConfigured ? "support@example.com" : null,
                 null,
                 null,
                 null,
                 null,
-                true
+                merchantHandoffConfigured
             ),
-            true,
-            "Merchant support handoff is configured through support email.",
+            merchantHandoffConfigured,
+            merchantHandoffConfigured
+                ? "Merchant support handoff is configured through support email."
+                : "Merchant support handoff is not configured yet. Add a support email, contact URL, or help center URL before launch.",
             java.util.List.of(),
             java.util.List.of("ORDER_NUMBER_AND_EMAIL"),
             java.util.List.of("order-status", "tracking-link"),

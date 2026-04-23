@@ -11,6 +11,9 @@ import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandl
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetDocumentRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetHandleRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportProfileSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
+import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
@@ -699,5 +702,129 @@ class ShopifyStoreConnectionServiceTest {
         assertThat(summary.syncDetail().mode()).isEqualTo("UNINSTALL_CLEANUP");
         assertThat(summary.syncDetail().documentCount()).isEqualTo(2);
         verify(repository, times(0)).save(entity);
+    }
+
+    @Test
+    void getConnectionMarksReadinessBlockedWhenGovernedSupportIsNotReady() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
+
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("psv-123");
+        service.setServiceRef("shopify-bridge-prod");
+        service.setDisplayName("Shopify Bridge Service");
+        service.setProductFamily("SHOPIFY");
+        service.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("demo.myshopify.com");
+        entity.setProductServiceId("psv-123");
+        entity.setCustomerId("cus-123");
+        entity.setDeploymentId("dep-123");
+        entity.setConsumerId("consumer-demo");
+        entity.setInstallStatus("INSTALLED");
+        entity.setSyncStatus("SYNCED");
+        entity.setSourceReadinessStatus("READY");
+        entity.setWidgetStatus("ENABLED");
+        entity.setOnboardingStatus("LIVE");
+        entity.setProductsEnabled(true);
+        entity.setCollectionsEnabled(true);
+        entity.setPagesEnabled(true);
+        entity.setPoliciesEnabled(true);
+        entity.setDetailsJson("""
+            {"credentials":{"status":"READY","accessTokenSecretRef":"secret/access","checkedAt":"2026-04-18T11:59:00Z"}}
+            """);
+        entity.setCreatedAt(Instant.parse("2026-04-18T11:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-04-18T11:05:00Z"));
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+        release.setProvisioningStatus("SUCCEEDED");
+        release.setProvisioningTarget("RAILWAY");
+        release.setCurrentStepKey("completed");
+        release.setCurrentStepDescription("Release applied and verified.");
+        release.setCreatedAt(Instant.parse("2026-04-18T12:00:00Z"));
+        release.setAppliedAt(Instant.parse("2026-04-18T12:01:00Z"));
+        release.setUpdatedAt(Instant.parse("2026-04-18T12:02:00Z"));
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
+        when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
+        when(productAdminService.getStoreSupportReadiness("shopify-bridge-prod", "demo.myshopify.com"))
+            .thenReturn(new PlatformManagedProductServiceStoreSupportReadinessSummary(
+                "demo.myshopify.com",
+                "PENDING_SCOPE_GRANT",
+                "Customer-safe order lookup is waiting for Shopify order-read scope approval on this store.",
+                "SCOPE_APPROVAL",
+                false,
+                false,
+                false,
+                false,
+                false,
+                null,
+                true,
+                "https://shopify-bridge.example.com/auth/shopify/install?shop=demo.myshopify.com",
+                "INSTALLED",
+                "FREE",
+                "ACTIVE",
+                java.util.List.of("read_products"),
+                java.util.List.of("read_orders"),
+                java.util.List.of(),
+                java.util.List.of(),
+                new PlatformManagedProductServiceStoreSupportProfileSummary(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    false
+                ),
+                false,
+                "Merchant support handoff is not configured yet. Add a support email, contact URL, or help center URL before launch.",
+                java.util.List.of(
+                    "Grant Shopify read_orders scope so customer-safe order lookup can verify recent orders.",
+                    "Configure a merchant support email, contact URL, or help center URL for unsupported order and account cases."
+                ),
+                java.util.List.of("ORDER_NUMBER_AND_EMAIL"),
+                java.util.List.of("order-status"),
+                java.util.List.of("refunds")
+            ));
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            productAdminService
+        );
+
+        ShopifyStoreConnectionSummary summary = connectionService.getConnection("demo.myshopify.com");
+
+        assertThat(summary.readiness()).isNotNull();
+        assertThat(summary.readiness().goLiveEligible()).isFalse();
+        assertThat(summary.readiness().storefrontReady()).isFalse();
+        assertThat(summary.readiness().goLiveBlockingReasons())
+            .contains("Customer-safe order lookup is waiting for Shopify order-read scope approval on this store.");
+        assertThat(summary.readiness().goLiveBlockingReasons())
+            .contains("Merchant support handoff is not configured yet. Add a support email, contact URL, or help center URL before launch.");
+        assertThat(summary.readiness().nextActions())
+            .contains("Grant Shopify read_orders scope so customer-safe order lookup can verify recent orders.");
     }
 }

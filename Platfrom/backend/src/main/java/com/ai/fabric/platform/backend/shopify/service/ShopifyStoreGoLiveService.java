@@ -113,13 +113,23 @@ public class ShopifyStoreGoLiveService {
         }
         PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness =
             productAdminService.getStoreSupportReadiness(productService.getServiceRef(), store.getShopDomain());
-        if (!"READY".equalsIgnoreCase(supportReadiness.status())
-            || !supportReadiness.orderLookupSupported()
-            || !supportReadiness.appScopesUpdateWebhookReady()) {
+        if (!"READY".equalsIgnoreCase(supportReadiness.status())) {
             String message = supportReadiness.message() == null || supportReadiness.message().isBlank()
                 ? "Customer-safe order lookup and governed support posture are not ready for go-live yet."
                 : supportReadiness.message();
             throw new ResponseStatusException(CONFLICT, message);
+        }
+        if (!supportReadiness.orderLookupSupported()) {
+            throw new ResponseStatusException(CONFLICT,
+                "Customer-safe order lookup must be enabled before go-live.");
+        }
+        if (!supportReadiness.appScopesUpdateWebhookReady()) {
+            throw new ResponseStatusException(CONFLICT,
+                "Shopify APP_SCOPES_UPDATE webhook must be ready before go-live.");
+        }
+        if (!supportReadiness.merchantHandoffConfigured()) {
+            throw new ResponseStatusException(CONFLICT,
+                "Merchant support handoff must be configured before go-live.");
         }
     }
 

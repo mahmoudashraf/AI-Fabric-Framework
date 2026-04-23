@@ -13,6 +13,8 @@ import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandl
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetDocumentRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetHandleRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
+import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
@@ -62,6 +64,7 @@ public class ShopifyStoreConnectionService {
     private final PlatformAuditService platformAuditService;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ShopifyStoreReadinessEvaluator readinessEvaluator;
+    private final PlatformManagedProductAdminService productAdminService;
 
     @Autowired
     public ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
@@ -75,7 +78,8 @@ public class ShopifyStoreConnectionService {
                                          PlatformConsumerRepository consumerRepository,
                                          PlatformAuditService platformAuditService,
                                          ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
-                                         ShopifyStoreReadinessEvaluator readinessEvaluator) {
+                                         ShopifyStoreReadinessEvaluator readinessEvaluator,
+                                         PlatformManagedProductAdminService productAdminService) {
         this.repository = repository;
         this.productServiceService = productServiceService;
         this.customerRepository = customerRepository;
@@ -88,6 +92,7 @@ public class ShopifyStoreConnectionService {
         this.platformAuditService = platformAuditService;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
+        this.productAdminService = productAdminService;
     }
 
     ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
@@ -112,7 +117,65 @@ public class ShopifyStoreConnectionService {
             consumerRepository,
             platformAuditService,
             sourcePreflightSupport,
-            readinessEvaluator
+            readinessEvaluator,
+            null
+        );
+    }
+
+    ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
+                                  PlatformManagedProductServiceService productServiceService,
+                                  PlatformCustomerRepository customerRepository,
+                                  DeploymentRepository deploymentRepository,
+                                  DeploymentVersionRepository deploymentVersionRepository,
+                                  DeploymentReleaseRepository deploymentReleaseRepository,
+                                  MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository,
+                                  MarketplaceDatasetDocumentRepository marketplaceDatasetDocumentRepository,
+                                  PlatformConsumerRepository consumerRepository,
+                                  PlatformAuditService platformAuditService,
+                                  ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                  ShopifyStoreReadinessEvaluator readinessEvaluator) {
+        this(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            marketplaceDatasetHandleRepository,
+            marketplaceDatasetDocumentRepository,
+            consumerRepository,
+            platformAuditService,
+            sourcePreflightSupport,
+            readinessEvaluator,
+            null
+        );
+    }
+
+    ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
+                                  PlatformManagedProductServiceService productServiceService,
+                                  PlatformCustomerRepository customerRepository,
+                                  DeploymentRepository deploymentRepository,
+                                  DeploymentVersionRepository deploymentVersionRepository,
+                                  DeploymentReleaseRepository deploymentReleaseRepository,
+                                  PlatformConsumerRepository consumerRepository,
+                                  PlatformAuditService platformAuditService,
+                                  ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                  ShopifyStoreReadinessEvaluator readinessEvaluator,
+                                  PlatformManagedProductAdminService productAdminService) {
+        this(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            null,
+            null,
+            consumerRepository,
+            platformAuditService,
+            sourcePreflightSupport,
+            readinessEvaluator,
+            productAdminService
         );
     }
 
@@ -259,6 +322,19 @@ public class ShopifyStoreConnectionService {
         var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
         var capabilities = summarizeCapabilities(context.latestVersion());
         var latestReleaseSummary = toReleaseSummary(context.latestRelease());
+        var readiness = applySupportReadiness(
+            readinessEvaluator.evaluate(
+                entity,
+                credentials,
+                sourcePreflight,
+                syncDetail,
+                widgetDetail,
+                latestReleaseSummary,
+                context.deployment() != null && context.deployment().getArchivedAt() != null
+            ),
+            context.productService().getServiceRef(),
+            entity.getShopDomain()
+        );
         return new ShopifyStoreConnectionSummary(
             entity.getId(),
             entity.getShopDomain(),
@@ -290,15 +366,7 @@ public class ShopifyStoreConnectionService {
             webhookDetail,
             widgetDetail,
             capabilities,
-            readinessEvaluator.evaluate(
-                entity,
-                credentials,
-                sourcePreflight,
-                syncDetail,
-                widgetDetail,
-                latestReleaseSummary,
-                context.deployment() != null && context.deployment().getArchivedAt() != null
-            ),
+            readiness,
             toVersionSummary(context.latestVersion()),
             latestReleaseSummary,
             entity.getLastSourcePreflightAt(),
@@ -307,6 +375,92 @@ public class ShopifyStoreConnectionService {
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
+    }
+
+    private com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary applySupportReadiness(
+        com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary base,
+        String serviceRef,
+        String shopDomain
+    ) {
+        if (base == null || productAdminService == null || !hasText(serviceRef)) {
+            return base;
+        }
+        PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness;
+        try {
+            supportReadiness = productAdminService.getStoreSupportReadiness(serviceRef, shopDomain);
+        } catch (ResponseStatusException ex) {
+            return base;
+        }
+        boolean supportGateReady = "READY".equalsIgnoreCase(supportReadiness.status())
+            && supportReadiness.orderLookupSupported()
+            && supportReadiness.appScopesUpdateWebhookReady()
+            && supportReadiness.merchantHandoffConfigured();
+        if (supportGateReady) {
+            return base;
+        }
+
+        List<String> supportBlockers = new java.util.ArrayList<>();
+        if (!"READY".equalsIgnoreCase(supportReadiness.status()) || !supportReadiness.orderLookupSupported()) {
+            supportBlockers.add(firstNonBlank(
+                supportReadiness.message(),
+                "Customer-safe order lookup and governed support posture are not ready for go-live yet."
+            ));
+        }
+        if (!supportReadiness.appScopesUpdateWebhookReady()) {
+            supportBlockers.add("APP_SCOPES_UPDATE webhook readiness is required before launch so Shopify scope drift is detected.");
+        }
+        if (!supportReadiness.merchantHandoffConfigured()) {
+            supportBlockers.add(firstNonBlank(
+                supportReadiness.merchantHandoffMessage(),
+                "Merchant support handoff must be configured before launch."
+            ));
+        }
+
+        List<String> goLiveBlockers = new java.util.ArrayList<>(base.goLiveBlockingReasons());
+        List<String> storefrontBlockers = new java.util.ArrayList<>(base.storefrontBlockingReasons());
+        for (String blocker : supportBlockers) {
+            appendIfMissing(goLiveBlockers, blocker);
+            appendIfMissing(storefrontBlockers, blocker);
+        }
+        List<String> nextActions = new java.util.ArrayList<>(base.nextActions());
+        if (supportReadiness.nextActions() != null) {
+            for (String action : supportReadiness.nextActions()) {
+                appendIfMissing(nextActions, action);
+            }
+        }
+
+        boolean goLiveEligible = base.goLiveEligible() && supportGateReady;
+        boolean storefrontReady = base.storefrontReady() && supportGateReady;
+        String overallStatus;
+        if (storefrontReady) {
+            overallStatus = "STOREFRONT_READY";
+        } else if ("GO_LIVE_IN_PROGRESS".equalsIgnoreCase(base.overallStatus())) {
+            overallStatus = "GO_LIVE_IN_PROGRESS";
+        } else if (goLiveEligible) {
+            overallStatus = "READY_FOR_GO_LIVE";
+        } else {
+            overallStatus = "BLOCKED";
+        }
+
+        return new com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary(
+            overallStatus,
+            goLiveEligible,
+            storefrontReady,
+            List.copyOf(goLiveBlockers),
+            List.copyOf(storefrontBlockers),
+            List.copyOf(nextActions)
+        );
+    }
+
+    private void appendIfMissing(List<String> values, String candidate) {
+        if (!hasText(candidate) || values.stream().anyMatch(existing -> existing.equalsIgnoreCase(candidate))) {
+            return;
+        }
+        values.add(candidate);
+    }
+
+    private String firstNonBlank(String first, String fallback) {
+        return hasText(first) ? first : fallback;
     }
 
     private void reconcileApplyTimeShopifySync(ShopifyStoreConnectionEntity entity,
