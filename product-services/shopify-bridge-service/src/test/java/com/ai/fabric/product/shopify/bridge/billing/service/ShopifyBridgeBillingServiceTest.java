@@ -32,11 +32,11 @@ class ShopifyBridgeBillingServiceTest {
         assertThat(summary.launchBlocked()).isFalse();
         assertThat(summary.merchantApprovalRequired()).isFalse();
         assertThat(summary.catalogProductCap()).isEqualTo(50);
-        assertThat(summary.allowedSurfaces()).containsExactly("ai-search");
+        assertThat(summary.allowedSurfaces()).containsExactly("ai-search", "order-lookup");
         assertThat(summary.availablePlans())
             .anySatisfy(plan -> {
                 if ("FREE".equals(plan.tierKey())) {
-                    assertThat(plan.allowedSurfaces()).containsExactly("ai-search");
+                    assertThat(plan.allowedSurfaces()).containsExactly("ai-search", "order-lookup");
                     assertThat(plan.chatFallbackEnabled()).isFalse();
                 }
             });

@@ -17,6 +17,7 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecord
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
@@ -50,6 +51,7 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
     private final ShopifyStorefrontGovernedActionService governedActionService;
+    private final ShopifyBridgeSupportReadinessService supportReadinessService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
@@ -61,7 +63,8 @@ public class ShopifyBridgeMerchantStoreService {
                                              ShopifyBridgeUsageService usageService,
                                              ShopifyBridgeBillingService billingService,
                                              ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService,
-                                             ShopifyStorefrontGovernedActionService governedActionService) {
+                                             ShopifyStorefrontGovernedActionService governedActionService,
+                                             ShopifyBridgeSupportReadinessService supportReadinessService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
@@ -73,6 +76,7 @@ public class ShopifyBridgeMerchantStoreService {
         this.billingService = billingService;
         this.webhookSubscriptionDiagnosticsService = webhookSubscriptionDiagnosticsService;
         this.governedActionService = governedActionService;
+        this.supportReadinessService = supportReadinessService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -80,6 +84,7 @@ public class ShopifyBridgeMerchantStoreService {
         ShopifyInstallRecordSummary installRecord = installRecordService.recordAuthenticatedSession(merchantSession, appBridgeHost);
         ShopifyBridgeStoreSummary store = findStoreOrNull(merchantSession.shopDomain());
         boolean installRecoveryRequired = installRecoveryRequired(installRecord, store);
+        ShopifyBridgeSupportReadinessSummary supportReadiness = supportReadinessService.summarizeForShop(merchantSession.shopDomain());
         return new ShopifyBridgeMerchantSessionResponse(
             merchantSession.shopDomain(),
             merchantSession.destination(),
@@ -88,6 +93,7 @@ public class ShopifyBridgeMerchantStoreService {
             installRecoveryRequired,
             installRecoveryRequired ? "This shop must complete the Shopify install flow again before Companion can continue onboarding." : null,
             installRecoveryRequired ? buildInstallUrl(merchantSession.shopDomain()) : null,
+            supportReadiness,
             installRecord,
             store
         );
@@ -222,6 +228,10 @@ public class ShopifyBridgeMerchantStoreService {
 
     public ShopifyWebhookSubscriptionStatusSummary webhookSubscriptions(ShopifyMerchantSession merchantSession) {
         return webhookSubscriptionDiagnosticsService.forShop(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgeSupportReadinessSummary supportReadiness(ShopifyMerchantSession merchantSession) {
+        return supportReadinessService.summarizeForShop(merchantSession.shopDomain());
     }
 
     public ShopifyStorefrontPreviewResponse storefrontPreview(ShopifyMerchantSession merchantSession) {

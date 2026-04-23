@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionSummary;
 import com.ai.fabric.platform.backend.productservice.model.RotatePlatformManagedProductServiceSecretRequest;
@@ -113,6 +114,12 @@ public class ProductServiceController {
     public PlatformManagedProductServiceStoreBillingSummary getStoreBillingSummary(@PathVariable String serviceRef,
                                                                                    @PathVariable String shopDomain) {
         return adminService.getStoreBillingSummary(serviceRef, shopDomain);
+    }
+
+    @GetMapping("/{serviceRef}/stores/{shopDomain}/support-readiness")
+    public PlatformManagedProductServiceStoreSupportReadinessSummary getStoreSupportReadiness(@PathVariable String serviceRef,
+                                                                                              @PathVariable String shopDomain) {
+        return adminService.getStoreSupportReadiness(serviceRef, shopDomain);
     }
 
     @PostMapping("/{serviceRef}/stores/{shopDomain}/run-source-preflight")

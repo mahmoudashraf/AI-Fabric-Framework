@@ -8,6 +8,7 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingAp
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
@@ -159,6 +160,11 @@ public class ShopifyMerchantController {
     @GetMapping("/store/billing-summary")
     public ShopifyBridgeBillingSummary billingSummary(Authentication authentication) {
         return merchantStoreService.billingSummary(requireMerchant(authentication));
+    }
+
+    @GetMapping("/store/support-readiness")
+    public ShopifyBridgeSupportReadinessSummary supportReadiness(Authentication authentication) {
+        return merchantStoreService.supportReadiness(requireMerchant(authentication));
     }
 
     @GetMapping("/store/actions/recent")

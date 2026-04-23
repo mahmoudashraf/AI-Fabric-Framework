@@ -8,6 +8,8 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCapability;
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
@@ -30,17 +32,20 @@ public class ShopifyStorefrontBootstrapService {
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
+    private final ShopifyInstallRecordService installRecordService;
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyStorefrontGovernedActionService governedActionService;
     private final ShopifyBridgeProperties properties;
 
     public ShopifyStorefrontBootstrapService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeInstallCredentialService installCredentialService,
+                                             ShopifyInstallRecordService installRecordService,
                                              ShopifyBridgeBillingService billingService,
                                              ShopifyStorefrontGovernedActionService governedActionService,
                                              ShopifyBridgeProperties properties) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
+        this.installRecordService = installRecordService;
         this.billingService = billingService;
         this.governedActionService = governedActionService;
         this.properties = properties;
@@ -66,6 +71,7 @@ public class ShopifyStorefrontBootstrapService {
         String bridgeQueryUrl = storefrontUrl(updated.shopDomain(), "/chat/query");
         String bridgeSuggestionsUrl = storefrontUrl(updated.shopDomain(), "/chat/suggestions");
         String bridgeReadActionUrl = storefrontUrl(updated.shopDomain(), "/actions/read");
+        String bridgeOrderLookupUrl = storefrontUrl(updated.shopDomain(), "/support/order-lookup");
         String bridgeEventUrl = storefrontUrl(updated.shopDomain(), "/events");
         String actionGrantUrl = storefrontUrl(updated.shopDomain(), "/actions/grant");
         String actionCompleteUrl = storefrontUrl(updated.shopDomain(), "/actions/complete");
@@ -96,6 +102,18 @@ public class ShopifyStorefrontBootstrapService {
             ? List.copyOf(updated.widgetDetail().settings().enabledSurfaces())
             : billingSummary.allowedSurfaces();
         enabledSurfaces = billingService.effectiveAllowedSurfaces(updated.shopDomain(), null, enabledSurfaces);
+        String scopesText = installRecordService.findByShopDomain(updated.shopDomain())
+            .map(summary -> summary.scopesText() == null ? null : summary.scopesText())
+            .orElseGet(() -> installCredentialService.resolvePersistedMaterial(updated.shopDomain())
+                .map(acquisition -> acquisition.tokenExchangeMaterial().scopesText())
+                .orElse(null));
+        boolean orderLookupEnabled = ShopifyScopeSupport.hasScope(scopesText, "read_orders");
+        boolean olderOrdersRequireBroaderScope = !ShopifyScopeSupport.hasScope(scopesText, "read_all_orders");
+        if (orderLookupEnabled && !enabledSurfaces.contains("order-lookup")) {
+            List<String> mergedSurfaces = new ArrayList<>(enabledSurfaces);
+            mergedSurfaces.add("order-lookup");
+            enabledSurfaces = List.copyOf(mergedSurfaces);
+        }
         List<String> groundingSignals = groundingSignals(updated);
         List<String> supportedReviewProviders = supportedReviewProviders(updated);
         ShopifyStorefrontGovernedActionCapability actionCapability =
@@ -124,7 +142,15 @@ public class ShopifyStorefrontBootstrapService {
             bridgeQueryUrl,
             bridgeSuggestionsUrl,
             bridgeReadActionUrl,
+            bridgeOrderLookupUrl,
             bridgeEventUrl,
+            orderLookupEnabled,
+            olderOrdersRequireBroaderScope,
+            orderLookupEnabled
+                ? (olderOrdersRequireBroaderScope
+                    ? "Order lookup is available with the exact order number and checkout email. Orders older than Shopify's default window still require broader order access."
+                    : "Order lookup is available with the exact order number and checkout email.")
+                : "Order lookup is waiting for Shopify order-read scope approval on this store.",
             actionCapability,
             guidance,
             "Storefront bootstrap resolved. Theme app extension can now call the bridge-backed shopper endpoints."
@@ -156,6 +182,10 @@ public class ShopifyStorefrontBootstrapService {
             null,
             null,
             null,
+            null,
+            false,
+            true,
+            "Order lookup is unavailable until the store is storefront-ready.",
             new ShopifyStorefrontGovernedActionCapability(
                 false,
                 false,

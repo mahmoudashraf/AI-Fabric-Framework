@@ -11,6 +11,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
@@ -63,6 +64,11 @@ public class ShopifyBridgeAdminController {
     @GetMapping("/stores/{shopDomain}/usage-summary")
     public ShopifyBridgeUsageSummary usageSummary(@PathVariable String shopDomain) {
         return storeAdminService.usageSummary(shopDomain);
+    }
+
+    @GetMapping("/stores/{shopDomain}/support-readiness")
+    public ShopifyBridgeSupportReadinessSummary supportReadiness(@PathVariable String shopDomain) {
+        return storeAdminService.supportReadiness(shopDomain);
     }
 
     @GetMapping("/stores/{shopDomain}/actions/recent")

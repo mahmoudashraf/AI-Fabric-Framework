@@ -133,6 +133,16 @@
   margin-top: 0.8rem;
 }
 
+.loom-companion-order-lookup-form {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.loom-companion-order-lookup-form__input {
+  width: 100%;
+}
+
 .loom-companion-surface-status {
   margin-top: 0.75rem;
   font-size: 0.8rem;
@@ -192,6 +202,12 @@
   cursor: pointer;
 }
 
+.loom-companion-chip--link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .loom-companion-policy-strip {
   margin-top: 0.8rem;
   border-radius: 0.85rem;
@@ -248,6 +264,27 @@
 
 .loom-companion-surface-results__cards {
   margin-top: 0.65rem;
+}
+
+.loom-companion-order-lookup__line-items {
+  margin-top: 0.75rem;
+}
+
+.loom-companion-order-lookup__list {
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.loom-companion-order-lookup__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #374151;
 }
 
 .loom-companion-card-group {

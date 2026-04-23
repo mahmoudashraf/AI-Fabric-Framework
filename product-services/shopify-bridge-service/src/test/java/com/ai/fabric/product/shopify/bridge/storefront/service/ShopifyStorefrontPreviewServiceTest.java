@@ -59,13 +59,14 @@ class ShopifyStorefrontPreviewServiceTest {
             .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
         assertThat(preview.supportedReviewProviders())
             .containsExactly("Judge.me", "Loox");
-        assertThat(preview.surfacePlacements()).hasSize(6);
+        assertThat(preview.surfacePlacements()).hasSize(7);
         assertThat(preview.surfacePlacements().get(0).blockHandle()).isEqualTo("companion-ai-search");
         assertThat(preview.surfacePlacements().get(0).requiredTierKey()).isEqualTo("FREE");
         assertThat(preview.surfacePlacements().get(1).themeEditorUrl())
             .contains("addAppBlockId=shopify-api-key/companion-contextual-pill");
         assertThat(preview.surfacePlacements().get(4).blockHandle()).isEqualTo("companion-product-faq");
         assertThat(preview.surfacePlacements().get(5).blockHandle()).isEqualTo("companion-comparison");
+        assertThat(preview.surfacePlacements().get(6).blockHandle()).isEqualTo("companion-order-lookup");
         assertThat(preview.activationSteps()).isNotEmpty();
     }
 

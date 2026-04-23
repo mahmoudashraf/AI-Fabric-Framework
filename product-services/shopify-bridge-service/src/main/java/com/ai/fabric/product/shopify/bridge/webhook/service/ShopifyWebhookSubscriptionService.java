@@ -64,6 +64,7 @@ public class ShopifyWebhookSubscriptionService {
 
     private static final List<DesiredWebhookSubscription> DESIRED_SUBSCRIPTIONS = List.of(
         new DesiredWebhookSubscription("APP_UNINSTALLED", "loom-app-uninstalled"),
+        new DesiredWebhookSubscription("APP_SCOPES_UPDATE", "loom-app-scopes-update"),
         new DesiredWebhookSubscription("APP_SUBSCRIPTIONS_UPDATE", "loom-app-subscriptions-update"),
         new DesiredWebhookSubscription("PRODUCTS_CREATE", "loom-products-create"),
         new DesiredWebhookSubscription("PRODUCTS_UPDATE", "loom-products-update"),

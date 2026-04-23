@@ -95,6 +95,7 @@ class ShopifyMerchantControllerTest {
             false,
             null,
             null,
+            null,
             new ShopifyInstallRecordSummary(
                 "alpha.myshopify.com",
                 "INSTALLED",

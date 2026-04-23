@@ -121,6 +121,27 @@ export type ShopifyBridgeStoreSummary = {
   updatedAt: string
 }
 
+export type ShopifyBridgeSupportReadinessSummary = {
+  shopDomain: string
+  status: string
+  message: string
+  orderLookupSupported: boolean
+  orderLookupScopeGranted: boolean
+  allOrdersScopeGranted: boolean
+  appScopesUpdateWebhookReady: boolean
+  installRecoveryRequired: boolean
+  installRecoveryUrl: string | null
+  installStatus: string
+  billingTier: string
+  billingStatus: string
+  grantedScopes: string[]
+  missingScopes: string[]
+  activeSubscriptionNames: string[]
+  verificationMethods: string[]
+  supportedCapabilities: string[]
+  blockedCapabilities: string[]
+}
+
 export type ShopifyBridgeMerchantSessionResponse = {
   shopDomain: string
   destination: string
@@ -129,6 +150,7 @@ export type ShopifyBridgeMerchantSessionResponse = {
   installRecoveryRequired: boolean
   installRecoveryMessage: string | null
   installRecoveryUrl: string | null
+  supportReadiness: ShopifyBridgeSupportReadinessSummary | null
   installRecord: {
     status: string
     accessTokenSecretRef: string | null
@@ -559,6 +581,10 @@ export async function retryLastFailedVectorizationAutoRunStore(): Promise<Shopif
 
 export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary> {
   return authenticatedFetchJson('/api/app/store/billing-summary', { method: 'GET' })
+}
+
+export async function fetchSupportReadiness(): Promise<ShopifyBridgeSupportReadinessSummary> {
+  return authenticatedFetchJson('/api/app/store/support-readiness', { method: 'GET' })
 }
 
 export async function requestBillingApproval(tierKey?: string): Promise<ShopifyBridgeBillingApprovalResponse> {

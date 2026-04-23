@@ -39,7 +39,8 @@ class ShopifyBridgeStoreAdminServiceTest {
             storeSyncService,
             vectorizationSourceService,
             usageService,
-            mock(ShopifyStorefrontGovernedActionService.class)
+            mock(ShopifyStorefrontGovernedActionService.class),
+            mock(ShopifyBridgeSupportReadinessService.class)
         );
 
         ShopifyBridgeStoreSummary store = sampleStore();
@@ -81,7 +82,8 @@ class ShopifyBridgeStoreAdminServiceTest {
             storeSyncService,
             vectorizationSourceService,
             usageService,
-            mock(ShopifyStorefrontGovernedActionService.class)
+            mock(ShopifyStorefrontGovernedActionService.class),
+            mock(ShopifyBridgeSupportReadinessService.class)
         );
 
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());

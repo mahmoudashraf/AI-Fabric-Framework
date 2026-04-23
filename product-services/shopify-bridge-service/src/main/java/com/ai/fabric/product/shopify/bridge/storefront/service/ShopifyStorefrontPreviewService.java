@@ -23,6 +23,7 @@ public class ShopifyStorefrontPreviewService {
     private static final String POLICY_STRIP_BLOCK_HANDLE = "companion-policy-strip";
     private static final String PRODUCT_FAQ_BLOCK_HANDLE = "companion-product-faq";
     private static final String COMPARISON_BLOCK_HANDLE = "companion-comparison";
+    private static final String ORDER_LOOKUP_BLOCK_HANDLE = "companion-order-lookup";
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
@@ -82,6 +83,7 @@ public class ShopifyStorefrontPreviewService {
                 "Optionally place the AI search block on a homepage or collection-oriented template.",
                 "Optionally place the contextual pill block on collection or product templates to surface quick prompts inline.",
                 "Optionally place the product insight, policy strip, product FAQ, and comparison blocks on the product template.",
+                "Optionally place the order lookup block on a support or contact page so shoppers can verify recent orders safely.",
                 "Set Bridge base URL to " + (bridgeBaseUrl == null ? "<bridge-public-base-url>" : bridgeBaseUrl) + ".",
                 "Keep the launcher label as-is or set it from the Companion app widget settings.",
                 "Use the Companion app welcome message as the first assistant response in the launcher.",
@@ -223,6 +225,16 @@ public class ShopifyStorefrontPreviewService {
                 "mainSection",
                 "STARTER",
                 "Place this beside product insight or below key buying details so shoppers can compare alternatives without opening chat."
+            ),
+            buildAppBlockPlacement(
+                shopDomain,
+                "order-lookup",
+                "Order lookup block",
+                ORDER_LOOKUP_BLOCK_HANDLE,
+                "page",
+                "newAppsSection",
+                "FREE",
+                "Place this on a support, contact, or order-help page so shoppers can verify recent orders with the exact order number and checkout email."
             )
         );
     }

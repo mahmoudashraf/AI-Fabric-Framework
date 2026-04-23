@@ -103,6 +103,19 @@ public class ShopifyInstallRecordService {
     }
 
     @Transactional
+    public Optional<ShopifyInstallRecordSummary> recordScopesUpdate(String shopDomain,
+                                                                    String scopesText) {
+        return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
+            .map(entity -> {
+                entity.setStatus("INSTALLED");
+                entity.setScopesText(blankToNull(scopesText));
+                entity.setLastUninstalledAt(null);
+                entity.setUpdatedAt(Instant.now());
+                return toSummary(repository.save(entity));
+            });
+    }
+
+    @Transactional
     public Optional<ShopifyInstallRecordSummary> clearCredentials(String shopDomain) {
         return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
             .map(entity -> {

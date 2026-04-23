@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.webhook.service;
 
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreSyncService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreLifecycleService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -106,6 +107,28 @@ public class ShopifyWebhookService {
             );
             storeLifecycleService.deleteStoreMapping(shopDomain, true);
             installRecordService.deleteRecord(shopDomain);
+            return;
+        }
+
+        if ("app/scopes_update".equals(normalizedTopic)) {
+            installRecordService.recordScopesUpdate(
+                shopDomain,
+                ShopifyScopeSupport.joinScopes(readTextArray(payload.path("current")))
+            );
+            recordWebhookSafely(
+                shopDomain,
+                normalizedTopic,
+                "SCOPES_CHANGED",
+                "install",
+                "UPDATE",
+                text(payload, "shop_id"),
+                extractSourceRecordVersion(payload),
+                webhookId,
+                payloadChecksum,
+                null,
+                "Shopify app access scopes changed. Refresh support and lifecycle posture for this store.",
+                false
+            );
             return;
         }
 
@@ -243,6 +266,23 @@ public class ShopifyWebhookService {
 
     private String blankToEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private java.util.List<String> readTextArray(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return java.util.List.of();
+        }
+        java.util.List<String> values = new java.util.ArrayList<>();
+        for (JsonNode item : node) {
+            if (!item.isTextual()) {
+                continue;
+            }
+            String value = item.asText("").trim();
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+        return java.util.List.copyOf(values);
     }
 
     private WebhookImpact classify(String topic) {

@@ -22,9 +22,10 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 @Service
 public class ShopifyBridgeBillingService {
 
-    private static final List<String> FREE_ALLOWED_SURFACES = List.of("ai-search");
+    private static final List<String> FREE_ALLOWED_SURFACES = List.of("ai-search", "order-lookup");
     private static final List<String> STARTER_ALLOWED_SURFACES = List.of(
         "ai-search",
+        "order-lookup",
         "contextual-pill",
         "product-insight",
         "policy-strip",

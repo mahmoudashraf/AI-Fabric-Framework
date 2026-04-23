@@ -27,7 +27,11 @@ public record ShopifyStorefrontBootstrapResponse(
     String bridgeQueryUrl,
     String bridgeSuggestionsUrl,
     String bridgeReadActionUrl,
+    String bridgeOrderLookupUrl,
     String bridgeEventUrl,
+    boolean orderLookupEnabled,
+    boolean olderOrdersRequireBroaderScope,
+    String orderLookupMessage,
     ShopifyStorefrontGovernedActionCapability actionCapability,
     String guidance,
     String message

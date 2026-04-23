@@ -499,7 +499,8 @@ Progress note:
 - merchant ROI visibility is now materially real through bounded shopper-assist, decision-support, and governed-commerce evidence in the merchant app and launch/support exports
 - support/lifecycle/subscription packaging is now materially stronger through live-generated App Review and support playbooks plus bounded return/handoff guidance
 - lifecycle and subscription posture are now exportable directly from live install, billing, webhook, sync, and release state in the merchant app
-- the remaining Milestone 7 gap is still real execution depth for live integrations and customer-safe order lookup, not value-legibility blindness
+- customer-safe order lookup is now implemented as a bridge-governed, read-only support surface with exact order number plus checkout email verification, scope/webhook readiness checks, and merchant/platform support-readiness diagnostics
+- the remaining Milestone 7 gap is live rollout completion and broader support integration repetition, not missing support/lifecycle/subscription primitives or missing order-lookup implementation
 
 This milestone aligns with the existing AI enablement expansion plan.
 

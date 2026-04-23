@@ -11,8 +11,11 @@ import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEn
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontEngagementService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontOrderLookupRequest;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontOrderLookupResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontReadActionRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
+import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontOrderLookupService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontReadActionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +37,7 @@ public class ShopifyStorefrontController {
     private final ShopifyStorefrontChatService storefrontChatService;
     private final ShopifyStorefrontEngagementService storefrontEngagementService;
     private final ShopifyStorefrontReadActionService storefrontReadActionService;
+    private final ShopifyStorefrontOrderLookupService storefrontOrderLookupService;
     private final ShopifyStorefrontGovernedActionService governedActionService;
     private final ShopifyBridgeUsageService usageService;
 
@@ -41,12 +45,14 @@ public class ShopifyStorefrontController {
                                        ShopifyStorefrontChatService storefrontChatService,
                                        ShopifyStorefrontEngagementService storefrontEngagementService,
                                        ShopifyStorefrontReadActionService storefrontReadActionService,
+                                       ShopifyStorefrontOrderLookupService storefrontOrderLookupService,
                                        ShopifyStorefrontGovernedActionService governedActionService,
                                        ShopifyBridgeUsageService usageService) {
         this.storefrontBootstrapService = storefrontBootstrapService;
         this.storefrontChatService = storefrontChatService;
         this.storefrontEngagementService = storefrontEngagementService;
         this.storefrontReadActionService = storefrontReadActionService;
+        this.storefrontOrderLookupService = storefrontOrderLookupService;
         this.governedActionService = governedActionService;
         this.usageService = usageService;
     }
@@ -96,6 +102,19 @@ public class ShopifyStorefrontController {
                                                 @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
                                                 String shopperSessionId) {
         return storefrontReadActionService.execute(shopDomain, request, shopperSessionId);
+    }
+
+    @PostMapping("/{shopDomain}/support/order-lookup")
+    public ShopifyStorefrontOrderLookupResponse orderLookup(@PathVariable String shopDomain,
+                                                            @RequestBody(required = false) ShopifyStorefrontOrderLookupRequest request,
+                                                            @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
+                                                            String shopperSessionId) {
+        ShopifyStorefrontOrderLookupResponse response = storefrontOrderLookupService.lookup(shopDomain, request);
+        usageService.recordEvent(shopDomain, "STOREFRONT_ORDER_LOOKUP");
+        if (response.matched()) {
+            usageService.recordEvent(shopDomain, "STOREFRONT_ORDER_LOOKUP_MATCHED");
+        }
+        return response;
     }
 
     @PostMapping("/{shopDomain}/actions/grant")

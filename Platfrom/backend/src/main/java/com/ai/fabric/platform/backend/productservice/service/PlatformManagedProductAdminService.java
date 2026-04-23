@@ -24,6 +24,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayDeploymentSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionOverview;
@@ -521,6 +522,45 @@ public class PlatformManagedProductAdminService {
         }
     }
 
+    public PlatformManagedProductServiceStoreSupportReadinessSummary getStoreSupportReadiness(String serviceRef, String shopDomain) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (!hasText(service.getBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
+        }
+        if (!hasText(service.getSecretName())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
+        }
+        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+            ));
+
+        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
+        if (!hasText(apiKey)) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
+        }
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/support-readiness")))
+                .timeout(HTTP_TIMEOUT)
+                .header("Accept", "application/json")
+                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .GET()
+                .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ResponseStatusException(CONFLICT, "Managed product support readiness request failed with HTTP " + response.statusCode() + ".");
+            }
+            return parseStoreSupportReadiness(shopDomain, objectMapper.readTree(response.body()));
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product support readiness request failed."), ex);
+        }
+    }
+
     public ShopifyStoreConnectionSummary runStoreSourcePreflight(String serviceRef, String shopDomain) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
         if (!hasText(service.getBaseUrl())) {
@@ -979,6 +1019,29 @@ public class PlatformManagedProductAdminService {
             stringList(node.path("allowedSurfaces")),
             parseBillingPlans(node.path("availablePlans")),
             text(node, "message", "Managed product service did not return store billing diagnostics.")
+        );
+    }
+
+    private PlatformManagedProductServiceStoreSupportReadinessSummary parseStoreSupportReadiness(String shopDomain, JsonNode node) {
+        return new PlatformManagedProductServiceStoreSupportReadinessSummary(
+            shopDomain,
+            text(node, "status", "UNKNOWN"),
+            text(node, "message", "Managed product service did not return support readiness diagnostics."),
+            node.path("orderLookupSupported").asBoolean(false),
+            node.path("orderLookupScopeGranted").asBoolean(false),
+            node.path("allOrdersScopeGranted").asBoolean(false),
+            node.path("appScopesUpdateWebhookReady").asBoolean(false),
+            node.path("installRecoveryRequired").asBoolean(false),
+            text(node, "installRecoveryUrl", null),
+            text(node, "installStatus", "UNKNOWN"),
+            text(node, "billingTier", null),
+            text(node, "billingStatus", "UNKNOWN"),
+            stringList(node.path("grantedScopes")),
+            stringList(node.path("missingScopes")),
+            stringList(node.path("activeSubscriptionNames")),
+            stringList(node.path("verificationMethods")),
+            stringList(node.path("supportedCapabilities")),
+            stringList(node.path("blockedCapabilities"))
         );
     }
 

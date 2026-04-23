@@ -45,6 +45,13 @@ set -euo pipefail
 #   EXPECT_ACTION_CAPABILITY_AVAILABLE=false
 #   EXPECT_ACTION_REQUIRES_CONFIRMATION=false
 #   EXPECT_ACTION_AUDIT_AVAILABLE=false
+#   EXPECT_ORDER_LOOKUP_STATUS=READY
+#   EXPECT_ORDER_LOOKUP_SUPPORTED=true
+#   EXPECT_ORDER_LOOKUP_SCOPE_GRANTED=true
+#   EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY=true
+#   EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED=false
+#   ORDER_LOOKUP_ORDER_NUMBER=<optional exact order name like #1001>
+#   ORDER_LOOKUP_EMAIL=<optional checkout email for the order above>
 #   SHOPIFY_ADMIN_ACCESS_TOKEN=<offline-access-token>
 #   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
@@ -85,6 +92,11 @@ EXPECT_CHAT_FALLBACK_ENABLED="${EXPECT_CHAT_FALLBACK_ENABLED:-}"
 EXPECT_ACTION_CAPABILITY_AVAILABLE="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-}"
 EXPECT_ACTION_REQUIRES_CONFIRMATION="${EXPECT_ACTION_REQUIRES_CONFIRMATION:-}"
 EXPECT_ACTION_AUDIT_AVAILABLE="${EXPECT_ACTION_AUDIT_AVAILABLE:-}"
+EXPECT_ORDER_LOOKUP_STATUS="${EXPECT_ORDER_LOOKUP_STATUS:-READY}"
+EXPECT_ORDER_LOOKUP_SUPPORTED="${EXPECT_ORDER_LOOKUP_SUPPORTED:-true}"
+EXPECT_ORDER_LOOKUP_SCOPE_GRANTED="${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED:-true}"
+EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY="${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY:-true}"
+EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-false}"
 EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,find_similar_products,compare_products,check_availability,get_policy}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
@@ -92,6 +104,9 @@ SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
 SHOPIFY_COMPARISON_MODE="${SHOPIFY_COMPARISON_MODE:-resolver_assistant}"
+ORDER_LOOKUP_ORDER_NUMBER="${ORDER_LOOKUP_ORDER_NUMBER:-}"
+ORDER_LOOKUP_EMAIL="${ORDER_LOOKUP_EMAIL:-}"
+ORDER_LOOKUP_SAMPLE_SOURCE="none"
 STOREFRONT_QUERY_RETRY_ATTEMPTS="${STOREFRONT_QUERY_RETRY_ATTEMPTS:-3}"
 STOREFRONT_QUERY_RETRY_SLEEP_SECONDS="${STOREFRONT_QUERY_RETRY_SLEEP_SECONDS:-2}"
 TEMP_PLATFORM_COOKIE_JAR=""
@@ -395,6 +410,51 @@ resolve_shopify_admin_access_token() {
   fi
 }
 
+resolve_order_lookup_sample() {
+  if [[ -n "${ORDER_LOOKUP_ORDER_NUMBER}" && -n "${ORDER_LOOKUP_EMAIL}" ]]; then
+    ORDER_LOOKUP_SAMPLE_SOURCE="explicit"
+    return
+  fi
+  if [[ -z "${SHOPIFY_ADMIN_ACCESS_TOKEN}" ]]; then
+    return
+  fi
+  local sample_query='{"query":"query ShopifyBridgeVerificationOrderSample { orders(first: 10, sortKey: PROCESSED_AT, reverse: true) { nodes { name email customer { email } } } }"}'
+  http_request POST "https://${SHOP_DOMAIN}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json" "${sample_query}" "X-Shopify-Access-Token: ${SHOPIFY_ADMIN_ACCESS_TOKEN}"
+  if [[ "${HTTP_STATUS}" != "200" ]]; then
+    return
+  fi
+  local resolved_sample
+  resolved_sample="$(JSON_PAYLOAD="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["JSON_PAYLOAD"])
+nodes = (((payload.get("data") or {}).get("orders") or {}).get("nodes")) or []
+for node in nodes:
+    if not isinstance(node, dict):
+        continue
+    order_name = str(node.get("name") or "").strip()
+    email = str(node.get("email") or "").strip()
+    if not email:
+        customer = node.get("customer") or {}
+        if isinstance(customer, dict):
+            email = str(customer.get("email") or "").strip()
+    if order_name and email:
+        print(order_name)
+        print(email)
+        break
+PY
+)"
+  if [[ -z "${resolved_sample}" ]]; then
+    return
+  fi
+  ORDER_LOOKUP_ORDER_NUMBER="$(printf '%s\n' "${resolved_sample}" | sed -n '1p')"
+  ORDER_LOOKUP_EMAIL="$(printf '%s\n' "${resolved_sample}" | sed -n '2p')"
+  if [[ -n "${ORDER_LOOKUP_ORDER_NUMBER}" && -n "${ORDER_LOOKUP_EMAIL}" ]]; then
+    ORDER_LOOKUP_SAMPLE_SOURCE="shopify-admin"
+  fi
+}
+
 http_request() {
   local method="$1"
   local url="$2"
@@ -572,6 +632,7 @@ import sys
 required = {
     "loom-app-uninstalled": "APP_UNINSTALLED",
     "loom-app-subscriptions-update": "APP_SUBSCRIPTIONS_UPDATE",
+    "loom-app-scopes-update": "APP_SCOPES_UPDATE",
     "loom-products-create": "PRODUCTS_CREATE",
     "loom-products-update": "PRODUCTS_UPDATE",
     "loom-products-delete": "PRODUCTS_DELETE",
@@ -789,13 +850,13 @@ billing_allowed_surfaces_csv="$(json_array_to_csv "${platform_store_billing_json
 assert_nonempty "${billing_allowed_surfaces_csv}" "platform store billing allowedSurfaces"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.0.tierKey")" "FREE" "platform store billing availablePlans.0 tierKey"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.0.chatFallbackEnabled")" "false" "platform store billing FREE chatFallbackEnabled"
-assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.0.allowedSurfaces" "ai-search" "platform store billing FREE allowedSurfaces"
+assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.0.allowedSurfaces" "ai-search,order-lookup" "platform store billing FREE allowedSurfaces"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.1.tierKey")" "STARTER" "platform store billing availablePlans.1 tierKey"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.1.chatFallbackEnabled")" "true" "platform store billing STARTER chatFallbackEnabled"
-assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.1.allowedSurfaces" "comparison" "platform store billing STARTER allowedSurfaces"
+assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.1.allowedSurfaces" "comparison,order-lookup" "platform store billing STARTER allowedSurfaces"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.tierKey")" "ELITE" "platform store billing availablePlans.2 tierKey"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.actionCapable")" "true" "platform store billing ELITE actionCapable"
-assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.2.allowedSurfaces" "comparison" "platform store billing ELITE allowedSurfaces"
+assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.2.allowedSurfaces" "comparison,order-lookup" "platform store billing ELITE allowedSurfaces"
 if [[ "$(json_get "${platform_store_billing_json}" "availablePlans.2.commerciallyAvailable")" == "true" ]]; then
   assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.requiresExplicitConfirmation")" "true" "platform store billing ELITE requiresExplicitConfirmation"
   assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.auditTrailAvailable")" "true" "platform store billing ELITE auditTrailAvailable"
@@ -809,6 +870,19 @@ effective_expected_chat_fallback_enabled="${EXPECT_CHAT_FALLBACK_ENABLED:-$(json
 effective_expected_action_capability_available="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-$(json_get "${platform_store_billing_json}" "actionCapable")}"
 effective_expected_action_requires_confirmation="${EXPECT_ACTION_REQUIRES_CONFIRMATION:-$(json_get "${platform_store_billing_json}" "requiresExplicitConfirmation")}"
 effective_expected_action_audit_available="${EXPECT_ACTION_AUDIT_AVAILABLE:-$(json_get "${platform_store_billing_json}" "auditTrailAvailable")}"
+
+echo "== Platform store support readiness =="
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/support-readiness" "" "${platform_headers[@]-}"
+assert_equals "${HTTP_STATUS}" "200" "platform store support readiness status"
+platform_store_support_json="${HTTP_BODY}"
+assert_equals "$(json_get "${platform_store_support_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store support readiness shopDomain"
+assert_equals "$(json_get "${platform_store_support_json}" "status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "platform store support readiness posture"
+assert_equals "$(json_get "${platform_store_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "platform store order lookup supported"
+assert_equals "$(json_get "${platform_store_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "platform store order lookup scope granted"
+assert_equals "$(json_get "${platform_store_support_json}" "appScopesUpdateWebhookReady")" "${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}" "platform store scopes webhook ready"
+assert_equals "$(json_get "${platform_store_support_json}" "allOrdersScopeGranted")" "${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}" "platform store historical order lookup support"
+assert_json_array_contains_csv "${platform_store_support_json}" "verificationMethods" "ORDER_NUMBER_AND_EMAIL" "platform store support verification methods"
+assert_json_array_contains_csv "${platform_store_support_json}" "supportedCapabilities" "order-status,tracking-link" "platform store support capabilities"
 
 echo "== Platform store webhook diagnostics =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]-}"
@@ -935,6 +1009,14 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   assert_nonempty "$(json_get "${bridge_admin_webhook_json}" "expectedCount")" "bridge admin store webhook expectedCount"
   assert_optional_equals "$(json_get "${bridge_admin_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "bridge admin store webhook status"
 
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/support-readiness" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge admin support readiness status"
+  bridge_admin_support_json="${HTTP_BODY}"
+  assert_equals "$(json_get "${bridge_admin_support_json}" "status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "bridge admin support readiness posture"
+  assert_equals "$(json_get "${bridge_admin_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "bridge admin order lookup supported"
+  assert_equals "$(json_get "${bridge_admin_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "bridge admin order lookup scope granted"
+  assert_equals "$(json_get "${bridge_admin_support_json}" "appScopesUpdateWebhookReady")" "${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}" "bridge admin scopes webhook ready"
+
   http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/usage-summary" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
   assert_equals "${HTTP_STATUS}" "200" "bridge admin store usage summary status"
   bridge_admin_usage_json="${HTTP_BODY}"
@@ -989,6 +1071,10 @@ assert_nonempty "$(json_get "${bootstrap_json}" "bridgeSuggestionsUrl")" "storef
 if [[ ",${effective_expected_surfaces}," == *",comparison,"* ]]; then
   assert_nonempty "$(json_get "${bootstrap_json}" "bridgeReadActionUrl")" "storefront bridgeReadActionUrl"
 fi
+assert_nonempty "$(json_get "${bootstrap_json}" "bridgeOrderLookupUrl")" "storefront bridgeOrderLookupUrl"
+assert_equals "$(json_get "${bootstrap_json}" "orderLookupEnabled")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "storefront bootstrap orderLookupEnabled"
+assert_equals "$(json_get "${bootstrap_json}" "olderOrdersRequireBroaderScope")" "${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}" "storefront bootstrap historical order access"
+assert_nonempty "$(json_get "${bootstrap_json}" "orderLookupMessage")" "storefront bootstrap orderLookupMessage"
 assert_optional_equals "$(json_get "${bootstrap_json}" "billingTier")" "${effective_expected_billing_tier}" "storefront bootstrap billingTier"
 assert_optional_equals "$(json_get "${bootstrap_json}" "billingStatus")" "${EXPECT_BILLING_STATUS}" "storefront bootstrap billingStatus"
 assert_optional_equals "$(json_get "${bootstrap_json}" "catalogProductCap")" "${effective_expected_catalog_product_cap}" "storefront bootstrap catalogProductCap"
@@ -1198,6 +1284,9 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   merchant_session_json="${HTTP_BODY}"
   assert_equals "$(json_get "${merchant_session_json}" "shopDomain")" "${SHOP_DOMAIN}" "merchant session shopDomain"
   assert_nonempty "$(json_get "${merchant_session_json}" "userId")" "merchant session userId"
+  assert_equals "$(json_get "${merchant_session_json}" "supportReadiness.status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "merchant session support readiness posture"
+  assert_equals "$(json_get "${merchant_session_json}" "supportReadiness.orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "merchant session order lookup supported"
+  assert_equals "$(json_get "${merchant_session_json}" "supportReadiness.orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "merchant session order lookup scope granted"
 
   echo "== Merchant billing summary =="
   http_request GET "${bridge_base}/api/app/store/billing-summary" "" "${merchant_headers[@]-}"
@@ -1212,13 +1301,13 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_optional_equals "$(json_get "${merchant_billing_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "merchant billing chatFallbackEnabled"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.0.tierKey")" "FREE" "merchant billing availablePlans.0 tierKey"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.0.chatFallbackEnabled")" "false" "merchant billing FREE chatFallbackEnabled"
-  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.0.allowedSurfaces" "ai-search" "merchant billing FREE allowedSurfaces"
+  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.0.allowedSurfaces" "ai-search,order-lookup" "merchant billing FREE allowedSurfaces"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.1.tierKey")" "STARTER" "merchant billing availablePlans.1 tierKey"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.1.chatFallbackEnabled")" "true" "merchant billing STARTER chatFallbackEnabled"
-  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.1.allowedSurfaces" "comparison" "merchant billing STARTER allowedSurfaces"
+  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.1.allowedSurfaces" "comparison,order-lookup" "merchant billing STARTER allowedSurfaces"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.tierKey")" "ELITE" "merchant billing availablePlans.2 tierKey"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.actionCapable")" "true" "merchant billing ELITE actionCapable"
-  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.2.allowedSurfaces" "comparison" "merchant billing ELITE allowedSurfaces"
+  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.2.allowedSurfaces" "comparison,order-lookup" "merchant billing ELITE allowedSurfaces"
   if [[ "$(json_get "${merchant_billing_json}" "availablePlans.2.commerciallyAvailable")" == "true" ]]; then
     assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.requiresExplicitConfirmation")" "true" "merchant billing ELITE requiresExplicitConfirmation"
     assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.auditTrailAvailable")" "true" "merchant billing ELITE auditTrailAvailable"
@@ -1240,6 +1329,8 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.4.blockHandle")" "companion-product-faq" "merchant storefront preview product faq block handle"
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.5.blockHandle")" "companion-comparison" "merchant storefront preview comparison block handle"
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.5.requiredTierKey")" "STARTER" "merchant storefront preview comparison requiredTierKey"
+  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.6.blockHandle")" "companion-order-lookup" "merchant storefront preview order lookup block handle"
+  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.6.requiredTierKey")" "FREE" "merchant storefront preview order lookup requiredTierKey"
   assert_nonempty "$(json_get "${merchant_preview_json}" "surfacePlacements.0.themeEditorUrl")" "merchant storefront preview AI search themeEditorUrl"
   assert_json_array_contains_csv "${merchant_preview_json}" "groundingSignals" "Catalog product grounding,Policy grounding" "merchant storefront preview groundingSignals"
   if [[ "$(json_get "${platform_store_json}" "productsEnabled")" == "true" ]]; then
@@ -1259,6 +1350,14 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_nonempty "$(json_get "${merchant_webhook_json}" "expectedCount")" "merchant webhook expectedCount"
   assert_optional_equals "$(json_get "${merchant_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "merchant webhook status"
 
+  echo "== Merchant support readiness =="
+  http_request GET "${bridge_base}/api/app/store/support-readiness" "" "${merchant_headers[@]-}"
+  assert_equals "${HTTP_STATUS}" "200" "merchant support readiness status"
+  merchant_support_json="${HTTP_BODY}"
+  assert_equals "$(json_get "${merchant_support_json}" "status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "merchant support readiness posture"
+  assert_equals "$(json_get "${merchant_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "merchant support order lookup supported"
+  assert_equals "$(json_get "${merchant_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "merchant support order lookup scope granted"
+
   echo "== Merchant usage summary =="
   http_request GET "${bridge_base}/api/app/store/usage-summary" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant usage summary status"
@@ -1270,6 +1369,29 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   echo "== Merchant governed actions =="
   http_request GET "${bridge_base}/api/app/store/actions/recent?limit=5" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant governed actions status"
+fi
+
+if [[ "${EXPECT_ORDER_LOOKUP_SUPPORTED}" == "true" ]]; then
+  resolve_order_lookup_sample
+  if [[ -n "${ORDER_LOOKUP_ORDER_NUMBER}" && -n "${ORDER_LOOKUP_EMAIL}" ]]; then
+    echo "== Storefront order lookup =="
+    order_lookup_payload="$(python3 - <<'PY' "${ORDER_LOOKUP_ORDER_NUMBER}" "${ORDER_LOOKUP_EMAIL}"
+import json
+import sys
+print(json.dumps({"orderNumber": sys.argv[1], "email": sys.argv[2]}))
+PY
+)"
+    http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/support/order-lookup" "${order_lookup_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
+    assert_equals "${HTTP_STATUS}" "200" "storefront order lookup status"
+    storefront_order_lookup_json="${HTTP_BODY}"
+    assert_equals "$(json_get "${storefront_order_lookup_json}" "available")" "true" "storefront order lookup available"
+    assert_equals "$(json_get "${storefront_order_lookup_json}" "matched")" "true" "storefront order lookup matched"
+    assert_nonempty "$(json_get "${storefront_order_lookup_json}" "order.name")" "storefront order lookup order name"
+    assert_nonempty "$(json_get "${storefront_order_lookup_json}" "order.createdAt")" "storefront order lookup createdAt"
+    assert_nonempty "$(json_get "${storefront_order_lookup_json}" "guidance")" "storefront order lookup guidance"
+  else
+    echo "Skipping live storefront order lookup because no sample order could be resolved from explicit env or Shopify Admin."
+  fi
 fi
 
 echo "Shopify Companion verification passed for ${SHOP_DOMAIN}"

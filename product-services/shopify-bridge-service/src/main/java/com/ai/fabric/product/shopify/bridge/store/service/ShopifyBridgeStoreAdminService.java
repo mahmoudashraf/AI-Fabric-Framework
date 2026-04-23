@@ -14,6 +14,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,6 +34,7 @@ public class ShopifyBridgeStoreAdminService {
     private final ShopifyBridgeVectorizationSourceService vectorizationSourceService;
     private final ShopifyBridgeUsageService usageService;
     private final ShopifyStorefrontGovernedActionService governedActionService;
+    private final ShopifyBridgeSupportReadinessService supportReadinessService;
 
     public ShopifyBridgeStoreAdminService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                           ShopifyBridgeInstallCredentialService installCredentialService,
@@ -41,7 +43,8 @@ public class ShopifyBridgeStoreAdminService {
                                           ShopifyBridgeStoreSyncService storeSyncService,
                                           ShopifyBridgeVectorizationSourceService vectorizationSourceService,
                                           ShopifyBridgeUsageService usageService,
-                                          ShopifyStorefrontGovernedActionService governedActionService) {
+                                          ShopifyStorefrontGovernedActionService governedActionService,
+                                          ShopifyBridgeSupportReadinessService supportReadinessService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
         this.billingService = billingService;
@@ -50,6 +53,7 @@ public class ShopifyBridgeStoreAdminService {
         this.vectorizationSourceService = vectorizationSourceService;
         this.usageService = usageService;
         this.governedActionService = governedActionService;
+        this.supportReadinessService = supportReadinessService;
     }
 
     public List<ShopifyBridgeStoreSummary> listStores() {
@@ -68,6 +72,10 @@ public class ShopifyBridgeStoreAdminService {
 
     public ShopifyBridgeUsageSummary usageSummary(String shopDomain) {
         return usageService.summarize(shopDomain);
+    }
+
+    public ShopifyBridgeSupportReadinessSummary supportReadiness(String shopDomain) {
+        return supportReadinessService.summarizeForShop(shopDomain);
     }
 
     public List<ShopifyBridgeGovernedActionAuditSummary> recentGovernedActions(String shopDomain, int limit) {

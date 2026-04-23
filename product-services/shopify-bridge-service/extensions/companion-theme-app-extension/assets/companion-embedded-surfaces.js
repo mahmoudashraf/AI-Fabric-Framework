@@ -10,11 +10,12 @@
     }
     teardown(options.root)
     var enabledSurfaces = normalizeEnabledSurfaces(options.payload.enabledSurfaces)
-    if (enabledSurfaces.length === 0) {
+    var surfaceScope = normalizeSurfaceScope(options.surfaceScope)
+    var allowDedicatedOrderLookup = surfaceScope === 'order-lookup'
+    if (enabledSurfaces.length === 0 && !allowDedicatedOrderLookup) {
       return
     }
-    var surfaceScope = normalizeSurfaceScope(options.surfaceScope)
-    if (surfaceScope !== 'all' && enabledSurfaces.indexOf(surfaceScope) < 0) {
+    if (surfaceScope !== 'all' && enabledSurfaces.indexOf(surfaceScope) < 0 && !allowDedicatedOrderLookup) {
       return
     }
 
@@ -45,6 +46,8 @@
       host.appendChild(renderStandaloneFaqCard(options, shellModeProfile))
     } else if (surfaceScope === 'comparison' && pageType === 'product') {
       host.appendChild(renderStandaloneComparisonCard(options, shellModeProfile))
+    } else if (surfaceScope === 'order-lookup') {
+      host.appendChild(renderStandaloneOrderLookupCard(options, shellModeProfile))
     } else if (
       surfaceScope === 'contextual-pill' &&
       (pageType === 'product' || pageType === 'collection')
@@ -733,6 +736,202 @@
     }
   }
 
+  function renderStandaloneOrderLookupCard(options, shellModeProfile) {
+    var card = document.createElement('article')
+    card.className = 'loom-companion-surface-card loom-companion-surface-card--order-lookup'
+
+    var eyebrow = document.createElement('div')
+    eyebrow.className = 'loom-companion-surface-eyebrow'
+    eyebrow.textContent = 'Order lookup'
+    card.appendChild(eyebrow)
+
+    var title = document.createElement('h3')
+    title.className = 'loom-companion-surface-title'
+    title.textContent = 'Check a recent order safely'
+    card.appendChild(title)
+
+    var description = document.createElement('p')
+    description.className = 'loom-companion-surface-copy'
+    description.textContent = 'Enter the exact order number and the checkout email to see read-only order status, fulfillment details, and tracking links.'
+    card.appendChild(description)
+
+    if (options.payload.poweredByBadgeRequired) {
+      card.appendChild(renderPoweredByBadge())
+    }
+
+    var status = document.createElement('div')
+    status.className = 'loom-companion-surface-status'
+    status.hidden = true
+    card.appendChild(status)
+
+    var guidance = document.createElement('p')
+    guidance.className = 'loom-companion-surface-copy loom-companion-surface-copy--muted'
+    guidance.textContent = options.payload.orderLookupMessage || 'Order lookup is available for recent orders when the store has granted Shopify order-read access.'
+    card.appendChild(guidance)
+
+    var form = document.createElement('form')
+    form.className = 'loom-companion-order-lookup-form'
+    card.appendChild(form)
+
+    var orderInput = document.createElement('input')
+    orderInput.type = 'text'
+    orderInput.className = 'loom-companion-search-input loom-companion-order-lookup-form__input'
+    orderInput.placeholder = 'Order number, for example #1001'
+    orderInput.maxLength = 120
+    form.appendChild(orderInput)
+
+    var emailInput = document.createElement('input')
+    emailInput.type = 'email'
+    emailInput.className = 'loom-companion-search-input loom-companion-order-lookup-form__input'
+    emailInput.placeholder = 'Checkout email'
+    emailInput.maxLength = 254
+    form.appendChild(emailInput)
+
+    var submit = document.createElement('button')
+    submit.type = 'submit'
+    submit.className = 'loom-companion-primary-button'
+    submit.textContent = 'Check order'
+    form.appendChild(submit)
+
+    var results = document.createElement('div')
+    results.className = 'loom-companion-surface-results loom-companion-surface-results--order-lookup'
+    results.hidden = true
+    card.appendChild(results)
+
+    var resultsLabel = document.createElement('div')
+    resultsLabel.className = 'loom-companion-surface-results__label'
+    results.appendChild(resultsLabel)
+
+    var resultsSummary = document.createElement('div')
+    resultsSummary.className = 'loom-companion-surface-copy loom-companion-surface-copy--results'
+    results.appendChild(resultsSummary)
+
+    var meta = document.createElement('div')
+    meta.className = 'loom-companion-meta-strip'
+    results.appendChild(meta)
+
+    var links = document.createElement('div')
+    links.className = 'loom-companion-chip-row loom-companion-chip-row--results'
+    results.appendChild(links)
+
+    var lineItems = document.createElement('div')
+    lineItems.className = 'loom-companion-order-lookup__line-items'
+    results.appendChild(lineItems)
+
+    var continueButton = document.createElement('button')
+    continueButton.type = 'button'
+    continueButton.className = 'loom-companion-chip'
+    continueButton.textContent = 'Continue in assistant'
+    continueButton.hidden = true
+    continueButton.addEventListener('click', function () {
+      if (!state.lastOrderNumber) {
+        return
+      }
+      sendPrompt(
+        'Help with order ' + state.lastOrderNumber + ' and the next support-safe steps for this shopper.',
+        'support',
+        defaultInsightMode(shellModeProfile),
+        createRequestContext(options.storefrontContext, shellModeProfile, 'order-lookup')
+      )
+    })
+    links.appendChild(continueButton)
+
+    var state = {
+      isLoading: false,
+      errorMessage: '',
+      resultMessage: '',
+      resultGuidance: guidance.textContent,
+      lastOrderNumber: '',
+      order: null,
+    }
+
+    var orderLookupAvailable = !!(options.payload.orderLookupEnabled && options.payload.bridgeOrderLookupUrl)
+    if (!orderLookupAvailable) {
+      status.hidden = false
+      status.textContent = options.payload.orderLookupMessage || 'Order lookup is not available for this store yet.'
+      form.hidden = true
+      return card
+    }
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault()
+      var orderNumber = trimValue(orderInput.value)
+      var email = trimValue(emailInput.value)
+      if (!orderNumber || !email || state.isLoading) {
+        return
+      }
+      state.isLoading = true
+      state.errorMessage = ''
+      state.resultMessage = ''
+      state.lastOrderNumber = orderNumber
+      state.order = null
+      render()
+      fetchJson(options.payload.bridgeOrderLookupUrl, {
+        method: 'POST',
+        headers: shopperHeaders(options),
+        body: JSON.stringify({
+          orderNumber: orderNumber,
+          email: email,
+          surfaceId: 'order-lookup',
+        }),
+      })
+        .then(function (response) {
+          state.resultMessage = response && response.message ? response.message : 'Order lookup completed.'
+          state.resultGuidance = response && response.guidance ? response.guidance : guidance.textContent
+          state.order = response && response.order ? response.order : null
+          if (state.order) {
+            recordSurfaceEvent(options, 'ORDER_LOOKUP_MATCHED')
+          } else {
+            recordSurfaceEvent(options, 'ORDER_LOOKUP_SUBMITTED')
+          }
+        })
+        .catch(function (error) {
+          state.resultMessage = ''
+          state.order = null
+          state.errorMessage = error && error.message ? error.message : 'Order lookup is not available right now.'
+        })
+        .finally(function () {
+          state.isLoading = false
+          render()
+        })
+    })
+
+    render()
+    return card
+
+    function render() {
+      status.hidden = !(state.isLoading || state.errorMessage)
+      if (state.isLoading) {
+        status.textContent = 'Checking the order…'
+      } else if (state.errorMessage) {
+        status.textContent = state.errorMessage
+      } else {
+        status.textContent = ''
+      }
+
+      guidance.textContent = state.resultGuidance || options.payload.orderLookupMessage
+      results.hidden = !(state.resultMessage || state.order)
+      if (results.hidden) {
+        return
+      }
+
+      resultsLabel.textContent = state.order && state.order.orderName
+        ? state.order.orderName
+        : 'Order lookup result'
+      resultsSummary.textContent = truncateText(state.resultMessage || 'Order lookup completed.', 320)
+      meta.innerHTML = ''
+      lineItems.innerHTML = ''
+
+      if (state.order) {
+        appendOrderMetaChips(meta, state.order)
+        renderOrderLinks(links, state.order, continueButton)
+        renderOrderLineItems(lineItems, state.order)
+      } else {
+        renderOrderLinks(links, null, continueButton)
+      }
+    }
+  }
+
   function renderStandaloneContextualCard(options, shellModeProfile) {
     var pageType = normalizePageType(options.storefrontContext)
     var prompts = pageType === 'collection'
@@ -1202,6 +1401,16 @@
     button.textContent = label
     button.addEventListener('click', onClick)
     return button
+  }
+
+  function createChipLink(label, href) {
+    var link = document.createElement('a')
+    link.className = 'loom-companion-chip loom-companion-chip--link'
+    link.textContent = label
+    link.href = href
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    return link
   }
 
   function createPrimaryActionButton(label, onClick) {
@@ -2150,7 +2359,7 @@
 
   function normalizeEnabledSurfaces(values) {
     if (!Array.isArray(values) || values.length === 0) {
-      return ['ai-search', 'contextual-pill', 'product-insight', 'policy-strip', 'product-faq', 'comparison']
+      return ['ai-search', 'order-lookup', 'contextual-pill', 'product-insight', 'policy-strip', 'product-faq', 'comparison']
     }
     return values
       .map(function (value) {
@@ -2159,6 +2368,72 @@
       .filter(function (value, index, all) {
         return value && all.indexOf(value) === index
       })
+  }
+
+  function appendOrderMetaChips(host, order) {
+    if (!host || !order) {
+      return
+    }
+    if (order.financialStatus) {
+      host.appendChild(createMetaChip('Payment: ' + order.financialStatus))
+    }
+    if (order.fulfillmentStatus) {
+      host.appendChild(createMetaChip('Fulfillment: ' + order.fulfillmentStatus))
+    }
+    if (order.totalAmount && order.currencyCode) {
+      host.appendChild(createMetaChip('Total: ' + order.totalAmount + ' ' + order.currencyCode))
+    }
+    if (order.trackingCompany) {
+      host.appendChild(createMetaChip('Carrier: ' + order.trackingCompany))
+    }
+    if (order.trackingNumberMasked) {
+      host.appendChild(createMetaChip('Tracking: ' + order.trackingNumberMasked))
+    }
+  }
+
+  function renderOrderLinks(host, order, continueButton) {
+    if (!host) {
+      return
+    }
+    while (host.childNodes.length > 1) {
+      host.removeChild(host.lastChild)
+    }
+    if (order && order.statusPageUrl) {
+      host.appendChild(createChipLink('Open status page', order.statusPageUrl))
+    }
+    if (order && order.trackingUrl) {
+      host.appendChild(createChipLink('Open tracking', order.trackingUrl))
+    }
+    continueButton.hidden = !window.MaxMode || typeof window.MaxMode.sendMessage !== 'function'
+  }
+
+  function renderOrderLineItems(host, order) {
+    if (!host || !order || !Array.isArray(order.lineItems) || order.lineItems.length === 0) {
+      return
+    }
+    var title = document.createElement('div')
+    title.className = 'loom-companion-surface-results__label'
+    title.textContent = 'Items in this order'
+    host.appendChild(title)
+
+    var list = document.createElement('ul')
+    list.className = 'loom-companion-order-lookup__list'
+    host.appendChild(list)
+
+    order.lineItems.forEach(function (item) {
+      var row = document.createElement('li')
+      row.className = 'loom-companion-order-lookup__item'
+
+      var label = document.createElement('span')
+      label.textContent = item.title || 'Order item'
+      row.appendChild(label)
+
+      var detail = document.createElement('span')
+      var quantityLabel = item.quantity ? 'x' + item.quantity : 'x1'
+      detail.textContent = item.variantTitle ? quantityLabel + ' • ' + item.variantTitle : quantityLabel
+      row.appendChild(detail)
+      list.appendChild(row)
+    })
   }
 
   function normalizeShellModeProfile(value) {
