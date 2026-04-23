@@ -6,6 +6,7 @@ import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStore
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -99,6 +100,46 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.missingScopes()).containsExactly("read_orders");
         assertThat(summary.message()).contains("order-read scope approval");
         assertThat(summary.nextActions()).anyMatch(action -> action.contains("read_orders"));
+    }
+
+    @Test
+    void fallsBackToPersistedPlatformCredentialScopesWhenInstallRecordIsMissing() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(platformClient.resolveCredentialMaterial("alpha.myshopify.com")).thenReturn(new ShopifyBridgeResolvedStoreCredentials(
+            "access-token",
+            null,
+            null,
+            null,
+            "read_products,read_orders",
+            false
+        ));
+        when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
+            "support@alpha.test",
+            null,
+            null,
+            null,
+            null,
+            true
+        ));
+        when(billingService.summarize()).thenReturn(billingSummary());
+
+        ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
+            platformClient,
+            installRecordService,
+            billingService,
+            properties()
+        );
+
+        var summary = service.summarizeForShop("alpha.myshopify.com");
+
+        assertThat(summary.installStatus()).isEqualTo("INSTALLED");
+        assertThat(summary.orderLookupScopeGranted()).isTrue();
+        assertThat(summary.orderLookupSupported()).isTrue();
+        assertThat(summary.appScopesUpdateWebhookReady()).isFalse();
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
@@ -38,7 +39,7 @@ public class ShopifyBridgeSupportReadinessService {
 
     public ShopifyBridgeSupportReadinessSummary summarizeForShop(String shopDomain) {
         ShopifyInstallRecordSummary installRecord = installRecordService.findByShopDomain(shopDomain).orElse(null);
-        SupportState supportState = resolveSupportState(installRecord);
+        SupportState supportState = resolveSupportState(shopDomain, installRecord);
         SupportBillingState billingState = resolveSupportBillingState(supportState);
         ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain);
         boolean installRecoveryRequired = installRecoveryRequired(installRecord);
@@ -99,7 +100,7 @@ public class ShopifyBridgeSupportReadinessService {
             installRecoveryRequired ? buildInstallUrl(shopDomain) : null,
             scopeGrantRequired,
             scopeGrantUrl,
-            installRecord == null ? "UNKNOWN" : installRecord.status(),
+            supportState.installStatus(),
             billingState.tierKey(),
             billingState.status(),
             supportState.grantedScopes(),
@@ -130,12 +131,32 @@ public class ShopifyBridgeSupportReadinessService {
         );
     }
 
-    private SupportState resolveSupportState(ShopifyInstallRecordSummary installRecord) {
-        return new SupportState(
-            fallbackScopes(installRecord),
-            List.of(),
-            installRecord != null && installRecord.appScopesUpdateWebhookReady()
-        );
+    private SupportState resolveSupportState(String shopDomain,
+                                             ShopifyInstallRecordSummary installRecord) {
+        if (installRecord != null) {
+            return new SupportState(
+                fallbackScopes(installRecord),
+                List.of(),
+                installRecord.appScopesUpdateWebhookReady(),
+                installRecord.status()
+            );
+        }
+        try {
+            ShopifyBridgeResolvedStoreCredentials resolved = platformShopifyStoreClient.resolveCredentialMaterial(shopDomain);
+            return new SupportState(
+                ShopifyScopeSupport.parseScopes(resolved == null ? null : resolved.scopesText()),
+                List.of(),
+                false,
+                "INSTALLED"
+            );
+        } catch (Exception ex) {
+            return new SupportState(
+                List.of(),
+                List.of(),
+                false,
+                "UNKNOWN"
+            );
+        }
     }
 
     private SupportBillingState resolveSupportBillingState(SupportState supportState) {
@@ -298,7 +319,8 @@ public class ShopifyBridgeSupportReadinessService {
     private record SupportState(
         List<String> grantedScopes,
         List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions,
-        boolean appScopesUpdateWebhookReady
+        boolean appScopesUpdateWebhookReady,
+        String installStatus
     ) {
         private List<String> activeSubscriptionNames() {
             return activeSubscriptions.stream()
