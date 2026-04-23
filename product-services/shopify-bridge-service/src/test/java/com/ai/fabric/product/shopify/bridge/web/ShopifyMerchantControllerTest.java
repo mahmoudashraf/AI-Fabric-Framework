@@ -356,7 +356,13 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.mode").value("FREE"))
             .andExpect(jsonPath("$.tierKey").value("FREE"))
             .andExpect(jsonPath("$.status").value("ACTIVE"))
-            .andExpect(jsonPath("$.launchBlocked").value(false));
+            .andExpect(jsonPath("$.launchBlocked").value(false))
+            .andExpect(jsonPath("$.requiresExplicitConfirmation").value(false))
+            .andExpect(jsonPath("$.auditTrailAvailable").value(false))
+            .andExpect(jsonPath("$.actionPackages").isArray())
+            .andExpect(jsonPath("$.availablePlans[0].requiresExplicitConfirmation").value(false))
+            .andExpect(jsonPath("$.availablePlans[0].auditTrailAvailable").value(false))
+            .andExpect(jsonPath("$.availablePlans[0].actionPackages").isArray());
 
         verify(merchantStoreService).billingSummary(any());
     }

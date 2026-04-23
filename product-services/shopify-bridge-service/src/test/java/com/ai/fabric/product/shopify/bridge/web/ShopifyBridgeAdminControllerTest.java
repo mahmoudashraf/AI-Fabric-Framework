@@ -7,6 +7,7 @@ import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOv
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageTopQuerySummary;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingPlanSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeWebhookSubscriptionOverview;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInstallOverview;
@@ -181,9 +182,50 @@ class ShopifyBridgeAdminControllerTest {
             true,
             false,
             true,
-            List.of(),
+            List.of("launch-review"),
             List.of("ai-search"),
-            List.of(),
+            List.of(
+                new ShopifyBridgeBillingPlanSummary(
+                    "FREE",
+                    "Loom Companion Free",
+                    null,
+                    null,
+                    null,
+                    true,
+                    true,
+                    false,
+                    false,
+                    50,
+                    "DAILY",
+                    true,
+                    false,
+                    false,
+                    false,
+                    List.of(),
+                    List.of("ai-search"),
+                    "Free tier is always available."
+                ),
+                new ShopifyBridgeBillingPlanSummary(
+                    "ELITE",
+                    "Loom Companion Elite",
+                    "179.00",
+                    "USD",
+                    "EVERY_30_DAYS",
+                    false,
+                    true,
+                    true,
+                    true,
+                    null,
+                    "HOURLY",
+                    false,
+                    true,
+                    true,
+                    true,
+                    List.of("guided-commerce"),
+                    List.of("ai-search", "comparison"),
+                    "Elite guided commerce is available for merchant approval."
+                )
+            ),
             "Merchant approval is required before go-live."
         ));
 
@@ -194,7 +236,14 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.planName").value("Companion Starter"))
             .andExpect(jsonPath("$.status").value("READY_FOR_APPROVAL"))
             .andExpect(jsonPath("$.merchantApprovalRequired").value(true))
-            .andExpect(jsonPath("$.launchBlocked").value(true));
+            .andExpect(jsonPath("$.launchBlocked").value(true))
+            .andExpect(jsonPath("$.requiresExplicitConfirmation").value(false))
+            .andExpect(jsonPath("$.auditTrailAvailable").value(true))
+            .andExpect(jsonPath("$.actionPackages[0]").value("launch-review"))
+            .andExpect(jsonPath("$.availablePlans[1].tierKey").value("ELITE"))
+            .andExpect(jsonPath("$.availablePlans[1].requiresExplicitConfirmation").value(true))
+            .andExpect(jsonPath("$.availablePlans[1].auditTrailAvailable").value(true))
+            .andExpect(jsonPath("$.availablePlans[1].actionPackages[0]").value("guided-commerce"));
     }
 
     @Test
