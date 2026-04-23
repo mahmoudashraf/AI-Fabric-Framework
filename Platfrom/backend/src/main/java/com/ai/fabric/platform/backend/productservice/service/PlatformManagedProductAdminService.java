@@ -41,6 +41,9 @@ import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntit
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCapabilitySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedConsumerSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedCustomerSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedDeploymentSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
@@ -94,7 +97,6 @@ public class PlatformManagedProductAdminService {
     private final PlatformAuditService platformAuditService;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient;
-    private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ShopifyStoreReadinessEvaluator readinessEvaluator;
     private final ObjectMapper objectMapper;
@@ -115,7 +117,6 @@ public class PlatformManagedProductAdminService {
         PlatformAuditService platformAuditService,
         RailwayGraphqlClient railwayGraphqlClient,
         PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient,
-        ShopifyStoreConnectionService shopifyStoreConnectionService,
         ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
         ShopifyStoreReadinessEvaluator readinessEvaluator,
         ObjectMapper objectMapper
@@ -133,7 +134,6 @@ public class PlatformManagedProductAdminService {
         this.platformAuditService = platformAuditService;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.storeSupportReadinessClient = storeSupportReadinessClient;
-        this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
@@ -155,7 +155,6 @@ public class PlatformManagedProductAdminService {
                                        PlatformManagedProductProvisioningService provisioningService,
                                        PlatformAuditService platformAuditService,
                                        RailwayGraphqlClient railwayGraphqlClient,
-                                       ShopifyStoreConnectionService shopifyStoreConnectionService,
                                        ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
                                        ShopifyStoreReadinessEvaluator readinessEvaluator,
                                        ObjectMapper objectMapper) {
@@ -172,8 +171,42 @@ public class PlatformManagedProductAdminService {
             provisioningService,
             platformAuditService,
             railwayGraphqlClient,
-            null,
-            shopifyStoreConnectionService,
+            (PlatformManagedProductStoreSupportReadinessClientService) null,
+            sourcePreflightSupport,
+            readinessEvaluator,
+            objectMapper
+        );
+    }
+
+    PlatformManagedProductAdminService(PlatformManagedProductServiceService serviceService,
+                                       PlatformManagedProductServiceRepository serviceRepository,
+                                       ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+                                       PlatformCustomerRepository platformCustomerRepository,
+                                       DeploymentRepository deploymentRepository,
+                                       DeploymentVersionRepository deploymentVersionRepository,
+                                       DeploymentReleaseRepository deploymentReleaseRepository,
+                                       PlatformConsumerRepository platformConsumerRepository,
+                                       PlatformSecretService platformSecretService,
+                                       PlatformManagedProductProvisioningService provisioningService,
+                                       PlatformAuditService platformAuditService,
+                                       RailwayGraphqlClient railwayGraphqlClient,
+                                       ShopifyStoreConnectionService ignoredShopifyStoreConnectionService,
+                                       ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                       ShopifyStoreReadinessEvaluator readinessEvaluator,
+                                       ObjectMapper objectMapper) {
+        this(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            platformCustomerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            platformConsumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
             sourcePreflightSupport,
             readinessEvaluator,
             objectMapper
@@ -331,12 +364,12 @@ public class PlatformManagedProductAdminService {
 
     public ShopifyStoreBindingInspectionSummary getStoreBinding(String serviceRef, String shopDomain) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+        ShopifyStoreConnectionEntity connection = shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
             .orElseThrow(() -> new ResponseStatusException(
                 CONFLICT,
                 "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
             ));
-        return shopifyStoreConnectionService.inspectBinding(shopDomain);
+        return toBindingInspectionSummary(connection, service);
     }
 
     @Transactional
@@ -627,7 +660,13 @@ public class PlatformManagedProductAdminService {
                     "shopDomain", shopDomain
                 )
             );
-            return shopifyStoreConnectionService.getConnection(shopDomain);
+            ShopifyStoreConnectionEntity connection = shopifyStoreConnectionRepository
+                .findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+                .orElseThrow(() -> new ResponseStatusException(
+                    CONFLICT,
+                    "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+                ));
+            return toSummary(connection, service);
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -731,6 +770,19 @@ public class PlatformManagedProductAdminService {
         var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
         var capabilities = summarizeCapabilities(latestVersion);
         var latestReleaseSummary = toReleaseSummary(latestRelease);
+        var readiness = applySupportReadiness(
+            readinessEvaluator.evaluate(
+                entity,
+                credentials,
+                sourcePreflight,
+                syncDetail,
+                widgetDetail,
+                latestReleaseSummary,
+                deployment != null && deployment.getArchivedAt() != null
+            ),
+            service.getServiceRef(),
+            entity.getShopDomain()
+        );
         return new ShopifyStoreConnectionSummary(
             entity.getId(),
             entity.getShopDomain(),
@@ -762,15 +814,7 @@ public class PlatformManagedProductAdminService {
             webhookDetail,
             widgetDetail,
             capabilities,
-            readinessEvaluator.evaluate(
-                entity,
-                credentials,
-                sourcePreflight,
-                syncDetail,
-                widgetDetail,
-                latestReleaseSummary,
-                deployment != null && deployment.getArchivedAt() != null
-            ),
+            readiness,
             toVersionSummary(latestVersion),
             latestReleaseSummary,
             entity.getLastSourcePreflightAt(),
@@ -779,6 +823,210 @@ public class PlatformManagedProductAdminService {
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
+    }
+
+    private ShopifyStoreBindingInspectionSummary toBindingInspectionSummary(ShopifyStoreConnectionEntity entity,
+                                                                            PlatformManagedProductServiceEntity service) {
+        PlatformCustomerEntity customer = hasText(entity.getCustomerId())
+            ? platformCustomerRepository.findById(entity.getCustomerId()).orElse(null)
+            : null;
+        DeploymentEntity deployment = hasText(entity.getDeploymentId())
+            ? deploymentRepository.findById(entity.getDeploymentId()).orElse(null)
+            : null;
+        DeploymentVersionEntity latestVersion = deployment == null
+            ? null
+            : deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deployment.getId()).stream().findFirst().orElse(null);
+        DeploymentReleaseEntity latestRelease = deployment == null
+            ? null
+            : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
+        PlatformConsumerEntity consumer = hasText(entity.getConsumerId())
+            ? platformConsumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null)
+            : null;
+        return new ShopifyStoreBindingInspectionSummary(
+            entity.getShopDomain(),
+            service.getServiceRef(),
+            toLinkedCustomerSummary(customer),
+            toLinkedDeploymentSummary(deployment),
+            toLinkedConsumerSummary(consumer, deployment),
+            toVersionSummary(latestVersion),
+            toReleaseSummary(latestRelease),
+            buildBindingWarnings(entity, customer, deployment, consumer)
+        );
+    }
+
+    private com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary applySupportReadiness(
+        com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary base,
+        String serviceRef,
+        String shopDomain
+    ) {
+        if (base == null || storeSupportReadinessClient == null || !hasText(serviceRef)) {
+            return base;
+        }
+        PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness;
+        try {
+            supportReadiness = storeSupportReadinessClient.getStoreSupportReadiness(serviceRef, shopDomain);
+        } catch (ResponseStatusException ex) {
+            return base;
+        }
+        boolean supportGateReady = "READY".equalsIgnoreCase(supportReadiness.status())
+            && supportReadiness.orderLookupSupported()
+            && supportReadiness.appScopesUpdateWebhookReady()
+            && supportReadiness.merchantHandoffConfigured();
+        if (supportGateReady) {
+            return base;
+        }
+
+        List<String> supportBlockers = new ArrayList<>();
+        if (!"READY".equalsIgnoreCase(supportReadiness.status()) || !supportReadiness.orderLookupSupported()) {
+            supportBlockers.add(firstNonBlank(
+                supportReadiness.message(),
+                "Customer-safe order lookup and governed support posture are not ready for go-live yet."
+            ));
+        }
+        if (!supportReadiness.appScopesUpdateWebhookReady()) {
+            supportBlockers.add("APP_SCOPES_UPDATE webhook readiness is required before launch so Shopify scope drift is detected.");
+        }
+        if (!supportReadiness.merchantHandoffConfigured()) {
+            supportBlockers.add(firstNonBlank(
+                supportReadiness.merchantHandoffMessage(),
+                "Merchant support handoff must be configured before launch."
+            ));
+        }
+
+        List<String> goLiveBlockers = new ArrayList<>(base.goLiveBlockingReasons());
+        List<String> storefrontBlockers = new ArrayList<>(base.storefrontBlockingReasons());
+        for (String blocker : supportBlockers) {
+            appendIfMissing(goLiveBlockers, blocker);
+            appendIfMissing(storefrontBlockers, blocker);
+        }
+        List<String> nextActions = new ArrayList<>(base.nextActions());
+        if (supportReadiness.nextActions() != null) {
+            for (String action : supportReadiness.nextActions()) {
+                appendIfMissing(nextActions, action);
+            }
+        }
+
+        boolean goLiveEligible = base.goLiveEligible() && supportGateReady;
+        boolean storefrontReady = base.storefrontReady() && supportGateReady;
+        String overallStatus;
+        if (storefrontReady) {
+            overallStatus = "STOREFRONT_READY";
+        } else if ("GO_LIVE_IN_PROGRESS".equalsIgnoreCase(base.overallStatus())) {
+            overallStatus = "GO_LIVE_IN_PROGRESS";
+        } else if (goLiveEligible) {
+            overallStatus = "READY_FOR_GO_LIVE";
+        } else {
+            overallStatus = "BLOCKED";
+        }
+
+        return new com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary(
+            overallStatus,
+            goLiveEligible,
+            storefrontReady,
+            List.copyOf(goLiveBlockers),
+            List.copyOf(storefrontBlockers),
+            List.copyOf(nextActions)
+        );
+    }
+
+    private ShopifyStoreLinkedCustomerSummary toLinkedCustomerSummary(PlatformCustomerEntity customer) {
+        if (customer == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedCustomerSummary(
+            customer.getId(),
+            customer.getName(),
+            customer.getSlug(),
+            customer.getStatus(),
+            customer.isPlatformManaged(),
+            customer.getCreatedAt(),
+            customer.getUpdatedAt()
+        );
+    }
+
+    private ShopifyStoreLinkedDeploymentSummary toLinkedDeploymentSummary(DeploymentEntity deployment) {
+        if (deployment == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedDeploymentSummary(
+            deployment.getId(),
+            deployment.getName(),
+            deployment.getEnvironmentName(),
+            deployment.getTemplateId(),
+            deployment.getStatus(),
+            deployment.getCustomerId(),
+            deployment.getTenantId(),
+            deployment.getActiveVersionId(),
+            deployment.getRuntimeBaseUrl(),
+            deployment.getConnectorBaseUrl(),
+            deployment.isApprovalRequiredForApply(),
+            deployment.isApprovalRequiredForDelete(),
+            deployment.getCreatedAt(),
+            deployment.getUpdatedAt()
+        );
+    }
+
+    private ShopifyStoreLinkedConsumerSummary toLinkedConsumerSummary(PlatformConsumerEntity consumer,
+                                                                      DeploymentEntity deployment) {
+        if (consumer == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedConsumerSummary(
+            consumer.getConsumerId(),
+            consumer.getCustomerId(),
+            consumer.getDisplayName(),
+            consumer.getStatus(),
+            consumer.getBoundDeploymentId(),
+            deployment == null ? null : deployment.getName(),
+            deployment == null ? null : deployment.getEnvironmentName(),
+            deployment == null ? null : deployment.getStatus(),
+            consumer.getLastBoundAt(),
+            consumer.getCreatedAt(),
+            consumer.getUpdatedAt()
+        );
+    }
+
+    private List<String> buildBindingWarnings(ShopifyStoreConnectionEntity entity,
+                                              PlatformCustomerEntity customer,
+                                              DeploymentEntity deployment,
+                                              PlatformConsumerEntity consumer) {
+        List<String> warnings = new ArrayList<>();
+        if (!hasText(entity.getCustomerId())) {
+            warnings.add("No platform customer is currently bound.");
+        } else if (customer == null) {
+            warnings.add("Bound customer " + entity.getCustomerId() + " no longer exists.");
+        }
+
+        if (!hasText(entity.getDeploymentId())) {
+            warnings.add("No deployment is currently bound.");
+        } else if (deployment == null) {
+            warnings.add("Bound deployment " + entity.getDeploymentId() + " no longer exists.");
+        }
+
+        if (!hasText(entity.getConsumerId())) {
+            warnings.add("No consumerId is currently bound.");
+        } else if (consumer == null) {
+            warnings.add("Bound consumer " + entity.getConsumerId() + " no longer exists.");
+        }
+
+        if (customer != null && deployment != null && !customer.getId().equals(deployment.getCustomerId())) {
+            warnings.add("Bound deployment belongs to a different customer.");
+        }
+        if (customer != null && consumer != null && !customer.getId().equals(consumer.getCustomerId())) {
+            warnings.add("Bound consumer belongs to a different customer.");
+        }
+        if (deployment != null && consumer != null && hasText(consumer.getBoundDeploymentId())
+            && !deployment.getId().equals(consumer.getBoundDeploymentId())) {
+            warnings.add("Bound consumer points to a different deployment.");
+        }
+        return List.copyOf(warnings);
+    }
+
+    private void appendIfMissing(List<String> values, String candidate) {
+        if (!hasText(candidate) || values.stream().anyMatch(existing -> existing.equalsIgnoreCase(candidate))) {
+            return;
+        }
+        values.add(candidate);
     }
 
     private ShopifyStoreCapabilitySummary summarizeCapabilities(DeploymentVersionEntity version) {

@@ -350,16 +350,38 @@ class PlatformManagedProductAdminServiceTest {
     void getStoreBindingReturnsShopifyBindingInspectionForMappedStore() {
         PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
         ShopifyStoreConnectionEntity connection = storeConnection(service.getId(), "demo.myshopify.com");
-        ShopifyStoreBindingInspectionSummary inspection = new ShopifyStoreBindingInspectionSummary(
-            "demo.myshopify.com",
-            "shopify-bridge-prod",
-            null,
-            null,
-            null,
-            versionSummary(),
-            releaseSummary(),
-            List.of("warning")
-        );
+        PlatformCustomerEntity customer = new PlatformCustomerEntity();
+        customer.setId("cus-123");
+        customer.setName("Demo Customer");
+        customer.setSlug("demo-customer");
+        customer.setStatus("ACTIVE");
+        customer.setPlatformManaged(true);
+        customer.setCreatedAt(Instant.now());
+        customer.setUpdatedAt(Instant.now());
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setName("Demo Deployment");
+        deployment.setEnvironmentName("prod");
+        deployment.setTemplateId("tpl-123");
+        deployment.setStatus("ACTIVE");
+        deployment.setCustomerId("cus-123");
+        deployment.setTenantId("tenant-123");
+        deployment.setActiveVersionId("ver-123");
+        deployment.setRuntimeBaseUrl("https://runtime.example.com");
+        deployment.setConnectorBaseUrl("https://connector.example.com");
+        deployment.setApprovalRequiredForApply(false);
+        deployment.setApprovalRequiredForDelete(false);
+        deployment.setCreatedAt(Instant.now());
+        deployment.setUpdatedAt(Instant.now());
+        PlatformConsumerEntity consumer = new PlatformConsumerEntity();
+        consumer.setConsumerId("demo-storefront");
+        consumer.setCustomerId("cus-123");
+        consumer.setDisplayName("Demo Storefront");
+        consumer.setStatus("ACTIVE");
+        consumer.setBoundDeploymentId("dep-123");
+        consumer.setLastBoundAt(Instant.now());
+        consumer.setCreatedAt(Instant.now());
+        consumer.setUpdatedAt(Instant.now());
 
         PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
         PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
@@ -373,12 +395,15 @@ class PlatformManagedProductAdminServiceTest {
         PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
-        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
 
         when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
         when(shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), "demo.myshopify.com"))
             .thenReturn(java.util.Optional.of(connection));
-        when(shopifyStoreConnectionService.inspectBinding("demo.myshopify.com")).thenReturn(inspection);
+        when(customerRepository.findById("cus-123")).thenReturn(java.util.Optional.of(customer));
+        when(deploymentRepository.findById("dep-123")).thenReturn(java.util.Optional.of(deployment));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123")).thenReturn(List.of(version()));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(java.util.Optional.of(release()));
+        when(consumerRepository.findByConsumerIdIgnoreCase("demo-storefront")).thenReturn(java.util.Optional.of(consumer));
 
         PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
             serviceService,
@@ -393,7 +418,6 @@ class PlatformManagedProductAdminServiceTest {
             provisioningService,
             platformAuditService,
             railwayGraphqlClient,
-            shopifyStoreConnectionService,
             new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
             new ShopifyStoreReadinessEvaluator(),
             new ObjectMapper()
@@ -405,7 +429,10 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(summary.productServiceRef()).isEqualTo("shopify-bridge-prod");
         assertThat(summary.latestVersion()).isNotNull();
         assertThat(summary.latestRelease()).isNotNull();
-        assertThat(summary.warnings()).containsExactly("warning");
+        assertThat(summary.customer()).isNotNull();
+        assertThat(summary.deployment()).isNotNull();
+        assertThat(summary.consumer()).isNotNull();
+        assertThat(summary.warnings()).isEmpty();
     }
 
     @Test
