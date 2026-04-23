@@ -157,17 +157,17 @@ public class ShopifyStorefrontChatService {
 
     private ShopifyBridgeStoreSummary requireReadyStore(String shopDomain) {
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(shopDomain);
-        if (store.readiness() == null || !store.readiness().storefrontReady()) {
+        if (!ShopifyStorefrontInteractionReadinessSupport.isReady(store)) {
             throw unavailable(firstStorefrontBlockingReason(store));
         }
         return store;
     }
 
     private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {
-        if (store.readiness() != null && !store.readiness().storefrontBlockingReasons().isEmpty()) {
-            return store.readiness().storefrontBlockingReasons().get(0);
-        }
-        return "Store assistant is not live yet for " + store.shopDomain() + ".";
+        return ShopifyStorefrontInteractionReadinessSupport.firstBlockingReason(
+            store,
+            "Store assistant is not live yet for " + store.shopDomain() + "."
+        );
     }
 
     private ResponseStatusException unavailable(String message) {

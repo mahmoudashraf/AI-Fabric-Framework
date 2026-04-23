@@ -8,6 +8,8 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentReleaseSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
@@ -128,6 +130,37 @@ class ShopifyStorefrontOrderLookupServiceTest {
     }
 
     @Test
+    void keepsLookupOnScopeRequiredWhenSupportGateBlocksOnlyLaunchReadiness() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
+
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store(false, List.of("ai-search", "order-lookup")));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies")));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies")));
+        when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", "access-token", List.of("ai-search", "order-lookup")))
+            .thenReturn(List.of("ai-search", "order-lookup"));
+
+        ShopifyStorefrontOrderLookupService service = new ShopifyStorefrontOrderLookupService(
+            platformClient,
+            installCredentialService,
+            installRecordService,
+            billingService,
+            shopifyAdminGraphqlClient
+        );
+
+        var response = service.lookup(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontOrderLookupRequest("#1001", "shopper@example.com", "order-lookup")
+        );
+
+        assertThat(response.available()).isFalse();
+        assertThat(response.status()).isEqualTo("SCOPE_REQUIRED");
+    }
+
+    @Test
     void prefersLiveCredentialScopesOverStalePersistedInstallRecordScopes() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
@@ -189,7 +222,18 @@ class ShopifyStorefrontOrderLookupServiceTest {
             true,
             true,
             true,
-            null,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA",
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-07-23T12:00:00Z"),
+                "read_products,read_content,read_legal_policies",
+                false
+            ),
             null,
             null,
             null,
@@ -215,7 +259,19 @@ class ShopifyStorefrontOrderLookupServiceTest {
                 storefrontReady ? List.of() : List.of("Activate the storefront widget.")
             ),
             null,
-            null,
+            new ShopifyBridgeStoreDeploymentReleaseSummary(
+                "rel-1",
+                "ver-1",
+                "APPLIED_VERIFIED",
+                "PASSED",
+                "SUCCEEDED",
+                "completed",
+                "Release applied and verified.",
+                null,
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:00:00Z")
+            ),
             Instant.parse("2026-04-23T12:00:00Z"),
             Instant.parse("2026-04-23T12:00:00Z"),
             Instant.parse("2026-04-23T12:00:00Z"),

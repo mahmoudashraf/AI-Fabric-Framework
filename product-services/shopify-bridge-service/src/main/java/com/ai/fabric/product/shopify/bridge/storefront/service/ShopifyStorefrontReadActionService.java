@@ -74,7 +74,7 @@ public class ShopifyStorefrontReadActionService {
         }
 
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(normalizedShopDomain);
-        if (store.readiness() == null || !store.readiness().storefrontReady()) {
+        if (!ShopifyStorefrontInteractionReadinessSupport.isReady(store)) {
             return ShopifyBridgeActionResult.failure(
                 "STOREFRONT_NOT_READY",
                 firstStorefrontBlockingReason(store)
@@ -159,12 +159,10 @@ public class ShopifyStorefrontReadActionService {
     }
 
     private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {
-        if (store.readiness() != null
-            && store.readiness().storefrontBlockingReasons() != null
-            && !store.readiness().storefrontBlockingReasons().isEmpty()) {
-            return store.readiness().storefrontBlockingReasons().getFirst();
-        }
-        return "Storefront comparison actions are not available for this store yet.";
+        return ShopifyStorefrontInteractionReadinessSupport.firstBlockingReason(
+            store,
+            "Storefront comparison actions are not available for this store yet."
+        );
     }
 
     private String normalizeShopDomain(String value) {

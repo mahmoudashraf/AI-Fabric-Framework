@@ -129,6 +129,56 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.message()).contains("Store data is not ready yet");
     }
 
+    @Test
+    void bootstrapReturnsAvailableWhenSupportGateIsBlockingButBaseStorefrontIsReady() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontBootstrapService service = new ShopifyStorefrontBootstrapService(
+            platformClient,
+            installCredentialService,
+            mock(ShopifyInstallRecordService.class),
+            billingService,
+            mock(ShopifyStorefrontGovernedActionService.class),
+            properties("https://bridge.example.com")
+        );
+        ShopifyBridgeStoreSummary store = supportBlockedStore("NOT_ENABLED", "consumer-alpha", "dep-1");
+        ShopifyBridgeStoreSummary updated = supportBlockedStore("ENABLED", "consumer-alpha", "dep-1");
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store);
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(platformClient.getConsumerCredentials("consumer-alpha")).thenReturn(new PlatformPublicConsumerDeploymentCredentialsResponse(
+            "consumer-alpha",
+            "dep-1",
+            "https://runtime.example.com",
+            new PlatformPublicDeploymentIntegrationSummary(
+                "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+                new PlatformPublicRuntimePostureSummary("SIGNED_PRIVATE_RUNTIME", true, true, false),
+                new PlatformPublicRuntimeEndpointsSummary(
+                    "https://runtime.example.com/api/chat/me",
+                    "https://runtime.example.com/api/chat/me/query",
+                    "https://runtime.example.com/api/chat/me/suggestions",
+                    "https://runtime.example.com/api/chat/me/conversations",
+                    "https://runtime.example.com/api/chat/me/auth-context"
+                ),
+                "Route storefront traffic through the Shopify Bridge backend."
+            )
+        ));
+        when(platformClient.recordWidgetStatus(eq("alpha.myshopify.com"), eq(new ShopifyBridgeRecordWidgetStatusRequest(
+            "ENABLED",
+            "THEME_APP_EXTENSION",
+            "Theme app extension resolved storefront bootstrap."
+        )))).thenReturn(updated);
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(freeTierSummary());
+        when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of("ai-search", "comparison")))
+            .thenReturn(List.of("ai-search"));
+
+        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com");
+
+        assertThat(response.available()).isTrue();
+        assertThat(response.orderLookupEnabled()).isFalse();
+        assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
+    }
+
     private ShopifyBridgeBillingSummary freeTierSummary() {
         return new ShopifyBridgeBillingSummary(
             "SHOPIFY_APP_SUBSCRIPTION",
@@ -198,6 +248,42 @@ class ShopifyStorefrontBootstrapServiceTest {
                                             String widgetStatus,
                                             String consumerId,
                                             String deploymentId) {
+        return store(
+            installStatus,
+            sourceReadinessStatus,
+            widgetStatus,
+            consumerId,
+            deploymentId,
+            readiness(sourceReadinessStatus)
+        );
+    }
+
+    private ShopifyBridgeStoreSummary supportBlockedStore(String widgetStatus,
+                                                          String consumerId,
+                                                          String deploymentId) {
+        return store(
+            "INSTALLED",
+            "READY",
+            widgetStatus,
+            consumerId,
+            deploymentId,
+            new ShopifyBridgeStoreReadinessSummary(
+                "BLOCKED",
+                false,
+                false,
+                java.util.List.of("Customer-safe order lookup and governed support posture are not ready for go-live yet."),
+                java.util.List.of("Customer-safe order lookup is waiting for Shopify order-read scope approval on this store."),
+                java.util.List.of("Approve the required Shopify order-read scope before enabling customer-safe order lookup.")
+            )
+        );
+    }
+
+    private ShopifyBridgeStoreSummary store(String installStatus,
+                                            String sourceReadinessStatus,
+                                            String widgetStatus,
+                                            String consumerId,
+                                            String deploymentId,
+                                            ShopifyBridgeStoreReadinessSummary readiness) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
             "alpha.myshopify.com",
@@ -263,7 +349,7 @@ class ShopifyStorefrontBootstrapServiceTest {
                 )
             ),
             null,
-            readiness(sourceReadinessStatus),
+            readiness,
             new ShopifyBridgeStoreDeploymentVersionSummary(
                 "ver-1",
                 "v1",

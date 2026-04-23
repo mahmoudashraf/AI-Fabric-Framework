@@ -40,10 +40,7 @@ public class ShopifyStorefrontPreviewService {
     public ShopifyStorefrontPreviewResponse preview(String shopDomain) {
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(shopDomain);
         String bridgeBaseUrl = blankToNull(properties.publicBaseUrl());
-        List<String> blockingReasons = new ArrayList<>();
-        if (store.readiness() != null && store.readiness().storefrontBlockingReasons() != null) {
-            blockingReasons.addAll(store.readiness().storefrontBlockingReasons());
-        }
+        List<String> blockingReasons = new ArrayList<>(ShopifyStorefrontInteractionReadinessSupport.blockingReasons(store));
         if (bridgeBaseUrl == null) {
             blockingReasons.add("Shopify Bridge public base URL is not configured yet.");
         }

@@ -8,6 +8,8 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSu
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentReleaseSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
@@ -66,6 +68,44 @@ class ShopifyStorefrontReadActionServiceTest {
         assertThat(result.success()).isTrue();
         verify(actionExecutionService).execute(eq("alpha.myshopify.com"), any());
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_READ_ACTION_COMPARISON");
+    }
+
+    @Test
+    void executesComparisonActionWhenSupportGateIsTheOnlyBlocker() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeActionExecutionService actionExecutionService = mock(ShopifyBridgeActionExecutionService.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store(List.of("comparison"), false));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of("comparison")))
+            .thenReturn(List.of("comparison"));
+        when(actionExecutionService.execute(eq("alpha.myshopify.com"), any())).thenReturn(
+            ShopifyBridgeActionResult.ok("Compared", Map.of("count", 2))
+        );
+
+        ShopifyStorefrontReadActionService service = new ShopifyStorefrontReadActionService(
+            platformClient,
+            installCredentialService,
+            billingService,
+            actionExecutionService,
+            usageService
+        );
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontReadActionRequest(
+                "find_similar_products",
+                Map.of("sku", "SKU-1"),
+                "comparison"
+            ),
+            "shopper-session-1"
+        );
+
+        assertThat(result.success()).isTrue();
+        verify(actionExecutionService).execute(eq("alpha.myshopify.com"), any());
     }
 
     @Test
@@ -153,7 +193,18 @@ class ShopifyStorefrontReadActionServiceTest {
             true,
             true,
             true,
-            null,
+            new ShopifyBridgeStoreCredentialSummary(
+                "READY",
+                true,
+                true,
+                "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA",
+                "MANAGED_SHOPIFY_REFRESH_TOKEN_ALPHA",
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-07-23T12:00:00Z"),
+                "read_products,read_content,read_legal_policies",
+                false
+            ),
             null,
             null,
             null,
@@ -179,7 +230,19 @@ class ShopifyStorefrontReadActionServiceTest {
                 storefrontReady ? List.of() : List.of("Activate the storefront widget.")
             ),
             null,
-            null,
+            new ShopifyBridgeStoreDeploymentReleaseSummary(
+                "rel-1",
+                "ver-1",
+                "APPLIED_VERIFIED",
+                "PASSED",
+                "SUCCEEDED",
+                "completed",
+                "Release applied and verified.",
+                null,
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:00:00Z")
+            ),
             Instant.parse("2026-04-23T12:00:00Z"),
             Instant.parse("2026-04-23T12:00:00Z"),
             Instant.parse("2026-04-23T12:00:00Z"),

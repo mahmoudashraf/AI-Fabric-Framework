@@ -88,6 +88,22 @@ class ShopifyStorefrontEngagementServiceTest {
     }
 
     @Test
+    void recordsEventsWhenPlatformReadinessIsOnlyBlockedBySupportScope() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyStorefrontEngagementService service = new ShopifyStorefrontEngagementService(platformClient, usageService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(supportBlockedStore());
+
+        service.record(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontEngagementEventRequest("SUGGESTION_CLICKED", "product", "Travel Pack", "travel-pack", null),
+            "shopper-session-1"
+        );
+
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_SUGGESTION_CLICKED");
+    }
+
+    @Test
     void rejectsEventsWhenStorefrontIsNotReady() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
@@ -104,11 +120,21 @@ class ShopifyStorefrontEngagementServiceTest {
     }
 
     private ShopifyBridgeStoreSummary readyStore() {
-        return store(readiness(true, java.util.List.of()));
+        return store(readiness(true, java.util.List.of()), "READY");
     }
 
     private ShopifyBridgeStoreSummary blockedStore() {
-        return store(readiness(false, java.util.List.of("Store data is not ready yet. Run source preflight and complete publish/apply/verify before enabling the widget.")));
+        return store(
+            readiness(false, java.util.List.of("Store data is not ready yet. Run source preflight and complete publish/apply/verify before enabling the widget.")),
+            "PENDING"
+        );
+    }
+
+    private ShopifyBridgeStoreSummary supportBlockedStore() {
+        return store(readiness(
+            false,
+            java.util.List.of("Customer-safe order lookup is waiting for Shopify order-read scope approval on this store.")
+        ), "READY");
     }
 
     private ShopifyBridgeStoreReadinessSummary readiness(boolean storefrontReady, java.util.List<String> storefrontBlockingReasons) {
@@ -122,7 +148,8 @@ class ShopifyStorefrontEngagementServiceTest {
         );
     }
 
-    private ShopifyBridgeStoreSummary store(ShopifyBridgeStoreReadinessSummary readiness) {
+    private ShopifyBridgeStoreSummary store(ShopifyBridgeStoreReadinessSummary readiness,
+                                            String sourceReadinessStatus) {
         Instant now = Instant.parse("2026-04-18T00:00:00Z");
         return new ShopifyBridgeStoreSummary(
             "shp-1",
@@ -139,7 +166,7 @@ class ShopifyStorefrontEngagementServiceTest {
             "Alpha Storefront",
             "INSTALLED",
             "SYNCED",
-            "READY",
+            sourceReadinessStatus,
             "ENABLED",
             "PREFLIGHT_READY",
             true,

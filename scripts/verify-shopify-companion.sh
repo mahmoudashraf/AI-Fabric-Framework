@@ -79,6 +79,7 @@ EXPECT_SYNC_STATUS="${EXPECT_SYNC_STATUS:-SYNCED}"
 EXPECT_SOURCE_READINESS_STATUS="${EXPECT_SOURCE_READINESS_STATUS:-READY}"
 EXPECT_WIDGET_STATUS="${EXPECT_WIDGET_STATUS:-ENABLED}"
 EXPECT_STOREFRONT_READY="${EXPECT_STOREFRONT_READY:-true}"
+EXPECT_STOREFRONT_SHOPPER_TRAFFIC_READY="${EXPECT_STOREFRONT_SHOPPER_TRAFFIC_READY:-${EXPECT_STOREFRONT_READY}}"
 EXPECT_GO_LIVE_ELIGIBLE="${EXPECT_GO_LIVE_ELIGIBLE:-true}"
 EXPECT_EMBEDDED_APP_UI="${EXPECT_EMBEDDED_APP_UI:-true}"
 EXPECT_SHELL_MODE_PROFILE="${EXPECT_SHELL_MODE_PROFILE:-SHOPIFY_COMPANION}"
@@ -884,6 +885,10 @@ if [[ "$(json_get "${platform_store_billing_json}" "availablePlans.2.commerciall
   assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.2.actionPackages" "guided-commerce" "platform store billing ELITE actionPackages"
 fi
 effective_expected_surfaces="${EXPECT_ENABLED_SURFACES:-${billing_allowed_surfaces_csv}}"
+effective_bootstrap_expected_surfaces="${effective_expected_surfaces}"
+if [[ "${EXPECT_ORDER_LOOKUP_SUPPORTED}" != "true" ]]; then
+  effective_bootstrap_expected_surfaces="$(printf '%s' "${effective_bootstrap_expected_surfaces}" | tr ',' '\n' | awk 'NF && $0 != "order-lookup"' | paste -sd, -)"
+fi
 effective_expected_billing_tier="${EXPECT_BILLING_TIER:-$(json_get "${platform_store_billing_json}" "tierKey")}"
 effective_expected_catalog_product_cap="${EXPECT_CATALOG_PRODUCT_CAP:-$(json_get "${platform_store_billing_json}" "catalogProductCap")}"
 effective_expected_powered_by_badge_required="${EXPECT_POWERED_BY_BADGE_REQUIRED:-$(json_get "${platform_store_billing_json}" "poweredByBadgeRequired")}"
@@ -1090,7 +1095,7 @@ http_request GET "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/bootstrap"
 assert_equals "${HTTP_STATUS}" "200" "storefront bootstrap status"
 bootstrap_json="${HTTP_BODY}"
 assert_equals "$(json_get "${bootstrap_json}" "shopDomain")" "${SHOP_DOMAIN}" "storefront bootstrap shopDomain"
-assert_equals "$(json_get "${bootstrap_json}" "available")" "${EXPECT_STOREFRONT_READY}" "storefront bootstrap availability"
+assert_equals "$(json_get "${bootstrap_json}" "available")" "${EXPECT_STOREFRONT_SHOPPER_TRAFFIC_READY}" "storefront bootstrap availability"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeQueryUrl")" "storefront bridgeQueryUrl"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeSuggestionsUrl")" "storefront bridgeSuggestionsUrl"
 if [[ ",${effective_expected_surfaces}," == *",comparison,"* ]]; then
@@ -1120,7 +1125,7 @@ assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.availab
 assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.requiresExplicitConfirmation")" "${effective_expected_action_requires_confirmation}" "storefront bootstrap action requires confirmation"
 assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.auditTrailAvailable")" "${effective_expected_action_audit_available}" "storefront bootstrap action audit available"
 assert_nonempty "$(json_get "${bootstrap_json}" "actionCapability.message")" "storefront bootstrap action capability message"
-assert_json_array_contains_csv "${bootstrap_json}" "enabledSurfaces" "${effective_expected_surfaces}" "storefront bootstrap enabledSurfaces"
+assert_json_array_contains_csv "${bootstrap_json}" "enabledSurfaces" "${effective_bootstrap_expected_surfaces}" "storefront bootstrap enabledSurfaces"
 if [[ "${effective_expected_action_capability_available}" == "true" ]]; then
   assert_json_array_contains_csv "${bootstrap_json}" "actionCapability.actionPackages" "guided-commerce" "storefront bootstrap action packages"
   assert_json_array_contains_csv "${bootstrap_json}" "actionCapability.allowedActionTypes" "ADD_TO_CART,UPDATE_CART_QUANTITY" "storefront bootstrap governed action types"

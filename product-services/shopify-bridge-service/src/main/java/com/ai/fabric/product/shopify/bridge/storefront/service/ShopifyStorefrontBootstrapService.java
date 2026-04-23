@@ -58,7 +58,7 @@ public class ShopifyStorefrontBootstrapService {
         String bridgeReadActionUrl = storefrontUrl(store.shopDomain(), "/actions/read");
         String bridgeOrderLookupUrl = storefrontUrl(store.shopDomain(), "/support/order-lookup");
         String bridgeEventUrl = storefrontUrl(store.shopDomain(), "/events");
-        if (store.readiness() == null || !store.readiness().storefrontReady()) {
+        if (!ShopifyStorefrontInteractionReadinessSupport.isReady(store)) {
             return unavailable(
                 store,
                 firstStorefrontBlockingReason(store),
@@ -257,10 +257,10 @@ public class ShopifyStorefrontBootstrapService {
     }
 
     private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {
-        if (store.readiness() != null && !store.readiness().storefrontBlockingReasons().isEmpty()) {
-            return store.readiness().storefrontBlockingReasons().get(0);
-        }
-        return "Storefront bootstrap is not available for this store yet.";
+        return ShopifyStorefrontInteractionReadinessSupport.firstBlockingReason(
+            store,
+            "Storefront bootstrap is not available for this store yet."
+        );
     }
 
     private String encodePathSegment(String value) {

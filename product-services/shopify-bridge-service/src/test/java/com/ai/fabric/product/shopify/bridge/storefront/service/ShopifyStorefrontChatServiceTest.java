@@ -144,6 +144,31 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void suggestionsAllowsSupportBlockedStoreWhenBaseStorefrontContractIsReady() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(supportBlockedStore());
+        when(platformClient.suggestConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {"content":"Current page: Travel Pack","maxSuggestions":4}
+            """), null)).thenReturn(objectMapper.readTree("""
+            {"success":true,"suggestions":["Tell me about Travel Pack"]}
+            """));
+
+        JsonNode response = service.suggestions(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {"content":"Current page: Travel Pack","maxSuggestions":4}
+                """),
+            null
+        );
+
+        assertThat(response.path("suggestions")).hasSize(1);
+        verify(platformClient).suggestConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {"content":"Current page: Travel Pack","maxSuggestions":4}
+            """), null);
+    }
+
+    @Test
     void suggestionsRejectsStoreWhenSourceReadinessIsNotReady() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
@@ -156,6 +181,27 @@ class ShopifyStorefrontChatServiceTest {
 
     private ShopifyBridgeStoreSummary store(String installStatus,
                                             String sourceReadinessStatus) {
+        return store(installStatus, sourceReadinessStatus, readiness(sourceReadinessStatus));
+    }
+
+    private ShopifyBridgeStoreSummary supportBlockedStore() {
+        return store(
+            "INSTALLED",
+            "READY",
+            new ShopifyBridgeStoreReadinessSummary(
+                "BLOCKED",
+                false,
+                false,
+                java.util.List.of("Customer-safe order lookup and governed support posture are not ready for go-live yet."),
+                java.util.List.of("Customer-safe order lookup is waiting for Shopify order-read scope approval on this store."),
+                java.util.List.of("Approve the required Shopify order-read scope before enabling customer-safe order lookup.")
+            )
+        );
+    }
+
+    private ShopifyBridgeStoreSummary store(String installStatus,
+                                            String sourceReadinessStatus,
+                                            ShopifyBridgeStoreReadinessSummary readiness) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
             "alpha.myshopify.com",
@@ -197,7 +243,7 @@ class ShopifyStorefrontChatServiceTest {
             null,
             null,
             null,
-            readiness(sourceReadinessStatus),
+            readiness,
             new ShopifyBridgeStoreDeploymentVersionSummary(
                 "ver-1",
                 "v1",
