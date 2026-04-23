@@ -53,8 +53,21 @@ public class ShopifyStorefrontBootstrapService {
 
     public ShopifyStorefrontBootstrapResponse bootstrap(String shopDomain) {
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(shopDomain);
+        String bridgeQueryUrl = storefrontUrl(store.shopDomain(), "/chat/query");
+        String bridgeSuggestionsUrl = storefrontUrl(store.shopDomain(), "/chat/suggestions");
+        String bridgeReadActionUrl = storefrontUrl(store.shopDomain(), "/actions/read");
+        String bridgeOrderLookupUrl = storefrontUrl(store.shopDomain(), "/support/order-lookup");
+        String bridgeEventUrl = storefrontUrl(store.shopDomain(), "/events");
         if (store.readiness() == null || !store.readiness().storefrontReady()) {
-            return unavailable(store, firstStorefrontBlockingReason(store));
+            return unavailable(
+                store,
+                firstStorefrontBlockingReason(store),
+                bridgeQueryUrl,
+                bridgeSuggestionsUrl,
+                bridgeReadActionUrl,
+                bridgeOrderLookupUrl,
+                bridgeEventUrl
+            );
         }
 
         PlatformPublicConsumerDeploymentCredentialsResponse credentials =
@@ -68,11 +81,6 @@ public class ShopifyStorefrontBootstrapService {
             )
         );
 
-        String bridgeQueryUrl = storefrontUrl(updated.shopDomain(), "/chat/query");
-        String bridgeSuggestionsUrl = storefrontUrl(updated.shopDomain(), "/chat/suggestions");
-        String bridgeReadActionUrl = storefrontUrl(updated.shopDomain(), "/actions/read");
-        String bridgeOrderLookupUrl = storefrontUrl(updated.shopDomain(), "/support/order-lookup");
-        String bridgeEventUrl = storefrontUrl(updated.shopDomain(), "/events");
         String actionGrantUrl = storefrontUrl(updated.shopDomain(), "/actions/grant");
         String actionCompleteUrl = storefrontUrl(updated.shopDomain(), "/actions/complete");
         String preferredIntegrationMode = credentials.integration() == null ? null : credentials.integration().preferredIntegrationMode();
@@ -157,7 +165,13 @@ public class ShopifyStorefrontBootstrapService {
         );
     }
 
-    private ShopifyStorefrontBootstrapResponse unavailable(ShopifyBridgeStoreSummary store, String message) {
+    private ShopifyStorefrontBootstrapResponse unavailable(ShopifyBridgeStoreSummary store,
+                                                          String message,
+                                                          String bridgeQueryUrl,
+                                                          String bridgeSuggestionsUrl,
+                                                          String bridgeReadActionUrl,
+                                                          String bridgeOrderLookupUrl,
+                                                          String bridgeEventUrl) {
         return new ShopifyStorefrontBootstrapResponse(
             false,
             store.shopDomain(),
@@ -178,11 +192,11 @@ public class ShopifyStorefrontBootstrapService {
             supportedReviewProviders(store),
             null,
             null,
-            null,
-            null,
-            null,
-            null,
-            null,
+            bridgeQueryUrl,
+            bridgeSuggestionsUrl,
+            bridgeReadActionUrl,
+            bridgeOrderLookupUrl,
+            bridgeEventUrl,
             false,
             true,
             "Order lookup is unavailable until the store is storefront-ready.",

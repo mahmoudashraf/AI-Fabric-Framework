@@ -119,6 +119,11 @@ class ShopifyStorefrontBootstrapServiceTest {
         ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com");
 
         assertThat(response.available()).isFalse();
+        assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
+        assertThat(response.bridgeSuggestionsUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/suggestions");
+        assertThat(response.bridgeReadActionUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/actions/read");
+        assertThat(response.bridgeOrderLookupUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/support/order-lookup");
+        assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.message()).contains("Store data is not ready yet");
     }
 
