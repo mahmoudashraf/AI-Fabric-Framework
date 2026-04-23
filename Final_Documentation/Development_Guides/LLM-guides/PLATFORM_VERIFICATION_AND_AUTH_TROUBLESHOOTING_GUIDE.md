@@ -6,6 +6,7 @@ This guide is implementation-oriented. It is not a design plan.
 
 Related references:
 
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESOURCES_MAP.md`
 - `doc/Productization/future-work/Auth/AUTH_IMPLEMENTED_FLOW_GUIDE.md`
 - `doc/Productization/future-work/Auth/AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md`
