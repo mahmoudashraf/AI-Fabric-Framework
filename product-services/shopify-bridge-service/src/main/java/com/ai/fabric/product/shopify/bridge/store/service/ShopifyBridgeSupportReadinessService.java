@@ -3,11 +3,8 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
-import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
-import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
-import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
@@ -15,78 +12,35 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportRead
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 
 @Service
 public class ShopifyBridgeSupportReadinessService {
 
-    private static final String APP_SCOPES_UPDATE_TOPIC = "APP_SCOPES_UPDATE";
-
-    private static final String SUPPORT_STATE_QUERY = """
-        query ShopifyBridgeSupportState($topics: [WebhookSubscriptionTopic!]) {
-          currentAppInstallation {
-            accessScopes {
-              handle
-            }
-            activeSubscriptions {
-              id
-              name
-              status
-            }
-          }
-          shop {
-            contactEmail
-            email
-          }
-          webhookSubscriptions(first: 50, topics: $topics) {
-            edges {
-              node {
-                id
-                topic
-                uri
-                name
-              }
-            }
-          }
-        }
-        """;
-
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
-    private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyBridgeBillingService billingService;
-    private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final ShopifyBridgeProperties properties;
 
     public ShopifyBridgeSupportReadinessService(PlatformShopifyStoreClient platformShopifyStoreClient,
-                                                ShopifyBridgeInstallCredentialService installCredentialService,
                                                 ShopifyInstallRecordService installRecordService,
                                                 ShopifyBridgeBillingService billingService,
-                                                ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
                                                 ShopifyBridgeProperties properties) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
-        this.installCredentialService = installCredentialService;
         this.installRecordService = installRecordService;
         this.billingService = billingService;
-        this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.properties = properties;
     }
 
     public ShopifyBridgeSupportReadinessSummary summarizeForShop(String shopDomain) {
         ShopifyInstallRecordSummary installRecord = installRecordService.findByShopDomain(shopDomain).orElse(null);
-        ShopifyBridgeCredentialAcquisition acquisition = installCredentialService.resolvePersistedMaterial(shopDomain).orElse(null);
-        String accessToken = acquisition == null ? null : acquisition.tokenExchangeMaterial().accessToken();
-        SupportState supportState = resolveSupportState(shopDomain, accessToken, installRecord);
+        SupportState supportState = resolveSupportState(installRecord);
         SupportBillingState billingState = resolveSupportBillingState(supportState);
-        ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain, supportState);
+        ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain);
         boolean installRecoveryRequired = installRecoveryRequired(installRecord);
         boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_orders");
         boolean allOrdersScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_all_orders");
@@ -176,56 +130,12 @@ public class ShopifyBridgeSupportReadinessService {
         );
     }
 
-    private SupportState resolveSupportState(String shopDomain,
-                                             String accessToken,
-                                             ShopifyInstallRecordSummary installRecord) {
-        if (accessToken == null || accessToken.isBlank()) {
-            return new SupportState(
-                fallbackScopes(installRecord),
-                List.of(),
-                null,
-                false
-            );
-        }
-        try {
-            Map<String, Object> response = shopifyAdminGraphqlClient.execute(
-                shopDomain,
-                accessToken,
-                SUPPORT_STATE_QUERY,
-                Map.of("topics", List.of(APP_SCOPES_UPDATE_TOPIC))
-            );
-            List<String> messages = graphQlMessages(response);
-            boolean appScopesTopicBlocked = !messages.isEmpty() && messages.stream().allMatch(this::isInaccessibleTopicFailure);
-            if (!messages.isEmpty() && !appScopesTopicBlocked) {
-                throw new ResponseStatusException(
-                    org.springframework.http.HttpStatus.BAD_GATEWAY,
-                    String.join(" ", messages)
-                );
-            }
-            Map<String, Object> data = response.get("data") instanceof Map<?, ?> dataMap
-                ? requireMap(dataMap, "Shopify support readiness lookup returned invalid data.")
-                : Map.of();
-            Map<String, Object> installation = data.get("currentAppInstallation") instanceof Map<?, ?> installationMap
-                ? requireMap(installationMap, "Shopify support readiness lookup returned invalid currentAppInstallation payload.")
-                : Map.of();
-            List<String> grantedScopes = parseScopes(installation.get("accessScopes"));
-            if (grantedScopes.isEmpty()) {
-                grantedScopes = fallbackScopes(installRecord);
-            }
-            return new SupportState(
-                grantedScopes,
-                parseActiveSubscriptions(installation.get("activeSubscriptions")),
-                resolveShopContactEmail(data),
-                !appScopesTopicBlocked && resolveAppScopesWebhookReady(data)
-            );
-        } catch (ResponseStatusException ex) {
-            return new SupportState(
-                fallbackScopes(installRecord),
-                List.of(),
-                null,
-                false
-            );
-        }
+    private SupportState resolveSupportState(ShopifyInstallRecordSummary installRecord) {
+        return new SupportState(
+            fallbackScopes(installRecord),
+            List.of(),
+            installRecord != null && installRecord.appScopesUpdateWebhookReady()
+        );
     }
 
     private SupportBillingState resolveSupportBillingState(SupportState supportState) {
@@ -259,58 +169,11 @@ public class ShopifyBridgeSupportReadinessService {
         return ShopifyScopeSupport.parseScopes(installRecord == null ? null : installRecord.scopesText());
     }
 
-    private List<String> parseScopes(Object value) {
-        if (!(value instanceof List<?> items)) {
-            return List.of();
-        }
-        Set<String> scopes = new LinkedHashSet<>();
-        for (Object item : items) {
-            if (!(item instanceof Map<?, ?> map)) {
-                continue;
-            }
-            Object handle = map.get("handle");
-            if (handle != null) {
-                String normalized = handle.toString().trim().toLowerCase(Locale.ROOT);
-                if (!normalized.isEmpty()) {
-                    scopes.add(normalized);
-                }
-            }
-        }
-        return List.copyOf(scopes);
-    }
-
-    private List<ShopifyBridgeSupportSubscriptionSummary> parseActiveSubscriptions(Object value) {
-        if (!(value instanceof List<?> items)) {
-            return List.of();
-        }
-        List<ShopifyBridgeSupportSubscriptionSummary> subscriptions = new ArrayList<>();
-        for (Object item : items) {
-            if (!(item instanceof Map<?, ?> map)) {
-                continue;
-            }
-            String status = optionalText(map.get("status"));
-            String name = optionalText(map.get("name"));
-            String subscriptionId = optionalText(map.get("id"));
-            if (subscriptionId == null && name == null && status == null) {
-                continue;
-            }
-            boolean active = "ACTIVE".equalsIgnoreCase(status) || "ACCEPTED".equalsIgnoreCase(status);
-            subscriptions.add(new ShopifyBridgeSupportSubscriptionSummary(
-                subscriptionId,
-                name,
-                status == null ? "UNKNOWN" : status.toUpperCase(Locale.ROOT),
-                resolveTierKey(name),
-                active
-            ));
-        }
-        return List.copyOf(subscriptions);
-    }
-
     private boolean installRecoveryRequired(ShopifyInstallRecordSummary installRecord) {
         return "UNINSTALLED".equalsIgnoreCase(installRecord == null ? null : installRecord.status());
     }
 
-    private ShopifyBridgeSupportProfileSummary getSupportProfile(String shopDomain, SupportState supportState) {
+    private ShopifyBridgeSupportProfileSummary getSupportProfile(String shopDomain) {
         ShopifyBridgeSupportProfileSummary summary;
         try {
             summary = platformShopifyStoreClient.getSupportProfile(shopDomain);
@@ -322,17 +185,7 @@ public class ShopifyBridgeSupportReadinessService {
         } catch (Exception ex) {
             summary = new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false);
         }
-        if (summary.merchantHandoffConfigured()) {
-            return summary;
-        }
-        String shopContactEmail = optionalText(supportState.shopContactEmail());
-        if (shopContactEmail == null) {
-            return summary;
-        }
-        return mergeSupportProfile(
-            summary,
-            new ShopifyBridgeSupportProfileSummary(shopContactEmail, null, null, null, null, true)
-        );
+        return summary;
     }
 
     private String buildInstallUrl(String shopDomain) {
@@ -346,120 +199,12 @@ public class ShopifyBridgeSupportReadinessService {
             .toUriString();
     }
 
-    private List<String> graphQlMessages(Map<String, Object> response) {
-        Object errors = response.get("errors");
-        if (!(errors instanceof List<?> errorList) || errorList.isEmpty()) {
-            return List.of();
-        }
-        List<String> messages = new ArrayList<>();
-        for (Object error : errorList) {
-            if (!(error instanceof Map<?, ?> map)) {
-                continue;
-            }
-            String message = optionalText(map.get("message"));
-            if (message != null) {
-                messages.add(message);
-            }
-        }
-        return List.copyOf(messages);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> requireMap(Object value, String message) {
-        if (!(value instanceof Map<?, ?> map)) {
-            throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY, message);
-        }
-        return (Map<String, Object>) map;
-    }
-
     private String optionalText(Object value) {
         if (value == null) {
             return null;
         }
         String normalized = value.toString().trim();
         return normalized.isEmpty() ? null : normalized;
-    }
-
-    private boolean resolveAppScopesWebhookReady(Map<String, Object> data) {
-        if (!(data.get("webhookSubscriptions") instanceof Map<?, ?> subscriptionsMap)) {
-            return false;
-        }
-        Map<String, Object> subscriptions = requireMap(subscriptionsMap, "Shopify webhook subscription payload is invalid.");
-        Object edgesValue = subscriptions.get("edges");
-        if (!(edgesValue instanceof List<?> edges)) {
-            return false;
-        }
-        String expectedWebhookUri = expectedWebhookUri();
-        for (Object edgeValue : edges) {
-            if (!(edgeValue instanceof Map<?, ?> edgeMap)) {
-                continue;
-            }
-            Map<String, Object> edge = requireMap(edgeMap, "Shopify webhook subscription edge is invalid.");
-            if (!(edge.get("node") instanceof Map<?, ?> nodeMap)) {
-                continue;
-            }
-            Map<String, Object> node = requireMap(nodeMap, "Shopify webhook subscription node is invalid.");
-            String topic = optionalText(node.get("topic"));
-            if (!APP_SCOPES_UPDATE_TOPIC.equalsIgnoreCase(topic)) {
-                continue;
-            }
-            String uri = optionalText(node.get("uri"));
-            if (uri != null && uri.equalsIgnoreCase(expectedWebhookUri)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private String resolveShopContactEmail(Map<String, Object> data) {
-        if (!(data.get("shop") instanceof Map<?, ?> shopMap)) {
-            return null;
-        }
-        Map<String, Object> shop = requireMap(shopMap, "Shopify shop contact payload is invalid.");
-        String contactEmail = optionalText(shop.get("contactEmail"));
-        if (contactEmail != null) {
-            return contactEmail;
-        }
-        return optionalText(shop.get("email"));
-    }
-
-    private boolean isInaccessibleTopicFailure(String message) {
-        return message != null && message.toLowerCase(Locale.ROOT)
-            .contains("topics argument cannot contain any topics to which you do not have access");
-    }
-
-    private String expectedWebhookUri() {
-        String baseUrl = properties.publicBaseUrl();
-        if (baseUrl == null || baseUrl.isBlank()) {
-            return null;
-        }
-        String normalizedBaseUrl = baseUrl.endsWith("/")
-            ? baseUrl.substring(0, baseUrl.length() - 1)
-            : baseUrl;
-        return normalizedBaseUrl + "/api/webhooks/shopify";
-    }
-
-    private ShopifyBridgeSupportProfileSummary mergeSupportProfile(ShopifyBridgeSupportProfileSummary persisted,
-                                                                  ShopifyBridgeSupportProfileSummary fallback) {
-        String contactEmail = optionalText(persisted.contactEmail());
-        if (contactEmail == null) {
-            contactEmail = optionalText(fallback.contactEmail());
-        }
-        String contactUrl = optionalText(persisted.contactUrl());
-        String helpCenterUrl = optionalText(persisted.helpCenterUrl());
-        String orderLookupPageUrl = optionalText(persisted.orderLookupPageUrl());
-        String supportPolicyNote = optionalText(persisted.supportPolicyNote());
-        boolean merchantHandoffConfigured = contactEmail != null
-            || contactUrl != null
-            || helpCenterUrl != null;
-        return new ShopifyBridgeSupportProfileSummary(
-            contactEmail,
-            contactUrl,
-            helpCenterUrl,
-            orderLookupPageUrl,
-            supportPolicyNote,
-            merchantHandoffConfigured
-        );
     }
 
     private String normalizeShopDomain(String shopDomain) {
@@ -550,28 +295,9 @@ public class ShopifyBridgeSupportReadinessService {
             : "Merchant support handoff is configured through " + String.join(", ", channels) + ".";
     }
 
-    private String resolveTierKey(String subscriptionName) {
-        String normalized = optionalText(subscriptionName);
-        if (normalized == null) {
-            return "UNKNOWN";
-        }
-        String lower = normalized.toLowerCase(Locale.ROOT);
-        if (lower.contains("elite")) {
-            return "ELITE";
-        }
-        if (lower.contains("starter")) {
-            return "STARTER";
-        }
-        if (lower.contains("free")) {
-            return "FREE";
-        }
-        return "UNKNOWN";
-    }
-
     private record SupportState(
         List<String> grantedScopes,
         List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions,
-        String shopContactEmail,
         boolean appScopesUpdateWebhookReady
     ) {
         private List<String> activeSubscriptionNames() {

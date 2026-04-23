@@ -13,6 +13,8 @@ public record ShopifyInstallRecordSummary(
     String scopesText,
     Instant accessTokenExpiresAt,
     Instant refreshTokenExpiresAt,
+    boolean appScopesUpdateWebhookReady,
+    Instant appScopesUpdateWebhookCheckedAt,
     Instant installedAt,
     Instant lastAuthenticatedAt,
     Instant lastUninstalledAt

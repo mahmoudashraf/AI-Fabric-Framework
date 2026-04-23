@@ -37,6 +37,7 @@ public class ShopifyInstallFlowService {
 
     private static final String DEFAULT_APP_SCOPES =
         "read_products,read_content,read_legal_policies,read_metaobjects,read_metaobject_definitions,read_orders";
+    private static final String APP_SCOPES_UPDATE_TOPIC = "APP_SCOPES_UPDATE";
     private static final Logger log = LoggerFactory.getLogger(ShopifyInstallFlowService.class);
 
     private final ShopifyBridgeProperties properties;
@@ -118,6 +119,10 @@ public class ShopifyInstallFlowService {
     private void reconcileSubscriptionsSafely(String shopDomain, String accessToken) {
         try {
             webhookSubscriptionService.reconcileContentSubscriptions(shopDomain, accessToken);
+            boolean appScopesWebhookReady = "READY".equalsIgnoreCase(
+                webhookSubscriptionService.inspectTopicStatus(shopDomain, accessToken, APP_SCOPES_UPDATE_TOPIC).status()
+            );
+            installRecordService.recordAppScopesUpdateWebhookReady(shopDomain, appScopesWebhookReady);
         } catch (RuntimeException ex) {
             log.warn("Shopify webhook subscription reconciliation failed for shop={}", shopDomain, ex);
         }

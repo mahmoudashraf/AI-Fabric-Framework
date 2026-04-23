@@ -54,6 +54,12 @@ public class ShopifyInstallRecordEntity {
     @Column(name = "last_uninstalled_at")
     private Instant lastUninstalledAt;
 
+    @Column(name = "app_scopes_update_webhook_ready", nullable = false)
+    private boolean appScopesUpdateWebhookReady;
+
+    @Column(name = "app_scopes_update_webhook_checked_at")
+    private Instant appScopesUpdateWebhookCheckedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -170,6 +176,22 @@ public class ShopifyInstallRecordEntity {
 
     public void setLastUninstalledAt(Instant lastUninstalledAt) {
         this.lastUninstalledAt = lastUninstalledAt;
+    }
+
+    public boolean isAppScopesUpdateWebhookReady() {
+        return appScopesUpdateWebhookReady;
+    }
+
+    public void setAppScopesUpdateWebhookReady(boolean appScopesUpdateWebhookReady) {
+        this.appScopesUpdateWebhookReady = appScopesUpdateWebhookReady;
+    }
+
+    public Instant getAppScopesUpdateWebhookCheckedAt() {
+        return appScopesUpdateWebhookCheckedAt;
+    }
+
+    public void setAppScopesUpdateWebhookCheckedAt(Instant appScopesUpdateWebhookCheckedAt) {
+        this.appScopesUpdateWebhookCheckedAt = appScopesUpdateWebhookCheckedAt;
     }
 
     public Instant getCreatedAt() {

@@ -139,6 +139,33 @@ class ShopifyInstallRecordServiceTest {
         assertThat(summary.appBridgeHost()).isEqualTo("embedded-host-token");
         assertThat(summary.accessTokenSecretRef()).isEqualTo("MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA");
         assertThat(summary.installedAt()).isNotNull();
+        assertThat(summary.appScopesUpdateWebhookReady()).isFalse();
+        assertThat(summary.appScopesUpdateWebhookCheckedAt()).isNull();
+    }
+
+    @Test
+    void recordAppScopesWebhookReadyPersistsAndClearsGovernedSupportState() {
+        service.recordInstall(
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "embedded-host-token",
+            "read_products,read_orders",
+            "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+            null,
+            null,
+            null
+        );
+
+        ShopifyInstallRecordSummary ready = service.recordAppScopesUpdateWebhookReady(
+            "alpha.myshopify.com",
+            true
+        ).orElseThrow();
+        ShopifyInstallRecordSummary cleared = service.clearCredentials("alpha.myshopify.com").orElseThrow();
+
+        assertThat(ready.appScopesUpdateWebhookReady()).isTrue();
+        assertThat(ready.appScopesUpdateWebhookCheckedAt()).isNotNull();
+        assertThat(cleared.appScopesUpdateWebhookReady()).isFalse();
+        assertThat(cleared.appScopesUpdateWebhookCheckedAt()).isNull();
     }
 
     @Test

@@ -83,6 +83,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "read_products",
             Instant.parse("2026-04-18T01:00:00Z"),
             Instant.parse("2026-07-18T00:00:00Z"),
+            false,
+            Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),
             null
@@ -126,6 +128,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
             null,
             null,
             null,
+            false,
+            Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T00:00:00Z"),
             Instant.parse("2026-04-18T11:00:00Z")

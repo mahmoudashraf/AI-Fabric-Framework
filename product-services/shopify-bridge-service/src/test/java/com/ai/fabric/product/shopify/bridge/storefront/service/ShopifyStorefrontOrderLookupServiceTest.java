@@ -200,6 +200,8 @@ class ShopifyStorefrontOrderLookupServiceTest {
             scopesText,
             now.plusSeconds(3600),
             now.plusSeconds(7200),
+            false,
+            now,
             now,
             now,
             null

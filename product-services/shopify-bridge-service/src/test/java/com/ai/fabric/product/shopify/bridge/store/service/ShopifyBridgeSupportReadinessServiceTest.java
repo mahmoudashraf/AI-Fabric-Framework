@@ -3,12 +3,8 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
-import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
-import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
-import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
-import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
@@ -17,13 +13,9 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,10 +24,8 @@ class ShopifyBridgeSupportReadinessServiceTest {
     @Test
     void summarizesReadyOrderLookupWhenScopeAndWebhookArePresent() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
-        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
 
         when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
             "support@alpha.test",
@@ -45,45 +35,16 @@ class ShopifyBridgeSupportReadinessServiceTest {
             "Refund approvals still route to the merchant support team.",
             true
         ));
-        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
-        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord(
+            "read_products,read_content,read_legal_policies,read_orders",
+            true
+        )));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString(), anyMap())).thenReturn(Map.of(
-            "data", Map.of(
-                "currentAppInstallation", Map.of(
-                    "accessScopes", List.of(
-                        Map.of("handle", "read_products"),
-                        Map.of("handle", "read_orders")
-                    ),
-                    "activeSubscriptions", List.of(
-                        Map.of("name", "Loom Companion Free", "status", "ACTIVE")
-                    )
-                ),
-                "shop", Map.of(
-                    "contactEmail", "merchant@alpha.test",
-                    "email", "owner@alpha.test"
-                ),
-                "webhookSubscriptions", Map.of(
-                    "edges", List.of(
-                        Map.of(
-                            "node", Map.of(
-                                "id", "gid://shopify/WebhookSubscription/1",
-                                "topic", "APP_SCOPES_UPDATE",
-                                "uri", "https://bridge.example/api/webhooks/shopify",
-                                "name", "loom-app-scopes-update"
-                            )
-                        )
-                    )
-                )
-            )
-        ));
 
         ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
             platformClient,
-            installCredentialService,
             installRecordService,
             billingService,
-            shopifyAdminGraphqlClient,
             properties()
         );
 
@@ -94,8 +55,8 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.orderLookupScopeGranted()).isTrue();
         assertThat(summary.appScopesUpdateWebhookReady()).isTrue();
         assertThat(summary.lifecycleStage()).isEqualTo("RECENT_ORDER_ONLY");
-        assertThat(summary.activeSubscriptionNames()).contains("Loom Companion Free");
-        assertThat(summary.activeSubscriptions()).hasSize(1);
+        assertThat(summary.activeSubscriptionNames()).isEmpty();
+        assertThat(summary.activeSubscriptions()).isEmpty();
         assertThat(summary.merchantHandoffConfigured()).isTrue();
         assertThat(summary.supportProfile()).isNotNull();
         assertThat(summary.supportProfile().contactEmail()).isEqualTo("support@alpha.test");
@@ -105,10 +66,8 @@ class ShopifyBridgeSupportReadinessServiceTest {
     @Test
     void reportsPendingScopeGrantWhenReadOrdersIsMissing() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
-        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
 
         when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
             null,
@@ -118,26 +77,16 @@ class ShopifyBridgeSupportReadinessServiceTest {
             null,
             false
         ));
-        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies")));
-        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies")));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord(
+            "read_products,read_content,read_legal_policies",
+            false
+        )));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString(), anyMap())).thenReturn(Map.of(
-            "data", Map.of(
-                "currentAppInstallation", Map.of(
-                    "accessScopes", List.of(Map.of("handle", "read_products")),
-                    "activeSubscriptions", List.of()
-                ),
-                "shop", Map.of(),
-                "webhookSubscriptions", Map.of("edges", List.of())
-            )
-        ));
 
         ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
             platformClient,
-            installCredentialService,
             installRecordService,
             billingService,
-            shopifyAdminGraphqlClient,
             properties()
         );
 
@@ -153,12 +102,10 @@ class ShopifyBridgeSupportReadinessServiceTest {
     }
 
     @Test
-    void derivesMerchantHandoffFromShopContactEmailWhenPlatformProfileIsBlank() {
+    void keepsMerchantHandoffBlockedWhenPlatformSupportProfileIsBlank() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
-        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
 
         when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
             null,
@@ -168,52 +115,26 @@ class ShopifyBridgeSupportReadinessServiceTest {
             null,
             false
         ));
-        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
-        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord(
+            "read_products,read_content,read_legal_policies,read_orders",
+            true
+        )));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString(), anyMap())).thenReturn(Map.of(
-            "data", Map.of(
-                "currentAppInstallation", Map.of(
-                    "accessScopes", List.of(
-                        Map.of("handle", "read_products"),
-                        Map.of("handle", "read_orders")
-                    ),
-                    "activeSubscriptions", List.of()
-                ),
-                "shop", Map.of(
-                    "contactEmail", "merchant@alpha.test",
-                    "email", "owner@alpha.test"
-                ),
-                "webhookSubscriptions", Map.of(
-                    "edges", List.of(
-                        Map.of(
-                            "node", Map.of(
-                                "id", "gid://shopify/WebhookSubscription/1",
-                                "topic", "APP_SCOPES_UPDATE",
-                                "uri", "https://bridge.example/api/webhooks/shopify",
-                                "name", "loom-app-scopes-update"
-                            )
-                        )
-                    )
-                )
-            )
-        ));
 
         ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
             platformClient,
-            installCredentialService,
             installRecordService,
             billingService,
-            shopifyAdminGraphqlClient,
             properties()
         );
 
         var summary = service.summarizeForShop("alpha.myshopify.com");
 
         assertThat(summary.status()).isEqualTo("READY");
-        assertThat(summary.merchantHandoffConfigured()).isTrue();
-        assertThat(summary.supportProfile().contactEmail()).isEqualTo("merchant@alpha.test");
-        assertThat(summary.merchantHandoffMessage()).contains("support email");
+        assertThat(summary.merchantHandoffConfigured()).isFalse();
+        assertThat(summary.supportProfile().contactEmail()).isNull();
+        assertThat(summary.lifecycleStage()).isEqualTo("SUPPORT_HANDOFF_SETUP");
+        assertThat(summary.nextActions()).anyMatch(action -> action.contains("merchant support email"));
     }
 
     private ShopifyBridgeStoreSummary store(String installStatus) {
@@ -265,7 +186,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         );
     }
 
-    private ShopifyInstallRecordSummary installRecord(String scopesText) {
+    private ShopifyInstallRecordSummary installRecord(String scopesText, boolean appScopesUpdateWebhookReady) {
         Instant now = Instant.parse("2026-04-23T12:00:00Z");
         return new ShopifyInstallRecordSummary(
             "alpha.myshopify.com",
@@ -278,23 +199,11 @@ class ShopifyBridgeSupportReadinessServiceTest {
             scopesText,
             now.plusSeconds(3600),
             now.plusSeconds(7200),
+            appScopesUpdateWebhookReady,
+            now,
             now,
             now,
             null
-        );
-    }
-
-    private ShopifyBridgeCredentialAcquisition acquisition(String scopesText) {
-        return new ShopifyBridgeCredentialAcquisition(
-            null,
-            new ShopifyTokenExchangeMaterial(
-                "access-token",
-                "refresh-token",
-                Instant.parse("2026-04-23T13:00:00Z"),
-                Instant.parse("2026-04-24T12:00:00Z"),
-                scopesText,
-                false
-            )
         );
     }
 
