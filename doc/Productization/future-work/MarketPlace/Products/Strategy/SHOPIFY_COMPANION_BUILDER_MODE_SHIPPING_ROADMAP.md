@@ -65,7 +65,7 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 
 | Strategy expectation | Current code reality | Gap |
 |---|---|---|
-| Multiple embedded intelligence surfaces | Theme app extension now ships the launcher app embed plus merchant-placeable `AI search`, `Contextual pill`, `Product insight`, `Policy strip`, and `Product FAQ` app blocks. The embed continues to load the broader embedded-surfaces layer with comparison entry points. | Real progress toward the embedded-intelligence product shape, but still missing a fuller block inventory and mature per-surface merchandising. |
+| Multiple embedded intelligence surfaces | Theme app extension now ships the launcher app embed plus merchant-placeable `AI search`, `Contextual pill`, `Product insight`, `Policy strip`, `Product FAQ`, and `Comparison` app blocks. | Real progress toward the embedded-intelligence product shape, but still missing richer source coverage, stronger merchandising polish, and App Store packaging maturity. |
 | Embedded intelligence product shape | Storefront no longer loads only a launcher shell. The app embed now layers embedded intelligence surfaces on top of the shell, and AI search can now operate as a direct bridge-backed surface even with chat fallback disabled. | Product identity is improving, but the delivery model still depends on a fixed app-embed host rather than a mature theme-surface system. |
 | Max Mode storefront convergence | The Shopify embed loader already supports `legacy` and `max-mode`, and there is already a Shopify-specific Max Mode wrapper. | This is a real convergence track, but it is only partially complete and should not be treated as a standalone product milestone. |
 | Real shell conversation modes | Shopify now persists `shellModeProfile`, exposes it in bootstrap/admin surfaces, and forwards it into bridge/runtime request context. | This is now a bounded mode-profile system, but not yet full multi-mode runtime semantics like true `assistant` / `deep` Shopify modes. |
@@ -346,7 +346,6 @@ Goal:
 Must ship:
 
 - product FAQ block
-- comparison surface
 - broader read-first discovery depth
 - plan-aware entitlements for Starter
 - unlimited products for Starter
@@ -360,7 +359,7 @@ Progress note:
 
 - query volume, top shopper questions, and bounded shopper surface usage are now materially real in the merchant app
 - published articles/blog content is now materially real in the Shopify source pipeline
-- the main remaining Milestone 3 gap is comparison as a real storefront surface plus metaobjects/metafields/review-provider depth
+- the main remaining Milestone 3 gap is metaobjects/metafields/review-provider depth plus final commercial/tier hardening around the now-real surface inventory
 
 Recommended supporting data work:
 

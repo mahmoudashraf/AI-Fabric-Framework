@@ -53,12 +53,13 @@ class ShopifyStorefrontPreviewServiceTest {
         assertThat(preview.welcomeMessageDefault()).isEqualTo("Ask me about products and store policies.");
         assertThat(preview.themeEditorActivationUrl())
             .isEqualTo("https://admin.shopify.com/store/alpha/themes/current/editor?context=apps&activateAppId=shopify-api-key/companion-app-embed");
-        assertThat(preview.surfacePlacements()).hasSize(5);
+        assertThat(preview.surfacePlacements()).hasSize(6);
         assertThat(preview.surfacePlacements().get(0).blockHandle()).isEqualTo("companion-ai-search");
         assertThat(preview.surfacePlacements().get(0).requiredTierKey()).isEqualTo("FREE");
         assertThat(preview.surfacePlacements().get(1).themeEditorUrl())
             .contains("addAppBlockId=shopify-api-key/companion-contextual-pill");
         assertThat(preview.surfacePlacements().get(4).blockHandle()).isEqualTo("companion-product-faq");
+        assertThat(preview.surfacePlacements().get(5).blockHandle()).isEqualTo("companion-comparison");
         assertThat(preview.activationSteps()).isNotEmpty();
     }
 

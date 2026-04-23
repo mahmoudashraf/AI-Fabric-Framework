@@ -49,6 +49,7 @@ public class ShopifyStorefrontEngagementService {
             case "SEARCH_SUBMITTED" -> "STOREFRONT_SEARCH_SUBMITTED_" + pageBucket(request.pageType());
             case "CONTEXTUAL_PROMPT_CLICKED" -> "STOREFRONT_CONTEXTUAL_PROMPT_CLICKED_" + pageBucket(request.pageType());
             case "PRODUCT_FAQ_CLICKED" -> "STOREFRONT_PRODUCT_FAQ_CLICKED_" + pageBucket(request.pageType());
+            case "COMPARISON_CLICKED" -> "STOREFRONT_COMPARISON_CLICKED_" + pageBucket(request.pageType());
             case "CHAT_RESET" -> "STOREFRONT_CHAT_RESET";
             default -> throw badRequest("Unsupported storefront event type: " + request.eventType());
         };

@@ -21,6 +21,7 @@ public class ShopifyStorefrontPreviewService {
     private static final String PRODUCT_INSIGHT_BLOCK_HANDLE = "companion-product-insight";
     private static final String POLICY_STRIP_BLOCK_HANDLE = "companion-policy-strip";
     private static final String PRODUCT_FAQ_BLOCK_HANDLE = "companion-product-faq";
+    private static final String COMPARISON_BLOCK_HANDLE = "companion-comparison";
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
@@ -75,7 +76,7 @@ public class ShopifyStorefrontPreviewService {
                 "Enable the Companion launcher app embed.",
                 "Optionally place the AI search block on a homepage or collection-oriented template.",
                 "Optionally place the contextual pill block on collection or product templates to surface quick prompts inline.",
-                "Optionally place the product insight, policy strip, and product FAQ blocks on the product template.",
+                "Optionally place the product insight, policy strip, product FAQ, and comparison blocks on the product template.",
                 "Set Bridge base URL to " + (bridgeBaseUrl == null ? "<bridge-public-base-url>" : bridgeBaseUrl) + ".",
                 "Keep the launcher label as-is or set it from the Companion app widget settings.",
                 "Use the Companion app welcome message as the first assistant response in the launcher.",
@@ -166,6 +167,16 @@ public class ShopifyStorefrontPreviewService {
                 "mainSection",
                 "STARTER",
                 "Place this lower on the product template to answer common shopper questions without switching to a full chat flow."
+            ),
+            buildAppBlockPlacement(
+                shopDomain,
+                "comparison",
+                "Comparison block",
+                COMPARISON_BLOCK_HANDLE,
+                "product",
+                "mainSection",
+                "STARTER",
+                "Place this beside product insight or below key buying details so shoppers can compare alternatives without opening chat."
             )
         );
     }

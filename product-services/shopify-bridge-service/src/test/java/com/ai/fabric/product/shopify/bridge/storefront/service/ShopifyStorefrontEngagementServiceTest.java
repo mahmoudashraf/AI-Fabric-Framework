@@ -59,10 +59,16 @@ class ShopifyStorefrontEngagementServiceTest {
             new ShopifyStorefrontEngagementEventRequest("PRODUCT_FAQ_CLICKED", "product", "Travel Pack", "travel-pack", null),
             "shopper-session-1"
         );
+        service.record(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontEngagementEventRequest("COMPARISON_CLICKED", "product", "Travel Pack", "travel-pack", null),
+            "shopper-session-1"
+        );
 
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_SEARCH_SUBMITTED_COLLECTION_PAGE");
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_CONTEXTUAL_PROMPT_CLICKED_PRODUCT_PAGE");
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_PRODUCT_FAQ_CLICKED_PRODUCT_PAGE");
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_COMPARISON_CLICKED_PRODUCT_PAGE");
     }
 
     @Test

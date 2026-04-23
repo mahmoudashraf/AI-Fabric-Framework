@@ -141,7 +141,7 @@ const WIDGET_SURFACE_OPTIONS = [
   { label: 'Product insight card', value: 'product-insight' },
   { label: 'Policy strip', value: 'policy-strip' },
   { label: 'FAQ prompts', value: 'product-faq' },
-  { label: 'Comparison prompts', value: 'comparison' },
+  { label: 'Comparison block', value: 'comparison' },
 ]
 
 const SHELL_MODE_PROFILE_OPTIONS = [

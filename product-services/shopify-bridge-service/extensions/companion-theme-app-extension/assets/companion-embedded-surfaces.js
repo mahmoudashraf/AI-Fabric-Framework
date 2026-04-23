@@ -43,6 +43,8 @@
       host.appendChild(renderStandalonePolicyCard(options, shellModeProfile, queryCoordinator))
     } else if (surfaceScope === 'product-faq' && pageType === 'product') {
       host.appendChild(renderStandaloneFaqCard(options, shellModeProfile))
+    } else if (surfaceScope === 'comparison' && pageType === 'product') {
+      host.appendChild(renderStandaloneComparisonCard(options, shellModeProfile))
     } else if (
       surfaceScope === 'contextual-pill' &&
       (pageType === 'product' || pageType === 'collection')
@@ -501,6 +503,22 @@
       loadingLabel: 'Loading companion FAQ…',
       emptyLabel: 'Choose a shopper question to see a grounded answer.',
       analyticsEventType: 'PRODUCT_FAQ_CLICKED',
+      shellModeProfile: shellModeProfile,
+    })
+  }
+
+  function renderStandaloneComparisonCard(options, shellModeProfile) {
+    return renderStandalonePromptCard(options, {
+      surfaceId: 'comparison',
+      surfaceClassName: 'loom-companion-surface-card--comparison',
+      eyebrow: 'Comparison',
+      title: compareTitle(options.storefrontContext),
+      description: compareDescription(options.storefrontContext, shellModeProfile),
+      prompts: compareSurfacePrompts(options.storefrontContext, shellModeProfile),
+      promptVariant: 'chip',
+      loadingLabel: 'Loading companion comparison…',
+      emptyLabel: 'Choose a comparison prompt to surface grounded tradeoffs before opening chat.',
+      analyticsEventType: 'COMPARISON_CLICKED',
       shellModeProfile: shellModeProfile,
     })
   }
@@ -1004,6 +1022,44 @@
     ]
   }
 
+  function compareSurfacePrompts(storefrontContext, shellModeProfile) {
+    var productTitle = productTitleForContext(storefrontContext)
+    if (!productTitle) {
+      return [
+        {
+          label: 'Compare best fits',
+          query: 'Compare the strongest options on this page and explain who should choose each one.',
+          position: 'catalog',
+          mode: defaultInsightMode(shellModeProfile),
+          surfaceId: 'comparison',
+        },
+      ]
+    }
+    return [
+      {
+        label: 'Best alternative',
+        query: 'What is the best alternative to "' + productTitle + '" in this store, and why?',
+        position: 'catalog',
+        mode: defaultInsightMode(shellModeProfile),
+        surfaceId: 'comparison',
+      },
+      {
+        label: 'Cheaper option',
+        query: 'Compare "' + productTitle + '" with a lower-priced alternative in this store and explain the tradeoffs.',
+        position: 'catalog',
+        mode: defaultInsightMode(shellModeProfile),
+        surfaceId: 'comparison',
+      },
+      {
+        label: 'Who should choose it?',
+        query: comparePrompt(storefrontContext, shellModeProfile),
+        position: 'catalog',
+        mode: defaultInsightMode(shellModeProfile),
+        surfaceId: 'comparison',
+      },
+    ]
+  }
+
   function insightPrompt(storefrontContext, shellModeProfile) {
     var productTitle = productTitleForContext(storefrontContext)
     if (!productTitle) {
@@ -1341,6 +1397,22 @@
       return 'Ask common shopper questions and get grounded answers before opening chat.'
     }
     return 'Use these common shopper questions to understand ' + truncateText(productTitle, 42) + ' faster.'
+  }
+
+  function compareTitle(storefrontContext) {
+    var productTitle = productTitleForContext(storefrontContext)
+    return productTitle ? truncateText(productTitle, 42) + ' comparisons' : 'Companion comparison'
+  }
+
+  function compareDescription(storefrontContext, shellModeProfile) {
+    var productTitle = productTitleForContext(storefrontContext)
+    if (!productTitle) {
+      return 'Compare the strongest options on the current page and surface grounded tradeoffs without opening chat.'
+    }
+    if (shellModeProfile === 'GUIDED_SUPPORT') {
+      return 'Use grounded comparison prompts to show where ' + truncateText(productTitle, 42) + ' fits, where alternatives win, and what shoppers should verify before buying.'
+    }
+    return 'Use grounded comparison prompts to show where ' + truncateText(productTitle, 42) + ' fits, which alternatives are stronger, and who should choose each option.'
   }
 
   function contextualCardTitle(storefrontContext) {

@@ -924,6 +924,29 @@ if [[ "${effective_expected_chat_fallback_enabled}" == "false" && ",${effective_
   echo "PASS: storefront standalone AI search contract"
 fi
 
+if [[ ",${effective_expected_surfaces}," == *",comparison,"* ]]; then
+  echo "== Storefront comparison query =="
+  comparison_query_payload="$(python3 - <<'PY'
+import json
+print(json.dumps({"query": 'Compare the current product with similar options in this store and explain who should choose each one.'}))
+PY
+)"
+  retry_storefront_query "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${comparison_query_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
+  assert_equals "${HTTP_STATUS}" "200" "storefront comparison query status"
+  comparison_query_json="${HTTP_BODY}"
+  comparison_query_summary="$(json_get "${comparison_query_json}" "result.sanitizedPayload.safeSummary")"
+  if [[ -z "${comparison_query_summary}" ]]; then
+    comparison_query_summary="$(json_get "${comparison_query_json}" "result.sanitizedPayload.message")"
+  fi
+  if [[ -z "${comparison_query_summary}" ]]; then
+    comparison_query_summary="$(json_get "${comparison_query_json}" "result.message")"
+  fi
+  if [[ -z "${comparison_query_summary}" ]]; then
+    comparison_query_summary="$(json_get "${comparison_query_json}" "message")"
+  fi
+  assert_nonempty "${comparison_query_summary}" "storefront comparison query summary"
+fi
+
 echo "== Storefront event =="
 http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/events" '{"eventType":"WIDGET_OPENED","pageType":"product","pageTitle":"Verification product page"}' "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
 assert_equals "${HTTP_STATUS}" "202" "storefront event status"
@@ -978,6 +1001,8 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.2.blockHandle")" "companion-product-insight" "merchant storefront preview product insight block handle"
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.3.blockHandle")" "companion-policy-strip" "merchant storefront preview policy strip block handle"
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.4.blockHandle")" "companion-product-faq" "merchant storefront preview product faq block handle"
+  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.5.blockHandle")" "companion-comparison" "merchant storefront preview comparison block handle"
+  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.5.requiredTierKey")" "STARTER" "merchant storefront preview comparison requiredTierKey"
   assert_nonempty "$(json_get "${merchant_preview_json}" "surfacePlacements.0.themeEditorUrl")" "merchant storefront preview AI search themeEditorUrl"
 
   echo "== Merchant webhook diagnostics =="
