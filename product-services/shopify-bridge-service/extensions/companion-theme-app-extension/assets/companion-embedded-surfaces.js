@@ -353,6 +353,11 @@
     title.textContent = insightTitle(options.storefrontContext)
     summaryCard.appendChild(title)
 
+    var groundingMeta = renderGroundingMeta(options)
+    if (groundingMeta) {
+      summaryCard.appendChild(groundingMeta)
+    }
+
     var body = document.createElement('div')
     body.className = 'loom-companion-surface-copy'
     body.textContent = 'Loading companion insight…'
@@ -441,6 +446,11 @@
     title.className = 'loom-companion-surface-title'
     title.textContent = insightTitle(options.storefrontContext)
     card.appendChild(title)
+
+    var groundingMeta = renderGroundingMeta(options)
+    if (groundingMeta) {
+      card.appendChild(groundingMeta)
+    }
 
     var body = document.createElement('div')
     body.className = 'loom-companion-surface-copy'
@@ -1094,6 +1104,72 @@
       return 'Current page: ' + storefrontContext.pageTitle
     }
     return ''
+  }
+
+  function renderGroundingMeta(options) {
+    var items = groundingMetaItems(options)
+    if (items.length === 0) {
+      return null
+    }
+    var strip = document.createElement('div')
+    strip.className = 'loom-companion-meta-strip'
+    items.forEach(function (item) {
+      var chip = document.createElement('div')
+      chip.className = 'loom-companion-meta-chip'
+      chip.textContent = item
+      strip.appendChild(chip)
+    })
+    return strip
+  }
+
+  function groundingMetaItems(options) {
+    var items = []
+    var product = options && options.storefrontContext ? options.storefrontContext.product : null
+    if (product && product.vendor) {
+      items.push(product.vendor)
+    }
+    if (product && product.type) {
+      items.push(product.type)
+    }
+
+    var signals = options && options.payload && Array.isArray(options.payload.groundingSignals)
+      ? options.payload.groundingSignals
+      : []
+    if (signals.indexOf('Review-aware product grounding') >= 0) {
+      items.push('Review-aware')
+    }
+    if (signals.indexOf('Published article grounding') >= 0) {
+      items.push('Buying guides')
+    }
+    if (signals.indexOf('Metaobject grounding') >= 0) {
+      items.push('Structured content')
+    }
+    if (signals.indexOf('Policy grounding') >= 0) {
+      items.push('Policy grounded')
+    }
+    if (signals.indexOf('Collection grounding') >= 0 && normalizePageType(options.storefrontContext) === 'collection') {
+      items.push('Collection guidance')
+    }
+
+    return uniqueItems(items).slice(0, 5)
+  }
+
+  function uniqueItems(items) {
+    var seen = {}
+    var values = []
+    if (!items || !items.length) {
+      return values
+    }
+    items.forEach(function (item) {
+      var normalized = trimValue(item)
+      var key = normalized.toLowerCase()
+      if (!normalized || seen[key]) {
+        return
+      }
+      seen[key] = true
+      values.push(normalized)
+    })
+    return values
   }
 
   function renderCardGroup(title, items, linkLabel) {

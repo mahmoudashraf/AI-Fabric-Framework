@@ -926,6 +926,16 @@ assert_optional_equals "$(json_get "${bootstrap_json}" "catalogProductCap")" "${
 assert_optional_equals "$(json_get "${bootstrap_json}" "poweredByBadgeRequired")" "${effective_expected_powered_by_badge_required}" "storefront bootstrap poweredByBadgeRequired"
 assert_optional_equals "$(json_get "${bootstrap_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "storefront bootstrap chatFallbackEnabled"
 assert_optional_equals "$(json_get "${bootstrap_json}" "shellModeProfile")" "${EXPECT_SHELL_MODE_PROFILE}" "storefront bootstrap shellModeProfile"
+assert_json_array_contains_csv "${bootstrap_json}" "groundingSignals" "Catalog product grounding,Policy grounding" "storefront bootstrap groundingSignals"
+if [[ "$(json_get "${platform_store_json}" "productsEnabled")" == "true" ]]; then
+  assert_json_array_contains_csv "${bootstrap_json}" "supportedReviewProviders" "Judge.me,Okendo" "storefront bootstrap supportedReviewProviders"
+fi
+if [[ "$(json_get "${platform_store_json}" "articlesEnabled")" == "true" ]]; then
+  assert_json_array_contains_csv "${bootstrap_json}" "groundingSignals" "Published article grounding" "storefront bootstrap article grounding"
+fi
+if [[ "$(json_get "${platform_store_json}" "metaobjectsEnabled")" == "true" ]]; then
+  assert_json_array_contains_csv "${bootstrap_json}" "groundingSignals" "Metaobject grounding" "storefront bootstrap metaobject grounding"
+fi
 assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.available")" "${effective_expected_action_capability_available}" "storefront bootstrap action capability available"
 assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.requiresExplicitConfirmation")" "${effective_expected_action_requires_confirmation}" "storefront bootstrap action requires confirmation"
 assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.auditTrailAvailable")" "${effective_expected_action_audit_available}" "storefront bootstrap action audit available"
@@ -1060,6 +1070,16 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.5.blockHandle")" "companion-comparison" "merchant storefront preview comparison block handle"
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.5.requiredTierKey")" "STARTER" "merchant storefront preview comparison requiredTierKey"
   assert_nonempty "$(json_get "${merchant_preview_json}" "surfacePlacements.0.themeEditorUrl")" "merchant storefront preview AI search themeEditorUrl"
+  assert_json_array_contains_csv "${merchant_preview_json}" "groundingSignals" "Catalog product grounding,Policy grounding" "merchant storefront preview groundingSignals"
+  if [[ "$(json_get "${platform_store_json}" "productsEnabled")" == "true" ]]; then
+    assert_json_array_contains_csv "${merchant_preview_json}" "supportedReviewProviders" "Judge.me,Okendo" "merchant storefront preview supportedReviewProviders"
+  fi
+  if [[ "$(json_get "${platform_store_json}" "articlesEnabled")" == "true" ]]; then
+    assert_json_array_contains_csv "${merchant_preview_json}" "groundingSignals" "Published article grounding" "merchant storefront preview article grounding"
+  fi
+  if [[ "$(json_get "${platform_store_json}" "metaobjectsEnabled")" == "true" ]]; then
+    assert_json_array_contains_csv "${merchant_preview_json}" "groundingSignals" "Metaobject grounding" "merchant storefront preview metaobject grounding"
+  fi
 
   echo "== Merchant webhook diagnostics =="
   http_request GET "${bridge_base}/api/app/store/webhook-subscriptions" "" "${merchant_headers[@]-}"

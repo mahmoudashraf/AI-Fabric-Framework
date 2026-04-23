@@ -769,6 +769,12 @@ export default function App() {
     usageSummary,
     store?.widgetDetail?.settings ?? null,
   )
+  const launchPacket = buildLaunchPacket(
+    store,
+    storefrontPreview,
+    billingSummary,
+    store?.widgetDetail?.settings ?? null,
+  )
   const supportBundleText = buildSupportBundle(
     shell,
     session,
@@ -1364,6 +1370,16 @@ export default function App() {
                         </List.Item>
                         <List.Item>Storefront base URL: {storefrontPreview.storefrontBaseUrl ?? '—'}</List.Item>
                         <List.Item>Merchant-placeable blocks: {storefrontSurfacePlacements.length}</List.Item>
+                        <List.Item>
+                          Grounding signals:{' '}
+                          {storefrontPreview.groundingSignals.length ? storefrontPreview.groundingSignals.join(' · ') : 'Core catalog only'}
+                        </List.Item>
+                        <List.Item>
+                          Review providers:{' '}
+                          {storefrontPreview.supportedReviewProviders.length
+                            ? storefrontPreview.supportedReviewProviders.join(' · ')
+                            : 'Review-aware grounding is not enabled for this store'}
+                        </List.Item>
                       </List>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Activation steps
@@ -1573,6 +1589,52 @@ export default function App() {
                         </BlockStack>
                       </Box>
                     ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Launch packet and safe claims
+                  </Text>
+                  <InlineStack gap="200" align="start">
+                    <Badge tone={launchPacket.tone}>{launchPacket.status}</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    {launchPacket.message}
+                  </Text>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Claim-safe product highlights
+                    </Text>
+                    <List type="bullet">
+                      {launchPacket.safeClaims.map((claim) => (
+                        <List.Item key={claim}>{claim}</List.Item>
+                      ))}
+                    </List>
+                  </BlockStack>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Commercial packaging
+                    </Text>
+                    <List type="bullet">
+                      {launchPacket.commercialNotes.map((note) => (
+                        <List.Item key={note}>{note}</List.Item>
+                      ))}
+                    </List>
+                  </BlockStack>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      App Review and launch notes
+                    </Text>
+                    <List type="bullet">
+                      {launchPacket.reviewNotes.map((note) => (
+                        <List.Item key={note}>{note}</List.Item>
+                      ))}
+                    </List>
                   </BlockStack>
                 </BlockStack>
               </Card>
@@ -2448,6 +2510,8 @@ function buildSupportBundle(
             storefrontBaseUrl: storefrontPreview.storefrontBaseUrl,
             bridgeBaseUrl: storefrontPreview.bridgeBaseUrl,
             themeEditorActivationUrl: storefrontPreview.themeEditorActivationUrl,
+            groundingSignals: storefrontPreview.groundingSignals,
+            supportedReviewProviders: storefrontPreview.supportedReviewProviders,
             surfacePlacements: storefrontPreview.surfacePlacements,
             activationSteps: storefrontPreview.activationSteps,
             blockingReasons: storefrontPreview.blockingReasons,
@@ -2798,6 +2862,98 @@ function buildLaunchReadiness(
     commercialLabel: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'Tier ladder ready' : 'Tier ladder incomplete',
     commercialTone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'success' : 'attention',
     items,
+  }
+}
+
+function buildLaunchPacket(
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  widgetSettings: WidgetSettingsSnapshot | null
+): {
+  status: string
+  tone: 'success' | 'attention' | 'critical'
+  message: string
+  safeClaims: string[]
+  commercialNotes: string[]
+  reviewNotes: string[]
+} {
+  const configuredSurfaces = widgetSettings?.enabledSurfaces?.length ? widgetSettings.enabledSurfaces : DEFAULT_WIDGET_SURFACES
+  const tierSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => tierSurfaces.includes(surfaceId))
+  const activeSurfaceLabels = activeSurfaceIds
+    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+  const reviewProviders = storefrontPreview?.supportedReviewProviders ?? []
+  const groundingSignals = storefrontPreview?.groundingSignals ?? []
+  const hasEliteGovernance = Boolean(
+    billingSummary?.actionCapable &&
+      billingSummary.requiresExplicitConfirmation &&
+      billingSummary.auditTrailAvailable &&
+      billingSummary.actionPackages.length,
+  )
+
+  const safeClaims: string[] = []
+  if (activeSurfaceIds.includes('ai-search')) {
+    safeClaims.push('Free-tier shoppers can use a real AI search block without opening the launcher shell.')
+  }
+  if (
+    activeSurfaceIds.includes('contextual-pill') &&
+    activeSurfaceIds.includes('product-insight') &&
+    activeSurfaceIds.includes('policy-strip') &&
+    activeSurfaceIds.includes('product-faq') &&
+    activeSurfaceIds.includes('comparison')
+  ) {
+    safeClaims.push('Starter can be described honestly as embedded product intelligence across insight, policy, FAQ, and comparison surfaces.')
+  } else if (activeSurfaceLabels.length) {
+    safeClaims.push(`Current storefront surfaces are ${activeSurfaceLabels.join(', ')}.`)
+  }
+  if (groundingSignals.includes('Published article grounding') || groundingSignals.includes('Metaobject grounding')) {
+    safeClaims.push('Answers can draw on published articles and structured metaobject content when those sources are enabled.')
+  }
+  if (reviewProviders.length) {
+    safeClaims.push(`Review-aware grounding supports ${reviewProviders.join(', ')} compatible Shopify metafields.`)
+  }
+  if (hasEliteGovernance) {
+    safeClaims.push('Elite guided commerce is governed with shopper confirmation, signed bridge grants, and audit history.')
+  }
+  if (!safeClaims.length) {
+    safeClaims.push('Core catalog and policy grounding are live, but the surface set still needs more packaging before broad launch claims.')
+  }
+
+  const commercialNotes = [
+    'Free: AI search only, powered-by posture enforced when required.',
+    'Starter: full read-only store intelligence with embedded shopper guidance surfaces.',
+    hasEliteGovernance
+      ? `Elite: governed action packaging for ${billingSummary?.actionPackages.join(' and ') ?? 'bounded commerce'} is technically real.`
+      : 'Elite: do not market governed actions beyond what the live billing contract currently exposes.',
+  ]
+
+  const reviewNotes = [
+    storefrontPreview?.ready
+      ? 'Theme extension, placement guidance, and storefront activation links are already present for merchant setup.'
+      : 'Do not claim storefront readiness until the theme extension blockers are resolved.',
+    billingSummary?.poweredByBadgeRequired
+      ? 'Powered by Loom Companion must remain visible in the tiers that require it.'
+      : 'Powered-by badge is optional in the current billing posture.',
+    store?.readiness?.goLiveEligible
+      ? 'Go-live posture is already clean enough to use for launch and App Review walk-throughs.'
+      : 'Go-live posture still has at least one blocker; keep launch messaging conservative until it is green.',
+  ]
+
+  const hasCritical = !storefrontPreview?.ready || Boolean(billingSummary?.launchBlocked)
+  const hasAttention = !hasCritical && (!hasEliteGovernance || activeSurfaceIds.length < 5)
+
+  return {
+    status: hasCritical ? 'Blocked' : hasAttention ? 'Needs attention' : 'Ready',
+    tone: hasCritical ? 'critical' : hasAttention ? 'attention' : 'success',
+    message: hasCritical
+      ? 'The launch packet still has at least one blocker between storefront activation and commercial posture.'
+      : hasAttention
+        ? 'The launch packet is credible, but a few claims still need careful positioning.'
+        : 'The launch packet now reads like a real product package instead of a feature inventory.',
+    safeClaims,
+    commercialNotes,
+    reviewNotes,
   }
 }
 

@@ -168,6 +168,8 @@ export type ShopifyStorefrontPreviewResponse = {
   launcherLabelDefault: string
   welcomeMessageDefault: string
   themeEditorActivationUrl: string | null
+  groundingSignals: string[]
+  supportedReviewProviders: string[]
   surfacePlacements: Array<{
     surfaceId: string
     label: string

@@ -30,6 +30,10 @@ public final class ShopifyProductReviewSignals {
     private ShopifyProductReviewSignals() {
     }
 
+    public static List<String> supportedProviderLabels() {
+        return List.copyOf(new LinkedHashSet<>(PROVIDER_LABELS.values()));
+    }
+
     public static String content(Map<String, Object> productNode) {
         ReviewSignalSummary summary = summary(productNode);
         if (!summary.present()) {

@@ -53,6 +53,10 @@ class ShopifyStorefrontPreviewServiceTest {
         assertThat(preview.welcomeMessageDefault()).isEqualTo("Ask me about products and store policies.");
         assertThat(preview.themeEditorActivationUrl())
             .isEqualTo("https://admin.shopify.com/store/alpha/themes/current/editor?context=apps&activateAppId=shopify-api-key/companion-app-embed");
+        assertThat(preview.groundingSignals())
+            .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
+        assertThat(preview.supportedReviewProviders())
+            .contains("Judge.me", "Okendo", "Loox", "Stamped", "Yotpo", "Shopify Product Reviews");
         assertThat(preview.surfacePlacements()).hasSize(6);
         assertThat(preview.surfacePlacements().get(0).blockHandle()).isEqualTo("companion-ai-search");
         assertThat(preview.surfacePlacements().get(0).requiredTierKey()).isEqualTo("FREE");

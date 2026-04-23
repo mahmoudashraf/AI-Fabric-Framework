@@ -94,6 +94,26 @@
   color: #374151;
 }
 
+.loom-companion-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.loom-companion-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.05);
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  color: #374151;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.38rem 0.6rem;
+}
+
 .loom-companion-powered-by {
   display: inline-flex;
   align-items: center;

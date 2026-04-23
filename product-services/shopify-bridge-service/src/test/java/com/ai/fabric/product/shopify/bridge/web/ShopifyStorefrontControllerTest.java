@@ -80,6 +80,8 @@ class ShopifyStorefrontControllerTest {
             "Ask me about products and policies.",
             "SHOPIFY_COMPANION",
             List.of("ai-search"),
+            List.of("Catalog product grounding", "Policy grounding"),
+            List.of("Judge.me", "Okendo"),
             "PRIVATE_RUNTIME_BACKEND_MEDIATED",
             "SIGNED_PRIVATE_RUNTIME",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query",

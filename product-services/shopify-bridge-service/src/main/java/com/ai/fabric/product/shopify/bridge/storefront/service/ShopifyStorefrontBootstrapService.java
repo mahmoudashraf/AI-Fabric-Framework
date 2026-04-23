@@ -10,11 +10,13 @@ import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStoref
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -93,6 +95,10 @@ public class ShopifyStorefrontBootstrapService {
             ? List.copyOf(updated.widgetDetail().settings().enabledSurfaces())
             : billingSummary.allowedSurfaces();
         enabledSurfaces = billingService.effectiveAllowedSurfaces(updated.shopDomain(), null, enabledSurfaces);
+        List<String> groundingSignals = groundingSignals(updated);
+        List<String> supportedReviewProviders = updated.productsEnabled()
+            ? ShopifyProductReviewSignals.supportedProviderLabels()
+            : List.of();
         ShopifyStorefrontGovernedActionCapability actionCapability =
             governedActionService.capability(updated.shopDomain(), actionGrantUrl, actionCompleteUrl);
 
@@ -112,6 +118,8 @@ public class ShopifyStorefrontBootstrapService {
             welcomeMessage,
             shellModeProfile,
             enabledSurfaces,
+            groundingSignals,
+            supportedReviewProviders,
             preferredIntegrationMode,
             runtimeAuthMode,
             bridgeQueryUrl,
@@ -140,6 +148,8 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_WELCOME_MESSAGE,
             DEFAULT_SHELL_MODE_PROFILE,
             DEFAULT_ENABLED_SURFACES,
+            List.of("Catalog product grounding", "Policy grounding"),
+            ShopifyProductReviewSignals.supportedProviderLabels(),
             null,
             null,
             null,
@@ -158,6 +168,30 @@ public class ShopifyStorefrontBootstrapService {
             null,
             message
         );
+    }
+
+    private List<String> groundingSignals(ShopifyBridgeStoreSummary store) {
+        List<String> signals = new ArrayList<>();
+        if (store.productsEnabled()) {
+            signals.add("Catalog product grounding");
+            signals.add("Review-aware product grounding");
+        }
+        if (store.collectionsEnabled()) {
+            signals.add("Collection grounding");
+        }
+        if (store.pagesEnabled()) {
+            signals.add("Store page grounding");
+        }
+        if (store.policiesEnabled()) {
+            signals.add("Policy grounding");
+        }
+        if (store.articlesEnabled()) {
+            signals.add("Published article grounding");
+        }
+        if (store.metaobjectsEnabled()) {
+            signals.add("Metaobject grounding");
+        }
+        return List.copyOf(signals);
     }
 
     private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {

@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.storefront.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPlacementSummary;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
@@ -56,6 +57,10 @@ public class ShopifyStorefrontPreviewService {
         String message = ready
             ? "Storefront theme app extension can be enabled now."
             : blockingReasons.get(0);
+        List<String> groundingSignals = groundingSignals(store);
+        List<String> supportedReviewProviders = store.productsEnabled()
+            ? ShopifyProductReviewSignals.supportedProviderLabels()
+            : List.of();
 
         return new ShopifyStorefrontPreviewResponse(
             ready,
@@ -70,6 +75,8 @@ public class ShopifyStorefrontPreviewService {
             launcherLabel == null ? DEFAULT_LAUNCHER_LABEL : launcherLabel,
             welcomeMessage == null ? DEFAULT_WELCOME_MESSAGE : welcomeMessage,
             buildThemeEditorActivationUrl(store.shopDomain()),
+            groundingSignals,
+            supportedReviewProviders,
             buildSurfacePlacements(store.shopDomain()),
             List.of(
                 "Open Shopify Admin > Online Store > Themes > Customize.",
@@ -85,6 +92,30 @@ public class ShopifyStorefrontPreviewService {
             List.copyOf(blockingReasons),
             message
         );
+    }
+
+    private List<String> groundingSignals(ShopifyBridgeStoreSummary store) {
+        List<String> signals = new ArrayList<>();
+        if (store.productsEnabled()) {
+            signals.add("Catalog product grounding");
+            signals.add("Review-aware product grounding");
+        }
+        if (store.collectionsEnabled()) {
+            signals.add("Collection grounding");
+        }
+        if (store.pagesEnabled()) {
+            signals.add("Store page grounding");
+        }
+        if (store.policiesEnabled()) {
+            signals.add("Policy grounding");
+        }
+        if (store.articlesEnabled()) {
+            signals.add("Published article grounding");
+        }
+        if (store.metaobjectsEnabled()) {
+            signals.add("Metaobject grounding");
+        }
+        return List.copyOf(signals);
     }
 
     private String storefrontBaseUrl(String shopDomain) {

@@ -227,6 +227,8 @@ class ShopifyMerchantControllerTest {
             "Ask the store assistant",
             "Store assistant is ready. Ask about products, policies, or collections.",
             "https://admin.shopify.com/store/alpha/themes/current/editor?context=apps&activateAppId=test-shopify-api-key/companion-app-embed",
+            List.of("Catalog product grounding", "Policy grounding"),
+            List.of("Judge.me", "Okendo"),
             List.of(
                 new ShopifyStorefrontPlacementSummary(
                     "ai-search",

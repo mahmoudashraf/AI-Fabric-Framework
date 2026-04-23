@@ -365,11 +365,12 @@ Progress note:
 
 - query volume, top shopper questions, and bounded shopper surface usage are now materially real in the merchant app
 - published articles/blog content is now materially real in the Shopify source pipeline
-- Judge.me-compatible review metafield ingestion is now materially real in the Shopify product pipeline
+- multi-provider review-aware metafield support is now materially real across Judge.me, Stamped, Okendo, Loox, Yotpo, and Shopify Product Reviews compatible Shopify metadata
 - plan-aware merchant UI is now materially real in the bridge admin app
 - explicit Elite governance posture is now visible to merchants and platform admins through the live billing contract
 - platform-admin store investigation now has explicit source-depth and launch/commercial readiness surfaces instead of forcing operators to infer roadmap status from raw preflight and vectorization data
-- the main remaining Milestone 3 gap is richer merchandising polish and broader live rollout repetition, not missing read-first source depth or tier legibility
+- storefront product-insight surfaces now expose shopper-visible grounding cues for reviews, policies, buying guides, and structured content instead of relying only on generic summary text
+- the main remaining Milestone 3 gap is broader live rollout repetition and higher-fidelity merchandising composition, not missing read-first source depth or tier legibility
 
 Recommended supporting data work:
 
@@ -404,6 +405,7 @@ Progress note:
 - merchant-facing freshness/indexing health is now materially real
 - live verification already checks the bridge admin investigation contract and storefront behavior end to end
 - merchant-facing launch readiness now includes explicit commercial/governance checks instead of only surface/readiness prose
+- the merchant app now exposes a claim-safe launch packet that turns the live surface set, source depth, and Elite governance posture into App Review-safe product packaging guidance
 - platform admins now get the same launch/commercial posture and source-depth view directly in the platform store investigation surface
 
 Non-negotiable launch rule:

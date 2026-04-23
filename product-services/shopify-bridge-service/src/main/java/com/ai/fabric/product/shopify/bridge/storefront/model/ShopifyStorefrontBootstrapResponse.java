@@ -20,6 +20,8 @@ public record ShopifyStorefrontBootstrapResponse(
     String welcomeMessage,
     String shellModeProfile,
     List<String> enabledSurfaces,
+    List<String> groundingSignals,
+    List<String> supportedReviewProviders,
     String preferredIntegrationMode,
     String runtimeAuthMode,
     String bridgeQueryUrl,

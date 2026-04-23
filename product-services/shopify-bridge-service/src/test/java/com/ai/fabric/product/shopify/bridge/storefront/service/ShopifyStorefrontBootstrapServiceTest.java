@@ -88,6 +88,10 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.launcherLabel()).isEqualTo("Need help?");
         assertThat(response.welcomeMessage()).isEqualTo("Ask me about products and store policies.");
         assertThat(response.enabledSurfaces()).containsExactly("ai-search");
+        assertThat(response.groundingSignals())
+            .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
+        assertThat(response.supportedReviewProviders())
+            .contains("Judge.me", "Okendo", "Loox", "Stamped", "Yotpo", "Shopify Product Reviews");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
