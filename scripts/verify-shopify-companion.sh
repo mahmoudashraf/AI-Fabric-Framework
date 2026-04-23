@@ -49,6 +49,8 @@ set -euo pipefail
 #   EXPECT_ORDER_LOOKUP_SUPPORTED=true
 #   EXPECT_ORDER_LOOKUP_SCOPE_GRANTED=true
 #   EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY=true
+#   EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED=<optional expected merchant handoff posture>
+#   EXPECT_SUPPORT_LIFECYCLE_STAGE=<optional expected support lifecycle stage>
 #   EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED=false
 #   ORDER_LOOKUP_ORDER_NUMBER=<optional exact order name like #1001>
 #   ORDER_LOOKUP_EMAIL=<optional checkout email for the order above>
@@ -96,6 +98,8 @@ EXPECT_ORDER_LOOKUP_STATUS="${EXPECT_ORDER_LOOKUP_STATUS:-READY}"
 EXPECT_ORDER_LOOKUP_SUPPORTED="${EXPECT_ORDER_LOOKUP_SUPPORTED:-true}"
 EXPECT_ORDER_LOOKUP_SCOPE_GRANTED="${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED:-true}"
 EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY="${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY:-true}"
+EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED="${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED:-}"
+EXPECT_SUPPORT_LIFECYCLE_STAGE="${EXPECT_SUPPORT_LIFECYCLE_STAGE:-}"
 EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-false}"
 EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,find_similar_products,compare_products,check_availability,get_policy}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
@@ -703,6 +707,18 @@ fi
 
 resolve_shopify_admin_access_token
 
+echo "== Platform health =="
+http_request GET "${platform_base}/actuator/health" ""
+assert_equals "${HTTP_STATUS}" "200" "platform actuator health status"
+platform_health_json="${HTTP_BODY}"
+assert_equals "$(json_get "${platform_health_json}" "status")" "UP" "platform actuator health payload"
+
+echo "== Shopify Bridge health =="
+http_request GET "${bridge_base}/actuator/health" ""
+assert_equals "${HTTP_STATUS}" "200" "bridge actuator health status"
+bridge_health_json="${HTTP_BODY}"
+assert_equals "$(json_get "${bridge_health_json}" "status")" "UP" "bridge actuator health payload"
+
 echo "== Platform product service summary =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "product service summary status"
@@ -880,6 +896,8 @@ assert_equals "$(json_get "${platform_store_support_json}" "status")" "${EXPECT_
 assert_equals "$(json_get "${platform_store_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "platform store order lookup supported"
 assert_equals "$(json_get "${platform_store_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "platform store order lookup scope granted"
 assert_equals "$(json_get "${platform_store_support_json}" "appScopesUpdateWebhookReady")" "${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}" "platform store scopes webhook ready"
+assert_optional_equals "$(json_get "${platform_store_support_json}" "merchantHandoffConfigured")" "${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED}" "platform store merchant handoff configured"
+assert_optional_equals "$(json_get "${platform_store_support_json}" "lifecycleStage")" "${EXPECT_SUPPORT_LIFECYCLE_STAGE}" "platform store support lifecycle stage"
 assert_equals "$(json_get "${platform_store_support_json}" "allOrdersScopeGranted")" "${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}" "platform store historical order lookup support"
 assert_json_array_contains_csv "${platform_store_support_json}" "verificationMethods" "ORDER_NUMBER_AND_EMAIL" "platform store support verification methods"
 assert_json_array_contains_csv "${platform_store_support_json}" "supportedCapabilities" "order-status,tracking-link" "platform store support capabilities"
@@ -1016,6 +1034,8 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   assert_equals "$(json_get "${bridge_admin_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "bridge admin order lookup supported"
   assert_equals "$(json_get "${bridge_admin_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "bridge admin order lookup scope granted"
   assert_equals "$(json_get "${bridge_admin_support_json}" "appScopesUpdateWebhookReady")" "${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}" "bridge admin scopes webhook ready"
+  assert_optional_equals "$(json_get "${bridge_admin_support_json}" "merchantHandoffConfigured")" "${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED}" "bridge admin merchant handoff configured"
+  assert_optional_equals "$(json_get "${bridge_admin_support_json}" "lifecycleStage")" "${EXPECT_SUPPORT_LIFECYCLE_STAGE}" "bridge admin support lifecycle stage"
 
   http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/usage-summary" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
   assert_equals "${HTTP_STATUS}" "200" "bridge admin store usage summary status"
@@ -1357,6 +1377,9 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "$(json_get "${merchant_support_json}" "status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "merchant support readiness posture"
   assert_equals "$(json_get "${merchant_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "merchant support order lookup supported"
   assert_equals "$(json_get "${merchant_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "merchant support order lookup scope granted"
+  assert_equals "$(json_get "${merchant_support_json}" "appScopesUpdateWebhookReady")" "${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}" "merchant support scopes webhook ready"
+  assert_optional_equals "$(json_get "${merchant_support_json}" "merchantHandoffConfigured")" "${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED}" "merchant support merchant handoff configured"
+  assert_optional_equals "$(json_get "${merchant_support_json}" "lifecycleStage")" "${EXPECT_SUPPORT_LIFECYCLE_STAGE}" "merchant support lifecycle stage"
 
   echo "== Merchant usage summary =="
   http_request GET "${bridge_base}/api/app/store/usage-summary" "" "${merchant_headers[@]-}"

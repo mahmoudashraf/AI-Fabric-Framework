@@ -46,6 +46,7 @@ public class PlatformManagedProductStoreSupportReadinessClientService {
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(HTTP_TIMEOUT)
+            .version(HttpClient.Version.HTTP_1_1)
             .build();
     }
 

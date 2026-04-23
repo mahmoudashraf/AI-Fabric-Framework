@@ -137,7 +137,10 @@ public class PlatformManagedProductAdminService {
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
-        this.httpClient = HttpClient.newBuilder().connectTimeout(HTTP_TIMEOUT).build();
+        this.httpClient = HttpClient.newBuilder()
+            .connectTimeout(HTTP_TIMEOUT)
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
     }
 
     PlatformManagedProductAdminService(PlatformManagedProductServiceService serviceService,
