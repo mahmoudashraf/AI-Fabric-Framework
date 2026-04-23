@@ -51,6 +51,16 @@ class ShopifyBridgeStoreSyncServiceTest {
                 vendor
                 productType
                 tags
+                metafields(first: 12) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      type
+                      value
+                    }
+                  }
+                }
                 updatedAt
               }
             }
@@ -68,6 +78,22 @@ class ShopifyBridgeStoreSyncServiceTest {
                         "vendor", "Loom",
                         "productType", "Bag",
                         "tags", List.of("travel", "carry-on"),
+                        "metafields", Map.of(
+                            "edges", List.of(
+                                Map.of("node", Map.of(
+                                    "namespace", "custom",
+                                    "key", "materials",
+                                    "type", "multi_line_text_field",
+                                    "value", "Recycled nylon"
+                                )),
+                                Map.of("node", Map.of(
+                                    "namespace", "custom",
+                                    "key", "fit_notes",
+                                    "type", "single_line_text_field",
+                                    "value", "Designed for airline personal-item sizing."
+                                ))
+                            )
+                        ),
                         "updatedAt", "2026-04-18T12:00:00Z"
                     )))
                 )
@@ -112,6 +138,9 @@ class ShopifyBridgeStoreSyncServiceTest {
         assertThat(syncCaptor.getValue().documents())
             .extracting(document -> document.sourceCategory() + ":" + document.entityType())
             .containsExactly("products:product", "policies:support-policy");
+        assertThat(syncCaptor.getValue().documents().getFirst().content())
+            .contains("Materials: Recycled nylon")
+            .contains("Fit notes: Designed for airline personal-item sizing.");
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
 
         ArgumentCaptor<ShopifyBridgeRecordSyncStatusRequest> statusCaptor =

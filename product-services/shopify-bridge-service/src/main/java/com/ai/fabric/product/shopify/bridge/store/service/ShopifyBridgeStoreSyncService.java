@@ -42,6 +42,16 @@ public class ShopifyBridgeStoreSyncService {
                 vendor
                 productType
                 tags
+                metafields(first: 12) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      type
+                      value
+                    }
+                  }
+                }
                 updatedAt
               }
             }
@@ -214,12 +224,14 @@ public class ShopifyBridgeStoreSyncService {
                     text(node, "vendor"),
                     text(node, "productType"),
                     joinTags(node.get("tags")),
-                    sanitizeRichText(text(node, "descriptionHtml"))
+                    sanitizeRichText(text(node, "descriptionHtml")),
+                    ShopifyKeyProductMetafields.content(node)
                 ),
                 metadata(
                     "handle", text(node, "handle"),
                     "vendor", text(node, "vendor"),
                     "productType", text(node, "productType"),
+                    "metafieldKeys", ShopifyKeyProductMetafields.keys(node),
                     "updatedAt", text(node, "updatedAt"),
                     "storefrontUrl", storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle")))
                 )

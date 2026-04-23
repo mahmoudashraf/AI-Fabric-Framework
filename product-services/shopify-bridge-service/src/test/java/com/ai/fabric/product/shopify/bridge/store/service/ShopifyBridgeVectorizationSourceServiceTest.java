@@ -59,6 +59,22 @@ class ShopifyBridgeVectorizationSourceServiceTest {
                                 "descriptionHtml", "<p>Breathable trail shoe</p>",
                                 "vendor", "Loom",
                                 "productType", "Shoes",
+                                "metafields", Map.of(
+                                    "edges", List.of(
+                                        Map.of("node", Map.of(
+                                            "namespace", "custom",
+                                            "key", "materials",
+                                            "type", "multi_line_text_field",
+                                            "value", "Breathable mesh upper"
+                                        )),
+                                        Map.of("node", Map.of(
+                                            "namespace", "custom",
+                                            "key", "fit_notes",
+                                            "type", "single_line_text_field",
+                                            "value", "Runs true to size"
+                                        ))
+                                    )
+                                ),
                                 "updatedAt", "2026-04-19T10:00:00Z"
                             )
                         )
@@ -106,6 +122,8 @@ class ShopifyBridgeVectorizationSourceServiceTest {
             assertThat(item.sourceCategory()).isEqualTo("products");
             assertThat(item.documentType()).isEqualTo("product");
             assertThat(item.title()).isEqualTo("Trail Shoe");
+            assertThat(item.content()).contains("Materials: Breathable mesh upper");
+            assertThat(item.content()).contains("Fit notes: Runs true to size");
         });
 
         assertThat(secondPage.totalCount()).isEqualTo(3);

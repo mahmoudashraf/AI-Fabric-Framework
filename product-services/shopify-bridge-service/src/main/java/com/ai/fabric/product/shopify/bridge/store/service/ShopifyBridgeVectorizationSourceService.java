@@ -94,6 +94,16 @@ public class ShopifyBridgeVectorizationSourceService {
                 descriptionHtml
                 vendor
                 productType
+                metafields(first: 12) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      type
+                      value
+                    }
+                  }
+                }
                 updatedAt
               }
             }
@@ -112,6 +122,16 @@ public class ShopifyBridgeVectorizationSourceService {
               descriptionHtml
               vendor
               productType
+              metafields(first: 12) {
+                edges {
+                  node {
+                    namespace
+                    key
+                    type
+                    value
+                  }
+                }
+              }
               updatedAt
             }
             ... on Collection {
@@ -326,7 +346,8 @@ public class ShopifyBridgeVectorizationSourceService {
                         text(node, "title"),
                         text(node, "vendor"),
                         text(node, "productType"),
-                        sanitizeRichText(text(node, "descriptionHtml"))
+                        sanitizeRichText(text(node, "descriptionHtml")),
+                        ShopifyKeyProductMetafields.content(node)
                     ),
                     "products",
                     "product",
@@ -494,7 +515,8 @@ public class ShopifyBridgeVectorizationSourceService {
                     text(node, "title"),
                     text(node, "vendor"),
                     text(node, "productType"),
-                    sanitizeRichText(text(node, "descriptionHtml"))
+                    sanitizeRichText(text(node, "descriptionHtml")),
+                    ShopifyKeyProductMetafields.content(node)
                 ),
                 "products",
                 "product",
