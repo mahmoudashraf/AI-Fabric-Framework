@@ -6,6 +6,10 @@ This document defines how the framework should support a new capability where th
 
 This is a **framework capability plan**, not a Shopify-only product note.
 
+For Shopify-specific execution hosting and scaling boundaries, see:
+
+- `Final_Documentation/System_Archtecture_Guides/PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md`
+
 ---
 
 ## 1) Executive Decision
