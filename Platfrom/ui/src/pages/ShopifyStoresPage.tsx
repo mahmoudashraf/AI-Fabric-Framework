@@ -30,6 +30,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   bootstrapShopifyStore,
   deleteShopifyStore,
+  fetchProductServiceStoreBillingSummary,
   fetchProductServices,
   runProductServiceStoreSourcePreflight,
   fetchShopifyStoreVectorization,
@@ -46,6 +47,7 @@ import {
   reindexSelectedShopifyStoreVectorization,
   retryLastFailedShopifyStoreVectorizationAutoRun,
   type RecordShopifyStoreSourcePreflightRequest,
+  type PlatformManagedProductServiceStoreBillingSummary,
   type ShopifyStoreBootstrapSummary,
   type ShopifyStoreSourcePreflightCategorySummary,
   type ShopifyStoreGovernedActionAuditSummary,
@@ -98,6 +100,28 @@ type StoreFormState = UpsertShopifyStoreConnectionRequest
 type PreflightCategoryStatus = 'READY' | 'PENDING' | 'BLOCKED' | 'FAILED'
 type PreflightFormCategory = ShopifyStoreSourcePreflightCategorySummary & { itemCountText: string }
 type VectorizationPolicyDraft = UpdateShopifyStoreVectorizationPolicyRequest
+type ShopifyBuilderStatusColor = 'success' | 'warning' | 'error' | 'default'
+type ShopifyBuilderStatusItem = {
+  label: string
+  status: string
+  color: ShopifyBuilderStatusColor
+  detail: string
+}
+type ShopifyBuilderStatusSummary = {
+  status: string
+  color: ShopifyBuilderStatusColor
+  message: string
+  items: ShopifyBuilderStatusItem[]
+}
+
+const DEFAULT_WIDGET_SURFACES = [
+  'ai-search',
+  'contextual-pill',
+  'product-insight',
+  'policy-strip',
+  'product-faq',
+  'comparison',
+]
 
 const emptyForm: StoreFormState = {
   shopDomain: '',
@@ -166,6 +190,188 @@ function sourceFieldOptions(
   return (summary?.effectiveIndexedFields ?? [])
     .filter((field) => field.sourceCategory === sourceCategory && field.selectableForTriggerPolicy)
     .map((field) => field.fieldKey)
+}
+
+function enabledWidgetSurfaces(store: ShopifyStoreConnectionSummary | null): string[] {
+  return store?.widgetDetail?.settings?.enabledSurfaces?.length
+    ? store.widgetDetail.settings.enabledSurfaces
+    : DEFAULT_WIDGET_SURFACES
+}
+
+function preflightCategory(store: ShopifyStoreConnectionSummary | null, category: string) {
+  return store?.sourcePreflight?.categories.find((item) => item.category === category) ?? null
+}
+
+function buildSourceDepthSummary(
+  store: ShopifyStoreConnectionSummary | null,
+  vectorization: ShopifyStoreVectorizationSummary | undefined,
+): ShopifyBuilderStatusSummary {
+  if (!store) {
+    return {
+      status: 'Unavailable',
+      color: 'warning',
+      message: 'Select a Shopify store to inspect source-depth readiness.',
+      items: [],
+    }
+  }
+
+  const selectedCategories = new Set(vectorization?.selectedCategories ?? [])
+  const articlePreflight = preflightCategory(store, 'articles')
+  const metaobjectPreflight = preflightCategory(store, 'metaobjects')
+
+  const items: ShopifyBuilderStatusItem[] = [
+    {
+      label: 'Product review signals',
+      status: store.productsEnabled && selectedCategories.has('products') ? 'Ready' : 'Needs attention',
+      color: store.productsEnabled && selectedCategories.has('products') ? 'success' : 'warning',
+      detail: store.productsEnabled && selectedCategories.has('products')
+        ? 'Judge.me-compatible review and rating metafields can flow through product sync, vectorization content, and shopper actions when present.'
+        : 'Product ingestion is not fully enabled, so review and rating signals cannot become part of the shopper evidence path yet.',
+    },
+    {
+      label: 'Published article coverage',
+      status: !store.articlesEnabled
+        ? 'Optional'
+        : articlePreflight?.status === 'READY' && selectedCategories.has('articles')
+          ? 'Ready'
+          : 'Needs attention',
+      color: !store.articlesEnabled
+        ? 'default'
+        : articlePreflight?.status === 'READY' && selectedCategories.has('articles')
+          ? 'success'
+          : 'warning',
+      detail: !store.articlesEnabled
+        ? 'Articles are currently disabled for this store.'
+        : articlePreflight?.status === 'READY' && selectedCategories.has('articles')
+          ? `Published article content is enabled with ${articlePreflight?.itemCount ?? 0} discoverable article records ready for the read-first support-policy path.`
+          : 'Articles are enabled, but preflight or vectorization selection still needs attention before the source depth is launch-legible.',
+    },
+    {
+      label: 'Metaobject depth',
+      status: !store.metaobjectsEnabled
+        ? 'Optional'
+        : metaobjectPreflight?.status === 'READY' && selectedCategories.has('metaobjects')
+          ? 'Ready'
+          : 'Needs attention',
+      color: !store.metaobjectsEnabled
+        ? 'default'
+        : metaobjectPreflight?.status === 'READY' && selectedCategories.has('metaobjects')
+          ? 'success'
+          : 'warning',
+      detail: !store.metaobjectsEnabled
+        ? 'Metaobjects are still opt-in for this store.'
+        : metaobjectPreflight?.status === 'READY' && selectedCategories.has('metaobjects')
+          ? `Metaobjects are enabled with ${metaobjectPreflight?.itemCount ?? 0} eligible records in the support-policy source path.`
+          : 'Metaobjects are enabled, but preflight or vectorization selection still needs tightening before they count as live source depth.',
+    },
+    {
+      label: 'Read-first source breadth',
+      status: selectedCategories.has('products') && selectedCategories.has('policies') ? 'Ready' : 'Needs attention',
+      color: selectedCategories.has('products') && selectedCategories.has('policies') ? 'success' : 'warning',
+      detail: selectedCategories.has('products') && selectedCategories.has('policies')
+        ? `Selected categories ${Array.from(selectedCategories).join(' · ')} support both commerce retrieval and support-policy guidance.`
+        : 'The store does not yet have both commerce and support-policy source families selected for vectorization.',
+    },
+  ]
+
+  const hasWarning = items.some((item) => item.color === 'warning')
+  return {
+    status: hasWarning ? 'Needs attention' : 'Ready',
+    color: hasWarning ? 'warning' : 'success',
+    message: hasWarning
+      ? 'The source primitives are mostly there, but at least one content family still needs tighter enablement or selection before the roadmap claim is fully operator-legible.'
+      : 'Articles, metaobjects, review signals, and read-first source breadth are explicit and operator-legible for this store.',
+    items,
+  }
+}
+
+function buildLaunchCommercialSummary(
+  store: ShopifyStoreConnectionSummary | null,
+  billingSummary: PlatformManagedProductServiceStoreBillingSummary | null,
+  vectorization: ShopifyStoreVectorizationSummary | undefined,
+  governedActions: ShopifyStoreGovernedActionAuditSummary[],
+): ShopifyBuilderStatusSummary {
+  if (!store) {
+    return {
+      status: 'Unavailable',
+      color: 'warning',
+      message: 'Select a Shopify store to inspect launch and commercial readiness.',
+      items: [],
+    }
+  }
+
+  const tierKeys = new Set((billingSummary?.availablePlans ?? []).map((plan) => plan.tierKey ?? ''))
+  const elitePlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'ELITE') ?? null
+  const storefrontReady = Boolean(store.readiness?.storefrontReady)
+  const goLiveReady = Boolean(store.readiness?.goLiveEligible)
+  const syncHealthy = store.syncDetail?.status === 'SYNCED'
+  const liveUpdatesHealthy = vectorization?.automation?.autoIndexingHealthy !== false
+  const enabledSurfaces = enabledWidgetSurfaces(store)
+  const allowedSurfaces = billingSummary?.allowedSurfaces?.length
+    ? billingSummary.allowedSurfaces
+    : DEFAULT_WIDGET_SURFACES
+
+  const items: ShopifyBuilderStatusItem[] = [
+    {
+      label: 'Tier ladder',
+      status: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') ? 'Ready' : 'Needs attention',
+      color: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') ? 'success' : 'warning',
+      detail: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE')
+        ? 'Free, Starter, and Elite are visible from the live billing contract for this store.'
+        : 'The live billing contract is still missing part of the intended Companion tier ladder.',
+    },
+    {
+      label: 'Elite governed commerce packaging',
+      status: elitePlan?.actionCapable && elitePlan?.requiresExplicitConfirmation && elitePlan?.auditTrailAvailable
+        ? 'Ready'
+        : 'Needs attention',
+      color: elitePlan?.actionCapable && elitePlan?.requiresExplicitConfirmation && elitePlan?.auditTrailAvailable
+        ? 'success'
+        : 'warning',
+      detail: elitePlan?.actionCapable && elitePlan?.requiresExplicitConfirmation && elitePlan?.auditTrailAvailable
+        ? `Elite is packaged for ${elitePlan.actionPackages.length ? elitePlan.actionPackages.join(' · ') : 'governed commerce'} with explicit confirmation and audit trail availability.`
+        : 'Elite governance posture is not fully legible in the live billing contract yet.',
+    },
+    {
+      label: 'Store launch gate',
+      status: storefrontReady && goLiveReady && syncHealthy && liveUpdatesHealthy ? 'Ready' : 'Blocked',
+      color: storefrontReady && goLiveReady && syncHealthy && liveUpdatesHealthy ? 'success' : 'error',
+      detail: storefrontReady && goLiveReady && syncHealthy && liveUpdatesHealthy
+        ? 'Storefront, go-live posture, sync, and live updates are aligned closely enough to support a clean launch story.'
+        : 'At least one of storefront readiness, go-live eligibility, sync, or live updates still needs operator attention before launch.',
+    },
+    {
+      label: 'Tier-to-surface alignment',
+      status: enabledSurfaces.every((surfaceId) => allowedSurfaces.includes(surfaceId)) ? 'Aligned' : 'Needs attention',
+      color: enabledSurfaces.every((surfaceId) => allowedSurfaces.includes(surfaceId)) ? 'success' : 'warning',
+      detail: enabledSurfaces.every((surfaceId) => allowedSurfaces.includes(surfaceId))
+        ? `Configured surfaces ${enabledSurfaces.join(' · ')} fit within the current tier allowance.`
+        : 'The current widget surface configuration asks for surfaces outside the active tier allowance.',
+    },
+    {
+      label: 'Governed action evidence',
+      status: governedActions.length > 0 ? 'Observed' : billingSummary?.actionCapable ? 'Awaiting live traffic' : 'Not active',
+      color: governedActions.length > 0 ? 'success' : billingSummary?.actionCapable ? 'warning' : 'default',
+      detail: governedActions.length > 0
+        ? 'Recent governed commerce actions are recorded for this store and available for platform-admin investigation.'
+        : billingSummary?.actionCapable
+          ? 'Elite packaging is available, but no governed commerce actions have been observed on this store yet.'
+          : 'Governed commerce actions are not active for the current store tier.',
+    },
+  ]
+
+  const hasError = items.some((item) => item.color === 'error')
+  const hasWarning = items.some((item) => item.color === 'warning')
+  return {
+    status: hasError ? 'Blocked' : hasWarning ? 'Needs attention' : 'Ready',
+    color: hasError ? 'error' : hasWarning ? 'warning' : 'success',
+    message: hasError
+      ? 'Companion still has at least one launch-blocking operator gap on this store.'
+      : hasWarning
+        ? 'Companion is close, but one or more commercial or launch details still need tightening.'
+        : 'The store now reads like a coherent Companion launch target, not just a configured integration.',
+    items,
+  }
 }
 
 export function ShopifyStoresPage() {
@@ -244,6 +450,24 @@ export function ShopifyStoresPage() {
   })
 
   const selectedGovernedActions = selectedGovernedActionsQuery.data ?? []
+
+  const selectedStoreBillingQuery = useQuery({
+    queryKey: ['product-services', selectedStore?.productServiceRef, selectedShopDomain, 'billing-summary'],
+    queryFn: () => fetchProductServiceStoreBillingSummary(selectedStore!.productServiceRef!, selectedShopDomain),
+    enabled: Boolean(selectedShopDomain.length > 0 && selectedStore?.productServiceRef),
+  })
+
+  const selectedStoreBilling = selectedStoreBillingQuery.data ?? null
+
+  const sourceDepthSummary = useMemo(
+    () => buildSourceDepthSummary(selectedStore, selectedVectorization),
+    [selectedStore, selectedVectorization],
+  )
+
+  const launchCommercialSummary = useMemo(
+    () => buildLaunchCommercialSummary(selectedStore, selectedStoreBilling, selectedVectorization, selectedGovernedActions),
+    [selectedGovernedActions, selectedStore, selectedStoreBilling, selectedVectorization],
+  )
 
   const bindingQuery = useQuery({
     queryKey: ['shopify-stores', selectedShopDomain, 'binding'],
@@ -862,6 +1086,130 @@ export function ShopifyStoresPage() {
                       </CardContent>
                     </Card>
                   ) : null}
+
+                  {selectedStoreBillingQuery.isError ? (
+                    <Alert severity="error">
+                      {selectedStoreBillingQuery.error instanceof Error
+                        ? selectedStoreBillingQuery.error.message
+                        : 'Failed to load Shopify store billing summary.'}
+                    </Alert>
+                  ) : null}
+
+                  {selectedStoreBilling ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Companion commercial posture</Typography>
+                            <Chip size="small" label={selectedStoreBilling.tierKey ?? 'UNKNOWN'} color={chipColor(selectedStoreBilling.tierKey)} />
+                            <Chip size="small" variant="outlined" label={selectedStoreBilling.status ?? 'UNKNOWN'} color={chipColor(selectedStoreBilling.status)} />
+                            <Chip size="small" variant="outlined" label={selectedStoreBilling.mode ?? 'UNKNOWN'} />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Plan {selectedStoreBilling.planName ?? '—'} · Product cap {selectedStoreBilling.catalogProductCap ?? 'unlimited'} · Sync cadence{' '}
+                            {selectedStoreBilling.syncCadence ?? 'platform default'} · Badge{' '}
+                            {selectedStoreBilling.poweredByBadgeRequired ? 'required' : 'optional'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Allowed surfaces {selectedStoreBilling.allowedSurfaces.join(' · ') || '—'} · Chat fallback{' '}
+                            {selectedStoreBilling.chatFallbackEnabled ? 'enabled' : 'disabled'} · Confirmation{' '}
+                            {selectedStoreBilling.requiresExplicitConfirmation ? 'required' : 'not required'} · Audit{' '}
+                            {selectedStoreBilling.auditTrailAvailable ? 'available' : 'not applicable'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Action packages {selectedStoreBilling.actionPackages.length ? selectedStoreBilling.actionPackages.join(' · ') : '—'} · Message{' '}
+                            {selectedStoreBilling.message ?? '—'}
+                          </Typography>
+                          <Grid container spacing={1.5}>
+                            {selectedStoreBilling.availablePlans.map((plan) => (
+                              <Grid item xs={12} md={4} key={`${plan.tierKey ?? 'UNKNOWN'}-${plan.planName ?? 'plan'}`}>
+                                <Card variant="outlined">
+                                  <CardContent>
+                                    <Stack spacing={1}>
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        <Typography sx={{ fontWeight: 700 }}>{plan.planName ?? plan.tierKey ?? 'Plan'}</Typography>
+                                        <Chip size="small" label={plan.tierKey ?? 'UNKNOWN'} color={chipColor(plan.tierKey)} />
+                                        {plan.active ? <Chip size="small" variant="outlined" label="Active" color="success" /> : null}
+                                      </Stack>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {plan.actionCapable ? 'Read + governed actions' : 'Read-first shopper intelligence'} · Surfaces{' '}
+                                        {plan.allowedSurfaces.join(' · ') || '—'}
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        Confirmation {plan.requiresExplicitConfirmation ? 'required' : 'not required'} · Audit{' '}
+                                        {plan.auditTrailAvailable ? 'available' : 'not applicable'}
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        Packages {plan.actionPackages.length ? plan.actionPackages.join(' · ') : '—'}
+                                      </Typography>
+                                    </Stack>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography sx={{ fontWeight: 700 }}>Source depth and roadmap status</Typography>
+                          <Chip size="small" label={sourceDepthSummary.status} color={sourceDepthSummary.color} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {sourceDepthSummary.message}
+                        </Typography>
+                        {sourceDepthSummary.items.map((item) => (
+                          <Card key={item.label} variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
+                                  <Chip size="small" label={item.status} color={item.color} />
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {item.detail}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography sx={{ fontWeight: 700 }}>Launch and commercial readiness</Typography>
+                          <Chip size="small" label={launchCommercialSummary.status} color={launchCommercialSummary.color} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {launchCommercialSummary.message}
+                        </Typography>
+                        {launchCommercialSummary.items.map((item) => (
+                          <Card key={item.label} variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
+                                  <Chip size="small" label={item.status} color={item.color} />
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {item.detail}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
 
                   {selectedGovernedActionsQuery.isError ? (
                     <Alert severity="error">

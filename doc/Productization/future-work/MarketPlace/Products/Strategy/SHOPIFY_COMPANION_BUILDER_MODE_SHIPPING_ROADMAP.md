@@ -368,11 +368,13 @@ Progress note:
 - Judge.me-compatible review metafield ingestion is now materially real in the Shopify product pipeline
 - plan-aware merchant UI is now materially real in the bridge admin app
 - explicit Elite governance posture is now visible to merchants and platform admins through the live billing contract
-- the main remaining Milestone 3 gap is final commercial/tier hardening and richer merchandising depth around the now-real surface inventory
+- platform-admin store investigation now has explicit source-depth and launch/commercial readiness surfaces instead of forcing operators to infer roadmap status from raw preflight and vectorization data
+- the main remaining Milestone 3 gap is richer merchandising polish and broader live rollout repetition, not missing read-first source depth or tier legibility
 
 Recommended supporting data work:
 
-- metaobjects
+- broader review-provider depth beyond Judge.me-compatible metafield ingestion
+- richer merchandising composition on top of the now-real metaobject/article source base
 
 Exit criteria:
 
@@ -402,6 +404,7 @@ Progress note:
 - merchant-facing freshness/indexing health is now materially real
 - live verification already checks the bridge admin investigation contract and storefront behavior end to end
 - merchant-facing launch readiness now includes explicit commercial/governance checks instead of only surface/readiness prose
+- platform admins now get the same launch/commercial posture and source-depth view directly in the platform store investigation surface
 
 Non-negotiable launch rule:
 
@@ -431,7 +434,7 @@ Progress note:
 
 - the live billing contract now exposes Elite confirmation posture, audit availability, and packaged action families to both merchant and platform-admin surfaces
 - governed `add-to-cart`, `cart update`, and `variant guidance` surfaces are now materially real with bridge-issued grants, signed completion, shopper confirmation, and audit history
-- the remaining Milestone 5 gap is live commercial rollout and aligned launch packaging, not missing governance primitives
+- the remaining Milestone 5 gap is live commercial rollout repetition and merchant adoption evidence, not missing governance primitives or missing operator visibility
 
 Elite should not launch as a promise bundle.
 
