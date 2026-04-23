@@ -305,6 +305,8 @@ public class ShopifyBridgeBillingService {
             entitlements.catalogProductCap(),
             entitlements.syncCadence(),
             entitlements.poweredByBadgeRequired(),
+            entitlements.chatFallbackEnabled(),
+            entitlements.allowedSurfaces(),
             tier == CompanionTier.FREE
                 ? "Free tier is always available."
                 : plan == null

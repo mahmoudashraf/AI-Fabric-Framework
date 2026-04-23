@@ -33,6 +33,13 @@ class ShopifyBridgeBillingServiceTest {
         assertThat(summary.merchantApprovalRequired()).isFalse();
         assertThat(summary.catalogProductCap()).isEqualTo(50);
         assertThat(summary.allowedSurfaces()).containsExactly("ai-search");
+        assertThat(summary.availablePlans())
+            .anySatisfy(plan -> {
+                if ("FREE".equals(plan.tierKey())) {
+                    assertThat(plan.allowedSurfaces()).containsExactly("ai-search");
+                    assertThat(plan.chatFallbackEnabled()).isFalse();
+                }
+            });
     }
 
     @Test
@@ -84,6 +91,8 @@ class ShopifyBridgeBillingServiceTest {
                 assertThat(plan.tierKey()).isEqualTo("STARTER");
                 assertThat(plan.commerciallyAvailable()).isTrue();
                 assertThat(plan.merchantApprovalSupported()).isTrue();
+                assertThat(plan.allowedSurfaces()).contains("comparison");
+                assertThat(plan.chatFallbackEnabled()).isTrue();
             });
     }
 

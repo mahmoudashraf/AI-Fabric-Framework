@@ -243,6 +243,8 @@ export type ShopifyBridgeBillingSummary = {
     catalogProductCap: number | null
     syncCadence: string | null
     poweredByBadgeRequired: boolean
+    chatFallbackEnabled: boolean
+    allowedSurfaces: string[]
     message: string
   }>
   message: string

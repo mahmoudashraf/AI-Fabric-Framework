@@ -208,13 +208,13 @@ Missing:
 
 Missing:
 
-- plan-aware merchant UI
 - tier-aware storefront gating
 - Shopify billing mapping aligned to the pricing strategy
 - Elite action packaging that only advertises action depth once those surfaces are genuinely shipped
 
 Now materially real:
 
+- plan-aware merchant UI with a visible tier ladder, allowed surfaces, chat-fallback posture, and activation affordances
 - tier-aware placement guidance in the merchant UI
 - merchant-visible store intelligence readiness summary
 - bounded surface usage and top-question analytics for shopper traffic
@@ -358,6 +358,7 @@ Progress note:
 
 - query volume, top shopper questions, and bounded shopper surface usage are now materially real in the merchant app
 - published articles/blog content is now materially real in the Shopify source pipeline
+- plan-aware merchant UI is now materially real in the bridge admin app
 - the main remaining Milestone 3 gap is metaobjects/review-provider depth plus final commercial/tier hardening around the now-real surface inventory
 
 Recommended supporting data work:

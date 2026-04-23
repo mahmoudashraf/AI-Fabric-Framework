@@ -139,6 +139,8 @@ class ShopifyStorefrontBootstrapServiceTest {
                     50,
                     "DAILY",
                     true,
+                    false,
+                    List.of("ai-search"),
                     "Free tier is always available."
                 )
             ),

@@ -1588,6 +1588,57 @@ export default function App() {
                         Surfaces {billingAllowedSurfaces.join(' · ')} · Product cap {billingSummary.catalogProductCap ?? 'unlimited'} ·
                         {' '}Sync {billingSummary.syncCadence ?? 'platform default'} · Badge {billingSummary.poweredByBadgeRequired ? 'required' : 'optional'}
                       </Text>
+                      {billingSummary.availablePlans?.length ? (
+                        <BlockStack gap="150">
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            Tier ladder
+                          </Text>
+                          {billingSummary.availablePlans.map((plan) => {
+                            const canActivate = !plan.active && plan.merchantApprovalSupported && plan.commerciallyAvailable
+                            return (
+                              <Card key={plan.tierKey}>
+                                <BlockStack gap="150">
+                                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                                    <Text as="h3" variant="headingSm">
+                                      {plan.planName}
+                                    </Text>
+                                    <InlineStack gap="150">
+                                      <Badge tone={plan.active ? 'success' : 'info'}>
+                                        {plan.active ? 'Current tier' : plan.tierKey}
+                                      </Badge>
+                                      <Badge tone={plan.chatFallbackEnabled ? 'success' : 'attention'}>
+                                        {plan.chatFallbackEnabled ? 'Chat fallback' : 'Embedded-only'}
+                                      </Badge>
+                                    </InlineStack>
+                                  </InlineStack>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {formatPlanPrice(plan)} · Surfaces {plan.allowedSurfaces.join(' · ') || '—'} · Product cap{' '}
+                                    {plan.catalogProductCap ?? 'unlimited'} · Sync {plan.syncCadence ?? 'platform default'}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {plan.actionCapable ? 'Read + governed actions' : 'Read-only shopper intelligence'} · Badge{' '}
+                                    {plan.poweredByBadgeRequired ? 'required' : 'optional'}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {plan.message}
+                                  </Text>
+                                  {canActivate ? (
+                                    <InlineStack gap="200">
+                                      <Button
+                                        variant="primary"
+                                        onClick={() => void handleBillingApproval(plan.tierKey)}
+                                        loading={busyAction === 'billing-approval'}
+                                      >
+                                        Activate {plan.planName}
+                                      </Button>
+                                    </InlineStack>
+                                  ) : null}
+                                </BlockStack>
+                              </Card>
+                            )
+                          })}
+                        </BlockStack>
+                      ) : null}
                       {billingApprovalRequired ? (
                         <InlineStack gap="200">
                           {billingPaidPlanOptions.map((plan) => (
@@ -2367,6 +2418,13 @@ function formatSurfaceUsageBreakdown(entries: Array<{ surfaceId: string; label: 
     return 'No shopper surface queries yet'
   }
   return entries.map((entry) => `${entry.label} ${entry.count}`).join(' · ')
+}
+
+function formatPlanPrice(plan: ShopifyBridgeBillingSummary['availablePlans'][number]): string {
+  if (!plan.amount || !plan.currencyCode || !plan.interval) {
+    return plan.tierKey === 'FREE' ? 'Free' : 'Pricing unavailable'
+  }
+  return `${plan.amount} ${plan.currencyCode} / ${plan.interval}`
 }
 
 type WidgetSettingsSnapshot = {

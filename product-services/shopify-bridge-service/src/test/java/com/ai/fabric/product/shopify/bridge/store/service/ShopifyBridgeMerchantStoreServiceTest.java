@@ -366,6 +366,8 @@ class ShopifyBridgeMerchantStoreServiceTest {
                     null,
                     "TWO_HOURS",
                     false,
+                    true,
+                    List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
                     "Available for merchant approval through Shopify billing."
                 )
             ),

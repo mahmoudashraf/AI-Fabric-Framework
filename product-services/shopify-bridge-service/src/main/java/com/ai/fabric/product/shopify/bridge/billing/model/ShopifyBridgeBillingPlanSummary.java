@@ -1,5 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.billing.model;
 
+import java.util.List;
+
 public record ShopifyBridgeBillingPlanSummary(
     String tierKey,
     String planName,
@@ -13,6 +15,8 @@ public record ShopifyBridgeBillingPlanSummary(
     Integer catalogProductCap,
     String syncCadence,
     boolean poweredByBadgeRequired,
+    boolean chatFallbackEnabled,
+    List<String> allowedSurfaces,
     String message
 ) {
 }
