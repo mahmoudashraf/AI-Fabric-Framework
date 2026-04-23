@@ -29,6 +29,9 @@ public class PlatformManagedProductStoreSupportReadinessClientService {
 
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(20);
     private static final String BRIDGE_ADMIN_API_KEY_HEADER = "X-BRIDGE-API-KEY";
+    private static final String TRANSIENT_STREAM_LIMIT_MESSAGE = "too many concurrent streams";
+    private static final int MAX_HTTP_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MILLIS = 200L;
 
     private final PlatformManagedProductServiceService serviceService;
     private final ShopifyStoreConnectionRepository shopifyStoreConnectionRepository;
@@ -85,16 +88,68 @@ public class PlatformManagedProductStoreSupportReadinessClientService {
                 .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
                 .GET()
                 .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(CONFLICT, failureMessage + " HTTP " + response.statusCode() + ".");
-            }
+            HttpResponse<String> response = sendWithRetry(request, failureMessage);
             return objectMapper.readTree(response.body());
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
             throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), failureMessage), ex);
         }
+    }
+
+    private HttpResponse<String> sendWithRetry(HttpRequest request, String failureMessage) throws Exception {
+        for (int attempt = 1; attempt <= MAX_HTTP_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    return response;
+                }
+                if (shouldRetry(response.statusCode(), response.body()) && attempt < MAX_HTTP_ATTEMPTS) {
+                    pauseBeforeRetry();
+                    continue;
+                }
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    firstNonBlank(extractRemoteMessage(response.body()), failureMessage + " HTTP " + response.statusCode() + ".")
+                );
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw ex;
+            } catch (ResponseStatusException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                if (shouldRetry(ex.getMessage()) && attempt < MAX_HTTP_ATTEMPTS) {
+                    pauseBeforeRetry();
+                    continue;
+                }
+                throw ex;
+            }
+        }
+        throw new ResponseStatusException(CONFLICT, failureMessage);
+    }
+
+    private boolean shouldRetry(int statusCode, String body) {
+        return statusCode == HttpStatus.CONFLICT.value() && shouldRetry(extractRemoteMessage(body));
+    }
+
+    private boolean shouldRetry(String message) {
+        return hasText(message) && message.toLowerCase().contains(TRANSIENT_STREAM_LIMIT_MESSAGE);
+    }
+
+    private String extractRemoteMessage(String body) {
+        if (!hasText(body)) {
+            return null;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(body);
+            return text(node, "message", trimToNull(body));
+        } catch (Exception ex) {
+            return trimToNull(body);
+        }
+    }
+
+    private void pauseBeforeRetry() throws InterruptedException {
+        Thread.sleep(RETRY_DELAY_MILLIS);
     }
 
     private PlatformManagedProductServiceStoreSupportReadinessSummary parseStoreSupportReadiness(String shopDomain, JsonNode node) {
