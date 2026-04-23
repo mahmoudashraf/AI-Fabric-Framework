@@ -121,6 +121,19 @@ public class ShopifyWebhookSubscriptionService {
         );
     }
 
+    public ShopifyWebhookSubscriptionTopicStatusSummary inspectTopicStatus(String shopDomain,
+                                                                           String accessToken,
+                                                                           String topic) {
+        DesiredWebhookSubscription desired = DESIRED_SUBSCRIPTIONS.stream()
+            .filter(current -> current.topic().equalsIgnoreCase(topic))
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(
+                BAD_GATEWAY,
+                "Unsupported Shopify webhook topic: " + topic
+            ));
+        return inspectTopic(shopDomain, accessToken, desired, webhookUri());
+    }
+
     public int expectedSubscriptionCount() {
         return DESIRED_SUBSCRIPTIONS.size();
     }

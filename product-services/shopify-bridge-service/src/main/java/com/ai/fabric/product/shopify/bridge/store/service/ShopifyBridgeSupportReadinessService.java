@@ -11,11 +11,8 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstall
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
-import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
-import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
-import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -86,12 +83,13 @@ public class ShopifyBridgeSupportReadinessService {
         String accessToken = acquisition == null ? null : acquisition.tokenExchangeMaterial().accessToken();
         SupportState supportState = resolveSupportState(shopDomain, accessToken, installRecord);
         SupportBillingState billingState = resolveSupportBillingState(supportState);
-        ShopifyWebhookSubscriptionStatusSummary webhookSummary = webhookSubscriptionDiagnosticsService.forShop(shopDomain);
         ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain, accessToken);
         boolean installRecoveryRequired = installRecoveryRequired(installRecord);
         boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_orders");
         boolean allOrdersScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_all_orders");
-        boolean scopesWebhookReady = hasReadyWebhookTopic(webhookSummary, "APP_SCOPES_UPDATE");
+        boolean scopesWebhookReady = "READY".equalsIgnoreCase(
+            webhookSubscriptionDiagnosticsService.topicForShop(shopDomain, "APP_SCOPES_UPDATE").status()
+        );
         List<String> missingScopes = orderLookupScopeGranted ? List.of() : List.of("read_orders");
         boolean scopeGrantRequired = !installRecoveryRequired && !orderLookupScopeGranted;
         String scopeGrantUrl = scopeGrantRequired ? buildInstallUrl(shopDomain) : null;
@@ -286,16 +284,6 @@ public class ShopifyBridgeSupportReadinessService {
             ));
         }
         return List.copyOf(subscriptions);
-    }
-
-    private boolean hasReadyWebhookTopic(ShopifyWebhookSubscriptionStatusSummary summary, String topic) {
-        if (summary == null || summary.topics() == null) {
-            return false;
-        }
-        return summary.topics().stream()
-            .filter(current -> topic.equalsIgnoreCase(current.topic()))
-            .map(ShopifyWebhookSubscriptionTopicStatusSummary::status)
-            .anyMatch(status -> "READY".equalsIgnoreCase(status));
     }
 
     private boolean installRecoveryRequired(ShopifyInstallRecordSummary installRecord) {

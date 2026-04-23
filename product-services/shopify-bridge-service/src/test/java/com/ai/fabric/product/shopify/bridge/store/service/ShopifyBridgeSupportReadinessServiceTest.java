@@ -13,7 +13,6 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecord
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
-import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
 import org.junit.jupiter.api.Test;
@@ -52,7 +51,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(webhookDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(readyWebhookSummary());
+        when(webhookDiagnosticsService.topicForShop("alpha.myshopify.com", "APP_SCOPES_UPDATE")).thenReturn(readyWebhookTopic());
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString())).thenReturn(Map.of(
             "data", Map.of(
                 "currentAppInstallation", Map.of(
@@ -113,7 +112,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies")));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(webhookDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(readyWebhookSummary());
+        when(webhookDiagnosticsService.topicForShop("alpha.myshopify.com", "APP_SCOPES_UPDATE")).thenReturn(readyWebhookTopic());
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString())).thenReturn(Map.of(
             "data", Map.of(
                 "currentAppInstallation", Map.of(
@@ -165,7 +164,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(webhookDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(readyWebhookSummary());
+        when(webhookDiagnosticsService.topicForShop("alpha.myshopify.com", "APP_SCOPES_UPDATE")).thenReturn(readyWebhookTopic());
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString()))
             .thenAnswer(invocation -> {
                 String query = invocation.getArgument(2, String.class);
@@ -315,28 +314,15 @@ class ShopifyBridgeSupportReadinessServiceTest {
         );
     }
 
-    private ShopifyWebhookSubscriptionStatusSummary readyWebhookSummary() {
-        return new ShopifyWebhookSubscriptionStatusSummary(
-            "alpha.myshopify.com",
+    private ShopifyWebhookSubscriptionTopicStatusSummary readyWebhookTopic() {
+        return new ShopifyWebhookSubscriptionTopicStatusSummary(
+            "APP_SCOPES_UPDATE",
+            "loom-app-scopes-update",
             "READY",
-            "Webhook subscriptions are ready.",
+            "gid://shopify/WebhookSubscription/1",
+            "loom-app-scopes-update",
             "https://bridge.example/api/webhooks/shopify",
-            10,
-            10,
-            0,
-            0,
-            Instant.parse("2026-04-23T12:00:00Z"),
-            List.of(
-                new ShopifyWebhookSubscriptionTopicStatusSummary(
-                    "APP_SCOPES_UPDATE",
-                    "loom-app-scopes-update",
-                    "READY",
-                    "gid://shopify/WebhookSubscription/1",
-                    "loom-app-scopes-update",
-                    "https://bridge.example/api/webhooks/shopify",
-                    "Ready"
-                )
-            )
+            "Ready"
         );
     }
 

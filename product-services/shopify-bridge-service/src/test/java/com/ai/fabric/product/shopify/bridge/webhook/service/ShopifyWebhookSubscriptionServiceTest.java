@@ -19,6 +19,28 @@ import static org.mockito.Mockito.when;
 class ShopifyWebhookSubscriptionServiceTest {
 
     @Test
+    void inspectTopicStatusReturnsReadyForSingleTopicProbe() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        when(client.execute(anyString(), anyString(), anyString(), anyMap()))
+            .thenReturn(listResponse(
+                "APP_SCOPES_UPDATE",
+                "https://bridge.example.com/api/webhooks/shopify",
+                "loom-app-scopes-update"
+            ));
+
+        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
+
+        ShopifyWebhookSubscriptionTopicStatusSummary topic = service.inspectTopicStatus(
+            "demo.myshopify.com",
+            "token",
+            "APP_SCOPES_UPDATE"
+        );
+
+        assertThat(topic.topic()).isEqualTo("APP_SCOPES_UPDATE");
+        assertThat(topic.status()).isEqualTo("READY");
+    }
+
+    @Test
     void inspectContentSubscriptionsMarksInaccessibleTopicsAsBlocked() {
         ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
         when(client.execute(anyString(), anyString(), anyString(), anyMap()))
