@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.analytics.entity.ShopifyBridgeQueryI
 import com.ai.fabric.product.shopify.bridge.analytics.entity.ShopifyBridgeUsageDailyEntity;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageRoiSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceJourneySummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
@@ -20,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -169,6 +171,14 @@ public class ShopifyBridgeUsageService {
                 aggregate.queryText = row.getSampleQuery();
             }
         }
+        List<SurfaceJourneyAggregate> roiJourneys = surfaceJourneys.values().stream()
+            .filter(value -> value.totalSignals() > 0)
+            .sorted(Comparator
+                .comparingLong(SurfaceJourneyAggregate::totalSignals).reversed()
+                .thenComparing(Comparator.comparingLong((SurfaceJourneyAggregate value) -> value.governedActionCompletions).reversed())
+                .thenComparing(Comparator.comparingLong((SurfaceJourneyAggregate value) -> value.readActions).reversed())
+                .thenComparing(value -> value.label))
+            .toList();
         return new ShopifyBridgeUsageSummary(
             normalizedShopDomain,
             now,
@@ -193,13 +203,7 @@ public class ShopifyBridgeUsageService {
                     value.lastAskedAt
                 ))
                 .toList(),
-            surfaceJourneys.values().stream()
-                .filter(value -> value.totalSignals() > 0)
-                .sorted(Comparator
-                    .comparingLong(SurfaceJourneyAggregate::totalSignals).reversed()
-                    .thenComparing(Comparator.comparingLong((SurfaceJourneyAggregate value) -> value.governedActionCompletions).reversed())
-                    .thenComparing(Comparator.comparingLong((SurfaceJourneyAggregate value) -> value.readActions).reversed())
-                    .thenComparing(value -> value.label))
+            roiJourneys.stream()
                 .map(value -> new ShopifyBridgeUsageSurfaceJourneySummary(
                     value.surfaceId,
                     value.label,
@@ -210,7 +214,8 @@ public class ShopifyBridgeUsageService {
                     value.governedActionCompletions,
                     value.governedActionFailures
                 ))
-                .toList()
+                .toList(),
+            summarizeRoi(roiJourneys)
         );
     }
 
@@ -412,6 +417,81 @@ public class ShopifyBridgeUsageService {
             case "launcher" -> "Chat launcher";
             default -> surfaceId == null ? "Unknown surface" : surfaceId.replace('-', ' ');
         };
+    }
+
+    private ShopifyBridgeUsageRoiSummary summarizeRoi(List<SurfaceJourneyAggregate> journeys) {
+        long shopperAssistSignals = journeys.stream()
+            .mapToLong(value -> value.shopperQuestions + value.shopperInteractions)
+            .sum();
+        long decisionSupportSignals = journeys.stream()
+            .mapToLong(value -> value.readActions)
+            .sum();
+        long governedActionGrants = journeys.stream()
+            .mapToLong(value -> value.governedActionGrants)
+            .sum();
+        long governedActionCompletions = journeys.stream()
+            .mapToLong(value -> value.governedActionCompletions)
+            .sum();
+        long governedActionFailures = journeys.stream()
+            .mapToLong(value -> value.governedActionFailures)
+            .sum();
+        int activeSurfaceCount = journeys.size();
+        List<String> strongestSurfaceLabels = journeys.stream()
+            .limit(3)
+            .map(value -> value.label)
+            .toList();
+        List<String> recommendations = new ArrayList<>();
+        String status;
+        String message;
+        if (shopperAssistSignals == 0L && decisionSupportSignals == 0L && governedActionCompletions == 0L) {
+            status = "NO_SIGNAL";
+            message = "Companion is installed, but it has not produced enough live shopper signal yet to prove merchant value.";
+        } else if (governedActionCompletions > 0L || (decisionSupportSignals >= 3L && shopperAssistSignals >= 8L && activeSurfaceCount >= 2)) {
+            status = "ACTIONABLE";
+            message = "Companion is producing repeat shopper guidance and decision-support evidence that is strong enough to support launch and commercial rollout claims.";
+        } else if (decisionSupportSignals > 0L || shopperAssistSignals >= 5L || activeSurfaceCount >= 2) {
+            status = "PROVING_VALUE";
+            message = "Companion is generating credible shopper-assist and decision-support signal across real storefront surfaces.";
+        } else {
+            status = "EARLY_SIGNAL";
+            message = "Companion has started to generate live shopper signal, but it still needs more volume or surface depth before the ROI story becomes repeatable.";
+        }
+        if (shopperAssistSignals == 0L) {
+            recommendations.add("Drive a design-partner session or route real shopper traffic through AI search or the launcher to create live value evidence.");
+        }
+        if (decisionSupportSignals == 0L) {
+            recommendations.add("Promote product insight, FAQ, or comparison placements on product pages so Companion proves decision support, not only discovery.");
+        }
+        if (activeSurfaceCount < 2) {
+            recommendations.add("Activate and promote more than one embedded surface so the product reads as embedded intelligence instead of a single entry point.");
+        }
+        if (governedActionGrants > 0L && governedActionCompletions == 0L) {
+            recommendations.add("Review governed-commerce confirmation copy so approved Elite actions convert into completed shopper outcomes.");
+        }
+        if (governedActionFailures > 0L) {
+            recommendations.add("Investigate failed governed actions before expanding Elite claims to new stores or launch materials.");
+        }
+        if (governedActionCompletions > 0L) {
+            recommendations.add("Use governed-commerce completions as live Elite evidence in rollout packets and merchant value proof points.");
+        }
+        if (recommendations.isEmpty()) {
+            recommendations.add("Keep capturing top shopper questions and surface journeys so merchant value evidence stays current as traffic grows.");
+        }
+        if (recommendations.size() > 3) {
+            recommendations = recommendations.subList(0, 3);
+        }
+        return new ShopifyBridgeUsageRoiSummary(
+            status,
+            message,
+            shopperAssistSignals,
+            decisionSupportSignals,
+            governedActionGrants,
+            governedActionCompletions,
+            governedActionFailures,
+            activeSurfaceCount,
+            strongestSurfaceLabels,
+            recommendations
+        );
     }
 
     private static final class QueryAggregate {

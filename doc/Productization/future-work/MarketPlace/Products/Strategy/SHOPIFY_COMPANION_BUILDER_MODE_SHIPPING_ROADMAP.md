@@ -219,6 +219,7 @@ Now materially real:
 - merchant-visible store intelligence readiness summary
 - merchant-visible launch and App Review readiness summary
 - bounded surface usage and top-question analytics for shopper traffic
+- bounded ROI evidence in the merchant app and exported launch/support materials based on live shopper-assist, decision-support, and governed-commerce signals
 - governed shopper action grants, audit history, and platform-admin investigation visibility for the Elite guided-commerce package
 
 ### 5.5 Merchant legibility
@@ -373,6 +374,7 @@ Progress note:
 - platform-admin store investigation now has explicit source-depth and launch/commercial readiness surfaces instead of forcing operators to infer roadmap status from raw preflight and vectorization data
 - storefront product-insight surfaces now expose shopper-visible grounding cues for reviews, policies, buying guides, and structured content instead of relying only on generic summary text
 - merchant launch/readiness views now surface detected review-provider and metaobject-type evidence from live source preflight instead of only generic capability claims
+- merchant ROI visibility is now materially real through bounded live value evidence instead of raw usage counts alone
 - the main remaining Milestone 3 gap is broader live rollout repetition and higher-fidelity merchandising composition, not missing read-first source depth or tier legibility
 
 Recommended supporting data work:
@@ -491,6 +493,11 @@ Must ship:
 - customer-safe order lookup
 - return guidance / bounded support handoff
 - better merchant ROI visibility
+
+Progress note:
+
+- merchant ROI visibility is now materially real through bounded shopper-assist, decision-support, and governed-commerce evidence in the merchant app and launch/support exports
+- the remaining Milestone 7 gap is still real support/lifecycle/subscription execution depth, not value-legibility blindness
 
 This milestone aligns with the existing AI enablement expansion plan.
 

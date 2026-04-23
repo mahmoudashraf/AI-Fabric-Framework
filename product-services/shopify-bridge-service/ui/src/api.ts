@@ -228,6 +228,18 @@ export type ShopifyBridgeUsageSummary = {
     governedActionCompletions: number
     governedActionFailures: number
   }>
+  roiSummary: {
+    status: string
+    message: string
+    shopperAssistSignals: number
+    decisionSupportSignals: number
+    governedActionGrants: number
+    governedActionCompletions: number
+    governedActionFailures: number
+    activeSurfaceCount: number
+    strongestSurfaceLabels: string[]
+    recommendations: string[]
+  }
 }
 
 export type ShopifyBridgeGovernedActionAuditSummary = {

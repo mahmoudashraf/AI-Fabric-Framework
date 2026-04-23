@@ -121,6 +121,15 @@ class ShopifyBridgeUsageServiceTest {
             assertThat(surface.surfaceId()).isEqualTo("ai-search");
             assertThat(surface.shopperQuestions()).isEqualTo(2);
         });
+        assertThat(summary.roiSummary()).satisfies(roi -> {
+            assertThat(roi.status()).isEqualTo("PROVING_VALUE");
+            assertThat(roi.shopperAssistSignals()).isEqualTo(6);
+            assertThat(roi.decisionSupportSignals()).isEqualTo(2);
+            assertThat(roi.activeSurfaceCount()).isEqualTo(3);
+            assertThat(roi.strongestSurfaceLabels()).containsExactly("Chat launcher", "Comparison", "AI search");
+            assertThat(roi.recommendations())
+                .contains("Keep capturing top shopper questions and surface journeys so merchant value evidence stays current as traffic grows.");
+        });
     }
 
     @Test

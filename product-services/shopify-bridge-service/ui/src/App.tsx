@@ -753,6 +753,7 @@ export default function App() {
   const shopperSurfaceUsage = usageSummary?.last7DaySurfaceUsage ?? []
   const topShopperQuestions = usageSummary?.topQuestionsLast7Days ?? []
   const shopperSurfaceJourneys = usageSummary?.last7DaySurfaceJourneys ?? []
+  const roiSummary = usageSummary?.roiSummary ?? null
   const sourceCoverageSignals = buildSourceCoverageSignals(store)
   const intelligenceReadiness = buildStoreIntelligenceReadiness(
     store,
@@ -1671,6 +1672,35 @@ export default function App() {
                       ))}
                     </BlockStack>
                   ) : null}
+                  {roiSummary ? (
+                    <BlockStack gap="150">
+                      <InlineStack gap="200" align="start">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Merchant value evidence
+                        </Text>
+                        <Badge tone={roiTone(roiSummary.status)}>{formatRoiStatus(roiSummary.status)}</Badge>
+                      </InlineStack>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {roiSummary.message}
+                      </Text>
+                      <List type="bullet">
+                        <List.Item>Shopper assist signals: {roiSummary.shopperAssistSignals}</List.Item>
+                        <List.Item>Decision-support signals: {roiSummary.decisionSupportSignals}</List.Item>
+                        <List.Item>Governed commerce completions: {roiSummary.governedActionCompletions}</List.Item>
+                        <List.Item>Active shopper surfaces: {roiSummary.activeSurfaceCount}</List.Item>
+                        <List.Item>Strongest surfaces: {roiSummary.strongestSurfaceLabels.join(' · ') || 'None yet'}</List.Item>
+                      </List>
+                      {roiSummary.recommendations.length ? (
+                        <Banner tone={roiTone(roiSummary.status) === 'success' ? 'success' : 'info'}>
+                          <List type="bullet">
+                            {roiSummary.recommendations.map((entry) => (
+                              <List.Item key={entry}>{entry}</List.Item>
+                            ))}
+                          </List>
+                        </Banner>
+                      ) : null}
+                    </BlockStack>
+                  ) : null}
                   {sourceCoverageSignals.length ? (
                     <BlockStack gap="150">
                       <Text as="p" variant="bodySm" tone="subdued">
@@ -2132,6 +2162,9 @@ export default function App() {
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Shopper journeys {(usageSummary.last7DaySurfaceJourneys ?? []).slice(0, 3).map((entry) => `${entry.label}: ${formatSurfaceJourneySummary(entry)}`).join(' | ') || 'No surface journeys yet'}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        ROI posture {formatRoiStatus(usageSummary.roiSummary.status)} · {formatRoiSummary(usageSummary.roiSummary)}
                       </Text>
                     </BlockStack>
                   ) : null}
@@ -2919,6 +2952,48 @@ function formatSurfaceJourneySummary(entry: ShopifyBridgeUsageSummary['last7DayS
   return parts.join(' · ')
 }
 
+function formatRoiStatus(status: string): string {
+  switch ((status ?? '').toUpperCase()) {
+    case 'ACTIONABLE':
+      return 'Actionable'
+    case 'PROVING_VALUE':
+      return 'Proving value'
+    case 'EARLY_SIGNAL':
+      return 'Early signal'
+    case 'NO_SIGNAL':
+      return 'No signal'
+    default:
+      return status || 'Unknown'
+  }
+}
+
+function roiTone(status: string): 'success' | 'attention' | 'critical' {
+  switch ((status ?? '').toUpperCase()) {
+    case 'ACTIONABLE':
+    case 'PROVING_VALUE':
+      return 'success'
+    case 'EARLY_SIGNAL':
+      return 'attention'
+    case 'NO_SIGNAL':
+      return 'critical'
+    default:
+      return 'attention'
+  }
+}
+
+function formatRoiSummary(summary: ShopifyBridgeUsageSummary['roiSummary']): string {
+  const parts = [
+    `assist ${summary.shopperAssistSignals}`,
+    `decision ${summary.decisionSupportSignals}`,
+    `completed ${summary.governedActionCompletions}`,
+    `surfaces ${summary.activeSurfaceCount}`,
+  ]
+  if (summary.strongestSurfaceLabels.length) {
+    parts.push(`top ${summary.strongestSurfaceLabels.join(', ')}`)
+  }
+  return parts.join(' · ')
+}
+
 function formatPlanPrice(plan: ShopifyBridgeBillingSummary['availablePlans'][number]): string {
   if (!plan.amount || !plan.currencyCode || !plan.interval) {
     return plan.tierKey === 'FREE' ? 'Free' : 'Pricing unavailable'
@@ -3483,6 +3558,8 @@ function buildLaunchDossier(
     `- Last 7 days total events: ${usageSummary?.totalLast7Days ?? 0}`,
     `- Top shopper questions: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 5).map((item) => `${item.label}: ${item.queryText}`).join(' | ') || 'None yet'}`,
     `- Surface journeys: ${(usageSummary?.last7DaySurfaceJourneys ?? []).slice(0, 5).map((item) => `${item.label}: ${formatSurfaceJourneySummary(item)}`).join(' | ') || 'None yet'}`,
+    `- ROI posture: ${usageSummary?.roiSummary ? `${formatRoiStatus(usageSummary.roiSummary.status)} (${formatRoiSummary(usageSummary.roiSummary)})` : 'No ROI signal yet'}`,
+    `- ROI recommendations: ${usageSummary?.roiSummary?.recommendations?.join(' | ') || 'None yet'}`,
     '',
     '## Go-live checklist',
     ...goLiveChecklist.items.map((item) => `- ${item.label}: ${item.status}. ${item.detail}`),
@@ -3656,6 +3733,8 @@ function buildDesignPartnerRolloutPacket(
     `- Run at least one product discovery question, one policy question, and one comparison flow${billingSummary?.actionCapable ? ', then one governed commerce flow if Elite is active.' : '.'}`,
     `- Capture top shopper questions and surface usage after traffic: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'no traffic yet'}`,
     `- Capture surface journey evidence after traffic: ${(usageSummary?.last7DaySurfaceJourneys ?? []).slice(0, 3).map((item) => `${item.label} (${formatSurfaceJourneySummary(item)})`).join(' | ') || 'no journey signal yet'}`,
+    `- Capture ROI posture after traffic: ${usageSummary?.roiSummary ? `${formatRoiStatus(usageSummary.roiSummary.status)} (${formatRoiSummary(usageSummary.roiSummary)})` : 'no ROI signal yet'}`,
+    `- Follow ROI recommendations: ${usageSummary?.roiSummary?.recommendations?.join(' | ') || 'none yet'}`,
     '',
     '## Sign-off criteria',
     `- Launch packet posture: ${launchPacket.status}`,

@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResu
 import com.ai.fabric.product.shopify.bridge.action.service.ShopifyBridgeActionExecutionService;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageRoiSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageTopQuerySummary;
@@ -265,7 +266,19 @@ class ShopifyBridgeAdminControllerTest {
                 3,
                 Instant.parse("2026-04-18T11:55:00Z")
             )),
-            List.of()
+            List.of(),
+            new ShopifyBridgeUsageRoiSummary(
+                "PROVING_VALUE",
+                "Companion is generating credible shopper-assist and decision-support signal across real storefront surfaces.",
+                7,
+                2,
+                1,
+                0,
+                0,
+                2,
+                List.of("Chat launcher", "AI search"),
+                List.of("Promote product insight, FAQ, or comparison placements on product pages so Companion proves decision support, not only discovery.")
+            )
         ));
 
         mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/usage-summary").header("X-BRIDGE-API-KEY", "test-admin-key"))
@@ -273,7 +286,9 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
             .andExpect(jsonPath("$.last7DaySurfaceUsage[0].surfaceId").value("launcher"))
             .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"))
-            .andExpect(jsonPath("$.last7DaySurfaceJourneys").isArray());
+            .andExpect(jsonPath("$.last7DaySurfaceJourneys").isArray())
+            .andExpect(jsonPath("$.roiSummary.status").value("PROVING_VALUE"))
+            .andExpect(jsonPath("$.roiSummary.strongestSurfaceLabels[0]").value("Chat launcher"));
     }
 
     @Test

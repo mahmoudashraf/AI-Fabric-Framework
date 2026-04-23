@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.web;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageRoiSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageTopQuerySummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
@@ -294,7 +295,19 @@ class ShopifyMerchantControllerTest {
                 4,
                 Instant.parse("2026-04-18T11:59:00Z")
             )),
-            List.of()
+            List.of(),
+            new ShopifyBridgeUsageRoiSummary(
+                "ACTIONABLE",
+                "Companion is producing repeat shopper guidance and decision-support evidence that is strong enough to support launch and commercial rollout claims.",
+                9,
+                4,
+                2,
+                1,
+                0,
+                3,
+                List.of("Chat launcher", "Comparison", "AI search"),
+                List.of("Use governed-commerce completions as live Elite evidence in rollout packets and merchant value proof points.")
+            )
         ));
 
         mockMvc.perform(get("/api/app/store/usage-summary").header("Authorization", "Bearer " + token()))
@@ -304,7 +317,9 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.last7DayBreakdown[0].eventType").value("STOREFRONT_QUERY"))
             .andExpect(jsonPath("$.last7DaySurfaceUsage[0].surfaceId").value("launcher"))
             .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"))
-            .andExpect(jsonPath("$.last7DaySurfaceJourneys").isArray());
+            .andExpect(jsonPath("$.last7DaySurfaceJourneys").isArray())
+            .andExpect(jsonPath("$.roiSummary.status").value("ACTIONABLE"))
+            .andExpect(jsonPath("$.roiSummary.activeSurfaceCount").value(3));
 
         verify(usageService).summarize("alpha.myshopify.com");
     }
