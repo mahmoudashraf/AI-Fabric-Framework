@@ -775,6 +775,15 @@ export default function App() {
     billingSummary,
     store?.widgetDetail?.settings ?? null,
   )
+  const goLiveChecklist = buildGoLiveChecklist(
+    session,
+    store,
+    storefrontPreview,
+    billingSummary,
+    webhookSubscriptions,
+    vectorizationSummary,
+    store?.widgetDetail?.settings ?? null,
+  )
   const supportBundleText = buildSupportBundle(
     shell,
     session,
@@ -783,6 +792,17 @@ export default function App() {
     billingSummary,
     webhookSubscriptions,
     vectorizationSummary,
+  )
+  const launchDossierText = buildLaunchDossier(
+    shell,
+    session,
+    storefrontPreview,
+    usageSummary,
+    billingSummary,
+    webhookSubscriptions,
+    vectorizationSummary,
+    goLiveChecklist,
+    launchPacket,
   )
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
@@ -880,6 +900,35 @@ export default function App() {
       setActionMessage('Downloaded Shopify Companion support bundle.')
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to download the support bundle.')
+    }
+  }
+
+  async function handleCopyLaunchDossier() {
+    try {
+      await navigator.clipboard.writeText(launchDossierText)
+      setActionError(null)
+      setActionMessage('Copied Shopify Companion launch dossier to the clipboard.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to copy the launch dossier.')
+    }
+  }
+
+  function handleDownloadLaunchDossier() {
+    try {
+      const blob = new Blob([launchDossierText], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const safeShopDomain = session?.shopDomain?.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase() || 'shopify-store'
+      anchor.href = url
+      anchor.download = `shopify-companion-launch-dossier-${safeShopDomain}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setActionError(null)
+      setActionMessage('Downloaded Shopify Companion launch dossier.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to download the launch dossier.')
     }
   }
 
@@ -1636,6 +1685,99 @@ export default function App() {
                       ))}
                     </List>
                   </BlockStack>
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Go-live checklist and dossier
+                    </Text>
+                    <Badge tone={goLiveChecklist.tone}>{goLiveChecklist.status}</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    {goLiveChecklist.message}
+                  </Text>
+                  <BlockStack gap="150">
+                    {goLiveChecklist.items.map((item) => {
+                      const action = item.action
+                      return (
+                        <Box key={item.label} padding="200" borderWidth="025" borderColor="border" borderRadius="200">
+                          <BlockStack gap="150">
+                            <InlineStack gap="200" align="space-between" blockAlign="center">
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                {item.label}
+                              </Text>
+                              <Badge tone={item.tone}>{item.status}</Badge>
+                            </InlineStack>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {item.detail}
+                            </Text>
+                            {action ? (
+                              <InlineStack gap="200">
+                                {action.kind === 'open-url' && action.url ? (
+                                  <Button url={action.url} target="_blank">
+                                    {action.label}
+                                  </Button>
+                                ) : null}
+                                {action.kind === 'run-go-live' ? (
+                                  <Button variant="primary" onClick={() => void handleGoLive()} loading={busyAction === 'go-live'} disabled={!canGoLive}>
+                                    {action.label}
+                                  </Button>
+                                ) : null}
+                                {action.kind === 'run-sync' ? (
+                                  <Button onClick={() => void handleSyncNow()} loading={busyAction === 'sync'} disabled={!canSyncNow}>
+                                    {action.label}
+                                  </Button>
+                                ) : null}
+                                {action.kind === 'run-reconcile' ? (
+                                  <Button
+                                    onClick={() => void handleVectorizationReconcile()}
+                                    loading={busyAction === 'vectorization-reconcile'}
+                                    disabled={!canReconcileVectorization}
+                                  >
+                                    {action.label}
+                                  </Button>
+                                ) : null}
+                                {action.kind === 'activate-plan' ? (
+                                  <Button
+                                    variant="primary"
+                                    onClick={() => void handleBillingApproval(action.tierKey)}
+                                    loading={busyAction === 'billing-approval'}
+                                  >
+                                    {action.label}
+                                  </Button>
+                                ) : null}
+                                {action.kind === 'copy-launch-dossier' ? (
+                                  <Button onClick={() => void handleCopyLaunchDossier()}>
+                                    {action.label}
+                                  </Button>
+                                ) : null}
+                              </InlineStack>
+                            ) : null}
+                          </BlockStack>
+                        </Box>
+                      )
+                    })}
+                  </BlockStack>
+                  <TextField
+                    label="Launch dossier"
+                    autoComplete="off"
+                    multiline={12}
+                    value={launchDossierText}
+                    readOnly
+                  />
+                  <InlineStack gap="200">
+                    <Button onClick={() => void handleCopyLaunchDossier()} disabled={!session}>
+                      Copy launch dossier
+                    </Button>
+                    <Button onClick={handleDownloadLaunchDossier} disabled={!session}>
+                      Download launch dossier
+                    </Button>
+                  </InlineStack>
                 </BlockStack>
               </Card>
             </Box>
@@ -2534,6 +2676,21 @@ function buildSupportBundle(
         usageSummary,
         store?.widgetDetail?.settings ?? null
       ),
+      goLiveChecklist: buildGoLiveChecklist(
+        session,
+        store,
+        storefrontPreview,
+        billingSummary,
+        webhookSubscriptions,
+        vectorizationSummary,
+        store?.widgetDetail?.settings ?? null
+      ),
+      launchPacket: buildLaunchPacket(
+        store,
+        storefrontPreview,
+        billingSummary,
+        store?.widgetDetail?.settings ?? null
+      ),
       usageSummary,
     },
     null,
@@ -2955,6 +3112,203 @@ function buildLaunchPacket(
     commercialNotes,
     reviewNotes,
   }
+}
+
+function buildGoLiveChecklist(
+  session: ShopifyBridgeMerchantSessionResponse | null,
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null,
+  widgetSettings: WidgetSettingsSnapshot | null,
+): {
+  status: string
+  tone: 'success' | 'attention' | 'critical'
+  message: string
+  items: Array<{
+    label: string
+    status: string
+    tone: 'success' | 'attention' | 'critical'
+    detail: string
+    action?:
+      | { kind: 'open-url'; label: string; url: string }
+      | { kind: 'run-go-live'; label: string }
+      | { kind: 'run-sync'; label: string }
+      | { kind: 'run-reconcile'; label: string }
+      | { kind: 'activate-plan'; label: string; tierKey: string }
+      | { kind: 'copy-launch-dossier'; label: string }
+  }>
+} {
+  const configuredSurfaces = widgetSettings?.enabledSurfaces?.length ? widgetSettings.enabledSurfaces : DEFAULT_WIDGET_SURFACES
+  const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const needsPaidTier = configuredSurfaces.some((surfaceId) => !allowedSurfaces.includes(surfaceId))
+  const storefrontReady = Boolean(storefrontPreview?.ready)
+  const vectorizationReady = Boolean(vectorizationSummary?.readyToRun)
+  const liveUpdatesHealthy = !vectorizationSummary?.automation || vectorizationSummary.automation.autoIndexingHealthy !== false
+  const webhooksReady = !webhookSubscriptions || webhookSubscriptions.status === 'READY'
+  const goLiveEligible = Boolean(store?.readiness?.goLiveEligible)
+  const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
+  const activeStarterPlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'STARTER') ?? null
+  const sourceDepthReady = Boolean(
+    store?.productsEnabled &&
+      store?.policiesEnabled &&
+      (store?.articlesEnabled || store?.metaobjectsEnabled || storefrontPreview?.supportedReviewProviders?.length),
+  )
+
+  const items: Array<{
+    label: string
+    status: string
+    tone: 'success' | 'attention' | 'critical'
+    detail: string
+    action?:
+      | { kind: 'open-url'; label: string; url: string }
+      | { kind: 'run-go-live'; label: string }
+      | { kind: 'run-sync'; label: string }
+      | { kind: 'run-reconcile'; label: string }
+      | { kind: 'activate-plan'; label: string; tierKey: string }
+      | { kind: 'copy-launch-dossier'; label: string }
+  }> = [
+    {
+      label: 'Merchant install and session',
+      status: installRecoveryRequired ? 'Blocked' : 'Ready',
+      tone: installRecoveryRequired ? 'critical' : 'success',
+      detail: installRecoveryRequired
+        ? session?.installRecoveryMessage ?? 'Merchant install recovery is required before Companion can be presented safely.'
+        : 'Merchant install, scoped auth, and embedded session recovery are clean enough for onboarding.',
+      action: installRecoveryRequired && session?.installRecoveryUrl
+        ? { kind: 'open-url', label: 'Recover install', url: session.installRecoveryUrl }
+        : undefined,
+    },
+    {
+      label: 'Theme activation and storefront placement',
+      status: storefrontReady ? 'Ready' : 'Needs action',
+      tone: storefrontReady ? 'success' : 'attention',
+      detail: storefrontReady
+        ? 'Theme embed and merchant-placeable surfaces are active with live placement guidance.'
+        : storefrontPreview?.blockingReasons?.join(' ') || 'Theme activation still needs a merchant action in Shopify Theme Editor.',
+      action: !storefrontReady && storefrontPreview?.themeEditorActivationUrl
+        ? { kind: 'open-url', label: 'Open Theme Editor', url: storefrontPreview.themeEditorActivationUrl }
+        : undefined,
+    },
+    {
+      label: 'Source grounding depth',
+      status: sourceDepthReady ? 'Ready' : 'Needs action',
+      tone: sourceDepthReady ? 'success' : 'attention',
+      detail: sourceDepthReady
+        ? 'Catalog, policy, and richer structured content are available for launch-safe grounding.'
+        : 'Enable richer store sources so launch claims can go beyond core catalog-only answers.',
+    },
+    {
+      label: 'Vectorization and live updates',
+      status: vectorizationReady && liveUpdatesHealthy && webhooksReady ? 'Ready' : 'Needs action',
+      tone: vectorizationReady && liveUpdatesHealthy && webhooksReady ? 'success' : 'attention',
+      detail: vectorizationReady && liveUpdatesHealthy && webhooksReady
+        ? 'Deployment vectorization, webhooks, and live updates are aligned for a clean launch story.'
+        : !vectorizationReady
+          ? 'The deployment still needs reconcile before bounded indexing can run cleanly.'
+          : !liveUpdatesHealthy
+            ? 'Live updates are currently degraded and should be stabilized before launch.'
+            : 'Webhook subscriptions still need attention before launch.',
+      action: !vectorizationReady
+        ? { kind: 'run-reconcile', label: 'Reconcile vectorization' }
+        : !store?.syncDetail || store.syncDetail.status !== 'SYNCED'
+          ? { kind: 'run-sync', label: 'Run sync now' }
+          : undefined,
+    },
+    {
+      label: 'Tier posture and billing story',
+      status: !billingSummary?.launchBlocked && !needsPaidTier ? 'Ready' : 'Needs action',
+      tone: !billingSummary?.launchBlocked && !needsPaidTier ? 'success' : 'attention',
+      detail: !billingSummary?.launchBlocked && !needsPaidTier
+        ? `Current ${billingSummary?.tierKey ?? 'UNKNOWN'} posture matches the enabled surface set.`
+        : billingSummary?.launchBlocked
+          ? billingSummary.message ?? 'Billing is still blocking launch.'
+          : 'Configured storefront surfaces exceed the current billing tier allowance.',
+      action: needsPaidTier && activeStarterPlan?.commerciallyAvailable
+        ? { kind: 'activate-plan', label: `Activate ${activeStarterPlan.planName}`, tierKey: activeStarterPlan.tierKey }
+        : undefined,
+    },
+    {
+      label: 'Go-live and App Review packet',
+      status: storefrontReady && sourceDepthReady ? 'Ready' : 'Needs attention',
+      tone: storefrontReady && sourceDepthReady ? 'success' : 'attention',
+      detail: goLiveEligible
+        ? 'The current store posture is strong enough to generate a merchant-facing launch dossier and run go-live.'
+        : 'Generate the launch dossier now, then use it to close the remaining launch blockers before go-live.',
+      action: goLiveEligible
+        ? { kind: 'run-go-live', label: 'Run go-live' }
+        : { kind: 'copy-launch-dossier', label: 'Copy launch dossier' },
+    },
+  ]
+
+  const hasCritical = items.some((item) => item.tone === 'critical')
+  const hasAttention = items.some((item) => item.tone === 'attention')
+  return {
+    status: hasCritical ? 'Blocked' : hasAttention ? 'Needs attention' : 'Ready',
+    tone: hasCritical ? 'critical' : hasAttention ? 'attention' : 'success',
+    message: hasCritical
+      ? 'Companion still has at least one hard blocker before go-live.'
+      : hasAttention
+        ? 'Companion has a credible launch path, but a few operator steps still need to be closed.'
+        : 'Companion now has a repeatable merchant go-live flow instead of an operator-only checklist.',
+    items,
+  }
+}
+
+function buildLaunchDossier(
+  shell: ShopifyBridgeShellResponse | null,
+  session: ShopifyBridgeMerchantSessionResponse | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  usageSummary: ShopifyBridgeUsageSummary | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null,
+  goLiveChecklist: ReturnType<typeof buildGoLiveChecklist>,
+  launchPacket: ReturnType<typeof buildLaunchPacket>,
+): string {
+  const shopDomain = session?.shopDomain ?? storefrontPreview?.shopDomain ?? 'shopify-store'
+  return [
+    '# Shopify Companion Launch Dossier',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `Shop: ${shopDomain}`,
+    `App: ${shell?.appName ?? 'Loom Companion'}`,
+    '',
+    '## Current posture',
+    `- Billing tier: ${billingSummary?.tierKey ?? 'UNKNOWN'} (${billingSummary?.status ?? 'UNKNOWN'})`,
+    `- Billing mode: ${billingSummary?.mode ?? 'UNKNOWN'}`,
+    `- Storefront ready: ${storefrontPreview?.ready ? 'yes' : 'no'}`,
+    `- Widget status: ${storefrontPreview?.widgetStatus ?? 'UNKNOWN'}`,
+    `- Live updates healthy: ${vectorizationSummary?.automation?.autoIndexingHealthy === false ? 'no' : 'yes'}`,
+    `- Webhooks ready: ${webhookSubscriptions?.status ?? 'UNKNOWN'}`,
+    '',
+    '## Safe product claims',
+    ...launchPacket.safeClaims.map((claim) => `- ${claim}`),
+    '',
+    '## Commercial packaging',
+    ...launchPacket.commercialNotes.map((note) => `- ${note}`),
+    '',
+    '## App Review and launch notes',
+    ...launchPacket.reviewNotes.map((note) => `- ${note}`),
+    '',
+    '## Grounding signals',
+    `- ${(storefrontPreview?.groundingSignals ?? []).join(' · ') || 'Core catalog only'}`,
+    `- Review providers: ${(storefrontPreview?.supportedReviewProviders ?? []).join(' · ') || 'None detected'}`,
+    '',
+    '## Merchant signal',
+    `- Last 7 days total events: ${usageSummary?.totalLast7Days ?? 0}`,
+    `- Top shopper questions: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 5).map((item) => `${item.label}: ${item.queryText}`).join(' | ') || 'None yet'}`,
+    '',
+    '## Go-live checklist',
+    ...goLiveChecklist.items.map((item) => `- ${item.label}: ${item.status}. ${item.detail}`),
+    '',
+    '## Next operator notes',
+    `- Storefront base URL: ${storefrontPreview?.storefrontBaseUrl ?? 'Not configured'}`,
+    `- Theme editor activation URL: ${storefrontPreview?.themeEditorActivationUrl ?? 'Not configured'}`,
+    `- Allowed surfaces: ${(billingSummary?.allowedSurfaces ?? []).join(' · ') || 'None detected'}`,
+    `- Action packages: ${(billingSummary?.actionPackages ?? []).join(' · ') || 'None detected'}`,
+  ].join('\n')
 }
 
 function readPath(root: unknown, ...segments: string[]): unknown {

@@ -406,6 +406,8 @@ Progress note:
 - live verification already checks the bridge admin investigation contract and storefront behavior end to end
 - merchant-facing launch readiness now includes explicit commercial/governance checks instead of only surface/readiness prose
 - the merchant app now exposes a claim-safe launch packet that turns the live surface set, source depth, and Elite governance posture into App Review-safe product packaging guidance
+- the merchant app now exposes a concrete go-live checklist with direct actions for theme activation, vectorization reconcile, billing activation, install recovery, and dossier export
+- merchants and operators can now export a launch dossier markdown packet instead of stitching App Review and design-partner notes together from raw diagnostics
 - platform admins now get the same launch/commercial posture and source-depth view directly in the platform store investigation surface
 
 Non-negotiable launch rule:
