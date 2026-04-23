@@ -238,6 +238,7 @@ public class ShopifyBridgeMerchantStoreService {
         boolean pagesEnabled = request.pagesEnabled() == null || request.pagesEnabled();
         boolean policiesEnabled = request.policiesEnabled() == null || request.policiesEnabled();
         boolean articlesEnabled = request.articlesEnabled() == null || request.articlesEnabled();
+        boolean metaobjectsEnabled = request.metaobjectsEnabled() == null || request.metaobjectsEnabled();
 
         if (current == null) {
             ShopifyBridgeStoreSummary store = platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
@@ -256,7 +257,8 @@ public class ShopifyBridgeMerchantStoreService {
                 collectionsEnabled,
                 pagesEnabled,
                 policiesEnabled,
-                articlesEnabled
+                articlesEnabled,
+                metaobjectsEnabled
             ));
             usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SOURCE_SETTINGS_UPDATED");
             return store;
@@ -266,7 +268,8 @@ public class ShopifyBridgeMerchantStoreService {
             || current.collectionsEnabled() != collectionsEnabled
             || current.pagesEnabled() != pagesEnabled
             || current.policiesEnabled() != policiesEnabled
-            || current.articlesEnabled() != articlesEnabled;
+            || current.articlesEnabled() != articlesEnabled
+            || current.metaobjectsEnabled() != metaobjectsEnabled;
 
         if (!togglesChanged) {
             return current;
@@ -288,7 +291,8 @@ public class ShopifyBridgeMerchantStoreService {
             collectionsEnabled,
             pagesEnabled,
             policiesEnabled,
-            articlesEnabled
+            articlesEnabled,
+            metaobjectsEnabled
         ));
         if (hasPlatformBindings(store)) {
             platformShopifyStoreClient.reconcileVectorization(store.shopDomain());
@@ -313,6 +317,7 @@ public class ShopifyBridgeMerchantStoreService {
                 "NOT_RUN",
                 "NOT_ENABLED",
                 "CONNECTED",
+                true,
                 true,
                 true,
                 true,

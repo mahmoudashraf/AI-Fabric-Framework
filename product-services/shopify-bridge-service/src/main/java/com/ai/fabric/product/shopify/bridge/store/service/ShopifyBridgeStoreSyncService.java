@@ -189,6 +189,9 @@ public class ShopifyBridgeStoreSyncService {
             if (store.articlesEnabled()) {
                 documents.addAll(loadArticles(shopDomain, accessToken));
             }
+            if (store.metaobjectsEnabled()) {
+                documents.addAll(loadMetaobjects(shopDomain, accessToken));
+            }
             ShopifyBridgeStoreSummary synced = platformShopifyStoreClient.syncDocuments(
                 shopDomain,
                 new ShopifyBridgeSyncStoreDocumentsRequest(mode, documents)
@@ -339,6 +342,26 @@ public class ShopifyBridgeStoreSyncService {
                     "updatedAt", text(node, "updatedAt"),
                     "documentType", "article",
                     "storefrontUrl", articleStorefrontUrl(shopDomain, node)
+                )
+            ))
+            .toList();
+    }
+
+    private List<ShopifyBridgeStoreSyncDocument> loadMetaobjects(String shopDomain, String accessToken) {
+        return ShopifyMetaobjectSupport.loadAllEntries(shopDomain, accessToken, shopifyAdminGraphqlClient).stream()
+            .map(entry -> new ShopifyBridgeStoreSyncDocument(
+                entry.id(),
+                "metaobjects",
+                "support-policy",
+                entry.title(),
+                entry.content(),
+                metadata(
+                    "handle", entry.handle(),
+                    "updatedAt", entry.updatedAt(),
+                    "documentType", "metaobject",
+                    "storefrontUrl", entry.storefrontUrl(),
+                    "metaobjectType", entry.type(),
+                    "definitionName", entry.definitionName()
                 )
             ))
             .toList();

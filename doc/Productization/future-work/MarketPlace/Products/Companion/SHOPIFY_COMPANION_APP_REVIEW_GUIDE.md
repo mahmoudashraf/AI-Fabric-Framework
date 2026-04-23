@@ -44,6 +44,7 @@ Example launch posture:
 
 - product/catalog reads
 - content/policy reads
+- metaobject reads for bounded structured commerce content
 - webhook topics needed for install lifecycle and bounded sync invalidation
 
 The review package should explicitly show that V1 does not require write scopes for transactional behavior.
@@ -60,6 +61,13 @@ The reviewer should be able to validate this sequence:
 6. enable the theme app extension
 7. ask shopper questions from the storefront widget
 8. confirm grounded product/policy responses
+9. confirm the embedded surfaces contract:
+   - AI search
+   - contextual pill
+   - product insight
+   - policy strip
+   - product FAQ
+   - comparison
 
 ## 5. Review Package Contents
 
@@ -81,6 +89,8 @@ Required evidence:
 - store summary reaches `storefrontReady=true`
 - storefront bootstrap returns `available=true`
 - shopper query path executes successfully
+- launch and App Review readiness summary is visible in the merchant app
+- store intelligence health is visible in the merchant app
 - uninstall verification passes on a disposable store mapping
 
 ## 7. Merchant-Facing UI Expectations
@@ -92,6 +102,8 @@ The embedded app should visibly expose:
 - source preflight state
 - sync state
 - storefront preview
+- launch and App Review readiness summary
+- store intelligence health
 - support bundle
 
 The embedded app should not expose:

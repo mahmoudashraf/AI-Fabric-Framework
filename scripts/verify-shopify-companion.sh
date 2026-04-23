@@ -661,6 +661,7 @@ enabled_categories = [
         "pages": payload.get("pagesEnabled"),
         "policies": payload.get("policiesEnabled"),
         "articles": payload.get("articlesEnabled"),
+        "metaobjects": payload.get("metaobjectsEnabled"),
     }.items()
     if enabled is True
 ]
@@ -802,6 +803,9 @@ for event in events:
 if store.get("articlesEnabled") is True:
     assert "articles" in selected_categories, {"missingArticlesSelectedCategory": selected_categories}
     assert "articles" in policy_categories, {"missingArticlesPolicyCategory": sorted(policy_categories)}
+if store.get("metaobjectsEnabled") is True:
+    assert "metaobjects" in selected_categories, {"missingMetaobjectsSelectedCategory": selected_categories}
+    assert "metaobjects" in policy_categories, {"missingMetaobjectsPolicyCategory": sorted(policy_categories)}
 PY
 
 echo "== Bridge shell =="

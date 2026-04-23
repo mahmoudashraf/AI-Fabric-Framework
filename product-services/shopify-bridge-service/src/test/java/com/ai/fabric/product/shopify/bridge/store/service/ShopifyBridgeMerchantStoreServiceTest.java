@@ -175,6 +175,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
             true,
             true,
             true,
+            true,
             true
         ));
         verify(installCredentialService).acquireAndPersistMaterial(session(), "Bearer session-token");
@@ -499,7 +500,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
 
         ShopifyBridgeStoreSummary response = service.updateSourceSettings(
             session(),
-            new ShopifyBridgeUpdateSourceSettingsRequest(true, false, true, false, false)
+            new ShopifyBridgeUpdateSourceSettingsRequest(true, false, true, false, false, false)
         );
 
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
@@ -518,6 +519,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
             true,
             false,
             true,
+            false,
             false,
             false
         ));
@@ -832,6 +834,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
             true,
             true,
             false,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,
@@ -894,6 +897,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
             base.pagesEnabled(),
             base.policiesEnabled(),
             base.articlesEnabled(),
+            base.metaobjectsEnabled(),
             null,
             base.sourcePreflight(),
             base.syncDetail(),

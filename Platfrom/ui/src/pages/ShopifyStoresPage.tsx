@@ -114,6 +114,7 @@ const emptyForm: StoreFormState = {
   pagesEnabled: true,
   policiesEnabled: true,
   articlesEnabled: true,
+  metaobjectsEnabled: false,
 }
 
 function buildPreflightCategories(store: ShopifyStoreConnectionSummary): PreflightFormCategory[] {
@@ -124,6 +125,7 @@ function buildPreflightCategories(store: ShopifyStoreConnectionSummary): Preflig
     { category: 'pages', enabled: store.pagesEnabled },
     { category: 'policies', enabled: store.policiesEnabled },
     { category: 'articles', enabled: store.articlesEnabled },
+    { category: 'metaobjects', enabled: store.metaobjectsEnabled },
   ]
     .filter((entry) => entry.enabled)
     .map((entry) => {
@@ -650,6 +652,7 @@ export function ShopifyStoresPage() {
                       ['Pages enabled', selectedStore.pagesEnabled ? 'Yes' : 'No'],
                       ['Policies enabled', selectedStore.policiesEnabled ? 'Yes' : 'No'],
                       ['Articles enabled', selectedStore.articlesEnabled ? 'Yes' : 'No'],
+                      ['Metaobjects enabled', selectedStore.metaobjectsEnabled ? 'Yes' : 'No'],
                       ['Actions', selectedStore.capabilities ? `${selectedStore.capabilities.actionCount}` : null],
                       ['Knowledge sources', selectedStore.capabilities ? `${selectedStore.capabilities.knowledgeSourceCount}` : null],
                       ['Datasets', selectedStore.capabilities ? `${selectedStore.capabilities.marketplaceDatasetCount}` : null],
@@ -1461,6 +1464,10 @@ export function ShopifyStoresPage() {
               <FormControlLabel
                 control={<Checkbox checked={Boolean(form.articlesEnabled)} onChange={(event) => setForm((current) => ({ ...current, articlesEnabled: event.target.checked }))} />}
                 label="Articles"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={Boolean(form.metaobjectsEnabled)} onChange={(event) => setForm((current) => ({ ...current, metaobjectsEnabled: event.target.checked }))} />}
+                label="Metaobjects"
               />
             </FormGroup>
           </Stack>

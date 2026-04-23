@@ -16,12 +16,14 @@ final class ShopifyStoreVectorizationConstants {
     static final String SOURCE_PAGES = "pages";
     static final String SOURCE_POLICIES = "policies";
     static final String SOURCE_ARTICLES = "articles";
+    static final String SOURCE_METAOBJECTS = "metaobjects";
     static final List<String> SOURCE_CATEGORIES = List.of(
         SOURCE_PRODUCTS,
         SOURCE_COLLECTIONS,
         SOURCE_PAGES,
         SOURCE_POLICIES,
-        SOURCE_ARTICLES
+        SOURCE_ARTICLES,
+        SOURCE_METAOBJECTS
     );
 
     static final String OPERATION_CREATE = "CREATE";
@@ -125,7 +127,7 @@ final class ShopifyStoreVectorizationConstants {
         String normalized = normalizeSourceCategory(sourceCategory);
         return switch (normalized) {
             case SOURCE_PRODUCTS, SOURCE_COLLECTIONS -> ENTITY_TYPE_PRODUCT;
-            case SOURCE_PAGES, SOURCE_POLICIES, SOURCE_ARTICLES -> ENTITY_TYPE_SUPPORT_POLICY;
+            case SOURCE_PAGES, SOURCE_POLICIES, SOURCE_ARTICLES, SOURCE_METAOBJECTS -> ENTITY_TYPE_SUPPORT_POLICY;
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported Shopify source category: " + sourceCategory);
         };
     }
@@ -140,6 +142,7 @@ final class ShopifyStoreVectorizationConstants {
             case SOURCE_PAGES -> store.isPagesEnabled();
             case SOURCE_POLICIES -> store.isPoliciesEnabled();
             case SOURCE_ARTICLES -> store.isArticlesEnabled();
+            case SOURCE_METAOBJECTS -> store.isMetaobjectsEnabled();
             default -> false;
         };
     }

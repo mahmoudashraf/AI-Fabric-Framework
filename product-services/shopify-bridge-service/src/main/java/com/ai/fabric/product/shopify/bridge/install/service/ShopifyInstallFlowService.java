@@ -35,7 +35,7 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 @Service
 public class ShopifyInstallFlowService {
 
-    private static final String DEFAULT_APP_SCOPES = "read_products,read_content,read_legal_policies";
+    private static final String DEFAULT_APP_SCOPES = "read_products,read_content,read_legal_policies,read_metaobjects,read_metaobject_definitions";
     private static final Logger log = LoggerFactory.getLogger(ShopifyInstallFlowService.class);
 
     private final ShopifyBridgeProperties properties;
@@ -141,7 +141,8 @@ public class ShopifyInstallFlowService {
                 existing.collectionsEnabled(),
                 existing.pagesEnabled(),
                 existing.policiesEnabled(),
-                existing.articlesEnabled()
+                existing.articlesEnabled(),
+                existing.metaobjectsEnabled()
             ));
         } catch (HttpClientErrorException.NotFound ex) {
             platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
@@ -156,6 +157,7 @@ public class ShopifyInstallFlowService {
                 "NOT_RUN",
                 "NOT_ENABLED",
                 "CONNECTED",
+                true,
                 true,
                 true,
                 true,

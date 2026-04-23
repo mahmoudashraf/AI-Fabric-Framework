@@ -434,6 +434,7 @@ class ShopifyBridgeStoreSyncServiceTest {
             pagesEnabled,
             policiesEnabled,
             articlesEnabled,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

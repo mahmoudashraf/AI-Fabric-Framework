@@ -5,6 +5,7 @@ public record ShopifyBridgeUpdateSourceSettingsRequest(
     Boolean collectionsEnabled,
     Boolean pagesEnabled,
     Boolean policiesEnabled,
-    Boolean articlesEnabled
+    Boolean articlesEnabled,
+    Boolean metaobjectsEnabled
 ) {
 }

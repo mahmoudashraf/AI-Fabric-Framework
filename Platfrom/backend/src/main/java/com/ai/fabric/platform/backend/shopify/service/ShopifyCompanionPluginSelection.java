@@ -35,7 +35,7 @@ final class ShopifyCompanionPluginSelection {
     }
 
     static boolean requiresPoliciesData(ShopifyStoreConnectionEntity store) {
-        return store != null && (store.isPagesEnabled() || store.isPoliciesEnabled() || store.isArticlesEnabled());
+        return store != null && (store.isPagesEnabled() || store.isPoliciesEnabled() || store.isArticlesEnabled() || store.isMetaobjectsEnabled());
     }
 
     static List<String> selectedCategories(ShopifyStoreConnectionEntity store) {
@@ -57,6 +57,9 @@ final class ShopifyCompanionPluginSelection {
         }
         if (store.isArticlesEnabled()) {
             categories.add("articles");
+        }
+        if (store.isMetaobjectsEnabled()) {
+            categories.add("metaobjects");
         }
         return List.copyOf(categories);
     }

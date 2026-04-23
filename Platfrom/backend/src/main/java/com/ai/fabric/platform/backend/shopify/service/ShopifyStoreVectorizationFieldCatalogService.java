@@ -133,6 +133,17 @@ public class ShopifyStoreVectorizationFieldCatalogService {
                 new ShopifyStoreVectorizationFieldDefinition("articles.storefrontUrl", "articles", "support-policy", "storefrontUrl", "Article URL", true)
             )
         );
+        definitions.put(
+            ShopifyStoreVectorizationConstants.SOURCE_METAOBJECTS,
+            List.of(
+                new ShopifyStoreVectorizationFieldDefinition("metaobjects.title", "metaobjects", "support-policy", "title", "Metaobject title", true),
+                new ShopifyStoreVectorizationFieldDefinition("metaobjects.content", "metaobjects", "support-policy", "content", "Metaobject content", true),
+                new ShopifyStoreVectorizationFieldDefinition("metaobjects.handle", "metaobjects", "support-policy", "handle", "Metaobject handle", true),
+                new ShopifyStoreVectorizationFieldDefinition("metaobjects.metaobjectType", "metaobjects", "support-policy", "metaobjectType", "Metaobject type", true),
+                new ShopifyStoreVectorizationFieldDefinition("metaobjects.definitionName", "metaobjects", "support-policy", "definitionName", "Metaobject definition", true),
+                new ShopifyStoreVectorizationFieldDefinition("metaobjects.storefrontUrl", "metaobjects", "support-policy", "storefrontUrl", "Metaobject URL", true)
+            )
+        );
         return Map.copyOf(definitions);
     }
 }

@@ -366,6 +366,7 @@ public class ShopifyStoreVectorizationService {
         sourceCategories.put("pagesEnabled", store.isPagesEnabled());
         sourceCategories.put("policiesEnabled", store.isPoliciesEnabled());
         sourceCategories.put("articlesEnabled", store.isArticlesEnabled());
+        sourceCategories.put("metaobjectsEnabled", store.isMetaobjectsEnabled());
         ObjectNode entityMappings = mapping.putObject("entityMappings");
 
         ObjectNode productMapping = entityMappings.putObject("product");
@@ -397,6 +398,8 @@ public class ShopifyStoreVectorizationService {
         supportPolicyMetadata.put("sourceCategory", "sourceCategory");
         supportPolicyMetadata.put("documentType", "documentType");
         supportPolicyMetadata.put("policyType", "policyType");
+        supportPolicyMetadata.put("metaobjectType", "metaobjectType");
+        supportPolicyMetadata.put("definitionName", "definitionName");
         supportPolicyMetadata.put("storefrontUrl", "storefrontUrl");
         supportPolicyMetadata.put("updatedAt", "updatedAt");
 

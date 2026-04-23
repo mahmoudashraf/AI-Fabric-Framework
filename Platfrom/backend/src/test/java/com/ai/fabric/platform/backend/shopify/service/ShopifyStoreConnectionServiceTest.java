@@ -131,6 +131,7 @@ class ShopifyStoreConnectionServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -214,6 +215,7 @@ class ShopifyStoreConnectionServiceTest {
                 true,
                 true,
                 true,
+                false,
                 false
             )
         ))

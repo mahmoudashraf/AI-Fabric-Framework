@@ -164,6 +164,30 @@ public class ShopifyBridgeVectorizationSourceService {
                 name
               }
             }
+            ... on Metaobject {
+              id
+              type
+              handle
+              displayName
+              updatedAt
+              onlineStoreUrl
+              fields {
+                key
+                type
+                value
+              }
+              definition {
+                id
+                type
+                name
+                description
+                displayNameKey
+                fieldDefinitions {
+                  key
+                  name
+                }
+              }
+            }
           }
         }
         """;
@@ -287,6 +311,7 @@ public class ShopifyBridgeVectorizationSourceService {
             case "pages" -> loadPagesPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
             case "articles" -> loadArticlesPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
             case "policies" -> loadPoliciesPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
+            case "metaobjects" -> loadMetaobjectsPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported Shopify vectorization source category: " + parsedCursor.category());
         };
 
@@ -356,6 +381,8 @@ public class ShopifyBridgeVectorizationSourceService {
                     text(node, "handle"),
                     text(node, "vendor"),
                     text(node, "productType"),
+                    null,
+                    null,
                     null
                 )
             ));
@@ -377,6 +404,8 @@ public class ShopifyBridgeVectorizationSourceService {
                     "collection",
                     storefrontUrl(store.shopDomain(), "/collections/" + safePath(text(node, "handle"))),
                     text(node, "handle"),
+                    null,
+                    null,
                     null,
                     null,
                     null
@@ -401,6 +430,8 @@ public class ShopifyBridgeVectorizationSourceService {
                     text(node, "handle"),
                     null,
                     null,
+                    null,
+                    null,
                     null
                 )
             );
@@ -418,6 +449,7 @@ public class ShopifyBridgeVectorizationSourceService {
                 .filter(item -> sourceObjectId.equals(item.id()))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Shopify policy record not found: " + sourceObjectId));
+            case "metaobjects" -> loadRecordFromMetaobject(store.shopDomain(), accessToken, sourceObjectId);
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported Shopify vectorization source category: " + sourceCategory);
         };
     }
@@ -446,6 +478,7 @@ public class ShopifyBridgeVectorizationSourceService {
                 );
                 case "articles" -> countPublishedArticles(store.shopDomain(), accessToken);
                 case "policies" -> loadPolicies(store.shopDomain(), accessToken).size();
+                case "metaobjects" -> ShopifyMetaobjectSupport.totalCount(store.shopDomain(), accessToken, shopifyAdminGraphqlClient);
                 default -> 0;
             };
         }
@@ -526,6 +559,8 @@ public class ShopifyBridgeVectorizationSourceService {
                 text(node, "handle"),
                 text(node, "vendor"),
                 text(node, "productType"),
+                null,
+                null,
                 null
             )
         ), catalogProductCap);
@@ -594,6 +629,8 @@ public class ShopifyBridgeVectorizationSourceService {
                 text(node, "handle"),
                 null,
                 null,
+                null,
+                null,
                 null
             )
         );
@@ -624,6 +661,8 @@ public class ShopifyBridgeVectorizationSourceService {
                 "page",
                 storefrontUrl(shopDomain, "/pages/" + safePath(text(node, "handle"))),
                 text(node, "handle"),
+                null,
+                null,
                 null,
                 null,
                 null
@@ -664,6 +703,26 @@ public class ShopifyBridgeVectorizationSourceService {
         return new PageResult(items, nextCursor, hasMore);
     }
 
+    private PageResult loadMetaobjectsPage(String shopDomain,
+                                           String accessToken,
+                                           String cursor,
+                                           int limit) {
+        ShopifyMetaobjectSupport.MetaobjectPage page = ShopifyMetaobjectSupport.pageEntries(
+            shopDomain,
+            accessToken,
+            shopifyAdminGraphqlClient,
+            cursor,
+            limit
+        );
+        return new PageResult(
+            page.items().stream()
+                .map(this::metaobjectRecord)
+                .toList(),
+            page.nextCursor(),
+            page.hasMore()
+        );
+    }
+
     private List<ShopifyBridgeVectorizationSourceRecord> loadPolicies(String shopDomain, String accessToken) {
         Map<String, Object> response = shopifyAdminGraphqlClient.execute(shopDomain, accessToken, POLICIES_QUERY);
         List<String> errors = errorMessages(response);
@@ -690,7 +749,9 @@ public class ShopifyBridgeVectorizationSourceService {
                 null,
                 null,
                 null,
-                text(node, "type")
+                text(node, "type"),
+                null,
+                null
             ))
             .toList();
     }
@@ -726,7 +787,38 @@ public class ShopifyBridgeVectorizationSourceService {
             text(node, "handle"),
             null,
             null,
+            null,
+            null,
             null
+        );
+    }
+
+    private ShopifyBridgeVectorizationSourceRecord loadRecordFromMetaobject(String shopDomain,
+                                                                            String accessToken,
+                                                                            String sourceObjectId) {
+        return metaobjectRecord(ShopifyMetaobjectSupport.loadRecord(
+            shopDomain,
+            accessToken,
+            shopifyAdminGraphqlClient,
+            sourceObjectId
+        ));
+    }
+
+    private ShopifyBridgeVectorizationSourceRecord metaobjectRecord(ShopifyMetaobjectSupport.MetaobjectEntrySummary entry) {
+        return new ShopifyBridgeVectorizationSourceRecord(
+            entry.id(),
+            entry.updatedAt(),
+            entry.title(),
+            entry.content(),
+            "metaobjects",
+            "support-policy",
+            entry.storefrontUrl(),
+            entry.handle(),
+            null,
+            null,
+            null,
+            entry.type(),
+            entry.definitionName()
         );
     }
 
@@ -814,7 +906,7 @@ public class ShopifyBridgeVectorizationSourceService {
             return categories;
         }
         if ("support-policy".equals(entityType)) {
-            List<String> categories = new ArrayList<>(3);
+            List<String> categories = new ArrayList<>(4);
             if (store.pagesEnabled()) {
                 categories.add("pages");
             }
@@ -823,6 +915,9 @@ public class ShopifyBridgeVectorizationSourceService {
             }
             if (store.articlesEnabled()) {
                 categories.add("articles");
+            }
+            if (store.metaobjectsEnabled()) {
+                categories.add("metaobjects");
             }
             return categories;
         }

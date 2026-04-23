@@ -753,6 +753,7 @@ export type ShopifyStoreConnectionSummary = {
   pagesEnabled: boolean
   policiesEnabled: boolean
   articlesEnabled: boolean
+  metaobjectsEnabled: boolean
   credentials: ShopifyStoreCredentialSummary | null
   sourcePreflight: ShopifyStoreSourcePreflightSummary | null
   syncDetail: ShopifyStoreSyncSummary | null
@@ -793,6 +794,7 @@ export type UpsertShopifyStoreConnectionRequest = {
   pagesEnabled: boolean | null
   policiesEnabled: boolean | null
   articlesEnabled: boolean | null
+  metaobjectsEnabled: boolean | null
 }
 
 export type BootstrapShopifyStoreRequest = {

@@ -24,7 +24,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class ShopifyStoreSourcePreflightService {
 
-    private static final Set<String> SUPPORTED_CATEGORIES = Set.of("products", "collections", "pages", "policies", "articles");
+    private static final Set<String> SUPPORTED_CATEGORIES = Set.of("products", "collections", "pages", "policies", "articles", "metaobjects");
 
     private final ShopifyStoreConnectionRepository repository;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
@@ -111,6 +111,7 @@ public class ShopifyStoreSourcePreflightService {
             case "pages" -> store.isPagesEnabled();
             case "policies" -> store.isPoliciesEnabled();
             case "articles" -> store.isArticlesEnabled();
+            case "metaobjects" -> store.isMetaobjectsEnabled();
             default -> false;
         };
         if (expectedEnabled != category.enabled()) {

@@ -66,11 +66,11 @@ class ShopifyBridgeSourcePreflightServiceTest {
         List<ShopifyBridgeStoreSourcePreflightCategorySummary> categories = captor.getValue().categories();
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         assertThat(categories).extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::category)
-            .containsExactly("products", "collections", "pages", "policies", "articles");
+            .containsExactly("products", "collections", "pages", "policies", "articles", "metaobjects");
         assertThat(categories).extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::status)
-            .containsExactly("READY", "PENDING", "READY", "READY", "PENDING");
+            .containsExactly("READY", "PENDING", "READY", "READY", "PENDING", "PENDING");
         assertThat(categories).extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::itemCount)
-            .containsExactly(12, 0, 0, 2, 0);
+            .containsExactly(12, 0, 0, 2, 0, 0);
     }
 
     @Test
@@ -99,7 +99,7 @@ class ShopifyBridgeSourcePreflightServiceTest {
         verify(platformClient).recordSourcePreflight(eq("alpha.myshopify.com"), captor.capture());
         assertThat(captor.getValue().categories())
             .extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::status)
-            .containsExactly("BLOCKED", "PENDING", "PENDING", "PENDING", "PENDING");
+            .containsExactly("BLOCKED", "PENDING", "PENDING", "PENDING", "PENDING", "PENDING");
     }
 
     @Test
@@ -147,7 +147,7 @@ class ShopifyBridgeSourcePreflightServiceTest {
         List<ShopifyBridgeStoreSourcePreflightCategorySummary> categories = captor.getValue().categories();
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         assertThat(categories).extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::category)
-            .containsExactly("products", "collections", "pages", "policies", "articles");
+            .containsExactly("products", "collections", "pages", "policies", "articles", "metaobjects");
         assertThat(categories.get(4).status()).isEqualTo("READY");
         assertThat(categories.get(4).itemCount()).isEqualTo(2);
     }
@@ -221,6 +221,7 @@ class ShopifyBridgeSourcePreflightServiceTest {
             pagesEnabled,
             policiesEnabled,
             articlesEnabled,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

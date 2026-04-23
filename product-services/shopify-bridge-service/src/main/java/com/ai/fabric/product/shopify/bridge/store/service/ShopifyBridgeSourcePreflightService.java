@@ -130,6 +130,11 @@ public class ShopifyBridgeSourcePreflightService {
             store.articlesEnabled(),
             () -> fetchArticles(store.shopDomain(), accessToken)
         ));
+        categories.add(evaluateCategory(
+            "metaobjects",
+            store.metaobjectsEnabled(),
+            () -> fetchMetaobjects(store.shopDomain(), accessToken)
+        ));
         return platformShopifyStoreClient.recordSourcePreflight(
             store.shopDomain(),
             new ShopifyBridgeRecordSourcePreflightRequest(categories)
@@ -198,6 +203,15 @@ public class ShopifyBridgeSourcePreflightService {
             "READY",
             count,
             count > 0 ? "Articles reachable (" + count + " published posts)." : "No published articles found in the store."
+        );
+    }
+
+    private CategoryResult fetchMetaobjects(String shopDomain, String accessToken) {
+        int count = ShopifyMetaobjectSupport.totalCount(shopDomain, accessToken, shopifyAdminGraphqlClient);
+        return new CategoryResult(
+            "READY",
+            count,
+            count > 0 ? "Metaobjects reachable (" + count + " records)." : "No eligible metaobjects found in the store."
         );
     }
 

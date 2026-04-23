@@ -219,6 +219,11 @@ public class ShopifyStoreConnectionService {
         entity.setPagesEnabled(request.pagesEnabled() == null || request.pagesEnabled());
         entity.setPoliciesEnabled(request.policiesEnabled() == null || request.policiesEnabled());
         entity.setArticlesEnabled(request.articlesEnabled() == null || request.articlesEnabled());
+        entity.setMetaobjectsEnabled(
+            request.metaobjectsEnabled() != null
+                ? request.metaobjectsEnabled()
+                : created || entity.isMetaobjectsEnabled()
+        );
         entity.setUpdatedAt(Instant.now());
         repository.save(entity);
 
@@ -278,6 +283,7 @@ public class ShopifyStoreConnectionService {
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
             entity.isArticlesEnabled(),
+            entity.isMetaobjectsEnabled(),
             credentials,
             sourcePreflight,
             syncDetail,
@@ -321,6 +327,7 @@ public class ShopifyStoreConnectionService {
 
         boolean catalogRequired = entity.isProductsEnabled() || entity.isCollectionsEnabled();
         boolean policiesRequired = entity.isPagesEnabled() || entity.isPoliciesEnabled() || entity.isArticlesEnabled();
+        policiesRequired = policiesRequired || entity.isMetaobjectsEnabled();
         if (!catalogRequired && !policiesRequired) {
             return;
         }
