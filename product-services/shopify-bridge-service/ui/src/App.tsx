@@ -853,6 +853,13 @@ export default function App() {
     vectorizationSummary,
     goLiveChecklist,
   )
+  const lifecycleSubscriptionPacketText = buildLifecycleSubscriptionPacket(
+    session,
+    store,
+    billingSummary,
+    webhookSubscriptions,
+    vectorizationSummary,
+  )
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
   const billingLaunchBlocked = Boolean(billingSummary?.launchBlocked)
@@ -1123,6 +1130,35 @@ export default function App() {
       setActionMessage('Downloaded Shopify Companion support runbook.')
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to download the support runbook.')
+    }
+  }
+
+  async function handleCopyLifecycleSubscriptionPacket() {
+    try {
+      await navigator.clipboard.writeText(lifecycleSubscriptionPacketText)
+      setActionError(null)
+      setActionMessage('Copied Shopify Companion lifecycle and subscription packet to the clipboard.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to copy the lifecycle and subscription packet.')
+    }
+  }
+
+  function handleDownloadLifecycleSubscriptionPacket() {
+    try {
+      const blob = new Blob([lifecycleSubscriptionPacketText], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const safeShopDomain = session?.shopDomain?.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase() || 'shopify-store'
+      anchor.href = url
+      anchor.download = `shopify-companion-lifecycle-subscription-${safeShopDomain}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setActionError(null)
+      setActionMessage('Downloaded Shopify Companion lifecycle and subscription packet.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to download the lifecycle and subscription packet.')
     }
   }
 
@@ -2199,6 +2235,26 @@ export default function App() {
                       </Button>
                       <Button onClick={handleDownloadSupportRunbook} disabled={!session}>
                         Download support runbook
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Lifecycle and subscription packet
+                    </Text>
+                    <TextField
+                      label="Lifecycle and subscription packet"
+                      autoComplete="off"
+                      multiline={10}
+                      value={lifecycleSubscriptionPacketText}
+                      readOnly
+                    />
+                    <InlineStack gap="200">
+                      <Button onClick={() => void handleCopyLifecycleSubscriptionPacket()} disabled={!session}>
+                        Copy lifecycle packet
+                      </Button>
+                      <Button onClick={handleDownloadLifecycleSubscriptionPacket} disabled={!session}>
+                        Download lifecycle packet
                       </Button>
                     </InlineStack>
                   </BlockStack>
@@ -4164,6 +4220,72 @@ function buildSupportRunbook(
     '- Use the support bundle first for diagnostics, then this runbook for bounded support posture.',
     '- Re-run `scripts/verify-shopify-companion.sh` before escalating a launch or review incident.',
     '- Keep support guidance aligned with the App Review guide and screencast script generated from the same store posture.',
+  ].join('\n')
+}
+
+function buildLifecycleSubscriptionPacket(
+  session: ShopifyBridgeMerchantSessionResponse | null,
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null,
+): string {
+  const shopDomain = session?.shopDomain ?? store?.shopDomain ?? 'shopify-store'
+  const subscriptionWebhook = webhookSubscriptions?.topics.find((topic) => topic.topic === 'APP_SUBSCRIPTIONS_UPDATE') ?? null
+  const availablePlans = (billingSummary?.availablePlans ?? []).map((plan) => {
+    const posture = [plan.tierKey, plan.planName]
+    if (plan.active) {
+      posture.push('current')
+    }
+    if (!plan.commerciallyAvailable) {
+      posture.push('not commercial')
+    }
+    return posture.join(' · ')
+  })
+
+  return [
+    '# Shopify Companion Lifecycle And Subscription Packet',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `Shop: ${shopDomain}`,
+    '',
+    '## Lifecycle timeline',
+    `- Installed at: ${formatTimestamp(session?.installRecord?.installedAt)}`,
+    `- Last authenticated: ${formatTimestamp(session?.installRecord?.lastAuthenticatedAt)}`,
+    `- Last uninstall: ${formatTimestamp(session?.installRecord?.lastUninstalledAt)}`,
+    `- Last source preflight: ${formatTimestamp(store?.lastSourcePreflightAt)}`,
+    `- Last sync: ${formatTimestamp(store?.lastSyncAt)}`,
+    `- Last webhook: ${formatTimestamp(store?.lastWebhookAt)}${store?.webhookDetail?.topic ? ` (${store.webhookDetail.topic})` : ''}`,
+    `- Latest release applied: ${formatTimestamp(store?.latestRelease?.appliedAt)}`,
+    '',
+    '## Current lifecycle status',
+    `- Install status: ${store?.installStatus ?? 'UNKNOWN'}`,
+    `- Onboarding status: ${store?.onboardingStatus ?? 'UNKNOWN'}`,
+    `- Deployment status: ${store?.deploymentStatus ?? 'UNBOUND'}`,
+    `- Sync status: ${store?.syncDetail?.status ?? store?.syncStatus ?? 'UNKNOWN'}`,
+    `- Storefront ready: ${store?.readiness?.storefrontReady ? 'yes' : 'no'}`,
+    `- Live updates healthy: ${vectorizationSummary?.automation?.autoIndexingHealthy === false ? 'no' : 'yes'}`,
+    '',
+    '## Subscription posture',
+    `- Billing mode: ${billingSummary?.mode ?? 'UNKNOWN'}`,
+    `- Billing tier: ${billingSummary?.tierKey ?? 'UNKNOWN'}`,
+    `- Billing status: ${billingSummary?.status ?? 'UNKNOWN'}`,
+    `- Launch blocked: ${billingSummary?.launchBlocked ? 'yes' : 'no'}`,
+    `- Allowed surfaces: ${(billingSummary?.allowedSurfaces ?? []).join(' · ') || 'None detected'}`,
+    `- Action packages: ${(billingSummary?.actionPackages ?? []).join(' · ') || 'None detected'}`,
+    `- Subscription webhook: ${subscriptionWebhook?.status ?? 'UNKNOWN'}${subscriptionWebhook?.message ? ` · ${subscriptionWebhook.message}` : ''}`,
+    `- Available plans: ${availablePlans.join(' | ') || 'None detected'}`,
+    '',
+    '## Operator notes',
+    billingSummary?.launchBlocked
+      ? `- Billing is currently blocking go-live: ${billingSummary.message ?? 'Review the active plan and merchant approval flow.'}`
+      : '- Billing is not currently blocking go-live for this store.',
+    session?.installRecoveryRequired
+      ? `- Merchant install recovery is required: ${session.installRecoveryMessage ?? 'Reinstall before continuing.'}`
+      : '- Merchant install recovery is not currently required.',
+    webhookSubscriptions?.status === 'READY'
+      ? '- Webhook posture is ready for install, lifecycle, and subscription tracking.'
+      : `- Webhook posture still needs attention: ${webhookSubscriptions?.message ?? 'Review webhook subscriptions before launch.'}`,
   ].join('\n')
 }
 
