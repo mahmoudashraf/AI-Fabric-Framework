@@ -14,7 +14,7 @@ import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetD
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetHandleRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
-import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
+import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductStoreSupportReadinessClientService;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
@@ -64,7 +64,7 @@ public class ShopifyStoreConnectionService {
     private final PlatformAuditService platformAuditService;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ShopifyStoreReadinessEvaluator readinessEvaluator;
-    private final PlatformManagedProductAdminService productAdminService;
+    private final PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient;
 
     @Autowired
     public ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
@@ -79,7 +79,7 @@ public class ShopifyStoreConnectionService {
                                          PlatformAuditService platformAuditService,
                                          ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
                                          ShopifyStoreReadinessEvaluator readinessEvaluator,
-                                         PlatformManagedProductAdminService productAdminService) {
+                                         PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient) {
         this.repository = repository;
         this.productServiceService = productServiceService;
         this.customerRepository = customerRepository;
@@ -92,7 +92,7 @@ public class ShopifyStoreConnectionService {
         this.platformAuditService = platformAuditService;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
-        this.productAdminService = productAdminService;
+        this.storeSupportReadinessClient = storeSupportReadinessClient;
     }
 
     ShopifyStoreConnectionService(ShopifyStoreConnectionRepository repository,
@@ -161,7 +161,7 @@ public class ShopifyStoreConnectionService {
                                   PlatformAuditService platformAuditService,
                                   ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
                                   ShopifyStoreReadinessEvaluator readinessEvaluator,
-                                  PlatformManagedProductAdminService productAdminService) {
+                                  PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient) {
         this(
             repository,
             productServiceService,
@@ -175,7 +175,7 @@ public class ShopifyStoreConnectionService {
             platformAuditService,
             sourcePreflightSupport,
             readinessEvaluator,
-            productAdminService
+            storeSupportReadinessClient
         );
     }
 
@@ -382,12 +382,12 @@ public class ShopifyStoreConnectionService {
         String serviceRef,
         String shopDomain
     ) {
-        if (base == null || productAdminService == null || !hasText(serviceRef)) {
+        if (base == null || storeSupportReadinessClient == null || !hasText(serviceRef)) {
             return base;
         }
         PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness;
         try {
-            supportReadiness = productAdminService.getStoreSupportReadiness(serviceRef, shopDomain);
+            supportReadiness = storeSupportReadinessClient.getStoreSupportReadiness(serviceRef, shopDomain);
         } catch (ResponseStatusException ex) {
             return base;
         }

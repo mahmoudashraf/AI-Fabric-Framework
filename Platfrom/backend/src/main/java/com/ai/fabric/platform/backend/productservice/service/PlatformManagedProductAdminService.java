@@ -92,6 +92,7 @@ public class PlatformManagedProductAdminService {
     private final PlatformManagedProductProvisioningService provisioningService;
     private final PlatformAuditService platformAuditService;
     private final RailwayGraphqlClient railwayGraphqlClient;
+    private final PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ShopifyStoreReadinessEvaluator readinessEvaluator;
@@ -110,6 +111,7 @@ public class PlatformManagedProductAdminService {
                                               PlatformManagedProductProvisioningService provisioningService,
                                               PlatformAuditService platformAuditService,
                                               RailwayGraphqlClient railwayGraphqlClient,
+                                              PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient,
                                               ShopifyStoreConnectionService shopifyStoreConnectionService,
                                               ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
                                               ShopifyStoreReadinessEvaluator readinessEvaluator,
@@ -126,11 +128,49 @@ public class PlatformManagedProductAdminService {
         this.provisioningService = provisioningService;
         this.platformAuditService = platformAuditService;
         this.railwayGraphqlClient = railwayGraphqlClient;
+        this.storeSupportReadinessClient = storeSupportReadinessClient;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
         this.httpClient = HttpClient.newBuilder().connectTimeout(HTTP_TIMEOUT).build();
+    }
+
+    PlatformManagedProductAdminService(PlatformManagedProductServiceService serviceService,
+                                       PlatformManagedProductServiceRepository serviceRepository,
+                                       ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+                                       PlatformCustomerRepository platformCustomerRepository,
+                                       DeploymentRepository deploymentRepository,
+                                       DeploymentVersionRepository deploymentVersionRepository,
+                                       DeploymentReleaseRepository deploymentReleaseRepository,
+                                       PlatformConsumerRepository platformConsumerRepository,
+                                       PlatformSecretService platformSecretService,
+                                       PlatformManagedProductProvisioningService provisioningService,
+                                       PlatformAuditService platformAuditService,
+                                       RailwayGraphqlClient railwayGraphqlClient,
+                                       ShopifyStoreConnectionService shopifyStoreConnectionService,
+                                       ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                       ShopifyStoreReadinessEvaluator readinessEvaluator,
+                                       ObjectMapper objectMapper) {
+        this(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            platformCustomerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            platformConsumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            null,
+            shopifyStoreConnectionService,
+            sourcePreflightSupport,
+            readinessEvaluator,
+            objectMapper
+        );
     }
 
     public List<ShopifyStoreConnectionSummary> listDependents(String serviceRef) {
@@ -502,7 +542,7 @@ public class PlatformManagedProductAdminService {
     }
 
     public PlatformManagedProductServiceStoreSupportReadinessSummary getStoreSupportReadiness(String serviceRef, String shopDomain) {
-        try {
+        if (storeSupportReadinessClient == null) {
             return parseStoreSupportReadiness(
                 shopDomain,
                 fetchStoreAdminPayload(
@@ -512,11 +552,8 @@ public class PlatformManagedProductAdminService {
                     "Managed product support readiness request failed."
                 )
             );
-        } catch (ResponseStatusException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product support readiness request failed."), ex);
         }
+        return storeSupportReadinessClient.getStoreSupportReadiness(serviceRef, shopDomain);
     }
 
     public ShopifyStoreVectorizationSummary getStoreVectorizationSummary(String serviceRef, String shopDomain) {

@@ -13,7 +13,7 @@ import com.ai.fabric.platform.backend.marketplace.repository.MarketplaceDatasetH
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
-import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
+import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductStoreSupportReadinessClientService;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
@@ -714,7 +714,7 @@ class ShopifyStoreConnectionServiceTest {
         DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
-        PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
+        PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient = mock(PlatformManagedProductStoreSupportReadinessClientService.class);
 
         PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
         service.setId("psv-123");
@@ -761,7 +761,7 @@ class ShopifyStoreConnectionServiceTest {
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
         when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
-        when(productAdminService.getStoreSupportReadiness("shopify-bridge-prod", "demo.myshopify.com"))
+        when(storeSupportReadinessClient.getStoreSupportReadiness("shopify-bridge-prod", "demo.myshopify.com"))
             .thenReturn(new PlatformManagedProductServiceStoreSupportReadinessSummary(
                 "demo.myshopify.com",
                 "PENDING_SCOPE_GRANT",
@@ -812,7 +812,7 @@ class ShopifyStoreConnectionServiceTest {
             platformAuditService,
             new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
             new ShopifyStoreReadinessEvaluator(),
-            productAdminService
+            storeSupportReadinessClient
         );
 
         ShopifyStoreConnectionSummary summary = connectionService.getConnection("demo.myshopify.com");
