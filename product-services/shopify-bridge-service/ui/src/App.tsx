@@ -806,6 +806,22 @@ export default function App() {
     goLiveChecklist,
     launchPacket,
   )
+  const appStoreListingPackageText = buildAppStoreListingPackage(
+    store,
+    storefrontPreview,
+    billingSummary,
+    launchPacket,
+  )
+  const designPartnerRolloutText = buildDesignPartnerRolloutPacket(
+    shell,
+    session,
+    store,
+    storefrontPreview,
+    billingSummary,
+    usageSummary,
+    goLiveChecklist,
+    launchPacket,
+  )
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
   const billingLaunchBlocked = Boolean(billingSummary?.launchBlocked)
@@ -931,6 +947,64 @@ export default function App() {
       setActionMessage('Downloaded Shopify Companion launch dossier.')
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to download the launch dossier.')
+    }
+  }
+
+  async function handleCopyAppStoreListingPackage() {
+    try {
+      await navigator.clipboard.writeText(appStoreListingPackageText)
+      setActionError(null)
+      setActionMessage('Copied Shopify Companion App Store listing package to the clipboard.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to copy the App Store listing package.')
+    }
+  }
+
+  function handleDownloadAppStoreListingPackage() {
+    try {
+      const blob = new Blob([appStoreListingPackageText], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const safeShopDomain = session?.shopDomain?.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase() || 'shopify-store'
+      anchor.href = url
+      anchor.download = `shopify-companion-app-store-package-${safeShopDomain}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setActionError(null)
+      setActionMessage('Downloaded Shopify Companion App Store listing package.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to download the App Store listing package.')
+    }
+  }
+
+  async function handleCopyDesignPartnerRollout() {
+    try {
+      await navigator.clipboard.writeText(designPartnerRolloutText)
+      setActionError(null)
+      setActionMessage('Copied Shopify Companion design-partner rollout packet to the clipboard.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to copy the design-partner rollout packet.')
+    }
+  }
+
+  function handleDownloadDesignPartnerRollout() {
+    try {
+      const blob = new Blob([designPartnerRolloutText], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const safeShopDomain = session?.shopDomain?.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase() || 'shopify-store'
+      anchor.href = url
+      anchor.download = `shopify-companion-design-partner-rollout-${safeShopDomain}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setActionError(null)
+      setActionMessage('Downloaded Shopify Companion design-partner rollout packet.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to download the design-partner rollout packet.')
     }
   }
 
@@ -1792,6 +1866,59 @@ export default function App() {
                       Download launch dossier
                     </Button>
                   </InlineStack>
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    App Store and design-partner package
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Generate claim-safe App Store copy and a repeatable design-partner rollout packet from the current live store posture.
+                  </Text>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      App Store listing package
+                    </Text>
+                    <TextField
+                      label="App Store listing package"
+                      autoComplete="off"
+                      multiline={10}
+                      value={appStoreListingPackageText}
+                      readOnly
+                    />
+                    <InlineStack gap="200">
+                      <Button onClick={() => void handleCopyAppStoreListingPackage()} disabled={!session}>
+                        Copy App Store package
+                      </Button>
+                      <Button onClick={handleDownloadAppStoreListingPackage} disabled={!session}>
+                        Download App Store package
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Design-partner rollout packet
+                    </Text>
+                    <TextField
+                      label="Design-partner rollout packet"
+                      autoComplete="off"
+                      multiline={10}
+                      value={designPartnerRolloutText}
+                      readOnly
+                    />
+                    <InlineStack gap="200">
+                      <Button onClick={() => void handleCopyDesignPartnerRollout()} disabled={!session}>
+                        Copy design-partner packet
+                      </Button>
+                      <Button onClick={handleDownloadDesignPartnerRollout} disabled={!session}>
+                        Download design-partner packet
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
                 </BlockStack>
               </Card>
             </Box>
@@ -3325,6 +3452,176 @@ function buildLaunchDossier(
     `- Theme editor activation URL: ${storefrontPreview?.themeEditorActivationUrl ?? 'Not configured'}`,
     `- Allowed surfaces: ${(billingSummary?.allowedSurfaces ?? []).join(' · ') || 'None detected'}`,
     `- Action packages: ${(billingSummary?.actionPackages ?? []).join(' · ') || 'None detected'}`,
+  ].join('\n')
+}
+
+function buildAppStoreListingPackage(
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  launchPacket: ReturnType<typeof buildLaunchPacket>,
+): string {
+  const configuredSurfaces = store?.widgetDetail?.settings?.enabledSurfaces?.length
+    ? store.widgetDetail.settings.enabledSurfaces
+    : DEFAULT_WIDGET_SURFACES
+  const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => allowedSurfaces.includes(surfaceId))
+  const activeSurfaceLabels = activeSurfaceIds
+    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+  const reviewProviders = buildDetectedReviewProviders(store)
+  const sourceCoverageSignals = buildSourceCoverageSignals(store)
+  const hasEliteGovernance = Boolean(
+    billingSummary?.actionCapable &&
+      billingSummary.requiresExplicitConfirmation &&
+      billingSummary.auditTrailAvailable &&
+      billingSummary.actionPackages.length,
+  )
+  const subtitle = activeSurfaceIds.includes('product-insight') && activeSurfaceIds.includes('policy-strip')
+    ? 'AI search, product insights, and policy answers for Shopify'
+    : 'Embedded AI shopping intelligence for Shopify'
+  const oneLineDescription = activeSurfaceIds.includes('comparison')
+    ? 'Add AI search, product insights, FAQs, comparison help, and grounded policy answers to your Shopify storefront.'
+    : 'Help shoppers discover products and get grounded answers from your store’s real catalog, content, and policies.'
+  const fullDescription = [
+    'Loom Companion brings embedded AI store intelligence to Shopify.',
+    activeSurfaceLabels.length
+      ? `Shoppers can use ${activeSurfaceLabels.join(', ')} powered by live store data.`
+      : 'Shoppers can use AI search and grounded storefront guidance powered by live store data.',
+    sourceCoverageSignals.length
+      ? `Grounding currently draws on ${sourceCoverageSignals.map((entry) => `${entry.label.toLowerCase()} (${entry.signals.join(', ')})`).join('; ')}.`
+      : 'Grounding currently draws on live catalog, content, and policy data.',
+    hasEliteGovernance
+      ? `Elite guided commerce is live with ${billingSummary?.actionPackages.join(' and ') ?? 'governed actions'}, explicit confirmation, and audit history.`
+      : 'The default launch posture stays read-first, with governed actions only marketed when the Elite rollout is commercially active.',
+  ].join(' ')
+  const screenshotLines = [
+    'Merchant app home showing store intelligence health, launch readiness, and the tier ladder.',
+    'Merchant storefront preview showing AI search, contextual pill, product insight, policy strip, product FAQ, and comparison placements.',
+    'Storefront AI search result state with grounded product and source cards.',
+    activeSurfaceIds.includes('product-insight') ? 'Product page with product insight and policy strip visible together.' : null,
+    activeSurfaceIds.includes('contextual-pill') ? 'Collection or product page with the contextual pill block active.' : null,
+    activeSurfaceIds.includes('product-faq') ? 'Product FAQ block in use on a real product page.' : null,
+    activeSurfaceIds.includes('comparison') ? 'Comparison block in use on a real product page.' : null,
+    hasEliteGovernance ? 'Optional Elite screenshot showing governed action history or explicit confirmation UI.' : null,
+  ].filter(Boolean) as string[]
+  const commerciallyAvailablePlans = (billingSummary?.availablePlans ?? [])
+    .filter((plan) => plan.commerciallyAvailable)
+    .map((plan) => `${plan.tierKey}: ${plan.planName}`)
+
+  return [
+    '# Shopify Companion App Store Listing Package',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `Storefront ready: ${storefrontPreview?.ready ? 'yes' : 'no'}`,
+    `Current billing posture: ${billingSummary?.tierKey ?? 'UNKNOWN'} (${billingSummary?.status ?? 'UNKNOWN'})`,
+    '',
+    '## Listing posture',
+    '- Position Shopify Companion as embedded storefront intelligence with chat-assisted depth when needed.',
+    '- Keep the launch story read-first unless Elite guided commerce is commercially active and verified.',
+    '',
+    '## Primary listing copy',
+    '- App name: Loom Companion',
+    `- Short subtitle: ${subtitle}`,
+    `- One-sentence description: ${oneLineDescription}`,
+    `- Full description: ${fullDescription}`,
+    '',
+    '## Tier-safe product truth',
+    `- Free: AI search for the storefront with ${billingSummary?.poweredByBadgeRequired ? 'a required powered-by posture.' : 'a launch-safe entry posture.'}`,
+    `- Starter: ${activeSurfaceLabels.length ? `${activeSurfaceLabels.join(', ')} and shopper analytics.` : 'Read-only store intelligence with embedded shopper guidance.'}`,
+    hasEliteGovernance
+      ? `- Elite: Governed commerce actions for ${(billingSummary?.actionPackages ?? []).join(' and ')} with explicit confirmation and audit trail.`
+      : '- Elite: Do not market governed actions until the commercial rollout is active for the target store.',
+    '',
+    '## Source-depth proof points',
+    `- Review providers: ${reviewProviders.join(' · ') || 'None detected yet'}`,
+    ...sourceCoverageSignals.map((entry) => `- ${entry.label}: ${entry.signals.join(' · ')}`),
+    '',
+    '## Screenshot shot list',
+    ...screenshotLines.map((line, index) => `${index + 1}. ${line}`),
+    '',
+    '## Allowed claims',
+    ...launchPacket.safeClaims.map((claim) => `- ${claim}`),
+    '',
+    '## Disallowed claims',
+    '- Do not claim autonomous purchasing or checkout automation.',
+    '- Do not claim full support desk replacement or broad workflow automation.',
+    '- Do not claim all review providers are supported.',
+    '- Do not claim Elite actions when the current commercial rollout is not active.',
+    '',
+    '## Pricing and commercial notes',
+    `- Current active tier: ${billingSummary?.tierKey ?? 'UNKNOWN'}`,
+    `- Commercially available plans: ${commerciallyAvailablePlans.join(' · ') || 'Free only'}`,
+    ...launchPacket.commercialNotes.map((note) => `- ${note}`),
+    '',
+    '## Launch asset checklist',
+    '- Final subtitle chosen from the generated package above.',
+    '- Final long description reviewed against the current live surface and source-depth posture.',
+    '- Screenshot set captured from the live product, not mocks.',
+    '- Review screencast, support runbook, and design-partner packet all match this package.',
+  ].join('\n')
+}
+
+function buildDesignPartnerRolloutPacket(
+  shell: ShopifyBridgeShellResponse | null,
+  session: ShopifyBridgeMerchantSessionResponse | null,
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  usageSummary: ShopifyBridgeUsageSummary | null,
+  goLiveChecklist: ReturnType<typeof buildGoLiveChecklist>,
+  launchPacket: ReturnType<typeof buildLaunchPacket>,
+): string {
+  const shopDomain = session?.shopDomain ?? store?.shopDomain ?? 'shopify-store'
+  const activeSurfaceIds = store?.widgetDetail?.settings?.enabledSurfaces?.length
+    ? store.widgetDetail.settings.enabledSurfaces
+    : DEFAULT_WIDGET_SURFACES
+  const activeSurfaceLabels = activeSurfaceIds
+    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+  const reviewProviders = buildDetectedReviewProviders(store)
+
+  return [
+    '# Shopify Companion Design-Partner Rollout Packet',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `App: ${shell?.appName ?? 'Loom Companion'}`,
+    `Shop: ${shopDomain}`,
+    '',
+    '## Preconditions',
+    '- Live Shopify verification passed on 2026-04-23 for the current environment baseline.',
+    `- Merchant session resolved: ${session ? 'yes' : 'no'}`,
+    `- Storefront ready: ${storefrontPreview?.ready ? 'yes' : 'no'}`,
+    `- Go-live posture: ${store?.readiness?.goLiveEligible ? 'ready' : 'blocked'}`,
+    '',
+    '## Merchant store requirements',
+    '- Use a real development or partner-approved merchant store.',
+    '- Prefer a safe preview theme before touching a production theme.',
+    `- Confirm enough source depth for the rollout story: ${reviewProviders.join(' · ') || 'catalog/policy only so far'}.`,
+    '',
+    '## Rollout sequence',
+    ...goLiveChecklist.items.map((item) => `- ${item.label}: ${item.status}. ${item.detail}`),
+    '',
+    '## Intended storefront surface set',
+    `- ${(activeSurfaceLabels.length ? activeSurfaceLabels.join(' · ') : 'AI search').trim()}`,
+    '',
+    '## Required evidence to capture',
+    '- Store intelligence health screenshot or export.',
+    '- Launch and App Review readiness screenshot.',
+    '- Tier ladder screenshot.',
+    '- Storefront preview screenshot with the intended surfaces visible.',
+    '- Support bundle export.',
+    '- Launch dossier export.',
+    '- App Store listing package export.',
+    '',
+    '## Merchant value prompts',
+    `- Run at least one product discovery question, one policy question, and one comparison flow${billingSummary?.actionCapable ? ', then one governed commerce flow if Elite is active.' : '.'}`,
+    `- Capture top shopper questions and surface usage after traffic: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'no traffic yet'}`,
+    '',
+    '## Sign-off criteria',
+    `- Launch packet posture: ${launchPacket.status}`,
+    `- Theme activation URL: ${storefrontPreview?.themeEditorActivationUrl ?? 'not available'}`,
+    `- Storefront base URL: ${storefrontPreview?.storefrontBaseUrl ?? 'not available'}`,
+    `- Billing posture: ${billingSummary?.tierKey ?? 'UNKNOWN'} (${billingSummary?.status ?? 'UNKNOWN'})`,
+    '- Do not mark the partner complete until the intended surfaces are visible and the rollout evidence above is captured.',
   ].join('\n')
 }
 

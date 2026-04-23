@@ -249,6 +249,7 @@ Now materially real:
 
 - canonical App Store listing copy baseline exists
 - App Review guide, screencast script, design-partner checklist, and support runbook are now aligned around the current embedded surface set and optional Elite posture
+- the merchant app now exports a claim-safe App Store listing package and a design-partner rollout packet directly from the current live store posture
 
 ---
 
