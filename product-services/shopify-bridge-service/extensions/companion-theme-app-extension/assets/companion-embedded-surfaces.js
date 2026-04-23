@@ -16,21 +16,22 @@
 
     var pageType = normalizePageType(options.storefrontContext)
     var shellModeProfile = normalizeShellModeProfile(options.payload.shellModeProfile)
+    var queryCoordinator = createSurfaceQueryCoordinator(options, shellModeProfile)
     var host = document.createElement('div')
     host.id = ROOT_ID
     host.className = 'loom-companion-surfaces'
 
     if (enabledSurfaces.indexOf('ai-search') >= 0) {
-      host.appendChild(renderSearchDock(options, shellModeProfile))
+      host.appendChild(renderSearchDock(options, shellModeProfile, queryCoordinator))
     }
 
     if (pageType === 'product') {
-      host.appendChild(renderProductInsightCluster(options, enabledSurfaces, shellModeProfile))
+      host.appendChild(renderProductInsightCluster(options, enabledSurfaces, shellModeProfile, queryCoordinator))
       if (enabledSurfaces.indexOf('contextual-pill') >= 0) {
-        host.appendChild(renderContextualPillBar(options, shellModeProfile))
+        host.appendChild(renderContextualPillBar(options, shellModeProfile, queryCoordinator))
       }
     } else if (pageType === 'collection' && enabledSurfaces.indexOf('contextual-pill') >= 0) {
-      host.appendChild(renderCollectionPillBar(options, shellModeProfile))
+      host.appendChild(renderCollectionPillBar(options, shellModeProfile, queryCoordinator))
     }
 
     if (host.childNodes.length > 0) {
@@ -45,9 +46,44 @@
     }
   }
 
-  function renderSearchDock(options, shellModeProfile) {
+  function createSurfaceQueryCoordinator(options, shellModeProfile) {
+    var inlineHandler = null
+    return {
+      bindInlineHandler: function (handler) {
+        inlineHandler = typeof handler === 'function' ? handler : null
+      },
+      dispatch: function (query, position, mode, requestContext) {
+        if (sendPrompt(query, position, mode, requestContext)) {
+          return true
+        }
+        if (!inlineHandler) {
+          return false
+        }
+        inlineHandler({
+          query: query,
+          position: position,
+          mode: mode,
+          requestContext: requestContext || createRequestContext(options.storefrontContext, shellModeProfile),
+        })
+        return true
+      },
+    }
+  }
+
+  function renderSearchDock(options, shellModeProfile, queryCoordinator) {
     var dock = document.createElement('section')
     dock.className = 'loom-companion-surface-card loom-companion-surface-card--search'
+    var state = {
+      conversationId: null,
+      isLoading: false,
+      suggestionsLoaded: false,
+      suggestions: searchQuickActions(options.storefrontContext, shellModeProfile),
+      lastQuery: '',
+      resultMessage: '',
+      resultProducts: [],
+      resultSources: [],
+      errorMessage: '',
+    }
 
     var eyebrow = document.createElement('div')
     eyebrow.className = 'loom-companion-surface-eyebrow'
@@ -68,6 +104,11 @@
       dock.appendChild(renderPoweredByBadge())
     }
 
+    var status = document.createElement('div')
+    status.className = 'loom-companion-surface-status'
+    status.hidden = true
+    dock.appendChild(status)
+
     var form = document.createElement('form')
     form.className = 'loom-companion-search-form'
     var input = document.createElement('input')
@@ -87,34 +128,184 @@
       if (!query) {
         return
       }
-      sendPrompt(
-        query,
-        'search',
-        defaultSearchMode(shellModeProfile),
-        createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search')
-      )
+      submitInlineQuery(query)
       input.value = ''
     })
     dock.appendChild(form)
 
     var quickRow = document.createElement('div')
     quickRow.className = 'loom-companion-chip-row'
-    searchQuickActions(options.storefrontContext, shellModeProfile).forEach(function (item) {
-      quickRow.appendChild(createChipButton(item.label, function () {
-        sendPrompt(
-          item.query,
-          'search',
-          defaultSearchMode(shellModeProfile),
-          createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search')
-        )
-      }))
-    })
     dock.appendChild(quickRow)
 
+    var results = document.createElement('div')
+    results.className = 'loom-companion-surface-results'
+    results.hidden = true
+
+    var resultsLabel = document.createElement('div')
+    resultsLabel.className = 'loom-companion-surface-results__label'
+    results.appendChild(resultsLabel)
+
+    var resultsSummary = document.createElement('div')
+    resultsSummary.className = 'loom-companion-surface-copy loom-companion-surface-copy--results'
+    results.appendChild(resultsSummary)
+
+    var cardsHost = document.createElement('div')
+    cardsHost.className = 'loom-companion-surface-results__cards'
+    results.appendChild(cardsHost)
+
+    var actions = document.createElement('div')
+    actions.className = 'loom-companion-chip-row loom-companion-chip-row--results'
+    results.appendChild(actions)
+
+    var continueButton = document.createElement('button')
+    continueButton.type = 'button'
+    continueButton.className = 'loom-companion-chip'
+    continueButton.textContent = 'Continue in assistant'
+    continueButton.addEventListener('click', function () {
+      if (!state.lastQuery) {
+        return
+      }
+      sendPrompt(
+        state.lastQuery,
+        'search',
+        defaultSearchMode(shellModeProfile),
+        createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search')
+      )
+    })
+    actions.appendChild(continueButton)
+
+    dock.appendChild(results)
+
+    queryCoordinator.bindInlineHandler(function (request) {
+      if (!request || !request.query) {
+        return
+      }
+      submitInlineQuery(request.query, request.mode, request.requestContext)
+    })
+
+    refreshSuggestions()
+    renderQuickActions()
+    renderResults()
+
     return dock
+
+    function submitInlineQuery(query, mode, requestContext) {
+      if (state.isLoading) {
+        return
+      }
+      state.isLoading = true
+      state.errorMessage = ''
+      state.lastQuery = query
+      renderResults()
+      fetchJson(options.payload.bridgeQueryUrl, {
+        method: 'POST',
+        headers: shopperHeaders(options),
+        body: JSON.stringify({
+          query: query,
+          mode: mode || defaultSearchMode(shellModeProfile),
+          conversationId: state.conversationId || undefined,
+          storefrontContext: requestContext || createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search'),
+        }),
+      })
+        .then(function (response) {
+          state.conversationId = response.conversationId || state.conversationId
+          state.resultMessage = extractAssistantMessage(response) || 'Companion found a result but did not return a summary.'
+          state.resultProducts = extractProductCards(response)
+          state.resultSources = extractSourceCards(response)
+          var nextSuggestions = extractSuggestions(response)
+          if (nextSuggestions.length > 0) {
+            state.suggestions = nextSuggestions
+            renderQuickActions()
+          }
+          recordSurfaceEvent(options, 'SEARCH_SUBMITTED')
+        })
+        .catch(function (error) {
+          state.resultMessage = ''
+          state.resultProducts = []
+          state.resultSources = []
+          state.errorMessage = error && error.message ? error.message : 'Companion search is not available right now.'
+        })
+        .finally(function () {
+          state.isLoading = false
+          renderResults()
+        })
+    }
+
+    function refreshSuggestions() {
+      if (state.suggestionsLoaded || !options.payload.bridgeSuggestionsUrl) {
+        return
+      }
+      state.suggestionsLoaded = true
+      fetchJson(options.payload.bridgeSuggestionsUrl, {
+        method: 'POST',
+        headers: shopperHeaders(options),
+        body: JSON.stringify({
+          content: buildContextPrompt(options.storefrontContext),
+          maxSuggestions: 4,
+          storefrontContext: createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search'),
+        }),
+      })
+        .then(function (response) {
+          var nextSuggestions = extractSuggestions(response)
+          if (nextSuggestions.length > 0) {
+            state.suggestions = nextSuggestions
+            renderQuickActions()
+          }
+        })
+        .catch(function () {
+          return null
+        })
+    }
+
+    function renderQuickActions() {
+      quickRow.innerHTML = ''
+      state.suggestions.forEach(function (item) {
+        var label = typeof item === 'string' ? item : item.label
+        var query = typeof item === 'string' ? item : item.query
+        quickRow.appendChild(createChipButton(label, function () {
+          submitInlineQuery(
+            query,
+            defaultSearchMode(shellModeProfile),
+            createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search')
+          )
+        }))
+      })
+    }
+
+    function renderResults() {
+      status.hidden = !(state.isLoading || state.errorMessage)
+      if (state.isLoading) {
+        status.textContent = 'Searching the catalog…'
+      } else if (state.errorMessage) {
+        status.textContent = state.errorMessage
+      } else {
+        status.textContent = ''
+      }
+
+      var hasResults = !!(state.resultMessage || state.resultProducts.length > 0 || state.resultSources.length > 0)
+      results.hidden = !hasResults
+      if (!hasResults) {
+        return
+      }
+
+      resultsLabel.textContent = state.lastQuery
+        ? 'Result for "' + truncateText(state.lastQuery, 48) + '"'
+        : 'Companion result'
+      resultsSummary.textContent = truncateText(state.resultMessage || 'Companion returned a result.', 320)
+      cardsHost.innerHTML = ''
+
+      if (state.resultProducts.length > 0) {
+        cardsHost.appendChild(renderCardGroup('Matched products', state.resultProducts, 'Open product'))
+      }
+      if (state.resultSources.length > 0) {
+        cardsHost.appendChild(renderCardGroup('Grounding sources', state.resultSources, 'Open source'))
+      }
+
+      continueButton.hidden = !window.MaxMode || typeof window.MaxMode.sendMessage !== 'function'
+    }
   }
 
-  function renderProductInsightCluster(options, enabledSurfaces, shellModeProfile) {
+  function renderProductInsightCluster(options, enabledSurfaces, shellModeProfile, queryCoordinator) {
     var cluster = document.createElement('section')
     cluster.className = 'loom-companion-surface-stack'
 
@@ -157,7 +348,7 @@
     if (enabledSurfaces.indexOf('product-faq') >= 0) {
       faqPrompts(options.storefrontContext).forEach(function (item) {
         footer.appendChild(createChipButton(item.label, function () {
-          sendPrompt(
+          queryCoordinator.dispatch(
             item.query,
             'catalog',
             defaultInsightMode(shellModeProfile),
@@ -168,7 +359,7 @@
     }
     if (enabledSurfaces.indexOf('comparison') >= 0) {
       footer.appendChild(createChipButton('Compare options', function () {
-        sendPrompt(
+        queryCoordinator.dispatch(
           comparePrompt(options.storefrontContext, shellModeProfile),
           'catalog',
           defaultInsightMode(shellModeProfile),
@@ -177,7 +368,7 @@
       }))
     }
     footer.appendChild(createChipButton('Ask more', function () {
-      sendPrompt(
+      queryCoordinator.dispatch(
         insightPrompt(options.storefrontContext, shellModeProfile),
         'catalog',
         defaultInsightMode(shellModeProfile),
@@ -205,12 +396,12 @@
     return cluster
   }
 
-  function renderContextualPillBar(options, shellModeProfile) {
+  function renderContextualPillBar(options, shellModeProfile, queryCoordinator) {
     var pillBar = document.createElement('section')
     pillBar.className = 'loom-companion-contextual-pillbar'
     contextualPillPrompts(options.storefrontContext, shellModeProfile).forEach(function (item) {
       pillBar.appendChild(createPillButton(item.label, function () {
-        sendPrompt(
+        queryCoordinator.dispatch(
           item.query,
           item.position,
           item.mode,
@@ -221,12 +412,12 @@
     return pillBar
   }
 
-  function renderCollectionPillBar(options, shellModeProfile) {
+  function renderCollectionPillBar(options, shellModeProfile, queryCoordinator) {
     var pillBar = document.createElement('section')
     pillBar.className = 'loom-companion-contextual-pillbar loom-companion-contextual-pillbar--collection'
     collectionPrompts(options.storefrontContext, shellModeProfile).forEach(function (item) {
       pillBar.appendChild(createPillButton(item.label, function () {
-        sendPrompt(
+        queryCoordinator.dispatch(
           item.query,
           item.position,
           item.mode,
@@ -295,6 +486,100 @@
       .catch(function () {
         return null
       })
+  }
+
+  function recordSurfaceEvent(options, eventType) {
+    if (!options || !options.payload || !options.payload.bridgeEventUrl) {
+      return
+    }
+    fetch(options.payload.bridgeEventUrl, {
+      method: 'POST',
+      headers: shopperHeaders(options),
+      body: JSON.stringify({
+        eventType: eventType,
+        pageType: normalizePageType(options.storefrontContext),
+        pageTitle: options.storefrontContext && options.storefrontContext.pageTitle ? options.storefrontContext.pageTitle : null,
+        productHandle: options.storefrontContext && options.storefrontContext.product ? options.storefrontContext.product.handle : null,
+        collectionHandle: options.storefrontContext && options.storefrontContext.collection ? options.storefrontContext.collection.handle : null,
+      }),
+    }).catch(function () {
+      return null
+    })
+  }
+
+  function buildContextPrompt(storefrontContext) {
+    if (storefrontContext && storefrontContext.product) {
+      var productParts = ['Current product: ' + storefrontContext.product.title]
+      if (storefrontContext.product.vendor) {
+        productParts.push('vendor ' + storefrontContext.product.vendor)
+      }
+      if (storefrontContext.product.type) {
+        productParts.push('type ' + storefrontContext.product.type)
+      }
+      return productParts.join(', ')
+    }
+    if (storefrontContext && storefrontContext.collection) {
+      return 'Current collection: ' + storefrontContext.collection.title
+    }
+    if (storefrontContext && storefrontContext.pageTitle) {
+      return 'Current page: ' + storefrontContext.pageTitle
+    }
+    return ''
+  }
+
+  function renderCardGroup(title, items, linkLabel) {
+    var group = document.createElement('div')
+    group.className = 'loom-companion-card-group'
+
+    var heading = document.createElement('div')
+    heading.className = 'loom-companion-card-group__title'
+    heading.textContent = title
+    group.appendChild(heading)
+
+    items.forEach(function (item) {
+      var card = document.createElement('div')
+      card.className = 'loom-companion-card'
+
+      var cardTitle = document.createElement('div')
+      cardTitle.className = 'loom-companion-card__title'
+      cardTitle.textContent = item.title || item.label || 'Item'
+      card.appendChild(cardTitle)
+
+      if (item.subtitle) {
+        var subtitle = document.createElement('div')
+        subtitle.className = 'loom-companion-card__meta'
+        subtitle.textContent = item.subtitle
+        card.appendChild(subtitle)
+      }
+
+      if (item.detail) {
+        var detail = document.createElement('div')
+        detail.className = 'loom-companion-card__meta'
+        detail.textContent = item.detail
+        card.appendChild(detail)
+      }
+
+      if (item.excerpt) {
+        var excerpt = document.createElement('div')
+        excerpt.className = 'loom-companion-card__meta'
+        excerpt.textContent = item.excerpt
+        card.appendChild(excerpt)
+      }
+
+      if (item.url) {
+        var link = document.createElement('a')
+        link.className = 'loom-companion-card__link'
+        link.href = item.url
+        link.target = '_blank'
+        link.rel = 'noreferrer'
+        link.textContent = linkLabel
+        card.appendChild(link)
+      }
+
+      group.appendChild(card)
+    })
+
+    return group
   }
 
   function searchQuickActions(storefrontContext, shellModeProfile) {
@@ -444,9 +729,18 @@
   function fetchJson(url, init) {
     return fetch(url, init).then(function (response) {
       if (!response.ok) {
-        return response.text().then(function (message) {
-          throw new Error(message || 'Storefront query failed with HTTP ' + response.status)
-        })
+        return response
+          .json()
+          .catch(function () {
+            return null
+          })
+          .then(function (payload) {
+            var message =
+              (payload && (payload.message || payload.error)) ||
+              response.statusText ||
+              'Storefront query failed with HTTP ' + response.status
+            throw new Error(message)
+          })
       }
       return response.json()
     })
@@ -454,7 +748,7 @@
 
   function sendPrompt(query, position, mode, requestContext) {
     if (!window.MaxMode || typeof window.MaxMode.sendMessage !== 'function') {
-      return
+      return false
     }
     window.MaxMode.sendMessage(query, {
       open: true,
@@ -462,6 +756,7 @@
       mode: mode,
       requestContext: requestContext,
     })
+    return true
   }
 
   function createRequestContext(storefrontContext, shellModeProfile, surfaceId) {
@@ -503,6 +798,121 @@
       return String(payload.message)
     }
     return null
+  }
+
+  function extractSuggestions(payload) {
+    var candidates = []
+    if (payload && Array.isArray(payload.suggestions)) {
+      candidates = payload.suggestions
+    } else if (
+      payload &&
+      payload.result &&
+      payload.result.sanitizedPayload &&
+      Array.isArray(payload.result.sanitizedPayload.suggestions)
+    ) {
+      candidates = payload.result.sanitizedPayload.suggestions
+    }
+    return candidates
+      .map(function (value) {
+        if (typeof value === 'string') {
+          return value.trim()
+        }
+        if (value && typeof value === 'object' && typeof value.text === 'string') {
+          return value.text.trim()
+        }
+        if (value && typeof value === 'object' && typeof value.label === 'string') {
+          return value.label.trim()
+        }
+        return ''
+      })
+      .filter(function (value, index, all) {
+        return value && all.indexOf(value) === index
+      })
+      .slice(0, 4)
+  }
+
+  function extractProductCards(payload) {
+    var candidates =
+      firstArray(
+        readPath(payload, 'result', 'sanitizedPayload', 'products'),
+        readPath(payload, 'result', 'products'),
+        readPath(payload, 'products'),
+        readPath(payload, 'result', 'sanitizedPayload', 'items')
+      ) || []
+    return candidates.map(normalizeProductCard).filter(Boolean).slice(0, 4)
+  }
+
+  function extractSourceCards(payload) {
+    var candidates =
+      firstArray(
+        readPath(payload, 'result', 'sanitizedPayload', 'sources'),
+        readPath(payload, 'result', 'sources'),
+        readPath(payload, 'sources')
+      ) || []
+    return candidates.map(normalizeSourceCard).filter(Boolean).slice(0, 4)
+  }
+
+  function normalizeProductCard(item) {
+    if (!item || typeof item !== 'object') {
+      return null
+    }
+    var title = trimValue(item.title || item.name || item.productName || item.sku || item.id)
+    if (!title) {
+      return null
+    }
+    var subtitle = trimValue(item.subtitle || item.vendor || item.brand || item.category)
+    var detail = trimValue(item.detail || item.price || item.priceText || item.stockStatus)
+    var excerpt = trimValue(item.excerpt || item.description || item.summary)
+    var url = trimValue(item.url || item.link || item.productUrl)
+    return {
+      title: title,
+      subtitle: subtitle,
+      detail: detail,
+      excerpt: truncateText(excerpt, 140),
+      url: url,
+    }
+  }
+
+  function normalizeSourceCard(item) {
+    if (!item || typeof item !== 'object') {
+      return null
+    }
+    var title = trimValue(item.title || item.label || item.name || item.source)
+    if (!title) {
+      return null
+    }
+    var subtitle = trimValue(item.subtitle || item.type || item.kind)
+    var detail = trimValue(item.detail || item.section || item.category)
+    var excerpt = trimValue(item.excerpt || item.summary || item.snippet || item.text)
+    var url = trimValue(item.url || item.link)
+    return {
+      title: title,
+      subtitle: subtitle,
+      detail: detail,
+      excerpt: truncateText(excerpt, 140),
+      url: url,
+    }
+  }
+
+  function firstArray() {
+    for (var i = 0; i < arguments.length; i += 1) {
+      if (Array.isArray(arguments[i])) {
+        return arguments[i]
+      }
+    }
+    return null
+  }
+
+  function readPath(root) {
+    var current = root
+    for (var i = 1; i < arguments.length; i += 1) {
+      var segment = arguments[i]
+      if (!current || typeof current !== 'object' || !(segment in current)) {
+        return undefined
+      }
+      current = current[segment]
+    }
+    return current
   }
 
   function readCachedValue(key) {

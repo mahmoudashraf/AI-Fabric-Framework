@@ -840,6 +840,20 @@ http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query
 assert_equals "${HTTP_STATUS}" "200" "storefront query status"
 query_json="${HTTP_BODY}"
 assert_nonempty "$(json_get "${query_json}" "conversationId")" "storefront query conversationId"
+storefront_query_summary="$(json_get "${query_json}" "result.sanitizedPayload.safeSummary")"
+if [[ -z "${storefront_query_summary}" ]]; then
+  storefront_query_summary="$(json_get "${query_json}" "result.sanitizedPayload.message")"
+fi
+if [[ -z "${storefront_query_summary}" ]]; then
+  storefront_query_summary="$(json_get "${query_json}" "result.message")"
+fi
+if [[ -z "${storefront_query_summary}" ]]; then
+  storefront_query_summary="$(json_get "${query_json}" "message")"
+fi
+assert_nonempty "${storefront_query_summary}" "storefront query summary"
+if [[ "${effective_expected_chat_fallback_enabled}" == "false" && ",${effective_expected_surfaces}," == *",ai-search,"* ]]; then
+  echo "PASS: storefront standalone AI search contract"
+fi
 
 echo "== Storefront event =="
 http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/events" '{"eventType":"WIDGET_OPENED","pageType":"product","pageTitle":"Verification product page"}' "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"

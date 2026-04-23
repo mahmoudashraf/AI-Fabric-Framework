@@ -1,6 +1,6 @@
 # Shopify Companion Builder-Mode Shipping Roadmap
 
-Status: canonical Shopify builder-mode roadmap (2026-04-22)
+Status: canonical Shopify builder-mode roadmap (2026-04-23)
 
 This document is the current source of truth for how Shopify Companion should be finished, productized, priced, and sequenced in builder mode.
 
@@ -53,8 +53,11 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 | Shopify app posture | `product-services/shopify-bridge-service/shopify.app.loom-companion.toml` is an embedded Shopify app with read-only scopes: `read_products`, `read_content`, `read_legal_policies`. | Good launch posture for read-first V1. |
 | Platform consumption | Shopify bootstrap/go-live flows in platform create a normal platform deployment, consumer binding, and marketplace bundle. | Correct architecture. |
 | Merchant/admin surface | Embedded merchant app, storefront preview, sync, vectorization controls, billing summary, and verification flows exist. | Strong operator baseline. |
+| Tier posture foundation | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, powered-by requirements, and catalog caps. | Better than the old roadmap assumed; commercialization is now a productization problem, not a missing primitive. |
 | Store sync baseline | Bridge sync/vectorization source services currently cover products, collections, pages, and policies. | Good Wave 1 foundation. |
 | Live indexing foundation | Shopify vectorization trigger pipeline and bounded merchant/admin controls are now implemented. | Major foundation milestone completed. |
+| Free-tier storefront wedge | The embedded AI search surface can now query bridge search/suggestions directly even when chat fallback is disabled. | Free is materially closer to a real product wedge. |
+| Read-first action foundation | Shopify bridge action execution already supports `compare_products` and `find_similar_products` in addition to the baseline catalog/policy actions. | Better than the earlier strategy snapshot implied. |
 | Verification | Live Shopify verification scripts and workflow entrypoints exist. Platform-hosted release verification now includes Shopify verification. | Shipping discipline is in place. |
 
 ### 2.2 What is still missing
@@ -62,13 +65,13 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 | Strategy expectation | Current code reality | Gap |
 |---|---|---|
 | Multiple embedded intelligence surfaces | Theme app extension still ships one app-embed block, but that block now loads an embedded-surfaces layer with AI search, contextual pill, product insight, policy strip, FAQ entry points, and comparison entry points. | Better than the earlier launcher-only posture, but still missing true merchant-placeable multi-block theme surfaces. |
-| Embedded intelligence product shape | Storefront no longer loads only a launcher shell. The app embed now layers embedded intelligence surfaces on top of the shell. | Product identity is improving, but the delivery model still depends on a fixed app-embed host rather than a mature theme-surface system. |
+| Embedded intelligence product shape | Storefront no longer loads only a launcher shell. The app embed now layers embedded intelligence surfaces on top of the shell, and AI search can now operate as a direct bridge-backed surface even with chat fallback disabled. | Product identity is improving, but the delivery model still depends on a fixed app-embed host rather than a mature theme-surface system. |
 | Max Mode storefront convergence | The Shopify embed loader already supports `legacy` and `max-mode`, and there is already a Shopify-specific Max Mode wrapper. | This is a real convergence track, but it is only partially complete and should not be treated as a standalone product milestone. |
 | Real shell conversation modes | Shopify now persists `shellModeProfile`, exposes it in bootstrap/admin surfaces, and forwards it into bridge/runtime request context. | This is now a bounded mode-profile system, but not yet full multi-mode runtime semantics like true `assistant` / `deep` Shopify modes. |
 | Richer Shopify data coverage | No code-backed evidence yet for blogs/articles, metaobjects, metafields, or review-provider ingestion. | Wave 1 data-expansion work still missing beyond current catalog/content/policy coverage. |
-| Read-first action breadth from strategy docs | Current read action bundle is `list_products`, `search_products`, `get_product_details`, `check_availability`, `get_policy`. | `compare_products`, `find_similar`, `get_size_guide`, and structured discovery modules are not implemented yet. |
-| Tiered commercial model | Bridge billing is one bridge-level free-or-paid posture with one plan name/amount configuration. | `Free / Starter / Elite` entitlements are not implemented yet. |
-| Free-tier distribution wedge | Pricing strategy says Free is AI search only. | There is no real Shopify AI search storefront surface yet. |
+| Read-first action breadth from strategy docs | Current read action bundle already includes `compare_products` and `find_similar_products` alongside the baseline catalog/policy actions. | The remaining gap is richer generated rendering, size/fit guidance, and surface-specific product UX rather than total action absence. |
+| Tiered commercial model | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, and product caps. | The remaining gap is merchant-facing packaging, storefront/theme-editor gating legibility, and fully aligned commercial rollout. |
+| Free-tier distribution wedge | Pricing strategy says Free is AI search only. | AI search is now real in the app embed, but the remaining gap is turning it into a more merchant-placeable theme surface and proving the commercial/App Store story cleanly. |
 | Elite posture | Pricing strategy says Elite is read+write with governance. | No Shopify Elite plan implementation exists yet. |
 
 ### 2.3 What this means
@@ -157,12 +160,15 @@ Missing:
 - contextual pill
 - product insight block
 - contextual policy strip
-- AI search surface
 - product FAQ block
 - comparison surface
 - clean host contract between Shopify theme extension and shared Max Mode shell
 - fuller platform-backed shell conversation modes for Shopify
 - full removal of long-term dual-shell maintenance as a product dependency
+
+Already materially real:
+
+- AI search is now a real app-embed surface with direct bridge-backed query/suggestions handling even when `chatFallbackEnabled=false`
 
 Important rule:
 
@@ -189,8 +195,8 @@ Recommended first review provider:
 
 Missing:
 
-- structured comparison flow
-- similar-product discovery
+- richer comparison rendering built on grounded compare action evidence
+- richer similar-product rendering built on existing `find_similar_products`
 - richer size/fit guidance
 - surface-specific rendering contracts instead of generic chat-only rendering
 
@@ -198,10 +204,10 @@ Missing:
 
 Missing:
 
-- real tier entitlements for `Free / Starter / Elite`
 - plan-aware merchant UI
 - tier-aware storefront gating
 - Shopify billing mapping aligned to the pricing strategy
+- Elite action packaging that only advertises action depth once those surfaces are genuinely shipped
 
 ### 5.5 Merchant legibility
 
@@ -267,6 +273,11 @@ Can coexist with:
 
 - current chat fallback
 - current single app-embed delivery while the multi-block model is being built
+
+Progress note:
+
+- the direct bridge-backed AI search surface is now real inside the Shopify app embed
+- remaining Milestone 1 work is mostly around merchant placement flexibility, commercial clarity, and App Store legibility
 
 Exit criteria:
 

@@ -81,6 +81,13 @@
   margin-top: 0.8rem;
 }
 
+.loom-companion-surface-status {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
 .loom-companion-search-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -115,6 +122,10 @@
   margin-top: 0.8rem;
 }
 
+.loom-companion-chip-row--results {
+  margin-top: 0.7rem;
+}
+
 .loom-companion-chip {
   border: 1px solid #d1d5db;
   border-radius: 999px;
@@ -134,6 +145,28 @@
   font-size: 0.8rem;
   line-height: 1.45;
   color: #4b5563;
+}
+
+.loom-companion-surface-results {
+  margin-top: 0.9rem;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  padding-top: 0.85rem;
+}
+
+.loom-companion-surface-results__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.loom-companion-surface-copy--results {
+  margin-top: 0.45rem;
+}
+
+.loom-companion-surface-results__cards {
+  margin-top: 0.65rem;
 }
 
 .loom-companion-contextual-pillbar {
