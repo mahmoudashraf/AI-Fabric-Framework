@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogServ
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreVectorizationPolicyRepository;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationAutomationSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationIndexedFieldSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationPolicySummary;
@@ -29,8 +30,10 @@ import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummar
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationSourceConnectionSummary;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationService;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +51,83 @@ import static org.mockito.Mockito.when;
 class ShopifyStoreVectorizationServiceTest {
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
+
+    @Test
+    void getSummaryUsesRealPolicyDefaultsWithoutFailingOnMetaobjects() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        VectorizationService vectorizationService = mock(VectorizationService.class);
+        ShopifyStoreVectorizationPolicyRepository policyRepository = mock(ShopifyStoreVectorizationPolicyRepository.class);
+        ShopifyStoreVectorizationFieldCatalogService fieldCatalogService = new ShopifyStoreVectorizationFieldCatalogService();
+        ShopifyStoreVectorizationEventService eventService = mock(ShopifyStoreVectorizationEventService.class);
+        ShopifyBridgeAdminClient bridgeAdminClient = mock(ShopifyBridgeAdminClient.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        ShopifyStoreConnectionEntity store = store("alpha.myshopify.com");
+        store.setDeploymentId("dep-123");
+        store.setMetaobjectsEnabled(true);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setCustomerId("cus-123");
+        deployment.setTenantId("ten-123");
+
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
+        when(installService.listInstallsForTrustedCaller(deployment)).thenReturn(List.of());
+        when(vectorizationService.getOverviewForTrustedCaller(deployment)).thenReturn(null);
+        when(policyRepository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(eventService.summarizeAutomation("alpha.myshopify.com")).thenReturn(automationSummary());
+        when(eventService.listRecent("alpha.myshopify.com", 20)).thenReturn(List.of());
+
+        ShopifyStoreVectorizationPolicyService policyService = new ShopifyStoreVectorizationPolicyService(
+            policyRepository,
+            fieldCatalogService,
+            new com.ai.fabric.platform.backend.config.ShopifyStoreVectorizationTriggerProperties(
+                false,
+                Duration.ofSeconds(20),
+                Duration.ofSeconds(10),
+                Duration.ofSeconds(45),
+                Duration.ofSeconds(30),
+                Duration.ofDays(7),
+                Duration.ofDays(30),
+                5,
+                25,
+                20
+            ),
+            auditService,
+            new ObjectMapper().findAndRegisterModules()
+        );
+
+        ShopifyStoreVectorizationService service = service(
+            repository,
+            deploymentRepository,
+            deploymentReleaseRepository,
+            deploymentService,
+            installService,
+            marketplaceCatalogService,
+            productServiceRepository,
+            vectorizationService,
+            policyService,
+            fieldCatalogService,
+            eventService,
+            bridgeAdminClient,
+            auditService
+        );
+
+        ShopifyStoreVectorizationSummary summary = service.getSummary("alpha.myshopify.com");
+
+        assertThat(summary.policy()).isNotNull();
+        assertThat(summary.policy().sourcePolicies())
+            .extracting(com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSourcePolicySummary::sourceCategory)
+            .contains("metaobjects");
+    }
 
     @Test
     void reconcileInstallsRequiredShopifyDataPluginsAndConfiguresPlan() {
