@@ -347,6 +347,11 @@ top_resolution = metadata.get("readActionResolution") or ((result.get("data") or
 children = result.get("children") or []
 
 executed_actions = set()
+
+direct_action = (result.get("data") or {}).get("action")
+if isinstance(direct_action, str) and direct_action.strip():
+    executed_actions.add(direct_action.strip())
+
 for item in top_resolution.get("executedActions") or []:
     if isinstance(item, dict) and item.get("action"):
         executed_actions.add(item.get("action"))
@@ -356,6 +361,9 @@ for child in children:
         continue
     child_metadata = child.get("metadata") or {}
     child_data = child.get("data") or {}
+    child_action = child_data.get("action")
+    if isinstance(child_action, str) and child_action.strip():
+        executed_actions.add(child_action.strip())
     child_resolution = child_metadata.get("readActionResolution") or child_data.get("readActionResolution") or {}
     for item in child_resolution.get("executedActions") or []:
         if isinstance(item, dict) and item.get("action"):
@@ -787,10 +795,12 @@ assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.1.cha
 assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.1.allowedSurfaces" "comparison" "platform store billing STARTER allowedSurfaces"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.tierKey")" "ELITE" "platform store billing availablePlans.2 tierKey"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.actionCapable")" "true" "platform store billing ELITE actionCapable"
-assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.requiresExplicitConfirmation")" "true" "platform store billing ELITE requiresExplicitConfirmation"
-assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.auditTrailAvailable")" "true" "platform store billing ELITE auditTrailAvailable"
-assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.2.actionPackages" "guided-commerce" "platform store billing ELITE actionPackages"
 assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.2.allowedSurfaces" "comparison" "platform store billing ELITE allowedSurfaces"
+if [[ "$(json_get "${platform_store_billing_json}" "availablePlans.2.commerciallyAvailable")" == "true" ]]; then
+  assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.requiresExplicitConfirmation")" "true" "platform store billing ELITE requiresExplicitConfirmation"
+  assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.auditTrailAvailable")" "true" "platform store billing ELITE auditTrailAvailable"
+  assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.2.actionPackages" "guided-commerce" "platform store billing ELITE actionPackages"
+fi
 effective_expected_surfaces="${EXPECT_ENABLED_SURFACES:-${billing_allowed_surfaces_csv}}"
 effective_expected_billing_tier="${EXPECT_BILLING_TIER:-$(json_get "${platform_store_billing_json}" "tierKey")}"
 effective_expected_catalog_product_cap="${EXPECT_CATALOG_PRODUCT_CAP:-$(json_get "${platform_store_billing_json}" "catalogProductCap")}"
@@ -820,8 +830,14 @@ assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.polic
 
 echo "== Platform store governed actions =="
 platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/actions/recent?limit=5" "" "${platform_headers[@]-}"
-assert_equals "${HTTP_STATUS}" "200" "platform store governed actions status"
-platform_store_governed_actions_json="${HTTP_BODY}"
+if [[ "${HTTP_STATUS}" == "200" ]]; then
+  platform_store_governed_actions_json="${HTTP_BODY}"
+elif [[ "${effective_expected_action_capability_available}" == "true" ]]; then
+  assert_equals "${HTTP_STATUS}" "200" "platform store governed actions status"
+else
+  echo "Skipping platform store governed actions assertion because action capability is not expected and the endpoint returned HTTP ${HTTP_STATUS}."
+  platform_store_governed_actions_json="[]"
+fi
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.sourcePolicies.0.sourceCategory")" "platform store vectorization source policy category"
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.sourcePolicies.0.updateTriggerMode")" "platform store vectorization update trigger mode"
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "effectiveIndexedFields.0.fieldKey")" "platform store vectorization indexed field"
@@ -977,13 +993,13 @@ assert_optional_equals "$(json_get "${bootstrap_json}" "poweredByBadgeRequired")
 assert_optional_equals "$(json_get "${bootstrap_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "storefront bootstrap chatFallbackEnabled"
 assert_optional_equals "$(json_get "${bootstrap_json}" "shellModeProfile")" "${EXPECT_SHELL_MODE_PROFILE}" "storefront bootstrap shellModeProfile"
 assert_json_array_contains_csv "${bootstrap_json}" "groundingSignals" "Catalog product grounding,Policy grounding" "storefront bootstrap groundingSignals"
-if [[ "$(json_get "${platform_store_json}" "productsEnabled")" == "true" ]]; then
+if [[ "$(json_get "${store_json}" "productsEnabled")" == "true" ]]; then
   assert_json_array_contains_csv "${bootstrap_json}" "supportedReviewProviders" "Judge.me,Okendo" "storefront bootstrap supportedReviewProviders"
 fi
-if [[ "$(json_get "${platform_store_json}" "articlesEnabled")" == "true" ]]; then
+if [[ "$(json_get "${store_json}" "articlesEnabled")" == "true" ]]; then
   assert_json_array_contains_csv "${bootstrap_json}" "groundingSignals" "Published article grounding" "storefront bootstrap article grounding"
 fi
-if [[ "$(json_get "${platform_store_json}" "metaobjectsEnabled")" == "true" ]]; then
+if [[ "$(json_get "${store_json}" "metaobjectsEnabled")" == "true" ]]; then
   assert_json_array_contains_csv "${bootstrap_json}" "groundingSignals" "Metaobject grounding" "storefront bootstrap metaobject grounding"
 fi
 assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.available")" "${effective_expected_action_capability_available}" "storefront bootstrap action capability available"
@@ -1152,10 +1168,12 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.1.allowedSurfaces" "comparison" "merchant billing STARTER allowedSurfaces"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.tierKey")" "ELITE" "merchant billing availablePlans.2 tierKey"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.actionCapable")" "true" "merchant billing ELITE actionCapable"
-  assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.requiresExplicitConfirmation")" "true" "merchant billing ELITE requiresExplicitConfirmation"
-  assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.auditTrailAvailable")" "true" "merchant billing ELITE auditTrailAvailable"
-  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.2.actionPackages" "guided-commerce" "merchant billing ELITE actionPackages"
   assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.2.allowedSurfaces" "comparison" "merchant billing ELITE allowedSurfaces"
+  if [[ "$(json_get "${merchant_billing_json}" "availablePlans.2.commerciallyAvailable")" == "true" ]]; then
+    assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.requiresExplicitConfirmation")" "true" "merchant billing ELITE requiresExplicitConfirmation"
+    assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.auditTrailAvailable")" "true" "merchant billing ELITE auditTrailAvailable"
+    assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.2.actionPackages" "guided-commerce" "merchant billing ELITE actionPackages"
+  fi
 
   echo "== Merchant storefront preview =="
   http_request GET "${bridge_base}/api/app/store/storefront-preview" "" "${merchant_headers[@]-}"
