@@ -84,6 +84,8 @@ SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
+STOREFRONT_QUERY_RETRY_ATTEMPTS="${STOREFRONT_QUERY_RETRY_ATTEMPTS:-3}"
+STOREFRONT_QUERY_RETRY_SLEEP_SECONDS="${STOREFRONT_QUERY_RETRY_SLEEP_SECONDS:-2}"
 TEMP_PLATFORM_COOKIE_JAR=""
 
 cleanup() {
@@ -407,6 +409,24 @@ PY
 )"
   HTTP_BODY="${response%$'\n'*}"
   HTTP_STATUS="${response##*$'\n'}"
+}
+
+retry_storefront_query() {
+  local url="$1"
+  local body="$2"
+  shift 2 || true
+  local headers=("$@")
+  local attempt
+  for ((attempt=1; attempt<=STOREFRONT_QUERY_RETRY_ATTEMPTS; attempt+=1)); do
+    http_request POST "${url}" "${body}" "${headers[@]-}"
+    if [[ "${HTTP_STATUS}" == "200" ]]; then
+      return 0
+    fi
+    if [[ ! "${HTTP_STATUS}" =~ ^(429|500|502|503|504)$ || "${attempt}" -eq "${STOREFRONT_QUERY_RETRY_ATTEMPTS}" ]]; then
+      return 0
+    fi
+    sleep "${STOREFRONT_QUERY_RETRY_SLEEP_SECONDS}"
+  done
 }
 
 extract_first_asset_path() {
@@ -836,7 +856,7 @@ import sys
 print(json.dumps({"query": sys.argv[1]}))
 PY
 )"
-http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${query_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
+retry_storefront_query "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${query_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
 assert_equals "${HTTP_STATUS}" "200" "storefront query status"
 query_json="${HTTP_BODY}"
 assert_nonempty "$(json_get "${query_json}" "conversationId")" "storefront query conversationId"

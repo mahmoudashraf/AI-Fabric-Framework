@@ -18,9 +18,14 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStore
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriUtils;
 
@@ -32,6 +37,10 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 @Component
 public class PlatformShopifyStoreClient {
+
+    private static final Logger log = LoggerFactory.getLogger(PlatformShopifyStoreClient.class);
+    private static final int CHAT_RETRY_ATTEMPTS = 3;
+    private static final long CHAT_RETRY_SLEEP_MS = 250L;
 
     private static final ParameterizedTypeReference<List<ShopifyBridgeStoreSummary>> STORE_LIST_TYPE =
         new ParameterizedTypeReference<>() { };
@@ -276,31 +285,67 @@ public class PlatformShopifyStoreClient {
     }
 
     public JsonNode queryConsumerBridgeChat(String consumerId, JsonNode request, String shopperSessionId) {
-        return restClient.post()
-            .uri(requirePlatformBaseUrl() + "/api/public/consumers/" + encodePath(consumerId) + "/bridge/chat/query")
-            .headers(headers -> {
-                headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey());
-                if (shopperSessionId != null && !shopperSessionId.isBlank()) {
-                    headers.set("X-AI-FABRIC-SHOPPER-SESSION-ID", shopperSessionId.trim());
-                }
-            })
-            .body(request == null ? Map.of() : request)
-            .retrieve()
-            .body(JsonNode.class);
+        return executeConsumerBridgeChat("/api/public/consumers/" + encodePath(consumerId) + "/bridge/chat/query", request, shopperSessionId);
     }
 
     public JsonNode suggestConsumerBridgeChat(String consumerId, JsonNode request, String shopperSessionId) {
-        return restClient.post()
-            .uri(requirePlatformBaseUrl() + "/api/public/consumers/" + encodePath(consumerId) + "/bridge/chat/suggestions")
-            .headers(headers -> {
-                headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey());
-                if (shopperSessionId != null && !shopperSessionId.isBlank()) {
-                    headers.set("X-AI-FABRIC-SHOPPER-SESSION-ID", shopperSessionId.trim());
+        return executeConsumerBridgeChat("/api/public/consumers/" + encodePath(consumerId) + "/bridge/chat/suggestions", request, shopperSessionId);
+    }
+
+    private JsonNode executeConsumerBridgeChat(String path, JsonNode request, String shopperSessionId) {
+        RestClientResponseException lastResponseException = null;
+        ResourceAccessException lastAccessException = null;
+        for (int attempt = 1; attempt <= CHAT_RETRY_ATTEMPTS; attempt += 1) {
+            try {
+                return restClient.post()
+                    .uri(requirePlatformBaseUrl() + path)
+                    .headers(headers -> {
+                        headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey());
+                        if (shopperSessionId != null && !shopperSessionId.isBlank()) {
+                            headers.set("X-AI-FABRIC-SHOPPER-SESSION-ID", shopperSessionId.trim());
+                        }
+                    })
+                    .body(request == null ? Map.of() : request)
+                    .retrieve()
+                    .body(JsonNode.class);
+            } catch (RestClientResponseException ex) {
+                if (!retryableChatStatus(ex.getStatusCode()) || attempt == CHAT_RETRY_ATTEMPTS) {
+                    throw ex;
                 }
-            })
-            .body(request == null ? Map.of() : request)
-            .retrieve()
-            .body(JsonNode.class);
+                lastResponseException = ex;
+                log.warn("Retrying Shopify bridge consumer chat after upstream HTTP {} on attempt {}/{} for path {}",
+                    ex.getStatusCode().value(), attempt, CHAT_RETRY_ATTEMPTS, path);
+                sleepBeforeRetry();
+            } catch (ResourceAccessException ex) {
+                if (attempt == CHAT_RETRY_ATTEMPTS) {
+                    throw ex;
+                }
+                lastAccessException = ex;
+                log.warn("Retrying Shopify bridge consumer chat after transport failure on attempt {}/{} for path {}: {}",
+                    attempt, CHAT_RETRY_ATTEMPTS, path, ex.getMessage());
+                sleepBeforeRetry();
+            }
+        }
+        if (lastResponseException != null) {
+            throw lastResponseException;
+        }
+        if (lastAccessException != null) {
+            throw lastAccessException;
+        }
+        throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Shopify Bridge consumer chat failed before a response was returned.");
+    }
+
+    private boolean retryableChatStatus(HttpStatusCode statusCode) {
+        return statusCode.value() == 429 || statusCode.is5xxServerError();
+    }
+
+    private void sleepBeforeRetry() {
+        try {
+            Thread.sleep(CHAT_RETRY_SLEEP_MS);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Shopify Bridge consumer chat retry interrupted.", ex);
+        }
     }
 
     private String requirePlatformBaseUrl() {

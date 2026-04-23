@@ -18,14 +18,19 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class PlatformShopifyStoreClientTest {
@@ -426,6 +431,43 @@ class PlatformShopifyStoreClientTest {
         var response = client.queryConsumerBridgeChat("consumer-alpha", null, "shopper-session-1");
 
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        server.verify();
+    }
+
+    @Test
+    void queryConsumerBridgeChatRetriesTransientServerFailure() {
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withServerError());
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {"success":true,"conversationId":"conv-retry","result":{"message":"Hello after retry"}}
+                """, MediaType.APPLICATION_JSON));
+
+        var response = client.queryConsumerBridgeChat("consumer-alpha", null, null);
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-retry");
+        server.verify();
+    }
+
+    @Test
+    void queryConsumerBridgeChatDoesNotRetryClientFailure() {
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withStatus(FORBIDDEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                    {"message":"forbidden"}
+                    """));
+
+        assertThatThrownBy(() -> client.queryConsumerBridgeChat("consumer-alpha", null, null))
+            .isInstanceOf(RestClientResponseException.class)
+            .hasMessageContaining("403");
+
         server.verify();
     }
 
