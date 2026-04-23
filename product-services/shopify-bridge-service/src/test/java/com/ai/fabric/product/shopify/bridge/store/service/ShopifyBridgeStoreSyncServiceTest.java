@@ -87,6 +87,18 @@ class ShopifyBridgeStoreSyncServiceTest {
                                     "value", "Recycled nylon"
                                 )),
                                 Map.of("node", Map.of(
+                                    "namespace", "judgeme",
+                                    "key", "rating",
+                                    "type", "number_decimal",
+                                    "value", "4.8"
+                                )),
+                                Map.of("node", Map.of(
+                                    "namespace", "judgeme",
+                                    "key", "review_count",
+                                    "type", "number_integer",
+                                    "value", "128"
+                                )),
+                                Map.of("node", Map.of(
                                     "namespace", "custom",
                                     "key", "fit_notes",
                                     "type", "single_line_text_field",
@@ -139,8 +151,14 @@ class ShopifyBridgeStoreSyncServiceTest {
             .extracting(document -> document.sourceCategory() + ":" + document.entityType())
             .containsExactly("products:product", "policies:support-policy");
         assertThat(syncCaptor.getValue().documents().getFirst().content())
+            .contains("Average rating: 4.8 / 5 from 128 reviews (Judge.me).")
             .contains("Materials: Recycled nylon")
             .contains("Fit notes: Designed for airline personal-item sizing.");
+        assertThat(syncCaptor.getValue().documents().getFirst().metadata())
+            .containsEntry("reviewProvider", "Judge.me")
+            .containsEntry("reviewAverage", "4.8")
+            .containsEntry("reviewCount", 128)
+            .containsEntry("reviewSignalsPresent", true);
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
 
         ArgumentCaptor<ShopifyBridgeRecordSyncStatusRequest> statusCaptor =

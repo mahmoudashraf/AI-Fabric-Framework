@@ -5,6 +5,7 @@ import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResu
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -32,6 +33,16 @@ public class ShopifyBridgeActionExecutionService {
                 descriptionHtml
                 vendor
                 productType
+                metafields(first: 12) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      type
+                      value
+                    }
+                  }
+                }
                 updatedAt
                 variants(first: 25) {
                   nodes {
@@ -381,6 +392,7 @@ public class ShopifyBridgeActionExecutionService {
     private Map<String, Object> toProductItem(String shopDomain, Map<String, Object> node) {
         List<Map<String, Object>> variants = extractVariants(node);
         Map<String, Object> primaryVariant = variants.stream().findFirst().orElse(Map.of());
+        ShopifyProductReviewSignals.ReviewSignalSummary reviewSignals = ShopifyProductReviewSignals.summary(node);
         LinkedHashMap<String, Object> item = new LinkedHashMap<>();
         item.put("id", text(node, "id"));
         item.put("title", text(node, "title"));
@@ -394,6 +406,16 @@ public class ShopifyBridgeActionExecutionService {
         item.put("primarySku", text(primaryVariant, "sku"));
         item.put("price", primaryVariant.get("price"));
         item.put("inventoryQuantity", primaryVariant.get("inventoryQuantity"));
+        item.put("reviewSignalsPresent", reviewSignals.present());
+        if (reviewSignals.provider() != null) {
+            item.put("reviewProvider", reviewSignals.provider());
+        }
+        if (reviewSignals.averageRatingText() != null) {
+            item.put("reviewAverage", reviewSignals.averageRatingText());
+        }
+        if (reviewSignals.reviewCount() != null) {
+            item.put("reviewCount", reviewSignals.reviewCount());
+        }
         item.put("variants", variants);
         return item;
     }

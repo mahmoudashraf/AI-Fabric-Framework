@@ -69,7 +69,7 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 | Embedded intelligence product shape | Storefront no longer loads only a launcher shell. The app embed now layers embedded intelligence surfaces on top of the shell, and AI search can now operate as a direct bridge-backed surface even with chat fallback disabled. | Product identity is improving, but the delivery model still depends on a fixed app-embed host rather than a mature theme-surface system. |
 | Max Mode storefront convergence | The Shopify embed loader already supports `legacy` and `max-mode`, and there is already a Shopify-specific Max Mode wrapper. | This is a real convergence track, but it is only partially complete and should not be treated as a standalone product milestone. |
 | Real shell conversation modes | Shopify now persists `shellModeProfile`, exposes it in bootstrap/admin surfaces, and forwards it into bridge/runtime request context. | This is now a bounded mode-profile system, but not yet full multi-mode runtime semantics like true `assistant` / `deep` Shopify modes. |
-| Richer Shopify data coverage | Code-backed coverage now exists for published blog/article content plus bounded shopper-relevant product metafield enrichment in addition to catalog/content/policy sources. Metaobjects and review-provider ingestion are still missing. | Wave 1 data-expansion work is materially stronger, but richer commerce-specific content is still not complete. |
+| Richer Shopify data coverage | Code-backed coverage now exists for published blog/article content plus bounded shopper-relevant product metafield enrichment in addition to catalog/content/policy sources. Judge.me-compatible review and rating metafields now flow into product sync, vectorization content, and read-first shopper actions when present. Metaobjects are still missing. | Wave 1 data-expansion work is materially stronger, but richer commerce-specific content is still not complete. |
 | Read-first action breadth from strategy docs | Current read action bundle already includes `compare_products` and `find_similar_products` alongside the baseline catalog/policy actions. | The remaining gap is richer generated rendering, size/fit guidance, and surface-specific product UX rather than total action absence. |
 | Tiered commercial model | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, and product caps. Merchant UI now reflects tier-aware storefront placement guidance and shopper-surface readiness more clearly. | The remaining gap is fully aligned commercial rollout and App Store packaging, not basic merchant legibility. |
 | Free-tier distribution wedge | Pricing strategy says Free is AI search only. | AI search is now real in both the app embed and a merchant-placeable theme block. The remaining gap is proving the commercial/App Store story cleanly. |
@@ -185,15 +185,16 @@ Important rule:
 Missing:
 
 - metaobjects
-- one real review provider
 
 Now materially real:
 
 - published Shopify blog/article coverage through sync, vectorization, source toggles, and webhook-triggered refresh
+- Judge.me-compatible review and rating metafield ingestion on Shopify products
 
-Recommended first review provider:
+Still missing:
 
-- `Judge.me`
+- broader review-provider depth beyond product-metafield ingestion
+- metaobject-backed richer structured commerce content
 
 ### 5.3 Read-first capability depth
 
@@ -217,6 +218,7 @@ Now materially real:
 - plan-aware merchant UI with a visible tier ladder, allowed surfaces, chat-fallback posture, and activation affordances
 - tier-aware placement guidance in the merchant UI
 - merchant-visible store intelligence readiness summary
+- merchant-visible launch and App Review readiness summary
 - bounded surface usage and top-question analytics for shopper traffic
 
 ### 5.5 Merchant legibility
@@ -358,12 +360,12 @@ Progress note:
 
 - query volume, top shopper questions, and bounded shopper surface usage are now materially real in the merchant app
 - published articles/blog content is now materially real in the Shopify source pipeline
+- Judge.me-compatible review metafield ingestion is now materially real in the Shopify product pipeline
 - plan-aware merchant UI is now materially real in the bridge admin app
-- the main remaining Milestone 3 gap is metaobjects/review-provider depth plus final commercial/tier hardening around the now-real surface inventory
+- the main remaining Milestone 3 gap is metaobjects plus final commercial/tier hardening around the now-real surface inventory
 
 Recommended supporting data work:
 
-- one review provider
 - metaobjects
 
 Exit criteria:

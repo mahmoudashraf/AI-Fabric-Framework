@@ -68,6 +68,18 @@ class ShopifyBridgeVectorizationSourceServiceTest {
                                             "value", "Breathable mesh upper"
                                         )),
                                         Map.of("node", Map.of(
+                                            "namespace", "judgeme",
+                                            "key", "rating",
+                                            "type", "number_decimal",
+                                            "value", "4.7"
+                                        )),
+                                        Map.of("node", Map.of(
+                                            "namespace", "judgeme",
+                                            "key", "review_count",
+                                            "type", "number_integer",
+                                            "value", "64"
+                                        )),
+                                        Map.of("node", Map.of(
                                             "namespace", "custom",
                                             "key", "fit_notes",
                                             "type", "single_line_text_field",
@@ -122,6 +134,7 @@ class ShopifyBridgeVectorizationSourceServiceTest {
             assertThat(item.sourceCategory()).isEqualTo("products");
             assertThat(item.documentType()).isEqualTo("product");
             assertThat(item.title()).isEqualTo("Trail Shoe");
+            assertThat(item.content()).contains("Average rating: 4.7 / 5 from 64 reviews (Judge.me).");
             assertThat(item.content()).contains("Materials: Breathable mesh upper");
             assertThat(item.content()).contains("Fit notes: Runs true to size");
         });

@@ -43,6 +43,22 @@ class ShopifyBridgeActionExecutionServiceTest {
                                 "descriptionHtml", "<p>Carry on bag</p>",
                                 "vendor", "Loom",
                                 "productType", "Bags",
+                                "metafields", Map.of(
+                                    "edges", List.of(
+                                        Map.of("node", Map.of(
+                                            "namespace", "judgeme",
+                                            "key", "rating",
+                                            "type", "number_decimal",
+                                            "value", "4.9"
+                                        )),
+                                        Map.of("node", Map.of(
+                                            "namespace", "judgeme",
+                                            "key", "review_count",
+                                            "type", "number_integer",
+                                            "value", "215"
+                                        ))
+                                    )
+                                ),
                                 "updatedAt", "2026-04-19T00:00:00Z",
                                 "variants", Map.of(
                                     "nodes", List.of(
@@ -71,6 +87,11 @@ class ShopifyBridgeActionExecutionServiceTest {
         assertThat(result.message()).isEqualTo("Products");
         assertThat(result.data()).containsEntry("count", 1);
         assertThat(((List<?>) result.data().get("items"))).hasSize(1);
+        Map<?, ?> firstItem = (Map<?, ?>) ((List<?>) result.data().get("items")).getFirst();
+        assertThat(firstItem.get("reviewSignalsPresent")).isEqualTo(true);
+        assertThat(firstItem.get("reviewProvider")).isEqualTo("Judge.me");
+        assertThat(firstItem.get("reviewAverage")).isEqualTo("4.9");
+        assertThat(firstItem.get("reviewCount")).isEqualTo(215);
     }
 
     @Test
@@ -291,6 +312,26 @@ class ShopifyBridgeActionExecutionServiceTest {
         node.put("descriptionHtml", "<p>" + descriptionHtml + "</p>");
         node.put("vendor", vendor);
         node.put("productType", productType);
+        if ("SKU-1".equals(sku)) {
+            node.put("metafields", Map.of(
+                "edges", List.of(
+                    Map.of("node", Map.of(
+                        "namespace", "judgeme",
+                        "key", "rating",
+                        "type", "number_decimal",
+                        "value", "4.8"
+                    )),
+                    Map.of("node", Map.of(
+                        "namespace", "judgeme",
+                        "key", "review_count",
+                        "type", "number_integer",
+                        "value", "128"
+                    ))
+                )
+            ));
+        } else {
+            node.put("metafields", Map.of("edges", List.of()));
+        }
         node.put("updatedAt", updatedAt);
         node.put("variants", variants);
 

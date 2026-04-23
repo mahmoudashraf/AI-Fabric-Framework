@@ -347,6 +347,7 @@ public class ShopifyBridgeVectorizationSourceService {
                         text(node, "vendor"),
                         text(node, "productType"),
                         sanitizeRichText(text(node, "descriptionHtml")),
+                        ShopifyProductReviewSignals.content(node),
                         ShopifyKeyProductMetafields.content(node)
                     ),
                     "products",
@@ -516,6 +517,7 @@ public class ShopifyBridgeVectorizationSourceService {
                     text(node, "vendor"),
                     text(node, "productType"),
                     sanitizeRichText(text(node, "descriptionHtml")),
+                    ShopifyProductReviewSignals.content(node),
                     ShopifyKeyProductMetafields.content(node)
                 ),
                 "products",

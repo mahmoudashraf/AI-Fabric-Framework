@@ -214,28 +214,34 @@ public class ShopifyBridgeStoreSyncService {
 
     private List<ShopifyBridgeStoreSyncDocument> loadProducts(String shopDomain, String accessToken, Integer catalogProductCap) {
         return paginate(shopDomain, accessToken, PRODUCTS_QUERY, "products", catalogProductCap).stream()
-            .map(node -> new ShopifyBridgeStoreSyncDocument(
-                requiredText(node, "id"),
-                "products",
-                "product",
-                text(node, "title"),
-                joinContent(
-                    text(node, "title"),
-                    text(node, "vendor"),
-                    text(node, "productType"),
-                    joinTags(node.get("tags")),
-                    sanitizeRichText(text(node, "descriptionHtml")),
-                    ShopifyKeyProductMetafields.content(node)
-                ),
-                metadata(
+            .map(node -> {
+                ShopifyProductReviewSignals.ReviewSignalSummary reviewSignals = ShopifyProductReviewSignals.summary(node);
+                LinkedHashMap<String, Object> metadata = new LinkedHashMap<>(metadata(
                     "handle", text(node, "handle"),
                     "vendor", text(node, "vendor"),
                     "productType", text(node, "productType"),
                     "metafieldKeys", ShopifyKeyProductMetafields.keys(node),
                     "updatedAt", text(node, "updatedAt"),
                     "storefrontUrl", storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle")))
-                )
-            ))
+                ));
+                metadata.putAll(reviewSignals.metadata());
+                return new ShopifyBridgeStoreSyncDocument(
+                    requiredText(node, "id"),
+                    "products",
+                    "product",
+                    text(node, "title"),
+                    joinContent(
+                        text(node, "title"),
+                        text(node, "vendor"),
+                        text(node, "productType"),
+                        joinTags(node.get("tags")),
+                        sanitizeRichText(text(node, "descriptionHtml")),
+                        ShopifyProductReviewSignals.content(node),
+                        ShopifyKeyProductMetafields.content(node)
+                    ),
+                    Map.copyOf(metadata)
+                );
+            })
             .toList();
     }
 

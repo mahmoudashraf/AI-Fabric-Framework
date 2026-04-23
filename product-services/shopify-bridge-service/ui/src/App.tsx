@@ -746,7 +746,16 @@ export default function App() {
     billingSummary,
     webhookSubscriptions,
     vectorizationSummary,
-    widgetSettings,
+    store?.widgetDetail?.settings ?? null,
+  )
+  const launchReadiness = buildLaunchReadiness(
+    store,
+    storefrontPreview,
+    billingSummary,
+    webhookSubscriptions,
+    vectorizationSummary,
+    usageSummary,
+    store?.widgetDetail?.settings ?? null,
   )
   const supportBundleText = buildSupportBundle(
     shell,
@@ -1495,6 +1504,41 @@ export default function App() {
                       ))}
                     </BlockStack>
                   ) : null}
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Launch and App Review readiness
+                  </Text>
+                  <InlineStack gap="200" align="start">
+                    <Badge tone={launchReadiness.tone}>{launchReadiness.status}</Badge>
+                    <Badge tone={launchReadiness.productTone}>{launchReadiness.productLabel}</Badge>
+                    <Badge tone={launchReadiness.commercialTone}>{launchReadiness.commercialLabel}</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    {launchReadiness.message}
+                  </Text>
+                  <BlockStack gap="150">
+                    {launchReadiness.items.map((item) => (
+                      <Box key={item.label} padding="200" borderWidth="025" borderColor="border" borderRadius="200">
+                        <BlockStack gap="100">
+                          <InlineStack gap="200" align="space-between" blockAlign="center">
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              {item.label}
+                            </Text>
+                            <Badge tone={item.tone}>{item.status}</Badge>
+                          </InlineStack>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {item.detail}
+                          </Text>
+                        </BlockStack>
+                      </Box>
+                    ))}
+                  </BlockStack>
                 </BlockStack>
               </Card>
             </Box>
@@ -2371,6 +2415,15 @@ function buildSupportBundle(
         vectorizationSummary,
         store?.widgetDetail?.settings ?? null
       ),
+      launchReadiness: buildLaunchReadiness(
+        store,
+        storefrontPreview,
+        billingSummary,
+        webhookSubscriptions,
+        vectorizationSummary,
+        usageSummary,
+        store?.widgetDetail?.settings ?? null
+      ),
       usageSummary,
     },
     null,
@@ -2580,6 +2633,119 @@ function buildStoreIntelligenceReadiness(
     lastSuccessfulAutoIndexAt: vectorizationSummary?.automation?.lastSuccessfulAutoIndexAt ?? null,
     lastFailedAutoIndexAt: vectorizationSummary?.automation?.lastFailedAutoIndexAt ?? null,
     issues,
+  }
+}
+
+function buildLaunchReadiness(
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null,
+  usageSummary: ShopifyBridgeUsageSummary | null,
+  widgetSettings: WidgetSettingsSnapshot | null
+): {
+  status: string
+  tone: 'success' | 'attention' | 'critical'
+  message: string
+  productLabel: string
+  productTone: 'success' | 'attention' | 'critical'
+  commercialLabel: string
+  commercialTone: 'success' | 'attention' | 'critical'
+  items: Array<{
+    label: string
+    status: string
+    tone: 'success' | 'attention' | 'critical'
+    detail: string
+  }>
+} {
+  const configuredSurfaces = widgetSettings?.enabledSurfaces?.length ? widgetSettings.enabledSurfaces : DEFAULT_WIDGET_SURFACES
+  const placementIds = new Set((storefrontPreview?.surfacePlacements ?? []).map((placement) => placement.surfaceId))
+  const requiredProductSurfaces = WIDGET_SURFACE_OPTIONS.map((surface) => surface.value)
+  const productSurfaceReady = requiredProductSurfaces.every((surfaceId) => placementIds.has(surfaceId))
+  const tierKeys = new Set((billingSummary?.availablePlans ?? []).map((plan) => plan.tierKey))
+  const elitePlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'ELITE') ?? null
+  const shopperSignalsReady = Boolean((usageSummary?.last7DaySurfaceUsage?.length ?? 0) > 0 || (usageSummary?.topQuestionsLast7Days?.length ?? 0) > 0)
+  const webhookReady = !webhookSubscriptions || webhookSubscriptions.status === 'READY'
+  const storefrontReady = Boolean(storefrontPreview?.ready)
+  const goLiveReady = Boolean(store?.readiness?.goLiveEligible)
+  const syncReady = !store?.syncDetail || store.syncDetail.status === 'SYNCED'
+  const liveUpdatesReady = !vectorizationSummary?.automation || vectorizationSummary.automation.autoIndexingHealthy !== false
+  const productTierReady = configuredSurfaces
+    .filter((surfaceId) => requiredProductSurfaces.includes(surfaceId))
+    .every((surfaceId) => (billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES).includes(surfaceId))
+
+  const items: Array<{
+    label: string
+    status: string
+    tone: 'success' | 'attention' | 'critical'
+    detail: string
+  }> = [
+    {
+      label: 'Embedded product surface set',
+      status: productSurfaceReady ? 'Ready' : 'Incomplete',
+      tone: productSurfaceReady ? 'success' : 'attention',
+      detail: productSurfaceReady
+        ? 'AI search, contextual pill, product insight, policy strip, product FAQ, and comparison all have merchant-placeable theme blocks.'
+        : 'One or more required Companion surfaces are still missing from the storefront placement contract.',
+    },
+    {
+      label: 'Commercial tier ladder',
+      status: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && elitePlan?.actionCapable ? 'Ready' : 'Needs attention',
+      tone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && elitePlan?.actionCapable ? 'success' : 'attention',
+      detail: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && elitePlan?.actionCapable
+        ? 'Free, Starter, and Elite are visible to merchants, and Elite is explicitly packaged as the governed action-capable tier.'
+        : 'The merchant tier ladder is not fully legible yet or Elite action packaging is still missing from the live billing contract.',
+    },
+    {
+      label: 'Launch gate',
+      status: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady ? 'Ready' : 'Blocked',
+      tone: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady ? 'success' : 'critical',
+      detail: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady
+        ? 'Storefront activation, go-live posture, sync, webhooks, and live updates are aligned for a clean launch story.'
+        : 'One or more operational launch gates are still not clean enough for launch or App Review.',
+    },
+    {
+      label: 'Review signal ingestion',
+      status: store?.productsEnabled ? 'Supported' : 'Not enabled',
+      tone: store?.productsEnabled ? 'success' : 'attention',
+      detail: store?.productsEnabled
+        ? 'Companion now ingests Judge.me-compatible review and rating metafields from Shopify products when they are present.'
+        : 'Product ingestion is disabled, so review and rating signals cannot flow into Companion yet.',
+    },
+    {
+      label: 'Merchant legibility',
+      status: shopperSignalsReady ? 'Observed' : 'Awaiting traffic',
+      tone: shopperSignalsReady ? 'success' : 'attention',
+      detail: shopperSignalsReady
+        ? 'Real shopper surface usage and top-question summaries are available for merchant support and launch QA.'
+        : 'The merchant app is ready to surface shopper analytics, but real storefront traffic has not produced enough signal yet.',
+    },
+    {
+      label: 'Tier-to-surface alignment',
+      status: productTierReady ? 'Aligned' : 'Needs attention',
+      tone: productTierReady ? 'success' : 'attention',
+      detail: productTierReady
+        ? 'Configured storefront surfaces fit inside the current billing tier posture.'
+        : 'The widget configuration currently asks for surfaces outside the active tier allowance.',
+    },
+  ]
+
+  const hasCritical = items.some((item) => item.tone === 'critical')
+  const hasAttention = items.some((item) => item.tone === 'attention')
+  return {
+    status: hasCritical ? 'Blocked' : hasAttention ? 'Needs attention' : 'Ready',
+    tone: hasCritical ? 'critical' : hasAttention ? 'attention' : 'success',
+    message: hasCritical
+      ? 'Companion is close, but the launch story still has at least one operational blocker.'
+      : hasAttention
+        ? 'Companion is materially launchable, but a few productization details still need tightening.'
+        : 'Companion now looks coherent enough to present as a real Shopify product, not just a technical integration.',
+    productLabel: productSurfaceReady ? 'Product shape ready' : 'Product shape incomplete',
+    productTone: productSurfaceReady ? 'success' : 'attention',
+    commercialLabel: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') ? 'Tier ladder ready' : 'Tier ladder incomplete',
+    commercialTone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') ? 'success' : 'attention',
+    items,
   }
 }
 
