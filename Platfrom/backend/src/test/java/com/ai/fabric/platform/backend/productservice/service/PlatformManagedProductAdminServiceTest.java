@@ -787,10 +787,16 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(summary.merchantApprovalRequired()).isTrue();
         assertThat(summary.launchBlocked()).isTrue();
         assertThat(summary.availablePlans()).hasSize(2);
+        assertThat(summary.requiresExplicitConfirmation()).isTrue();
+        assertThat(summary.auditTrailAvailable()).isTrue();
+        assertThat(summary.actionPackages()).containsExactly("guided-commerce");
         assertThat(summary.availablePlans().get(0).tierKey()).isEqualTo("FREE");
         assertThat(summary.availablePlans().get(0).chatFallbackEnabled()).isFalse();
         assertThat(summary.availablePlans().get(1).tierKey()).isEqualTo("STARTER");
         assertThat(summary.availablePlans().get(1).allowedSurfaces()).contains("comparison");
+        assertThat(summary.availablePlans().get(1).requiresExplicitConfirmation()).isTrue();
+        assertThat(summary.availablePlans().get(1).auditTrailAvailable()).isTrue();
+        assertThat(summary.availablePlans().get(1).actionPackages()).containsExactly("guided-commerce");
     }
 
     @Test
@@ -1153,6 +1159,9 @@ class PlatformManagedProductAdminServiceTest {
               "status": "READY_FOR_APPROVAL",
               "merchantApprovalRequired": true,
               "launchBlocked": true,
+              "requiresExplicitConfirmation": true,
+              "auditTrailAvailable": true,
+              "actionPackages": ["guided-commerce"],
               "chatFallbackEnabled": false,
               "allowedSurfaces": ["ai-search"],
               "availablePlans": [
@@ -1184,6 +1193,9 @@ class PlatformManagedProductAdminServiceTest {
                   "syncCadence": "EVERY_2_HOURS",
                   "poweredByBadgeRequired": false,
                   "chatFallbackEnabled": true,
+                  "requiresExplicitConfirmation": true,
+                  "auditTrailAvailable": true,
+                  "actionPackages": ["guided-commerce"],
                   "allowedSurfaces": ["ai-search", "comparison"],
                   "message": "Starter expands the embedded intelligence surface set."
                 }
