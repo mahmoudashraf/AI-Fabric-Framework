@@ -4,17 +4,25 @@ Status: Wave 7 review package baseline
 
 This guide defines the reviewer-facing posture for Shopify Companion.
 
+Use it with:
+
+- [Shopify Companion App Store Listing Package](SHOPIFY_COMPANION_APP_STORE_LISTING_PACKAGE.md)
+- [Shopify Companion Review Screencast Script](SHOPIFY_COMPANION_REVIEW_SCREENCAST_SCRIPT.md)
+- [Shopify Companion Support Runbook](SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md)
+
 ## 1. Product Posture
 
 Shopify Companion is a read-first shopper decision-support product.
 
 V1 scope:
 
+- AI search
+- contextual storefront intelligence surfaces
 - product discovery
 - collection and catalog guidance
 - policy answers
 - comparison support
-- storefront companion widget
+- storefront companion widget for depth
 
 Explicit non-goals for V1:
 
@@ -22,6 +30,10 @@ Explicit non-goals for V1:
 - autonomous purchasing
 - write actions against merchant orders/customers
 - arbitrary merchant scripting
+
+Important review rule:
+
+- governed Elite actions are not part of the default V1 reviewer story unless the review package explicitly enables the Elite posture for that store
 
 ## 2. Architecture Summary
 
@@ -48,6 +60,13 @@ Example launch posture:
 - webhook topics needed for install lifecycle and bounded sync invalidation
 
 The review package should explicitly show that V1 does not require write scopes for transactional behavior.
+
+If Elite is ever included in a later review package, the package must separately explain:
+
+- explicit confirmation
+- audit trail
+- bounded action families
+- why those flows are still not autonomous checkout behavior
 
 ## 4. Reviewer Test Story
 
@@ -92,6 +111,7 @@ Required evidence:
 - launch and App Review readiness summary is visible in the merchant app
 - store intelligence health is visible in the merchant app
 - tier ladder and governance posture are visible in the merchant app
+- platform-admin investigation surface for recent governed actions is visible when present
 - uninstall verification passes on a disposable store mapping
 
 ## 7. Merchant-Facing UI Expectations
@@ -143,5 +163,6 @@ Before handing the app to a reviewer:
 3. verify the merchant UI resolves session and support bundle
 4. verify the storefront widget is active on the review theme
 5. verify uninstall cleanup on a disposable mapping
+6. verify the listing copy and screenshots still match the current live surface set
 
 If any of the above fail, the package is not review-ready.

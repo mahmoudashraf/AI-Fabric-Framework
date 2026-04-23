@@ -26,6 +26,10 @@ Do not demonstrate:
 - unsupported review-provider behavior
 - arbitrary merchant editing of plugins or vectorization settings
 
+Optional Elite appendix rule:
+
+- only record governed action behavior in a separate appendix when the review store is explicitly configured for Elite and the action posture is meant to be reviewed
+
 ## 3. Recommended Recording Order
 
 ### Segment 1: Product posture
@@ -33,11 +37,11 @@ Do not demonstrate:
 Show:
 
 - Shopify Companion embedded admin home
-- short statement that V1 is read-first and shopper-facing
+- short statement that V1 is read-first, shopper-facing, and embedded-intelligence-first
 
 Say:
 
-- the app helps shoppers discover products and answer policy questions
+- the app helps shoppers discover products, compare options, and answer policy questions
 - V1 does not automate checkout or write merchant data
 
 ### Segment 2: Merchant connection
@@ -95,6 +99,7 @@ Say:
 Show:
 
 - storefront widget opening
+- one embedded intelligence surface before opening chat
 - product-aware suggestion examples
 - one product discovery question
 - one comparison or policy question
@@ -103,13 +108,14 @@ Show:
 Say:
 
 - answers are grounded in synced store data
-- the product behaves as a companion, not a generic chatbot
+- the product behaves as embedded store intelligence with chat as depth, not a generic chatbot
 
 ### Segment 7: Diagnostics
 
 Show:
 
 - support bundle section
+- launch readiness / tier posture section
 - copy/download support bundle
 
 Say:
@@ -143,7 +149,9 @@ Before recording:
 2. verify merchant session resolves normally
 3. verify storefront bootstrap is available
 4. confirm the demo store theme has the app embed enabled
-5. prepare one disposable mapping for uninstall demonstration if needed
+5. confirm the intended embedded surfaces are placed in the demo theme
+6. confirm the listing copy still matches the live product posture
+7. prepare one disposable mapping for uninstall demonstration if needed
 
 ## 6. Output Rule
 

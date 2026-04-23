@@ -16,6 +16,7 @@ Read this with:
 - [../Companion/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md](../Companion/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md)
 - [../Companion/SHOPIFY_COMPANION_MAX_MODE_WIDGET_REFACTOR_PLAN.md](../Companion/SHOPIFY_COMPANION_MAX_MODE_WIDGET_REFACTOR_PLAN.md)
 - [../Companion/SHOPIFY_COMPANION_SHELL_MODE_ENABLEMENT_PLAN.md](../Companion/SHOPIFY_COMPANION_SHELL_MODE_ENABLEMENT_PLAN.md)
+- [../Companion/SHOPIFY_COMPANION_APP_STORE_LISTING_PACKAGE.md](../Companion/SHOPIFY_COMPANION_APP_STORE_LISTING_PACKAGE.md)
 - [Observability and Reliability Foundation Plan](../../../../../../doc/Operations/observability/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md)
 
 ---
@@ -232,6 +233,7 @@ Now materially real:
 - bounded per-surface shopper analytics
 - clear freshness/indexing-health view for merchants
 - bridge-admin investigation endpoints for store usage and vectorization state
+- platform-admin investigation surface for recent governed commerce actions
 
 ### 5.6 Shipping package
 
@@ -241,6 +243,11 @@ Missing or still needing hardening:
 - pricing copy aligned to actual product tiers
 - design-partner onboarding loop
 - support and launch playbooks fully consistent with the shipped product surface set
+
+Now materially real:
+
+- canonical App Store listing copy baseline exists
+- App Review guide, screencast script, design-partner checklist, and support runbook are now aligned around the current embedded surface set and optional Elite posture
 
 ---
 

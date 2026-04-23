@@ -74,12 +74,14 @@ Use the platform APIs or UI pages for:
 - Shopify store summary
 - Shopify store mapping, deployment, and consumer drill-through
 - Shopify vectorization summary, policy, indexed fields, automation summary, and recent events
+- recent governed commerce action history for platform-admin investigation
 
 Use the Shopify Bridge service for:
 
 - merchant session state
 - merchant UI shell
 - storefront bootstrap/query/suggestions/events
+- recent governed commerce action history when bridge-admin or merchant auth is available
 - vectorization source-page reachability when bridge admin access is available
 
 ## 5. Common Failure Modes
@@ -193,7 +195,29 @@ Recovery:
 - if running free launch mode, ensure billing mode is configured that way
 - if paid launch, complete the Shopify billing setup before go-live
 
-### 5.7 Uninstall / cleanup issues
+### 5.7 Governed commerce action failure
+
+Symptoms:
+
+- merchant sees guided commerce controls but an action does not complete
+- governed action audit history shows repeated `FAILED`
+- confirmation is accepted but the cart does not update
+
+Checks:
+
+- current billing/tier posture
+- storefront bootstrap `actionCapability`
+- recent governed action history from merchant or platform admin
+- action status, message, and timestamps
+
+Recovery:
+
+- confirm the store is actually entitled for the governed package being shown
+- confirm the shopper surface is sending the expected variant/cart context
+- use the audit history before attempting any deeper bridge debugging
+- do not widen action permissions during incident handling
+
+### 5.8 Uninstall / cleanup issues
 
 Symptoms:
 
