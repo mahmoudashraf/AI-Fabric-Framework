@@ -2,6 +2,8 @@
 
 Status: operational baseline for Wave 8 launch hardening
 
+The merchant app now exports a store-specific support runbook from the current live posture. This document remains the canonical static baseline.
+
 This runbook is for:
 
 - platform operators

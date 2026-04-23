@@ -250,7 +250,7 @@ Now materially real:
 
 - canonical App Store listing copy baseline exists
 - App Review guide, screencast script, design-partner checklist, and support runbook are now aligned around the current embedded surface set and optional Elite posture
-- the merchant app now exports a claim-safe App Store listing package and a design-partner rollout packet directly from the current live store posture
+- the merchant app now exports a claim-safe App Store listing package, App Review guide, review screencast script, support runbook, and design-partner rollout packet directly from the current live store posture
 
 ---
 
@@ -497,7 +497,8 @@ Must ship:
 Progress note:
 
 - merchant ROI visibility is now materially real through bounded shopper-assist, decision-support, and governed-commerce evidence in the merchant app and launch/support exports
-- the remaining Milestone 7 gap is still real support/lifecycle/subscription execution depth, not value-legibility blindness
+- support/lifecycle/subscription packaging is now materially stronger through live-generated App Review and support playbooks plus bounded return/handoff guidance
+- the remaining Milestone 7 gap is still real execution depth for live integrations and customer-safe order lookup, not value-legibility blindness
 
 This milestone aligns with the existing AI enablement expansion plan.
 

@@ -824,6 +824,35 @@ export default function App() {
     goLiveChecklist,
     launchPacket,
   )
+  const appReviewGuideText = buildAppReviewGuide(
+    shell,
+    session,
+    store,
+    storefrontPreview,
+    billingSummary,
+    webhookSubscriptions,
+    vectorizationSummary,
+    goLiveChecklist,
+    launchPacket,
+  )
+  const reviewScreencastScriptText = buildReviewScreencastScript(
+    shell,
+    session,
+    store,
+    storefrontPreview,
+    billingSummary,
+    launchPacket,
+  )
+  const supportRunbookText = buildSupportRunbook(
+    session,
+    store,
+    storefrontPreview,
+    usageSummary,
+    billingSummary,
+    webhookSubscriptions,
+    vectorizationSummary,
+    goLiveChecklist,
+  )
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
   const billingLaunchBlocked = Boolean(billingSummary?.launchBlocked)
@@ -1007,6 +1036,93 @@ export default function App() {
       setActionMessage('Downloaded Shopify Companion design-partner rollout packet.')
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to download the design-partner rollout packet.')
+    }
+  }
+
+  async function handleCopyAppReviewGuide() {
+    try {
+      await navigator.clipboard.writeText(appReviewGuideText)
+      setActionError(null)
+      setActionMessage('Copied Shopify Companion App Review guide to the clipboard.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to copy the App Review guide.')
+    }
+  }
+
+  function handleDownloadAppReviewGuide() {
+    try {
+      const blob = new Blob([appReviewGuideText], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const safeShopDomain = session?.shopDomain?.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase() || 'shopify-store'
+      anchor.href = url
+      anchor.download = `shopify-companion-app-review-guide-${safeShopDomain}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setActionError(null)
+      setActionMessage('Downloaded Shopify Companion App Review guide.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to download the App Review guide.')
+    }
+  }
+
+  async function handleCopyReviewScreencastScript() {
+    try {
+      await navigator.clipboard.writeText(reviewScreencastScriptText)
+      setActionError(null)
+      setActionMessage('Copied Shopify Companion review screencast script to the clipboard.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to copy the review screencast script.')
+    }
+  }
+
+  function handleDownloadReviewScreencastScript() {
+    try {
+      const blob = new Blob([reviewScreencastScriptText], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const safeShopDomain = session?.shopDomain?.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase() || 'shopify-store'
+      anchor.href = url
+      anchor.download = `shopify-companion-review-screencast-${safeShopDomain}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setActionError(null)
+      setActionMessage('Downloaded Shopify Companion review screencast script.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to download the review screencast script.')
+    }
+  }
+
+  async function handleCopySupportRunbook() {
+    try {
+      await navigator.clipboard.writeText(supportRunbookText)
+      setActionError(null)
+      setActionMessage('Copied Shopify Companion support runbook to the clipboard.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to copy the support runbook.')
+    }
+  }
+
+  function handleDownloadSupportRunbook() {
+    try {
+      const blob = new Blob([supportRunbookText], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const safeShopDomain = session?.shopDomain?.replace(/[^a-z0-9.-]+/gi, '-').toLowerCase() || 'shopify-store'
+      anchor.href = url
+      anchor.download = `shopify-companion-support-runbook-${safeShopDomain}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+      setActionError(null)
+      setActionMessage('Downloaded Shopify Companion support runbook.')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to download the support runbook.')
     }
   }
 
@@ -2021,6 +2137,79 @@ export default function App() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
+                    Review and support playbooks
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Generate reviewer-safe and support-safe playbooks from the current live store posture so launch, App Review, and support handoff stay aligned with the shipped surface set.
+                  </Text>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      App Review guide
+                    </Text>
+                    <TextField
+                      label="App Review guide"
+                      autoComplete="off"
+                      multiline={10}
+                      value={appReviewGuideText}
+                      readOnly
+                    />
+                    <InlineStack gap="200">
+                      <Button onClick={() => void handleCopyAppReviewGuide()} disabled={!session}>
+                        Copy App Review guide
+                      </Button>
+                      <Button onClick={handleDownloadAppReviewGuide} disabled={!session}>
+                        Download App Review guide
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Review screencast script
+                    </Text>
+                    <TextField
+                      label="Review screencast script"
+                      autoComplete="off"
+                      multiline={10}
+                      value={reviewScreencastScriptText}
+                      readOnly
+                    />
+                    <InlineStack gap="200">
+                      <Button onClick={() => void handleCopyReviewScreencastScript()} disabled={!session}>
+                        Copy screencast script
+                      </Button>
+                      <Button onClick={handleDownloadReviewScreencastScript} disabled={!session}>
+                        Download screencast script
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Support runbook
+                    </Text>
+                    <TextField
+                      label="Support runbook"
+                      autoComplete="off"
+                      multiline={10}
+                      value={supportRunbookText}
+                      readOnly
+                    />
+                    <InlineStack gap="200">
+                      <Button onClick={() => void handleCopySupportRunbook()} disabled={!session}>
+                        Copy support runbook
+                      </Button>
+                      <Button onClick={handleDownloadSupportRunbook} disabled={!session}>
+                        Download support runbook
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
                     Diagnostics and support bundle
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
@@ -2781,6 +2970,10 @@ function buildSupportBundle(
   vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null
 ): string {
   const store = session?.store ?? null
+  const policyGroundingAvailable = Boolean(
+    store?.policiesEnabled ||
+      (storefrontPreview?.groundingSignals ?? []).includes('Policy grounding'),
+  )
   return JSON.stringify(
     {
       generatedAt: new Date().toISOString(),
@@ -2891,6 +3084,20 @@ function buildSupportBundle(
         billingSummary,
         store?.widgetDetail?.settings ?? null
       ),
+      supportGuidance: {
+        customerSafeOrderLookupSupported: false,
+        policyGroundingAvailable,
+        returnGuidanceMode: policyGroundingAvailable ? 'POLICY_GROUNDED_ONLY' : 'HANDOFF_ONLY',
+        orderSpecificPostPurchaseMode: 'MERCHANT_HANDOFF_REQUIRED',
+        boundedHandoffText: policyGroundingAvailable
+          ? 'Use published policy grounding for general return and refund guidance, but hand off order-specific decisions, tracking, cancellations, and account changes to the merchant support channel.'
+          : 'Do not answer return, refund, tracking, or order-status questions as if the assistant has order access. Hand off those cases to the merchant support channel.',
+      },
+      reviewPackage: {
+        appReviewGuideAvailable: true,
+        reviewScreencastScriptAvailable: true,
+        supportRunbookAvailable: true,
+      },
       usageSummary,
     },
     null,
@@ -3572,6 +3779,143 @@ function buildLaunchDossier(
   ].join('\n')
 }
 
+function buildAppReviewGuide(
+  shell: ShopifyBridgeShellResponse | null,
+  session: ShopifyBridgeMerchantSessionResponse | null,
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null,
+  goLiveChecklist: ReturnType<typeof buildGoLiveChecklist>,
+  launchPacket: ReturnType<typeof buildLaunchPacket>,
+): string {
+  const shopDomain = session?.shopDomain ?? storefrontPreview?.shopDomain ?? 'shopify-store'
+  const configuredSurfaces = store?.widgetDetail?.settings?.enabledSurfaces?.length
+    ? store.widgetDetail.settings.enabledSurfaces
+    : DEFAULT_WIDGET_SURFACES
+  const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const activeSurfaceLabels = configuredSurfaces
+    .filter((surfaceId) => allowedSurfaces.includes(surfaceId))
+    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+  const reviewProviders = buildDetectedReviewProviders(store)
+  const scopesText = session?.installRecord?.scopesText ?? 'Not captured in the current merchant session'
+  const verificationLines = [
+    `Storefront ready: ${storefrontPreview?.ready ? 'yes' : 'no'}`,
+    `Go-live eligible: ${store?.readiness?.goLiveEligible ? 'yes' : 'no'}`,
+    `Webhooks ready: ${webhookSubscriptions?.status ?? 'UNKNOWN'}`,
+    `Live updates healthy: ${vectorizationSummary?.automation?.autoIndexingHealthy === false ? 'no' : 'yes'}`,
+    `Billing posture: ${billingSummary?.tierKey ?? 'UNKNOWN'} (${billingSummary?.status ?? 'UNKNOWN'})`,
+  ]
+
+  return [
+    '# Shopify Companion App Review Guide',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `App: ${shell?.appName ?? 'Loom Companion'}`,
+    `Shop: ${shopDomain}`,
+    '',
+    '## Reviewer-facing product posture',
+    '- Shopify Companion is an embedded, read-first storefront intelligence product.',
+    `- Current billing tier for the review store: ${billingSummary?.tierKey ?? 'UNKNOWN'}.`,
+    `- Current reviewer-safe surface set: ${activeSurfaceLabels.join(' · ') || 'AI search only'}.`,
+    `- Grounding signals: ${(storefrontPreview?.groundingSignals ?? []).join(' · ') || 'Core catalog only'}.`,
+    `- Review-aware provider signals: ${reviewProviders.join(' · ') || 'None detected'}.`,
+    '',
+    '## Explicit non-goals for this review package',
+    '- Do not present autonomous checkout, arbitrary merchant automation, or unsupported order/customer writes.',
+    '- Do not imply customer-safe order lookup; that path is not part of the current scope posture.',
+    '- Only mention Elite governed actions if the current review store is intentionally configured for that commercial posture.',
+    '',
+    '## Requested scope posture',
+    `- Current install scopes: ${scopesText}`,
+    '- The current launch posture stays read-first and does not require transactional write scopes for the default reviewer story.',
+    '',
+    '## Reviewer flow for the current store',
+    '1. Open the embedded admin UI and confirm merchant session resolution.',
+    '2. Confirm launch and App Review readiness in the merchant app.',
+    '3. Review the tier ladder and governance posture for the current store.',
+    '4. Review storefront preview and theme activation guidance.',
+    '5. Run one shopper discovery flow, one policy flow, and one comparison flow on the live storefront.',
+    '6. Confirm grounded answers and visible source cards.',
+    '7. Review support bundle, App Store package, support runbook, and screencast script exports from the merchant app.',
+    billingSummary?.actionCapable
+      ? '8. If Elite is intentionally enabled for this store, show the governed action posture as a separate appendix with confirmation and audit language.'
+      : '8. Keep the walkthrough read-first; do not imply governed commerce for this review store.',
+    '',
+    '## Evidence required before submission',
+    ...verificationLines.map((line) => `- ${line}`),
+    ...goLiveChecklist.items.map((item) => `- ${item.label}: ${item.status}. ${item.detail}`),
+    '',
+    '## Allowed claims',
+    ...launchPacket.safeClaims.map((claim) => `- ${claim}`),
+    '',
+    '## Operator reminder',
+    '- Run `scripts/verify-shopify-companion.sh` before handing the package to reviewers.',
+    '- Use the support runbook and screencast script generated from the same store posture so the package does not drift from live reality.',
+  ].join('\n')
+}
+
+function buildReviewScreencastScript(
+  shell: ShopifyBridgeShellResponse | null,
+  session: ShopifyBridgeMerchantSessionResponse | null,
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  launchPacket: ReturnType<typeof buildLaunchPacket>,
+): string {
+  const shopDomain = session?.shopDomain ?? storefrontPreview?.shopDomain ?? 'shopify-store'
+  const configuredSurfaces = store?.widgetDetail?.settings?.enabledSurfaces?.length
+    ? store.widgetDetail.settings.enabledSurfaces
+    : DEFAULT_WIDGET_SURFACES
+  const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const activeSurfaceLabels = configuredSurfaces
+    .filter((surfaceId) => allowedSurfaces.includes(surfaceId))
+    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+
+  return [
+    '# Shopify Companion Review Screencast Script',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `App: ${shell?.appName ?? 'Loom Companion'}`,
+    `Shop: ${shopDomain}`,
+    '',
+    '## Recording goal',
+    '- Show the bounded merchant-to-storefront loop without implying unsupported order access or autonomous checkout.',
+    `- Keep the story centered on the current live surface set: ${activeSurfaceLabels.join(' · ') || 'AI search'}.`,
+    '',
+    '## Segment 1 — Merchant posture',
+    '- Open the merchant app home.',
+    `- State the current billing/tier posture: ${billingSummary?.tierKey ?? 'UNKNOWN'} (${billingSummary?.status ?? 'UNKNOWN'}).`,
+    '- Show launch readiness and store intelligence health before any storefront demo.',
+    '',
+    '## Segment 2 — Source readiness and lifecycle',
+    '- Show source readiness, webhook posture, and live update health.',
+    '- State that the app binds one Shopify store to one governed product deployment path.',
+    '',
+    '## Segment 3 — Storefront activation',
+    `- Open storefront preview${storefrontPreview?.themeEditorActivationUrl ? ' and show the theme activation link.' : '.'}`,
+    `- Confirm the current shopper-facing surfaces: ${activeSurfaceLabels.join(' · ') || 'AI search'}.`,
+    '',
+    '## Segment 4 — Shopper walkthrough',
+    '- Demonstrate one discovery question and one policy or comparison question.',
+    '- Keep the narration focused on grounded answers, source cards, and embedded intelligence before chat depth.',
+    '',
+    '## Segment 5 — Launch and support exports',
+    '- Show the App Store listing package, App Review guide, support runbook, support bundle, and design-partner packet exports.',
+    '- State that launch/support collateral is generated from the same live store posture shown in the demo.',
+    '',
+    billingSummary?.actionCapable
+      ? '## Optional appendix — Elite governed action posture\n- Only include this appendix if the review store is intentionally configured for Elite.\n- Show explicit confirmation and audit posture, and state that this is governed commerce rather than autonomous checkout.'
+      : '## No Elite appendix\n- Do not show governed actions for this store because the current commercial posture is read-first.',
+    '',
+    '## Claims to avoid',
+    '- Do not imply customer-safe order lookup or order-status reads.',
+    '- Do not imply broad support desk replacement.',
+    ...launchPacket.reviewNotes.map((note) => `- ${note}`),
+  ].join('\n')
+}
+
 function buildAppStoreListingPackage(
   store: ShopifyBridgeMerchantSessionResponse['store'] | null,
   storefrontPreview: ShopifyStorefrontPreviewResponse | null,
@@ -3742,6 +4086,84 @@ function buildDesignPartnerRolloutPacket(
     `- Storefront base URL: ${storefrontPreview?.storefrontBaseUrl ?? 'not available'}`,
     `- Billing posture: ${billingSummary?.tierKey ?? 'UNKNOWN'} (${billingSummary?.status ?? 'UNKNOWN'})`,
     '- Do not mark the partner complete until the intended surfaces are visible and the rollout evidence above is captured.',
+  ].join('\n')
+}
+
+function buildSupportRunbook(
+  session: ShopifyBridgeMerchantSessionResponse | null,
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  usageSummary: ShopifyBridgeUsageSummary | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null,
+  goLiveChecklist: ReturnType<typeof buildGoLiveChecklist>,
+): string {
+  const shopDomain = session?.shopDomain ?? store?.shopDomain ?? 'shopify-store'
+  const configuredSurfaces = store?.widgetDetail?.settings?.enabledSurfaces?.length
+    ? store.widgetDetail.settings.enabledSurfaces
+    : DEFAULT_WIDGET_SURFACES
+  const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const activeSurfaceLabels = configuredSurfaces
+    .filter((surfaceId) => allowedSurfaces.includes(surfaceId))
+    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+  const reviewProviders = buildDetectedReviewProviders(store)
+  const subscriptionWebhook = webhookSubscriptions?.topics.find((topic) => topic.topic === 'APP_SUBSCRIPTIONS_UPDATE') ?? null
+  const policyGroundingAvailable = Boolean(
+    store?.policiesEnabled ||
+      (storefrontPreview?.groundingSignals ?? []).includes('Policy grounding'),
+  )
+  const lifecycleSignals = [
+    `Install status: ${store?.installStatus ?? 'UNKNOWN'}`,
+    `Onboarding status: ${store?.onboardingStatus ?? 'UNKNOWN'}`,
+    `Billing posture: ${billingSummary?.tierKey ?? 'UNKNOWN'} (${billingSummary?.status ?? 'UNKNOWN'})`,
+    `Billing webhook posture: ${subscriptionWebhook?.status ?? 'UNKNOWN'}`,
+    `Storefront ready: ${storefrontPreview?.ready ? 'yes' : 'no'}`,
+    `Live updates healthy: ${vectorizationSummary?.automation?.autoIndexingHealthy === false ? 'no' : 'yes'}`,
+  ]
+
+  return [
+    '# Shopify Companion Support Runbook',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `Shop: ${shopDomain}`,
+    '',
+    '## Current live posture',
+    ...lifecycleSignals.map((line) => `- ${line}`),
+    `- Active shopper surfaces: ${activeSurfaceLabels.join(' · ') || 'AI search only'}`,
+    `- Review-aware provider signals: ${reviewProviders.join(' · ') || 'None detected'}`,
+    `- Last webhook: ${store?.webhookDetail?.topic ?? '—'} (${formatTimestamp(store?.webhookDetail?.receivedAt)})`,
+    '',
+    '## Support-safe scope',
+    '- Product discovery, comparison, policy grounding, and storefront activation guidance are in scope.',
+    billingSummary?.actionCapable
+      ? '- Elite governed commerce is in scope only when the current store is entitled and the flow uses explicit confirmation plus audit history.'
+      : '- Keep the support posture read-first for this store. Do not imply guided commerce unless the live billing tier changes.',
+    '',
+    '## Out of scope',
+    '- Customer-safe order lookup is not currently supported.',
+    '- Do not promise refund approval, cancellation, tracking, or account changes from Companion.',
+    '- Do not widen scopes or permissions during incident handling.',
+    '',
+    '## Return and post-purchase guidance',
+    policyGroundingAvailable
+      ? '- Use published store policy grounding for general return or refund guidance, but keep it policy-grounded and non-transactional.'
+      : '- The store does not currently expose enough policy grounding for safe return guidance. Hand off return/refund questions directly.',
+    '- Any order-specific return, refund, tracking, or order-status question must be handed off to the merchant support channel.',
+    '- Use a support handoff like: “I can explain the store’s published policy, but I cannot inspect or change your order. Please continue with the merchant support channel for order-specific help.”',
+    '',
+    '## Triage order',
+    ...goLiveChecklist.items.map((item, index) => `${index + 1}. ${item.label}: ${item.status}. ${item.detail}`),
+    '',
+    '## Merchant signal to review before escalation',
+    `- ROI posture: ${usageSummary?.roiSummary ? `${formatRoiStatus(usageSummary.roiSummary.status)} (${formatRoiSummary(usageSummary.roiSummary)})` : 'No ROI signal yet'}`,
+    `- Top shopper questions: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'None yet'}`,
+    `- Surface journeys: ${(usageSummary?.last7DaySurfaceJourneys ?? []).slice(0, 3).map((item) => `${item.label}: ${formatSurfaceJourneySummary(item)}`).join(' | ') || 'None yet'}`,
+    '',
+    '## Operator reminders',
+    '- Use the support bundle first for diagnostics, then this runbook for bounded support posture.',
+    '- Re-run `scripts/verify-shopify-companion.sh` before escalating a launch or review incident.',
+    '- Keep support guidance aligned with the App Review guide and screencast script generated from the same store posture.',
   ].join('\n')
 }
 

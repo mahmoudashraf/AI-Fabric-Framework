@@ -2,6 +2,8 @@
 
 Status: Wave 7 review package baseline
 
+The merchant app now exports a store-specific App Review guide from the current live posture. This document remains the canonical static baseline.
+
 This guide defines the reviewer-facing posture for Shopify Companion.
 
 Use it with:

@@ -2,6 +2,8 @@
 
 Status: Wave 7 review artifact
 
+The merchant app now exports a store-specific screencast script from the current live posture. This document remains the canonical static baseline.
+
 This is a bounded walkthrough script for recording the Shopify Companion review/demo screencast.
 
 ## 1. Recording Goal
