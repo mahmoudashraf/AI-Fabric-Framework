@@ -122,6 +122,7 @@ Current validated execution path:
 
 - `SHOPIFY_CLI_PARTNERS_TOKEN=<partner-cli-token> shopify app deploy --allow-updates`
 - this works for the current Loom Companion app workspace without interactive login
+- the deployed app manifest must include `read_orders` now that customer-safe order lookup is a shipped surface; after a scope change deploy, re-open the shop install URL so the merchant approves the updated scope set
 
 ### 2.2 Catalog or Dev Dashboard API key/token
 
@@ -519,6 +520,7 @@ What it does:
 - bootstraps customer/deployment/consumer bindings when missing
 - prints the exact live install URL
 - stops cleanly if Shopify install approval is still missing
+- stops cleanly if governed support is still pending Shopify order-read scope approval or app-scopes webhook repair, and prints the exact recovery URL when available
 - after install, it can continue into live source preflight and go-live from the platform side
 
 What I still need from administration side:

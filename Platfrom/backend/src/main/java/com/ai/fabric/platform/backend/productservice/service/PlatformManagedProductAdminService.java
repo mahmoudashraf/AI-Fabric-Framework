@@ -1036,6 +1036,8 @@ public class PlatformManagedProductAdminService {
             node.path("appScopesUpdateWebhookReady").asBoolean(false),
             node.path("installRecoveryRequired").asBoolean(false),
             text(node, "installRecoveryUrl", null),
+            node.path("scopeGrantRequired").asBoolean(false),
+            text(node, "scopeGrantUrl", null),
             text(node, "installStatus", "UNKNOWN"),
             text(node, "billingTier", null),
             text(node, "billingStatus", "UNKNOWN"),

@@ -169,6 +169,12 @@ That means:
 - the order lookup block is placed on a support or contact page
 - a merchant support handoff channel is configured
 
+If the merchant app shows `PENDING_SCOPE_GRANT`:
+
+- open the provided scope-grant URL or reinstall URL from the merchant/operator panel
+- approve the updated Shopify app permissions for the store
+- reload the merchant app and confirm support readiness returns to `READY`
+
 Companion can then:
 
 - verify a recent order with exact order number plus checkout email

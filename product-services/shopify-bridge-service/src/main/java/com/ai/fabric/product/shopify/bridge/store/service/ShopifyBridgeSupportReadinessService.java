@@ -87,6 +87,8 @@ public class ShopifyBridgeSupportReadinessService {
         boolean allOrdersScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_all_orders");
         boolean scopesWebhookReady = hasReadyWebhookTopic(webhookSummary, "APP_SCOPES_UPDATE");
         List<String> missingScopes = orderLookupScopeGranted ? List.of() : List.of("read_orders");
+        boolean scopeGrantRequired = !installRecoveryRequired && !orderLookupScopeGranted;
+        String scopeGrantUrl = scopeGrantRequired ? buildInstallUrl(shopDomain) : null;
         boolean orderLookupSupported = !installRecoveryRequired && orderLookupScopeGranted;
         boolean merchantHandoffConfigured = supportProfile.merchantHandoffConfigured();
         String status;
@@ -136,6 +138,8 @@ public class ShopifyBridgeSupportReadinessService {
             scopesWebhookReady,
             installRecoveryRequired,
             installRecoveryRequired ? buildInstallUrl(shopDomain) : null,
+            scopeGrantRequired,
+            scopeGrantUrl,
             store == null ? (installRecord == null ? "UNKNOWN" : installRecord.status()) : store.installStatus(),
             billingSummary.tierKey(),
             billingSummary.status(),

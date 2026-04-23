@@ -7,7 +7,9 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
@@ -44,17 +46,20 @@ public class ShopifyStoreGoLiveService {
     private final ShopifyStoreConnectionRepository repository;
     private final DeploymentService deploymentService;
     private final PlatformManagedProductServiceRepository productServiceRepository;
+    private final PlatformManagedProductAdminService productAdminService;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final PlatformAuditService platformAuditService;
 
     public ShopifyStoreGoLiveService(ShopifyStoreConnectionRepository repository,
                                      DeploymentService deploymentService,
                                      PlatformManagedProductServiceRepository productServiceRepository,
+                                     PlatformManagedProductAdminService productAdminService,
                                      ShopifyStoreConnectionService shopifyStoreConnectionService,
                                      PlatformAuditService platformAuditService) {
         this.repository = repository;
         this.deploymentService = deploymentService;
         this.productServiceRepository = productServiceRepository;
+        this.productAdminService = productAdminService;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.platformAuditService = platformAuditService;
     }
@@ -65,6 +70,7 @@ public class ShopifyStoreGoLiveService {
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Shopify store connection not found: " + shopDomain));
         ShopifyStoreConnectionSummary summary = shopifyStoreConnectionService.getConnection(store.getShopDomain());
         validateReadyForGoLive(summary);
+        validateSupportReadyForGoLive(store);
 
         DeploymentDraftResponse draft = ensureShopifyCompanionSecurityDefaults(store.getDeploymentId());
         draft = ensureShopifyCompanionConnectorDefaults(store, draft);
@@ -96,6 +102,23 @@ public class ShopifyStoreGoLiveService {
             String message = store.readiness() == null || store.readiness().goLiveBlockingReasons().isEmpty()
                 ? "Shopify store is not ready for go-live yet."
                 : store.readiness().goLiveBlockingReasons().get(0);
+            throw new ResponseStatusException(CONFLICT, message);
+        }
+    }
+
+    private void validateSupportReadyForGoLive(ShopifyStoreConnectionEntity store) {
+        PlatformManagedProductServiceEntity productService = resolveProductService(store.getProductServiceId());
+        if (productService == null || !hasText(productService.getServiceRef())) {
+            throw new ResponseStatusException(CONFLICT, "Shopify support readiness cannot be verified because the managed bridge service mapping is missing.");
+        }
+        PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness =
+            productAdminService.getStoreSupportReadiness(productService.getServiceRef(), store.getShopDomain());
+        if (!"READY".equalsIgnoreCase(supportReadiness.status())
+            || !supportReadiness.orderLookupSupported()
+            || !supportReadiness.appScopesUpdateWebhookReady()) {
+            String message = supportReadiness.message() == null || supportReadiness.message().isBlank()
+                ? "Customer-safe order lookup and governed support posture are not ready for go-live yet."
+                : supportReadiness.message();
             throw new ResponseStatusException(CONFLICT, message);
         }
     }
@@ -219,12 +242,12 @@ public class ShopifyStoreGoLiveService {
         return true;
     }
 
-    private String blankToNull(String value) {
-        return hasText(value) ? value.trim() : null;
-    }
-
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String blankToNull(String value) {
+        return hasText(value) ? value.trim() : null;
     }
 
     private String trimTrailingSlash(String value) {

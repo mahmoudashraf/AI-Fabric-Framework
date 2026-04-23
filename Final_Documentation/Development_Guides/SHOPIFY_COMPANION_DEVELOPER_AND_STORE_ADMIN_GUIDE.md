@@ -275,6 +275,12 @@ Optional repository secrets that enable deeper verification coverage:
 - `SHOPIFY_MERCHANT_AUTHORIZATION`
   default: empty
 
+Governed support scope rule:
+
+- the Shopify app manifest now needs `read_orders` for customer-safe order lookup
+- after deploying a scope change, re-open the install URL for the shop so Shopify records the new grant on the live install
+- `scripts/run-shopify-companion-rollout.sh` now stops on `PENDING_SCOPE_GRANT` and prints the exact scope-grant URL instead of letting launch work continue under a false green posture
+
 Secret placement rule:
 
 - keep URLs, domains, refs, login email, and embedded host in workflow inputs or repository variables

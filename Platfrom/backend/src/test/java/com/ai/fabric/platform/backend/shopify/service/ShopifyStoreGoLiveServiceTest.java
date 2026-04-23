@@ -7,7 +7,10 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportProfileSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary;
@@ -36,6 +39,7 @@ class ShopifyStoreGoLiveServiceTest {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
@@ -43,6 +47,8 @@ class ShopifyStoreGoLiveServiceTest {
         when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
         when(repository.save(any(ShopifyStoreConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
+        when(productAdminService.getStoreSupportReadiness("shopify-bridge-prod", "alpha.myshopify.com"))
+            .thenReturn(supportReadiness("READY", true, true));
         when(deploymentService.getActiveDraftForDeployment("dep-1")).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
@@ -110,6 +116,7 @@ class ShopifyStoreGoLiveServiceTest {
             repository,
             deploymentService,
             productServiceRepository,
+            productAdminService,
             connectionService,
             auditService
         );
@@ -131,6 +138,7 @@ class ShopifyStoreGoLiveServiceTest {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
@@ -138,6 +146,8 @@ class ShopifyStoreGoLiveServiceTest {
         when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
         when(repository.save(any(ShopifyStoreConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
+        when(productAdminService.getStoreSupportReadiness("shopify-bridge-prod", "alpha.myshopify.com"))
+            .thenReturn(supportReadiness("READY", true, true));
 
         ObjectNode securityConfig = JsonNodeFactory.instance.objectNode();
         securityConfig.put("authzMode", "ALLOW_VERIFIED");
@@ -208,6 +218,7 @@ class ShopifyStoreGoLiveServiceTest {
             repository,
             deploymentService,
             productServiceRepository,
+            productAdminService,
             connectionService,
             auditService
         );
@@ -222,6 +233,7 @@ class ShopifyStoreGoLiveServiceTest {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
@@ -243,6 +255,7 @@ class ShopifyStoreGoLiveServiceTest {
             repository,
             deploymentService,
             productServiceRepository,
+            productAdminService,
             connectionService,
             auditService
         );
@@ -250,6 +263,35 @@ class ShopifyStoreGoLiveServiceTest {
         assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("source readiness is not READY");
+    }
+
+    @Test
+    void goLiveRejectsWhenSupportScopeGrantIsPending() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
+        ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store("READY")));
+        when(connectionService.getConnection("alpha.myshopify.com")).thenReturn(summary("alpha.myshopify.com", "PREFLIGHT_READY"));
+        when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
+        when(productAdminService.getStoreSupportReadiness("shopify-bridge-prod", "alpha.myshopify.com"))
+            .thenReturn(supportReadiness("PENDING_SCOPE_GRANT", false, true));
+
+        ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
+            repository,
+            deploymentService,
+            productServiceRepository,
+            productAdminService,
+            connectionService,
+            auditService
+        );
+
+        assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("scope approval");
     }
 
     private ShopifyStoreConnectionEntity store(String sourceReadinessStatus) {
@@ -370,5 +412,47 @@ class ShopifyStoreGoLiveServiceTest {
         entity.setCreatedAt(Instant.parse("2026-04-18T10:00:00Z"));
         entity.setUpdatedAt(Instant.parse("2026-04-18T10:00:00Z"));
         return entity;
+    }
+
+    private PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness(String status,
+                                                                                       boolean orderLookupSupported,
+                                                                                       boolean scopesWebhookReady) {
+        return new PlatformManagedProductServiceStoreSupportReadinessSummary(
+            "alpha.myshopify.com",
+            status,
+            "READY".equals(status)
+                ? "Customer-safe order lookup is ready for recent orders."
+                : "Customer-safe order lookup is waiting for Shopify order-read scope approval on this store.",
+            "READY".equals(status) ? "RECENT_ORDER_ONLY" : "SCOPE_APPROVAL",
+            orderLookupSupported,
+            orderLookupSupported,
+            false,
+            scopesWebhookReady,
+            false,
+            null,
+            !orderLookupSupported,
+            !orderLookupSupported ? "https://shopify-bridge.example.com/auth/shopify/install?shop=alpha.myshopify.com" : null,
+            "INSTALLED",
+            "FREE",
+            "ACTIVE",
+            orderLookupSupported ? java.util.List.of("read_orders") : java.util.List.of(),
+            orderLookupSupported ? java.util.List.of() : java.util.List.of("read_orders"),
+            java.util.List.of("Companion Free"),
+            java.util.List.of(),
+            new PlatformManagedProductServiceStoreSupportProfileSummary(
+                "support@example.com",
+                null,
+                null,
+                null,
+                null,
+                true
+            ),
+            true,
+            "Merchant support handoff is configured through support email.",
+            java.util.List.of(),
+            java.util.List.of("ORDER_NUMBER_AND_EMAIL"),
+            java.util.List.of("order-status", "tracking-link"),
+            java.util.List.of("refunds")
+        );
     }
 }

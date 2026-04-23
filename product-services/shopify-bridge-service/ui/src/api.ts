@@ -132,6 +132,8 @@ export type ShopifyBridgeSupportReadinessSummary = {
   appScopesUpdateWebhookReady: boolean
   installRecoveryRequired: boolean
   installRecoveryUrl: string | null
+  scopeGrantRequired: boolean
+  scopeGrantUrl: string | null
   installStatus: string
   billingTier: string
   billingStatus: string

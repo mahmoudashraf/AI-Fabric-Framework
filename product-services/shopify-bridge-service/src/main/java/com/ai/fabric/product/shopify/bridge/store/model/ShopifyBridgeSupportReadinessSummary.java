@@ -13,6 +13,8 @@ public record ShopifyBridgeSupportReadinessSummary(
     boolean appScopesUpdateWebhookReady,
     boolean installRecoveryRequired,
     String installRecoveryUrl,
+    boolean scopeGrantRequired,
+    String scopeGrantUrl,
     String installStatus,
     String billingTier,
     String billingStatus,

@@ -166,6 +166,16 @@ print_store_summary() {
   echo "storefrontReady: $(json_get "${store_json}" "readiness.storefrontReady")"
 }
 
+print_support_readiness() {
+  local support_json="$1"
+  echo "supportStatus: $(json_get "${support_json}" "status")"
+  echo "supportLifecycleStage: $(json_get "${support_json}" "lifecycleStage")"
+  echo "orderLookupSupported: $(json_get "${support_json}" "orderLookupSupported")"
+  echo "orderLookupScopeGranted: $(json_get "${support_json}" "orderLookupScopeGranted")"
+  echo "appScopesUpdateWebhookReady: $(json_get "${support_json}" "appScopesUpdateWebhookReady")"
+  echo "merchantHandoffConfigured: $(json_get "${support_json}" "merchantHandoffConfigured")"
+}
+
 print_blockers() {
   local store_json="$1"
   local blockers
@@ -290,6 +300,36 @@ if [[ "${install_status}" != "INSTALLED" || "${credential_status}" != "READY" ]]
   echo "Manual Shopify step still required before rollout can continue."
   echo "Open and approve: ${install_url}"
   print_blockers "${store_json}"
+  exit 0
+fi
+
+echo
+echo "== Support readiness =="
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/support-readiness" "" "${platform_headers[@]-}"
+[[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to load support readiness: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
+support_json="${HTTP_BODY}"
+print_support_readiness "${support_json}"
+
+support_status="$(json_get "${support_json}" "status")"
+scope_grant_url="$(json_get "${support_json}" "scopeGrantUrl")"
+install_recovery_url="$(json_get "${support_json}" "installRecoveryUrl")"
+if [[ "${support_status}" != "READY" ]]; then
+  echo
+  echo "Manual Shopify support step still required before governed support and launch can continue."
+  echo "support message: $(json_get "${support_json}" "message")"
+  if [[ -n "${scope_grant_url}" ]]; then
+    echo "Open and approve order-read scope: ${scope_grant_url}"
+  fi
+  if [[ -n "${install_recovery_url}" ]]; then
+    echo "Install recovery URL: ${install_recovery_url}"
+  fi
+  actions="$(json_lines "${support_json}" "nextActions")"
+  if [[ -n "${actions}" ]]; then
+    echo "support next actions:"
+    while IFS= read -r line; do
+      [[ -n "${line}" ]] && echo "  - ${line}"
+    done <<< "${actions}"
+  fi
   exit 0
 fi
 

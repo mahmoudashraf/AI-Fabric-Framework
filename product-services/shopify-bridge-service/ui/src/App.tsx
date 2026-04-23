@@ -829,6 +829,7 @@ export default function App() {
     webhookSubscriptions,
     vectorizationSummary,
     store?.widgetDetail?.settings ?? null,
+    supportReadiness,
   )
   const supportBundleText = buildSupportBundle(
     shell,
@@ -913,11 +914,15 @@ export default function App() {
   )
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
+  const scopeGrantRequired = Boolean(supportReadiness?.scopeGrantRequired)
+  const scopeGrantUrl = supportReadiness?.scopeGrantUrl ?? null
+  const supportReadinessLaunchBlocked = supportReadiness?.status != null && supportReadiness.status !== 'READY'
   const billingLaunchBlocked = Boolean(billingSummary?.launchBlocked)
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
     !installRecoveryRequired &&
+    !supportReadinessLaunchBlocked &&
     !billingLaunchBlocked &&
     Boolean(store?.readiness?.goLiveEligible) &&
     !isReleaseInProgress(store?.latestRelease?.status)
@@ -1278,6 +1283,22 @@ export default function App() {
                               <InlineStack gap="200">
                                 <Button url={installRecoveryUrl} target="_top" variant="primary">
                                   Reconnect Shopify app
+                                </Button>
+                              </InlineStack>
+                            ) : null}
+                          </BlockStack>
+                        </Banner>
+                      ) : null}
+                      {!installRecoveryRequired && scopeGrantRequired ? (
+                        <Banner tone="warning">
+                          <BlockStack gap="200">
+                            <Text as="p" variant="bodyMd">
+                              {supportReadiness?.message ?? 'Approve Shopify order-read scope before claiming customer-safe order lookup.'}
+                            </Text>
+                            {scopeGrantUrl ? (
+                              <InlineStack gap="200">
+                                <Button url={scopeGrantUrl} target="_top" variant="primary">
+                                  Approve order-read scope
                                 </Button>
                               </InlineStack>
                             ) : null}
@@ -2864,6 +2885,22 @@ export default function App() {
                   </BlockStack>
                 </Banner>
               ) : null}
+              {!installRecoveryRequired && scopeGrantRequired ? (
+                <Banner tone="warning">
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd">
+                      {supportReadiness?.message ?? 'Approve Shopify order-read scope before continuing launch or App Review work.'}
+                    </Text>
+                    {scopeGrantUrl ? (
+                      <InlineStack gap="200">
+                        <Button url={scopeGrantUrl} target="_top" variant="primary">
+                          Approve order-read scope
+                        </Button>
+                      </InlineStack>
+                    ) : null}
+                  </BlockStack>
+                </Banner>
+              ) : null}
               {billingLaunchBlocked ? (
                 <Banner tone="critical">
                   <BlockStack gap="200">
@@ -3299,7 +3336,8 @@ function buildSupportBundle(
         billingSummary,
         webhookSubscriptions,
         vectorizationSummary,
-        store?.widgetDetail?.settings ?? null
+        store?.widgetDetail?.settings ?? null,
+        supportReadiness
       ),
       launchPacket: buildLaunchPacket(
         store,
@@ -3681,11 +3719,11 @@ function buildLaunchReadiness(
     },
     {
       label: 'Launch gate',
-      status: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady ? 'Ready' : 'Blocked',
-      tone: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady ? 'success' : 'critical',
-      detail: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady
-        ? 'Storefront activation, go-live posture, sync, webhooks, and live updates are aligned for a clean launch story.'
-        : 'One or more operational launch gates are still not clean enough for launch or App Review.',
+      status: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady && orderLookupReady ? 'Ready' : 'Blocked',
+      tone: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady && orderLookupReady ? 'success' : 'critical',
+      detail: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady && orderLookupReady
+        ? 'Storefront activation, go-live posture, sync, webhooks, live updates, and customer-safe order lookup are aligned for a clean launch story.'
+        : 'One or more operational launch gates are still not clean enough for launch, App Review, or merchant-safe support claims.',
     },
     {
       label: 'Review signal ingestion',
@@ -3848,6 +3886,7 @@ function buildGoLiveChecklist(
   webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
   vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null,
   widgetSettings: WidgetSettingsSnapshot | null,
+  supportReadiness: ShopifyBridgeMerchantSessionResponse['supportReadiness'] | null,
 ): {
   status: string
   tone: 'success' | 'attention' | 'critical'
@@ -3875,8 +3914,22 @@ function buildGoLiveChecklist(
   const webhooksReady = !webhookSubscriptions || webhookSubscriptions.status === 'READY'
   const goLiveEligible = Boolean(store?.readiness?.goLiveEligible)
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
+  const scopeGrantRequired = Boolean(supportReadiness?.scopeGrantRequired)
+  const scopeGrantUrl = supportReadiness?.scopeGrantUrl ?? null
   const activeStarterPlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'STARTER') ?? null
   const sourceDepthReady = hasLaunchSafeSourceDepth(store)
+  const supportSurfaceReady = Boolean(
+    supportReadiness?.merchantHandoffConfigured &&
+      (supportReadiness.supportProfile?.contactEmail ||
+        supportReadiness.supportProfile?.contactUrl ||
+        supportReadiness.supportProfile?.helpCenterUrl),
+  )
+  const orderLookupReady = Boolean(
+    supportReadiness?.orderLookupSupported &&
+      supportReadiness.orderLookupScopeGranted &&
+      supportReadiness.appScopesUpdateWebhookReady &&
+      supportSurfaceReady
+  )
 
   const items: Array<{
     label: string
@@ -3893,13 +3946,17 @@ function buildGoLiveChecklist(
   }> = [
     {
       label: 'Merchant install and session',
-      status: installRecoveryRequired ? 'Blocked' : 'Ready',
-      tone: installRecoveryRequired ? 'critical' : 'success',
+      status: installRecoveryRequired ? 'Blocked' : scopeGrantRequired ? 'Needs action' : 'Ready',
+      tone: installRecoveryRequired ? 'critical' : scopeGrantRequired ? 'attention' : 'success',
       detail: installRecoveryRequired
         ? session?.installRecoveryMessage ?? 'Merchant install recovery is required before Companion can be presented safely.'
-        : 'Merchant install, scoped auth, and embedded session recovery are clean enough for onboarding.',
+        : scopeGrantRequired
+          ? supportReadiness?.message ?? 'Merchant session is healthy, but Shopify order-read scope still needs approval.'
+          : 'Merchant install, scoped auth, and embedded session recovery are clean enough for onboarding.',
       action: installRecoveryRequired && session?.installRecoveryUrl
         ? { kind: 'open-url', label: 'Recover install', url: session.installRecoveryUrl }
+        : scopeGrantRequired && scopeGrantUrl
+          ? { kind: 'open-url', label: 'Approve order scope', url: scopeGrantUrl }
         : undefined,
     },
     {
@@ -3953,12 +4010,12 @@ function buildGoLiveChecklist(
     },
     {
       label: 'Go-live and App Review packet',
-      status: storefrontReady && sourceDepthReady ? 'Ready' : 'Needs attention',
-      tone: storefrontReady && sourceDepthReady ? 'success' : 'attention',
-      detail: goLiveEligible
+      status: storefrontReady && sourceDepthReady && orderLookupReady ? 'Ready' : 'Needs attention',
+      tone: storefrontReady && sourceDepthReady && orderLookupReady ? 'success' : 'attention',
+      detail: goLiveEligible && orderLookupReady
         ? 'The current store posture is strong enough to generate a merchant-facing launch dossier and run go-live.'
         : 'Generate the launch dossier now, then use it to close the remaining launch blockers before go-live.',
-      action: goLiveEligible
+      action: goLiveEligible && orderLookupReady
         ? { kind: 'run-go-live', label: 'Run go-live' }
         : { kind: 'copy-launch-dossier', label: 'Copy launch dossier' },
     },
@@ -4052,6 +4109,7 @@ function buildLaunchDossier(
     `- Allowed surfaces: ${(billingSummary?.allowedSurfaces ?? []).join(' · ') || 'None detected'}`,
     `- Action packages: ${(billingSummary?.actionPackages ?? []).join(' · ') || 'None detected'}`,
     `- Install recovery URL: ${supportReadiness?.installRecoveryUrl ?? session?.installRecoveryUrl ?? 'Not required'}`,
+    `- Scope grant URL: ${supportReadiness?.scopeGrantUrl ?? 'Not required'}`,
   ].join('\n')
 }
 
