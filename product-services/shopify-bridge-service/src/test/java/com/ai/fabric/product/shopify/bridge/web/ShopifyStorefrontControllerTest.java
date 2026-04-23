@@ -166,7 +166,6 @@ class ShopifyStorefrontControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.conversationId").value("conv-1"));
 
-        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_QUERY");
         verify(usageService).recordQueryInsight(
             eq("alpha.myshopify.com"),
             eq("STOREFRONT_QUERY"),

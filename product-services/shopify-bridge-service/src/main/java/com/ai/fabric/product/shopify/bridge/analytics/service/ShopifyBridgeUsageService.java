@@ -148,6 +148,12 @@ public class ShopifyBridgeUsageService {
             if (lastActivityAt == null || row.getLastQueriedAt().isAfter(lastActivityAt)) {
                 lastActivityAt = row.getLastQueriedAt();
             }
+            totalLast7Days += row.getQueryCount();
+            last7dBreakdown.merge(row.getEventType(), row.getQueryCount(), Long::sum);
+            if (today.equals(row.getUsageDate())) {
+                totalToday += row.getQueryCount();
+                todayBreakdown.merge(row.getEventType(), row.getQueryCount(), Long::sum);
+            }
             if (!"STOREFRONT_QUERY".equals(row.getEventType())) {
                 continue;
             }
@@ -226,6 +232,10 @@ public class ShopifyBridgeUsageService {
         LocalDate sevenDaysAgo = today.minusDays(6);
         List<ShopifyBridgeUsageDailyEntity> rows =
             repository.findByUsageDateGreaterThanEqualOrderByUsageDateAscShopDomainAscEventTypeAsc(sevenDaysAgo);
+        List<ShopifyBridgeQueryInsightDailyEntity> queryRows =
+            queryInsightRepository.findByUsageDateGreaterThanEqualOrderByUsageDateAscShopDomainAscSurfaceIdAscSampleQueryAsc(
+                sevenDaysAgo
+            );
         Map<String, Long> todayBreakdown = new LinkedHashMap<>();
         Map<String, Long> last7dBreakdown = new LinkedHashMap<>();
         LinkedHashSet<String> activeToday = new LinkedHashSet<>();
@@ -244,6 +254,19 @@ public class ShopifyBridgeUsageService {
             }
             if (lastActivityAt == null || row.getLastEventAt().isAfter(lastActivityAt)) {
                 lastActivityAt = row.getLastEventAt();
+            }
+        }
+        for (ShopifyBridgeQueryInsightDailyEntity row : queryRows) {
+            activeLast7Days.add(row.getShopDomain());
+            totalLast7Days += row.getQueryCount();
+            last7dBreakdown.merge(row.getEventType(), row.getQueryCount(), Long::sum);
+            if (today.equals(row.getUsageDate())) {
+                activeToday.add(row.getShopDomain());
+                totalToday += row.getQueryCount();
+                todayBreakdown.merge(row.getEventType(), row.getQueryCount(), Long::sum);
+            }
+            if (lastActivityAt == null || row.getLastQueriedAt().isAfter(lastActivityAt)) {
+                lastActivityAt = row.getLastQueriedAt();
             }
         }
         return new ShopifyBridgeUsageOverview(

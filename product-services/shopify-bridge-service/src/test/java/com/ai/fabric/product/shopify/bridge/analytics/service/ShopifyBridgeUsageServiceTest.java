@@ -50,7 +50,6 @@ class ShopifyBridgeUsageServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-04-18T12:00:00Z"), ZoneOffset.UTC);
         ShopifyBridgeUsageService service = new ShopifyBridgeUsageService(repository, queryInsightRepository, clock);
 
-        ShopifyBridgeUsageDailyEntity today = row("alpha.myshopify.com", "STOREFRONT_QUERY", LocalDate.parse("2026-04-18"), 5, Instant.parse("2026-04-18T11:59:00Z"));
         ShopifyBridgeUsageDailyEntity comparisonReadAction = row(
             "alpha.myshopify.com",
             "STOREFRONT_READ_ACTION_COMPARISON",
@@ -58,11 +57,10 @@ class ShopifyBridgeUsageServiceTest {
             2,
             Instant.parse("2026-04-18T11:57:00Z")
         );
-        ShopifyBridgeUsageDailyEntity previous = row("alpha.myshopify.com", "MERCHANT_PLAYGROUND_QUERY", LocalDate.parse("2026-04-16"), 3, Instant.parse("2026-04-16T09:00:00Z"));
         when(repository.findByShopDomainIgnoreCaseAndUsageDateGreaterThanEqualOrderByUsageDateAscEventTypeAsc(
             "alpha.myshopify.com",
             LocalDate.parse("2026-04-12")
-        )).thenReturn(List.of(previous, comparisonReadAction, today));
+        )).thenReturn(List.of(comparisonReadAction));
         when(queryInsightRepository.findByShopDomainIgnoreCaseAndUsageDateGreaterThanEqualOrderByUsageDateAscSurfaceIdAscSampleQueryAsc(
             "alpha.myshopify.com",
             LocalDate.parse("2026-04-12")
@@ -86,18 +84,28 @@ class ShopifyBridgeUsageServiceTest {
                 LocalDate.parse("2026-04-16"),
                 4,
                 Instant.parse("2026-04-16T09:05:00Z")
+            ),
+            queryRow(
+                "alpha.myshopify.com",
+                "merchant-playground",
+                "MERCHANT_PLAYGROUND_QUERY",
+                "launch proof",
+                "Launch proof",
+                LocalDate.parse("2026-04-16"),
+                3,
+                Instant.parse("2026-04-16T09:00:00Z")
             )
         ));
 
         var summary = service.summarize("alpha.myshopify.com");
 
-        assertThat(summary.totalToday()).isEqualTo(7);
-        assertThat(summary.totalLast7Days()).isEqualTo(10);
-        assertThat(summary.lastActivityAt()).isEqualTo(Instant.parse("2026-04-18T11:59:00Z"));
+        assertThat(summary.totalToday()).isEqualTo(4);
+        assertThat(summary.totalLast7Days()).isEqualTo(11);
+        assertThat(summary.lastActivityAt()).isEqualTo(Instant.parse("2026-04-18T11:58:00Z"));
         assertThat(summary.todayBreakdown()).extracting("eventType")
             .containsExactly("STOREFRONT_READ_ACTION_COMPARISON", "STOREFRONT_QUERY");
         assertThat(summary.last7DayBreakdown()).extracting("eventType")
-            .containsExactly("MERCHANT_PLAYGROUND_QUERY", "STOREFRONT_READ_ACTION_COMPARISON", "STOREFRONT_QUERY");
+            .containsExactly("STOREFRONT_READ_ACTION_COMPARISON", "STOREFRONT_QUERY", "MERCHANT_PLAYGROUND_QUERY");
         assertThat(summary.todaySurfaceUsage()).singleElement().satisfies(surface -> {
             assertThat(surface.surfaceId()).isEqualTo("ai-search");
             assertThat(surface.count()).isEqualTo(2);
@@ -139,11 +147,24 @@ class ShopifyBridgeUsageServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-04-18T12:00:00Z"), ZoneOffset.UTC);
         ShopifyBridgeUsageService service = new ShopifyBridgeUsageService(repository, queryInsightRepository, clock);
 
-        ShopifyBridgeUsageDailyEntity alphaToday = row("alpha.myshopify.com", "STOREFRONT_QUERY", LocalDate.parse("2026-04-18"), 5, Instant.parse("2026-04-18T11:59:00Z"));
         ShopifyBridgeUsageDailyEntity betaToday = row("beta.myshopify.com", "MERCHANT_GO_LIVE", LocalDate.parse("2026-04-18"), 2, Instant.parse("2026-04-18T10:00:00Z"));
         ShopifyBridgeUsageDailyEntity alphaPrevious = row("alpha.myshopify.com", "MERCHANT_SYNC_NOW", LocalDate.parse("2026-04-15"), 3, Instant.parse("2026-04-15T09:00:00Z"));
         when(repository.findByUsageDateGreaterThanEqualOrderByUsageDateAscShopDomainAscEventTypeAsc(LocalDate.parse("2026-04-12")))
-            .thenReturn(List.of(alphaPrevious, alphaToday, betaToday));
+            .thenReturn(List.of(alphaPrevious, betaToday));
+        when(queryInsightRepository.findByUsageDateGreaterThanEqualOrderByUsageDateAscShopDomainAscSurfaceIdAscSampleQueryAsc(
+            LocalDate.parse("2026-04-12")
+        )).thenReturn(List.of(
+            queryRow(
+                "alpha.myshopify.com",
+                "launcher",
+                "STOREFRONT_QUERY",
+                "show me backpacks",
+                "Show me backpacks",
+                LocalDate.parse("2026-04-18"),
+                5,
+                Instant.parse("2026-04-18T11:59:00Z")
+            )
+        ));
 
         var summary = service.summarizeAllShops();
 
@@ -153,9 +174,9 @@ class ShopifyBridgeUsageServiceTest {
         assertThat(summary.totalLast7Days()).isEqualTo(10);
         assertThat(summary.lastActivityAt()).isEqualTo(Instant.parse("2026-04-18T11:59:00Z"));
         assertThat(summary.todayBreakdown()).extracting("eventType")
-            .containsExactly("STOREFRONT_QUERY", "MERCHANT_GO_LIVE");
+            .containsExactly("MERCHANT_GO_LIVE", "STOREFRONT_QUERY");
         assertThat(summary.last7DayBreakdown()).extracting("eventType")
-            .containsExactly("MERCHANT_SYNC_NOW", "STOREFRONT_QUERY", "MERCHANT_GO_LIVE");
+            .containsExactly("MERCHANT_SYNC_NOW", "MERCHANT_GO_LIVE", "STOREFRONT_QUERY");
     }
 
     @Test

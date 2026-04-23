@@ -95,4 +95,8 @@ public interface ShopifyBridgeQueryInsightDailyRepository extends JpaRepository<
         String shopDomain,
         LocalDate usageDate
     );
+
+    List<ShopifyBridgeQueryInsightDailyEntity> findByUsageDateGreaterThanEqualOrderByUsageDateAscShopDomainAscSurfaceIdAscSampleQueryAsc(
+        LocalDate usageDate
+    );
 }

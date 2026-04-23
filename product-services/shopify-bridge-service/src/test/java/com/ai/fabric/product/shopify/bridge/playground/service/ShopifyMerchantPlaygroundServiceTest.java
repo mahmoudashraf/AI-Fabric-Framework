@@ -46,7 +46,6 @@ class ShopifyMerchantPlaygroundServiceTest {
                 """),
             "merchant-playground:alpha.myshopify.com:gid://shopify/User/1"
         );
-        verify(usageService).recordEvent("alpha.myshopify.com", "MERCHANT_PLAYGROUND_QUERY");
         verify(usageService).recordQueryInsight(
             "alpha.myshopify.com",
             "MERCHANT_PLAYGROUND_QUERY",

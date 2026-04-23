@@ -72,7 +72,6 @@ public class ShopifyStorefrontController {
                           @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
                           String shopperSessionId) {
         JsonNode response = storefrontChatService.query(shopDomain, request, shopperSessionId);
-        usageService.recordEvent(shopDomain, "STOREFRONT_QUERY");
         usageService.recordQueryInsight(shopDomain, "STOREFRONT_QUERY", request, "launcher");
         return response;
     }
