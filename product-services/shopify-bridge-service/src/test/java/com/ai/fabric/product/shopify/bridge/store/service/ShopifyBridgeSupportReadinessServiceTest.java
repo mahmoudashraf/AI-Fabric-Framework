@@ -51,7 +51,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ));
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
-        when(billingService.summarizeForShop("alpha.myshopify.com", "access-token")).thenReturn(billingSummary());
+        when(billingService.summarize()).thenReturn(billingSummary());
         when(webhookDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(readyWebhookSummary());
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString())).thenReturn(Map.of(
             "data", Map.of(
@@ -112,7 +112,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ));
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies")));
-        when(billingService.summarizeForShop("alpha.myshopify.com", "access-token")).thenReturn(billingSummary());
+        when(billingService.summarize()).thenReturn(billingSummary());
         when(webhookDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(readyWebhookSummary());
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString())).thenReturn(Map.of(
             "data", Map.of(
@@ -164,7 +164,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ));
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
-        when(billingService.summarizeForShop("alpha.myshopify.com", "access-token")).thenReturn(billingSummary());
+        when(billingService.summarize()).thenReturn(billingSummary());
         when(webhookDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(readyWebhookSummary());
         when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString()))
             .thenAnswer(invocation -> {
