@@ -6,11 +6,14 @@ import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefro
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantRequest;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
+import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEngagementEventRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontEngagementService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontReadActionRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
+import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontReadActionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,17 +33,20 @@ public class ShopifyStorefrontController {
     private final ShopifyStorefrontBootstrapService storefrontBootstrapService;
     private final ShopifyStorefrontChatService storefrontChatService;
     private final ShopifyStorefrontEngagementService storefrontEngagementService;
+    private final ShopifyStorefrontReadActionService storefrontReadActionService;
     private final ShopifyStorefrontGovernedActionService governedActionService;
     private final ShopifyBridgeUsageService usageService;
 
     public ShopifyStorefrontController(ShopifyStorefrontBootstrapService storefrontBootstrapService,
                                        ShopifyStorefrontChatService storefrontChatService,
                                        ShopifyStorefrontEngagementService storefrontEngagementService,
+                                       ShopifyStorefrontReadActionService storefrontReadActionService,
                                        ShopifyStorefrontGovernedActionService governedActionService,
                                        ShopifyBridgeUsageService usageService) {
         this.storefrontBootstrapService = storefrontBootstrapService;
         this.storefrontChatService = storefrontChatService;
         this.storefrontEngagementService = storefrontEngagementService;
+        this.storefrontReadActionService = storefrontReadActionService;
         this.governedActionService = governedActionService;
         this.usageService = usageService;
     }
@@ -82,6 +88,14 @@ public class ShopifyStorefrontController {
                                       String shopperSessionId) {
         storefrontEngagementService.record(shopDomain, request, shopperSessionId);
         return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{shopDomain}/actions/read")
+    public ShopifyBridgeActionResult readAction(@PathVariable String shopDomain,
+                                                @RequestBody(required = false) ShopifyStorefrontReadActionRequest request,
+                                                @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
+                                                String shopperSessionId) {
+        return storefrontReadActionService.execute(shopDomain, request, shopperSessionId);
     }
 
     @PostMapping("/{shopDomain}/actions/grant")

@@ -26,6 +26,7 @@ public record ShopifyStorefrontBootstrapResponse(
     String runtimeAuthMode,
     String bridgeQueryUrl,
     String bridgeSuggestionsUrl,
+    String bridgeReadActionUrl,
     String bridgeEventUrl,
     ShopifyStorefrontGovernedActionCapability actionCapability,
     String guidance,

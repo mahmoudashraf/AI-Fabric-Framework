@@ -65,6 +65,7 @@ public class ShopifyStorefrontBootstrapService {
 
         String bridgeQueryUrl = storefrontUrl(updated.shopDomain(), "/chat/query");
         String bridgeSuggestionsUrl = storefrontUrl(updated.shopDomain(), "/chat/suggestions");
+        String bridgeReadActionUrl = storefrontUrl(updated.shopDomain(), "/actions/read");
         String bridgeEventUrl = storefrontUrl(updated.shopDomain(), "/events");
         String actionGrantUrl = storefrontUrl(updated.shopDomain(), "/actions/grant");
         String actionCompleteUrl = storefrontUrl(updated.shopDomain(), "/actions/complete");
@@ -122,6 +123,7 @@ public class ShopifyStorefrontBootstrapService {
             runtimeAuthMode,
             bridgeQueryUrl,
             bridgeSuggestionsUrl,
+            bridgeReadActionUrl,
             bridgeEventUrl,
             actionCapability,
             guidance,
@@ -148,6 +150,7 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_ENABLED_SURFACES,
             List.of("Catalog product grounding", "Policy grounding"),
             supportedReviewProviders(store),
+            null,
             null,
             null,
             null,

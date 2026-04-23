@@ -250,6 +250,57 @@
   margin-top: 0.65rem;
 }
 
+.loom-companion-card-group {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.loom-companion-card-group__title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.loom-companion-card {
+  border-radius: 0.95rem;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  background: #f9fafb;
+  padding: 0.8rem 0.85rem;
+}
+
+.loom-companion-card--comparison {
+  background: linear-gradient(180deg, rgba(249, 250, 251, 0.98), rgba(243, 244, 246, 0.98));
+}
+
+.loom-companion-card__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.loom-companion-card__meta {
+  margin-top: 0.28rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.loom-companion-card__link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.45rem;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.loom-companion-card__link:hover {
+  text-decoration: underline;
+}
+
 .loom-companion-contextual-pillbar {
   position: fixed;
   left: 50%;

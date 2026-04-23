@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCapability;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCompletionRequest;
@@ -9,9 +10,11 @@ import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefro
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEngagementEventRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontReadActionRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontEngagementService;
+import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontReadActionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +60,9 @@ class ShopifyStorefrontControllerTest {
     private ShopifyStorefrontEngagementService storefrontEngagementService;
 
     @MockBean
+    private ShopifyStorefrontReadActionService storefrontReadActionService;
+
+    @MockBean
     private ShopifyStorefrontGovernedActionService governedActionService;
 
     @MockBean
@@ -86,6 +92,7 @@ class ShopifyStorefrontControllerTest {
             "SIGNED_PRIVATE_RUNTIME",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/suggestions",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/actions/read",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events",
             new ShopifyStorefrontGovernedActionCapability(
                 false,
@@ -110,6 +117,7 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.shellModeProfile").value("SHOPIFY_COMPANION"))
             .andExpect(jsonPath("$.enabledSurfaces[0]").value("ai-search"))
             .andExpect(jsonPath("$.bridgeQueryUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query"))
+            .andExpect(jsonPath("$.bridgeReadActionUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/actions/read"))
             .andExpect(jsonPath("$.bridgeEventUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events"));
 
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_BOOTSTRAP");
@@ -197,6 +205,34 @@ class ShopifyStorefrontControllerTest {
             )),
             eq("shopper-session-1")
         );
+    }
+
+    @Test
+    void readActionForwardsStorefrontComparisonRequest() throws Exception {
+        when(storefrontReadActionService.execute(
+            eq("alpha.myshopify.com"),
+            eq(new ShopifyStorefrontReadActionRequest(
+                "find_similar_products",
+                java.util.Map.of("sku", "SKU-1", "limit", 3),
+                "comparison"
+            )),
+            eq("shopper-session-1")
+        )).thenReturn(ShopifyBridgeActionResult.ok("Similar products", java.util.Map.of("count", 2)));
+
+        mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/actions/read")
+                .header("X-AI-FABRIC-SHOPPER-SESSION-ID", "shopper-session-1")
+                .contentType("application/json")
+                .content("""
+                    {
+                      "actionId":"find_similar_products",
+                      "params":{"sku":"SKU-1","limit":3},
+                      "surfaceId":"comparison"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.message").value("Similar products"))
+            .andExpect(jsonPath("$.data.count").value(2));
     }
 
     @Test

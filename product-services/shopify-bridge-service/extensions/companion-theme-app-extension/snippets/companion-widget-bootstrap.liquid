@@ -22,6 +22,7 @@
   data-product-vendor="{% if product %}{{ product.vendor | escape }}{% endif %}"
   data-product-type="{% if product %}{{ product.type | escape }}{% endif %}"
   data-product-variant-id="{% if product and product.selected_or_first_available_variant %}{{ product.selected_or_first_available_variant.id }}{% endif %}"
+  data-product-sku="{% if product and product.selected_or_first_available_variant %}{{ product.selected_or_first_available_variant.sku | escape }}{% endif %}"
   data-product-price-cents="{% if product and product.selected_or_first_available_variant %}{{ product.selected_or_first_available_variant.price }}{% endif %}"
   data-collection-id="{% if collection %}{{ collection.id }}{% endif %}"
   data-collection-handle="{% if collection %}{{ collection.handle | escape }}{% endif %}"

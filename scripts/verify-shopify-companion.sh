@@ -986,6 +986,9 @@ assert_equals "$(json_get "${bootstrap_json}" "shopDomain")" "${SHOP_DOMAIN}" "s
 assert_equals "$(json_get "${bootstrap_json}" "available")" "${EXPECT_STOREFRONT_READY}" "storefront bootstrap availability"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeQueryUrl")" "storefront bridgeQueryUrl"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeSuggestionsUrl")" "storefront bridgeSuggestionsUrl"
+if [[ ",${effective_expected_surfaces}," == *",comparison,"* ]]; then
+  assert_nonempty "$(json_get "${bootstrap_json}" "bridgeReadActionUrl")" "storefront bridgeReadActionUrl"
+fi
 assert_optional_equals "$(json_get "${bootstrap_json}" "billingTier")" "${effective_expected_billing_tier}" "storefront bootstrap billingTier"
 assert_optional_equals "$(json_get "${bootstrap_json}" "billingStatus")" "${EXPECT_BILLING_STATUS}" "storefront bootstrap billingStatus"
 assert_optional_equals "$(json_get "${bootstrap_json}" "catalogProductCap")" "${effective_expected_catalog_product_cap}" "storefront bootstrap catalogProductCap"
@@ -1093,6 +1096,53 @@ PY
     comparison_secondary_sku="${comparison_skus_csv#*,}"
     assert_nonempty "${comparison_reference_sku}" "comparison reference SKU"
     assert_nonempty "${comparison_secondary_sku}" "comparison secondary SKU"
+
+    echo "== Storefront comparison read actions =="
+    comparison_similar_payload="$(python3 - <<'PY' "${comparison_reference_sku}"
+import json
+import sys
+
+reference_sku = sys.argv[1]
+print(json.dumps({
+    "surfaceId": "comparison",
+    "actionId": "find_similar_products",
+    "params": {
+        "sku": reference_sku,
+        "limit": 3
+    }
+}))
+PY
+)"
+    http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/actions/read" "${comparison_similar_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
+    assert_equals "${HTTP_STATUS}" "200" "storefront comparison similar action status"
+    comparison_similar_json="${HTTP_BODY}"
+    assert_equals "$(json_get "${comparison_similar_json}" "success")" "true" "storefront comparison similar action success"
+    assert_nonempty "$(json_get "${comparison_similar_json}" "message")" "storefront comparison similar action message"
+    assert_nonempty "$(json_get "${comparison_similar_json}" "data.items.0.primarySku")" "storefront comparison similar action first SKU"
+
+    comparison_read_action_payload="$(python3 - <<'PY' "${comparison_reference_sku}" "${comparison_secondary_sku}"
+import json
+import sys
+
+reference_sku = sys.argv[1]
+comparison_sku = sys.argv[2]
+print(json.dumps({
+    "surfaceId": "comparison",
+    "actionId": "compare_products",
+    "params": {
+        "referenceSku": reference_sku,
+        "comparisonSku": comparison_sku
+    }
+}))
+PY
+)"
+    http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/actions/read" "${comparison_read_action_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
+    assert_equals "${HTTP_STATUS}" "200" "storefront comparison read action status"
+    comparison_read_action_json="${HTTP_BODY}"
+    assert_equals "$(json_get "${comparison_read_action_json}" "success")" "true" "storefront comparison read action success"
+    assert_nonempty "$(json_get "${comparison_read_action_json}" "message")" "storefront comparison read action message"
+    assert_nonempty "$(json_get "${comparison_read_action_json}" "data.referenceProduct.primarySku")" "storefront comparison read action reference SKU"
+    assert_nonempty "$(json_get "${comparison_read_action_json}" "data.comparisonProduct.primarySku")" "storefront comparison read action comparison SKU"
 
     comparison_resolver_payload="$(python3 - <<'PY' "${comparison_reference_sku}" "${comparison_secondary_sku}" "${SHOPIFY_COMPARISON_MODE}"
 import json

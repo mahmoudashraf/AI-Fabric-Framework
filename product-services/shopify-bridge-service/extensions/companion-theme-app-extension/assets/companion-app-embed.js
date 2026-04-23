@@ -300,6 +300,7 @@
         vendor: trimValue(root.dataset.productVendor),
         type: trimValue(root.dataset.productType),
         variantId: trimValue(root.dataset.productVariantId),
+        sku: trimValue(root.dataset.productSku),
         priceCents: trimValue(root.dataset.productPriceCents),
       }
     }
