@@ -284,6 +284,9 @@ class ShopifyMerchantControllerTest {
             "DAILY",
             true,
             false,
+            false,
+            false,
+            List.of(),
             List.of("ai-search"),
             List.of(
                 new ShopifyBridgeBillingPlanSummary(
@@ -300,6 +303,9 @@ class ShopifyMerchantControllerTest {
                     "DAILY",
                     true,
                     false,
+                    false,
+                    false,
+                    List.of(),
                     List.of("ai-search"),
                     "Free tier is always available."
                 )
@@ -500,6 +506,7 @@ class ShopifyMerchantControllerTest {
             true,
             true,
             true,
+            false,
             false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",

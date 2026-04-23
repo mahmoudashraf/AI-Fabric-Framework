@@ -32,6 +32,8 @@ public class ShopifyBridgeBillingService {
         "comparison"
     );
     private static final List<String> ELITE_ALLOWED_SURFACES = STARTER_ALLOWED_SURFACES;
+    private static final List<String> NO_ACTION_PACKAGES = List.of();
+    private static final List<String> ELITE_ACTION_PACKAGES = List.of("guided-support", "guided-commerce");
 
     private static final String ACTIVE_SUBSCRIPTIONS_QUERY = """
         query ShopifyBridgeActiveSubscriptions {
@@ -274,6 +276,9 @@ public class ShopifyBridgeBillingService {
             tier.syncCadence(),
             tier.poweredByBadgeRequired(),
             tier.chatFallbackEnabled(),
+            tier.requiresExplicitConfirmation(),
+            tier.auditTrailAvailable(),
+            tier.actionPackages(),
             tier.allowedSurfaces(),
             availablePlans,
             message
@@ -306,6 +311,9 @@ public class ShopifyBridgeBillingService {
             entitlements.syncCadence(),
             entitlements.poweredByBadgeRequired(),
             entitlements.chatFallbackEnabled(),
+            entitlements.requiresExplicitConfirmation(),
+            entitlements.auditTrailAvailable(),
+            entitlements.actionPackages(),
             entitlements.allowedSurfaces(),
             tier == CompanionTier.FREE
                 ? "Free tier is always available."
@@ -391,6 +399,9 @@ public class ShopifyBridgeBillingService {
                 "DAILY",
                 true,
                 false,
+                false,
+                false,
+                NO_ACTION_PACKAGES,
                 FREE_ALLOWED_SURFACES
             );
             case STARTER -> new TierEntitlements(
@@ -402,6 +413,9 @@ public class ShopifyBridgeBillingService {
                 "TWO_HOURS",
                 false,
                 true,
+                false,
+                true,
+                NO_ACTION_PACKAGES,
                 STARTER_ALLOWED_SURFACES
             );
             case ELITE -> new TierEntitlements(
@@ -413,6 +427,9 @@ public class ShopifyBridgeBillingService {
                 "HOURLY",
                 false,
                 true,
+                true,
+                true,
+                ELITE_ACTION_PACKAGES,
                 ELITE_ALLOWED_SURFACES
             );
         };
@@ -618,6 +635,9 @@ public class ShopifyBridgeBillingService {
         String syncCadence,
         boolean poweredByBadgeRequired,
         boolean chatFallbackEnabled,
+        boolean requiresExplicitConfirmation,
+        boolean auditTrailAvailable,
+        List<String> actionPackages,
         List<String> allowedSurfaces
     ) {
     }

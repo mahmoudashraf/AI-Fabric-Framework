@@ -1071,6 +1071,8 @@ export function ProductServicesPage() {
                     ['Sync cadence', storeBillingSummaryQuery.data.syncCadence],
                     ['Powered-by badge', storeBillingSummaryQuery.data.poweredByBadgeRequired ? 'required' : 'optional'],
                     ['Chat fallback', storeBillingSummaryQuery.data.chatFallbackEnabled ? 'enabled' : 'disabled'],
+                    ['Explicit confirmation', storeBillingSummaryQuery.data.requiresExplicitConfirmation ? 'required' : 'not required'],
+                    ['Audit trail', storeBillingSummaryQuery.data.auditTrailAvailable ? 'available' : 'not applicable'],
                   ].map(([label, value]) => (
                     <Grid item xs={12} sm={6} key={label}>
                       <Typography variant="caption" color="text.secondary">
@@ -1082,6 +1084,9 @@ export function ProductServicesPage() {
                 </Grid>
                 <Typography variant="body2" color="text.secondary">
                   Allowed surfaces {storeBillingSummaryQuery.data.allowedSurfaces.length ? storeBillingSummaryQuery.data.allowedSurfaces.join(' · ') : '—'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Action packages {storeBillingSummaryQuery.data.actionPackages.length ? storeBillingSummaryQuery.data.actionPackages.join(' · ') : '—'}
                 </Typography>
                 {storeBillingSummaryQuery.data.availablePlans.length ? (
                   <Stack spacing={1}>
@@ -1122,6 +1127,11 @@ export function ProductServicesPage() {
                               {plan.actionCapable ? 'Read + governed actions' : 'Read-only shopper intelligence'} · Merchant approval{' '}
                               {plan.merchantApprovalSupported ? 'supported' : 'not required'} · Badge{' '}
                               {plan.poweredByBadgeRequired ? 'required' : 'optional'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Confirmation {plan.requiresExplicitConfirmation ? 'required' : 'not required'} · Audit{' '}
+                              {plan.auditTrailAvailable ? 'available' : 'not applicable'} · Action packages{' '}
+                              {plan.actionPackages.length ? plan.actionPackages.join(' · ') : '—'}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                               {detailValue(plan.message)}

@@ -1640,6 +1640,11 @@ export default function App() {
                         Surfaces {billingAllowedSurfaces.join(' · ')} · Product cap {billingSummary.catalogProductCap ?? 'unlimited'} ·
                         {' '}Sync {billingSummary.syncCadence ?? 'platform default'} · Badge {billingSummary.poweredByBadgeRequired ? 'required' : 'optional'}
                       </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Governance {billingSummary.requiresExplicitConfirmation ? 'explicit confirmation required' : 'read-only'} ·
+                        {' '}Audit {billingSummary.auditTrailAvailable ? 'available' : 'not applicable'} ·
+                        {' '}Action packages {billingSummary.actionPackages.length ? billingSummary.actionPackages.join(' · ') : '—'}
+                      </Text>
                       {billingSummary.availablePlans?.length ? (
                         <BlockStack gap="150">
                           <Text as="p" variant="bodySm" tone="subdued">
@@ -1670,6 +1675,11 @@ export default function App() {
                                   <Text as="p" variant="bodySm" tone="subdued">
                                     {plan.actionCapable ? 'Read + governed actions' : 'Read-only shopper intelligence'} · Badge{' '}
                                     {plan.poweredByBadgeRequired ? 'required' : 'optional'}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    Governance {plan.requiresExplicitConfirmation ? 'explicit confirmation required' : 'read-only'} ·
+                                    {' '}Audit {plan.auditTrailAvailable ? 'available' : 'not applicable'} ·
+                                    {' '}Action packages {plan.actionPackages.length ? plan.actionPackages.join(' · ') : '—'}
                                   </Text>
                                   <Text as="p" variant="bodySm" tone="subdued">
                                     {plan.message}
@@ -2674,6 +2684,12 @@ function buildLaunchReadiness(
   const productSurfaceReady = requiredProductSurfaces.every((surfaceId) => placementIds.has(surfaceId))
   const tierKeys = new Set((billingSummary?.availablePlans ?? []).map((plan) => plan.tierKey))
   const elitePlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'ELITE') ?? null
+  const eliteGovernanceReady = Boolean(
+    elitePlan?.actionCapable &&
+      elitePlan?.requiresExplicitConfirmation &&
+      elitePlan?.auditTrailAvailable &&
+      (elitePlan?.actionPackages?.length ?? 0) > 0
+  )
   const shopperSignalsReady = Boolean((usageSummary?.last7DaySurfaceUsage?.length ?? 0) > 0 || (usageSummary?.topQuestionsLast7Days?.length ?? 0) > 0)
   const webhookReady = !webhookSubscriptions || webhookSubscriptions.status === 'READY'
   const storefrontReady = Boolean(storefrontPreview?.ready)
@@ -2700,11 +2716,11 @@ function buildLaunchReadiness(
     },
     {
       label: 'Commercial tier ladder',
-      status: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && elitePlan?.actionCapable ? 'Ready' : 'Needs attention',
-      tone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && elitePlan?.actionCapable ? 'success' : 'attention',
-      detail: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && elitePlan?.actionCapable
-        ? 'Free, Starter, and Elite are visible to merchants, and Elite is explicitly packaged as the governed action-capable tier.'
-        : 'The merchant tier ladder is not fully legible yet or Elite action packaging is still missing from the live billing contract.',
+      status: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'Ready' : 'Needs attention',
+      tone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'success' : 'attention',
+      detail: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady
+        ? `Free, Starter, and Elite are visible to merchants, and Elite is packaged as the governed action tier for ${elitePlan?.actionPackages?.join(' and ') ?? 'merchant-approved actions'}.`
+        : 'The merchant tier ladder is not fully legible yet or Elite governance packaging is still incomplete in the live billing contract.',
     },
     {
       label: 'Launch gate',
@@ -2752,8 +2768,8 @@ function buildLaunchReadiness(
         : 'Companion now looks coherent enough to present as a real Shopify product, not just a technical integration.',
     productLabel: productSurfaceReady ? 'Product shape ready' : 'Product shape incomplete',
     productTone: productSurfaceReady ? 'success' : 'attention',
-    commercialLabel: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') ? 'Tier ladder ready' : 'Tier ladder incomplete',
-    commercialTone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') ? 'success' : 'attention',
+    commercialLabel: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'Tier ladder ready' : 'Tier ladder incomplete',
+    commercialTone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'success' : 'attention',
     items,
   }
 }

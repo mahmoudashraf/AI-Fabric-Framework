@@ -51,6 +51,9 @@ class ShopifyBridgeDiagnosticsServiceTest {
             "DAILY",
             true,
             false,
+            false,
+            false,
+            List.of(),
             List.of("ai-search"),
             List.of(),
             "Free mode."
@@ -116,6 +119,9 @@ class ShopifyBridgeDiagnosticsServiceTest {
             "DAILY",
             true,
             false,
+            false,
+            false,
+            List.of(),
             List.of("ai-search"),
             List.of(),
             "Free mode."
@@ -214,6 +220,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
             true,
             true,
             true,
+            false,
             false,
             null,
             null,

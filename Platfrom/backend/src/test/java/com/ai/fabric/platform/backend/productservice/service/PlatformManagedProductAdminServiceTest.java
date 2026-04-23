@@ -935,6 +935,7 @@ class PlatformManagedProductAdminServiceTest {
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
             entity.isArticlesEnabled(),
+            entity.isMetaobjectsEnabled(),
             null,
             null,
             null,

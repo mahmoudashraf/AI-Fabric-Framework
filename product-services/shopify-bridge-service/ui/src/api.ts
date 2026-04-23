@@ -230,6 +230,9 @@ export type ShopifyBridgeBillingSummary = {
   syncCadence: string | null
   poweredByBadgeRequired: boolean
   chatFallbackEnabled: boolean
+  requiresExplicitConfirmation: boolean
+  auditTrailAvailable: boolean
+  actionPackages: string[]
   allowedSurfaces: string[]
   availablePlans: Array<{
     tierKey: string
@@ -245,6 +248,9 @@ export type ShopifyBridgeBillingSummary = {
     syncCadence: string | null
     poweredByBadgeRequired: boolean
     chatFallbackEnabled: boolean
+    requiresExplicitConfirmation: boolean
+    auditTrailAvailable: boolean
+    actionPackages: string[]
     allowedSurfaces: string[]
     message: string
   }>

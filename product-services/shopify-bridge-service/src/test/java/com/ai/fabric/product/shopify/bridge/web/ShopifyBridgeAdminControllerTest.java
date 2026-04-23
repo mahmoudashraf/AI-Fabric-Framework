@@ -109,6 +109,9 @@ class ShopifyBridgeAdminControllerTest {
                 "DAILY",
                 true,
                 false,
+                false,
+                false,
+                List.of(),
                 List.of("ai-search"),
                 List.of(),
                 "Free mode."
@@ -175,6 +178,9 @@ class ShopifyBridgeAdminControllerTest {
             null,
             false,
             true,
+            false,
+            true,
+            List.of(),
             List.of("ai-search"),
             List.of(),
             "Merchant approval is required before go-live."
@@ -294,6 +300,8 @@ class ShopifyBridgeAdminControllerTest {
                     "trail-shoe",
                     "Loom",
                     "Shoes",
+                    null,
+                    null,
                     null
                 ))
             ));
@@ -452,6 +460,7 @@ class ShopifyBridgeAdminControllerTest {
             true,
             true,
             true,
+            false,
             false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",

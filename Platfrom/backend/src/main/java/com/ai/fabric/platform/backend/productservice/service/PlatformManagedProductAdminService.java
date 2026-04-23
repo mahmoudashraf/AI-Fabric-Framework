@@ -641,6 +641,7 @@ public class PlatformManagedProductAdminService {
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
             entity.isArticlesEnabled(),
+            entity.isMetaobjectsEnabled(),
             credentials,
             sourcePreflight,
             syncDetail,
@@ -902,6 +903,9 @@ public class PlatformManagedProductAdminService {
             text(node, "syncCadence", null),
             node.path("poweredByBadgeRequired").asBoolean(false),
             node.path("chatFallbackEnabled").asBoolean(true),
+            node.path("requiresExplicitConfirmation").asBoolean(false),
+            node.path("auditTrailAvailable").asBoolean(false),
+            stringList(node.path("actionPackages")),
             stringList(node.path("allowedSurfaces")),
             parseBillingPlans(node.path("availablePlans")),
             text(node, "message", null)
@@ -969,6 +973,9 @@ public class PlatformManagedProductAdminService {
             text(node, "syncCadence", null),
             node.path("poweredByBadgeRequired").asBoolean(false),
             node.path("chatFallbackEnabled").asBoolean(true),
+            node.path("requiresExplicitConfirmation").asBoolean(false),
+            node.path("auditTrailAvailable").asBoolean(false),
+            stringList(node.path("actionPackages")),
             stringList(node.path("allowedSurfaces")),
             parseBillingPlans(node.path("availablePlans")),
             text(node, "message", "Managed product service did not return store billing diagnostics.")
@@ -998,6 +1005,9 @@ public class PlatformManagedProductAdminService {
                 text(item, "syncCadence", null),
                 item.path("poweredByBadgeRequired").asBoolean(false),
                 item.path("chatFallbackEnabled").asBoolean(true),
+                item.path("requiresExplicitConfirmation").asBoolean(false),
+                item.path("auditTrailAvailable").asBoolean(false),
+                stringList(item.path("actionPackages")),
                 stringList(item.path("allowedSurfaces")),
                 text(item, "message", null)
             ));

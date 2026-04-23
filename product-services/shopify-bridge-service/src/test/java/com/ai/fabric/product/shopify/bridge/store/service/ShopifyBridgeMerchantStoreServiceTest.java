@@ -258,6 +258,9 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "DAILY",
             true,
             false,
+            false,
+            false,
+            List.of(),
             List.of("ai-search"),
             List.of(),
             "Companion launch is available."
@@ -307,6 +310,9 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "TWO_HOURS",
             false,
             true,
+            false,
+            true,
+            List.of(),
             List.of("ai-search", "contextual-pill"),
             List.of(),
             "Shopify billing setup is incomplete for this bridge environment."
@@ -352,6 +358,9 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "DAILY",
             true,
             false,
+            false,
+            false,
+            List.of(),
             List.of("ai-search"),
             List.of(
                 new ShopifyBridgeBillingPlanSummary(
@@ -368,6 +377,9 @@ class ShopifyBridgeMerchantStoreServiceTest {
                     "TWO_HOURS",
                     false,
                     true,
+                    false,
+                    true,
+                    List.of(),
                     List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
                     "Available for merchant approval through Shopify billing."
                 )

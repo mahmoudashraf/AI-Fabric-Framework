@@ -91,6 +91,7 @@ Required evidence:
 - shopper query path executes successfully
 - launch and App Review readiness summary is visible in the merchant app
 - store intelligence health is visible in the merchant app
+- tier ladder and governance posture are visible in the merchant app
 - uninstall verification passes on a disposable store mapping
 
 ## 7. Merchant-Facing UI Expectations
@@ -104,6 +105,7 @@ The embedded app should visibly expose:
 - storefront preview
 - launch and App Review readiness summary
 - store intelligence health
+- tier ladder and governance posture summary
 - support bundle
 
 The embedded app should not expose:

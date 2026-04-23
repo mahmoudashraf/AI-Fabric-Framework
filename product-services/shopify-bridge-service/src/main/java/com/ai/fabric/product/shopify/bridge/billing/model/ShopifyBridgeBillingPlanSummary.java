@@ -16,6 +16,9 @@ public record ShopifyBridgeBillingPlanSummary(
     String syncCadence,
     boolean poweredByBadgeRequired,
     boolean chatFallbackEnabled,
+    boolean requiresExplicitConfirmation,
+    boolean auditTrailAvailable,
+    List<String> actionPackages,
     List<String> allowedSurfaces,
     String message
 ) {

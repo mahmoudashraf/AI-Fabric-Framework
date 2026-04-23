@@ -500,6 +500,9 @@ export type PlatformManagedProductServiceBillingSummary = {
   syncCadence: string | null
   poweredByBadgeRequired: boolean
   chatFallbackEnabled: boolean
+  requiresExplicitConfirmation: boolean
+  auditTrailAvailable: boolean
+  actionPackages: string[]
   allowedSurfaces: string[]
   availablePlans: Array<{
     tierKey: string | null
@@ -515,6 +518,9 @@ export type PlatformManagedProductServiceBillingSummary = {
     syncCadence: string | null
     poweredByBadgeRequired: boolean
     chatFallbackEnabled: boolean
+    requiresExplicitConfirmation: boolean
+    auditTrailAvailable: boolean
+    actionPackages: string[]
     allowedSurfaces: string[]
     message: string | null
   }>
