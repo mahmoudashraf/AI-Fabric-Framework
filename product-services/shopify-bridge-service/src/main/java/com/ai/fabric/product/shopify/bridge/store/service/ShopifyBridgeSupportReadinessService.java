@@ -13,7 +13,6 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
-import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.server.ResponseStatusException;
@@ -29,8 +28,10 @@ import java.util.Set;
 @Service
 public class ShopifyBridgeSupportReadinessService {
 
+    private static final String APP_SCOPES_UPDATE_TOPIC = "APP_SCOPES_UPDATE";
+
     private static final String SUPPORT_STATE_QUERY = """
-        query ShopifyBridgeSupportState {
+        query ShopifyBridgeSupportState($topics: [WebhookSubscriptionTopic!]) {
           currentAppInstallation {
             accessScopes {
               handle
@@ -41,14 +42,19 @@ public class ShopifyBridgeSupportReadinessService {
               status
             }
           }
-        }
-        """;
-
-    private static final String SHOP_CONTACT_QUERY = """
-        query ShopifyBridgeShopContact {
           shop {
             contactEmail
             email
+          }
+          webhookSubscriptions(first: 50, topics: $topics) {
+            edges {
+              node {
+                id
+                topic
+                uri
+                name
+              }
+            }
           }
         }
         """;
@@ -57,7 +63,6 @@ public class ShopifyBridgeSupportReadinessService {
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyBridgeBillingService billingService;
-    private final ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final ShopifyBridgeProperties properties;
 
@@ -65,14 +70,12 @@ public class ShopifyBridgeSupportReadinessService {
                                                 ShopifyBridgeInstallCredentialService installCredentialService,
                                                 ShopifyInstallRecordService installRecordService,
                                                 ShopifyBridgeBillingService billingService,
-                                                ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService,
                                                 ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
                                                 ShopifyBridgeProperties properties) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
         this.installRecordService = installRecordService;
         this.billingService = billingService;
-        this.webhookSubscriptionDiagnosticsService = webhookSubscriptionDiagnosticsService;
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.properties = properties;
     }
@@ -83,13 +86,11 @@ public class ShopifyBridgeSupportReadinessService {
         String accessToken = acquisition == null ? null : acquisition.tokenExchangeMaterial().accessToken();
         SupportState supportState = resolveSupportState(shopDomain, accessToken, installRecord);
         SupportBillingState billingState = resolveSupportBillingState(supportState);
-        ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain, accessToken);
+        ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain, supportState);
         boolean installRecoveryRequired = installRecoveryRequired(installRecord);
         boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_orders");
         boolean allOrdersScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_all_orders");
-        boolean scopesWebhookReady = "READY".equalsIgnoreCase(
-            webhookSubscriptionDiagnosticsService.topicForShop(shopDomain, "APP_SCOPES_UPDATE").status()
-        );
+        boolean scopesWebhookReady = supportState.appScopesUpdateWebhookReady();
         List<String> missingScopes = orderLookupScopeGranted ? List.of() : List.of("read_orders");
         boolean scopeGrantRequired = !installRecoveryRequired && !orderLookupScopeGranted;
         String scopeGrantUrl = scopeGrantRequired ? buildInstallUrl(shopDomain) : null;
@@ -181,29 +182,48 @@ public class ShopifyBridgeSupportReadinessService {
         if (accessToken == null || accessToken.isBlank()) {
             return new SupportState(
                 fallbackScopes(installRecord),
-                List.of()
+                List.of(),
+                null,
+                false
             );
         }
         try {
-            Map<String, Object> response = shopifyAdminGraphqlClient.execute(shopDomain, accessToken, SUPPORT_STATE_QUERY);
-            failOnGraphQlErrors(response, "Shopify support readiness lookup failed.");
-            Map<String, Object> data = requireMap(response.get("data"), "Shopify support readiness lookup returned no data.");
-            Map<String, Object> installation = requireMap(
-                data.get("currentAppInstallation"),
-                "Shopify support readiness lookup returned no currentAppInstallation payload."
+            Map<String, Object> response = shopifyAdminGraphqlClient.execute(
+                shopDomain,
+                accessToken,
+                SUPPORT_STATE_QUERY,
+                Map.of("topics", List.of(APP_SCOPES_UPDATE_TOPIC))
             );
+            List<String> messages = graphQlMessages(response);
+            boolean appScopesTopicBlocked = !messages.isEmpty() && messages.stream().allMatch(this::isInaccessibleTopicFailure);
+            if (!messages.isEmpty() && !appScopesTopicBlocked) {
+                throw new ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_GATEWAY,
+                    String.join(" ", messages)
+                );
+            }
+            Map<String, Object> data = response.get("data") instanceof Map<?, ?> dataMap
+                ? requireMap(dataMap, "Shopify support readiness lookup returned invalid data.")
+                : Map.of();
+            Map<String, Object> installation = data.get("currentAppInstallation") instanceof Map<?, ?> installationMap
+                ? requireMap(installationMap, "Shopify support readiness lookup returned invalid currentAppInstallation payload.")
+                : Map.of();
             List<String> grantedScopes = parseScopes(installation.get("accessScopes"));
             if (grantedScopes.isEmpty()) {
                 grantedScopes = fallbackScopes(installRecord);
             }
             return new SupportState(
                 grantedScopes,
-                parseActiveSubscriptions(installation.get("activeSubscriptions"))
+                parseActiveSubscriptions(installation.get("activeSubscriptions")),
+                resolveShopContactEmail(data),
+                !appScopesTopicBlocked && resolveAppScopesWebhookReady(data)
             );
         } catch (ResponseStatusException ex) {
             return new SupportState(
                 fallbackScopes(installRecord),
-                List.of()
+                List.of(),
+                null,
+                false
             );
         }
     }
@@ -290,7 +310,7 @@ public class ShopifyBridgeSupportReadinessService {
         return "UNINSTALLED".equalsIgnoreCase(installRecord == null ? null : installRecord.status());
     }
 
-    private ShopifyBridgeSupportProfileSummary getSupportProfile(String shopDomain, String accessToken) {
+    private ShopifyBridgeSupportProfileSummary getSupportProfile(String shopDomain, SupportState supportState) {
         ShopifyBridgeSupportProfileSummary summary;
         try {
             summary = platformShopifyStoreClient.getSupportProfile(shopDomain);
@@ -302,10 +322,17 @@ public class ShopifyBridgeSupportReadinessService {
         } catch (Exception ex) {
             summary = new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false);
         }
-        if (summary.merchantHandoffConfigured() || accessToken == null || accessToken.isBlank()) {
+        if (summary.merchantHandoffConfigured()) {
             return summary;
         }
-        return mergeSupportProfile(summary, resolveShopContactProfile(shopDomain, accessToken));
+        String shopContactEmail = optionalText(supportState.shopContactEmail());
+        if (shopContactEmail == null) {
+            return summary;
+        }
+        return mergeSupportProfile(
+            summary,
+            new ShopifyBridgeSupportProfileSummary(shopContactEmail, null, null, null, null, true)
+        );
     }
 
     private String buildInstallUrl(String shopDomain) {
@@ -319,10 +346,10 @@ public class ShopifyBridgeSupportReadinessService {
             .toUriString();
     }
 
-    private void failOnGraphQlErrors(Map<String, Object> response, String fallbackMessage) {
+    private List<String> graphQlMessages(Map<String, Object> response) {
         Object errors = response.get("errors");
         if (!(errors instanceof List<?> errorList) || errorList.isEmpty()) {
-            return;
+            return List.of();
         }
         List<String> messages = new ArrayList<>();
         for (Object error : errorList) {
@@ -334,10 +361,7 @@ public class ShopifyBridgeSupportReadinessService {
                 messages.add(message);
             }
         }
-        throw new ResponseStatusException(
-            org.springframework.http.HttpStatus.BAD_GATEWAY,
-            messages.isEmpty() ? fallbackMessage : String.join(" ", messages)
-        );
+        return List.copyOf(messages);
     }
 
     @SuppressWarnings("unchecked")
@@ -356,27 +380,63 @@ public class ShopifyBridgeSupportReadinessService {
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private ShopifyBridgeSupportProfileSummary resolveShopContactProfile(String shopDomain, String accessToken) {
-        try {
-            Map<String, Object> response = shopifyAdminGraphqlClient.execute(shopDomain, accessToken, SHOP_CONTACT_QUERY);
-            failOnGraphQlErrors(response, "Shopify shop contact lookup failed.");
-            Map<String, Object> data = requireMap(response.get("data"), "Shopify shop contact lookup returned no data.");
-            Map<String, Object> shop = requireMap(data.get("shop"), "Shopify shop contact lookup returned no shop payload.");
-            String contactEmail = optionalText(shop.get("contactEmail"));
-            if (contactEmail == null) {
-                contactEmail = optionalText(shop.get("email"));
-            }
-            return new ShopifyBridgeSupportProfileSummary(
-                contactEmail,
-                null,
-                null,
-                null,
-                null,
-                contactEmail != null
-            );
-        } catch (ResponseStatusException ex) {
-            return new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false);
+    private boolean resolveAppScopesWebhookReady(Map<String, Object> data) {
+        if (!(data.get("webhookSubscriptions") instanceof Map<?, ?> subscriptionsMap)) {
+            return false;
         }
+        Map<String, Object> subscriptions = requireMap(subscriptionsMap, "Shopify webhook subscription payload is invalid.");
+        Object edgesValue = subscriptions.get("edges");
+        if (!(edgesValue instanceof List<?> edges)) {
+            return false;
+        }
+        String expectedWebhookUri = expectedWebhookUri();
+        for (Object edgeValue : edges) {
+            if (!(edgeValue instanceof Map<?, ?> edgeMap)) {
+                continue;
+            }
+            Map<String, Object> edge = requireMap(edgeMap, "Shopify webhook subscription edge is invalid.");
+            if (!(edge.get("node") instanceof Map<?, ?> nodeMap)) {
+                continue;
+            }
+            Map<String, Object> node = requireMap(nodeMap, "Shopify webhook subscription node is invalid.");
+            String topic = optionalText(node.get("topic"));
+            if (!APP_SCOPES_UPDATE_TOPIC.equalsIgnoreCase(topic)) {
+                continue;
+            }
+            String uri = optionalText(node.get("uri"));
+            if (uri != null && uri.equalsIgnoreCase(expectedWebhookUri)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String resolveShopContactEmail(Map<String, Object> data) {
+        if (!(data.get("shop") instanceof Map<?, ?> shopMap)) {
+            return null;
+        }
+        Map<String, Object> shop = requireMap(shopMap, "Shopify shop contact payload is invalid.");
+        String contactEmail = optionalText(shop.get("contactEmail"));
+        if (contactEmail != null) {
+            return contactEmail;
+        }
+        return optionalText(shop.get("email"));
+    }
+
+    private boolean isInaccessibleTopicFailure(String message) {
+        return message != null && message.toLowerCase(Locale.ROOT)
+            .contains("topics argument cannot contain any topics to which you do not have access");
+    }
+
+    private String expectedWebhookUri() {
+        String baseUrl = properties.publicBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return null;
+        }
+        String normalizedBaseUrl = baseUrl.endsWith("/")
+            ? baseUrl.substring(0, baseUrl.length() - 1)
+            : baseUrl;
+        return normalizedBaseUrl + "/api/webhooks/shopify";
     }
 
     private ShopifyBridgeSupportProfileSummary mergeSupportProfile(ShopifyBridgeSupportProfileSummary persisted,
@@ -510,7 +570,9 @@ public class ShopifyBridgeSupportReadinessService {
 
     private record SupportState(
         List<String> grantedScopes,
-        List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions
+        List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions,
+        String shopContactEmail,
+        boolean appScopesUpdateWebhookReady
     ) {
         private List<String> activeSubscriptionNames() {
             return activeSubscriptions.stream()

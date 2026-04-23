@@ -13,8 +13,6 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecord
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
-import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
-import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -23,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -36,10 +35,8 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
-        ShopifyWebhookSubscriptionDiagnosticsService webhookDiagnosticsService = mock(ShopifyWebhookSubscriptionDiagnosticsService.class);
         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
 
-        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED"));
         when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
             "support@alpha.test",
             "https://alpha.test/contact",
@@ -51,8 +48,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(webhookDiagnosticsService.topicForShop("alpha.myshopify.com", "APP_SCOPES_UPDATE")).thenReturn(readyWebhookTopic());
-        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString())).thenReturn(Map.of(
+        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString(), anyMap())).thenReturn(Map.of(
             "data", Map.of(
                 "currentAppInstallation", Map.of(
                     "accessScopes", List.of(
@@ -61,6 +57,22 @@ class ShopifyBridgeSupportReadinessServiceTest {
                     ),
                     "activeSubscriptions", List.of(
                         Map.of("name", "Loom Companion Free", "status", "ACTIVE")
+                    )
+                ),
+                "shop", Map.of(
+                    "contactEmail", "merchant@alpha.test",
+                    "email", "owner@alpha.test"
+                ),
+                "webhookSubscriptions", Map.of(
+                    "edges", List.of(
+                        Map.of(
+                            "node", Map.of(
+                                "id", "gid://shopify/WebhookSubscription/1",
+                                "topic", "APP_SCOPES_UPDATE",
+                                "uri", "https://bridge.example/api/webhooks/shopify",
+                                "name", "loom-app-scopes-update"
+                            )
+                        )
                     )
                 )
             )
@@ -71,7 +83,6 @@ class ShopifyBridgeSupportReadinessServiceTest {
             installCredentialService,
             installRecordService,
             billingService,
-            webhookDiagnosticsService,
             shopifyAdminGraphqlClient,
             properties()
         );
@@ -97,10 +108,8 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
-        ShopifyWebhookSubscriptionDiagnosticsService webhookDiagnosticsService = mock(ShopifyWebhookSubscriptionDiagnosticsService.class);
         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
 
-        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED"));
         when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
             null,
             null,
@@ -112,13 +121,14 @@ class ShopifyBridgeSupportReadinessServiceTest {
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies")));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(webhookDiagnosticsService.topicForShop("alpha.myshopify.com", "APP_SCOPES_UPDATE")).thenReturn(readyWebhookTopic());
-        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString())).thenReturn(Map.of(
+        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString(), anyMap())).thenReturn(Map.of(
             "data", Map.of(
                 "currentAppInstallation", Map.of(
                     "accessScopes", List.of(Map.of("handle", "read_products")),
                     "activeSubscriptions", List.of()
-                )
+                ),
+                "shop", Map.of(),
+                "webhookSubscriptions", Map.of("edges", List.of())
             )
         ));
 
@@ -127,7 +137,6 @@ class ShopifyBridgeSupportReadinessServiceTest {
             installCredentialService,
             installRecordService,
             billingService,
-            webhookDiagnosticsService,
             shopifyAdminGraphqlClient,
             properties()
         );
@@ -149,10 +158,8 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
-        ShopifyWebhookSubscriptionDiagnosticsService webhookDiagnosticsService = mock(ShopifyWebhookSubscriptionDiagnosticsService.class);
         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
 
-        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED"));
         when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
             null,
             null,
@@ -164,39 +171,39 @@ class ShopifyBridgeSupportReadinessServiceTest {
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(webhookDiagnosticsService.topicForShop("alpha.myshopify.com", "APP_SCOPES_UPDATE")).thenReturn(readyWebhookTopic());
-        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString()))
-            .thenAnswer(invocation -> {
-                String query = invocation.getArgument(2, String.class);
-                if (query.contains("currentAppInstallation")) {
-                    return Map.of(
-                        "data", Map.of(
-                            "currentAppInstallation", Map.of(
-                                "accessScopes", List.of(
-                                    Map.of("handle", "read_products"),
-                                    Map.of("handle", "read_orders")
-                                ),
-                                "activeSubscriptions", List.of()
+        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString(), anyMap())).thenReturn(Map.of(
+            "data", Map.of(
+                "currentAppInstallation", Map.of(
+                    "accessScopes", List.of(
+                        Map.of("handle", "read_products"),
+                        Map.of("handle", "read_orders")
+                    ),
+                    "activeSubscriptions", List.of()
+                ),
+                "shop", Map.of(
+                    "contactEmail", "merchant@alpha.test",
+                    "email", "owner@alpha.test"
+                ),
+                "webhookSubscriptions", Map.of(
+                    "edges", List.of(
+                        Map.of(
+                            "node", Map.of(
+                                "id", "gid://shopify/WebhookSubscription/1",
+                                "topic", "APP_SCOPES_UPDATE",
+                                "uri", "https://bridge.example/api/webhooks/shopify",
+                                "name", "loom-app-scopes-update"
                             )
                         )
-                    );
-                }
-                return Map.of(
-                    "data", Map.of(
-                        "shop", Map.of(
-                            "contactEmail", "merchant@alpha.test",
-                            "email", "owner@alpha.test"
-                        )
                     )
-                );
-            });
+                )
+            )
+        ));
 
         ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
             platformClient,
             installCredentialService,
             installRecordService,
             billingService,
-            webhookDiagnosticsService,
             shopifyAdminGraphqlClient,
             properties()
         );
@@ -311,18 +318,6 @@ class ShopifyBridgeSupportReadinessServiceTest {
             List.of("ai-search", "order-lookup"),
             List.of(),
             "Billing ready."
-        );
-    }
-
-    private ShopifyWebhookSubscriptionTopicStatusSummary readyWebhookTopic() {
-        return new ShopifyWebhookSubscriptionTopicStatusSummary(
-            "APP_SCOPES_UPDATE",
-            "loom-app-scopes-update",
-            "READY",
-            "gid://shopify/WebhookSubscription/1",
-            "loom-app-scopes-update",
-            "https://bridge.example/api/webhooks/shopify",
-            "Ready"
         );
     }
 
