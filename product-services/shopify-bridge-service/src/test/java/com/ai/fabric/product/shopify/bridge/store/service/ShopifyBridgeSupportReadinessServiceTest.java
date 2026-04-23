@@ -144,6 +144,72 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.nextActions()).anyMatch(action -> action.contains("read_orders"));
     }
 
+    @Test
+    void derivesMerchantHandoffFromShopContactEmailWhenPlatformProfileIsBlank() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyWebhookSubscriptionDiagnosticsService webhookDiagnosticsService = mock(ShopifyWebhookSubscriptionDiagnosticsService.class);
+        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
+
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED"));
+        when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
+            null,
+            null,
+            null,
+            null,
+            null,
+            false
+        ));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
+        when(billingService.summarizeForShop("alpha.myshopify.com", "access-token")).thenReturn(billingSummary());
+        when(webhookDiagnosticsService.forShop("alpha.myshopify.com")).thenReturn(readyWebhookSummary());
+        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString()))
+            .thenAnswer(invocation -> {
+                String query = invocation.getArgument(2, String.class);
+                if (query.contains("currentAppInstallation")) {
+                    return Map.of(
+                        "data", Map.of(
+                            "currentAppInstallation", Map.of(
+                                "accessScopes", List.of(
+                                    Map.of("handle", "read_products"),
+                                    Map.of("handle", "read_orders")
+                                ),
+                                "activeSubscriptions", List.of()
+                            )
+                        )
+                    );
+                }
+                return Map.of(
+                    "data", Map.of(
+                        "shop", Map.of(
+                            "contactEmail", "merchant@alpha.test",
+                            "email", "owner@alpha.test"
+                        )
+                    )
+                );
+            });
+
+        ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
+            platformClient,
+            installCredentialService,
+            installRecordService,
+            billingService,
+            webhookDiagnosticsService,
+            shopifyAdminGraphqlClient,
+            properties()
+        );
+
+        var summary = service.summarizeForShop("alpha.myshopify.com");
+
+        assertThat(summary.status()).isEqualTo("READY");
+        assertThat(summary.merchantHandoffConfigured()).isTrue();
+        assertThat(summary.supportProfile().contactEmail()).isEqualTo("merchant@alpha.test");
+        assertThat(summary.merchantHandoffMessage()).contains("support email");
+    }
+
     private ShopifyBridgeStoreSummary store(String installStatus) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",

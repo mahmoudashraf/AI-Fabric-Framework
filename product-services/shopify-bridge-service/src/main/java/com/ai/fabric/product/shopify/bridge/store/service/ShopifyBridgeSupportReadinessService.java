@@ -47,6 +47,15 @@ public class ShopifyBridgeSupportReadinessService {
         }
         """;
 
+    private static final String SHOP_CONTACT_QUERY = """
+        query ShopifyBridgeShopContact {
+          shop {
+            contactEmail
+            email
+          }
+        }
+        """;
+
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyInstallRecordService installRecordService;
@@ -81,7 +90,7 @@ public class ShopifyBridgeSupportReadinessService {
             ? null
             : webhookSubscriptionDiagnosticsService.forShop(shopDomain);
         SupportState supportState = resolveSupportState(shopDomain, accessToken, installRecord);
-        ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain);
+        ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain, accessToken);
         boolean installRecoveryRequired = installRecoveryRequired(installRecord, store);
         boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_orders");
         boolean allOrdersScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_all_orders");
@@ -279,15 +288,20 @@ public class ShopifyBridgeSupportReadinessService {
         }
     }
 
-    private ShopifyBridgeSupportProfileSummary getSupportProfile(String shopDomain) {
+    private ShopifyBridgeSupportProfileSummary getSupportProfile(String shopDomain, String accessToken) {
+        ShopifyBridgeSupportProfileSummary summary;
         try {
-            ShopifyBridgeSupportProfileSummary summary = platformShopifyStoreClient.getSupportProfile(shopDomain);
-            return summary == null
+            summary = platformShopifyStoreClient.getSupportProfile(shopDomain);
+            summary = summary == null
                 ? new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false)
                 : summary;
         } catch (HttpClientErrorException.NotFound ex) {
-            return new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false);
+            summary = new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false);
         }
+        if (summary.merchantHandoffConfigured() || accessToken == null || accessToken.isBlank()) {
+            return summary;
+        }
+        return mergeSupportProfile(summary, resolveShopContactProfile(shopDomain, accessToken));
     }
 
     private String buildInstallUrl(String shopDomain) {
@@ -336,6 +350,52 @@ public class ShopifyBridgeSupportReadinessService {
         }
         String normalized = value.toString().trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private ShopifyBridgeSupportProfileSummary resolveShopContactProfile(String shopDomain, String accessToken) {
+        try {
+            Map<String, Object> response = shopifyAdminGraphqlClient.execute(shopDomain, accessToken, SHOP_CONTACT_QUERY);
+            failOnGraphQlErrors(response, "Shopify shop contact lookup failed.");
+            Map<String, Object> data = requireMap(response.get("data"), "Shopify shop contact lookup returned no data.");
+            Map<String, Object> shop = requireMap(data.get("shop"), "Shopify shop contact lookup returned no shop payload.");
+            String contactEmail = optionalText(shop.get("contactEmail"));
+            if (contactEmail == null) {
+                contactEmail = optionalText(shop.get("email"));
+            }
+            return new ShopifyBridgeSupportProfileSummary(
+                contactEmail,
+                null,
+                null,
+                null,
+                null,
+                contactEmail != null
+            );
+        } catch (ResponseStatusException ex) {
+            return new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false);
+        }
+    }
+
+    private ShopifyBridgeSupportProfileSummary mergeSupportProfile(ShopifyBridgeSupportProfileSummary persisted,
+                                                                  ShopifyBridgeSupportProfileSummary fallback) {
+        String contactEmail = optionalText(persisted.contactEmail());
+        if (contactEmail == null) {
+            contactEmail = optionalText(fallback.contactEmail());
+        }
+        String contactUrl = optionalText(persisted.contactUrl());
+        String helpCenterUrl = optionalText(persisted.helpCenterUrl());
+        String orderLookupPageUrl = optionalText(persisted.orderLookupPageUrl());
+        String supportPolicyNote = optionalText(persisted.supportPolicyNote());
+        boolean merchantHandoffConfigured = contactEmail != null
+            || contactUrl != null
+            || helpCenterUrl != null;
+        return new ShopifyBridgeSupportProfileSummary(
+            contactEmail,
+            contactUrl,
+            helpCenterUrl,
+            orderLookupPageUrl,
+            supportPolicyNote,
+            merchantHandoffConfigured
+        );
     }
 
     private String normalizeShopDomain(String shopDomain) {
