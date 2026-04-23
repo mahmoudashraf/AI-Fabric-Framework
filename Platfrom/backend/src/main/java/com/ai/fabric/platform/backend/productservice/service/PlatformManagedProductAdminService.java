@@ -53,6 +53,7 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerReposito
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -99,23 +100,26 @@ public class PlatformManagedProductAdminService {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    public PlatformManagedProductAdminService(PlatformManagedProductServiceService serviceService,
-                                              PlatformManagedProductServiceRepository serviceRepository,
-                                              ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
-                                              PlatformCustomerRepository platformCustomerRepository,
-                                              DeploymentRepository deploymentRepository,
-                                              DeploymentVersionRepository deploymentVersionRepository,
-                                              DeploymentReleaseRepository deploymentReleaseRepository,
-                                              PlatformConsumerRepository platformConsumerRepository,
-                                              PlatformSecretService platformSecretService,
-                                              PlatformManagedProductProvisioningService provisioningService,
-                                              PlatformAuditService platformAuditService,
-                                              RailwayGraphqlClient railwayGraphqlClient,
-                                              PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient,
-                                              ShopifyStoreConnectionService shopifyStoreConnectionService,
-                                              ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
-                                              ShopifyStoreReadinessEvaluator readinessEvaluator,
-                                              ObjectMapper objectMapper) {
+    @Autowired
+    public PlatformManagedProductAdminService(
+        PlatformManagedProductServiceService serviceService,
+        PlatformManagedProductServiceRepository serviceRepository,
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+        PlatformCustomerRepository platformCustomerRepository,
+        DeploymentRepository deploymentRepository,
+        DeploymentVersionRepository deploymentVersionRepository,
+        DeploymentReleaseRepository deploymentReleaseRepository,
+        PlatformConsumerRepository platformConsumerRepository,
+        PlatformSecretService platformSecretService,
+        PlatformManagedProductProvisioningService provisioningService,
+        PlatformAuditService platformAuditService,
+        RailwayGraphqlClient railwayGraphqlClient,
+        PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient,
+        ShopifyStoreConnectionService shopifyStoreConnectionService,
+        ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+        ShopifyStoreReadinessEvaluator readinessEvaluator,
+        ObjectMapper objectMapper
+    ) {
         this.serviceService = serviceService;
         this.serviceRepository = serviceRepository;
         this.shopifyStoreConnectionRepository = shopifyStoreConnectionRepository;
