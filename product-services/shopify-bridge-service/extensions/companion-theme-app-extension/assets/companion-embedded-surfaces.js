@@ -1,46 +1,68 @@
 (function () {
   var REGISTRY_KEY = '__loomCompanionEmbeddedSurfaces'
-  var ROOT_ID = 'loom-companion-embedded-surfaces'
+  var ROOT_ID_PREFIX = 'loom-companion-embedded-surfaces'
   var CACHE_PREFIX = 'loom-companion-surface-cache:'
   var CACHE_TTL_MS = 5 * 60 * 1000
 
   function render(options) {
-    teardown()
-    if (!options || !options.payload) {
+    if (!options || !options.payload || !options.root) {
       return
     }
+    teardown(options.root)
     var enabledSurfaces = normalizeEnabledSurfaces(options.payload.enabledSurfaces)
     if (enabledSurfaces.length === 0) {
+      return
+    }
+    var surfaceScope = normalizeSurfaceScope(options.surfaceScope)
+    if (surfaceScope !== 'all' && enabledSurfaces.indexOf(surfaceScope) < 0) {
       return
     }
 
     var pageType = normalizePageType(options.storefrontContext)
     var shellModeProfile = normalizeShellModeProfile(options.payload.shellModeProfile)
     var queryCoordinator = createSurfaceQueryCoordinator(options, shellModeProfile)
+    var mountMode = normalizeMountMode(options.mountMode)
+    var mountTarget = resolveMountTarget(options.root, mountMode)
+    if (!mountTarget) {
+      return
+    }
     var host = document.createElement('div')
-    host.id = ROOT_ID
-    host.className = 'loom-companion-surfaces'
+    host.id = ROOT_ID_PREFIX + '-' + ensureRootKey(options.root)
+    host.dataset.loomCompanionSurfaceHost = ensureRootKey(options.root)
+    host.className = mountMode === 'inline'
+      ? 'loom-companion-surfaces loom-companion-surfaces--inline'
+      : 'loom-companion-surfaces'
 
-    if (enabledSurfaces.indexOf('ai-search') >= 0) {
+    if ((surfaceScope === 'all' || surfaceScope === 'ai-search') && enabledSurfaces.indexOf('ai-search') >= 0) {
       host.appendChild(renderSearchDock(options, shellModeProfile, queryCoordinator))
     }
 
-    if (pageType === 'product') {
+    if (surfaceScope === 'product-insight' && pageType === 'product') {
+      host.appendChild(renderStandaloneInsightCard(options, shellModeProfile, queryCoordinator))
+    } else if (surfaceScope === 'policy-strip' && pageType === 'product') {
+      host.appendChild(renderStandalonePolicyCard(options, shellModeProfile, queryCoordinator))
+    } else if (pageType === 'product' && surfaceScope === 'all') {
       host.appendChild(renderProductInsightCluster(options, enabledSurfaces, shellModeProfile, queryCoordinator))
       if (enabledSurfaces.indexOf('contextual-pill') >= 0) {
         host.appendChild(renderContextualPillBar(options, shellModeProfile, queryCoordinator))
       }
-    } else if (pageType === 'collection' && enabledSurfaces.indexOf('contextual-pill') >= 0) {
+    } else if (pageType === 'collection' && surfaceScope === 'all' && enabledSurfaces.indexOf('contextual-pill') >= 0) {
       host.appendChild(renderCollectionPillBar(options, shellModeProfile, queryCoordinator))
     }
 
     if (host.childNodes.length > 0) {
-      document.body.appendChild(host)
+      if (mountMode === 'inline') {
+        options.root.textContent = ''
+      }
+      mountTarget.appendChild(host)
     }
   }
 
-  function teardown() {
-    var existing = document.getElementById(ROOT_ID)
+  function teardown(root) {
+    if (!root) {
+      return
+    }
+    var existing = document.getElementById(ROOT_ID_PREFIX + '-' + ensureRootKey(root))
     if (existing) {
       existing.remove()
     }
@@ -394,6 +416,70 @@
     }
 
     return cluster
+  }
+
+  function renderStandaloneInsightCard(options, shellModeProfile, _queryCoordinator) {
+    var card = document.createElement('article')
+    card.className = 'loom-companion-surface-card loom-companion-surface-card--insight'
+
+    var eyebrow = document.createElement('div')
+    eyebrow.className = 'loom-companion-surface-eyebrow'
+    eyebrow.textContent = shellModeProfile === 'GUIDED_SUPPORT' ? 'Shopping help' : 'Product insight'
+    card.appendChild(eyebrow)
+
+    var title = document.createElement('h3')
+    title.className = 'loom-companion-surface-title'
+    title.textContent = insightTitle(options.storefrontContext)
+    card.appendChild(title)
+
+    var body = document.createElement('div')
+    body.className = 'loom-companion-surface-copy'
+    body.textContent = 'Loading companion insight…'
+    card.appendChild(body)
+
+    void resolveSurfaceSummary(
+      options,
+      'product-insight',
+      insightPrompt(options.storefrontContext, shellModeProfile),
+      defaultInsightMode(shellModeProfile),
+      shellModeProfile
+    ).then(function (message) {
+      body.textContent = truncateText(message || 'Companion insight is not available yet.', 260)
+    })
+
+    return card
+  }
+
+  function renderStandalonePolicyCard(options, shellModeProfile, _queryCoordinator) {
+    var card = document.createElement('article')
+    card.className = 'loom-companion-surface-card loom-companion-surface-card--policy'
+
+    var eyebrow = document.createElement('div')
+    eyebrow.className = 'loom-companion-surface-eyebrow'
+    eyebrow.textContent = shellModeProfile === 'GUIDED_SUPPORT' ? 'Policy help' : 'Policy strip'
+    card.appendChild(eyebrow)
+
+    var title = document.createElement('h3')
+    title.className = 'loom-companion-surface-title'
+    title.textContent = policyTitle(options.storefrontContext)
+    card.appendChild(title)
+
+    var body = document.createElement('div')
+    body.className = 'loom-companion-surface-copy'
+    body.textContent = 'Loading shipping and return guidance…'
+    card.appendChild(body)
+
+    void resolveSurfaceSummary(
+      options,
+      'policy-strip',
+      policyPrompt(options.storefrontContext, shellModeProfile),
+      defaultInsightMode(shellModeProfile),
+      shellModeProfile
+    ).then(function (message) {
+      body.textContent = truncateText(message || 'Policy details are not available yet.', 220)
+    })
+
+    return card
   }
 
   function renderContextualPillBar(options, shellModeProfile, queryCoordinator) {
@@ -1006,6 +1092,11 @@
     return productTitle ? productTitle + ' at a glance' : 'Companion product insight'
   }
 
+  function policyTitle(storefrontContext) {
+    var productTitle = productTitleForContext(storefrontContext)
+    return productTitle ? productTitle + ' shipping and returns' : 'Companion policy guidance'
+  }
+
   function productTitleForContext(storefrontContext) {
     return storefrontContext && storefrontContext.product && storefrontContext.product.title
       ? String(storefrontContext.product.title)
@@ -1060,6 +1151,32 @@
 
   function trimValue(value) {
     return typeof value === 'string' && value.trim() ? value.trim() : ''
+  }
+
+  function normalizeSurfaceScope(value) {
+    var normalized = trimValue(value).toLowerCase()
+    if (!normalized) {
+      return 'all'
+    }
+    return normalized
+  }
+
+  function normalizeMountMode(value) {
+    return trimValue(value).toLowerCase() === 'inline' ? 'inline' : 'floating'
+  }
+
+  function ensureRootKey(root) {
+    if (!root.dataset.loomCompanionRootKey) {
+      root.dataset.loomCompanionRootKey = createSessionId()
+    }
+    return root.dataset.loomCompanionRootKey
+  }
+
+  function resolveMountTarget(root, mountMode) {
+    if (mountMode === 'inline') {
+      return root
+    }
+    return document.body
   }
 
   window[REGISTRY_KEY] = {

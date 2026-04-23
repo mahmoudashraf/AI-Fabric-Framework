@@ -896,6 +896,17 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_optional_equals "$(json_get "${merchant_billing_json}" "poweredByBadgeRequired")" "${effective_expected_powered_by_badge_required}" "merchant billing poweredByBadgeRequired"
   assert_optional_equals "$(json_get "${merchant_billing_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "merchant billing chatFallbackEnabled"
 
+  echo "== Merchant storefront preview =="
+  http_request GET "${bridge_base}/api/app/store/storefront-preview" "" "${merchant_headers[@]-}"
+  assert_equals "${HTTP_STATUS}" "200" "merchant storefront preview status"
+  merchant_preview_json="${HTTP_BODY}"
+  assert_nonempty "$(json_get "${merchant_preview_json}" "extensionHandle")" "merchant storefront preview extensionHandle"
+  assert_nonempty "$(json_get "${merchant_preview_json}" "surfacePlacements.0.blockHandle")" "merchant storefront preview surfacePlacements.0.blockHandle"
+  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.0.blockHandle")" "companion-ai-search" "merchant storefront preview AI search block handle"
+  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.1.blockHandle")" "companion-product-insight" "merchant storefront preview product insight block handle"
+  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.2.blockHandle")" "companion-policy-strip" "merchant storefront preview policy strip block handle"
+  assert_nonempty "$(json_get "${merchant_preview_json}" "surfacePlacements.0.themeEditorUrl")" "merchant storefront preview AI search themeEditorUrl"
+
   echo "== Merchant webhook diagnostics =="
   http_request GET "${bridge_base}/api/app/store/webhook-subscriptions" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant webhook diagnostics status"

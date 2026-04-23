@@ -27,6 +27,7 @@ import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscrip
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import com.ai.fabric.product.shopify.bridge.playground.service.ShopifyMerchantPlaygroundService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
+import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPlacementSummary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -188,6 +189,18 @@ class ShopifyMerchantControllerTest {
             "Ask the store assistant",
             "Store assistant is ready. Ask about products, policies, or collections.",
             "https://admin.shopify.com/store/alpha/themes/current/editor?context=apps&activateAppId=test-shopify-api-key/companion-app-embed",
+            List.of(
+                new ShopifyStorefrontPlacementSummary(
+                    "ai-search",
+                    "AI search block",
+                    "APP_BLOCK",
+                    "companion-ai-search",
+                    "index",
+                    "newAppsSection",
+                    "https://admin.shopify.com/store/alpha/themes/current/editor?template=index&addAppBlockId=test-shopify-api-key/companion-ai-search&target=newAppsSection",
+                    "Use this as the merchant-placeable Free-tier entry point on a homepage or landing template."
+                )
+            ),
             List.of("Enable the Companion launcher app embed."),
             List.of(),
             "Storefront theme app extension can be enabled now."
@@ -196,7 +209,8 @@ class ShopifyMerchantControllerTest {
         mockMvc.perform(get("/api/app/store/storefront-preview").header("Authorization", "Bearer " + token()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.ready").value(true))
-            .andExpect(jsonPath("$.bridgeBaseUrl").value("https://bridge.example.com"));
+            .andExpect(jsonPath("$.bridgeBaseUrl").value("https://bridge.example.com"))
+            .andExpect(jsonPath("$.surfacePlacements[0].blockHandle").value("companion-ai-search"));
 
         verify(merchantStoreService).storefrontPreview(any());
     }

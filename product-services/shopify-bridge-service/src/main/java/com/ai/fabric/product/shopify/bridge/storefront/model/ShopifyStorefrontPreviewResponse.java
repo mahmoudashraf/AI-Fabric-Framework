@@ -15,6 +15,7 @@ public record ShopifyStorefrontPreviewResponse(
     String launcherLabelDefault,
     String welcomeMessageDefault,
     String themeEditorActivationUrl,
+    List<ShopifyStorefrontPlacementSummary> surfacePlacements,
     List<String> activationSteps,
     List<String> blockingReasons,
     String message

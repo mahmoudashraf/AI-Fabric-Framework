@@ -53,6 +53,10 @@ class ShopifyStorefrontPreviewServiceTest {
         assertThat(preview.welcomeMessageDefault()).isEqualTo("Ask me about products and store policies.");
         assertThat(preview.themeEditorActivationUrl())
             .isEqualTo("https://admin.shopify.com/store/alpha/themes/current/editor?context=apps&activateAppId=shopify-api-key/companion-app-embed");
+        assertThat(preview.surfacePlacements()).hasSize(3);
+        assertThat(preview.surfacePlacements().get(0).blockHandle()).isEqualTo("companion-ai-search");
+        assertThat(preview.surfacePlacements().get(1).themeEditorUrl())
+            .contains("addAppBlockId=shopify-api-key/companion-product-insight");
         assertThat(preview.activationSteps()).isNotEmpty();
     }
 

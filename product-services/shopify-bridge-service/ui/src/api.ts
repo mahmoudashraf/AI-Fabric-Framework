@@ -166,6 +166,16 @@ export type ShopifyStorefrontPreviewResponse = {
   launcherLabelDefault: string
   welcomeMessageDefault: string
   themeEditorActivationUrl: string | null
+  surfacePlacements: Array<{
+    surfaceId: string
+    label: string
+    placementType: string
+    blockHandle: string
+    template: string
+    target: string
+    themeEditorUrl: string | null
+    guidance: string
+  }>
   activationSteps: string[]
   blockingReasons: string[]
   message: string

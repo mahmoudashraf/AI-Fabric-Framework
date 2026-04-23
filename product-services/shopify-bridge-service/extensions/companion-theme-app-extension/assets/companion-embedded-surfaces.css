@@ -6,6 +6,34 @@
   font-family: "Helvetica Neue", Arial, sans-serif;
 }
 
+.loom-companion-surfaces--inline {
+  position: static;
+  inset: auto;
+  pointer-events: auto;
+  z-index: auto;
+  display: block;
+  width: 100%;
+}
+
+.loom-companion-surfaces--inline .loom-companion-surface-card,
+.loom-companion-surfaces--inline .loom-companion-surface-stack,
+.loom-companion-surfaces--inline .loom-companion-contextual-pillbar {
+  position: static;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  width: 100%;
+  max-width: 100%;
+}
+
+.loom-companion-surfaces--inline .loom-companion-surface-stack {
+  pointer-events: auto;
+}
+
+.loom-companion-surfaces--inline .loom-companion-pill {
+  box-shadow: none;
+}
+
 .loom-companion-surface-card,
 .loom-companion-contextual-pillbar {
   pointer-events: auto;

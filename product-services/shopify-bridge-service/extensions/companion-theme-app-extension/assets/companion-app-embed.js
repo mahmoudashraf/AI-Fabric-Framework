@@ -1,73 +1,66 @@
 (function () {
   var LOOM_COMPANION_SHELLS_KEY = '__loomCompanionShells'
   var LOOM_COMPANION_SURFACES_KEY = '__loomCompanionEmbeddedSurfaces'
+  var bootstrapPayloadPromises = {}
   var shellLoadPromises = {}
   var surfaceLoadPromises = {}
   var stylesheetLoadPromises = {}
 
   function bootstrap() {
-    var root = document.getElementById('loom-companion-embed-root')
-    if (!root) {
+    var roots = document.querySelectorAll('[data-loom-companion-bootstrap="true"]')
+    if (!roots.length) {
       return
     }
+    Array.prototype.forEach.call(roots, function (root) {
+      var bridgeBaseUrl = trimValue(root.dataset.bridgeBaseUrl)
+      var shopDomain = trimValue(root.dataset.shopDomain)
+      var requestedWidgetShell = normalizeWidgetShell(root.dataset.widgetShell)
+      var maxModeShellScriptUrl = trimValue(root.dataset.maxModeShellScriptUrl)
+      var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
+      var embeddedSurfacesScriptUrl = trimValue(root.dataset.embeddedSurfacesScriptUrl)
+      var embeddedSurfacesStylesheetUrl = trimValue(root.dataset.embeddedSurfacesStylesheetUrl)
+      var effectiveWidgetShell = resolveEffectiveWidgetShell(
+        requestedWidgetShell,
+        maxModeShellScriptUrl,
+        maxModeScriptUrl
+      )
+      if (!bridgeBaseUrl || !shopDomain) {
+        root.dataset.status = 'configuration-required'
+        return
+      }
+      root.dataset.requestedWidgetShell = requestedWidgetShell
+      root.dataset.widgetShell = effectiveWidgetShell
 
-    var bridgeBaseUrl = trimValue(root.dataset.bridgeBaseUrl)
-    var shopDomain = trimValue(root.dataset.shopDomain)
-    var requestedWidgetShell = normalizeWidgetShell(root.dataset.widgetShell)
-    var maxModeShellScriptUrl = trimValue(root.dataset.maxModeShellScriptUrl)
-    var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
-    var embeddedSurfacesScriptUrl = trimValue(root.dataset.embeddedSurfacesScriptUrl)
-    var embeddedSurfacesStylesheetUrl = trimValue(root.dataset.embeddedSurfacesStylesheetUrl)
-    var effectiveWidgetShell = resolveEffectiveWidgetShell(
-      requestedWidgetShell,
-      maxModeShellScriptUrl,
-      maxModeScriptUrl
-    )
-    if (!bridgeBaseUrl || !shopDomain) {
-      root.dataset.status = 'configuration-required'
-      return
-    }
-    root.dataset.requestedWidgetShell = requestedWidgetShell
-    root.dataset.widgetShell = effectiveWidgetShell
-
-    resolveBootstrap(root, {
-      bridgeBaseUrl: bridgeBaseUrl,
-      shopDomain: shopDomain,
-      launcherLabel: trimValue(root.dataset.launcherLabel) || 'Ask the store assistant',
-      widgetShell: effectiveWidgetShell,
-      requestedWidgetShell: requestedWidgetShell,
-      legacyShellScriptUrl: trimValue(root.dataset.legacyShellScriptUrl),
-      maxModeShellScriptUrl: maxModeShellScriptUrl,
-      maxModeScriptUrl: maxModeScriptUrl,
-      embeddedSurfacesScriptUrl: embeddedSurfacesScriptUrl,
-      embeddedSurfacesStylesheetUrl: embeddedSurfacesStylesheetUrl,
-      storefrontContext: extractStorefrontContext(root),
+      resolveBootstrap(root, {
+        bridgeBaseUrl: bridgeBaseUrl,
+        shopDomain: shopDomain,
+        launcherLabel: trimValue(root.dataset.launcherLabel) || 'Ask the store assistant',
+        widgetShell: effectiveWidgetShell,
+        requestedWidgetShell: requestedWidgetShell,
+        legacyShellScriptUrl: trimValue(root.dataset.legacyShellScriptUrl),
+        maxModeShellScriptUrl: maxModeShellScriptUrl,
+        maxModeScriptUrl: maxModeScriptUrl,
+        embeddedSurfacesScriptUrl: embeddedSurfacesScriptUrl,
+        embeddedSurfacesStylesheetUrl: embeddedSurfacesStylesheetUrl,
+        storefrontContext: extractStorefrontContext(root),
+        shellEnabled: root.dataset.shellEnabled !== 'false',
+        surfaceMount: trimValue(root.dataset.surfaceMount) || 'floating',
+        surfaceScope: trimValue(root.dataset.surfaceScope) || 'all',
+      })
     })
   }
 
   function resolveBootstrap(root, config) {
     root.dataset.status = 'loading'
     root.textContent = ''
-    fetch(joinUrl(config.bridgeBaseUrl, '/api/storefront/shops/' + encodeURIComponent(config.shopDomain) + '/bootstrap'), {
-      headers: {
-        Accept: 'application/json',
-      },
-    })
-      .then(function (response) {
-        if (!response.ok) {
-          return response.text().then(function (message) {
-            throw new Error(message || 'Widget bootstrap failed with HTTP ' + response.status)
-          })
-        }
-        return response.json()
-      })
+    loadBootstrapPayload(config)
       .then(function (payload) {
         if (!payload || !payload.available) {
           root.dataset.status = 'unavailable'
           root.textContent = payload && payload.message ? payload.message : 'Store assistant is not ready yet.'
           return
         }
-        if (payload.chatFallbackEnabled === false) {
+        if (payload.chatFallbackEnabled === false || !config.shellEnabled) {
           teardownActiveShell(root)
           teardownEmbeddedSurfaces(root)
           root.dataset.status = 'ready'
@@ -120,6 +113,28 @@
         root.dataset.status = 'failed'
         root.textContent = error && error.message ? error.message : 'Store assistant bootstrap failed.'
       })
+  }
+
+  function loadBootstrapPayload(config) {
+    var key = [config.bridgeBaseUrl, config.shopDomain].join('|')
+    if (!bootstrapPayloadPromises[key]) {
+      bootstrapPayloadPromises[key] = fetch(
+        joinUrl(config.bridgeBaseUrl, '/api/storefront/shops/' + encodeURIComponent(config.shopDomain) + '/bootstrap'),
+        {
+          headers: {
+            Accept: 'application/json',
+          },
+        }
+      ).then(function (response) {
+        if (!response.ok) {
+          return response.text().then(function (message) {
+            throw new Error(message || 'Widget bootstrap failed with HTTP ' + response.status)
+          })
+        }
+        return response.json()
+      })
+    }
+    return bootstrapPayloadPromises[key]
   }
 
   function loadShellRenderer(widgetShell, config) {
@@ -192,6 +207,8 @@
           bridgeBaseUrl: config.bridgeBaseUrl,
           payload: payload,
           storefrontContext: config.storefrontContext,
+          mountMode: config.surfaceMount,
+          surfaceScope: config.surfaceScope,
         })
       )
     }
@@ -210,6 +227,8 @@
         bridgeBaseUrl: config.bridgeBaseUrl,
         payload: payload,
         storefrontContext: config.storefrontContext,
+        mountMode: config.surfaceMount,
+        surfaceScope: config.surfaceScope,
       })
     })
   }

@@ -64,14 +64,14 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 
 | Strategy expectation | Current code reality | Gap |
 |---|---|---|
-| Multiple embedded intelligence surfaces | Theme app extension still ships one app-embed block, but that block now loads an embedded-surfaces layer with AI search, contextual pill, product insight, policy strip, FAQ entry points, and comparison entry points. | Better than the earlier launcher-only posture, but still missing true merchant-placeable multi-block theme surfaces. |
+| Multiple embedded intelligence surfaces | Theme app extension now ships the launcher app embed plus merchant-placeable `AI search`, `Product insight`, and `Policy strip` app blocks. The embed continues to load the broader embedded-surfaces layer with contextual pill, FAQ entry points, and comparison entry points. | Real progress toward the embedded-intelligence product shape, but still missing a fuller block inventory and mature per-surface merchandising. |
 | Embedded intelligence product shape | Storefront no longer loads only a launcher shell. The app embed now layers embedded intelligence surfaces on top of the shell, and AI search can now operate as a direct bridge-backed surface even with chat fallback disabled. | Product identity is improving, but the delivery model still depends on a fixed app-embed host rather than a mature theme-surface system. |
 | Max Mode storefront convergence | The Shopify embed loader already supports `legacy` and `max-mode`, and there is already a Shopify-specific Max Mode wrapper. | This is a real convergence track, but it is only partially complete and should not be treated as a standalone product milestone. |
 | Real shell conversation modes | Shopify now persists `shellModeProfile`, exposes it in bootstrap/admin surfaces, and forwards it into bridge/runtime request context. | This is now a bounded mode-profile system, but not yet full multi-mode runtime semantics like true `assistant` / `deep` Shopify modes. |
 | Richer Shopify data coverage | No code-backed evidence yet for blogs/articles, metaobjects, metafields, or review-provider ingestion. | Wave 1 data-expansion work still missing beyond current catalog/content/policy coverage. |
 | Read-first action breadth from strategy docs | Current read action bundle already includes `compare_products` and `find_similar_products` alongside the baseline catalog/policy actions. | The remaining gap is richer generated rendering, size/fit guidance, and surface-specific product UX rather than total action absence. |
 | Tiered commercial model | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, and product caps. | The remaining gap is merchant-facing packaging, storefront/theme-editor gating legibility, and fully aligned commercial rollout. |
-| Free-tier distribution wedge | Pricing strategy says Free is AI search only. | AI search is now real in the app embed, but the remaining gap is turning it into a more merchant-placeable theme surface and proving the commercial/App Store story cleanly. |
+| Free-tier distribution wedge | Pricing strategy says Free is AI search only. | AI search is now real in both the app embed and a merchant-placeable theme block. The remaining gap is proving the commercial/App Store story cleanly. |
 | Elite posture | Pricing strategy says Elite is read+write with governance. | No Shopify Elite plan implementation exists yet. |
 
 ### 2.3 What this means
@@ -158,8 +158,6 @@ These are the missing elements that must be completed before we can claim the fu
 Missing:
 
 - contextual pill
-- product insight block
-- contextual policy strip
 - product FAQ block
 - comparison surface
 - clean host contract between Shopify theme extension and shared Max Mode shell
@@ -169,6 +167,9 @@ Missing:
 Already materially real:
 
 - AI search is now a real app-embed surface with direct bridge-backed query/suggestions handling even when `chatFallbackEnabled=false`
+- AI search is now also a merchant-placeable Shopify app block
+- product insight is now available as a merchant-placeable Shopify product-page block
+- policy strip is now available as a merchant-placeable Shopify product-page block
 
 Important rule:
 

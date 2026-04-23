@@ -731,6 +731,7 @@ export default function App() {
   )
   const billingAllowedSurfaces =
     billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const storefrontSurfacePlacements = storefrontPreview?.surfacePlacements ?? []
   const billingPaidPlanOptions =
     billingSummary?.availablePlans?.filter((plan) => plan.tierKey !== 'FREE' && !plan.active) ?? []
   const webhookSubscriptions = state.webhookSubscriptions
@@ -1305,19 +1306,20 @@ export default function App() {
                       </Text>
                       <List type="bullet">
                         <List.Item>Extension handle: {storefrontPreview.extensionHandle}</List.Item>
-                      <List.Item>Bridge base URL: {storefrontPreview.bridgeBaseUrl ?? 'Not configured'}</List.Item>
-                      <List.Item>Launcher label: {storefrontPreview.launcherLabelDefault}</List.Item>
-                      <List.Item>Welcome message: {storefrontPreview.welcomeMessageDefault}</List.Item>
-                      <List.Item>Shell profile: {store?.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION'}</List.Item>
-                      <List.Item>
-                        Embedded surfaces:{' '}
-                        {(store?.widgetDetail?.settings?.enabledSurfaces?.length
-                          ? store.widgetDetail.settings.enabledSurfaces
-                          : DEFAULT_WIDGET_SURFACES
-                        ).join(', ')}
-                      </List.Item>
-                      <List.Item>Storefront base URL: {storefrontPreview.storefrontBaseUrl ?? '—'}</List.Item>
-                    </List>
+                        <List.Item>Bridge base URL: {storefrontPreview.bridgeBaseUrl ?? 'Not configured'}</List.Item>
+                        <List.Item>Launcher label: {storefrontPreview.launcherLabelDefault}</List.Item>
+                        <List.Item>Welcome message: {storefrontPreview.welcomeMessageDefault}</List.Item>
+                        <List.Item>Shell profile: {store?.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION'}</List.Item>
+                        <List.Item>
+                          Embedded surfaces:{' '}
+                          {(store?.widgetDetail?.settings?.enabledSurfaces?.length
+                            ? store.widgetDetail.settings.enabledSurfaces
+                            : DEFAULT_WIDGET_SURFACES
+                          ).join(', ')}
+                        </List.Item>
+                        <List.Item>Storefront base URL: {storefrontPreview.storefrontBaseUrl ?? '—'}</List.Item>
+                        <List.Item>Merchant-placeable blocks: {storefrontSurfacePlacements.length}</List.Item>
+                      </List>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Activation steps
                       </Text>
@@ -1334,6 +1336,51 @@ export default function App() {
                             ))}
                           </List>
                         </Banner>
+                      ) : null}
+                      {storefrontSurfacePlacements.length ? (
+                        <BlockStack gap="200">
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            Suggested theme block placements
+                          </Text>
+                          {storefrontSurfacePlacements.map((placement) => {
+                            const tierAllowed = billingAllowedSurfaces.includes(placement.surfaceId)
+                            const widgetEnabled = widgetSettings.enabledSurfaces.includes(placement.surfaceId)
+                            return (
+                              <Card key={placement.blockHandle}>
+                                <BlockStack gap="150">
+                                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                                    <Text as="h3" variant="headingSm">
+                                      {placement.label}
+                                    </Text>
+                                    <InlineStack gap="150">
+                                      <Badge tone={tierAllowed ? 'success' : 'attention'}>
+                                        {tierAllowed ? 'Tier allowed' : 'Requires higher tier'}
+                                      </Badge>
+                                      <Badge tone={widgetEnabled ? 'success' : 'attention'}>
+                                        {widgetEnabled ? 'Enabled in widget settings' : 'Disabled in widget settings'}
+                                      </Badge>
+                                    </InlineStack>
+                                  </InlineStack>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {placement.guidance}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {placement.template} template · {placement.target} · {placement.blockHandle}
+                                  </Text>
+                                  <InlineStack gap="200">
+                                    <Button
+                                      url={placement.themeEditorUrl ?? undefined}
+                                      target="_blank"
+                                      disabled={!placement.themeEditorUrl || !tierAllowed}
+                                    >
+                                      Open placement in theme editor
+                                    </Button>
+                                  </InlineStack>
+                                </BlockStack>
+                              </Card>
+                            )
+                          })}
+                        </BlockStack>
                       ) : null}
                       {storefrontPreview.themeEditorActivationUrl || storefrontPreview.storefrontBaseUrl ? (
                         <InlineStack gap="200">
@@ -1565,6 +1612,28 @@ export default function App() {
                       />
                     ))}
                   </BlockStack>
+                  {storefrontSurfacePlacements.length ? (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Placement guidance
+                      </Text>
+                      {storefrontSurfacePlacements.map((placement) => {
+                        const tierAllowed = billingAllowedSurfaces.includes(placement.surfaceId)
+                        const widgetEnabled = widgetSettings.enabledSurfaces.includes(placement.surfaceId)
+                        return (
+                          <Text
+                            key={placement.blockHandle}
+                            as="p"
+                            variant="bodySm"
+                            tone={tierAllowed && widgetEnabled ? 'subdued' : 'critical'}
+                          >
+                            {placement.label} · {tierAllowed ? 'tier ready' : 'upgrade required'} ·{' '}
+                            {widgetEnabled ? 'enabled' : 'disabled'} · {placement.template}/{placement.target}
+                          </Text>
+                        )
+                      })}
+                    </BlockStack>
+                  ) : null}
                   <InlineStack gap="200">
                     <Button
                       onClick={() => void handleWidgetSettingsSave()}
@@ -2141,6 +2210,7 @@ function buildSupportBundle(
             storefrontBaseUrl: storefrontPreview.storefrontBaseUrl,
             bridgeBaseUrl: storefrontPreview.bridgeBaseUrl,
             themeEditorActivationUrl: storefrontPreview.themeEditorActivationUrl,
+            surfacePlacements: storefrontPreview.surfacePlacements,
             activationSteps: storefrontPreview.activationSteps,
             blockingReasons: storefrontPreview.blockingReasons,
           }
