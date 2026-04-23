@@ -310,6 +310,7 @@ class ShopifyStoreGoLiveServiceTest {
             true,
             true,
             false,
+            false,
             null,
             null,
             null,
