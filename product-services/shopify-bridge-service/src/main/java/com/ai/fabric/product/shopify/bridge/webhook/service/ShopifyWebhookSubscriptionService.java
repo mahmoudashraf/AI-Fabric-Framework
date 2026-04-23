@@ -72,9 +72,9 @@ public class ShopifyWebhookSubscriptionService {
         new DesiredWebhookSubscription("COLLECTIONS_CREATE", "loom-collections-create"),
         new DesiredWebhookSubscription("COLLECTIONS_UPDATE", "loom-collections-update"),
         new DesiredWebhookSubscription("COLLECTIONS_DELETE", "loom-collections-delete"),
-        new DesiredWebhookSubscription("ARTICLES_CREATE", "loom-articles-create"),
-        new DesiredWebhookSubscription("ARTICLES_UPDATE", "loom-articles-update"),
-        new DesiredWebhookSubscription("ARTICLES_DELETE", "loom-articles-delete"),
+        new DesiredWebhookSubscription("METAOBJECTS_CREATE", "loom-metaobjects-create"),
+        new DesiredWebhookSubscription("METAOBJECTS_UPDATE", "loom-metaobjects-update"),
+        new DesiredWebhookSubscription("METAOBJECTS_DELETE", "loom-metaobjects-delete"),
         new DesiredWebhookSubscription("SHOP_UPDATE", "loom-shop-update")
     );
 

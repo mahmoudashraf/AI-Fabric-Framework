@@ -24,6 +24,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayDeploymentSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreUsageSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportSubscriptionSummary;
@@ -40,6 +41,7 @@ import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntit
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCapabilitySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreReadinessEvaluator;
@@ -127,7 +129,7 @@ public class PlatformManagedProductAdminService {
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
-        this.objectMapper = objectMapper;
+        this.objectMapper = objectMapper.copy().findAndRegisterModules();
         this.httpClient = HttpClient.newBuilder().connectTimeout(HTTP_TIMEOUT).build();
     }
 
@@ -447,37 +449,15 @@ public class PlatformManagedProductAdminService {
     }
 
     public PlatformManagedProductServiceWebhookSubscriptionSummary getStoreWebhookSubscriptions(String serviceRef, String shopDomain) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        if (!hasText(service.getBaseUrl())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
-        }
-        if (!hasText(service.getSecretName())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
-        }
-        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
-            .orElseThrow(() -> new ResponseStatusException(
-                CONFLICT,
-                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
-            ));
-
-        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
-        if (!hasText(apiKey)) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
-        }
-
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/webhook-subscriptions")))
-                .timeout(HTTP_TIMEOUT)
-                .header("Accept", "application/json")
-                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
-                .GET()
-                .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(CONFLICT, "Managed product webhook subscription request failed with HTTP " + response.statusCode() + ".");
-            }
-            return parseWebhookSubscriptionSummary(objectMapper.readTree(response.body()));
+            return parseWebhookSubscriptionSummary(
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/webhook-subscriptions",
+                    "Managed product webhook subscription request failed."
+                )
+            );
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -486,37 +466,16 @@ public class PlatformManagedProductAdminService {
     }
 
     public PlatformManagedProductServiceStoreBillingSummary getStoreBillingSummary(String serviceRef, String shopDomain) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        if (!hasText(service.getBaseUrl())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
-        }
-        if (!hasText(service.getSecretName())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
-        }
-        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
-            .orElseThrow(() -> new ResponseStatusException(
-                CONFLICT,
-                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
-            ));
-
-        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
-        if (!hasText(apiKey)) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
-        }
-
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/billing-summary")))
-                .timeout(HTTP_TIMEOUT)
-                .header("Accept", "application/json")
-                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
-                .GET()
-                .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(CONFLICT, "Managed product billing summary request failed with HTTP " + response.statusCode() + ".");
-            }
-            return parseStoreBillingSummary(shopDomain, objectMapper.readTree(response.body()));
+            return parseStoreBillingSummary(
+                shopDomain,
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/billing-summary",
+                    "Managed product billing summary request failed."
+                )
+            );
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -524,42 +483,57 @@ public class PlatformManagedProductAdminService {
         }
     }
 
-    public PlatformManagedProductServiceStoreSupportReadinessSummary getStoreSupportReadiness(String serviceRef, String shopDomain) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        if (!hasText(service.getBaseUrl())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
-        }
-        if (!hasText(service.getSecretName())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
-        }
-        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
-            .orElseThrow(() -> new ResponseStatusException(
-                CONFLICT,
-                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
-            ));
-
-        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
-        if (!hasText(apiKey)) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
-        }
-
+    public PlatformManagedProductServiceStoreUsageSummary getStoreUsageSummary(String serviceRef, String shopDomain) {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/support-readiness")))
-                .timeout(HTTP_TIMEOUT)
-                .header("Accept", "application/json")
-                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
-                .GET()
-                .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(CONFLICT, "Managed product support readiness request failed with HTTP " + response.statusCode() + ".");
-            }
-            return parseStoreSupportReadiness(shopDomain, objectMapper.readTree(response.body()));
+            return objectMapper.treeToValue(
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/usage-summary",
+                    "Managed product usage summary request failed."
+                ),
+                PlatformManagedProductServiceStoreUsageSummary.class
+            );
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product usage summary request failed."), ex);
+        }
+    }
+
+    public PlatformManagedProductServiceStoreSupportReadinessSummary getStoreSupportReadiness(String serviceRef, String shopDomain) {
+        try {
+            return parseStoreSupportReadiness(
+                shopDomain,
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/support-readiness",
+                    "Managed product support readiness request failed."
+                )
+            );
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
             throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product support readiness request failed."), ex);
+        }
+    }
+
+    public ShopifyStoreVectorizationSummary getStoreVectorizationSummary(String serviceRef, String shopDomain) {
+        try {
+            return objectMapper.treeToValue(
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/vectorization",
+                    "Managed product vectorization request failed."
+                ),
+                ShopifyStoreVectorizationSummary.class
+            );
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product vectorization request failed."), ex);
         }
     }
 
@@ -615,6 +589,60 @@ public class PlatformManagedProductAdminService {
         } catch (Exception ex) {
             throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product source preflight request failed."), ex);
         }
+    }
+
+    private JsonNode fetchStoreAdminPayload(String serviceRef,
+                                            String shopDomain,
+                                            String endpointSuffix,
+                                            String failureMessage) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        requireStoreAdminBridgeConfiguration(serviceRef, service);
+        requireMappedStore(serviceRef, service, shopDomain);
+        String apiKey = requireStoreAdminApiKey(service);
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + endpointSuffix)))
+                .timeout(HTTP_TIMEOUT)
+                .header("Accept", "application/json")
+                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .GET()
+                .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ResponseStatusException(CONFLICT, failureMessage + " HTTP " + response.statusCode() + ".");
+            }
+            return objectMapper.readTree(response.body());
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), failureMessage), ex);
+        }
+    }
+
+    private void requireStoreAdminBridgeConfiguration(String serviceRef, PlatformManagedProductServiceEntity service) {
+        if (!hasText(service.getBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
+        }
+        if (!hasText(service.getSecretName())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
+        }
+    }
+
+    private void requireMappedStore(String serviceRef, PlatformManagedProductServiceEntity service, String shopDomain) {
+        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+            ));
+    }
+
+    private String requireStoreAdminApiKey(PlatformManagedProductServiceEntity service) {
+        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
+        if (!hasText(apiKey)) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
+        }
+        return apiKey;
     }
 
     @Transactional
