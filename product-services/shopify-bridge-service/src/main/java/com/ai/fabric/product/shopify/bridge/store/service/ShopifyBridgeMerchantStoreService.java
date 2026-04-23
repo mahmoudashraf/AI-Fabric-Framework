@@ -18,6 +18,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSes
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSupportProfileRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
@@ -231,6 +232,16 @@ public class ShopifyBridgeMerchantStoreService {
     }
 
     public ShopifyBridgeSupportReadinessSummary supportReadiness(ShopifyMerchantSession merchantSession) {
+        return supportReadinessService.summarizeForShop(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgeSupportReadinessSummary updateSupportProfile(ShopifyMerchantSession merchantSession,
+                                                                    ShopifyBridgeUpdateSupportProfileRequest request) {
+        platformShopifyStoreClient.updateSupportProfile(
+            merchantSession.shopDomain(),
+            request == null ? new ShopifyBridgeUpdateSupportProfileRequest(null, null, null, null, null) : request
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SUPPORT_PROFILE_UPDATED");
         return supportReadinessService.summarizeForShop(merchantSession.shopDomain());
     }
 

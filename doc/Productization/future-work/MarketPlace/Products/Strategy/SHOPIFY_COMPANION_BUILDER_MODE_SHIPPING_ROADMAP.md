@@ -500,6 +500,8 @@ Progress note:
 - support/lifecycle/subscription packaging is now materially stronger through live-generated App Review and support playbooks plus bounded return/handoff guidance
 - lifecycle and subscription posture are now exportable directly from live install, billing, webhook, sync, and release state in the merchant app
 - customer-safe order lookup is now implemented as a bridge-governed, read-only support surface with exact order number plus checkout email verification, scope/webhook readiness checks, and merchant/platform support-readiness diagnostics
+- merchant support handoff is now configurable as a first-class store profile and is surfaced through support readiness, launch/support exports, and lifecycle next actions
+- active support subscriptions now surface as structured live subscription objects instead of name-only hints
 - the remaining Milestone 7 gap is live rollout completion and broader support integration repetition, not missing support/lifecycle/subscription primitives or missing order-lookup implementation
 
 This milestone aligns with the existing AI enablement expansion plan.

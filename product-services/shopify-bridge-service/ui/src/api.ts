@@ -125,6 +125,7 @@ export type ShopifyBridgeSupportReadinessSummary = {
   shopDomain: string
   status: string
   message: string
+  lifecycleStage: string
   orderLookupSupported: boolean
   orderLookupScopeGranted: boolean
   allOrdersScopeGranted: boolean
@@ -137,6 +138,24 @@ export type ShopifyBridgeSupportReadinessSummary = {
   grantedScopes: string[]
   missingScopes: string[]
   activeSubscriptionNames: string[]
+  activeSubscriptions: Array<{
+    subscriptionId: string | null
+    name: string | null
+    status: string
+    tierKey: string
+    active: boolean
+  }>
+  supportProfile: {
+    contactEmail: string | null
+    contactUrl: string | null
+    helpCenterUrl: string | null
+    orderLookupPageUrl: string | null
+    supportPolicyNote: string | null
+    merchantHandoffConfigured: boolean
+  } | null
+  merchantHandoffConfigured: boolean
+  merchantHandoffMessage: string | null
+  nextActions: string[]
   verificationMethods: string[]
   supportedCapabilities: string[]
   blockedCapabilities: string[]
@@ -625,6 +644,22 @@ export async function updateWidgetSettings(settings: {
   enabledSurfaces: string[]
 }): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/widget-settings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(settings),
+  })
+}
+
+export async function updateSupportProfile(settings: {
+  contactEmail: string
+  contactUrl: string
+  helpCenterUrl: string
+  orderLookupPageUrl: string
+  supportPolicyNote: string
+}): Promise<ShopifyBridgeSupportReadinessSummary> {
+  return authenticatedFetchJson('/api/app/store/support-profile', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

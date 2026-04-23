@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightCategorySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCredentialSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSyncSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWebhookSummary;
@@ -179,6 +180,34 @@ public class ShopifyStoreSourcePreflightSupport {
             );
         } catch (Exception ex) {
             return null;
+        }
+    }
+
+    public ShopifyStoreSupportProfileSummary summarizeSupportProfile(String detailsJson) {
+        if (!hasText(detailsJson)) {
+            return new ShopifyStoreSupportProfileSummary(null, null, null, null, null, false);
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode supportProfile = root.path("supportProfile");
+            if (!supportProfile.isObject()) {
+                return new ShopifyStoreSupportProfileSummary(null, null, null, null, null, false);
+            }
+            String contactEmail = text(supportProfile, "contactEmail");
+            String contactUrl = text(supportProfile, "contactUrl");
+            String helpCenterUrl = text(supportProfile, "helpCenterUrl");
+            String orderLookupPageUrl = text(supportProfile, "orderLookupPageUrl");
+            String supportPolicyNote = text(supportProfile, "supportPolicyNote");
+            return new ShopifyStoreSupportProfileSummary(
+                contactEmail,
+                contactUrl,
+                helpCenterUrl,
+                orderLookupPageUrl,
+                supportPolicyNote,
+                hasText(contactEmail) || hasText(contactUrl) || hasText(helpCenterUrl)
+            );
+        } catch (Exception ex) {
+            return new ShopifyStoreSupportProfileSummary(null, null, null, null, null, false);
         }
     }
 

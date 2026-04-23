@@ -160,24 +160,38 @@ Do not use them as if they are a full sales or revenue reporting system.
 
 ## 7) Support And Return Boundaries
 
-Shopify Companion can explain published policy posture.
+Shopify Companion can now run customer-safe order lookup when the store is ready.
 
-It cannot currently:
+That means:
 
-- look up a specific order safely
-- inspect shipping or order status
+- the store has Shopify `read_orders` scope
+- the app-scopes webhook is healthy
+- the order lookup block is placed on a support or contact page
+- a merchant support handoff channel is configured
+
+Companion can then:
+
+- verify a recent order with exact order number plus checkout email
+- read bounded order status and tracking posture
+- keep the lookup read-only inside the bridge
+
+It still cannot:
+
 - approve or execute a refund
 - cancel an order
-- process a return against a real order record
+- edit an order
+- change an address
+- expose payment details
+- act as a full support desk
 
 Safe rule:
 
-- use Companion for general policy-grounded guidance
-- hand off any order-specific return, refund, tracking, or cancellation question to the merchant support channel
+- use Companion for policy-grounded support and read-only order verification
+- hand off any refund, cancellation, address-change, or account-specific case to the merchant support channel configured in the support handoff profile
 
 Recommended handoff language:
 
-`I can explain the store’s published policy, but I cannot inspect or change your specific order. Please continue with the merchant support channel for order-specific help.`
+`I can verify your order status with your order number and checkout email, but refunds, changes, and account-specific help still go through the merchant support team.`
 
 ---
 
@@ -197,6 +211,7 @@ If something looks wrong:
 - export the support bundle first
 - review the support runbook
 - review the lifecycle and subscription packet
+- review the support lifecycle stage and next actions in the merchant app
 - escalate with those artifacts instead of guessing
 
 ---
@@ -206,7 +221,6 @@ If something looks wrong:
 Do not promise:
 
 - autonomous checkout
-- order lookup
 - refund or cancellation execution
 - universal review-provider support
 - full support-desk automation
@@ -215,4 +229,5 @@ The honest current product story is:
 
 - embedded storefront intelligence
 - grounded discovery and policy guidance
+- read-only verified order lookup when the store posture is green
 - bounded merchant launch, review, and support tooling

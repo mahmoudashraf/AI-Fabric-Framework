@@ -42,6 +42,7 @@ import {
   suggestMerchantPlayground,
   syncNowStore,
   updateSourceSettings,
+  updateSupportProfile,
   updateVectorizationPolicyStore,
   updateWidgetSettings,
   vectorizeNowStore,
@@ -224,6 +225,14 @@ export default function App() {
     enabledSurfaces: DEFAULT_WIDGET_SURFACES,
   })
   const [busyWidgetSettings, setBusyWidgetSettings] = useState(false)
+  const [supportProfileSettings, setSupportProfileSettings] = useState({
+    contactEmail: '',
+    contactUrl: '',
+    helpCenterUrl: '',
+    orderLookupPageUrl: '',
+    supportPolicyNote: '',
+  })
+  const [busySupportProfile, setBusySupportProfile] = useState(false)
   const [playgroundConversationId, setPlaygroundConversationId] = useState<string | null>(null)
   const [playgroundMessages, setPlaygroundMessages] = useState<PlaygroundMessage[]>([
     {
@@ -352,6 +361,13 @@ export default function App() {
             session.store.widgetDetail?.settings?.enabledSurfaces?.length
               ? [...session.store.widgetDetail.settings.enabledSurfaces]
               : [...DEFAULT_WIDGET_SURFACES],
+        })
+        setSupportProfileSettings({
+          contactEmail: session.supportReadiness?.supportProfile?.contactEmail ?? '',
+          contactUrl: session.supportReadiness?.supportProfile?.contactUrl ?? '',
+          helpCenterUrl: session.supportReadiness?.supportProfile?.helpCenterUrl ?? '',
+          orderLookupPageUrl: session.supportReadiness?.supportProfile?.orderLookupPageUrl ?? '',
+          supportPolicyNote: session.supportReadiness?.supportProfile?.supportPolicyNote ?? '',
         })
       }
     } catch (error) {
@@ -663,6 +679,28 @@ export default function App() {
     }
   }
 
+  async function handleSupportProfileSave() {
+    setBusySupportProfile(true)
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const readiness = await updateSupportProfile(supportProfileSettings)
+      setState((current) => ({
+        ...current,
+        session: current.session ? { ...current.session, supportReadiness: readiness } : current.session,
+      }))
+      setActionMessage(
+        readiness.merchantHandoffConfigured
+          ? 'Updated the merchant support handoff profile and refreshed support readiness.'
+          : 'Saved the merchant support profile. Companion still needs a merchant handoff channel before launch.'
+      )
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to update the merchant support profile.')
+    } finally {
+      setBusySupportProfile(false)
+    }
+  }
+
   async function handlePlaygroundSend(content: string) {
     const query = content.trim()
     if (!query || playgroundLoading || !store) {
@@ -921,6 +959,12 @@ export default function App() {
       (store.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION') !== widgetSettings.shellModeProfile ||
       JSON.stringify(store.widgetDetail?.settings?.enabledSurfaces ?? DEFAULT_WIDGET_SURFACES) !==
         JSON.stringify(widgetSettings.enabledSurfaces))
+  const supportProfileDirty =
+    (supportReadiness?.supportProfile?.contactEmail ?? '') !== supportProfileSettings.contactEmail ||
+    (supportReadiness?.supportProfile?.contactUrl ?? '') !== supportProfileSettings.contactUrl ||
+    (supportReadiness?.supportProfile?.helpCenterUrl ?? '') !== supportProfileSettings.helpCenterUrl ||
+    (supportReadiness?.supportProfile?.orderLookupPageUrl ?? '') !== supportProfileSettings.orderLookupPageUrl ||
+    (supportReadiness?.supportProfile?.supportPolicyNote ?? '') !== supportProfileSettings.supportPolicyNote
 
   useEffect(() => {
     if (!store) {
@@ -2546,6 +2590,86 @@ export default function App() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
+                    Support handoff profile
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Configure the real merchant handoff path used when Companion reaches the read-only boundary for refunds, edits, account changes, or unsupported order cases.
+                  </Text>
+                  <Text as="p" variant="bodySm" tone={supportReadiness?.merchantHandoffConfigured ? 'success' : 'critical'}>
+                    {supportReadiness?.merchantHandoffMessage ??
+                      'No merchant support handoff has been configured yet.'}
+                  </Text>
+                  {supportReadiness?.nextActions?.length ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Next actions: {supportReadiness.nextActions.join(' | ')}
+                    </Text>
+                  ) : null}
+                  <TextField
+                    label="Support email"
+                    autoComplete="off"
+                    value={supportProfileSettings.contactEmail}
+                    onChange={(value) => setSupportProfileSettings((current) => ({ ...current, contactEmail: value }))}
+                    helpText="Used for merchant handoff when Companion cannot resolve the request inside the governed read-only boundary."
+                  />
+                  <TextField
+                    label="Contact URL"
+                    autoComplete="off"
+                    value={supportProfileSettings.contactUrl}
+                    onChange={(value) => setSupportProfileSettings((current) => ({ ...current, contactUrl: value }))}
+                    helpText="Use a full URL or a storefront-relative path like /pages/contact."
+                  />
+                  <TextField
+                    label="Help center URL"
+                    autoComplete="off"
+                    value={supportProfileSettings.helpCenterUrl}
+                    onChange={(value) => setSupportProfileSettings((current) => ({ ...current, helpCenterUrl: value }))}
+                  />
+                  <TextField
+                    label="Order lookup page URL"
+                    autoComplete="off"
+                    value={supportProfileSettings.orderLookupPageUrl}
+                    onChange={(value) => setSupportProfileSettings((current) => ({ ...current, orderLookupPageUrl: value }))}
+                    helpText="Set the support or contact page where the governed order lookup block lives."
+                  />
+                  <TextField
+                    label="Support policy note"
+                    autoComplete="off"
+                    multiline={4}
+                    value={supportProfileSettings.supportPolicyNote}
+                    maxLength={600}
+                    onChange={(value) => setSupportProfileSettings((current) => ({ ...current, supportPolicyNote: value }))}
+                    helpText="This note feeds the support packet and keeps merchant handoff language aligned with the live store posture."
+                  />
+                  {supportReadiness?.activeSubscriptions?.length ? (
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Active subscriptions
+                      </Text>
+                      {supportReadiness.activeSubscriptions.map((subscription) => (
+                        <Text key={subscription.subscriptionId ?? `${subscription.name}-${subscription.status}`} as="p" variant="bodySm" tone="subdued">
+                          {(subscription.name ?? 'Unnamed subscription')} · {subscription.status} · {subscription.tierKey}
+                          {subscription.active ? ' · active' : ''}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                  ) : null}
+                  <InlineStack gap="200">
+                    <Button
+                      onClick={() => void handleSupportProfileSave()}
+                      loading={busySupportProfile}
+                      disabled={!session || installRecoveryRequired || !supportProfileDirty}
+                    >
+                      Save support profile
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
                     Merchant playground
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
@@ -3029,6 +3153,34 @@ function formatTimestamp(value: string | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString()
 }
 
+function formatSupportChannels(supportReadiness: ShopifyBridgeMerchantSessionResponse['supportReadiness'] | null): string {
+  const supportProfile = supportReadiness?.supportProfile
+  if (!supportProfile) {
+    return 'No merchant handoff configured'
+  }
+  const values = [
+    supportProfile.contactEmail ? `email ${supportProfile.contactEmail}` : null,
+    supportProfile.contactUrl ? `contact ${supportProfile.contactUrl}` : null,
+    supportProfile.helpCenterUrl ? `help ${supportProfile.helpCenterUrl}` : null,
+    supportProfile.orderLookupPageUrl ? `order lookup ${supportProfile.orderLookupPageUrl}` : null,
+  ].filter(Boolean)
+  return values.length ? values.join(' · ') : 'No merchant handoff configured'
+}
+
+function formatSupportSubscriptions(supportReadiness: ShopifyBridgeMerchantSessionResponse['supportReadiness'] | null): string {
+  const subscriptions = supportReadiness?.activeSubscriptions ?? []
+  if (!subscriptions.length) {
+    return 'None detected'
+  }
+  return subscriptions
+    .map((subscription) =>
+      [(subscription.name ?? 'Unnamed subscription'), subscription.status, subscription.tierKey, subscription.active ? 'active' : null]
+        .filter(Boolean)
+        .join(' · ')
+    )
+    .join(' | ')
+}
+
 function buildSupportBundle(
   shell: ShopifyBridgeShellResponse | null,
   session: ShopifyBridgeMerchantSessionResponse | null,
@@ -3166,6 +3318,13 @@ function buildSupportBundle(
           : policyGroundingAvailable
             ? 'Use published policy grounding for general return and refund guidance, but hand off order-specific decisions, tracking, cancellations, and account changes to the merchant support channel.'
             : 'Do not answer return, refund, tracking, or order-status questions as if the assistant has order access. Hand off those cases to the merchant support channel.',
+        lifecycleStage: supportReadiness?.lifecycleStage ?? 'UNKNOWN',
+        merchantHandoffConfigured: Boolean(supportReadiness?.merchantHandoffConfigured),
+        merchantHandoffMessage: supportReadiness?.merchantHandoffMessage ?? null,
+        merchantHandoffChannels: formatSupportChannels(supportReadiness),
+        merchantSupportProfile: supportReadiness?.supportProfile ?? null,
+        nextActions: supportReadiness?.nextActions ?? [],
+        activeSubscriptions: supportReadiness?.activeSubscriptions ?? [],
       },
       reviewPackage: {
         appReviewGuideAvailable: true,
@@ -3867,10 +4026,15 @@ function buildLaunchDossier(
     '',
     '## Support and order lookup posture',
     `- Customer-safe order lookup: ${supportReadiness?.orderLookupSupported ? 'yes' : 'no'}`,
+    `- Support lifecycle stage: ${supportReadiness?.lifecycleStage ?? 'UNKNOWN'}`,
     `- Granted scopes: ${supportReadiness?.grantedScopes?.join(' · ') || 'None detected'}`,
     `- App scopes webhook ready: ${supportReadiness?.appScopesUpdateWebhookReady ? 'yes' : 'no'}`,
     `- Older-order coverage: ${supportReadiness?.allOrdersScopeGranted ? 'recent and historical order access available' : 'recent orders only until broader Shopify order access is granted'}`,
-    `- Active support subscriptions: ${supportReadiness?.activeSubscriptionNames?.join(' · ') || 'None detected'}`,
+    `- Active support subscriptions: ${formatSupportSubscriptions(supportReadiness)}`,
+    `- Merchant handoff configured: ${supportReadiness?.merchantHandoffConfigured ? 'yes' : 'no'}`,
+    `- Merchant handoff channels: ${formatSupportChannels(supportReadiness)}`,
+    `- Merchant handoff note: ${supportReadiness?.supportProfile?.supportPolicyNote ?? supportReadiness?.merchantHandoffMessage ?? 'Not configured'}`,
+    `- Next support actions: ${supportReadiness?.nextActions?.join(' | ') || 'None'}`,
     '',
     '## Merchant signal',
     `- Last 7 days total events: ${usageSummary?.totalLast7Days ?? 0}`,
@@ -4275,6 +4439,8 @@ function buildSupportRunbook(
     '## Current live posture',
     ...lifecycleSignals.map((line) => `- ${line}`),
     `- Support readiness: ${supportReadiness?.status ?? 'UNKNOWN'}${supportReadiness?.message ? ` · ${supportReadiness.message}` : ''}`,
+    `- Support lifecycle stage: ${supportReadiness?.lifecycleStage ?? 'UNKNOWN'}`,
+    `- Merchant handoff channels: ${formatSupportChannels(supportReadiness)}`,
     `- Active shopper surfaces: ${activeSurfaceLabels.join(' · ') || 'AI search only'}`,
     `- Review-aware provider signals: ${reviewProviders.join(' · ') || 'None detected'}`,
     `- Last webhook: ${store?.webhookDetail?.topic ?? '—'} (${formatTimestamp(store?.webhookDetail?.receivedAt)})`,
@@ -4307,9 +4473,13 @@ function buildSupportRunbook(
     supportReadiness?.orderLookupSupported
       ? '- Use a support handoff like: “I can verify your order status with your order number and checkout email, but refunds, changes, and account-specific help still go through the merchant support team.”'
       : '- Use a support handoff like: “I can explain the store’s published policy, but I cannot inspect or change your order. Please continue with the merchant support channel for order-specific help.”',
+    `- Current merchant handoff note: ${supportReadiness?.supportProfile?.supportPolicyNote ?? supportReadiness?.merchantHandoffMessage ?? 'Not configured'}`,
     '',
     '## Triage order',
     ...goLiveChecklist.items.map((item, index) => `${index + 1}. ${item.label}: ${item.status}. ${item.detail}`),
+    '',
+    '## Next support actions',
+    ...(supportReadiness?.nextActions?.length ? supportReadiness.nextActions.map((item) => `- ${item}`) : ['- None recorded']),
     '',
     '## Merchant signal to review before escalation',
     `- ROI posture: ${usageSummary?.roiSummary ? `${formatRoiStatus(usageSummary.roiSummary.status)} (${formatRoiSummary(usageSummary.roiSummary)})` : 'No ROI signal yet'}`,
@@ -4368,6 +4538,7 @@ function buildLifecycleSubscriptionPacket(
     `- Storefront ready: ${store?.readiness?.storefrontReady ? 'yes' : 'no'}`,
     `- Live updates healthy: ${vectorizationSummary?.automation?.autoIndexingHealthy === false ? 'no' : 'yes'}`,
     `- Support readiness: ${supportReadiness?.status ?? 'UNKNOWN'}${supportReadiness?.message ? ` · ${supportReadiness.message}` : ''}`,
+    `- Lifecycle stage: ${supportReadiness?.lifecycleStage ?? 'UNKNOWN'}`,
     '',
     '## Subscription posture',
     `- Billing mode: ${billingSummary?.mode ?? 'UNKNOWN'}`,
@@ -4379,6 +4550,7 @@ function buildLifecycleSubscriptionPacket(
     `- Subscription webhook: ${subscriptionWebhook?.status ?? 'UNKNOWN'}${subscriptionWebhook?.message ? ` · ${subscriptionWebhook.message}` : ''}`,
     `- App scopes webhook: ${scopesWebhook?.status ?? 'UNKNOWN'}${scopesWebhook?.message ? ` · ${scopesWebhook.message}` : ''}`,
     `- Available plans: ${availablePlans.join(' | ') || 'None detected'}`,
+    `- Active subscriptions: ${formatSupportSubscriptions(supportReadiness)}`,
     '',
     '## Support and order scope posture',
     `- Order lookup supported: ${supportReadiness?.orderLookupSupported ? 'yes' : 'no'}`,
@@ -4386,7 +4558,11 @@ function buildLifecycleSubscriptionPacket(
     `- Historical order scope granted: ${supportReadiness?.allOrdersScopeGranted ? 'yes' : 'no'}`,
     `- Granted scopes: ${supportReadiness?.grantedScopes?.join(' · ') || 'None detected'}`,
     `- Missing scopes: ${supportReadiness?.missingScopes?.join(' · ') || 'None'}`,
-    `- Active support subscriptions: ${supportReadiness?.activeSubscriptionNames?.join(' · ') || 'None detected'}`,
+    `- Merchant handoff configured: ${supportReadiness?.merchantHandoffConfigured ? 'yes' : 'no'}`,
+    `- Merchant handoff channels: ${formatSupportChannels(supportReadiness)}`,
+    `- Merchant handoff note: ${supportReadiness?.supportProfile?.supportPolicyNote ?? supportReadiness?.merchantHandoffMessage ?? 'Not configured'}`,
+    `- Active support subscriptions: ${formatSupportSubscriptions(supportReadiness)}`,
+    `- Next actions: ${supportReadiness?.nextActions?.join(' | ') || 'None'}`,
     '',
     '## Operator notes',
     billingSummary?.launchBlocked

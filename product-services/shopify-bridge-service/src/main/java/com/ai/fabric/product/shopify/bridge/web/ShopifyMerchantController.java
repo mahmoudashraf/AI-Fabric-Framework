@@ -16,6 +16,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVector
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSupportProfileRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import com.ai.fabric.product.shopify.bridge.playground.service.ShopifyMerchantPlaygroundService;
@@ -165,6 +166,15 @@ public class ShopifyMerchantController {
     @GetMapping("/store/support-readiness")
     public ShopifyBridgeSupportReadinessSummary supportReadiness(Authentication authentication) {
         return merchantStoreService.supportReadiness(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/support-profile")
+    public ShopifyBridgeSupportReadinessSummary updateSupportProfile(Authentication authentication,
+                                                                    @RequestBody(required = false) ShopifyBridgeUpdateSupportProfileRequest request) {
+        return merchantStoreService.updateSupportProfile(
+            requireMerchant(authentication),
+            request == null ? new ShopifyBridgeUpdateSupportProfileRequest(null, null, null, null, null) : request
+        );
     }
 
     @GetMapping("/store/actions/recent")

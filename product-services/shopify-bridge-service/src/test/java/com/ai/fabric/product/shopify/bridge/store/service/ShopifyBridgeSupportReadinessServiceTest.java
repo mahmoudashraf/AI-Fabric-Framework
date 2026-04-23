@@ -10,6 +10,7 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
@@ -40,6 +41,14 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
 
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED"));
+        when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
+            "support@alpha.test",
+            "https://alpha.test/contact",
+            "https://alpha.test/help",
+            "/pages/order-help",
+            "Refund approvals still route to the merchant support team.",
+            true
+        ));
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
         when(billingService.summarizeForShop("alpha.myshopify.com", "access-token")).thenReturn(billingSummary());
@@ -74,7 +83,12 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.orderLookupSupported()).isTrue();
         assertThat(summary.orderLookupScopeGranted()).isTrue();
         assertThat(summary.appScopesUpdateWebhookReady()).isTrue();
+        assertThat(summary.lifecycleStage()).isEqualTo("RECENT_ORDER_ONLY");
         assertThat(summary.activeSubscriptionNames()).contains("Loom Companion Free");
+        assertThat(summary.activeSubscriptions()).hasSize(1);
+        assertThat(summary.merchantHandoffConfigured()).isTrue();
+        assertThat(summary.supportProfile()).isNotNull();
+        assertThat(summary.supportProfile().contactEmail()).isEqualTo("support@alpha.test");
         assertThat(summary.supportedCapabilities()).contains("order-status", "tracking-link");
     }
 
@@ -88,6 +102,14 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
 
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED"));
+        when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
+            null,
+            null,
+            null,
+            null,
+            null,
+            false
+        ));
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies")));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies")));
         when(billingService.summarizeForShop("alpha.myshopify.com", "access-token")).thenReturn(billingSummary());
@@ -115,8 +137,11 @@ class ShopifyBridgeSupportReadinessServiceTest {
 
         assertThat(summary.status()).isEqualTo("PENDING_SCOPE_GRANT");
         assertThat(summary.orderLookupSupported()).isFalse();
+        assertThat(summary.lifecycleStage()).isEqualTo("SCOPE_APPROVAL");
+        assertThat(summary.merchantHandoffConfigured()).isFalse();
         assertThat(summary.missingScopes()).containsExactly("read_orders");
         assertThat(summary.message()).contains("order-read scope approval");
+        assertThat(summary.nextActions()).anyMatch(action -> action.contains("read_orders"));
     }
 
     private ShopifyBridgeStoreSummary store(String installStatus) {

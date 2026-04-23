@@ -12,9 +12,11 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSyncStoreDocumentsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSupportProfileRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -190,6 +192,23 @@ public class PlatformShopifyStoreClient {
             .body(request)
             .retrieve()
             .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public ShopifyBridgeSupportProfileSummary getSupportProfile(String shopDomain) {
+        return restClient.get()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/support-profile")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeSupportProfileSummary.class);
+    }
+
+    public ShopifyBridgeSupportProfileSummary updateSupportProfile(String shopDomain, ShopifyBridgeUpdateSupportProfileRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/support-profile")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeSupportProfileSummary.class);
     }
 
     public ShopifyBridgeStoreVectorizationSummary getVectorization(String shopDomain) {

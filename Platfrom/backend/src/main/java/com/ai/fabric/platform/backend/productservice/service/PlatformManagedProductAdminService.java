@@ -24,7 +24,9 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayDeploymentSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportSubscriptionSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionOverview;
@@ -1027,6 +1029,7 @@ public class PlatformManagedProductAdminService {
             shopDomain,
             text(node, "status", "UNKNOWN"),
             text(node, "message", "Managed product service did not return support readiness diagnostics."),
+            text(node, "lifecycleStage", "UNKNOWN"),
             node.path("orderLookupSupported").asBoolean(false),
             node.path("orderLookupScopeGranted").asBoolean(false),
             node.path("allOrdersScopeGranted").asBoolean(false),
@@ -1039,9 +1042,48 @@ public class PlatformManagedProductAdminService {
             stringList(node.path("grantedScopes")),
             stringList(node.path("missingScopes")),
             stringList(node.path("activeSubscriptionNames")),
+            parseSupportSubscriptions(node.path("activeSubscriptions")),
+            parseSupportProfile(node.path("supportProfile")),
+            node.path("merchantHandoffConfigured").asBoolean(false),
+            text(node, "merchantHandoffMessage", null),
+            stringList(node.path("nextActions")),
             stringList(node.path("verificationMethods")),
             stringList(node.path("supportedCapabilities")),
             stringList(node.path("blockedCapabilities"))
+        );
+    }
+
+    private List<PlatformManagedProductServiceStoreSupportSubscriptionSummary> parseSupportSubscriptions(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<PlatformManagedProductServiceStoreSupportSubscriptionSummary> values = new ArrayList<>();
+        for (JsonNode item : node) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            values.add(new PlatformManagedProductServiceStoreSupportSubscriptionSummary(
+                text(item, "subscriptionId", null),
+                text(item, "name", null),
+                text(item, "status", "UNKNOWN"),
+                text(item, "tierKey", "UNKNOWN"),
+                item.path("active").asBoolean(false)
+            ));
+        }
+        return List.copyOf(values);
+    }
+
+    private PlatformManagedProductServiceStoreSupportProfileSummary parseSupportProfile(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return new PlatformManagedProductServiceStoreSupportProfileSummary(null, null, null, null, null, false);
+        }
+        return new PlatformManagedProductServiceStoreSupportProfileSummary(
+            text(node, "contactEmail", null),
+            text(node, "contactUrl", null),
+            text(node, "helpCenterUrl", null),
+            text(node, "orderLookupPageUrl", null),
+            text(node, "supportPolicyNote", null),
+            node.path("merchantHandoffConfigured").asBoolean(false)
         );
     }
 

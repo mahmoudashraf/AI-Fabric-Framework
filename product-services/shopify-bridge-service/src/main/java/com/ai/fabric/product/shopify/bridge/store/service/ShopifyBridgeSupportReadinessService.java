@@ -10,8 +10,10 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
@@ -79,12 +81,14 @@ public class ShopifyBridgeSupportReadinessService {
             ? null
             : webhookSubscriptionDiagnosticsService.forShop(shopDomain);
         SupportState supportState = resolveSupportState(shopDomain, accessToken, installRecord);
+        ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain);
         boolean installRecoveryRequired = installRecoveryRequired(installRecord, store);
         boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_orders");
         boolean allOrdersScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_all_orders");
         boolean scopesWebhookReady = hasReadyWebhookTopic(webhookSummary, "APP_SCOPES_UPDATE");
         List<String> missingScopes = orderLookupScopeGranted ? List.of() : List.of("read_orders");
         boolean orderLookupSupported = !installRecoveryRequired && orderLookupScopeGranted;
+        boolean merchantHandoffConfigured = supportProfile.merchantHandoffConfigured();
         String status;
         String message;
         if (installRecoveryRequired) {
@@ -103,11 +107,29 @@ public class ShopifyBridgeSupportReadinessService {
             status = "READY";
             message = "Customer-safe order lookup is ready for this store.";
         }
+        String lifecycleStage = lifecycleStage(
+            installRecoveryRequired,
+            billingSummary.status(),
+            orderLookupScopeGranted,
+            scopesWebhookReady,
+            merchantHandoffConfigured,
+            allOrdersScopeGranted
+        );
+        List<String> nextActions = buildNextActions(
+            installRecoveryRequired,
+            orderLookupScopeGranted,
+            allOrdersScopeGranted,
+            scopesWebhookReady,
+            merchantHandoffConfigured,
+            supportProfile,
+            billingSummary
+        );
 
         return new ShopifyBridgeSupportReadinessSummary(
             normalizeShopDomain(shopDomain),
             status,
             message,
+            lifecycleStage,
             orderLookupSupported,
             orderLookupScopeGranted,
             allOrdersScopeGranted,
@@ -120,7 +142,14 @@ public class ShopifyBridgeSupportReadinessService {
             supportState.grantedScopes(),
             missingScopes,
             supportState.activeSubscriptionNames(),
-            List.of("ORDER_NUMBER_AND_EMAIL"),
+            supportState.activeSubscriptions(),
+            supportProfile,
+            merchantHandoffConfigured,
+            merchantHandoffMessage(supportProfile),
+            nextActions,
+            merchantHandoffConfigured
+                ? List.of("ORDER_NUMBER_AND_EMAIL", "MERCHANT_SUPPORT_HANDOFF")
+                : List.of("ORDER_NUMBER_AND_EMAIL"),
             List.of(
                 "order-status",
                 "fulfillment-status",
@@ -161,7 +190,7 @@ public class ShopifyBridgeSupportReadinessService {
             }
             return new SupportState(
                 grantedScopes,
-                parseActiveSubscriptionNames(installation.get("activeSubscriptions"))
+                parseActiveSubscriptions(installation.get("activeSubscriptions"))
             );
         } catch (ResponseStatusException ex) {
             return new SupportState(
@@ -195,25 +224,31 @@ public class ShopifyBridgeSupportReadinessService {
         return List.copyOf(scopes);
     }
 
-    private List<String> parseActiveSubscriptionNames(Object value) {
+    private List<ShopifyBridgeSupportSubscriptionSummary> parseActiveSubscriptions(Object value) {
         if (!(value instanceof List<?> items)) {
             return List.of();
         }
-        Set<String> names = new LinkedHashSet<>();
+        List<ShopifyBridgeSupportSubscriptionSummary> subscriptions = new ArrayList<>();
         for (Object item : items) {
             if (!(item instanceof Map<?, ?> map)) {
                 continue;
             }
             String status = optionalText(map.get("status"));
-            if (status != null && !"ACTIVE".equalsIgnoreCase(status) && !"ACCEPTED".equalsIgnoreCase(status)) {
+            String name = optionalText(map.get("name"));
+            String subscriptionId = optionalText(map.get("id"));
+            if (subscriptionId == null && name == null && status == null) {
                 continue;
             }
-            String name = optionalText(map.get("name"));
-            if (name != null) {
-                names.add(name);
-            }
+            boolean active = "ACTIVE".equalsIgnoreCase(status) || "ACCEPTED".equalsIgnoreCase(status);
+            subscriptions.add(new ShopifyBridgeSupportSubscriptionSummary(
+                subscriptionId,
+                name,
+                status == null ? "UNKNOWN" : status.toUpperCase(Locale.ROOT),
+                resolveTierKey(name),
+                active
+            ));
         }
-        return List.copyOf(names);
+        return List.copyOf(subscriptions);
     }
 
     private boolean hasReadyWebhookTopic(ShopifyWebhookSubscriptionStatusSummary summary, String topic) {
@@ -237,6 +272,17 @@ public class ShopifyBridgeSupportReadinessService {
             return platformShopifyStoreClient.getStore(shopDomain);
         } catch (HttpClientErrorException.NotFound ex) {
             return null;
+        }
+    }
+
+    private ShopifyBridgeSupportProfileSummary getSupportProfile(String shopDomain) {
+        try {
+            ShopifyBridgeSupportProfileSummary summary = platformShopifyStoreClient.getSupportProfile(shopDomain);
+            return summary == null
+                ? new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false)
+                : summary;
+        } catch (HttpClientErrorException.NotFound ex) {
+            return new ShopifyBridgeSupportProfileSummary(null, null, null, null, null, false);
         }
     }
 
@@ -292,9 +338,119 @@ public class ShopifyBridgeSupportReadinessService {
         return shopDomain == null ? "" : shopDomain.trim().toLowerCase(Locale.ROOT);
     }
 
+    private String lifecycleStage(boolean installRecoveryRequired,
+                                  String billingStatus,
+                                  boolean orderLookupScopeGranted,
+                                  boolean scopesWebhookReady,
+                                  boolean merchantHandoffConfigured,
+                                  boolean allOrdersScopeGranted) {
+        if (installRecoveryRequired) {
+            return "INSTALL_RECOVERY";
+        }
+        if ("PAYMENT_ISSUE".equalsIgnoreCase(billingStatus)) {
+            return "BILLING_REVIEW";
+        }
+        if (!orderLookupScopeGranted) {
+            return "SCOPE_APPROVAL";
+        }
+        if (!scopesWebhookReady) {
+            return "WEBHOOK_REPAIR";
+        }
+        if (!merchantHandoffConfigured) {
+            return "SUPPORT_HANDOFF_SETUP";
+        }
+        if (!allOrdersScopeGranted) {
+            return "RECENT_ORDER_ONLY";
+        }
+        return "READY";
+    }
+
+    private List<String> buildNextActions(boolean installRecoveryRequired,
+                                          boolean orderLookupScopeGranted,
+                                          boolean allOrdersScopeGranted,
+                                          boolean scopesWebhookReady,
+                                          boolean merchantHandoffConfigured,
+                                          ShopifyBridgeSupportProfileSummary supportProfile,
+                                          ShopifyBridgeBillingSummary billingSummary) {
+        List<String> actions = new ArrayList<>();
+        if (installRecoveryRequired) {
+            actions.add("Complete the Shopify install flow again for this store before relying on governed support features.");
+        }
+        if (!orderLookupScopeGranted) {
+            actions.add("Grant Shopify read_orders scope so customer-safe order lookup can verify recent orders.");
+        }
+        if (!allOrdersScopeGranted) {
+            actions.add("Decide whether historical order support needs read_all_orders before launch commitments are made.");
+        }
+        if (!scopesWebhookReady) {
+            actions.add("Repair the APP_SCOPES_UPDATE webhook so order-scope drift is detected automatically.");
+        }
+        if (!merchantHandoffConfigured) {
+            actions.add("Configure a merchant support email, contact URL, or help center URL for unsupported order and account cases.");
+        }
+        if (orderLookupScopeGranted && optionalText(supportProfile.orderLookupPageUrl()) == null) {
+            actions.add("Publish the order lookup block on a support or contact page and save that page URL in the merchant support profile.");
+        }
+        if ("PAYMENT_ISSUE".equalsIgnoreCase(billingSummary.status())) {
+            actions.add("Resolve the current Shopify billing issue before go-live or paid-surface expansion.");
+        }
+        if (actions.isEmpty()) {
+            actions.add("No blocking support lifecycle actions remain for this store.");
+        }
+        return List.copyOf(actions);
+    }
+
+    private String merchantHandoffMessage(ShopifyBridgeSupportProfileSummary supportProfile) {
+        if (!supportProfile.merchantHandoffConfigured()) {
+            return "Merchant support handoff is not configured yet. Add a support email, contact URL, or help center URL before launch.";
+        }
+        List<String> channels = new ArrayList<>();
+        if (optionalText(supportProfile.contactEmail()) != null) {
+            channels.add("support email");
+        }
+        if (optionalText(supportProfile.contactUrl()) != null) {
+            channels.add("contact page");
+        }
+        if (optionalText(supportProfile.helpCenterUrl()) != null) {
+            channels.add("help center");
+        }
+        if (optionalText(supportProfile.orderLookupPageUrl()) != null) {
+            channels.add("order lookup page");
+        }
+        return channels.isEmpty()
+            ? "Merchant support handoff is configured."
+            : "Merchant support handoff is configured through " + String.join(", ", channels) + ".";
+    }
+
+    private String resolveTierKey(String subscriptionName) {
+        String normalized = optionalText(subscriptionName);
+        if (normalized == null) {
+            return "UNKNOWN";
+        }
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.contains("elite")) {
+            return "ELITE";
+        }
+        if (lower.contains("starter")) {
+            return "STARTER";
+        }
+        if (lower.contains("free")) {
+            return "FREE";
+        }
+        return "UNKNOWN";
+    }
+
     private record SupportState(
         List<String> grantedScopes,
-        List<String> activeSubscriptionNames
+        List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions
     ) {
+        private List<String> activeSubscriptionNames() {
+            return activeSubscriptions.stream()
+                .filter(ShopifyBridgeSupportSubscriptionSummary::active)
+                .map(ShopifyBridgeSupportSubscriptionSummary::name)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .toList();
+        }
     }
 }

@@ -171,13 +171,20 @@ That means:
 
 ### 4.3 Support and return boundary
 
-Current support exports intentionally state:
+Current support exports intentionally state the live governed support posture, including:
 
-- `customerSafeOrderLookupSupported: false`
-- policy-grounded return guidance only
-- merchant handoff required for order-specific cases
+- whether customer-safe order lookup is actually enabled for the store
+- whether the store is limited to recent orders or also has broader historical order scope
+- which merchant handoff channels are configured
+- which lifecycle stage and next actions still block a fully clean support rollout
 
-This is deliberate and should not be weakened in documentation or UI copy until order-safe scope and bridge behavior are actually implemented.
+The exports must still keep the read-only boundary explicit:
+
+- refunds stay merchant-handled
+- cancellations stay merchant-handled
+- order edits stay merchant-handled
+- address changes stay merchant-handled
+- payment or account details stay outside Companion
 
 ---
 
@@ -193,10 +200,9 @@ This export tooling materially closes productization gaps around:
 
 It does not close the deeper Milestone 7 execution gaps around:
 
-- real support integration
-- real lifecycle integration
-- real subscription integration
-- customer-safe order lookup
+- broader support integration repetition
+- deeper lifecycle automation beyond the current computed contract
+- deeper subscription integration beyond the current active-subscription and billing posture contract
 
 Those still require deeper product and scope work.
 

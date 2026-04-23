@@ -10,10 +10,12 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreGovernedActionAuditSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationEventSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreVectorizationPolicyRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
@@ -27,6 +29,7 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGoLiveService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreUninstallService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSupportProfileService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWebhookService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetService;
@@ -66,6 +69,7 @@ public class ShopifyAdminController {
     private final ShopifyStoreWebhookService shopifyStoreWebhookService;
     private final ShopifyStoreWidgetService shopifyStoreWidgetService;
     private final ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService;
+    private final ShopifyStoreSupportProfileService shopifyStoreSupportProfileService;
 
     public ShopifyAdminController(ShopifyStoreConnectionService shopifyStoreConnectionService,
                                   ShopifyStoreBootstrapService shopifyStoreBootstrapService,
@@ -79,7 +83,8 @@ public class ShopifyAdminController {
                                   ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService,
                                   ShopifyStoreWebhookService shopifyStoreWebhookService,
                                   ShopifyStoreWidgetService shopifyStoreWidgetService,
-                                  ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService) {
+                                  ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService,
+                                  ShopifyStoreSupportProfileService shopifyStoreSupportProfileService) {
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.shopifyStoreBootstrapService = shopifyStoreBootstrapService;
         this.shopifyStoreCredentialService = shopifyStoreCredentialService;
@@ -93,6 +98,7 @@ public class ShopifyAdminController {
         this.shopifyStoreWebhookService = shopifyStoreWebhookService;
         this.shopifyStoreWidgetService = shopifyStoreWidgetService;
         this.shopifyStoreWidgetSettingsService = shopifyStoreWidgetSettingsService;
+        this.shopifyStoreSupportProfileService = shopifyStoreSupportProfileService;
     }
 
     @GetMapping
@@ -280,5 +286,18 @@ public class ShopifyAdminController {
     public ShopifyStoreConnectionSummary updateWidgetSettings(@PathVariable String shopDomain,
                                                               @RequestBody UpdateShopifyStoreWidgetSettingsRequest request) {
         return shopifyStoreWidgetSettingsService.update(shopDomain, request);
+    }
+
+    @GetMapping("/{shopDomain}/support-profile")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreSupportProfileSummary getSupportProfile(@PathVariable String shopDomain) {
+        return shopifyStoreSupportProfileService.get(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/support-profile")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreSupportProfileSummary updateSupportProfile(@PathVariable String shopDomain,
+                                                                  @RequestBody UpdateShopifyStoreSupportProfileRequest request) {
+        return shopifyStoreSupportProfileService.update(shopDomain, request);
     }
 }
