@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -28,13 +29,15 @@ class ShopifyBridgeStoreAdminServiceTest {
         ShopifyBridgeSourcePreflightService sourcePreflightService = mock(ShopifyBridgeSourcePreflightService.class);
         ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
         ShopifyBridgeVectorizationSourceService vectorizationSourceService = mock(ShopifyBridgeVectorizationSourceService.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
         ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
             platformShopifyStoreClient,
             installCredentialService,
             billingService,
             sourcePreflightService,
             storeSyncService,
-            vectorizationSourceService
+            vectorizationSourceService,
+            usageService
         );
 
         ShopifyBridgeStoreSummary store = sampleStore();
@@ -67,13 +70,15 @@ class ShopifyBridgeStoreAdminServiceTest {
         ShopifyBridgeSourcePreflightService sourcePreflightService = mock(ShopifyBridgeSourcePreflightService.class);
         ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
         ShopifyBridgeVectorizationSourceService vectorizationSourceService = mock(ShopifyBridgeVectorizationSourceService.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
         ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
             platformShopifyStoreClient,
             installCredentialService,
             billingService,
             sourcePreflightService,
             storeSyncService,
-            vectorizationSourceService
+            vectorizationSourceService,
+            usageService
         );
 
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());

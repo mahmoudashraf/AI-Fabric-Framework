@@ -3,6 +3,8 @@ package com.ai.fabric.product.shopify.bridge.web;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageTopQuerySummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalRequest;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
@@ -244,14 +246,25 @@ class ShopifyMerchantControllerTest {
             4,
             17,
             List.of(new ShopifyBridgeUsageEventCountSummary("MERCHANT_PLAYGROUND_QUERY", 2)),
-            List.of(new ShopifyBridgeUsageEventCountSummary("STOREFRONT_QUERY", 9))
+            List.of(new ShopifyBridgeUsageEventCountSummary("STOREFRONT_QUERY", 9)),
+            List.of(new ShopifyBridgeUsageSurfaceSummary("ai-search", "AI search", 3)),
+            List.of(new ShopifyBridgeUsageSurfaceSummary("launcher", "Chat launcher", 9)),
+            List.of(new ShopifyBridgeUsageTopQuerySummary(
+                "launcher",
+                "Chat launcher",
+                "What is your return policy?",
+                4,
+                Instant.parse("2026-04-18T11:59:00Z")
+            ))
         ));
 
         mockMvc.perform(get("/api/app/store/usage-summary").header("Authorization", "Bearer " + token()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
             .andExpect(jsonPath("$.totalToday").value(4))
-            .andExpect(jsonPath("$.last7DayBreakdown[0].eventType").value("STOREFRONT_QUERY"));
+            .andExpect(jsonPath("$.last7DayBreakdown[0].eventType").value("STOREFRONT_QUERY"))
+            .andExpect(jsonPath("$.last7DaySurfaceUsage[0].surfaceId").value("launcher"))
+            .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"));
 
         verify(usageService).summarize("alpha.myshopify.com");
     }

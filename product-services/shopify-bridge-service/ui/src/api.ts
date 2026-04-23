@@ -196,6 +196,23 @@ export type ShopifyBridgeUsageSummary = {
     eventType: string
     count: number
   }>
+  todaySurfaceUsage: Array<{
+    surfaceId: string
+    label: string
+    count: number
+  }>
+  last7DaySurfaceUsage: Array<{
+    surfaceId: string
+    label: string
+    count: number
+  }>
+  topQuestionsLast7Days: Array<{
+    surfaceId: string
+    label: string
+    queryText: string
+    count: number
+    lastAskedAt: string
+  }>
 }
 
 export type ShopifyBridgeBillingSummary = {

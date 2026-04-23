@@ -1,5 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
@@ -9,6 +11,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncS
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,19 +29,22 @@ public class ShopifyBridgeStoreAdminService {
     private final ShopifyBridgeSourcePreflightService sourcePreflightService;
     private final ShopifyBridgeStoreSyncService storeSyncService;
     private final ShopifyBridgeVectorizationSourceService vectorizationSourceService;
+    private final ShopifyBridgeUsageService usageService;
 
     public ShopifyBridgeStoreAdminService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                           ShopifyBridgeInstallCredentialService installCredentialService,
                                           ShopifyBridgeBillingService billingService,
                                           ShopifyBridgeSourcePreflightService sourcePreflightService,
                                           ShopifyBridgeStoreSyncService storeSyncService,
-                                          ShopifyBridgeVectorizationSourceService vectorizationSourceService) {
+                                          ShopifyBridgeVectorizationSourceService vectorizationSourceService,
+                                          ShopifyBridgeUsageService usageService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
         this.billingService = billingService;
         this.sourcePreflightService = sourcePreflightService;
         this.storeSyncService = storeSyncService;
         this.vectorizationSourceService = vectorizationSourceService;
+        this.usageService = usageService;
     }
 
     public List<ShopifyBridgeStoreSummary> listStores() {
@@ -53,6 +59,14 @@ public class ShopifyBridgeStoreAdminService {
         return installCredentialService.resolvePersistedMaterial(shopDomain)
             .map(acquisition -> billingService.summarizeForShop(shopDomain, acquisition.tokenExchangeMaterial().accessToken()))
             .orElseGet(() -> billingService.summarizeForShop(shopDomain, null));
+    }
+
+    public ShopifyBridgeUsageSummary usageSummary(String shopDomain) {
+        return usageService.summarize(shopDomain);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary vectorizationSummary(String shopDomain) {
+        return platformShopifyStoreClient.getVectorization(shopDomain);
     }
 
     public ShopifyBridgeStoreBootstrapResponse bootstrap(String shopDomain) {

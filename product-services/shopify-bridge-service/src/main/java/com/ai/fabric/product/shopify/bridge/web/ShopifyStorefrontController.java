@@ -53,6 +53,7 @@ public class ShopifyStorefrontController {
                           String shopperSessionId) {
         JsonNode response = storefrontChatService.query(shopDomain, request, shopperSessionId);
         usageService.recordEvent(shopDomain, "STOREFRONT_QUERY");
+        usageService.recordQueryInsight(shopDomain, "STOREFRONT_QUERY", request, "launcher");
         return response;
     }
 

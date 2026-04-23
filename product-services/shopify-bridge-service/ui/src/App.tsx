@@ -736,6 +736,16 @@ export default function App() {
     billingSummary?.availablePlans?.filter((plan) => plan.tierKey !== 'FREE' && !plan.active) ?? []
   const webhookSubscriptions = state.webhookSubscriptions
   const vectorizationSummary = state.vectorizationSummary
+  const shopperSurfaceUsage = usageSummary?.last7DaySurfaceUsage ?? []
+  const topShopperQuestions = usageSummary?.topQuestionsLast7Days ?? []
+  const intelligenceReadiness = buildStoreIntelligenceReadiness(
+    store,
+    storefrontPreview,
+    billingSummary,
+    webhookSubscriptions,
+    vectorizationSummary,
+    widgetSettings,
+  )
   const supportBundleText = buildSupportBundle(
     shell,
     session,
@@ -1411,6 +1421,80 @@ export default function App() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
+                    Store intelligence health
+                  </Text>
+                  <InlineStack gap="200" align="start">
+                    <Badge tone={intelligenceReadiness.tone}>{intelligenceReadiness.status}</Badge>
+                    {intelligenceReadiness.freshnessLabel ? (
+                      <Badge tone={intelligenceReadiness.freshnessTone}>{intelligenceReadiness.freshnessLabel}</Badge>
+                    ) : null}
+                    {intelligenceReadiness.liveUpdatesLabel ? (
+                      <Badge tone={intelligenceReadiness.liveUpdatesTone}>{intelligenceReadiness.liveUpdatesLabel}</Badge>
+                    ) : null}
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    {intelligenceReadiness.message}
+                  </Text>
+                  <List type="bullet">
+                    <List.Item>
+                      Shopper-ready surfaces: {intelligenceReadiness.enabledTierReadySurfaces}/{intelligenceReadiness.allowedTierSurfaces}
+                    </List.Item>
+                    <List.Item>Last successful sync: {formatTimestamp(intelligenceReadiness.lastSuccessfulSyncAt)}</List.Item>
+                    <List.Item>Last webhook event: {formatTimestamp(store?.lastWebhookAt ?? null)}</List.Item>
+                    <List.Item>Last successful live update: {formatTimestamp(intelligenceReadiness.lastSuccessfulAutoIndexAt)}</List.Item>
+                    <List.Item>Last failed live update: {formatTimestamp(intelligenceReadiness.lastFailedAutoIndexAt)}</List.Item>
+                    <List.Item>
+                      Live update backlog: queued {vectorizationSummary?.automation?.queuedEvents ?? 0}, failed {vectorizationSummary?.automation?.failedEvents ?? 0},
+                      {' '}dead-lettered {vectorizationSummary?.automation?.deadLetteredEvents ?? 0}
+                    </List.Item>
+                  </List>
+                  {intelligenceReadiness.issues.length ? (
+                    <Banner tone={intelligenceReadiness.tone === 'critical' ? 'critical' : 'warning'}>
+                      <List type="bullet">
+                        {intelligenceReadiness.issues.map((issue) => (
+                          <List.Item key={issue}>{issue}</List.Item>
+                        ))}
+                      </List>
+                    </Banner>
+                  ) : null}
+                  {shopperSurfaceUsage.length ? (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Shopper surface usage, last 7 days
+                      </Text>
+                      <List type="bullet">
+                        {shopperSurfaceUsage.slice(0, 5).map((surface) => (
+                          <List.Item key={surface.surfaceId}>
+                            {surface.label} · {surface.count}
+                          </List.Item>
+                        ))}
+                      </List>
+                    </BlockStack>
+                  ) : (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Shopper surface usage appears after real storefront queries run through the live bridge.
+                    </Text>
+                  )}
+                  {topShopperQuestions.length ? (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Top shopper questions, last 7 days
+                      </Text>
+                      {topShopperQuestions.map((question) => (
+                        <Text key={`${question.surfaceId}-${question.queryText}`} as="p" variant="bodySm" tone="subdued">
+                          {question.label} · {question.queryText} · {question.count} · {formatTimestamp(question.lastAskedAt)}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                  ) : null}
+                </BlockStack>
+              </Card>
+            </Box>
+
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
                     Webhook subscriptions
                   </Text>
                   {webhookSubscriptions ? (
@@ -1529,6 +1613,9 @@ export default function App() {
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Last 7 days {formatUsageBreakdown(usageSummary.last7DayBreakdown)}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Shopper surfaces {formatSurfaceUsageBreakdown(usageSummary.last7DaySurfaceUsage)}
                       </Text>
                     </BlockStack>
                   ) : null}
@@ -2216,6 +2303,14 @@ function buildSupportBundle(
             blockingReasons: storefrontPreview.blockingReasons,
           }
         : null,
+      storeIntelligenceReadiness: buildStoreIntelligenceReadiness(
+        store,
+        storefrontPreview,
+        billingSummary,
+        webhookSubscriptions,
+        vectorizationSummary,
+        store?.widgetDetail?.settings ?? null
+      ),
       usageSummary,
     },
     null,
@@ -2256,6 +2351,20 @@ function formatUsageBreakdown(entries: Array<{ eventType: string; count: number 
     return 'No events recorded'
   }
   return entries.map((entry) => `${describeUsageEvent(entry.eventType)} ${entry.count}`).join(' · ')
+}
+
+function formatSurfaceUsageBreakdown(entries: Array<{ surfaceId: string; label: string; count: number }>): string {
+  if (!entries.length) {
+    return 'No shopper surface queries yet'
+  }
+  return entries.map((entry) => `${entry.label} ${entry.count}`).join(' · ')
+}
+
+type WidgetSettingsSnapshot = {
+  launcherLabel?: string | null
+  welcomeMessage?: string | null
+  shellModeProfile?: string | null
+  enabledSurfaces?: string[]
 }
 
 function describeUsageEvent(eventType: string): string {
@@ -2313,6 +2422,97 @@ function describeUsageEvent(eventType: string): string {
       return 'widget opens on other pages'
     default:
       return normalized.toLowerCase().replace(/_/g, ' ')
+  }
+}
+
+function buildStoreIntelligenceReadiness(
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+  storefrontPreview: ShopifyStorefrontPreviewResponse | null,
+  billingSummary: ShopifyBridgeBillingSummary | null,
+  webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null,
+  vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null,
+  widgetSettings: WidgetSettingsSnapshot | null
+): {
+  status: string
+  tone: 'success' | 'attention' | 'critical'
+  message: string
+  freshnessLabel: string | null
+  freshnessTone: 'success' | 'attention' | 'critical'
+  liveUpdatesLabel: string | null
+  liveUpdatesTone: 'success' | 'attention' | 'critical'
+  allowedTierSurfaces: number
+  enabledTierReadySurfaces: number
+  lastSuccessfulSyncAt: string | null
+  lastSuccessfulAutoIndexAt: string | null
+  lastFailedAutoIndexAt: string | null
+  issues: string[]
+} {
+  const issues: string[] = []
+  if (!store) {
+    return {
+      status: 'Not connected',
+      tone: 'attention',
+      message: 'Connect the store before Companion can prove storefront readiness, sync health, or live update health.',
+      freshnessLabel: null,
+      freshnessTone: 'attention',
+      liveUpdatesLabel: null,
+      liveUpdatesTone: 'attention',
+      allowedTierSurfaces: 0,
+      enabledTierReadySurfaces: 0,
+      lastSuccessfulSyncAt: null,
+      lastSuccessfulAutoIndexAt: null,
+      lastFailedAutoIndexAt: null,
+      issues: ['Store is not connected to the platform yet.'],
+    }
+  }
+
+  if (billingSummary?.launchBlocked) {
+    issues.push(`Billing is blocking launch: ${billingSummary.message}`)
+  }
+  if (!storefrontPreview?.ready) {
+    issues.push('Theme activation is still blocked or incomplete.')
+  }
+  if (webhookSubscriptions && webhookSubscriptions.status !== 'READY') {
+    issues.push(`Webhook subscriptions are ${webhookSubscriptions.status.toLowerCase()}.`)
+  }
+  if (vectorizationSummary && !vectorizationSummary.readyToRun) {
+    issues.push('Deployment vectorization still needs reconcile before bounded indexing can run cleanly.')
+  }
+  if (vectorizationSummary?.automation && !vectorizationSummary.automation.autoIndexingHealthy) {
+    issues.push('Live updates are degraded and need attention before relying on freshness.')
+  }
+  if (store.syncDetail && store.syncDetail.status !== 'SYNCED') {
+    issues.push(`Store sync is ${store.syncDetail.status.toLowerCase()}.`)
+  }
+
+  const allowedTierSurfaces = billingSummary?.allowedSurfaces?.length
+    ? billingSummary.allowedSurfaces.length
+    : DEFAULT_WIDGET_SURFACES.length
+  const enabledSurfaceValues = widgetSettings?.enabledSurfaces ?? DEFAULT_WIDGET_SURFACES
+  const enabledTierReadySurfaces = enabledSurfaceValues.filter((surfaceId: string) =>
+    (billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES).includes(surfaceId)
+  ).length
+
+  const freshnessBlocked = Boolean(store.syncDetail && store.syncDetail.status !== 'SYNCED') ||
+    Boolean(vectorizationSummary?.syncState && !['CURRENT', 'READY', 'IN_SYNC'].includes(vectorizationSummary.syncState))
+  const liveUpdatesHealthy = vectorizationSummary?.automation?.autoIndexingHealthy !== false
+
+  return {
+    status: issues.length ? (issues.some((issue) => issue.startsWith('Billing')) ? 'Blocked' : 'Needs attention') : 'Healthy',
+    tone: issues.length ? (issues.some((issue) => issue.startsWith('Billing')) ? 'critical' : 'attention') : 'success',
+    message: issues.length
+      ? 'Companion is installed, but one or more shipping gates still need work before the product is fully legible and fresh for shoppers.'
+      : 'Storefront surfaces, sync, billing, and live updates are aligned closely enough to treat the store as shopper-ready.',
+    freshnessLabel: freshnessBlocked ? 'Freshness needs attention' : 'Freshness healthy',
+    freshnessTone: freshnessBlocked ? 'attention' : 'success',
+    liveUpdatesLabel: liveUpdatesHealthy ? 'Live updates healthy' : 'Live updates degraded',
+    liveUpdatesTone: liveUpdatesHealthy ? 'success' : 'critical',
+    allowedTierSurfaces,
+    enabledTierReadySurfaces,
+    lastSuccessfulSyncAt: store.syncDetail?.checkedAt ?? store.lastSyncAt,
+    lastSuccessfulAutoIndexAt: vectorizationSummary?.automation?.lastSuccessfulAutoIndexAt ?? null,
+    lastFailedAutoIndexAt: vectorizationSummary?.automation?.lastFailedAutoIndexAt ?? null,
+    issues,
   }
 }
 

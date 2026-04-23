@@ -53,6 +53,7 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 | Shopify app posture | `product-services/shopify-bridge-service/shopify.app.loom-companion.toml` is an embedded Shopify app with read-only scopes: `read_products`, `read_content`, `read_legal_policies`. | Good launch posture for read-first V1. |
 | Platform consumption | Shopify bootstrap/go-live flows in platform create a normal platform deployment, consumer binding, and marketplace bundle. | Correct architecture. |
 | Merchant/admin surface | Embedded merchant app, storefront preview, sync, vectorization controls, billing summary, and verification flows exist. | Strong operator baseline. |
+| Merchant legibility baseline | Merchant UI now exposes bounded store-intelligence health, live update freshness, shopper surface usage, and top shopper questions. Bridge admin APIs expose store usage and vectorization summaries for operator investigation. | The product is materially easier to operate and support without dropping into raw deployment internals. |
 | Tier posture foundation | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, powered-by requirements, and catalog caps. | Better than the old roadmap assumed; commercialization is now a productization problem, not a missing primitive. |
 | Store sync baseline | Bridge sync/vectorization source services currently cover products, collections, pages, and policies. | Good Wave 1 foundation. |
 | Live indexing foundation | Shopify vectorization trigger pipeline and bounded merchant/admin controls are now implemented. | Major foundation milestone completed. |
@@ -70,7 +71,7 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 | Real shell conversation modes | Shopify now persists `shellModeProfile`, exposes it in bootstrap/admin surfaces, and forwards it into bridge/runtime request context. | This is now a bounded mode-profile system, but not yet full multi-mode runtime semantics like true `assistant` / `deep` Shopify modes. |
 | Richer Shopify data coverage | No code-backed evidence yet for blogs/articles, metaobjects, metafields, or review-provider ingestion. | Wave 1 data-expansion work still missing beyond current catalog/content/policy coverage. |
 | Read-first action breadth from strategy docs | Current read action bundle already includes `compare_products` and `find_similar_products` alongside the baseline catalog/policy actions. | The remaining gap is richer generated rendering, size/fit guidance, and surface-specific product UX rather than total action absence. |
-| Tiered commercial model | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, and product caps. | The remaining gap is merchant-facing packaging, storefront/theme-editor gating legibility, and fully aligned commercial rollout. |
+| Tiered commercial model | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, and product caps. Merchant UI now reflects tier-aware storefront placement guidance and shopper-surface readiness more clearly. | The remaining gap is fully aligned commercial rollout and App Store packaging, not basic merchant legibility. |
 | Free-tier distribution wedge | Pricing strategy says Free is AI search only. | AI search is now real in both the app embed and a merchant-placeable theme block. The remaining gap is proving the commercial/App Store story cleanly. |
 | Elite posture | Pricing strategy says Elite is read+write with governance. | No Shopify Elite plan implementation exists yet. |
 
@@ -210,14 +211,25 @@ Missing:
 - Shopify billing mapping aligned to the pricing strategy
 - Elite action packaging that only advertises action depth once those surfaces are genuinely shipped
 
+Now materially real:
+
+- tier-aware placement guidance in the merchant UI
+- merchant-visible store intelligence readiness summary
+- bounded surface usage and top-question analytics for shopper traffic
+
 ### 5.5 Merchant legibility
 
 Missing:
 
-- per-surface analytics
-- clear freshness/indexing-health view for merchants
+- richer per-surface analytics beyond bounded query/surface summaries
 - feature/tier explanations that match the actual product
 - no debug leakage in shopper-facing surfaces
+
+Now materially real:
+
+- bounded per-surface shopper analytics
+- clear freshness/indexing-health view for merchants
+- bridge-admin investigation endpoints for store usage and vectorization state
 
 ### 5.6 Shipping package
 
@@ -341,6 +353,11 @@ Must ship:
   - top questions
   - surface usage
 
+Progress note:
+
+- query volume, top shopper questions, and bounded shopper surface usage are now materially real in the merchant app
+- the main remaining Milestone 3 gap is comparison as a real storefront surface plus broader source coverage
+
 Recommended supporting data work:
 
 - one review provider
@@ -370,6 +387,11 @@ Must ship:
 - support/runbook consistency
 - merchant-facing freshness/indexing health
 - strong live verification discipline
+
+Progress note:
+
+- merchant-facing freshness/indexing health is now materially real
+- live verification already checks the bridge admin investigation contract and storefront behavior end to end
 
 Non-negotiable launch rule:
 

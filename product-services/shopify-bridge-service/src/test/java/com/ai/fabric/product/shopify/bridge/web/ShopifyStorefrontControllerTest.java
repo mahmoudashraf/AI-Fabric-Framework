@@ -133,6 +133,20 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.conversationId").value("conv-1"));
 
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_QUERY");
+        verify(usageService).recordQueryInsight(
+            eq("alpha.myshopify.com"),
+            eq("STOREFRONT_QUERY"),
+            eq(objectMapper.readTree("""
+                {
+                  "query":"Show me backpacks",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """)),
+            eq("launcher")
+        );
     }
 
     @Test

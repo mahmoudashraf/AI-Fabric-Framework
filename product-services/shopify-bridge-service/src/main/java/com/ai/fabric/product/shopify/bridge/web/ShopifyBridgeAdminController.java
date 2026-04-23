@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
@@ -8,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncS
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
@@ -55,6 +57,16 @@ public class ShopifyBridgeAdminController {
     @GetMapping("/stores/{shopDomain}/billing-summary")
     public ShopifyBridgeBillingSummary billingSummary(@PathVariable String shopDomain) {
         return storeAdminService.billingSummary(shopDomain);
+    }
+
+    @GetMapping("/stores/{shopDomain}/usage-summary")
+    public ShopifyBridgeUsageSummary usageSummary(@PathVariable String shopDomain) {
+        return storeAdminService.usageSummary(shopDomain);
+    }
+
+    @GetMapping("/stores/{shopDomain}/vectorization")
+    public ShopifyBridgeStoreVectorizationSummary vectorization(@PathVariable String shopDomain) {
+        return storeAdminService.vectorizationSummary(shopDomain);
     }
 
     @GetMapping("/stores/{shopDomain}/vectorization-source/{entityType}")

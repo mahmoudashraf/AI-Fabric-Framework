@@ -802,6 +802,18 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   assert_nonempty "$(json_get "${bridge_admin_webhook_json}" "expectedCount")" "bridge admin store webhook expectedCount"
   assert_optional_equals "$(json_get "${bridge_admin_webhook_json}" "status")" "${EXPECT_WEBHOOK_STATUS}" "bridge admin store webhook status"
 
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/usage-summary" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge admin store usage summary status"
+  bridge_admin_usage_json="${HTTP_BODY}"
+  assert_nonempty "$(json_get "${bridge_admin_usage_json}" "shopDomain")" "bridge admin store usage shopDomain"
+  assert_nonempty "$(json_get "${bridge_admin_usage_json}" "generatedAt")" "bridge admin store usage generatedAt"
+
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/vectorization" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge admin vectorization status"
+  bridge_admin_vectorization_json="${HTTP_BODY}"
+  assert_nonempty "$(json_get "${bridge_admin_vectorization_json}" "shopDomain")" "bridge admin vectorization shopDomain"
+  assert_nonempty "$(json_get "${bridge_admin_vectorization_json}" "readyToRun")" "bridge admin vectorization readyToRun"
+
   echo "== Bridge admin vectorization source page =="
   bridge_vector_entity_type="$(json_get "${platform_store_vectorization_json}" "selectedEntityTypes.0")"
   assert_nonempty "${bridge_vector_entity_type}" "bridge admin vectorization entity type"

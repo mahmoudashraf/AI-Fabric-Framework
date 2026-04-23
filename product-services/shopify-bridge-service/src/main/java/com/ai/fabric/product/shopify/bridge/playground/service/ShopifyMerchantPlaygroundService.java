@@ -27,6 +27,7 @@ public class ShopifyMerchantPlaygroundService {
             shopperSessionId(merchantSession)
         );
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PLAYGROUND_QUERY");
+        usageService.recordQueryInsight(merchantSession.shopDomain(), "MERCHANT_PLAYGROUND_QUERY", request, "merchant-playground");
         return response;
     }
 

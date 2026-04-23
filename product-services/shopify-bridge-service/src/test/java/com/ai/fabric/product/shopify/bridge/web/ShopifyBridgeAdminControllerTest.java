@@ -2,7 +2,11 @@ package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.action.service.ShopifyBridgeActionExecutionService;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageOverview;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSurfaceSummary;
+import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageTopQuerySummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeWebhookSubscriptionOverview;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInstallOverview;
@@ -15,6 +19,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncS
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationAutomationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourceRecord;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreAdminService;
@@ -182,6 +188,90 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.status").value("READY_FOR_APPROVAL"))
             .andExpect(jsonPath("$.merchantApprovalRequired").value(true))
             .andExpect(jsonPath("$.launchBlocked").value(true));
+    }
+
+    @Test
+    void adminUsageSummaryIsReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.usageSummary("alpha.myshopify.com")).thenReturn(new ShopifyBridgeUsageSummary(
+            "alpha.myshopify.com",
+            Instant.parse("2026-04-18T12:00:00Z"),
+            Instant.parse("2026-04-18T11:59:00Z"),
+            4,
+            12,
+            List.of(new ShopifyBridgeUsageEventCountSummary("STOREFRONT_QUERY", 4)),
+            List.of(new ShopifyBridgeUsageEventCountSummary("STOREFRONT_QUERY", 12)),
+            List.of(new ShopifyBridgeUsageSurfaceSummary("ai-search", "AI search", 2)),
+            List.of(new ShopifyBridgeUsageSurfaceSummary("launcher", "Chat launcher", 7)),
+            List.of(new ShopifyBridgeUsageTopQuerySummary(
+                "launcher",
+                "Chat launcher",
+                "What is your return policy?",
+                3,
+                Instant.parse("2026-04-18T11:55:00Z")
+            ))
+        ));
+
+        mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/usage-summary").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.last7DaySurfaceUsage[0].surfaceId").value("launcher"))
+            .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"));
+    }
+
+    @Test
+    void adminVectorizationSummaryIsReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.vectorizationSummary("alpha.myshopify.com")).thenReturn(new ShopifyBridgeStoreVectorizationSummary(
+            "alpha.myshopify.com",
+            "dep-1",
+            true,
+            List.of("products", "policies"),
+            List.of("product", "policy"),
+            List.of("mkp-template-shopify-companion"),
+            List.of("mkp-template-shopify-companion"),
+            List.of(),
+            List.of(),
+            false,
+            true,
+            "vcn-1",
+            "READY",
+            "REST_API",
+            true,
+            "vpl-1",
+            "ACTIVE",
+            true,
+            "vrr-1",
+            "ACTIVE",
+            false,
+            "IDLE",
+            "PLATFORM_MANAGED_AUTO",
+            "CURRENT",
+            true,
+            List.of(),
+            null,
+            null,
+            List.of(),
+            new ShopifyBridgeStoreVectorizationAutomationSummary(
+                true,
+                0,
+                0,
+                3,
+                0,
+                0,
+                0,
+                Instant.parse("2026-04-18T11:00:00Z"),
+                Instant.parse("2026-04-18T11:05:00Z"),
+                null,
+                "vrn-1",
+                List.of()
+            ),
+            List.of()
+        ));
+
+        mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/vectorization").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.syncState").value("CURRENT"))
+            .andExpect(jsonPath("$.automation.autoIndexingHealthy").value(true));
     }
 
     @Test
