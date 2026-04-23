@@ -358,10 +358,12 @@ public class IntentHandlingStep implements PipelineStep {
             return OrchestrationResult.error(ERROR_MSG_MISSING_ACTION_NAME);
         }
 
+        AIActionMetaData meta = getMetadataForAction(actionName);
         OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
         if (policy != null
             && policy.capabilities() != null
-            && !policy.capabilities().actionsEnabled()) {
+            && !policy.capabilities().actionsEnabled()
+            && !isReadActionExecutionAllowedByReadResolutionPolicy(actionName, meta, policy)) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("reason", "ACTIONS_DISABLED_BY_POLICY");
             return OrchestrationResult.builder()
@@ -372,8 +374,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
-        
-        AIActionMetaData meta = getMetadataForAction(actionName);
+
         if (context.isAnonymous() && (meta == null || !meta.isAnonymousAllowed())) {
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.ACTION_DENIED)
@@ -614,6 +615,35 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
+    }
+
+    private boolean isReadActionExecutionAllowedByReadResolutionPolicy(String actionName,
+                                                                       AIActionMetaData metadata,
+                                                                       OrchestrationPolicy policy) {
+        if (!StringUtils.hasText(actionName) || metadata == null || policy == null) {
+            return false;
+        }
+        if (metadata.getAccessMode() != ActionAccessMode.READ || !metadata.isReadActionResolutionEligible()) {
+            return false;
+        }
+        OrchestrationPolicy.ReadActionResolutionPolicy readPolicy = policy.readActionResolutionPolicy();
+        if (readPolicy == null || !readPolicy.enabled()) {
+            return false;
+        }
+        if (readPolicy.requireGroundingEligible() && !metadata.isGroundingEligible()) {
+            return false;
+        }
+        if (!readPolicy.requireAllowlist()) {
+            return true;
+        }
+        if (!readPolicy.hasAllowedReadActions()) {
+            return false;
+        }
+        String normalizedActionName = actionName.trim().toLowerCase(Locale.ROOT);
+        return readPolicy.allowedReadActions().stream()
+            .filter(StringUtils::hasText)
+            .map(value -> value.trim().toLowerCase(Locale.ROOT))
+            .anyMatch(normalizedActionName::equals);
     }
 
     private void enqueuePostPolicies(String actionName,
