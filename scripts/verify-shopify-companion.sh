@@ -639,6 +639,38 @@ assert_nonempty "$(json_get "${store_json}" "sourcePreflight.checkedAt")" "platf
 assert_nonempty "$(json_get "${store_json}" "syncDetail.checkedAt")" "platform sync checkedAt"
 assert_json_array_contains_csv "${store_json}" "capabilities.actionNames" "${EXPECT_REQUIRED_ACTIONS}" "platform store capability actionNames"
 
+echo "== Platform store source coverage =="
+JSON_PAYLOAD="${store_json}" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["JSON_PAYLOAD"])
+preflight = payload.get("sourcePreflight") or {}
+categories = preflight.get("categories") or []
+category_map = {
+    (entry.get("category") or "").strip(): entry
+    for entry in categories
+    if isinstance(entry, dict)
+}
+
+enabled_categories = [
+    category
+    for category, enabled in {
+        "products": payload.get("productsEnabled"),
+        "collections": payload.get("collectionsEnabled"),
+        "pages": payload.get("pagesEnabled"),
+        "policies": payload.get("policiesEnabled"),
+        "articles": payload.get("articlesEnabled"),
+    }.items()
+    if enabled is True
+]
+
+missing = [category for category in enabled_categories if category not in category_map]
+assert not missing, {"missingEnabledPreflightCategories": missing}
+for category in enabled_categories:
+    assert category_map[category].get("status"), {"missingEnabledPreflightStatus": category}
+PY
+
 echo "== Platform store binding inspection =="
 platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/binding" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store binding status"
@@ -723,13 +755,14 @@ echo "== Platform store vectorization events =="
 platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/vectorization/events?limit=5" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store vectorization events status"
 platform_store_vectorization_events_json="${HTTP_BODY}"
-JSON_PAYLOAD="${platform_store_vectorization_json}" JSON_EVENTS="${platform_store_vectorization_events_json}" python3 - <<'PY'
+JSON_PAYLOAD="${platform_store_vectorization_json}" JSON_EVENTS="${platform_store_vectorization_events_json}" JSON_STORE="${store_json}" python3 - <<'PY'
 import json
 import os
 import sys
 
 summary = json.loads(os.environ["JSON_PAYLOAD"])
 events = json.loads(os.environ["JSON_EVENTS"])
+store = json.loads(os.environ["JSON_STORE"])
 
 assert isinstance(events, list), {"eventsType": type(events).__name__}
 assert isinstance(summary.get("policy"), dict), {"missing": "policy"}
@@ -756,6 +789,10 @@ for event in events:
     assert isinstance(event, dict), {"badEvent": event}
     assert event.get("sourceCategory"), {"missingEventSourceCategory": event}
     assert event.get("entityType"), {"missingEventEntityType": event}
+
+if store.get("articlesEnabled") is True:
+    assert "articles" in selected_categories, {"missingArticlesSelectedCategory": selected_categories}
+    assert "articles" in policy_categories, {"missingArticlesPolicyCategory": sorted(policy_categories)}
 PY
 
 echo "== Bridge shell =="

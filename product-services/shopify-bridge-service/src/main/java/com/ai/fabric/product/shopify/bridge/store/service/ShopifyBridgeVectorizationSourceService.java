@@ -50,6 +50,35 @@ public class ShopifyBridgeVectorizationSourceService {
         }
         """;
 
+    private static final String ARTICLES_QUERY = """
+        query ShopifyCompanionArticlesVectorizationPage($cursor: String, $limit: Int!) {
+          articles(first: $limit, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                title
+                handle
+                body
+                summary
+                updatedAt
+                publishedAt
+                blog {
+                  title
+                  handle
+                }
+                author {
+                  name
+                }
+              }
+            }
+          }
+        }
+        """;
+
     private static final String PRODUCTS_QUERY = """
         query ShopifyCompanionProductsVectorizationPage($cursor: String, $limit: Int!) {
           products(first: $limit, after: $cursor) {
@@ -98,6 +127,22 @@ public class ShopifyBridgeVectorizationSourceService {
               handle
               body
               updatedAt
+            }
+            ... on Article {
+              id
+              title
+              handle
+              body
+              summary
+              updatedAt
+              publishedAt
+              blog {
+                title
+                handle
+              }
+              author {
+                name
+              }
             }
           }
         }
@@ -220,6 +265,7 @@ public class ShopifyBridgeVectorizationSourceService {
             case "products" -> loadProductsPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), remainingProductBudget, catalogProductCap);
             case "collections" -> loadCollectionsPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
             case "pages" -> loadPagesPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
+            case "articles" -> loadArticlesPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
             case "policies" -> loadPoliciesPage(store.shopDomain(), accessToken, parsedCursor.nativeCursor(), effectiveLimit);
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported Shopify vectorization source category: " + parsedCursor.category());
         };
@@ -336,6 +382,16 @@ public class ShopifyBridgeVectorizationSourceService {
                     null
                 )
             );
+            case "articles" -> requirePublishedArticle(
+                sourceObjectId,
+                loadNodeRecord(
+                    store.shopDomain(),
+                    accessToken,
+                    sourceObjectId,
+                    "Article",
+                    node -> text(node, "publishedAt") == null ? null : articleRecord(store.shopDomain(), node)
+                )
+            );
             case "policies" -> loadPolicies(store.shopDomain(), accessToken).stream()
                 .filter(item -> sourceObjectId.equals(item.id()))
                 .findFirst()
@@ -366,6 +422,7 @@ public class ShopifyBridgeVectorizationSourceService {
                     PAGES_COUNT_QUERY,
                     "pagesCount"
                 );
+                case "articles" -> countPublishedArticles(store.shopDomain(), accessToken);
                 case "policies" -> loadPolicies(store.shopDomain(), accessToken).size();
                 default -> 0;
             };
@@ -550,6 +607,23 @@ public class ShopifyBridgeVectorizationSourceService {
         );
     }
 
+    private PageResult loadArticlesPage(String shopDomain,
+                                        String accessToken,
+                                        String cursor,
+                                        int limit) {
+        Map<String, Object> response = shopifyAdminGraphqlClient.execute(
+            shopDomain,
+            accessToken,
+            ARTICLES_QUERY,
+            variablesWithCursor(cursor, limit)
+        );
+        return pageFromConnection(
+            response,
+            "articles",
+            node -> text(node, "publishedAt") == null ? null : articleRecord(shopDomain, node)
+        );
+    }
+
     private PageResult loadPoliciesPage(String shopDomain,
                                         String accessToken,
                                         String cursor,
@@ -597,6 +671,49 @@ public class ShopifyBridgeVectorizationSourceService {
             .toList();
     }
 
+    private int countPublishedArticles(String shopDomain, String accessToken) {
+        int count = 0;
+        String cursor = null;
+        while (true) {
+            PageResult page = loadArticlesPage(shopDomain, accessToken, cursor, MAX_LIMIT);
+            count += page.items().size();
+            if (!page.hasMore()) {
+                return count;
+            }
+            cursor = page.nextCursor();
+        }
+    }
+
+    private ShopifyBridgeVectorizationSourceRecord articleRecord(String shopDomain, Map<String, Object> node) {
+        return new ShopifyBridgeVectorizationSourceRecord(
+            requiredText(node, "id"),
+            text(node, "updatedAt"),
+            text(node, "title"),
+            joinContent(
+                text(node, "title"),
+                nestedText(node, "blog", "title"),
+                nestedText(node, "author", "name"),
+                sanitizeRichText(text(node, "summary")),
+                sanitizeRichText(text(node, "body"))
+            ),
+            "articles",
+            "article",
+            articleStorefrontUrl(shopDomain, node),
+            text(node, "handle"),
+            null,
+            null,
+            null
+        );
+    }
+
+    private ShopifyBridgeVectorizationSourceRecord requirePublishedArticle(String sourceObjectId,
+                                                                           ShopifyBridgeVectorizationSourceRecord record) {
+        if (record != null) {
+            return record;
+        }
+        throw new ResponseStatusException(CONFLICT, "Shopify article is not published: " + sourceObjectId);
+    }
+
     private PageResult pageFromConnection(Map<String, Object> response,
                                           String connectionField,
                                           RecordFactory recordFactory) {
@@ -614,7 +731,10 @@ public class ShopifyBridgeVectorizationSourceService {
         for (Object edge : edges) {
             Map<String, Object> edgeMap = requireMapFromListItem(edge);
             Map<String, Object> node = requireMap(edgeMap.get("node"), "Shopify Admin API response is missing node for " + connectionField + ".");
-            items.add(recordFactory.create(node));
+            ShopifyBridgeVectorizationSourceRecord record = recordFactory.create(node);
+            if (record != null) {
+                items.add(record);
+            }
         }
         Map<String, Object> pageInfo = requireMap(
             connection.get("pageInfo"),
@@ -670,12 +790,15 @@ public class ShopifyBridgeVectorizationSourceService {
             return categories;
         }
         if ("support-policy".equals(entityType)) {
-            List<String> categories = new ArrayList<>(2);
+            List<String> categories = new ArrayList<>(3);
             if (store.pagesEnabled()) {
                 categories.add("pages");
             }
             if (store.policiesEnabled()) {
                 categories.add("policies");
+            }
+            if (store.articlesEnabled()) {
+                categories.add("articles");
             }
             return categories;
         }
@@ -756,6 +879,24 @@ public class ShopifyBridgeVectorizationSourceService {
     private String text(Map<String, Object> source, String fieldName) {
         Object value = source.get(fieldName);
         return value == null ? null : value.toString();
+    }
+
+    private String nestedText(Map<String, Object> source, String fieldName, String nestedFieldName) {
+        Object value = source.get(fieldName);
+        if (!(value instanceof Map<?, ?> nested)) {
+            return null;
+        }
+        Object nestedValue = nested.get(nestedFieldName);
+        return nestedValue == null ? null : nestedValue.toString();
+    }
+
+    private String articleStorefrontUrl(String shopDomain, Map<String, Object> node) {
+        String blogHandle = nestedText(node, "blog", "handle");
+        String handle = text(node, "handle");
+        if (blogHandle == null || blogHandle.isBlank() || handle == null || handle.isBlank()) {
+            return null;
+        }
+        return storefrontUrl(shopDomain, "/blogs/" + safePath(blogHandle) + "/" + safePath(handle));
     }
 
     private String joinContent(String... parts) {

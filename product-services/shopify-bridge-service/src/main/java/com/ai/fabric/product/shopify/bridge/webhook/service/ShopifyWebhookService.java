@@ -255,6 +255,9 @@ public class ShopifyWebhookService {
         if (topic.startsWith("pages/")) {
             return new WebhookImpact("CONTENT_CHANGED", "pages", topicOperation(topic), "Shopify page content changed. Incremental sync is required.", true);
         }
+        if (topic.startsWith("articles/")) {
+            return new WebhookImpact("CONTENT_CHANGED", "articles", topicOperation(topic), "Shopify article content changed. Incremental sync is required.", true);
+        }
         if ("app_subscriptions/update".equals(topic)) {
             return new WebhookImpact("BILLING_CHANGED", "billing", null, "Shopify app subscription billing changed. Review merchant billing status before go-live.", false);
         }

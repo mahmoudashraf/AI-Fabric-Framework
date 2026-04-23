@@ -24,6 +24,7 @@ public record ShopifyBridgeStoreSummary(
     boolean collectionsEnabled,
     boolean pagesEnabled,
     boolean policiesEnabled,
+    boolean articlesEnabled,
     ShopifyBridgeStoreCredentialSummary credentials,
     ShopifyBridgeStoreSourcePreflightSummary sourcePreflight,
     ShopifyBridgeStoreSyncSummary syncDetail,

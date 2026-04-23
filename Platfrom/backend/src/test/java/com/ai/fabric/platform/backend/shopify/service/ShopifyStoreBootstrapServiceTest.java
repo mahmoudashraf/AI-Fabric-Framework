@@ -857,6 +857,7 @@ class ShopifyStoreBootstrapServiceTest {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

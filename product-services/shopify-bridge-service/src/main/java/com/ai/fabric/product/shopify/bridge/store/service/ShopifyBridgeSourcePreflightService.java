@@ -56,6 +56,23 @@ public class ShopifyBridgeSourcePreflightService {
         }
         """;
 
+    private static final String ARTICLES_QUERY = """
+        query ShopifyCompanionArticlesPreflight($cursor: String) {
+          articles(first: 50, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                publishedAt
+              }
+            }
+          }
+        }
+        """;
+
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeBillingService billingService;
@@ -107,6 +124,11 @@ public class ShopifyBridgeSourcePreflightService {
             "policies",
             store.policiesEnabled(),
             () -> fetchPolicies(store.shopDomain(), accessToken)
+        ));
+        categories.add(evaluateCategory(
+            "articles",
+            store.articlesEnabled(),
+            () -> fetchArticles(store.shopDomain(), accessToken)
         ));
         return platformShopifyStoreClient.recordSourcePreflight(
             store.shopDomain(),
@@ -163,6 +185,19 @@ public class ShopifyBridgeSourcePreflightService {
             "READY",
             count,
             count > 0 ? "Policies reachable (" + count + " documents)." : "No shop policies configured."
+        );
+    }
+
+    private CategoryResult fetchArticles(String shopDomain, String accessToken) {
+        int count = paginate(shopDomain, accessToken, ARTICLES_QUERY, "articles").stream()
+            .map(node -> text(node, "publishedAt"))
+            .filter(value -> value != null && !value.isBlank())
+            .toList()
+            .size();
+        return new CategoryResult(
+            "READY",
+            count,
+            count > 0 ? "Articles reachable (" + count + " published posts)." : "No published articles found in the store."
         );
     }
 
@@ -232,6 +267,49 @@ public class ShopifyBridgeSourcePreflightService {
         throw new ResponseStatusException(BAD_GATEWAY, message);
     }
 
+    private List<Map<String, Object>> paginate(String shopDomain,
+                                               String accessToken,
+                                               String query,
+                                               String connectionField) {
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        String cursor = null;
+        while (true) {
+            Map<String, Object> response = shopifyAdminGraphqlClient.execute(
+                shopDomain,
+                accessToken,
+                query,
+                cursorVariables(cursor)
+            );
+            List<String> errors = errorMessages(response);
+            if (!errors.isEmpty()) {
+                throw new ResponseStatusException(BAD_GATEWAY, String.join(" ", errors));
+            }
+            Map<String, Object> data = requireMap(response.get("data"), "Shopify Admin API response is missing data.");
+            Map<String, Object> connection = requireMap(data.get(connectionField), "Shopify Admin API response is missing " + connectionField + ".");
+            List<?> edges = requireList(connection.get("edges"), "Shopify Admin API response is missing edges for " + connectionField + ".");
+            for (Object edge : edges) {
+                Map<String, Object> edgeMap = requireMapFromListItem(edge);
+                nodes.add(requireMap(edgeMap.get("node"), "Shopify Admin API response is missing node for " + connectionField + "."));
+            }
+            Map<String, Object> pageInfo = requireMap(connection.get("pageInfo"), "Shopify Admin API response is missing pageInfo for " + connectionField + ".");
+            boolean hasNextPage = Boolean.TRUE.equals(pageInfo.get("hasNextPage"));
+            String endCursor = text(pageInfo, "endCursor");
+            if (!hasNextPage || endCursor == null) {
+                break;
+            }
+            cursor = endCursor;
+        }
+        return nodes;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> requireMapFromListItem(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        throw new ResponseStatusException(BAD_GATEWAY, "Shopify Admin API returned an invalid object payload.");
+    }
+
     @SuppressWarnings("unchecked")
     private List<String> errorMessages(Map<String, Object> response) {
         Object value = response.get("errors");
@@ -248,6 +326,17 @@ public class ShopifyBridgeSourcePreflightService {
             })
             .filter(message -> message != null && !message.isBlank())
             .toList();
+    }
+
+    private String text(Map<String, Object> source, String field) {
+        Object value = source.get(field);
+        return value == null ? null : value.toString().trim();
+    }
+
+    private Map<String, Object> cursorVariables(String cursor) {
+        Map<String, Object> variables = new java.util.LinkedHashMap<>();
+        variables.put("cursor", cursor);
+        return variables;
     }
 
     private record CategoryResult(

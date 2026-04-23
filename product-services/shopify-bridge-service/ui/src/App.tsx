@@ -233,6 +233,7 @@ export default function App() {
     collectionsEnabled: true,
     pagesEnabled: true,
     policiesEnabled: true,
+    articlesEnabled: true,
   })
   const [selectedReindexEntityTypes, setSelectedReindexEntityTypes] = useState<string[]>([])
   const [vectorizationPolicyDraft, setVectorizationPolicyDraft] = useState<VectorizationPolicyDraft | null>(null)
@@ -327,6 +328,7 @@ export default function App() {
           collectionsEnabled: session.store.collectionsEnabled,
           pagesEnabled: session.store.pagesEnabled,
           policiesEnabled: session.store.policiesEnabled,
+          articlesEnabled: session.store.articlesEnabled,
         })
         setWidgetSettings({
           launcherLabel: session.store.widgetDetail?.settings?.launcherLabel ?? 'Ask the store assistant',
@@ -792,7 +794,8 @@ export default function App() {
     (store.productsEnabled !== sourceSettings.productsEnabled ||
       store.collectionsEnabled !== sourceSettings.collectionsEnabled ||
       store.pagesEnabled !== sourceSettings.pagesEnabled ||
-      store.policiesEnabled !== sourceSettings.policiesEnabled)
+      store.policiesEnabled !== sourceSettings.policiesEnabled ||
+      store.articlesEnabled !== sourceSettings.articlesEnabled)
   const widgetSettingsDirty =
     !!store &&
     ((store.widgetDetail?.settings?.launcherLabel ?? 'Ask the store assistant') !== widgetSettings.launcherLabel ||
@@ -955,6 +958,11 @@ export default function App() {
                     label="Policies"
                     checked={sourceSettings.policiesEnabled}
                     onChange={(checked) => setSourceSettings((current) => ({ ...current, policiesEnabled: checked }))}
+                  />
+                  <Checkbox
+                    label="Articles"
+                    checked={sourceSettings.articlesEnabled}
+                    onChange={(checked) => setSourceSettings((current) => ({ ...current, articlesEnabled: checked }))}
                   />
                   <InlineStack gap="200">
                     <Button
@@ -2130,7 +2138,7 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
         </Banner>
       ) : null}
       <Text as="p" variant="bodySm" tone="subdued">
-        Sources: products {store.productsEnabled ? 'on' : 'off'}, collections {store.collectionsEnabled ? 'on' : 'off'}, pages {store.pagesEnabled ? 'on' : 'off'}, policies {store.policiesEnabled ? 'on' : 'off'}
+        Sources: products {store.productsEnabled ? 'on' : 'off'}, collections {store.collectionsEnabled ? 'on' : 'off'}, pages {store.pagesEnabled ? 'on' : 'off'}, policies {store.policiesEnabled ? 'on' : 'off'}, articles {store.articlesEnabled ? 'on' : 'off'}
       </Text>
     </BlockStack>
   )
@@ -2279,6 +2287,7 @@ function buildSupportBundle(
               collectionsEnabled: store.collectionsEnabled,
               pagesEnabled: store.pagesEnabled,
               policiesEnabled: store.policiesEnabled,
+              articlesEnabled: store.articlesEnabled,
             },
             capabilities: store.capabilities,
             readiness: store.readiness,

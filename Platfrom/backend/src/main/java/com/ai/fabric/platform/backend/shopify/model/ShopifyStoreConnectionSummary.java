@@ -28,6 +28,7 @@ public record ShopifyStoreConnectionSummary(
     boolean collectionsEnabled,
     boolean pagesEnabled,
     boolean policiesEnabled,
+    boolean articlesEnabled,
     ShopifyStoreCredentialSummary credentials,
     ShopifyStoreSourcePreflightSummary sourcePreflight,
     ShopifyStoreSyncSummary syncDetail,

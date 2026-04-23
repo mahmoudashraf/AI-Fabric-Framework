@@ -177,6 +177,7 @@ class ShopifyBridgeActionExecutionServiceTest {
                 true,
                 true,
                 true,
+                false,
                 null,
                 null,
                 null,

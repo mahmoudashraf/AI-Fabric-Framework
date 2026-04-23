@@ -172,6 +172,65 @@ class ShopifyBridgeVectorizationSourceServiceTest {
         assertThat(secondPage.items().getFirst().policyType()).isEqualTo("PRIVACY_POLICY");
     }
 
+    @Test
+    void pageReturnsPublishedArticlesForSupportPolicyEntityType() {
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com"))
+            .thenReturn(Optional.of(acquisition(articlesOnlyStore())));
+        when(billingService.catalogProductCap("alpha.myshopify.com", "access-token")).thenReturn(null);
+        when(shopifyAdminGraphqlClient.execute(
+            eq("alpha.myshopify.com"),
+            eq("access-token"),
+            contains("ArticlesVectorizationPage"),
+            anyMap()
+        )).thenReturn(Map.of(
+            "data",
+            Map.of(
+                "articles",
+                Map.of(
+                    "pageInfo", pageInfo(false, null),
+                    "edges", List.of(
+                        Map.of("node", articleNode(
+                            "gid://shopify/Article/1",
+                            "Shipping guide",
+                            "shipping-guide",
+                            "<p>Ships in two days.</p>",
+                            "<p>Fast shipping.</p>",
+                            "2026-04-22T12:00:00Z",
+                            "2026-04-22T12:05:00Z"
+                        )),
+                        Map.of("node", articleNode(
+                            "gid://shopify/Article/2",
+                            "Draft article",
+                            "draft-article",
+                            "<p>Not published.</p>",
+                            "<p>Draft.</p>",
+                            "2026-04-22T12:06:00Z",
+                            null
+                        ))
+                    )
+                )
+            )
+        ));
+
+        ShopifyBridgeVectorizationSourceService service =
+            new ShopifyBridgeVectorizationSourceService(installCredentialService, shopifyAdminGraphqlClient, billingService);
+
+        ShopifyBridgeVectorizationSourcePageResponse page = service.page("alpha.myshopify.com", "support-policy", null, 25);
+
+        assertThat(page.totalCount()).isEqualTo(1);
+        assertThat(page.hasMore()).isFalse();
+        assertThat(page.items()).singleElement().satisfies(item -> {
+            assertThat(item.sourceCategory()).isEqualTo("articles");
+            assertThat(item.documentType()).isEqualTo("article");
+            assertThat(item.title()).isEqualTo("Shipping guide");
+            assertThat(item.storefrontUrl()).isEqualTo("https://alpha.myshopify.com/blogs/news/shipping-guide");
+        });
+    }
+
     private ShopifyBridgeCredentialAcquisition acquisition(ShopifyBridgeStoreSummary store) {
         return new ShopifyBridgeCredentialAcquisition(
             store,
@@ -191,6 +250,26 @@ class ShopifyBridgeVectorizationSourceServiceTest {
         value.put("hasNextPage", hasNextPage);
         value.put("endCursor", endCursor);
         return value;
+    }
+
+    private Map<String, Object> articleNode(String id,
+                                            String title,
+                                            String handle,
+                                            String body,
+                                            String summary,
+                                            String updatedAt,
+                                            String publishedAt) {
+        LinkedHashMap<String, Object> node = new LinkedHashMap<>();
+        node.put("id", id);
+        node.put("title", title);
+        node.put("handle", handle);
+        node.put("body", body);
+        node.put("summary", summary);
+        node.put("updatedAt", updatedAt);
+        node.put("publishedAt", publishedAt);
+        node.put("blog", Map.of("title", "News", "handle", "news"));
+        node.put("author", Map.of("name", "Loom Team"));
+        return node;
     }
 
     private ShopifyBridgeStoreSummary productsAndCollectionsStore() {
@@ -214,6 +293,7 @@ class ShopifyBridgeVectorizationSourceServiceTest {
             "READY_FOR_ONBOARDING",
             true,
             true,
+            false,
             false,
             false,
             null,
@@ -252,6 +332,48 @@ class ShopifyBridgeVectorizationSourceServiceTest {
             "READY",
             "ENABLED",
             "READY_FOR_ONBOARDING",
+            false,
+            false,
+            false,
+            true,
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Instant.now(),
+            Instant.now(),
+            Instant.now(),
+            Instant.now(),
+            Instant.now()
+        );
+    }
+
+    private ShopifyBridgeStoreSummary articlesOnlyStore() {
+        return new ShopifyBridgeStoreSummary(
+            "shp-3",
+            "alpha.myshopify.com",
+            "Alpha",
+            "shopify-bridge-prod",
+            "Shopify Bridge Service",
+            "cus-1",
+            "Customer",
+            "dep-1",
+            "Deployment",
+            "ACTIVE",
+            "consumer-1",
+            "Consumer",
+            "INSTALLED",
+            "SYNCED",
+            "READY",
+            "ENABLED",
+            "READY_FOR_ONBOARDING",
+            false,
             false,
             false,
             false,

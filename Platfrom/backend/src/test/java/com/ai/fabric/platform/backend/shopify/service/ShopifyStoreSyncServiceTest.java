@@ -115,6 +115,7 @@ class ShopifyStoreSyncServiceTest {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

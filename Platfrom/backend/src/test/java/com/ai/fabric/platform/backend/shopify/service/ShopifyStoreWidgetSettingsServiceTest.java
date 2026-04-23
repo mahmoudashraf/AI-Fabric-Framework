@@ -96,6 +96,7 @@ class ShopifyStoreWidgetSettingsServiceTest {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

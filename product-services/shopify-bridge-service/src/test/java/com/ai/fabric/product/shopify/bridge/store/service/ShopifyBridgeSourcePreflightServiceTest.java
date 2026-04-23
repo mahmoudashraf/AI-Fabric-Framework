@@ -66,11 +66,11 @@ class ShopifyBridgeSourcePreflightServiceTest {
         List<ShopifyBridgeStoreSourcePreflightCategorySummary> categories = captor.getValue().categories();
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         assertThat(categories).extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::category)
-            .containsExactly("products", "collections", "pages", "policies");
+            .containsExactly("products", "collections", "pages", "policies", "articles");
         assertThat(categories).extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::status)
-            .containsExactly("READY", "PENDING", "READY", "READY");
+            .containsExactly("READY", "PENDING", "READY", "READY", "PENDING");
         assertThat(categories).extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::itemCount)
-            .containsExactly(12, 0, 0, 2);
+            .containsExactly(12, 0, 0, 2, 0);
     }
 
     @Test
@@ -99,7 +99,77 @@ class ShopifyBridgeSourcePreflightServiceTest {
         verify(platformClient).recordSourcePreflight(eq("alpha.myshopify.com"), captor.capture());
         assertThat(captor.getValue().categories())
             .extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::status)
-            .containsExactly("BLOCKED", "PENDING", "PENDING", "PENDING");
+            .containsExactly("BLOCKED", "PENDING", "PENDING", "PENDING", "PENDING");
+    }
+
+    @Test
+    void runCountsOnlyPublishedArticlesWhenEnabled() {
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeSourcePreflightService service = new ShopifyBridgeSourcePreflightService(graphqlClient, platformClient, billingService);
+        when(billingService.catalogProductCap("alpha.myshopify.com", "shpat_access")).thenReturn(null);
+
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
+        query ShopifyCompanionArticlesPreflight($cursor: String) {
+          articles(first: 50, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                publishedAt
+              }
+            }
+          }
+        }
+        """), eq(cursorVariables(null)))).thenReturn(Map.of(
+            "data", Map.of(
+                "articles", Map.of(
+                    "pageInfo", pageInfo(false, null),
+                    "edges", List.of(
+                        Map.of("node", preflightArticleNode("gid://shopify/Article/1", "2026-04-21T12:00:00Z")),
+                        Map.of("node", preflightArticleNode("gid://shopify/Article/2", null)),
+                        Map.of("node", preflightArticleNode("gid://shopify/Article/3", "2026-04-22T12:00:00Z"))
+                    )
+                )
+            )
+        ));
+        when(platformClient.recordSourcePreflight(eq("alpha.myshopify.com"), any())).thenReturn(store(false, false, false, false, true));
+
+        ShopifyBridgeStoreSummary response = service.run(acquisition(store(false, false, false, false, true)));
+
+        ArgumentCaptor<ShopifyBridgeRecordSourcePreflightRequest> captor =
+            ArgumentCaptor.forClass(ShopifyBridgeRecordSourcePreflightRequest.class);
+        verify(platformClient).recordSourcePreflight(eq("alpha.myshopify.com"), captor.capture());
+        List<ShopifyBridgeStoreSourcePreflightCategorySummary> categories = captor.getValue().categories();
+        assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
+        assertThat(categories).extracting(ShopifyBridgeStoreSourcePreflightCategorySummary::category)
+            .containsExactly("products", "collections", "pages", "policies", "articles");
+        assertThat(categories.get(4).status()).isEqualTo("READY");
+        assertThat(categories.get(4).itemCount()).isEqualTo(2);
+    }
+
+    private Map<String, Object> cursorVariables(String cursor) {
+        java.util.LinkedHashMap<String, Object> variables = new java.util.LinkedHashMap<>();
+        variables.put("cursor", cursor);
+        return variables;
+    }
+
+    private Map<String, Object> pageInfo(boolean hasNextPage, String endCursor) {
+        java.util.LinkedHashMap<String, Object> pageInfo = new java.util.LinkedHashMap<>();
+        pageInfo.put("hasNextPage", hasNextPage);
+        pageInfo.put("endCursor", endCursor);
+        return pageInfo;
+    }
+
+    private Map<String, Object> preflightArticleNode(String id, String publishedAt) {
+        java.util.LinkedHashMap<String, Object> node = new java.util.LinkedHashMap<>();
+        node.put("id", id);
+        node.put("publishedAt", publishedAt);
+        return node;
     }
 
     private ShopifyBridgeCredentialAcquisition acquisition(ShopifyBridgeStoreSummary store) {
@@ -120,6 +190,14 @@ class ShopifyBridgeSourcePreflightServiceTest {
                                             boolean collectionsEnabled,
                                             boolean pagesEnabled,
                                             boolean policiesEnabled) {
+        return store(productsEnabled, collectionsEnabled, pagesEnabled, policiesEnabled, false);
+    }
+
+    private ShopifyBridgeStoreSummary store(boolean productsEnabled,
+                                            boolean collectionsEnabled,
+                                            boolean pagesEnabled,
+                                            boolean policiesEnabled,
+                                            boolean articlesEnabled) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
             "alpha.myshopify.com",
@@ -142,6 +220,7 @@ class ShopifyBridgeSourcePreflightServiceTest {
             collectionsEnabled,
             pagesEnabled,
             policiesEnabled,
+            articlesEnabled,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

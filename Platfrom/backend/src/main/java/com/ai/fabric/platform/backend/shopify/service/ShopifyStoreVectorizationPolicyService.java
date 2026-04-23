@@ -275,6 +275,15 @@ public class ShopifyStoreVectorizationPolicyService {
                 30,
                 60
             );
+            case ShopifyStoreVectorizationConstants.SOURCE_ARTICLES -> new ShopifyStoreVectorizationPolicyState(
+                false,
+                false,
+                false,
+                ShopifyStoreVectorizationConstants.UPDATE_MODE_INDEXED_ONLY,
+                List.of(),
+                30,
+                60
+            );
             default -> throw new IllegalStateException("Unsupported Shopify source category: " + sourceCategory);
         };
     }

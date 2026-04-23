@@ -239,6 +239,7 @@ print(json.dumps({
     "collectionsEnabled": True,
     "pagesEnabled": True,
     "policiesEnabled": True,
+    "articlesEnabled": True,
 }))
 PY
 )"

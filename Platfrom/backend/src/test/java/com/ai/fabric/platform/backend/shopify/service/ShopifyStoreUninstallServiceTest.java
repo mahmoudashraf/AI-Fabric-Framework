@@ -187,6 +187,7 @@ class ShopifyStoreUninstallServiceTest {
             true,
             true,
             true,
+            false,
             new com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCredentialSummary(
                 credentialStatus,
                 "READY".equalsIgnoreCase(credentialStatus),

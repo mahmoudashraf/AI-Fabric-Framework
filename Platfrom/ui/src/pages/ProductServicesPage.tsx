@@ -830,7 +830,7 @@ export function ProductServicesPage() {
                                   </Typography>
                                 )}
                                 <Typography variant="body2" color="text.secondary">
-                                  Sources: products {store.productsEnabled ? 'on' : 'off'} · collections {store.collectionsEnabled ? 'on' : 'off'} · pages {store.pagesEnabled ? 'on' : 'off'} · policies {store.policiesEnabled ? 'on' : 'off'}
+                                  Sources: products {store.productsEnabled ? 'on' : 'off'} · collections {store.collectionsEnabled ? 'on' : 'off'} · pages {store.pagesEnabled ? 'on' : 'off'} · policies {store.policiesEnabled ? 'on' : 'off'} · articles {store.articlesEnabled ? 'on' : 'off'}
                                 </Typography>
                                 {store.credentials ? (
                                   <Typography variant="body2" color="text.secondary">

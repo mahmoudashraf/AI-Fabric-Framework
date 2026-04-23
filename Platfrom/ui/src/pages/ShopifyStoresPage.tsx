@@ -113,6 +113,7 @@ const emptyForm: StoreFormState = {
   collectionsEnabled: true,
   pagesEnabled: true,
   policiesEnabled: true,
+  articlesEnabled: true,
 }
 
 function buildPreflightCategories(store: ShopifyStoreConnectionSummary): PreflightFormCategory[] {
@@ -122,6 +123,7 @@ function buildPreflightCategories(store: ShopifyStoreConnectionSummary): Preflig
     { category: 'collections', enabled: store.collectionsEnabled },
     { category: 'pages', enabled: store.pagesEnabled },
     { category: 'policies', enabled: store.policiesEnabled },
+    { category: 'articles', enabled: store.articlesEnabled },
   ]
     .filter((entry) => entry.enabled)
     .map((entry) => {
@@ -647,6 +649,7 @@ export function ShopifyStoresPage() {
                       ['Collections enabled', selectedStore.collectionsEnabled ? 'Yes' : 'No'],
                       ['Pages enabled', selectedStore.pagesEnabled ? 'Yes' : 'No'],
                       ['Policies enabled', selectedStore.policiesEnabled ? 'Yes' : 'No'],
+                      ['Articles enabled', selectedStore.articlesEnabled ? 'Yes' : 'No'],
                       ['Actions', selectedStore.capabilities ? `${selectedStore.capabilities.actionCount}` : null],
                       ['Knowledge sources', selectedStore.capabilities ? `${selectedStore.capabilities.knowledgeSourceCount}` : null],
                       ['Datasets', selectedStore.capabilities ? `${selectedStore.capabilities.marketplaceDatasetCount}` : null],
@@ -1454,6 +1457,10 @@ export function ShopifyStoresPage() {
               <FormControlLabel
                 control={<Checkbox checked={Boolean(form.policiesEnabled)} onChange={(event) => setForm((current) => ({ ...current, policiesEnabled: event.target.checked }))} />}
                 label="Policies"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={Boolean(form.articlesEnabled)} onChange={(event) => setForm((current) => ({ ...current, articlesEnabled: event.target.checked }))} />}
+                label="Articles"
               />
             </FormGroup>
           </Stack>

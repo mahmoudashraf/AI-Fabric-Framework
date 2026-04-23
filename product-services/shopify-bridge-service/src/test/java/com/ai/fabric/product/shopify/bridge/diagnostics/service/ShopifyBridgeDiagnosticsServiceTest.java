@@ -214,6 +214,7 @@ class ShopifyBridgeDiagnosticsServiceTest {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

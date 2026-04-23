@@ -639,6 +639,7 @@ public class PlatformManagedProductAdminService {
             entity.isCollectionsEnabled(),
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
+            entity.isArticlesEnabled(),
             credentials,
             sourcePreflight,
             syncDetail,

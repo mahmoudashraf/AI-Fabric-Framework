@@ -365,6 +365,7 @@ public class ShopifyStoreVectorizationService {
         sourceCategories.put("collectionsEnabled", store.isCollectionsEnabled());
         sourceCategories.put("pagesEnabled", store.isPagesEnabled());
         sourceCategories.put("policiesEnabled", store.isPoliciesEnabled());
+        sourceCategories.put("articlesEnabled", store.isArticlesEnabled());
         ObjectNode entityMappings = mapping.putObject("entityMappings");
 
         ObjectNode productMapping = entityMappings.putObject("product");

@@ -135,6 +135,7 @@ class ShopifyStoreSourcePreflightServiceTest {
             true,
             false,
             true,
+            false,
             null,
             null,
             null,

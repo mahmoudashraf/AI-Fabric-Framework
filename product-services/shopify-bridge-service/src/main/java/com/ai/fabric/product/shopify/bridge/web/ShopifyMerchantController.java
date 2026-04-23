@@ -177,7 +177,7 @@ public class ShopifyMerchantController {
                                                           @RequestBody(required = false) ShopifyBridgeUpdateSourceSettingsRequest request) {
         return merchantStoreService.updateSourceSettings(
             requireMerchant(authentication),
-            request == null ? new ShopifyBridgeUpdateSourceSettingsRequest(null, null, null, null) : request
+            request == null ? new ShopifyBridgeUpdateSourceSettingsRequest(null, null, null, null, null) : request
         );
     }
 

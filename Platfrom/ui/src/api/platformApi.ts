@@ -735,6 +735,7 @@ export type ShopifyStoreConnectionSummary = {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  articlesEnabled: boolean
   credentials: ShopifyStoreCredentialSummary | null
   sourcePreflight: ShopifyStoreSourcePreflightSummary | null
   syncDetail: ShopifyStoreSyncSummary | null
@@ -774,6 +775,7 @@ export type UpsertShopifyStoreConnectionRequest = {
   collectionsEnabled: boolean | null
   pagesEnabled: boolean | null
   policiesEnabled: boolean | null
+  articlesEnabled: boolean | null
 }
 
 export type BootstrapShopifyStoreRequest = {

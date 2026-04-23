@@ -124,6 +124,15 @@ public class ShopifyStoreVectorizationFieldCatalogService {
                 new ShopifyStoreVectorizationFieldDefinition("policies.storefrontUrl", "policies", "support-policy", "storefrontUrl", "Policy URL", true)
             )
         );
+        definitions.put(
+            ShopifyStoreVectorizationConstants.SOURCE_ARTICLES,
+            List.of(
+                new ShopifyStoreVectorizationFieldDefinition("articles.title", "articles", "support-policy", "title", "Article title", true),
+                new ShopifyStoreVectorizationFieldDefinition("articles.content", "articles", "support-policy", "content", "Article body", true),
+                new ShopifyStoreVectorizationFieldDefinition("articles.handle", "articles", "support-policy", "handle", "Article handle", true),
+                new ShopifyStoreVectorizationFieldDefinition("articles.storefrontUrl", "articles", "support-policy", "storefrontUrl", "Article URL", true)
+            )
+        );
         return Map.copyOf(definitions);
     }
 }

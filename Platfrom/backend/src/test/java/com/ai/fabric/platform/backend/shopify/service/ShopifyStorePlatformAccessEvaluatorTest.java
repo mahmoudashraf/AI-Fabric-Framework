@@ -68,7 +68,8 @@ class ShopifyStorePlatformAccessEvaluatorTest {
             true,
             true,
             true,
-            true
+            true,
+            false
         ))).isTrue();
         assertThat(evaluator.canUpsert(authentication, new UpsertShopifyStoreConnectionRequest(
             "beta.myshopify.com",
@@ -85,7 +86,8 @@ class ShopifyStorePlatformAccessEvaluatorTest {
             true,
             true,
             true,
-            true
+            true,
+            false
         ))).isFalse();
     }
 

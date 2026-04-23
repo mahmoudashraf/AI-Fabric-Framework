@@ -35,7 +35,7 @@ final class ShopifyCompanionPluginSelection {
     }
 
     static boolean requiresPoliciesData(ShopifyStoreConnectionEntity store) {
-        return store != null && (store.isPagesEnabled() || store.isPoliciesEnabled());
+        return store != null && (store.isPagesEnabled() || store.isPoliciesEnabled() || store.isArticlesEnabled());
     }
 
     static List<String> selectedCategories(ShopifyStoreConnectionEntity store) {
@@ -54,6 +54,9 @@ final class ShopifyCompanionPluginSelection {
         }
         if (store.isPoliciesEnabled()) {
             categories.add("policies");
+        }
+        if (store.isArticlesEnabled()) {
+            categories.add("articles");
         }
         return List.copyOf(categories);
     }

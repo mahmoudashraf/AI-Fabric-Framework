@@ -349,7 +349,8 @@ class PlatformShopifyStoreClientTest {
             true,
             true,
             false,
-            true
+            true,
+            false
         ));
 
         assertThat(response.installStatus()).isEqualTo("INSTALLED");

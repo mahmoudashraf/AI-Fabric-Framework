@@ -46,6 +46,7 @@ export type ShopifyBridgeStoreSummary = {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  articlesEnabled: boolean
   credentials: {
     status: string
     accessTokenPresent: boolean
@@ -519,6 +520,7 @@ export async function updateSourceSettings(settings: {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  articlesEnabled: boolean
 }): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/source-settings', {
     method: 'POST',

@@ -125,6 +125,7 @@ class ShopifyStoreWidgetServiceTest {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

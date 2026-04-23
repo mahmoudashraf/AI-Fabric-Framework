@@ -140,7 +140,8 @@ public class ShopifyInstallFlowService {
                 existing.productsEnabled(),
                 existing.collectionsEnabled(),
                 existing.pagesEnabled(),
-                existing.policiesEnabled()
+                existing.policiesEnabled(),
+                existing.articlesEnabled()
             ));
         } catch (HttpClientErrorException.NotFound ex) {
             platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
@@ -155,6 +156,7 @@ public class ShopifyInstallFlowService {
                 "NOT_RUN",
                 "NOT_ENABLED",
                 "CONNECTED",
+                true,
                 true,
                 true,
                 true,

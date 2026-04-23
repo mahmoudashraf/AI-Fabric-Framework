@@ -193,6 +193,7 @@ class ShopifyStorefrontBootstrapServiceTest {
             true,
             true,
             true,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

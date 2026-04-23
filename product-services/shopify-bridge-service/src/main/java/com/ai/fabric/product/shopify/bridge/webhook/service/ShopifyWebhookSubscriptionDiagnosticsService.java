@@ -92,6 +92,9 @@ public class ShopifyWebhookSubscriptionDiagnosticsService {
             case "COLLECTIONS_CREATE" -> "loom-collections-create";
             case "COLLECTIONS_UPDATE" -> "loom-collections-update";
             case "COLLECTIONS_DELETE" -> "loom-collections-delete";
+            case "ARTICLES_CREATE" -> "loom-articles-create";
+            case "ARTICLES_UPDATE" -> "loom-articles-update";
+            case "ARTICLES_DELETE" -> "loom-articles-delete";
             case "SHOP_UPDATE" -> "loom-shop-update";
             default -> topic == null ? null : topic.trim().toLowerCase();
         };

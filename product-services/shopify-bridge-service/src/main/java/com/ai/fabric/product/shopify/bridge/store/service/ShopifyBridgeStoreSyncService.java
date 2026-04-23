@@ -104,6 +104,35 @@ public class ShopifyBridgeStoreSyncService {
         }
         """;
 
+    private static final String ARTICLES_QUERY = """
+        query ShopifyCompanionArticlesSync($cursor: String) {
+          articles(first: 50, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                title
+                handle
+                body
+                summary
+                updatedAt
+                publishedAt
+                blog {
+                  title
+                  handle
+                }
+                author {
+                  name
+                }
+              }
+            }
+          }
+        }
+        """;
+
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeBillingService billingService;
@@ -146,6 +175,9 @@ public class ShopifyBridgeStoreSyncService {
             }
             if (store.policiesEnabled()) {
                 documents.addAll(loadPolicies(shopDomain, accessToken));
+            }
+            if (store.articlesEnabled()) {
+                documents.addAll(loadArticles(shopDomain, accessToken));
             }
             ShopifyBridgeStoreSummary synced = platformShopifyStoreClient.syncDocuments(
                 shopDomain,
@@ -264,6 +296,31 @@ public class ShopifyBridgeStoreSyncService {
                     "updatedAt", text(node, "updatedAt"),
                     "documentType", "policy",
                     "storefrontUrl", text(node, "url")
+                )
+            ))
+            .toList();
+    }
+
+    private List<ShopifyBridgeStoreSyncDocument> loadArticles(String shopDomain, String accessToken) {
+        return paginate(shopDomain, accessToken, ARTICLES_QUERY, "articles", null).stream()
+            .filter(node -> text(node, "publishedAt") != null)
+            .map(node -> new ShopifyBridgeStoreSyncDocument(
+                requiredText(node, "id"),
+                "articles",
+                "support-policy",
+                text(node, "title"),
+                joinContent(
+                    text(node, "title"),
+                    nestedText(node, "blog", "title"),
+                    nestedText(node, "author", "name"),
+                    sanitizeRichText(text(node, "summary")),
+                    sanitizeRichText(text(node, "body"))
+                ),
+                metadata(
+                    "handle", text(node, "handle"),
+                    "updatedAt", text(node, "updatedAt"),
+                    "documentType", "article",
+                    "storefrontUrl", articleStorefrontUrl(shopDomain, node)
                 )
             ))
             .toList();
@@ -464,6 +521,28 @@ public class ShopifyBridgeStoreSyncService {
         }
         String text = value.toString().trim();
         return text.isEmpty() ? null : text;
+    }
+
+    private String nestedText(Map<String, Object> map, String field, String nestedField) {
+        Object value = map == null ? null : map.get(field);
+        if (!(value instanceof Map<?, ?> nested)) {
+            return null;
+        }
+        Object nestedValue = nested.get(nestedField);
+        if (nestedValue == null) {
+            return null;
+        }
+        String text = nestedValue.toString().trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private String articleStorefrontUrl(String shopDomain, Map<String, Object> node) {
+        String blogHandle = nestedText(node, "blog", "handle");
+        String handle = text(node, "handle");
+        if (blogHandle == null || handle == null) {
+            return null;
+        }
+        return storefrontUrl(shopDomain, "/blogs/" + safePath(blogHandle) + "/" + safePath(handle));
     }
 
     private String syncFailureMessage(RuntimeException ex) {

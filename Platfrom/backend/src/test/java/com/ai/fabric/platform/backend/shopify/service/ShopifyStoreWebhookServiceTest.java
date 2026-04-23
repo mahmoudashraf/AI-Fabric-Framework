@@ -168,6 +168,7 @@ class ShopifyStoreWebhookServiceTest {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,

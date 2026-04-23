@@ -227,6 +227,84 @@ class ShopifyBridgeStoreSyncServiceTest {
         assertThat(syncCaptor.getValue().documents().getFirst().content().length()).isLessThanOrEqualTo(5_600);
     }
 
+    @Test
+    void syncMapsPublishedArticlesIntoSupportPolicyDocuments() {
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeStoreSyncService service = new ShopifyBridgeStoreSyncService(graphqlClient, platformClient, billingService);
+        when(billingService.catalogProductCap("alpha.myshopify.com", "shpat_access")).thenReturn(null);
+
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("shpat_access"), eq("""
+        query ShopifyCompanionArticlesSync($cursor: String) {
+          articles(first: 50, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                title
+                handle
+                body
+                summary
+                updatedAt
+                publishedAt
+                blog {
+                  title
+                  handle
+                }
+                author {
+                  name
+                }
+              }
+            }
+          }
+        }
+        """), eq(cursorVariables(null)))).thenReturn(Map.of(
+            "data", Map.of(
+                "articles", Map.of(
+                    "pageInfo", pageInfo(false, null),
+                    "edges", List.of(
+                        Map.of("node", articleNode(
+                            "gid://shopify/Article/1",
+                            "Shipping guide",
+                            "shipping-guide",
+                            "<p>Shipping within 2 days.</p>",
+                            "<p>Fast shipping.</p>",
+                            "2026-04-22T12:00:00Z",
+                            "2026-04-22T12:05:00Z"
+                        )),
+                        Map.of("node", articleNode(
+                            "gid://shopify/Article/2",
+                            "Draft article",
+                            "draft-article",
+                            "<p>Not published.</p>",
+                            "<p>Draft.</p>",
+                            "2026-04-22T12:06:00Z",
+                            null
+                        ))
+                    )
+                )
+            )
+        ));
+        when(platformClient.syncDocuments(eq("alpha.myshopify.com"), any())).thenReturn(store(false, false, false, false, true));
+        when(platformClient.recordSyncStatus(eq("alpha.myshopify.com"), any())).thenReturn(store(false, false, false, false, true));
+
+        service.sync(acquisition(store(false, false, false, false, true)));
+
+        ArgumentCaptor<ShopifyBridgeSyncStoreDocumentsRequest> syncCaptor =
+            ArgumentCaptor.forClass(ShopifyBridgeSyncStoreDocumentsRequest.class);
+        verify(platformClient).syncDocuments(eq("alpha.myshopify.com"), syncCaptor.capture());
+        assertThat(syncCaptor.getValue().documents()).hasSize(1);
+        assertThat(syncCaptor.getValue().documents().getFirst().sourceCategory()).isEqualTo("articles");
+        assertThat(syncCaptor.getValue().documents().getFirst().entityType()).isEqualTo("support-policy");
+        assertThat(syncCaptor.getValue().documents().getFirst().metadata())
+            .containsEntry("documentType", "article")
+            .containsEntry("storefrontUrl", "https://alpha.myshopify.com/blogs/news/shipping-guide");
+    }
+
     private Map<String, Object> cursorVariables(String cursor) {
         LinkedHashMap<String, Object> variables = new LinkedHashMap<>();
         variables.put("cursor", cursor);
@@ -238,6 +316,26 @@ class ShopifyBridgeStoreSyncServiceTest {
         pageInfo.put("hasNextPage", hasNextPage);
         pageInfo.put("endCursor", endCursor);
         return pageInfo;
+    }
+
+    private Map<String, Object> articleNode(String id,
+                                            String title,
+                                            String handle,
+                                            String body,
+                                            String summary,
+                                            String updatedAt,
+                                            String publishedAt) {
+        LinkedHashMap<String, Object> node = new LinkedHashMap<>();
+        node.put("id", id);
+        node.put("title", title);
+        node.put("handle", handle);
+        node.put("body", body);
+        node.put("summary", summary);
+        node.put("updatedAt", updatedAt);
+        node.put("publishedAt", publishedAt);
+        node.put("blog", Map.of("title", "News", "handle", "news"));
+        node.put("author", Map.of("name", "Loom Team"));
+        return node;
     }
 
     private ShopifyBridgeCredentialAcquisition acquisition(ShopifyBridgeStoreSummary store) {
@@ -258,6 +356,14 @@ class ShopifyBridgeStoreSyncServiceTest {
                                             boolean collectionsEnabled,
                                             boolean pagesEnabled,
                                             boolean policiesEnabled) {
+        return store(productsEnabled, collectionsEnabled, pagesEnabled, policiesEnabled, false);
+    }
+
+    private ShopifyBridgeStoreSummary store(boolean productsEnabled,
+                                            boolean collectionsEnabled,
+                                            boolean pagesEnabled,
+                                            boolean policiesEnabled,
+                                            boolean articlesEnabled) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
             "alpha.myshopify.com",
@@ -280,6 +386,7 @@ class ShopifyBridgeStoreSyncServiceTest {
             collectionsEnabled,
             pagesEnabled,
             policiesEnabled,
+            articlesEnabled,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

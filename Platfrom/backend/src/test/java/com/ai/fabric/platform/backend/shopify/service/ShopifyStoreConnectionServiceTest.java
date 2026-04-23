@@ -130,6 +130,7 @@ class ShopifyStoreConnectionServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -212,7 +213,8 @@ class ShopifyStoreConnectionServiceTest {
                 true,
                 true,
                 true,
-                true
+                true,
+                false
             )
         ))
             .isInstanceOf(ResponseStatusException.class)

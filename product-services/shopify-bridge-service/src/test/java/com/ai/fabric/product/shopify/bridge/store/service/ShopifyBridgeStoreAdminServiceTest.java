@@ -111,6 +111,7 @@ class ShopifyBridgeStoreAdminServiceTest {
             true,
             true,
             true,
+            false,
             null,
             null,
             null,
