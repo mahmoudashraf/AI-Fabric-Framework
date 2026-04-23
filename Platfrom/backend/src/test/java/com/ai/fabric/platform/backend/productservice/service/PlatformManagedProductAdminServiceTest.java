@@ -786,6 +786,11 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(summary.status()).isEqualTo("READY_FOR_APPROVAL");
         assertThat(summary.merchantApprovalRequired()).isTrue();
         assertThat(summary.launchBlocked()).isTrue();
+        assertThat(summary.availablePlans()).hasSize(2);
+        assertThat(summary.availablePlans().get(0).tierKey()).isEqualTo("FREE");
+        assertThat(summary.availablePlans().get(0).chatFallbackEnabled()).isFalse();
+        assertThat(summary.availablePlans().get(1).tierKey()).isEqualTo("STARTER");
+        assertThat(summary.availablePlans().get(1).allowedSurfaces()).contains("comparison");
     }
 
     @Test
@@ -1142,10 +1147,46 @@ class PlatformManagedProductAdminServiceTest {
         byte[] payload = """
             {
               "mode": "PAID",
+              "tierKey": "FREE",
               "planName": "Companion Growth",
               "status": "READY_FOR_APPROVAL",
               "merchantApprovalRequired": true,
               "launchBlocked": true,
+              "chatFallbackEnabled": false,
+              "allowedSurfaces": ["ai-search"],
+              "availablePlans": [
+                {
+                  "tierKey": "FREE",
+                  "planName": "Loom Companion Free",
+                  "active": true,
+                  "commerciallyAvailable": true,
+                  "merchantApprovalSupported": false,
+                  "actionCapable": false,
+                  "catalogProductCap": 50,
+                  "syncCadence": "DAILY",
+                  "poweredByBadgeRequired": true,
+                  "chatFallbackEnabled": false,
+                  "allowedSurfaces": ["ai-search"],
+                  "message": "Free tier is active."
+                },
+                {
+                  "tierKey": "STARTER",
+                  "planName": "Loom Companion Starter",
+                  "amount": "29.00",
+                  "currencyCode": "USD",
+                  "interval": "EVERY_30_DAYS",
+                  "active": false,
+                  "commerciallyAvailable": true,
+                  "merchantApprovalSupported": true,
+                  "actionCapable": false,
+                  "catalogProductCap": null,
+                  "syncCadence": "EVERY_2_HOURS",
+                  "poweredByBadgeRequired": false,
+                  "chatFallbackEnabled": true,
+                  "allowedSurfaces": ["ai-search", "comparison"],
+                  "message": "Starter expands the embedded intelligence surface set."
+                }
+              ],
               "message": "Merchant approval is required before go-live."
             }
             """.getBytes(java.nio.charset.StandardCharsets.UTF_8);

@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceBillingPlanSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceBillingSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceDeploymentHistorySummary;
@@ -902,6 +903,7 @@ public class PlatformManagedProductAdminService {
             node.path("poweredByBadgeRequired").asBoolean(false),
             node.path("chatFallbackEnabled").asBoolean(true),
             stringList(node.path("allowedSurfaces")),
+            parseBillingPlans(node.path("availablePlans")),
             text(node, "message", null)
         );
     }
@@ -968,8 +970,39 @@ public class PlatformManagedProductAdminService {
             node.path("poweredByBadgeRequired").asBoolean(false),
             node.path("chatFallbackEnabled").asBoolean(true),
             stringList(node.path("allowedSurfaces")),
+            parseBillingPlans(node.path("availablePlans")),
             text(node, "message", "Managed product service did not return store billing diagnostics.")
         );
+    }
+
+    private List<PlatformManagedProductServiceBillingPlanSummary> parseBillingPlans(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<PlatformManagedProductServiceBillingPlanSummary> values = new ArrayList<>();
+        for (JsonNode item : node) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            values.add(new PlatformManagedProductServiceBillingPlanSummary(
+                text(item, "tierKey", null),
+                text(item, "planName", null),
+                text(item, "amount", null),
+                text(item, "currencyCode", null),
+                text(item, "interval", null),
+                item.path("active").asBoolean(false),
+                item.path("commerciallyAvailable").asBoolean(false),
+                item.path("merchantApprovalSupported").asBoolean(false),
+                item.path("actionCapable").asBoolean(false),
+                item.path("catalogProductCap").isNumber() ? item.path("catalogProductCap").asInt() : null,
+                text(item, "syncCadence", null),
+                item.path("poweredByBadgeRequired").asBoolean(false),
+                item.path("chatFallbackEnabled").asBoolean(true),
+                stringList(item.path("allowedSurfaces")),
+                text(item, "message", null)
+            ));
+        }
+        return List.copyOf(values);
     }
 
     private List<PlatformManagedProductServiceUsageEventSummary> parseUsageBreakdown(JsonNode node) {

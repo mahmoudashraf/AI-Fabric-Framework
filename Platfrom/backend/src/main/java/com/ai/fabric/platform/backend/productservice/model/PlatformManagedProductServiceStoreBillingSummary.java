@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.productservice.model;
 
+import java.util.List;
+
 public record PlatformManagedProductServiceStoreBillingSummary(
     String shopDomain,
     String mode,
@@ -14,7 +16,8 @@ public record PlatformManagedProductServiceStoreBillingSummary(
     String syncCadence,
     boolean poweredByBadgeRequired,
     boolean chatFallbackEnabled,
-    java.util.List<String> allowedSurfaces,
+    List<String> allowedSurfaces,
+    List<PlatformManagedProductServiceBillingPlanSummary> availablePlans,
     String message
 ) {
 }

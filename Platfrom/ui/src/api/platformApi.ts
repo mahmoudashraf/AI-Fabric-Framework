@@ -501,6 +501,23 @@ export type PlatformManagedProductServiceBillingSummary = {
   poweredByBadgeRequired: boolean
   chatFallbackEnabled: boolean
   allowedSurfaces: string[]
+  availablePlans: Array<{
+    tierKey: string | null
+    planName: string | null
+    amount: string | null
+    currencyCode: string | null
+    interval: string | null
+    active: boolean
+    commerciallyAvailable: boolean
+    merchantApprovalSupported: boolean
+    actionCapable: boolean
+    catalogProductCap: number | null
+    syncCadence: string | null
+    poweredByBadgeRequired: boolean
+    chatFallbackEnabled: boolean
+    allowedSurfaces: string[]
+    message: string | null
+  }>
   message: string | null
 }
 

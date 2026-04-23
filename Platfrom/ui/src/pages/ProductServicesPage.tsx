@@ -1083,6 +1083,55 @@ export function ProductServicesPage() {
                 <Typography variant="body2" color="text.secondary">
                   Allowed surfaces {storeBillingSummaryQuery.data.allowedSurfaces.length ? storeBillingSummaryQuery.data.allowedSurfaces.join(' · ') : '—'}
                 </Typography>
+                {storeBillingSummaryQuery.data.availablePlans.length ? (
+                  <Stack spacing={1}>
+                    <Typography variant="body2" color="text.secondary">
+                      Tier ladder
+                    </Typography>
+                    {storeBillingSummaryQuery.data.availablePlans.map((plan) => (
+                      <Card key={`${plan.tierKey ?? 'unknown'}-${plan.planName ?? 'plan'}`} variant="outlined">
+                        <CardContent sx={{ py: 1.5 }}>
+                          <Stack spacing={1}>
+                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                              <Typography variant="subtitle2">{detailValue(plan.planName)}</Typography>
+                              <Stack direction="row" spacing={1}>
+                                <Chip
+                                  size="small"
+                                  label={plan.active ? 'Current tier' : detailValue(plan.tierKey)}
+                                  color={plan.active ? 'success' : 'default'}
+                                  variant={plan.active ? 'filled' : 'outlined'}
+                                />
+                                <Chip
+                                  size="small"
+                                  label={plan.chatFallbackEnabled ? 'Chat fallback' : 'Embedded-only'}
+                                  color={plan.chatFallbackEnabled ? 'success' : 'warning'}
+                                  variant="outlined"
+                                />
+                              </Stack>
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary">
+                              {plan.amount && plan.currencyCode && plan.interval
+                                ? `${plan.amount} ${plan.currencyCode} / ${plan.interval}`
+                                : plan.tierKey === 'FREE'
+                                  ? 'Free'
+                                  : 'Pricing unavailable'} · Surfaces{' '}
+                              {plan.allowedSurfaces.length ? plan.allowedSurfaces.join(' · ') : '—'} · Product cap{' '}
+                              {detailValue(plan.catalogProductCap ?? 'unlimited')} · Sync cadence {detailValue(plan.syncCadence)}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {plan.actionCapable ? 'Read + governed actions' : 'Read-only shopper intelligence'} · Merchant approval{' '}
+                              {plan.merchantApprovalSupported ? 'supported' : 'not required'} · Badge{' '}
+                              {plan.poweredByBadgeRequired ? 'required' : 'optional'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {detailValue(plan.message)}
+                            </Typography>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                ) : null}
               </Stack>
             ) : (
               <Alert severity="info">Billing posture is not available for this store yet.</Alert>
