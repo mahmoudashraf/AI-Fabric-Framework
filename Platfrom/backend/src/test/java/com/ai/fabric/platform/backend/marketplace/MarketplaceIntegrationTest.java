@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceServiceEntity;
@@ -31,6 +32,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.hamcrest.Matchers.hasItem;
@@ -70,6 +72,9 @@ class MarketplaceIntegrationTest {
 
     @Autowired
     private DeploymentRepository deploymentRepository;
+
+    @Autowired
+    private DeploymentVersionRepository deploymentVersionRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -154,8 +159,20 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("list_products")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("search_products")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_product_details")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("find_similar_products")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("compare_products")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("check_availability")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_policy")));
+
+        mockMvc.perform(asAdmin(
+                get("/api/marketplace/plugins/{pluginId}/versions/{version}", "mkp-action-shopify-companion-read", "1.0.0")
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='list_products')].groundingEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='list_products')].readActionResolutionEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='compare_products')].groundingEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='compare_products')].readActionResolutionEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='get_policy')].anonymousAllowed", is(List.of(true))));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
@@ -823,6 +840,48 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$[0].pluginId", is("mkp-template-commerce-shell")))
             .andExpect(jsonPath("$[0].status", is("BOOTSTRAPPED")))
             .andExpect(jsonPath("$[0].liveState", is("BOOTSTRAPPED")));
+    }
+
+    @Test
+    void shopifyCompanionReadInstallCompilesGroundedReadResolutionActionsIntoDraftAndArtifact() throws Exception {
+        DeploymentSummary deployment = createSharedQdrantDeployment("Marketplace Shopify Companion Read Flags");
+
+        mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-action-shopify-companion-read",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginId", is("mkp-action-shopify-companion-read")))
+            .andExpect(jsonPath("$.pluginType", is("ACTION")))
+            .andExpect(jsonPath("$.readinessStatus", is("READY")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='list_products')].groundingEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='list_products')].readActionResolutionEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='list_products')].anonymousAllowed", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='compare_products')].groundingEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='compare_products')].readActionResolutionEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].groundingEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].readActionResolutionEligible", is(List.of(true))));
+
+        String draftId = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()).id());
+        String versionId = runAsAdmin(() -> deploymentService.publishDraft(draftId).id());
+        String actionsArtifactYaml = deploymentVersionRepository.findById(versionId)
+            .orElseThrow()
+            .getActionsArtifactYaml();
+
+        assertThat(actionsArtifactYaml).contains("name: list_products");
+        assertThat(actionsArtifactYaml).contains("name: compare_products");
+        assertThat(actionsArtifactYaml).contains("groundingEligible: true");
+        assertThat(actionsArtifactYaml).contains("readActionResolutionEligible: true");
+        assertThat(actionsArtifactYaml).contains("anonymousAllowed: true");
     }
 
     @Test

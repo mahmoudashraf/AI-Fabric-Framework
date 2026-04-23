@@ -561,6 +561,15 @@ public class DeploymentMarketplaceDraftCompilerService {
             if (actionEntry.path("anonymousAllowed").isBoolean()) {
                 compiled.put("anonymousAllowed", actionEntry.path("anonymousAllowed").asBoolean());
             }
+            if (actionEntry.path("groundingEligible").isBoolean()) {
+                compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
+            }
+            if (actionEntry.path("readActionResolutionEligible").isBoolean()) {
+                compiled.put(
+                    "readActionResolutionEligible",
+                    actionEntry.path("readActionResolutionEligible").asBoolean()
+                );
+            }
             if (actionEntry.path("confirmationMessage").isTextual()) {
                 compiled.put("confirmationMessage", actionEntry.path("confirmationMessage").asText("").trim());
             }

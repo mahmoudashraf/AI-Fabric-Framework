@@ -119,4 +119,31 @@ class MarketplaceDatasetProductizationMigrationTest {
             }
         }
     }
+
+    @Test
+    void latestShopifyCompanionReadManifestDeclaresGroundedReadResolutionFlags() throws Exception {
+        String url = "jdbc:h2:mem:marketplace_shopify_companion_read_flags;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1";
+        Flyway.configure()
+            .dataSource(url, "sa", "")
+            .locations("classpath:db/migration")
+            .load()
+            .migrate();
+
+        try (Connection connection = DriverManager.getConnection(url, "sa", "")) {
+            try (PreparedStatement manifestStatement = connection.prepareStatement("""
+                select manifest_json
+                from platform_marketplace_plugin_versions
+                where id = 'mkv-action-shopify-companion-read-v1'
+                """);
+                 ResultSet manifestResult = manifestStatement.executeQuery()) {
+                assertTrue(manifestResult.next());
+                String manifestJson = manifestResult.getString("manifest_json");
+                assertTrue(manifestJson.contains("\"actionId\": \"list_products\""));
+                assertTrue(manifestJson.contains("\"actionId\": \"compare_products\""));
+                assertTrue(manifestJson.contains("\"groundingEligible\": true"));
+                assertTrue(manifestJson.contains("\"readActionResolutionEligible\": true"));
+                assertTrue(manifestJson.contains("\"anonymousAllowed\": true"));
+            }
+        }
+    }
 }

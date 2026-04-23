@@ -49,6 +49,7 @@ set -euo pipefail
 #   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
+#   SHOPIFY_COMPARISON_MODE=resolver_assistant
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-}"
 PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
@@ -90,6 +91,7 @@ SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
+SHOPIFY_COMPARISON_MODE="${SHOPIFY_COMPARISON_MODE:-resolver_assistant}"
 STOREFRONT_QUERY_RETRY_ATTEMPTS="${STOREFRONT_QUERY_RETRY_ATTEMPTS:-3}"
 STOREFRONT_QUERY_RETRY_SLEEP_SECONDS="${STOREFRONT_QUERY_RETRY_SLEEP_SECONDS:-2}"
 TEMP_PLATFORM_COOKIE_JAR=""
@@ -314,6 +316,54 @@ missing = sorted(expected - actual)
 if missing:
     print(
         f"Assertion failed for {label}: missing values {missing}; actual={sorted(actual)}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+PY
+}
+
+assert_storefront_resolution_contains_action() {
+  local payload="$1"
+  local expected_action="$2"
+  local label="$3"
+  JSON_PAYLOAD="${payload}" EXPECTED_ACTION="${expected_action}" ASSERT_LABEL="${label}" python3 - <<'PY'
+import json
+import os
+import sys
+
+payload = os.environ["JSON_PAYLOAD"]
+expected_action = os.environ["EXPECTED_ACTION"]
+label = os.environ["ASSERT_LABEL"]
+
+try:
+    data = json.loads(payload)
+except json.JSONDecodeError as exc:
+    print(f"Invalid JSON for {label}: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+result = (data or {}).get("result") or {}
+metadata = result.get("metadata") or {}
+top_resolution = metadata.get("readActionResolution") or ((result.get("data") or {}).get("readActionResolution") or {})
+children = result.get("children") or []
+
+executed_actions = set()
+for item in top_resolution.get("executedActions") or []:
+    if isinstance(item, dict) and item.get("action"):
+        executed_actions.add(item.get("action"))
+
+for child in children:
+    if not isinstance(child, dict):
+        continue
+    child_metadata = child.get("metadata") or {}
+    child_data = child.get("data") or {}
+    child_resolution = child_metadata.get("readActionResolution") or child_data.get("readActionResolution") or {}
+    for item in child_resolution.get("executedActions") or []:
+        if isinstance(item, dict) and item.get("action"):
+            executed_actions.add(item.get("action"))
+
+if expected_action not in executed_actions:
+    print(
+        f"Assertion failed for {label}: expected executed action '{expected_action}', actual={sorted(executed_actions)}",
         file=sys.stderr,
     )
     raise SystemExit(1)
@@ -999,6 +1049,59 @@ PY
     comparison_query_summary="$(json_get "${comparison_query_json}" "message")"
   fi
   assert_nonempty "${comparison_query_summary}" "storefront comparison query summary"
+
+  if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
+    echo "== Storefront comparison resolver query =="
+    http_request POST "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/actions/execute" '{"actionId":"list_products","params":{"query":""}}' "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+    assert_equals "${HTTP_STATUS}" "200" "bridge admin list products status"
+    comparison_skus_csv="$(JSON_PAYLOAD="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["JSON_PAYLOAD"])
+items = (((payload or {}).get("data") or {}).get("items") or [])
+skus = []
+for item in items:
+    if not isinstance(item, dict):
+        continue
+    sku = str(item.get("primarySku") or "").strip()
+    if sku and sku not in skus:
+        skus.append(sku)
+    if len(skus) >= 2:
+        break
+print(",".join(skus))
+PY
+)"
+    assert_nonempty "${comparison_skus_csv}" "bridge admin comparison SKU sample"
+    comparison_reference_sku="${comparison_skus_csv%%,*}"
+    comparison_secondary_sku="${comparison_skus_csv#*,}"
+    assert_nonempty "${comparison_reference_sku}" "comparison reference SKU"
+    assert_nonempty "${comparison_secondary_sku}" "comparison secondary SKU"
+
+    comparison_resolver_payload="$(python3 - <<'PY' "${comparison_reference_sku}" "${comparison_secondary_sku}" "${SHOPIFY_COMPARISON_MODE}"
+import json
+import sys
+
+reference_sku = sys.argv[1]
+comparison_sku = sys.argv[2]
+mode = sys.argv[3]
+print(json.dumps({
+    "query": f"Compare products with SKU {reference_sku} and SKU {comparison_sku} and explain the tradeoffs.",
+    "mode": mode,
+    "storefrontContext": {
+        "pageType": "product",
+        "pageTitle": "Verification comparison page",
+        "shopifySurfaceEntry": "comparison",
+        "shopifyShellModeProfile": "SHOPIFY_COMPANION"
+    }
+}))
+PY
+)"
+    retry_storefront_query "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${comparison_resolver_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
+    assert_equals "${HTTP_STATUS}" "200" "storefront comparison resolver query status"
+    comparison_resolver_json="${HTTP_BODY}"
+    assert_storefront_resolution_contains_action "${comparison_resolver_json}" "compare_products" "storefront comparison resolver executed compare_products"
+  fi
 fi
 
 echo "== Storefront event =="
