@@ -42,6 +42,9 @@ set -euo pipefail
 #   EXPECT_CATALOG_PRODUCT_CAP=50
 #   EXPECT_POWERED_BY_BADGE_REQUIRED=true
 #   EXPECT_CHAT_FALLBACK_ENABLED=false
+#   EXPECT_ACTION_CAPABILITY_AVAILABLE=false
+#   EXPECT_ACTION_REQUIRES_CONFIRMATION=false
+#   EXPECT_ACTION_AUDIT_AVAILABLE=false
 #   SHOPIFY_ADMIN_ACCESS_TOKEN=<offline-access-token>
 #   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
@@ -78,6 +81,9 @@ EXPECT_BILLING_LAUNCH_BLOCKED="${EXPECT_BILLING_LAUNCH_BLOCKED:-}"
 EXPECT_CATALOG_PRODUCT_CAP="${EXPECT_CATALOG_PRODUCT_CAP:-}"
 EXPECT_POWERED_BY_BADGE_REQUIRED="${EXPECT_POWERED_BY_BADGE_REQUIRED:-}"
 EXPECT_CHAT_FALLBACK_ENABLED="${EXPECT_CHAT_FALLBACK_ENABLED:-}"
+EXPECT_ACTION_CAPABILITY_AVAILABLE="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-}"
+EXPECT_ACTION_REQUIRES_CONFIRMATION="${EXPECT_ACTION_REQUIRES_CONFIRMATION:-}"
+EXPECT_ACTION_AUDIT_AVAILABLE="${EXPECT_ACTION_AUDIT_AVAILABLE:-}"
 EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,find_similar_products,compare_products,check_availability,get_policy}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
@@ -740,6 +746,9 @@ effective_expected_billing_tier="${EXPECT_BILLING_TIER:-$(json_get "${platform_s
 effective_expected_catalog_product_cap="${EXPECT_CATALOG_PRODUCT_CAP:-$(json_get "${platform_store_billing_json}" "catalogProductCap")}"
 effective_expected_powered_by_badge_required="${EXPECT_POWERED_BY_BADGE_REQUIRED:-$(json_get "${platform_store_billing_json}" "poweredByBadgeRequired")}"
 effective_expected_chat_fallback_enabled="${EXPECT_CHAT_FALLBACK_ENABLED:-$(json_get "${platform_store_billing_json}" "chatFallbackEnabled")}"
+effective_expected_action_capability_available="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-$(json_get "${platform_store_billing_json}" "actionCapable")}"
+effective_expected_action_requires_confirmation="${EXPECT_ACTION_REQUIRES_CONFIRMATION:-$(json_get "${platform_store_billing_json}" "requiresExplicitConfirmation")}"
+effective_expected_action_audit_available="${EXPECT_ACTION_AUDIT_AVAILABLE:-$(json_get "${platform_store_billing_json}" "auditTrailAvailable")}"
 
 echo "== Platform store webhook diagnostics =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]-}"
@@ -758,6 +767,11 @@ assert_equals "$(json_get "${platform_store_vectorization_json}" "shopDomain")" 
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "selectedCategories.0")" "platform store vectorization selectedCategories"
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "selectedEntityTypes.0")" "platform store vectorization selectedEntityTypes"
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.policyVersion")" "platform store vectorization policy version"
+
+echo "== Platform store governed actions =="
+platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/actions/recent?limit=5" "" "${platform_headers[@]-}"
+assert_equals "${HTTP_STATUS}" "200" "platform store governed actions status"
+platform_store_governed_actions_json="${HTTP_BODY}"
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.sourcePolicies.0.sourceCategory")" "platform store vectorization source policy category"
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "policy.sourcePolicies.0.updateTriggerMode")" "platform store vectorization update trigger mode"
 assert_nonempty "$(json_get "${platform_store_vectorization_json}" "effectiveIndexedFields.0.fieldKey")" "platform store vectorization indexed field"
@@ -867,6 +881,10 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   assert_nonempty "$(json_get "${bridge_admin_vectorization_json}" "shopDomain")" "bridge admin vectorization shopDomain"
   assert_nonempty "$(json_get "${bridge_admin_vectorization_json}" "readyToRun")" "bridge admin vectorization readyToRun"
 
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/actions/recent?limit=5" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge admin governed actions status"
+  bridge_admin_actions_json="${HTTP_BODY}"
+
   echo "== Bridge admin vectorization source page =="
   bridge_vector_entity_type="$(json_get "${platform_store_vectorization_json}" "selectedEntityTypes.0")"
   assert_nonempty "${bridge_vector_entity_type}" "bridge admin vectorization entity type"
@@ -908,7 +926,17 @@ assert_optional_equals "$(json_get "${bootstrap_json}" "catalogProductCap")" "${
 assert_optional_equals "$(json_get "${bootstrap_json}" "poweredByBadgeRequired")" "${effective_expected_powered_by_badge_required}" "storefront bootstrap poweredByBadgeRequired"
 assert_optional_equals "$(json_get "${bootstrap_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "storefront bootstrap chatFallbackEnabled"
 assert_optional_equals "$(json_get "${bootstrap_json}" "shellModeProfile")" "${EXPECT_SHELL_MODE_PROFILE}" "storefront bootstrap shellModeProfile"
+assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.available")" "${effective_expected_action_capability_available}" "storefront bootstrap action capability available"
+assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.requiresExplicitConfirmation")" "${effective_expected_action_requires_confirmation}" "storefront bootstrap action requires confirmation"
+assert_optional_equals "$(json_get "${bootstrap_json}" "actionCapability.auditTrailAvailable")" "${effective_expected_action_audit_available}" "storefront bootstrap action audit available"
+assert_nonempty "$(json_get "${bootstrap_json}" "actionCapability.message")" "storefront bootstrap action capability message"
 assert_json_array_contains_csv "${bootstrap_json}" "enabledSurfaces" "${effective_expected_surfaces}" "storefront bootstrap enabledSurfaces"
+if [[ "${effective_expected_action_capability_available}" == "true" ]]; then
+  assert_json_array_contains_csv "${bootstrap_json}" "actionCapability.actionPackages" "guided-commerce" "storefront bootstrap action packages"
+  assert_json_array_contains_csv "${bootstrap_json}" "actionCapability.allowedActionTypes" "ADD_TO_CART,UPDATE_CART_QUANTITY" "storefront bootstrap governed action types"
+  assert_nonempty "$(json_get "${bootstrap_json}" "actionCapability.grantUrl")" "storefront bootstrap action grantUrl"
+  assert_nonempty "$(json_get "${bootstrap_json}" "actionCapability.completeUrl")" "storefront bootstrap action completeUrl"
+fi
 
 echo "== Storefront suggestions =="
 http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/suggestions" '{"content":"","maxSuggestions":4}' "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
@@ -1047,6 +1075,10 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "$(json_get "${merchant_usage_json}" "shopDomain")" "${SHOP_DOMAIN}" "merchant usage shopDomain"
   assert_nonempty "$(json_get "${merchant_usage_json}" "generatedAt")" "merchant usage generatedAt"
   assert_nonempty "$(json_get "${merchant_usage_json}" "totalToday")" "merchant usage totalToday"
+
+  echo "== Merchant governed actions =="
+  http_request GET "${bridge_base}/api/app/store/actions/recent?limit=5" "" "${merchant_headers[@]-}"
+  assert_equals "${HTTP_STATUS}" "200" "merchant governed actions status"
 fi
 
 echo "Shopify Companion verification passed for ${SHOP_DOMAIN}"

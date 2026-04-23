@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
@@ -37,7 +38,8 @@ class ShopifyBridgeStoreAdminServiceTest {
             sourcePreflightService,
             storeSyncService,
             vectorizationSourceService,
-            usageService
+            usageService,
+            mock(ShopifyStorefrontGovernedActionService.class)
         );
 
         ShopifyBridgeStoreSummary store = sampleStore();
@@ -78,7 +80,8 @@ class ShopifyBridgeStoreAdminServiceTest {
             sourcePreflightService,
             storeSyncService,
             vectorizationSourceService,
-            usageService
+            usageService,
+            mock(ShopifyStorefrontGovernedActionService.class)
         );
 
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
@@ -111,6 +114,7 @@ class ShopifyBridgeStoreAdminServiceTest {
             true,
             true,
             true,
+            false,
             false,
             null,
             null,

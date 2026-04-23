@@ -783,6 +783,28 @@ export type ShopifyStoreConnectionSummary = {
   updatedAt: string
 }
 
+export type ShopifyStoreGovernedActionAuditSummary = {
+  id: string
+  actionType: string
+  actionPackage: string
+  surfaceId: string
+  pageType: string
+  productHandle: string | null
+  productTitle: string | null
+  variantId: string | null
+  requestedQuantity: number | null
+  targetQuantity: number | null
+  resultingQuantity: number | null
+  confirmationRequired: boolean
+  confirmationAccepted: boolean
+  shopperSessionRef: string | null
+  status: string
+  message: string | null
+  createdAt: string
+  expiresAt: string | null
+  completedAt: string | null
+}
+
 export type UpsertShopifyStoreConnectionRequest = {
   shopDomain: string
   displayName: string | null
@@ -3401,6 +3423,12 @@ export function recordShopifyStoreSourcePreflight(shopDomain: string, payload: R
 
 export function fetchShopifyStoreVectorization(shopDomain: string) {
   return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization`)
+}
+
+export function fetchShopifyStoreGovernedActions(shopDomain: string, limit = 10) {
+  return request<ShopifyStoreGovernedActionAuditSummary[]>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/actions/recent?limit=${limit}`,
+  )
 }
 
 export function reconcileShopifyStoreVectorization(shopDomain: string) {

@@ -158,6 +158,10 @@
   margin-top: 0.7rem;
 }
 
+.loom-companion-chip-row--actions {
+  margin-top: 0.65rem;
+}
+
 .loom-companion-chip {
   border: 1px solid #d1d5db;
   border-radius: 999px;
@@ -175,6 +179,27 @@
   border: 1px solid #e5e7eb;
   padding: 0.7rem 0.8rem;
   font-size: 0.8rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.loom-companion-governed-actions {
+  margin-top: 0.95rem;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  padding-top: 0.85rem;
+}
+
+.loom-companion-governed-actions__title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+}
+
+.loom-companion-governed-actions__meta {
+  margin-top: 0.55rem;
+  font-size: 0.76rem;
   line-height: 1.45;
   color: #4b5563;
 }

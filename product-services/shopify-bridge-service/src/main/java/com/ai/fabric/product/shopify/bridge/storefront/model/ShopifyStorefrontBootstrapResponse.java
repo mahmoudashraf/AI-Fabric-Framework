@@ -1,5 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.storefront.model;
 
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCapability;
+
 import java.util.List;
 
 public record ShopifyStorefrontBootstrapResponse(
@@ -23,6 +25,7 @@ public record ShopifyStorefrontBootstrapResponse(
     String bridgeQueryUrl,
     String bridgeSuggestionsUrl,
     String bridgeEventUrl,
+    ShopifyStorefrontGovernedActionCapability actionCapability,
     String guidance,
     String message
 ) {

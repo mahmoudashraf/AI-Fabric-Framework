@@ -350,6 +350,7 @@ class PlatformShopifyStoreClientTest {
             true,
             false,
             true,
+            false,
             false
         ));
 

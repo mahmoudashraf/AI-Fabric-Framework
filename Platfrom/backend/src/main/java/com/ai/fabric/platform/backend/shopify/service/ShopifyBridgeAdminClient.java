@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.shopify.service;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreGovernedActionAuditSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -103,6 +105,49 @@ public class ShopifyBridgeAdminClient {
             .toBodilessEntity();
     }
 
+    public List<ShopifyStoreGovernedActionAuditSummary> fetchRecentGovernedActions(ShopifyStoreConnectionEntity store,
+                                                                                   int limit) {
+        PlatformManagedProductServiceEntity service = requireService(store);
+        String response = restClient.get()
+            .uri(recentActionsUri(service, store.getShopDomain(), limit))
+            .headers(headers -> headers.set(BRIDGE_ADMIN_API_KEY_HEADER, requireAdminKey(service)))
+            .retrieve()
+            .body(String.class);
+        try {
+            JsonNode root = objectMapper.readTree(defaultJsonArray(response));
+            if (!root.isArray()) {
+                throw new IllegalStateException("Shopify Bridge governed action response is not an array.");
+            }
+            List<ShopifyStoreGovernedActionAuditSummary> items = new ArrayList<>();
+            for (JsonNode item : root) {
+                items.add(new ShopifyStoreGovernedActionAuditSummary(
+                    text(item, "id"),
+                    text(item, "actionType"),
+                    text(item, "actionPackage"),
+                    text(item, "surfaceId"),
+                    text(item, "pageType"),
+                    text(item, "productHandle"),
+                    text(item, "productTitle"),
+                    text(item, "variantId"),
+                    integerValue(item, "requestedQuantity"),
+                    integerValue(item, "targetQuantity"),
+                    integerValue(item, "resultingQuantity"),
+                    item.path("confirmationRequired").asBoolean(false),
+                    item.path("confirmationAccepted").asBoolean(false),
+                    text(item, "shopperSessionRef"),
+                    text(item, "status"),
+                    text(item, "message"),
+                    instantValue(item, "createdAt"),
+                    instantValue(item, "expiresAt"),
+                    instantValue(item, "completedAt")
+                ));
+            }
+            return List.copyOf(items);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(BAD_GATEWAY, "Failed to parse Shopify Bridge governed action response.", ex);
+        }
+    }
+
     private ShopifyStoreVectorizationSourceRecordSnapshot toSnapshot(JsonNode node, String entityType) {
         LinkedHashMap<String, Object> values = new LinkedHashMap<>();
         putIfPresent(values, "id", text(node, "id"));
@@ -161,6 +206,16 @@ public class ShopifyBridgeAdminClient {
         return URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/run-sync"));
     }
 
+    private URI recentActionsUri(PlatformManagedProductServiceEntity service,
+                                 String shopDomain,
+                                 int limit) {
+        int boundedLimit = Math.max(1, Math.min(25, limit));
+        return URI.create(joinUrl(
+            service.getBaseUrl(),
+            "/api/admin/stores/" + encodePath(shopDomain) + "/actions/recent?limit=" + boundedLimit
+        ));
+    }
+
     private PlatformManagedProductServiceEntity requireService(ShopifyStoreConnectionEntity store) {
         String productServiceId = store == null ? null : store.getProductServiceId();
         if (!StringUtils.hasText(productServiceId)) {
@@ -202,6 +257,10 @@ public class ShopifyBridgeAdminClient {
         return StringUtils.hasText(value) ? value : "{}";
     }
 
+    private String defaultJsonArray(String value) {
+        return StringUtils.hasText(value) ? value : "[]";
+    }
+
     private void putIfPresent(Map<String, Object> target, String key, String value) {
         if (value != null && !value.isBlank()) {
             target.put(key, value);
@@ -211,5 +270,21 @@ public class ShopifyBridgeAdminClient {
     private String text(JsonNode node, String fieldName) {
         String value = node.path(fieldName).asText(null);
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private Integer integerValue(JsonNode node, String fieldName) {
+        return node.hasNonNull(fieldName) ? node.path(fieldName).asInt() : null;
+    }
+
+    private Instant instantValue(JsonNode node, String fieldName) {
+        String value = text(node, fieldName);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (Exception ex) {
+            return null;
+        }
     }
 }

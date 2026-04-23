@@ -10,6 +10,7 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingAp
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingPlanSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabilitySummary;
@@ -45,6 +46,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -120,6 +122,40 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.store.shopDomain").value("alpha.myshopify.com"));
 
         verify(merchantStoreService).session(any(), anyString());
+    }
+
+    @Test
+    void recentGovernedActionsUseMerchantSessionContext() throws Exception {
+        when(merchantStoreService.recentGovernedActions(any(), anyInt())).thenReturn(List.of(
+            new ShopifyBridgeGovernedActionAuditSummary(
+                "sga-1",
+                "ADD_TO_CART",
+                "guided-commerce",
+                "product-insight",
+                "PRODUCT",
+                "travel-pack",
+                "Travel Pack",
+                "202",
+                1,
+                null,
+                1,
+                true,
+                true,
+                "shop…0001",
+                "COMPLETED",
+                "Guided add-to-cart completed.",
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:05:00Z"),
+                Instant.parse("2026-04-23T12:00:03Z")
+            )
+        ));
+
+        mockMvc.perform(get("/api/app/store/actions/recent?limit=5").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].actionType").value("ADD_TO_CART"))
+            .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+
+        verify(merchantStoreService).recentGovernedActions(any(), anyInt());
     }
 
     @Test

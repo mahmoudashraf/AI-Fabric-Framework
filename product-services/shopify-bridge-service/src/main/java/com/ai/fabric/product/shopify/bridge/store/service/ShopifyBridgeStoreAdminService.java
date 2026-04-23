@@ -4,6 +4,8 @@ import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSu
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
@@ -30,6 +32,7 @@ public class ShopifyBridgeStoreAdminService {
     private final ShopifyBridgeStoreSyncService storeSyncService;
     private final ShopifyBridgeVectorizationSourceService vectorizationSourceService;
     private final ShopifyBridgeUsageService usageService;
+    private final ShopifyStorefrontGovernedActionService governedActionService;
 
     public ShopifyBridgeStoreAdminService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                           ShopifyBridgeInstallCredentialService installCredentialService,
@@ -37,7 +40,8 @@ public class ShopifyBridgeStoreAdminService {
                                           ShopifyBridgeSourcePreflightService sourcePreflightService,
                                           ShopifyBridgeStoreSyncService storeSyncService,
                                           ShopifyBridgeVectorizationSourceService vectorizationSourceService,
-                                          ShopifyBridgeUsageService usageService) {
+                                          ShopifyBridgeUsageService usageService,
+                                          ShopifyStorefrontGovernedActionService governedActionService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
         this.billingService = billingService;
@@ -45,6 +49,7 @@ public class ShopifyBridgeStoreAdminService {
         this.storeSyncService = storeSyncService;
         this.vectorizationSourceService = vectorizationSourceService;
         this.usageService = usageService;
+        this.governedActionService = governedActionService;
     }
 
     public List<ShopifyBridgeStoreSummary> listStores() {
@@ -63,6 +68,10 @@ public class ShopifyBridgeStoreAdminService {
 
     public ShopifyBridgeUsageSummary usageSummary(String shopDomain) {
         return usageService.summarize(shopDomain);
+    }
+
+    public List<ShopifyBridgeGovernedActionAuditSummary> recentGovernedActions(String shopDomain, int limit) {
+        return governedActionService.recentActions(shopDomain, limit);
     }
 
     public ShopifyBridgeStoreVectorizationSummary vectorizationSummary(String shopDomain) {

@@ -220,6 +220,7 @@ class ShopifyWebhookServiceTest {
             true,
             true,
             false,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

@@ -33,6 +33,7 @@ import {
   fetchProductServices,
   runProductServiceStoreSourcePreflight,
   fetchShopifyStoreVectorization,
+  fetchShopifyStoreGovernedActions,
   fetchShopifyStoreBinding,
   fetchShopifyStore,
   fetchShopifyStores,
@@ -47,6 +48,7 @@ import {
   type RecordShopifyStoreSourcePreflightRequest,
   type ShopifyStoreBootstrapSummary,
   type ShopifyStoreSourcePreflightCategorySummary,
+  type ShopifyStoreGovernedActionAuditSummary,
   type ShopifyStoreVectorizationSummary,
   type ShopifyStoreVectorizationSourcePolicyInput,
   type ShopifyStoreVectorizationSourcePolicySummary,
@@ -234,6 +236,14 @@ export function ShopifyStoresPage() {
   })
 
   const selectedVectorization = selectedVectorizationQuery.data
+
+  const selectedGovernedActionsQuery = useQuery({
+    queryKey: ['shopify-stores', selectedShopDomain, 'governed-actions'],
+    queryFn: () => fetchShopifyStoreGovernedActions(selectedShopDomain, 10),
+    enabled: selectedShopDomain.length > 0,
+  })
+
+  const selectedGovernedActions = selectedGovernedActionsQuery.data ?? []
 
   const bindingQuery = useQuery({
     queryKey: ['shopify-stores', selectedShopDomain, 'binding'],
@@ -852,6 +862,74 @@ export function ShopifyStoresPage() {
                       </CardContent>
                     </Card>
                   ) : null}
+
+                  {selectedGovernedActionsQuery.isError ? (
+                    <Alert severity="error">
+                      {selectedGovernedActionsQuery.error instanceof Error
+                        ? selectedGovernedActionsQuery.error.message
+                        : 'Failed to load recent Shopify governed action history.'}
+                    </Alert>
+                  ) : null}
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography sx={{ fontWeight: 700 }}>Recent governed commerce actions</Typography>
+                          <Chip size="small" label={`${selectedGovernedActions.length} recent`} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          Platform-admin investigation surface for Elite guided-commerce grants and completions.
+                        </Typography>
+                        {selectedGovernedActionsQuery.isLoading ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Loading governed action history…
+                          </Typography>
+                        ) : selectedGovernedActions.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary">
+                            No governed commerce actions have been recorded for this store yet.
+                          </Typography>
+                        ) : (
+                          selectedGovernedActions.map((action: ShopifyStoreGovernedActionAuditSummary) => (
+                            <Card key={action.id} variant="outlined">
+                              <CardContent>
+                                <Stack spacing={1}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography sx={{ fontWeight: 700 }}>
+                                      {action.actionType.replace(/_/g, ' ')}
+                                    </Typography>
+                                    <Chip size="small" label={action.status} color={chipColor(action.status)} />
+                                    <Chip size="small" variant="outlined" label={action.actionPackage} />
+                                    <Chip size="small" variant="outlined" label={`${action.surfaceId} · ${action.pageType}`} />
+                                    <Typography variant="caption" color="text.secondary">
+                                      {formatTimestamp(action.createdAt)}
+                                    </Typography>
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Product {action.productTitle ?? action.productHandle ?? '—'} · Variant {action.variantId ?? '—'} · Shopper{' '}
+                                    {action.shopperSessionRef ?? '—'}
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Requested {action.requestedQuantity ?? '—'} · Target {action.targetQuantity ?? '—'} · Result{' '}
+                                    {action.resultingQuantity ?? '—'} · Confirmation{' '}
+                                    {action.confirmationRequired ? (action.confirmationAccepted ? 'accepted' : 'required') : 'not required'}
+                                  </Typography>
+                                  {action.message ? (
+                                    <Typography variant="body2" color="text.secondary">
+                                      {action.message}
+                                    </Typography>
+                                  ) : null}
+                                  <Typography variant="caption" color="text.secondary">
+                                    Expires {formatTimestamp(action.expiresAt)} · Completed {formatTimestamp(action.completedAt)}
+                                  </Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ))
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
 
                   {selectedVectorizationQuery.isError ? (
                     <Alert severity="error">

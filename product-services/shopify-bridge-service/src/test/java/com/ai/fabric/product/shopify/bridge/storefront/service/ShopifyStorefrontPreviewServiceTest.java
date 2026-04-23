@@ -120,6 +120,7 @@ class ShopifyStorefrontPreviewServiceTest {
             true,
             true,
             false,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

@@ -71,9 +71,9 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 | Real shell conversation modes | Shopify now persists `shellModeProfile`, exposes it in bootstrap/admin surfaces, and forwards it into bridge/runtime request context. | This is now a bounded mode-profile system, but not yet full multi-mode runtime semantics like true `assistant` / `deep` Shopify modes. |
 | Richer Shopify data coverage | Code-backed coverage now exists for published blog/article content, bounded shopper-relevant product metafield enrichment, and opt-in metaobject ingestion in addition to catalog/content/policy sources. Judge.me-compatible review and rating metafields now flow into product sync, vectorization content, and read-first shopper actions when present. | Wave 1 data-expansion work is now materially stronger; the remaining gap is broader review-provider depth and richer merchandising polish, not total structured-content absence. |
 | Read-first action breadth from strategy docs | Current read action bundle already includes `compare_products` and `find_similar_products` alongside the baseline catalog/policy actions. | The remaining gap is richer generated rendering, size/fit guidance, and surface-specific product UX rather than total action absence. |
-| Tiered commercial model | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, product caps, and explicit Elite governance posture (`confirmation`, `audit`, `action packages`). Merchant and platform admin UIs now surface those details directly. | The remaining gap is fully aligned commercial rollout and actual governed action execution surfaces, not basic merchant legibility. |
+| Tiered commercial model | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, product caps, and explicit Elite governance posture (`confirmation`, `audit`, `action packages`). Merchant and platform admin UIs now surface those details directly. Governed action grants, audit history, and shopper-safe cart action surfaces are now materially real in the bridge/theme-extension stack. | The remaining gap is fully aligned commercial rollout, live Elite-plan rollout, and launch-safe packaging, not missing technical foundations. |
 | Free-tier distribution wedge | Pricing strategy says Free is AI search only. | AI search is now real in both the app embed and a merchant-placeable theme block. The remaining gap is proving the commercial/App Store story cleanly. |
-| Elite posture | Pricing strategy says Elite is read+write with governance. | No Shopify Elite plan implementation exists yet. |
+| Elite posture | Pricing strategy says Elite is read+write with governance. | Shopify now has bounded governed action capability for `add to cart`, `cart update`, and `variant guidance` with explicit confirmation, signed grants, audit trail, and platform-admin investigation visibility. The remaining gap is commercial rollout and broader action depth, not total absence of Elite execution support. |
 
 ### 2.3 What this means
 
@@ -158,7 +158,7 @@ These are the missing elements that must be completed before we can claim the fu
 
 Missing:
 
-- comparison surface
+- stronger comparison merchandising polish on top of the now-real comparison surface
 - clean host contract between Shopify theme extension and shared Max Mode shell
 - fuller platform-backed shell conversation modes for Shopify
 - full removal of long-term dual-shell maintenance as a product dependency
@@ -208,7 +208,7 @@ Missing:
 
 - tier-aware storefront gating
 - Shopify billing mapping aligned to the pricing strategy
-- Elite action packaging that only advertises action depth once those surfaces are genuinely shipped
+- Elite commercial activation and packaging that only advertises governed action depth once the live plan rollout is active
 
 Now materially real:
 
@@ -217,6 +217,7 @@ Now materially real:
 - merchant-visible store intelligence readiness summary
 - merchant-visible launch and App Review readiness summary
 - bounded surface usage and top-question analytics for shopper traffic
+- governed shopper action grants, audit history, and platform-admin investigation visibility for the Elite guided-commerce package
 
 ### 5.5 Merchant legibility
 
@@ -422,7 +423,8 @@ Must ship first:
 Progress note:
 
 - the live billing contract now exposes Elite confirmation posture, audit availability, and packaged action families to both merchant and platform-admin surfaces
-- the remaining Milestone 5 gap is shipping the governed write-action surfaces themselves, not exposing the governance contract
+- governed `add-to-cart`, `cart update`, and `variant guidance` surfaces are now materially real with bridge-issued grants, signed completion, shopper confirmation, and audit history
+- the remaining Milestone 5 gap is live commercial rollout and aligned launch packaging, not missing governance primitives
 
 Elite should not launch as a promise bundle.
 
@@ -448,6 +450,11 @@ Must ship:
 Only after that should Elite messaging include:
 
 - “takes action”
+
+Progress note:
+
+- the current Shopify implementation now has bounded governed commerce for `add-to-cart`, `cart update`, and `variant guidance`
+- the remaining Milestone 6 gap is broader action depth and live commercial rollout rather than zero action capability
 
 Deep Resolver belongs here only if it materially improves Elite outcomes. It is not a prerequisite for Milestone 5.
 

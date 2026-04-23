@@ -1,6 +1,11 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCompletionRequest;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantRequest;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEngagementEventRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontEngagementService;
@@ -25,15 +30,18 @@ public class ShopifyStorefrontController {
     private final ShopifyStorefrontBootstrapService storefrontBootstrapService;
     private final ShopifyStorefrontChatService storefrontChatService;
     private final ShopifyStorefrontEngagementService storefrontEngagementService;
+    private final ShopifyStorefrontGovernedActionService governedActionService;
     private final ShopifyBridgeUsageService usageService;
 
     public ShopifyStorefrontController(ShopifyStorefrontBootstrapService storefrontBootstrapService,
                                        ShopifyStorefrontChatService storefrontChatService,
                                        ShopifyStorefrontEngagementService storefrontEngagementService,
+                                       ShopifyStorefrontGovernedActionService governedActionService,
                                        ShopifyBridgeUsageService usageService) {
         this.storefrontBootstrapService = storefrontBootstrapService;
         this.storefrontChatService = storefrontChatService;
         this.storefrontEngagementService = storefrontEngagementService;
+        this.governedActionService = governedActionService;
         this.usageService = usageService;
     }
 
@@ -74,5 +82,21 @@ public class ShopifyStorefrontController {
                                       String shopperSessionId) {
         storefrontEngagementService.record(shopDomain, request, shopperSessionId);
         return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{shopDomain}/actions/grant")
+    public ShopifyStorefrontGovernedActionGrantResponse grantAction(@PathVariable String shopDomain,
+                                                                    @RequestBody(required = false) ShopifyStorefrontGovernedActionGrantRequest request,
+                                                                    @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
+                                                                    String shopperSessionId) {
+        return governedActionService.grant(shopDomain, request, shopperSessionId);
+    }
+
+    @PostMapping("/{shopDomain}/actions/complete")
+    public ShopifyBridgeGovernedActionAuditSummary completeAction(@PathVariable String shopDomain,
+                                                                  @RequestBody(required = false) ShopifyStorefrontGovernedActionCompletionRequest request,
+                                                                  @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
+                                                                  String shopperSessionId) {
+        return governedActionService.complete(shopDomain, request, shopperSessionId);
     }
 }

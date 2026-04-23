@@ -299,6 +299,7 @@
         title: productTitle || pageTitle || 'this product',
         vendor: trimValue(root.dataset.productVendor),
         type: trimValue(root.dataset.productType),
+        variantId: trimValue(root.dataset.productVariantId),
         priceCents: trimValue(root.dataset.productPriceCents),
       }
     }

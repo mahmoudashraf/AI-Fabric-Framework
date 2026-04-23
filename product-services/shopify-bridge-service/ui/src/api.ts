@@ -217,6 +217,28 @@ export type ShopifyBridgeUsageSummary = {
   }>
 }
 
+export type ShopifyBridgeGovernedActionAuditSummary = {
+  id: string
+  actionType: string
+  actionPackage: string
+  surfaceId: string
+  pageType: string
+  productHandle: string | null
+  productTitle: string | null
+  variantId: string | null
+  requestedQuantity: number | null
+  targetQuantity: number | null
+  resultingQuantity: number | null
+  confirmationRequired: boolean
+  confirmationAccepted: boolean
+  shopperSessionRef: string | null
+  status: string
+  message: string | null
+  createdAt: string
+  expiresAt: string | null
+  completedAt: string | null
+}
+
 export type ShopifyBridgeBillingSummary = {
   mode: string
   tierKey: string
@@ -452,6 +474,10 @@ export async function fetchStorefrontPreview(): Promise<ShopifyStorefrontPreview
 
 export async function fetchUsageSummary(): Promise<ShopifyBridgeUsageSummary> {
   return authenticatedFetchJson('/api/app/store/usage-summary', { method: 'GET' })
+}
+
+export async function fetchRecentGovernedActions(limit = 10): Promise<ShopifyBridgeGovernedActionAuditSummary[]> {
+  return authenticatedFetchJson(`/api/app/store/actions/recent?limit=${limit}`, { method: 'GET' })
 }
 
 export async function fetchVectorizationSummary(): Promise<ShopifyBridgeStoreVectorizationSummary> {

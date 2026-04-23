@@ -170,6 +170,7 @@ class ShopifyBridgeInstallCredentialServiceTest {
             true,
             true,
             false,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

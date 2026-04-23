@@ -147,6 +147,7 @@ class ShopifyStorefrontEngagementServiceTest {
             true,
             true,
             false,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

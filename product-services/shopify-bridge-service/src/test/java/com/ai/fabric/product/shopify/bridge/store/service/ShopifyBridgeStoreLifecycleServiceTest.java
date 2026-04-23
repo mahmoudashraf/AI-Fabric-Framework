@@ -124,6 +124,7 @@ class ShopifyBridgeStoreLifecycleServiceTest {
             false,
             true,
             false,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStat
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreGovernedActionAuditSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationEventSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSelectedEntitiesRequest;
@@ -21,6 +22,7 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreBootstrapServi
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreCredentialService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreDocumentSyncService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGovernedActionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGoLiveService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
@@ -56,6 +58,7 @@ public class ShopifyAdminController {
     private final ShopifyStoreCredentialService shopifyStoreCredentialService;
     private final ShopifyStoreGoLiveService shopifyStoreGoLiveService;
     private final ShopifyStoreUninstallService shopifyStoreUninstallService;
+    private final ShopifyStoreGovernedActionService shopifyStoreGovernedActionService;
     private final ShopifyStoreVectorizationService shopifyStoreVectorizationService;
     private final ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService;
     private final ShopifyStoreSyncService shopifyStoreSyncService;
@@ -69,6 +72,7 @@ public class ShopifyAdminController {
                                   ShopifyStoreCredentialService shopifyStoreCredentialService,
                                   ShopifyStoreGoLiveService shopifyStoreGoLiveService,
                                   ShopifyStoreUninstallService shopifyStoreUninstallService,
+                                  ShopifyStoreGovernedActionService shopifyStoreGovernedActionService,
                                   ShopifyStoreVectorizationService shopifyStoreVectorizationService,
                                   ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService,
                                   ShopifyStoreSyncService shopifyStoreSyncService,
@@ -81,6 +85,7 @@ public class ShopifyAdminController {
         this.shopifyStoreCredentialService = shopifyStoreCredentialService;
         this.shopifyStoreGoLiveService = shopifyStoreGoLiveService;
         this.shopifyStoreUninstallService = shopifyStoreUninstallService;
+        this.shopifyStoreGovernedActionService = shopifyStoreGovernedActionService;
         this.shopifyStoreVectorizationService = shopifyStoreVectorizationService;
         this.shopifyStoreSourcePreflightService = shopifyStoreSourcePreflightService;
         this.shopifyStoreSyncService = shopifyStoreSyncService;
@@ -162,6 +167,13 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary uninstall(@PathVariable String shopDomain) {
         return shopifyStoreUninstallService.markUninstalled(shopDomain, "Shopify app uninstall cleanup.");
+    }
+
+    @GetMapping("/{shopDomain}/actions/recent")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public List<ShopifyStoreGovernedActionAuditSummary> recentGovernedActions(@PathVariable String shopDomain,
+                                                                              @RequestParam(defaultValue = "10") int limit) {
+        return shopifyStoreGovernedActionService.recentActions(shopDomain, limit);
     }
 
     @GetMapping("/{shopDomain}/vectorization")

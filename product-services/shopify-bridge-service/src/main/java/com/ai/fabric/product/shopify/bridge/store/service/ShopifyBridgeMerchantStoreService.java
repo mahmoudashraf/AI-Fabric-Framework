@@ -8,6 +8,8 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSu
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
@@ -47,6 +49,7 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyBridgeUsageService usageService;
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
+    private final ShopifyStorefrontGovernedActionService governedActionService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
@@ -57,7 +60,8 @@ public class ShopifyBridgeMerchantStoreService {
                                              ShopifyStorefrontPreviewService storefrontPreviewService,
                                              ShopifyBridgeUsageService usageService,
                                              ShopifyBridgeBillingService billingService,
-                                             ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService) {
+                                             ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService,
+                                             ShopifyStorefrontGovernedActionService governedActionService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
@@ -68,6 +72,7 @@ public class ShopifyBridgeMerchantStoreService {
         this.usageService = usageService;
         this.billingService = billingService;
         this.webhookSubscriptionDiagnosticsService = webhookSubscriptionDiagnosticsService;
+        this.governedActionService = governedActionService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -221,6 +226,10 @@ public class ShopifyBridgeMerchantStoreService {
 
     public ShopifyStorefrontPreviewResponse storefrontPreview(ShopifyMerchantSession merchantSession) {
         return storefrontPreviewService.preview(merchantSession.shopDomain());
+    }
+
+    public List<ShopifyBridgeGovernedActionAuditSummary> recentGovernedActions(ShopifyMerchantSession merchantSession, int limit) {
+        return governedActionService.recentActions(merchantSession.shopDomain(), limit);
     }
 
     public ShopifyBridgeStoreSummary updateWidgetSettings(ShopifyMerchantSession merchantSession,

@@ -407,6 +407,7 @@
       )
     }))
     summaryCard.appendChild(footer)
+    appendGovernedCommercePanel(summaryCard, options, 'product-insight', shellModeProfile)
 
     cluster.appendChild(summaryCard)
 
@@ -455,6 +456,8 @@
     ).then(function (message) {
       body.textContent = truncateText(message || 'Companion insight is not available yet.', 260)
     })
+
+    appendGovernedCommercePanel(card, options, 'product-insight', shellModeProfile)
 
     return card
   }
@@ -615,6 +618,7 @@
     actions.appendChild(continueButton)
 
     card.appendChild(results)
+    appendGovernedCommercePanel(card, options, config.surfaceId, config.shellModeProfile)
 
     var state = {
       conversationId: null,
@@ -729,6 +733,229 @@
     }
   }
 
+  function appendGovernedCommercePanel(card, options, surfaceId, shellModeProfile) {
+    if (!card || !isGovernedCommerceAvailable(options, surfaceId)) {
+      return
+    }
+    card.appendChild(renderGovernedCommercePanel(options, surfaceId, shellModeProfile))
+  }
+
+  function renderGovernedCommercePanel(options, surfaceId, shellModeProfile) {
+    var panel = document.createElement('section')
+    panel.className = 'loom-companion-governed-actions'
+
+    var title = document.createElement('div')
+    title.className = 'loom-companion-governed-actions__title'
+    title.textContent = 'Elite guided commerce'
+    panel.appendChild(title)
+
+    var copy = document.createElement('p')
+    copy.className = 'loom-companion-surface-copy loom-companion-surface-copy--muted'
+    copy.textContent = 'Companion can add the current variant to cart and update quantity with explicit confirmation and bridge audit.'
+    panel.appendChild(copy)
+
+    var status = document.createElement('div')
+    status.className = 'loom-companion-surface-status'
+    status.hidden = true
+    panel.appendChild(status)
+
+    var buttons = document.createElement('div')
+    buttons.className = 'loom-companion-chip-row loom-companion-chip-row--actions'
+    panel.appendChild(buttons)
+
+    var cartSnapshot = document.createElement('div')
+    cartSnapshot.className = 'loom-companion-governed-actions__meta'
+    panel.appendChild(cartSnapshot)
+
+    var state = {
+      busy: false,
+      message: '',
+      currentVariantId: resolveSelectedVariantId(options),
+      cartLineKey: null,
+      cartQuantity: 0,
+    }
+
+    var addButton = createPrimaryActionButton('Add to cart', function () {
+      submitGovernedAction('ADD_TO_CART', {
+        requestedQuantity: resolveRequestedQuantity(),
+      })
+    })
+    buttons.appendChild(addButton)
+
+    var addOneButton = createChipButton('Add one more', function () {
+      submitGovernedAction('ADD_TO_CART', {
+        requestedQuantity: 1,
+      })
+    })
+    buttons.appendChild(addOneButton)
+
+    var removeOneButton = createChipButton('Remove one', function () {
+      submitGovernedAction('UPDATE_CART_QUANTITY', {
+        targetQuantity: Math.max(0, state.cartQuantity - 1),
+        cartLineKey: state.cartLineKey,
+      })
+    })
+    buttons.appendChild(removeOneButton)
+
+    var guidanceButton = createChipButton('Variant guidance', function () {
+      var guidanceQuery = variantGuidancePrompt(options.storefrontContext, shellModeProfile)
+      if (
+        !sendPrompt(
+          guidanceQuery,
+          'catalog',
+          defaultInsightMode(shellModeProfile),
+          createRequestContext(options.storefrontContext, shellModeProfile, 'guided-commerce')
+        )
+      ) {
+        status.hidden = false
+        status.textContent = 'Open the assistant shell to continue with variant guidance.'
+      }
+    })
+    buttons.appendChild(guidanceButton)
+
+    refreshCartState()
+    render()
+
+    return panel
+
+    function resolveRequestedQuantity() {
+      var quantityInput = document.querySelector('form[action*="/cart/add"] [name="quantity"]')
+      var parsed = quantityInput && quantityInput.value ? parseInt(String(quantityInput.value), 10) : 1
+      if (!parsed || parsed < 1) {
+        return 1
+      }
+      if (parsed > 10) {
+        return 10
+      }
+      return parsed
+    }
+
+    function refreshCartState() {
+      state.currentVariantId = resolveSelectedVariantId(options)
+      if (!state.currentVariantId) {
+        state.cartLineKey = null
+        state.cartQuantity = 0
+        render()
+        return
+      }
+      fetchJson(window.location.origin + '/cart.js', {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      })
+        .then(function (cart) {
+          var item = findCartItemForVariant(cart, state.currentVariantId)
+          state.cartLineKey = item ? trimValue(item.key) : null
+          state.cartQuantity = item && item.quantity ? Number(item.quantity) : 0
+          render()
+        })
+        .catch(function () {
+          state.cartLineKey = null
+          state.cartQuantity = 0
+          render()
+        })
+    }
+
+    function submitGovernedAction(actionType, request) {
+      if (state.busy) {
+        return
+      }
+      state.currentVariantId = resolveSelectedVariantId(options)
+      if (!state.currentVariantId) {
+        state.message = 'Select a Shopify variant before using guided commerce.'
+        render()
+        return
+      }
+      if ((options.payload.actionCapability || {}).requiresExplicitConfirmation) {
+        var confirmed = window.confirm(actionConfirmationMessage(actionType, request))
+        if (!confirmed) {
+          return
+        }
+      }
+      state.busy = true
+      state.message = ''
+      render()
+
+      fetchJson(options.payload.actionCapability.grantUrl, {
+        method: 'POST',
+        headers: shopperHeaders(options),
+        body: JSON.stringify({
+          actionType: actionType,
+          surfaceId: surfaceId,
+          pageType: normalizePageType(options.storefrontContext),
+          productId: options.storefrontContext && options.storefrontContext.product ? options.storefrontContext.product.id : null,
+          productHandle: options.storefrontContext && options.storefrontContext.product ? options.storefrontContext.product.handle : null,
+          productTitle: options.storefrontContext && options.storefrontContext.product ? options.storefrontContext.product.title : null,
+          variantId: state.currentVariantId,
+          requestedQuantity: request.requestedQuantity,
+          targetQuantity: request.targetQuantity,
+          cartLineKey: request.cartLineKey,
+          confirmationAccepted: true,
+        }),
+      })
+        .then(function (grant) {
+          return executeGovernedCommerceOperation(grant)
+            .then(function (nativeResult) {
+              return fetchJson(options.payload.actionCapability.completeUrl, {
+                method: 'POST',
+                headers: shopperHeaders(options),
+                body: JSON.stringify({
+                  auditId: grant.auditId,
+                  token: grant.token,
+                  status: 'COMPLETED',
+                  message: nativeResult.message,
+                  cartLineKey: nativeResult.cartLineKey,
+                  resultingQuantity: nativeResult.resultingQuantity,
+                }),
+              })
+            })
+            .catch(function (error) {
+              return fetchJson(options.payload.actionCapability.completeUrl, {
+                method: 'POST',
+                headers: shopperHeaders(options),
+                body: JSON.stringify({
+                  auditId: grant.auditId,
+                  token: grant.token,
+                  status: 'FAILED',
+                  message: error && error.message ? error.message : 'Guided commerce action failed.',
+                  cartLineKey: request.cartLineKey || null,
+                  resultingQuantity: state.cartQuantity,
+                }),
+              }).then(function () {
+                throw error
+              })
+            })
+        })
+        .then(function (audit) {
+          state.message = audit && audit.message ? audit.message : 'Guided commerce action completed.'
+          announceCartRefresh()
+          refreshCartState()
+        })
+        .catch(function (error) {
+          state.message = error && error.message ? error.message : 'Guided commerce action failed.'
+        })
+        .finally(function () {
+          state.busy = false
+          render()
+        })
+    }
+
+    function render() {
+      var hasVariant = !!state.currentVariantId
+      addButton.disabled = state.busy || !hasVariant
+      addOneButton.disabled = state.busy || !hasVariant
+      removeOneButton.disabled = state.busy || !hasVariant || !state.cartLineKey || state.cartQuantity < 1
+      guidanceButton.disabled = state.busy
+      addButton.textContent = state.busy ? 'Working…' : 'Add to cart'
+      cartSnapshot.textContent = hasVariant
+        ? 'Current variant ' + truncateText(state.currentVariantId, 18) + ' · cart quantity ' + state.cartQuantity
+        : 'Select a variant to unlock governed commerce actions.'
+      status.hidden = !state.message
+      status.textContent = state.message
+    }
+  }
+
   function renderContextualPillBar(options, shellModeProfile, queryCoordinator) {
     var pillBar = document.createElement('section')
     pillBar.className = 'loom-companion-contextual-pillbar'
@@ -765,6 +992,15 @@
     var button = document.createElement('button')
     button.type = 'button'
     button.className = 'loom-companion-chip'
+    button.textContent = label
+    button.addEventListener('click', onClick)
+    return button
+  }
+
+  function createPrimaryActionButton(label, onClick) {
+    var button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'loom-companion-primary-button'
     button.textContent = label
     button.addEventListener('click', onClick)
     return button
@@ -1093,12 +1329,135 @@
     return 'Compare "' + productTitle + '" with similar options in this store and explain who should choose each one.'
   }
 
+  function variantGuidancePrompt(storefrontContext, shellModeProfile) {
+    var productTitle = productTitleForContext(storefrontContext)
+    if (!productTitle) {
+      return 'Help me choose the right variant for the current product.'
+    }
+    if (shellModeProfile === 'GUIDED_SUPPORT') {
+      return 'Help me choose the right variant of "' + productTitle + '" and explain what a shopper should verify before buying.'
+    }
+    return 'Help me choose the right variant of "' + productTitle + '" and explain the practical tradeoffs between options.'
+  }
+
   function shopperHeaders(options) {
     return {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       'X-AI-FABRIC-SHOPPER-SESSION-ID': getOrCreateShopperSessionId(options.payload.shopDomain || 'storefront'),
     }
+  }
+
+  function isGovernedCommerceAvailable(options, surfaceId) {
+    if (!options || !options.payload || !options.payload.actionCapability) {
+      return false
+    }
+    if (normalizePageType(options.storefrontContext) !== 'product') {
+      return false
+    }
+    if (['product-insight', 'comparison', 'contextual-pill'].indexOf(surfaceId) < 0) {
+      return false
+    }
+    return !!options.payload.actionCapability.available
+  }
+
+  function resolveSelectedVariantId(options) {
+    var fromContext =
+      options &&
+      options.storefrontContext &&
+      options.storefrontContext.product &&
+      trimValue(options.storefrontContext.product.variantId)
+    var fromForm = readCurrentProductFormValue()
+    return fromForm || fromContext
+  }
+
+  function readCurrentProductFormValue() {
+    var checkedInput = document.querySelector('form[action*="/cart/add"] input[name="id"]:checked')
+    if (checkedInput && trimValue(checkedInput.value)) {
+      return trimValue(checkedInput.value)
+    }
+    var selectedInput = document.querySelector('form[action*="/cart/add"] [name="id"]')
+    if (selectedInput && trimValue(selectedInput.value)) {
+      return trimValue(selectedInput.value)
+    }
+    return null
+  }
+
+  function findCartItemForVariant(cart, variantId) {
+    var normalizedVariantId = trimValue(variantId)
+    if (!cart || !Array.isArray(cart.items) || !normalizedVariantId) {
+      return null
+    }
+    for (var i = 0; i < cart.items.length; i += 1) {
+      var item = cart.items[i]
+      if (trimValue(item.variant_id || item.id) === normalizedVariantId) {
+        return item
+      }
+    }
+    return null
+  }
+
+  function executeGovernedCommerceOperation(grant) {
+    if (!grant || !grant.operationKind) {
+      return Promise.reject(new Error('Guided commerce approval is missing operation details.'))
+    }
+    if (grant.operationKind === 'CART_ADD') {
+      return fetchJson(window.location.origin + '/cart/add.js', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: grant.variantId,
+          quantity: grant.requestedQuantity || 1,
+        }),
+      }).then(function (payload) {
+        return {
+          cartLineKey: trimValue(payload.key) || null,
+          resultingQuantity: payload && payload.quantity ? Number(payload.quantity) : grant.requestedQuantity || 1,
+          message: 'Guided add-to-cart completed.',
+        }
+      })
+    }
+    if (grant.operationKind === 'CART_CHANGE') {
+      return fetchJson(window.location.origin + '/cart/change.js', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: grant.cartLineKey,
+          quantity: grant.targetQuantity,
+        }),
+      }).then(function (payload) {
+        var item = payload && Array.isArray(payload.items)
+          ? payload.items.find(function (candidate) {
+              return trimValue(candidate.key) === trimValue(grant.cartLineKey)
+            })
+          : null
+        return {
+          cartLineKey: trimValue(grant.cartLineKey) || null,
+          resultingQuantity: item && item.quantity != null ? Number(item.quantity) : grant.targetQuantity || 0,
+          message: 'Guided cart update completed.',
+        }
+      })
+    }
+    return Promise.reject(new Error('Unsupported guided commerce operation.'))
+  }
+
+  function announceCartRefresh() {
+    document.dispatchEvent(new CustomEvent('cart:refresh'))
+    document.dispatchEvent(new CustomEvent('loom-companion:cart-updated'))
+  }
+
+  function actionConfirmationMessage(actionType, request) {
+    if (actionType === 'UPDATE_CART_QUANTITY') {
+      return 'Allow Loom Companion to update the quantity for the current product in your cart?'
+    }
+    var quantity = request && request.requestedQuantity ? request.requestedQuantity : 1
+    return 'Allow Loom Companion to add ' + quantity + ' item' + (quantity === 1 ? '' : 's') + ' to your cart?'
   }
 
   function fetchJson(url, init) {

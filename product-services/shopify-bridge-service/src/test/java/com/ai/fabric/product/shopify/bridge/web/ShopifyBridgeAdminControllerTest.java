@@ -13,6 +13,7 @@ import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeInsta
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeStoreOverview;
 import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
@@ -222,6 +223,38 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
             .andExpect(jsonPath("$.last7DaySurfaceUsage[0].surfaceId").value("launcher"))
             .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"));
+    }
+
+    @Test
+    void adminRecentGovernedActionsAreReturnedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.recentGovernedActions("alpha.myshopify.com", 5)).thenReturn(List.of(
+            new ShopifyBridgeGovernedActionAuditSummary(
+                "sga-1",
+                "ADD_TO_CART",
+                "guided-commerce",
+                "product-insight",
+                "PRODUCT",
+                "travel-pack",
+                "Travel Pack",
+                "202",
+                1,
+                null,
+                1,
+                true,
+                true,
+                "shop…0001",
+                "COMPLETED",
+                "Guided add-to-cart completed.",
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:05:00Z"),
+                Instant.parse("2026-04-23T12:00:03Z")
+            )
+        ));
+
+        mockMvc.perform(get("/api/admin/stores/alpha.myshopify.com/actions/recent?limit=5").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].actionType").value("ADD_TO_CART"))
+            .andExpect(jsonPath("$[0].status").value("COMPLETED"));
     }
 
     @Test

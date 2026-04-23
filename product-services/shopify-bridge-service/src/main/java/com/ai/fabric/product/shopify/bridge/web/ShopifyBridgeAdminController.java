@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSu
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
@@ -62,6 +63,12 @@ public class ShopifyBridgeAdminController {
     @GetMapping("/stores/{shopDomain}/usage-summary")
     public ShopifyBridgeUsageSummary usageSummary(@PathVariable String shopDomain) {
         return storeAdminService.usageSummary(shopDomain);
+    }
+
+    @GetMapping("/stores/{shopDomain}/actions/recent")
+    public java.util.List<ShopifyBridgeGovernedActionAuditSummary> recentGovernedActions(@PathVariable String shopDomain,
+                                                                                         @org.springframework.web.bind.annotation.RequestParam(defaultValue = "10") int limit) {
+        return storeAdminService.recentGovernedActions(shopDomain, limit);
     }
 
     @GetMapping("/stores/{shopDomain}/vectorization")

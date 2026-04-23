@@ -6,6 +6,7 @@ import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsage
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalRequest;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -158,6 +159,14 @@ public class ShopifyMerchantController {
     @GetMapping("/store/billing-summary")
     public ShopifyBridgeBillingSummary billingSummary(Authentication authentication) {
         return merchantStoreService.billingSummary(requireMerchant(authentication));
+    }
+
+    @GetMapping("/store/actions/recent")
+    public java.util.List<ShopifyBridgeGovernedActionAuditSummary> recentGovernedActions(
+        Authentication authentication,
+        @RequestParam(name = "limit", defaultValue = "10") int limit
+    ) {
+        return merchantStoreService.recentGovernedActions(requireMerchant(authentication), limit);
     }
 
     @PostMapping("/store/billing/approval")

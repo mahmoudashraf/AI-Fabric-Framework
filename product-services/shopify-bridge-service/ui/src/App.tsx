@@ -22,6 +22,7 @@ import {
   bootstrapStore,
   connectStore,
   fetchBillingSummary,
+  fetchRecentGovernedActions,
   fetchSession,
   fetchShell,
   fetchStorefrontPreview,
@@ -46,6 +47,7 @@ import {
   vectorizeNowStore,
   type ShopifyBridgeBillingApprovalResponse,
   type ShopifyBridgeBillingSummary,
+  type ShopifyBridgeGovernedActionAuditSummary,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
@@ -87,6 +89,7 @@ type LoadState = {
   session: ShopifyBridgeMerchantSessionResponse | null
   storefrontPreview: ShopifyStorefrontPreviewResponse | null
   usageSummary: ShopifyBridgeUsageSummary | null
+  recentGovernedActions: ShopifyBridgeGovernedActionAuditSummary[]
   billingSummary: ShopifyBridgeBillingSummary | null
   webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null
   vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null
@@ -184,6 +187,7 @@ export default function App() {
     session: null,
     storefrontPreview: null,
     usageSummary: null,
+    recentGovernedActions: [],
     billingSummary: null,
     webhookSubscriptions: null,
     vectorizationSummary: null,
@@ -275,6 +279,7 @@ export default function App() {
       let session: ShopifyBridgeMerchantSessionResponse | null = null
       let storefrontPreview: ShopifyStorefrontPreviewResponse | null = null
       let usageSummary: ShopifyBridgeUsageSummary | null = null
+      let recentGovernedActions: ShopifyBridgeGovernedActionAuditSummary[] = []
       let billingSummary: ShopifyBridgeBillingSummary | null = null
       let webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null = null
       let vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null = null
@@ -282,6 +287,7 @@ export default function App() {
         session = await fetchSession()
         storefrontPreview = await fetchStorefrontPreview()
         usageSummary = await fetchUsageSummary()
+        recentGovernedActions = await fetchRecentGovernedActions()
         billingSummary = await fetchBillingSummary()
       } catch (sessionError) {
         session = null
@@ -290,6 +296,7 @@ export default function App() {
           session: null,
           storefrontPreview: null,
           usageSummary: null,
+          recentGovernedActions: [],
           billingSummary: null,
           webhookSubscriptions: null,
           vectorizationSummary: null,
@@ -315,6 +322,7 @@ export default function App() {
         session,
         storefrontPreview,
         usageSummary,
+        recentGovernedActions,
         billingSummary,
         webhookSubscriptions,
         vectorizationSummary,
@@ -350,6 +358,7 @@ export default function App() {
         session: null,
         storefrontPreview: null,
         usageSummary: null,
+        recentGovernedActions: [],
         billingSummary: null,
         webhookSubscriptions: null,
         vectorizationSummary: null,
@@ -727,6 +736,7 @@ export default function App() {
   const store = session?.store ?? null
   const storefrontPreview = state.storefrontPreview
   const usageSummary = state.usageSummary
+  const recentGovernedActions = state.recentGovernedActions
   const billingSummary = state.billingSummary
   const billingApprovalRequired = Boolean(
     billingSummary?.availablePlans?.some(
@@ -1511,6 +1521,23 @@ export default function App() {
                         </Text>
                       ))}
                     </BlockStack>
+                  ) : null}
+                  {recentGovernedActions.length ? (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Recent governed commerce actions
+                      </Text>
+                      {recentGovernedActions.slice(0, 5).map((action) => (
+                        <Text key={action.id} as="p" variant="bodySm" tone="subdued">
+                          {action.actionType} · {action.surfaceId} · {action.productTitle ?? action.productHandle ?? 'current product'} ·
+                          {' '}status {action.status} · shopper {action.shopperSessionRef ?? 'n/a'} · {formatTimestamp(action.createdAt)}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                  ) : billingSummary?.actionCapable ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Governed commerce actions will appear here after real Elite storefront actions run through the live bridge.
+                    </Text>
                   ) : null}
                 </BlockStack>
               </Card>

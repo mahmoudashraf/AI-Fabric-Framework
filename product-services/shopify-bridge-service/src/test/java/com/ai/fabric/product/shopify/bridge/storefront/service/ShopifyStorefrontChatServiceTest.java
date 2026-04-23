@@ -179,6 +179,7 @@ class ShopifyStorefrontChatServiceTest {
             true,
             true,
             false,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,

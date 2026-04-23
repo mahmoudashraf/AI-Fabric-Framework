@@ -5,6 +5,8 @@ import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBilling
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicConsumerDeploymentCredentialsResponse;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCapability;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -27,15 +29,18 @@ public class ShopifyStorefrontBootstrapService {
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyBridgeBillingService billingService;
+    private final ShopifyStorefrontGovernedActionService governedActionService;
     private final ShopifyBridgeProperties properties;
 
     public ShopifyStorefrontBootstrapService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeInstallCredentialService installCredentialService,
                                              ShopifyBridgeBillingService billingService,
+                                             ShopifyStorefrontGovernedActionService governedActionService,
                                              ShopifyBridgeProperties properties) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installCredentialService = installCredentialService;
         this.billingService = billingService;
+        this.governedActionService = governedActionService;
         this.properties = properties;
     }
 
@@ -59,6 +64,8 @@ public class ShopifyStorefrontBootstrapService {
         String bridgeQueryUrl = storefrontUrl(updated.shopDomain(), "/chat/query");
         String bridgeSuggestionsUrl = storefrontUrl(updated.shopDomain(), "/chat/suggestions");
         String bridgeEventUrl = storefrontUrl(updated.shopDomain(), "/events");
+        String actionGrantUrl = storefrontUrl(updated.shopDomain(), "/actions/grant");
+        String actionCompleteUrl = storefrontUrl(updated.shopDomain(), "/actions/complete");
         String preferredIntegrationMode = credentials.integration() == null ? null : credentials.integration().preferredIntegrationMode();
         String runtimeAuthMode = credentials.integration() == null || credentials.integration().posture() == null
             ? null
@@ -86,6 +93,8 @@ public class ShopifyStorefrontBootstrapService {
             ? List.copyOf(updated.widgetDetail().settings().enabledSurfaces())
             : billingSummary.allowedSurfaces();
         enabledSurfaces = billingService.effectiveAllowedSurfaces(updated.shopDomain(), null, enabledSurfaces);
+        ShopifyStorefrontGovernedActionCapability actionCapability =
+            governedActionService.capability(updated.shopDomain(), actionGrantUrl, actionCompleteUrl);
 
         return new ShopifyStorefrontBootstrapResponse(
             true,
@@ -108,6 +117,7 @@ public class ShopifyStorefrontBootstrapService {
             bridgeQueryUrl,
             bridgeSuggestionsUrl,
             bridgeEventUrl,
+            actionCapability,
             guidance,
             "Storefront bootstrap resolved. Theme app extension can now call the bridge-backed shopper endpoints."
         );
@@ -135,6 +145,16 @@ public class ShopifyStorefrontBootstrapService {
             null,
             null,
             null,
+            new ShopifyStorefrontGovernedActionCapability(
+                false,
+                false,
+                false,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                "Guided commerce actions are unavailable until the store is storefront-ready."
+            ),
             null,
             message
         );

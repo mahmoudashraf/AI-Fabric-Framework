@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublic
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicRuntimeEndpointsSummary;
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicRuntimePostureSummary;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentReleaseSummary;
@@ -42,6 +43,7 @@ class ShopifyStorefrontBootstrapServiceTest {
             platformClient,
             installCredentialService,
             billingService,
+            mock(ShopifyStorefrontGovernedActionService.class),
             properties("https://bridge.example.com")
         );
         ShopifyBridgeStoreSummary store = store("INSTALLED", "READY", "NOT_ENABLED", "consumer-alpha", "dep-1");
@@ -99,6 +101,7 @@ class ShopifyStorefrontBootstrapServiceTest {
             platformClient,
             mock(ShopifyBridgeInstallCredentialService.class),
             mock(ShopifyBridgeBillingService.class),
+            mock(ShopifyStorefrontGovernedActionService.class),
             properties("https://bridge.example.com")
         );
         when(platformClient.getStore("alpha.myshopify.com"))
