@@ -92,6 +92,14 @@ public class DeploymentMarketplaceInstallService {
 
     public List<DeploymentMarketplaceInstallSummary> listInstalls(String deploymentId) {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
+        return summarizeInstalls(deployment);
+    }
+
+    public List<DeploymentMarketplaceInstallSummary> listInstallsForTrustedCaller(DeploymentEntity deployment) {
+        return summarizeInstalls(deployment);
+    }
+
+    private List<DeploymentMarketplaceInstallSummary> summarizeInstalls(DeploymentEntity deployment) {
         DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
         DeploymentVersionEntity activeVersion = resolveActiveVersion(deployment);
         return installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()).stream()

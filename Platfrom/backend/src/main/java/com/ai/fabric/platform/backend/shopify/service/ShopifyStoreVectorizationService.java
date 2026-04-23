@@ -109,7 +109,7 @@ public class ShopifyStoreVectorizationService {
         ShopifyStoreConnectionEntity store = requireStore(shopDomain);
         DeploymentEntity deployment = requireDeployment(store);
         LinkedHashSet<String> desiredPluginIds = ShopifyCompanionPluginSelection.desiredManagedPluginIds(properties, store);
-        Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId = installsByPluginId(deployment.getId());
+        Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId = installsByPluginId(deployment);
 
         LinkedHashSet<String> managedDataPluginIds = ShopifyCompanionPluginSelection.managedDataPluginIds();
         for (String pluginId : desiredPluginIds) {
@@ -426,7 +426,7 @@ public class ShopifyStoreVectorizationService {
         DeploymentEntity deployment = resolveDeployment(store);
         Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId = deployment == null
             ? Map.of()
-            : installsByPluginId(deployment.getId());
+            : installsByPluginId(deployment);
         VectorizationOverviewSummary overview = deployment == null ? null : vectorizationService.getOverviewForTrustedCaller(deployment);
         return summarize(store, deployment, installsByPluginId, overview);
     }
@@ -660,9 +660,9 @@ public class ShopifyStoreVectorizationService {
         return List.copyOf(selected);
     }
 
-    private Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId(String deploymentId) {
+    private Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId(DeploymentEntity deployment) {
         LinkedHashMap<String, DeploymentMarketplaceInstallSummary> installs = new LinkedHashMap<>();
-        for (DeploymentMarketplaceInstallSummary install : deploymentMarketplaceInstallService.listInstalls(deploymentId)) {
+        for (DeploymentMarketplaceInstallSummary install : deploymentMarketplaceInstallService.listInstallsForTrustedCaller(deployment)) {
             installs.put(normalizePluginId(install.pluginId()), install);
         }
         return installs;

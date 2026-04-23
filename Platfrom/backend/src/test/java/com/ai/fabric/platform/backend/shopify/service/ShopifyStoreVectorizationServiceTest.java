@@ -148,7 +148,7 @@ class ShopifyStoreVectorizationServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
         when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService()));
-        when(installService.listInstalls("dep-123"))
+        when(installService.listInstallsForTrustedCaller(deployment))
             .thenReturn(List.of(
                 install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
                 install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED")
@@ -327,7 +327,7 @@ class ShopifyStoreVectorizationServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
         when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService()));
-        when(installService.listInstalls("dep-123"))
+        when(installService.listInstallsForTrustedCaller(deployment))
             .thenReturn(List.of(
                 install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
                 install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED"),
@@ -480,7 +480,7 @@ class ShopifyStoreVectorizationServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(latestRelease));
         when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService()));
-        when(installService.listInstalls("dep-123"))
+        when(installService.listInstallsForTrustedCaller(deployment))
             .thenReturn(List.of(
                 install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
                 install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED"),

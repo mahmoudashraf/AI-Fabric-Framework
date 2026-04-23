@@ -14,6 +14,8 @@ import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreVectorizati
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationOverviewSummary;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -32,6 +34,8 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 
 @Service
 public class ShopifyStoreVectorizationPolicyService {
+
+    private static final Logger log = LoggerFactory.getLogger(ShopifyStoreVectorizationPolicyService.class);
 
     private static final TypeReference<LinkedHashMap<String, ShopifyStoreVectorizationPolicyState>> POLICY_TYPE =
         new TypeReference<>() { };
@@ -215,9 +219,21 @@ public class ShopifyStoreVectorizationPolicyService {
                 return new LinkedHashMap<>();
             }
             LinkedHashMap<String, ShopifyStoreVectorizationPolicyState> parsed = objectMapper.readValue(json, POLICY_TYPE);
-            return parsed == null ? new LinkedHashMap<>() : parsed;
+            if (parsed == null || parsed.isEmpty()) {
+                return new LinkedHashMap<>();
+            }
+            LinkedHashMap<String, ShopifyStoreVectorizationPolicyState> sanitized = new LinkedHashMap<>();
+            parsed.forEach((key, value) -> {
+                String sourceCategory = normalizePersistedSourceCategory(key);
+                if (sourceCategory == null) {
+                    return;
+                }
+                sanitized.put(sourceCategory, sanitizeState(sourceCategory, value));
+            });
+            return sanitized;
         } catch (Exception ex) {
-            throw new IllegalStateException("Failed to parse Shopify vectorization policy JSON.", ex);
+            log.warn("Ignoring malformed Shopify vectorization policy JSON and falling back to defaults: {}", ex.getMessage());
+            return new LinkedHashMap<>();
         }
     }
 
@@ -284,8 +300,64 @@ public class ShopifyStoreVectorizationPolicyService {
                 30,
                 60
             );
+            case ShopifyStoreVectorizationConstants.SOURCE_METAOBJECTS -> new ShopifyStoreVectorizationPolicyState(
+                false,
+                false,
+                false,
+                ShopifyStoreVectorizationConstants.UPDATE_MODE_INDEXED_ONLY,
+                List.of(),
+                30,
+                60
+            );
             default -> throw new IllegalStateException("Unsupported Shopify source category: " + sourceCategory);
         };
+    }
+
+    private ShopifyStoreVectorizationPolicyState sanitizeState(String sourceCategory,
+                                                               ShopifyStoreVectorizationPolicyState persisted) {
+        ShopifyStoreVectorizationPolicyState fallback = defaultState(sourceCategory);
+        if (persisted == null) {
+            return fallback;
+        }
+        return new ShopifyStoreVectorizationPolicyState(
+            persisted.autoIndexingEnabled(),
+            persisted.createTriggerEnabled(),
+            persisted.deleteTriggerEnabled(),
+            sanitizeUpdateTriggerMode(persisted.updateTriggerMode(), fallback.updateTriggerMode()),
+            sanitizeSelectedIndexedFields(persisted.selectedIndexedFields()),
+            Math.max(0, persisted.debounceWindowSeconds()),
+            Math.max(0, persisted.minimumRunIntervalSeconds())
+        );
+    }
+
+    private String sanitizeUpdateTriggerMode(String requested, String fallback) {
+        try {
+            return ShopifyStoreVectorizationConstants.normalizeUpdateTriggerMode(requested);
+        } catch (ResponseStatusException ex) {
+            return fallback;
+        }
+    }
+
+    private List<String> sanitizeSelectedIndexedFields(List<String> selectedIndexedFields) {
+        if (selectedIndexedFields == null || selectedIndexedFields.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String value : selectedIndexedFields) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            values.add(value.trim());
+        }
+        return List.copyOf(values);
+    }
+
+    private String normalizePersistedSourceCategory(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return ShopifyStoreVectorizationConstants.SOURCE_CATEGORIES.contains(normalized) ? normalized : null;
     }
 
     private Map<String, Object> rawStateSnapshot(Map<String, ShopifyStoreVectorizationPolicyState> states) {
