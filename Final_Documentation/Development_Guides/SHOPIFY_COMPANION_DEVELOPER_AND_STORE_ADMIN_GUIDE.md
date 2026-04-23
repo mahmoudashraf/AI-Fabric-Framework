@@ -1,6 +1,6 @@
 # Shopify Companion Developer And Store Admin Guide
 
-Status: developer and merchant-admin operating guide (2026-04-19)
+Status: developer and merchant-admin operating guide (2026-04-23)
 
 Purpose:
 
@@ -12,10 +12,12 @@ Purpose:
 This guide should be read with:
 
 - `Final_Documentation/Development_Guides/SHOPIFY_INTERNAL_DEVELOPMENT_AND_FULL_DEPLOYMENT_GUIDE.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_VECTORIZATION_TRIGGER_PLAN.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
+- `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_LAUNCH_REVIEW_AND_SUPPORT_EXPORTS_GUIDE.md`
+- `Final_Documentation/User_Guides/SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_VECTORIZATION_TRIGGER_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
+- `Final_Documentation/User_Guides/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
 
 ## 1) Executive Summary
 
@@ -69,10 +71,15 @@ Shopify admin app:
 - merchant-facing bounded control plane
 - source selection
 - preflight, indexing, live updates, storefront activation, playground, support bundle
+- store intelligence health
+- launch and App Review readiness
+- tier ladder and billing posture
+- launch, review, support, and lifecycle export packets
 
 Theme app embed:
 
 - storefront launcher and shopper assistant UI
+- merchant-placeable AI search, contextual pill, product insight, policy strip, product FAQ, and comparison blocks
 
 ### 2.2 Current vectorization shape
 
@@ -91,6 +98,8 @@ This is deliberate. The vectorization runner should not contain Shopify-specific
 - `collections` -> contributes to `product`
 - `pages` -> contributes to `support-policy`
 - `policies` -> contributes to `support-policy`
+- `articles` -> contributes to `support-policy`
+- `metaobjects` -> contributes to `support-policy`
 
 ### 2.4 Current required deployment plugins
 
@@ -155,6 +164,8 @@ The source toggles are the only merchant-facing data-scope controls:
 - Collections
 - Pages
 - Policies
+- Articles
+- Metaobjects
 
 When those change:
 
@@ -361,11 +372,15 @@ Source scope:
   - Collections
   - Pages
   - Policies
+  - Articles
+  - Metaobjects
 - save source settings
 
 Readiness and launch:
 
 - run source preflight
+- review launch and App Review readiness
+- review store intelligence health
 - request go-live
 
 Indexing:
@@ -389,9 +404,11 @@ Storefront:
 Diagnostics:
 
 - view billing posture
+- review the tier ladder and governed-action posture
 - view webhook subscription health
 - use merchant playground
 - copy or download support bundle
+- copy or download launch dossier, App Store package, App Review guide, review screencast script, support runbook, design-partner rollout packet, and lifecycle/subscription packet
 
 ### 4.3 What the store admin should not be allowed to do
 
@@ -468,7 +485,7 @@ If the merchant enables:
 - `Products` or `Collections`
   - the platform prepares vectorization for `product`
 
-- `Pages` or `Policies`
+- `Pages`, `Policies`, `Articles`, or `Metaobjects`
   - the platform prepares vectorization for `support-policy`
 
 This mapping is fixed product behavior, not merchant-authored schema design.
@@ -498,6 +515,14 @@ Webhook subscriptions:
 Billing:
 
 - indicates whether billing blocks launch for the current store plan posture
+
+Lifecycle and subscription packet:
+
+- summarizes install, billing, webhook, sync, and release posture in one bounded merchant-visible export
+
+Store intelligence health:
+
+- summarizes shopper signal, surface usage, journey evidence, and ROI posture without exposing raw infrastructure internals
 
 ### 4.8 Merchant troubleshooting
 
@@ -547,6 +572,7 @@ Keep the Shopify admin app focused on:
 - storefront activation
 - testing
 - support
+- launch, review, and lifecycle packaging
 
 Keep the platform responsible for:
 
