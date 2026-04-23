@@ -127,6 +127,43 @@ class ShopifyStorefrontOrderLookupServiceTest {
         assertThat(response.matched()).isFalse();
     }
 
+    @Test
+    void prefersLiveCredentialScopesOverStalePersistedInstallRecordScopes() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
+
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store(true, List.of("ai-search", "order-lookup")));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies")));
+        when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", "access-token", List.of("ai-search", "order-lookup")))
+            .thenReturn(List.of("ai-search", "order-lookup"));
+        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString(), anyMap())).thenReturn(Map.of(
+            "data", Map.of(
+                "orders", Map.of("nodes", List.of())
+            )
+        ));
+
+        ShopifyStorefrontOrderLookupService service = new ShopifyStorefrontOrderLookupService(
+            platformClient,
+            installCredentialService,
+            installRecordService,
+            billingService,
+            shopifyAdminGraphqlClient
+        );
+
+        var response = service.lookup(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontOrderLookupRequest("#1001", "shopper@example.com", "order-lookup")
+        );
+
+        assertThat(response.available()).isTrue();
+        assertThat(response.status()).isEqualTo("NO_MATCH");
+        assertThat(response.matched()).isFalse();
+    }
+
     private ShopifyBridgeStoreSummary store(boolean storefrontReady, List<String> enabledSurfaces) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
@@ -201,6 +238,10 @@ class ShopifyStorefrontOrderLookupServiceTest {
             now.plusSeconds(3600),
             now.plusSeconds(7200),
             false,
+            now,
+            null,
+            null,
+            List.of(),
             now,
             now,
             now,

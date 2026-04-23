@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
@@ -11,6 +12,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedSto
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -22,18 +24,23 @@ import java.util.Locale;
 @Service
 public class ShopifyBridgeSupportReadinessService {
 
+    private static final String APP_SCOPES_UPDATE_TOPIC = "APP_SCOPES_UPDATE";
+
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyBridgeBillingService billingService;
+    private final ShopifyWebhookSubscriptionService webhookSubscriptionService;
     private final ShopifyBridgeProperties properties;
 
     public ShopifyBridgeSupportReadinessService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                                 ShopifyInstallRecordService installRecordService,
                                                 ShopifyBridgeBillingService billingService,
+                                                ShopifyWebhookSubscriptionService webhookSubscriptionService,
                                                 ShopifyBridgeProperties properties) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installRecordService = installRecordService;
         this.billingService = billingService;
+        this.webhookSubscriptionService = webhookSubscriptionService;
         this.properties = properties;
     }
 
@@ -56,6 +63,12 @@ public class ShopifyBridgeSupportReadinessService {
         if (installRecoveryRequired) {
             status = "INSTALL_RECOVERY_REQUIRED";
             message = "This shop must complete the Shopify install flow again before customer-safe order lookup can run.";
+        } else if ("PAYMENT_ISSUE".equalsIgnoreCase(billingState.status())) {
+            status = "DEGRADED";
+            message = "Shopify billing needs merchant review before governed support posture can be trusted for this store.";
+        } else if ("CHECK_FAILED".equalsIgnoreCase(billingState.status())) {
+            status = "DEGRADED";
+            message = "Shopify billing posture could not be verified for this store. Review lifecycle and subscription state before go-live.";
         } else if (!orderLookupScopeGranted) {
             status = "PENDING_SCOPE_GRANT";
             message = "Customer-safe order lookup is waiting for Shopify order-read scope approval on this store.";
@@ -134,32 +147,107 @@ public class ShopifyBridgeSupportReadinessService {
     private SupportState resolveSupportState(String shopDomain,
                                              ShopifyInstallRecordSummary installRecord) {
         if (installRecord != null) {
-            return new SupportState(
-                fallbackScopes(installRecord),
-                List.of(),
-                installRecord.appScopesUpdateWebhookReady(),
-                installRecord.status()
-            );
+            return reconcilePersistedSupportState(shopDomain, installRecord);
         }
         try {
             ShopifyBridgeResolvedStoreCredentials resolved = platformShopifyStoreClient.resolveCredentialMaterial(shopDomain);
-            return new SupportState(
-                ShopifyScopeSupport.parseScopes(resolved == null ? null : resolved.scopesText()),
-                List.of(),
-                false,
-                "INSTALLED"
+            if (resolved == null || resolved.accessToken() == null || resolved.accessToken().isBlank()) {
+                return new SupportState(List.of(), List.of(), false, "UNKNOWN", null, null);
+            }
+            installRecordService.recordInstall(
+                shopDomain,
+                "https://" + normalizeShopDomain(shopDomain),
+                null,
+                resolved.scopesText(),
+                null,
+                null,
+                resolved.accessTokenExpiresAt(),
+                resolved.refreshTokenExpiresAt()
             );
+            installRecordService.recordAppScopesUpdateWebhookReady(
+                shopDomain,
+                inspectAppScopesWebhookReady(shopDomain, resolved.accessToken())
+            );
+            recordBillingStateSafely(shopDomain, resolved.accessToken());
+            return installRecordService.findByShopDomain(shopDomain)
+                .map(this::toSupportState)
+                .orElseGet(() -> new SupportState(
+                    ShopifyScopeSupport.parseScopes(resolved.scopesText()),
+                    List.of(),
+                    false,
+                    "INSTALLED",
+                    null,
+                    null
+                ));
         } catch (Exception ex) {
             return new SupportState(
                 List.of(),
                 List.of(),
                 false,
-                "UNKNOWN"
+                "UNKNOWN",
+                null,
+                null
             );
         }
     }
 
+    private SupportState reconcilePersistedSupportState(String shopDomain,
+                                                        ShopifyInstallRecordSummary installRecord) {
+        SupportState current = toSupportState(installRecord);
+        if ("UNINSTALLED".equalsIgnoreCase(current.installStatus())
+            || !requiresLiveSupportRefresh(installRecord, current)) {
+            return current;
+        }
+        try {
+            ShopifyBridgeResolvedStoreCredentials resolved = platformShopifyStoreClient.resolveCredentialMaterial(shopDomain);
+            if (resolved == null || optionalText(resolved.accessToken()) == null) {
+                return current;
+            }
+            List<String> grantedScopes = current.grantedScopes();
+            String resolvedScopesText = optionalText(resolved.scopesText());
+            if (resolvedScopesText != null) {
+                grantedScopes = ShopifyScopeSupport.parseScopes(resolvedScopesText);
+                persistResolvedScopesIfChanged(installRecord, resolved, resolvedScopesText);
+            }
+            boolean webhookReady = current.appScopesUpdateWebhookReady();
+            if (!webhookReady) {
+                webhookReady = inspectAppScopesWebhookReady(shopDomain, resolved.accessToken());
+                installRecordService.recordAppScopesUpdateWebhookReady(shopDomain, webhookReady);
+            }
+
+            String billingTierKey = current.billingTierKey();
+            String billingStatus = current.billingStatus();
+            List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions = current.activeSubscriptions();
+            if (billingTierKey == null || billingStatus == null) {
+                ShopifyBridgeStoreBillingState billingState = inspectBillingStateSafely(shopDomain, resolved.accessToken());
+                if (billingState != null) {
+                    billingTierKey = billingState.tierKey();
+                    billingStatus = billingState.status();
+                    activeSubscriptions = billingState.activeSubscriptions() == null
+                        ? List.of()
+                        : billingState.activeSubscriptions();
+                }
+            }
+            return new SupportState(
+                grantedScopes,
+                activeSubscriptions,
+                webhookReady,
+                current.installStatus(),
+                billingTierKey,
+                billingStatus
+            );
+        } catch (Exception ex) {
+            return current;
+        }
+    }
+
     private SupportBillingState resolveSupportBillingState(SupportState supportState) {
+        if (optionalText(supportState.billingTierKey()) != null || optionalText(supportState.billingStatus()) != null) {
+            return new SupportBillingState(
+                optionalText(supportState.billingTierKey()) == null ? "FREE" : supportState.billingTierKey(),
+                optionalText(supportState.billingStatus()) == null ? "ACTIVE" : supportState.billingStatus()
+            );
+        }
         ShopifyBridgeBillingSummary baseline = billingService.summarize();
         String status = baseline == null || baseline.status() == null || baseline.status().isBlank()
             ? "ACTIVE"
@@ -186,8 +274,45 @@ public class ShopifyBridgeSupportReadinessService {
         return new SupportBillingState(tierKey, status);
     }
 
+    private SupportState toSupportState(ShopifyInstallRecordSummary installRecord) {
+        return new SupportState(
+            fallbackScopes(installRecord),
+            installRecord.activeSubscriptions() == null ? List.of() : installRecord.activeSubscriptions(),
+            installRecord.appScopesUpdateWebhookReady(),
+            installRecord.status(),
+            installRecord.billingTierKey(),
+            installRecord.billingStatus()
+        );
+    }
+
     private List<String> fallbackScopes(ShopifyInstallRecordSummary installRecord) {
         return ShopifyScopeSupport.parseScopes(installRecord == null ? null : installRecord.scopesText());
+    }
+
+    private boolean requiresLiveSupportRefresh(ShopifyInstallRecordSummary installRecord,
+                                               SupportState current) {
+        return !current.appScopesUpdateWebhookReady()
+            || optionalText(current.billingTierKey()) == null
+            || optionalText(current.billingStatus()) == null
+            || (installRecord.appScopesUpdateWebhookCheckedAt() == null
+                && "INSTALLED".equalsIgnoreCase(current.installStatus()));
+    }
+
+    private void persistResolvedScopesIfChanged(ShopifyInstallRecordSummary installRecord,
+                                                ShopifyBridgeResolvedStoreCredentials resolved,
+                                                String resolvedScopesText) {
+        String persistedScopesText = optionalText(installRecord.scopesText());
+        if (resolvedScopesText.equals(persistedScopesText)) {
+            return;
+        }
+        installRecordService.recordCredentials(
+            installRecord.shopDomain(),
+            installRecord.accessTokenSecretRef(),
+            installRecord.refreshTokenSecretRef(),
+            resolved.accessTokenExpiresAt(),
+            resolved.refreshTokenExpiresAt(),
+            resolvedScopesText
+        );
     }
 
     private boolean installRecoveryRequired(ShopifyInstallRecordSummary installRecord) {
@@ -288,10 +413,43 @@ public class ShopifyBridgeSupportReadinessService {
         if ("PAYMENT_ISSUE".equalsIgnoreCase(billingStatus)) {
             actions.add("Resolve the current Shopify billing issue before go-live or paid-surface expansion.");
         }
+        if ("CHECK_FAILED".equalsIgnoreCase(billingStatus)) {
+            actions.add("Re-run Shopify billing verification so lifecycle and subscription posture is grounded before go-live.");
+        }
         if (actions.isEmpty()) {
             actions.add("No blocking support lifecycle actions remain for this store.");
         }
         return List.copyOf(actions);
+    }
+
+    private boolean inspectAppScopesWebhookReady(String shopDomain, String accessToken) {
+        try {
+            return "READY".equalsIgnoreCase(
+                webhookSubscriptionService.inspectTopicStatus(shopDomain, accessToken, APP_SCOPES_UPDATE_TOPIC).status()
+            );
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    private void recordBillingStateSafely(String shopDomain, String accessToken) {
+        inspectBillingStateSafely(shopDomain, accessToken);
+    }
+
+    private ShopifyBridgeStoreBillingState inspectBillingStateSafely(String shopDomain, String accessToken) {
+        try {
+            ShopifyBridgeStoreBillingState billingState = billingService.inspectStoreBillingState(shopDomain, accessToken);
+            installRecordService.recordBillingState(
+                shopDomain,
+                billingState.tierKey(),
+                billingState.status(),
+                billingState.activeSubscriptions()
+            );
+            return billingState;
+        } catch (RuntimeException ignored) {
+            // Preserve the lightweight fallback path when Shopify billing is temporarily unavailable.
+            return null;
+        }
     }
 
     private String merchantHandoffMessage(ShopifyBridgeSupportProfileSummary supportProfile) {
@@ -320,7 +478,9 @@ public class ShopifyBridgeSupportReadinessService {
         List<String> grantedScopes,
         List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions,
         boolean appScopesUpdateWebhookReady,
-        String installStatus
+        String installStatus,
+        String billingTierKey,
+        String billingStatus
     ) {
         private List<String> activeSubscriptionNames() {
             return activeSubscriptions.stream()

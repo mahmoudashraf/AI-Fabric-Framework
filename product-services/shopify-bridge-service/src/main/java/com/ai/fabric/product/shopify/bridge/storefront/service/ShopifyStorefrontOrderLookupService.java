@@ -129,9 +129,10 @@ public class ShopifyStorefrontOrderLookupService {
         }
 
         ShopifyInstallRecordSummary installRecord = installRecordService.findByShopDomain(normalizedShopDomain).orElse(null);
-        String scopesText = installRecord != null && installRecord.scopesText() != null
-            ? installRecord.scopesText()
-            : acquisition.tokenExchangeMaterial().scopesText();
+        String scopesText = optionalText(acquisition.tokenExchangeMaterial().scopesText());
+        if (scopesText == null && installRecord != null) {
+            scopesText = installRecord.scopesText();
+        }
         if (!ShopifyScopeSupport.hasScope(scopesText, "read_orders")) {
             return unavailable(
                 "SCOPE_REQUIRED",

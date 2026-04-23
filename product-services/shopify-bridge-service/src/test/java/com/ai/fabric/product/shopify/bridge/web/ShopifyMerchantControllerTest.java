@@ -109,6 +109,10 @@ class ShopifyMerchantControllerTest {
                 Instant.parse("2026-07-18T00:00:00Z"),
                 false,
                 Instant.parse("2026-04-18T00:00:00Z"),
+                null,
+                null,
+                List.of(),
+                Instant.parse("2026-04-18T00:00:00Z"),
                 Instant.parse("2026-04-18T00:00:00Z"),
                 Instant.parse("2026-04-18T00:00:00Z"),
                 null

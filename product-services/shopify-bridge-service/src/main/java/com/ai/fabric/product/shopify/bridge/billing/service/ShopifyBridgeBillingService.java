@@ -4,12 +4,15 @@ import com.ai.fabric.product.shopify.bridge.billing.config.ShopifyBridgeBillingP
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingPlanSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -109,9 +112,9 @@ public class ShopifyBridgeBillingService {
             );
         }
         try {
-            BillingSubscriptionState subscriptionState = resolveSubscriptionState(shopDomain, accessToken);
-            if ("ACTIVE".equalsIgnoreCase(subscriptionState.status()) && subscriptionState.tier() != null) {
-                TierEntitlements currentTier = entitlementsFor(subscriptionState.tier());
+            ShopifyBridgeStoreBillingState storeBilling = inspectStoreBillingState(shopDomain, accessToken);
+            if ("ACTIVE".equalsIgnoreCase(storeBilling.status()) && !"FREE".equalsIgnoreCase(storeBilling.tierKey())) {
+                TierEntitlements currentTier = entitlementsFor(normalizeRequestedTier(storeBilling.tierKey()));
                 return buildSummary(
                     billingMode,
                     currentTier,
@@ -124,7 +127,7 @@ public class ShopifyBridgeBillingService {
                         : "Starter tier is active for this store."
                 );
             }
-            if ("FROZEN".equalsIgnoreCase(subscriptionState.status())) {
+            if ("PAYMENT_ISSUE".equalsIgnoreCase(storeBilling.status())) {
                 return buildSummary(
                     billingMode,
                     fallbackTier,
@@ -157,6 +160,28 @@ public class ShopifyBridgeBillingService {
         }
     }
 
+    public ShopifyBridgeStoreBillingState inspectStoreBillingState(String shopDomain, String accessToken) {
+        BillingMode billingMode = billingMode();
+        if (billingMode == BillingMode.FREE || !hasText(shopDomain) || !hasText(accessToken)) {
+            return new ShopifyBridgeStoreBillingState("FREE", "ACTIVE", List.of());
+        }
+        List<ShopifyBridgeSupportSubscriptionSummary> subscriptions = resolveActiveSubscriptions(shopDomain, accessToken);
+        String status = subscriptions.stream()
+            .anyMatch(subscription -> "FROZEN".equalsIgnoreCase(subscription.status()))
+            ? "PAYMENT_ISSUE"
+            : "ACTIVE";
+        String tierKey = subscriptions.stream()
+            .filter(ShopifyBridgeSupportSubscriptionSummary::active)
+            .map(ShopifyBridgeSupportSubscriptionSummary::tierKey)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .map(value -> value.toUpperCase(Locale.ROOT))
+            .sorted((left, right) -> subscriptionTierRank(right) - subscriptionTierRank(left))
+            .findFirst()
+            .orElse("FREE");
+        return new ShopifyBridgeStoreBillingState(tierKey, status, subscriptions);
+    }
+
     public ShopifyBridgeBillingApprovalResponse createApproval(String shopDomain, String accessToken, String requestedTierKey) {
         BillingMode billingMode = billingMode();
         if (billingMode == BillingMode.FREE) {
@@ -178,8 +203,8 @@ public class ShopifyBridgeBillingService {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Shopify billing configuration is incomplete for the requested Loom Companion tier.");
         }
 
-        BillingSubscriptionState current = resolveSubscriptionState(shopDomain, accessToken);
-        if ("ACTIVE".equalsIgnoreCase(current.status()) && current.tier() == requestedTier) {
+        ShopifyBridgeStoreBillingState current = inspectStoreBillingState(shopDomain, accessToken);
+        if ("ACTIVE".equalsIgnoreCase(current.status()) && requestedTier.externalKey().equalsIgnoreCase(current.tierKey())) {
             return new ShopifyBridgeBillingApprovalResponse(
                 "ACTIVE",
                 null,
@@ -188,7 +213,7 @@ public class ShopifyBridgeBillingService {
                     : "Starter tier is already active for this store."
             );
         }
-        if ("FROZEN".equalsIgnoreCase(current.status())) {
+        if ("PAYMENT_ISSUE".equalsIgnoreCase(current.status())) {
             throw new ResponseStatusException(CONFLICT, "Shopify billing is frozen for this store. Resolve the merchant billing issue before requesting a new approval.");
         }
 
@@ -436,7 +461,7 @@ public class ShopifyBridgeBillingService {
         };
     }
 
-    private BillingSubscriptionState resolveSubscriptionState(String shopDomain, String accessToken) {
+    private List<ShopifyBridgeSupportSubscriptionSummary> resolveActiveSubscriptions(String shopDomain, String accessToken) {
         Map<String, Object> response = shopifyAdminGraphqlClient.execute(shopDomain, accessToken, ACTIVE_SUBSCRIPTIONS_QUERY);
         failOnGraphQlErrors(response, "Shopify billing status lookup failed.");
         Map<String, Object> data = requireMap(response.get("data"), "Shopify billing status lookup returned no data.");
@@ -448,6 +473,7 @@ public class ShopifyBridgeBillingService {
         if (!(subscriptionsValue instanceof Iterable<?> subscriptions)) {
             throw new ResponseStatusException(BAD_GATEWAY, "Shopify billing status lookup returned no activeSubscriptions payload.");
         }
+        List<ShopifyBridgeSupportSubscriptionSummary> values = new ArrayList<>();
         for (Object entry : subscriptions) {
             if (!(entry instanceof Map<?, ?> subscription)) {
                 continue;
@@ -457,9 +483,16 @@ public class ShopifyBridgeBillingService {
                 continue;
             }
             String name = text(subscription.get("name"));
-            return new BillingSubscriptionState(status.trim().toUpperCase(Locale.ROOT), resolveTierFromSubscription(name), name);
+            CompanionTier tier = resolveTierFromSubscription(name);
+            values.add(new ShopifyBridgeSupportSubscriptionSummary(
+                text(subscription.get("id")),
+                name,
+                status.trim().toUpperCase(Locale.ROOT),
+                tier.externalKey(),
+                "ACTIVE".equalsIgnoreCase(status)
+            ));
         }
-        return new BillingSubscriptionState("NONE", null, null);
+        return List.copyOf(values);
     }
 
     private CompanionTier resolveTierFromSubscription(String subscriptionName) {
@@ -660,11 +693,14 @@ public class ShopifyBridgeBillingService {
         }
     }
 
-    private record BillingSubscriptionState(
-        String status,
-        CompanionTier tier,
-        String subscriptionName
-    ) {
+    private int subscriptionTierRank(String tierKey) {
+        if ("ELITE".equalsIgnoreCase(tierKey)) {
+            return 2;
+        }
+        if ("STARTER".equalsIgnoreCase(tierKey)) {
+            return 1;
+        }
+        return 0;
     }
 
     private static final class OptionalText {

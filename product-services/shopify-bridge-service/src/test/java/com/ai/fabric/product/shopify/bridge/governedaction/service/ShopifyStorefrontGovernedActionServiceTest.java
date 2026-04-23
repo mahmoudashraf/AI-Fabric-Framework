@@ -156,7 +156,8 @@ class ShopifyStorefrontGovernedActionServiceTest {
                 "bridge-admin-key",
                 "X-BRIDGE-API-KEY"
             ),
-            new ObjectMapper()
+            new ObjectMapper(),
+            fixedClock()
         );
     }
 

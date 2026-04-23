@@ -3,12 +3,14 @@ package com.ai.fabric.product.shopify.bridge.governedaction.service;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Locale;
@@ -21,11 +23,20 @@ public class ShopifyStorefrontGovernedActionTokenService {
 
     private final ShopifyBridgeProperties properties;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
+    @Autowired
     public ShopifyStorefrontGovernedActionTokenService(ShopifyBridgeProperties properties,
                                                        ObjectMapper objectMapper) {
+        this(properties, objectMapper, Clock.systemUTC());
+    }
+
+    ShopifyStorefrontGovernedActionTokenService(ShopifyBridgeProperties properties,
+                                                ObjectMapper objectMapper,
+                                                Clock clock) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     public String issueToken(TokenClaims claims) {
@@ -62,7 +73,7 @@ public class ShopifyStorefrontGovernedActionTokenService {
         if (expectedAuditId != null && !expectedAuditId.isBlank() && !claims.auditId().equals(expectedAuditId.trim())) {
             throw new ResponseStatusException(CONFLICT, "Shopify governed action token does not match the audit record.");
         }
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         if (claims.expiresAtEpochSecond() <= 0 || Instant.ofEpochSecond(claims.expiresAtEpochSecond()).isBefore(now)) {
             throw new ResponseStatusException(CONFLICT, "Expired Shopify governed action token.");
         }

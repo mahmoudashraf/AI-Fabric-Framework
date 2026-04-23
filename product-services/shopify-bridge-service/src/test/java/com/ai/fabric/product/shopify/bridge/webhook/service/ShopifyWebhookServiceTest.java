@@ -1,5 +1,10 @@
 package com.ai.fabric.product.shopify.bridge.webhook.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
+import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
@@ -12,8 +17,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -29,8 +36,18 @@ class ShopifyWebhookServiceTest {
         ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
-        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, storeSyncService, new ObjectMapper());
+        ShopifyWebhookService service = new ShopifyWebhookService(
+            lifecycleService,
+            installRecordService,
+            installCredentialService,
+            platformShopifyStoreClient,
+            billingService,
+            storeSyncService,
+            new ObjectMapper()
+        );
 
         service.handle("app/uninstalled", "alpha.myshopify.com", "wh_1", "{\"myshopify_domain\":\"ignored.myshopify.com\"}");
 
@@ -59,10 +76,20 @@ class ShopifyWebhookServiceTest {
         ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
         ShopifyBridgeCredentialAcquisition acquisition = acquisition();
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition));
-        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, storeSyncService, new ObjectMapper());
+        ShopifyWebhookService service = new ShopifyWebhookService(
+            lifecycleService,
+            installRecordService,
+            installCredentialService,
+            platformShopifyStoreClient,
+            billingService,
+            storeSyncService,
+            new ObjectMapper()
+        );
 
         service.handle(
             "products/update",
@@ -95,8 +122,18 @@ class ShopifyWebhookServiceTest {
         ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
-        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, storeSyncService, new ObjectMapper());
+        ShopifyWebhookService service = new ShopifyWebhookService(
+            lifecycleService,
+            installRecordService,
+            installCredentialService,
+            platformShopifyStoreClient,
+            billingService,
+            storeSyncService,
+            new ObjectMapper()
+        );
 
         service.handle("customers/redact", "alpha.myshopify.com", "wh_3", "{}");
 
@@ -124,8 +161,38 @@ class ShopifyWebhookServiceTest {
         ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
-        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, storeSyncService, new ObjectMapper());
+        ShopifyWebhookService service = new ShopifyWebhookService(
+            lifecycleService,
+            installRecordService,
+            installCredentialService,
+            platformShopifyStoreClient,
+            billingService,
+            storeSyncService,
+            new ObjectMapper()
+        );
+        when(platformShopifyStoreClient.resolveCredentialMaterial("alpha.myshopify.com")).thenReturn(new ShopifyBridgeResolvedStoreCredentials(
+            "shpat_access",
+            null,
+            null,
+            null,
+            "read_products,read_orders",
+            false
+        ));
+        when(billingService.inspectStoreBillingState("alpha.myshopify.com", "shpat_access"))
+            .thenReturn(new ShopifyBridgeStoreBillingState(
+                "STARTER",
+                "ACTIVE",
+                List.of(new ShopifyBridgeSupportSubscriptionSummary(
+                    "gid://shopify/AppSubscription/1",
+                    "Loom Companion Starter",
+                    "ACTIVE",
+                    "STARTER",
+                    true
+                ))
+            ));
 
         service.handle("app_subscriptions/update", "alpha.myshopify.com", "wh_4", "{}");
 
@@ -143,8 +210,9 @@ class ShopifyWebhookServiceTest {
             eq("Shopify app subscription billing changed. Review merchant billing status before go-live."),
             eq(false)
         );
+        verify(platformShopifyStoreClient).resolveCredentialMaterial("alpha.myshopify.com");
+        verify(installRecordService).recordBillingState(eq("alpha.myshopify.com"), eq("STARTER"), eq("ACTIVE"), any());
         verifyNoInteractions(installCredentialService);
-        verifyNoInteractions(installRecordService);
         verifyNoInteractions(storeSyncService);
     }
 
@@ -153,8 +221,18 @@ class ShopifyWebhookServiceTest {
         ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
-        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, storeSyncService, new ObjectMapper());
+        ShopifyWebhookService service = new ShopifyWebhookService(
+            lifecycleService,
+            installRecordService,
+            installCredentialService,
+            platformShopifyStoreClient,
+            billingService,
+            storeSyncService,
+            new ObjectMapper()
+        );
 
         service.handle("shop/redact", "alpha.myshopify.com", "wh_5", "{}");
 
@@ -185,8 +263,18 @@ class ShopifyWebhookServiceTest {
         ShopifyBridgeStoreLifecycleService lifecycleService = mock(ShopifyBridgeStoreLifecycleService.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyBridgeStoreSyncService storeSyncService = mock(ShopifyBridgeStoreSyncService.class);
-        ShopifyWebhookService service = new ShopifyWebhookService(lifecycleService, installRecordService, installCredentialService, storeSyncService, new ObjectMapper());
+        ShopifyWebhookService service = new ShopifyWebhookService(
+            lifecycleService,
+            installRecordService,
+            installCredentialService,
+            platformShopifyStoreClient,
+            billingService,
+            storeSyncService,
+            new ObjectMapper()
+        );
 
         service.handle("orders/paid", "alpha.myshopify.com", "wh_6", "{}");
 

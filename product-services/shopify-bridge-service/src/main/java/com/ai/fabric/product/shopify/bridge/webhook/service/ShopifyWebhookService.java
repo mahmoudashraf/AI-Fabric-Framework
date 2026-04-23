@@ -1,5 +1,8 @@
 package com.ai.fabric.product.shopify.bridge.webhook.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
+import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
@@ -19,17 +22,23 @@ public class ShopifyWebhookService {
     private final ShopifyBridgeStoreLifecycleService storeLifecycleService;
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
+    private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeBillingService billingService;
     private final ShopifyBridgeStoreSyncService storeSyncService;
     private final ObjectMapper objectMapper;
 
     public ShopifyWebhookService(ShopifyBridgeStoreLifecycleService storeLifecycleService,
                                  ShopifyInstallRecordService installRecordService,
                                  ShopifyBridgeInstallCredentialService installCredentialService,
+                                 PlatformShopifyStoreClient platformShopifyStoreClient,
+                                 ShopifyBridgeBillingService billingService,
                                  ShopifyBridgeStoreSyncService storeSyncService,
                                  ObjectMapper objectMapper) {
         this.storeLifecycleService = storeLifecycleService;
         this.installRecordService = installRecordService;
         this.installCredentialService = installCredentialService;
+        this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.billingService = billingService;
         this.storeSyncService = storeSyncService;
         this.objectMapper = objectMapper;
     }
@@ -132,6 +141,10 @@ public class ShopifyWebhookService {
             return;
         }
 
+        if ("app_subscriptions/update".equals(normalizedTopic)) {
+            refreshBillingStateSafely(shopDomain);
+        }
+
         WebhookImpact impact = classify(normalizedTopic);
         if (impact != null) {
             recordWebhookSafely(
@@ -151,6 +164,24 @@ public class ShopifyWebhookService {
             if (impact.invalidateSync()) {
                 triggerIncrementalSyncSafely(shopDomain, normalizedTopic);
             }
+        }
+    }
+
+    private void refreshBillingStateSafely(String shopDomain) {
+        try {
+            String accessToken = platformShopifyStoreClient.resolveCredentialMaterial(shopDomain).accessToken();
+            if (accessToken == null || accessToken.isBlank()) {
+                return;
+            }
+            ShopifyBridgeStoreBillingState billingState = billingService.inspectStoreBillingState(shopDomain, accessToken);
+            installRecordService.recordBillingState(
+                shopDomain,
+                billingState.tierKey(),
+                billingState.status(),
+                billingState.activeSubscriptions()
+            );
+        } catch (RuntimeException ignored) {
+            // Preserve the webhook ack path; billing posture can be recovered later from install refresh or operator checks.
         }
     }
 

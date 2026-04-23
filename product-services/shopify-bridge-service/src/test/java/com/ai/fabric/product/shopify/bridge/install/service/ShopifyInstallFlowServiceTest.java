@@ -1,10 +1,14 @@
 package com.ai.fabric.product.shopify.bridge.install.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -41,6 +45,7 @@ class ShopifyInstallFlowServiceTest {
     private ShopifyInstallRecordService installRecordService;
     private ShopifyInstallStateService installStateService;
     private ShopifyWebhookSubscriptionService webhookSubscriptionService;
+    private ShopifyBridgeBillingService billingService;
     private ShopifyInstallFlowService service;
 
     @BeforeEach
@@ -51,12 +56,14 @@ class ShopifyInstallFlowServiceTest {
         installRecordService = mock(ShopifyInstallRecordService.class);
         installStateService = new ShopifyInstallStateService(properties());
         webhookSubscriptionService = mock(ShopifyWebhookSubscriptionService.class);
+        billingService = mock(ShopifyBridgeBillingService.class);
         service = new ShopifyInstallFlowService(
             properties(),
             installStateService,
             platformShopifyStoreClient,
             installRecordService,
             webhookSubscriptionService,
+            billingService,
             builder
         );
     }
@@ -67,7 +74,7 @@ class ShopifyInstallFlowServiceTest {
 
         assertThat(redirect.toString()).startsWith("https://alpha.myshopify.com/admin/oauth/authorize?");
         assertThat(redirect.toString()).contains("client_id=shopify-api-key");
-        assertThat(redirect.toString()).contains("scope=read_products,read_content,read_legal_policies");
+        assertThat(redirect.toString()).contains("scope=read_products,read_content,read_legal_policies,read_metaobjects,read_metaobject_definitions,read_orders");
         assertThat(redirect.toString()).contains("redirect_uri=https://bridge.example.com/auth/shopify/callback");
         assertThat(redirect.toString()).contains("state=");
     }
@@ -94,6 +101,28 @@ class ShopifyInstallFlowServiceTest {
             .thenThrow(HttpClientErrorException.create(NOT_FOUND, "Not Found", null, new byte[0], StandardCharsets.UTF_8));
         when(platformShopifyStoreClient.upsertStore(any())).thenReturn(storeSummary());
         when(platformShopifyStoreClient.upsertCredentials(eq("alpha.myshopify.com"), any())).thenReturn(storeSummary());
+        when(webhookSubscriptionService.inspectTopicStatus("alpha.myshopify.com", "shopify-offline-token", "APP_SCOPES_UPDATE"))
+            .thenReturn(new ShopifyWebhookSubscriptionTopicStatusSummary(
+                "APP_SCOPES_UPDATE",
+                "loom-app-scopes-update",
+                "READY",
+                "gid://shopify/WebhookSubscription/1",
+                "loom-app-scopes-update",
+                "https://bridge.example.com/api/webhooks/shopify",
+                "Expected subscription is present."
+            ));
+        when(billingService.inspectStoreBillingState("alpha.myshopify.com", "shopify-offline-token"))
+            .thenReturn(new ShopifyBridgeStoreBillingState(
+                "FREE",
+                "ACTIVE",
+                List.of(new ShopifyBridgeSupportSubscriptionSummary(
+                    "gid://shopify/AppSubscription/1",
+                    "Loom Companion Free",
+                    "ACTIVE",
+                    "FREE",
+                    true
+                ))
+            ));
 
         URI redirect = service.completeInstall(
             "alpha.myshopify.com",
@@ -107,6 +136,13 @@ class ShopifyInstallFlowServiceTest {
         verify(platformShopifyStoreClient).upsertStore(any());
         verify(platformShopifyStoreClient).upsertCredentials(eq("alpha.myshopify.com"), any());
         verify(webhookSubscriptionService).reconcileContentSubscriptions("alpha.myshopify.com", "shopify-offline-token");
+        verify(installRecordService).recordAppScopesUpdateWebhookReady("alpha.myshopify.com", true);
+        verify(installRecordService).recordBillingState(
+            eq("alpha.myshopify.com"),
+            eq("FREE"),
+            eq("ACTIVE"),
+            any()
+        );
         verify(installRecordService).recordInstall(
             eq("alpha.myshopify.com"),
             eq("https://alpha.myshopify.com"),

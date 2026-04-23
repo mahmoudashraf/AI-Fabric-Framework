@@ -1,6 +1,8 @@
 package com.ai.fabric.product.shopify.bridge.install.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
@@ -45,6 +47,7 @@ public class ShopifyInstallFlowService {
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyWebhookSubscriptionService webhookSubscriptionService;
+    private final ShopifyBridgeBillingService billingService;
     private final RestClient restClient;
 
     public ShopifyInstallFlowService(ShopifyBridgeProperties properties,
@@ -52,12 +55,14 @@ public class ShopifyInstallFlowService {
                                      PlatformShopifyStoreClient platformShopifyStoreClient,
                                      ShopifyInstallRecordService installRecordService,
                                      ShopifyWebhookSubscriptionService webhookSubscriptionService,
+                                     ShopifyBridgeBillingService billingService,
                                      RestClient.Builder restClientBuilder) {
         this.properties = properties;
         this.installStateService = installStateService;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installRecordService = installRecordService;
         this.webhookSubscriptionService = webhookSubscriptionService;
+        this.billingService = billingService;
         this.restClient = restClientBuilder.build();
     }
 
@@ -123,6 +128,13 @@ public class ShopifyInstallFlowService {
                 webhookSubscriptionService.inspectTopicStatus(shopDomain, accessToken, APP_SCOPES_UPDATE_TOPIC).status()
             );
             installRecordService.recordAppScopesUpdateWebhookReady(shopDomain, appScopesWebhookReady);
+            ShopifyBridgeStoreBillingState billingState = billingService.inspectStoreBillingState(shopDomain, accessToken);
+            installRecordService.recordBillingState(
+                shopDomain,
+                billingState.tierKey(),
+                billingState.status(),
+                billingState.activeSubscriptions()
+            );
         } catch (RuntimeException ex) {
             log.warn("Shopify webhook subscription reconciliation failed for shop={}", shopDomain, ex);
         }
