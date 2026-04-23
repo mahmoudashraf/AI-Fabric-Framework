@@ -1353,6 +1353,7 @@ export default function App() {
                                       {placement.label}
                                     </Text>
                                     <InlineStack gap="150">
+                                      <Badge tone="info">{`${placement.requiredTierKey} tier`}</Badge>
                                       <Badge tone={tierAllowed ? 'success' : 'attention'}>
                                         {tierAllowed ? 'Tier allowed' : 'Requires higher tier'}
                                       </Badge>
@@ -1365,7 +1366,7 @@ export default function App() {
                                     {placement.guidance}
                                   </Text>
                                   <Text as="p" variant="bodySm" tone="subdued">
-                                    {placement.template} template · {placement.target} · {placement.blockHandle}
+                                    {placement.template} template · {placement.target} · {placement.blockHandle} · {placement.requiredTierKey}
                                   </Text>
                                   <InlineStack gap="200">
                                     <Button
@@ -1627,7 +1628,7 @@ export default function App() {
                             variant="bodySm"
                             tone={tierAllowed && widgetEnabled ? 'subdued' : 'critical'}
                           >
-                            {placement.label} · {tierAllowed ? 'tier ready' : 'upgrade required'} ·{' '}
+                            {placement.label} · {placement.requiredTierKey} tier · {tierAllowed ? 'tier ready' : 'upgrade required'} ·{' '}
                             {widgetEnabled ? 'enabled' : 'disabled'} · {placement.template}/{placement.target}
                           </Text>
                         )

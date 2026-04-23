@@ -41,6 +41,13 @@
       host.appendChild(renderStandaloneInsightCard(options, shellModeProfile, queryCoordinator))
     } else if (surfaceScope === 'policy-strip' && pageType === 'product') {
       host.appendChild(renderStandalonePolicyCard(options, shellModeProfile, queryCoordinator))
+    } else if (surfaceScope === 'product-faq' && pageType === 'product') {
+      host.appendChild(renderStandaloneFaqCard(options, shellModeProfile))
+    } else if (
+      surfaceScope === 'contextual-pill' &&
+      (pageType === 'product' || pageType === 'collection')
+    ) {
+      host.appendChild(renderStandaloneContextualCard(options, shellModeProfile))
     } else if (pageType === 'product' && surfaceScope === 'all') {
       host.appendChild(renderProductInsightCluster(options, enabledSurfaces, shellModeProfile, queryCoordinator))
       if (enabledSurfaces.indexOf('contextual-pill') >= 0) {
@@ -482,6 +489,228 @@
     return card
   }
 
+  function renderStandaloneFaqCard(options, shellModeProfile) {
+    return renderStandalonePromptCard(options, {
+      surfaceId: 'product-faq',
+      surfaceClassName: 'loom-companion-surface-card--faq',
+      eyebrow: 'Product FAQ',
+      title: faqTitle(options.storefrontContext),
+      description: faqDescription(options.storefrontContext),
+      prompts: faqPrompts(options.storefrontContext),
+      promptVariant: 'chip',
+      loadingLabel: 'Loading companion FAQ…',
+      emptyLabel: 'Choose a shopper question to see a grounded answer.',
+      analyticsEventType: 'PRODUCT_FAQ_CLICKED',
+      shellModeProfile: shellModeProfile,
+    })
+  }
+
+  function renderStandaloneContextualCard(options, shellModeProfile) {
+    var pageType = normalizePageType(options.storefrontContext)
+    var prompts = pageType === 'collection'
+      ? collectionPrompts(options.storefrontContext, shellModeProfile)
+      : contextualPillPrompts(options.storefrontContext, shellModeProfile)
+
+    return renderStandalonePromptCard(options, {
+      surfaceId: 'contextual-pill',
+      surfaceClassName: 'loom-companion-surface-card--contextual',
+      eyebrow: pageType === 'collection' ? 'Collection guidance' : 'Contextual pill',
+      title: contextualCardTitle(options.storefrontContext),
+      description: contextualCardDescription(options.storefrontContext, shellModeProfile),
+      prompts: prompts,
+      promptVariant: 'pill',
+      loadingLabel: 'Loading companion guidance…',
+      emptyLabel: 'Choose a shortcut to see grounded guidance for this page.',
+      analyticsEventType: 'CONTEXTUAL_PROMPT_CLICKED',
+      shellModeProfile: shellModeProfile,
+    })
+  }
+
+  function renderStandalonePromptCard(options, config) {
+    var card = document.createElement('article')
+    card.className = 'loom-companion-surface-card ' + config.surfaceClassName
+
+    var eyebrow = document.createElement('div')
+    eyebrow.className = 'loom-companion-surface-eyebrow'
+    eyebrow.textContent = config.eyebrow
+    card.appendChild(eyebrow)
+
+    var title = document.createElement('h3')
+    title.className = 'loom-companion-surface-title'
+    title.textContent = config.title
+    card.appendChild(title)
+
+    var description = document.createElement('p')
+    description.className = 'loom-companion-surface-copy'
+    description.textContent = config.description
+    card.appendChild(description)
+
+    if (options.payload.poweredByBadgeRequired) {
+      card.appendChild(renderPoweredByBadge())
+    }
+
+    var status = document.createElement('div')
+    status.className = 'loom-companion-surface-status'
+    status.hidden = true
+    card.appendChild(status)
+
+    var promptRow = document.createElement('div')
+    promptRow.className = 'loom-companion-chip-row loom-companion-chip-row--surface-prompts'
+    card.appendChild(promptRow)
+
+    var results = document.createElement('div')
+    results.className = 'loom-companion-surface-results'
+    results.hidden = true
+
+    var resultsLabel = document.createElement('div')
+    resultsLabel.className = 'loom-companion-surface-results__label'
+    results.appendChild(resultsLabel)
+
+    var resultsSummary = document.createElement('div')
+    resultsSummary.className = 'loom-companion-surface-copy loom-companion-surface-copy--results'
+    results.appendChild(resultsSummary)
+
+    var cardsHost = document.createElement('div')
+    cardsHost.className = 'loom-companion-surface-results__cards'
+    results.appendChild(cardsHost)
+
+    var actions = document.createElement('div')
+    actions.className = 'loom-companion-chip-row loom-companion-chip-row--results'
+    results.appendChild(actions)
+
+    var continueButton = document.createElement('button')
+    continueButton.type = 'button'
+    continueButton.className = 'loom-companion-chip'
+    continueButton.textContent = 'Continue in assistant'
+    continueButton.addEventListener('click', function () {
+      if (!state.lastQuery) {
+        return
+      }
+      sendPrompt(
+        state.lastQuery,
+        state.lastPosition || 'catalog',
+        state.lastMode || defaultInsightMode(config.shellModeProfile),
+        state.lastRequestContext ||
+          createRequestContext(options.storefrontContext, config.shellModeProfile, config.surfaceId)
+      )
+    })
+    actions.appendChild(continueButton)
+
+    card.appendChild(results)
+
+    var state = {
+      conversationId: null,
+      isLoading: false,
+      errorMessage: '',
+      lastLabel: '',
+      lastQuery: '',
+      lastPosition: null,
+      lastMode: null,
+      lastRequestContext: null,
+      resultMessage: '',
+      resultProducts: [],
+      resultSources: [],
+    }
+
+    renderPromptButtons()
+    renderResults()
+
+    return card
+
+    function renderPromptButtons() {
+      promptRow.innerHTML = ''
+      if (!config.prompts || config.prompts.length === 0) {
+        var empty = document.createElement('div')
+        empty.className = 'loom-companion-surface-copy loom-companion-surface-copy--muted'
+        empty.textContent = config.emptyLabel
+        promptRow.appendChild(empty)
+        return
+      }
+      config.prompts.forEach(function (item) {
+        var buttonFactory = config.promptVariant === 'pill' ? createPillButton : createChipButton
+        promptRow.appendChild(
+          buttonFactory(item.label, function () {
+            submitPrompt(item)
+          })
+        )
+      })
+    }
+
+    function submitPrompt(item) {
+      if (!item || !item.query || state.isLoading) {
+        return
+      }
+      state.isLoading = true
+      state.errorMessage = ''
+      state.lastLabel = item.label || config.title
+      state.lastQuery = item.query
+      state.lastPosition = item.position || 'catalog'
+      state.lastMode = item.mode || defaultInsightMode(config.shellModeProfile)
+      state.lastRequestContext =
+        item.requestContext ||
+        createRequestContext(options.storefrontContext, config.shellModeProfile, item.surfaceId || config.surfaceId)
+      renderResults()
+
+      fetchJson(options.payload.bridgeQueryUrl, {
+        method: 'POST',
+        headers: shopperHeaders(options),
+        body: JSON.stringify({
+          query: state.lastQuery,
+          mode: state.lastMode,
+          conversationId: state.conversationId || undefined,
+          storefrontContext: state.lastRequestContext,
+        }),
+      })
+        .then(function (response) {
+          state.conversationId = response.conversationId || state.conversationId
+          state.resultMessage = extractAssistantMessage(response) || 'Companion returned a result without a summary.'
+          state.resultProducts = extractProductCards(response)
+          state.resultSources = extractSourceCards(response)
+          recordSurfaceEvent(options, config.analyticsEventType)
+        })
+        .catch(function (error) {
+          state.resultMessage = ''
+          state.resultProducts = []
+          state.resultSources = []
+          state.errorMessage = error && error.message ? error.message : 'Companion is not available right now.'
+        })
+        .finally(function () {
+          state.isLoading = false
+          renderResults()
+        })
+    }
+
+    function renderResults() {
+      status.hidden = !(state.isLoading || state.errorMessage)
+      if (state.isLoading) {
+        status.textContent = config.loadingLabel
+      } else if (state.errorMessage) {
+        status.textContent = state.errorMessage
+      } else {
+        status.textContent = ''
+      }
+
+      var hasResults = !!(state.resultMessage || state.resultProducts.length > 0 || state.resultSources.length > 0)
+      results.hidden = !hasResults
+      if (!hasResults) {
+        return
+      }
+
+      resultsLabel.textContent = state.lastLabel ? state.lastLabel : config.title
+      resultsSummary.textContent = truncateText(state.resultMessage || 'Companion returned a result.', 320)
+      cardsHost.innerHTML = ''
+
+      if (state.resultProducts.length > 0) {
+        cardsHost.appendChild(renderCardGroup('Matched products', state.resultProducts, 'Open product'))
+      }
+      if (state.resultSources.length > 0) {
+        cardsHost.appendChild(renderCardGroup('Grounding sources', state.resultSources, 'Open source'))
+      }
+
+      continueButton.hidden = !window.MaxMode || typeof window.MaxMode.sendMessage !== 'function'
+    }
+  }
+
   function renderContextualPillBar(options, shellModeProfile, queryCoordinator) {
     var pillBar = document.createElement('section')
     pillBar.className = 'loom-companion-contextual-pillbar'
@@ -767,6 +996,10 @@
       {
         label: 'What to know',
         query: 'What should I know before buying ' + productTitle + '?',
+      },
+      {
+        label: 'Who is it for?',
+        query: 'Who is ' + productTitle + ' best for, and who should look at alternatives?',
       },
     ]
   }
@@ -1095,6 +1328,37 @@
   function policyTitle(storefrontContext) {
     var productTitle = productTitleForContext(storefrontContext)
     return productTitle ? productTitle + ' shipping and returns' : 'Companion policy guidance'
+  }
+
+  function faqTitle(storefrontContext) {
+    var productTitle = productTitleForContext(storefrontContext)
+    return productTitle ? productTitle + ' shopper FAQ' : 'Companion product FAQ'
+  }
+
+  function faqDescription(storefrontContext) {
+    var productTitle = productTitleForContext(storefrontContext)
+    if (!productTitle) {
+      return 'Ask common shopper questions and get grounded answers before opening chat.'
+    }
+    return 'Use these common shopper questions to understand ' + truncateText(productTitle, 42) + ' faster.'
+  }
+
+  function contextualCardTitle(storefrontContext) {
+    if (storefrontContext && storefrontContext.collection && storefrontContext.collection.title) {
+      return truncateText(storefrontContext.collection.title, 42) + ' shopping shortcuts'
+    }
+    var productTitle = productTitleForContext(storefrontContext)
+    return productTitle ? truncateText(productTitle, 42) + ' shortcuts' : 'Companion shopping shortcuts'
+  }
+
+  function contextualCardDescription(storefrontContext, shellModeProfile) {
+    if (storefrontContext && storefrontContext.collection && storefrontContext.collection.title) {
+      return 'Guide shoppers through ' + truncateText(storefrontContext.collection.title, 42) + ' with quick prompts that stay on the page.'
+    }
+    if (shellModeProfile === 'GUIDED_SUPPORT') {
+      return 'Use quick prompts to explain the current product, compare options, or surface policy help without opening chat.'
+    }
+    return 'Use quick prompts to explain the current product, compare options, or move deeper only when needed.'
   }
 
   function productTitleForContext(storefrontContext) {

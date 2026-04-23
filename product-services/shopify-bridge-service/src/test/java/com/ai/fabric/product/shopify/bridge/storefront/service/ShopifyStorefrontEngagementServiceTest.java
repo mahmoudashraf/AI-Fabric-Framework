@@ -38,6 +38,34 @@ class ShopifyStorefrontEngagementServiceTest {
     }
 
     @Test
+    void recordsSearchAndSurfacePromptEventsWithPageContext() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyStorefrontEngagementService service = new ShopifyStorefrontEngagementService(platformClient, usageService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(readyStore());
+
+        service.record(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontEngagementEventRequest("SEARCH_SUBMITTED", "collection", "Travel Bags", null, "travel-bags"),
+            "shopper-session-1"
+        );
+        service.record(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontEngagementEventRequest("CONTEXTUAL_PROMPT_CLICKED", "product", "Travel Pack", "travel-pack", null),
+            "shopper-session-1"
+        );
+        service.record(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontEngagementEventRequest("PRODUCT_FAQ_CLICKED", "product", "Travel Pack", "travel-pack", null),
+            "shopper-session-1"
+        );
+
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_SEARCH_SUBMITTED_COLLECTION_PAGE");
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_CONTEXTUAL_PROMPT_CLICKED_PRODUCT_PAGE");
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_PRODUCT_FAQ_CLICKED_PRODUCT_PAGE");
+    }
+
+    @Test
     void rejectsUnsupportedEventType() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);

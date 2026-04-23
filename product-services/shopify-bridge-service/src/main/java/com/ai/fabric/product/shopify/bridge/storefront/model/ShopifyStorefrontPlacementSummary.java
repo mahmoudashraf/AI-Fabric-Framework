@@ -8,6 +8,7 @@ public record ShopifyStorefrontPlacementSummary(
     String template,
     String target,
     String themeEditorUrl,
+    String requiredTierKey,
     String guidance
 ) {
 }

@@ -64,7 +64,7 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 
 | Strategy expectation | Current code reality | Gap |
 |---|---|---|
-| Multiple embedded intelligence surfaces | Theme app extension now ships the launcher app embed plus merchant-placeable `AI search`, `Product insight`, and `Policy strip` app blocks. The embed continues to load the broader embedded-surfaces layer with contextual pill, FAQ entry points, and comparison entry points. | Real progress toward the embedded-intelligence product shape, but still missing a fuller block inventory and mature per-surface merchandising. |
+| Multiple embedded intelligence surfaces | Theme app extension now ships the launcher app embed plus merchant-placeable `AI search`, `Contextual pill`, `Product insight`, `Policy strip`, and `Product FAQ` app blocks. The embed continues to load the broader embedded-surfaces layer with comparison entry points. | Real progress toward the embedded-intelligence product shape, but still missing a fuller block inventory and mature per-surface merchandising. |
 | Embedded intelligence product shape | Storefront no longer loads only a launcher shell. The app embed now layers embedded intelligence surfaces on top of the shell, and AI search can now operate as a direct bridge-backed surface even with chat fallback disabled. | Product identity is improving, but the delivery model still depends on a fixed app-embed host rather than a mature theme-surface system. |
 | Max Mode storefront convergence | The Shopify embed loader already supports `legacy` and `max-mode`, and there is already a Shopify-specific Max Mode wrapper. | This is a real convergence track, but it is only partially complete and should not be treated as a standalone product milestone. |
 | Real shell conversation modes | Shopify now persists `shellModeProfile`, exposes it in bootstrap/admin surfaces, and forwards it into bridge/runtime request context. | This is now a bounded mode-profile system, but not yet full multi-mode runtime semantics like true `assistant` / `deep` Shopify modes. |
@@ -157,8 +157,6 @@ These are the missing elements that must be completed before we can claim the fu
 
 Missing:
 
-- contextual pill
-- product FAQ block
 - comparison surface
 - clean host contract between Shopify theme extension and shared Max Mode shell
 - fuller platform-backed shell conversation modes for Shopify
@@ -168,8 +166,10 @@ Already materially real:
 
 - AI search is now a real app-embed surface with direct bridge-backed query/suggestions handling even when `chatFallbackEnabled=false`
 - AI search is now also a merchant-placeable Shopify app block
+- contextual pill is now available as a merchant-placeable Shopify collection/product block with inline grounded answers
 - product insight is now available as a merchant-placeable Shopify product-page block
 - policy strip is now available as a merchant-placeable Shopify product-page block
+- product FAQ is now available as a merchant-placeable Shopify product-page block with inline grounded answers
 
 Important rule:
 

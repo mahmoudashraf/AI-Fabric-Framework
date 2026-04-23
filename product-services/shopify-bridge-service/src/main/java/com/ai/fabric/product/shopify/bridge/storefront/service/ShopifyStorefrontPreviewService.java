@@ -17,8 +17,10 @@ public class ShopifyStorefrontPreviewService {
 
     private static final String EXTENSION_HANDLE = "companion-app-embed";
     private static final String AI_SEARCH_BLOCK_HANDLE = "companion-ai-search";
+    private static final String CONTEXTUAL_PILL_BLOCK_HANDLE = "companion-contextual-pill";
     private static final String PRODUCT_INSIGHT_BLOCK_HANDLE = "companion-product-insight";
     private static final String POLICY_STRIP_BLOCK_HANDLE = "companion-policy-strip";
+    private static final String PRODUCT_FAQ_BLOCK_HANDLE = "companion-product-faq";
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
@@ -72,7 +74,8 @@ public class ShopifyStorefrontPreviewService {
                 "Open Shopify Admin > Online Store > Themes > Customize.",
                 "Enable the Companion launcher app embed.",
                 "Optionally place the AI search block on a homepage or collection-oriented template.",
-                "Optionally place the product insight and policy strip blocks on the product template.",
+                "Optionally place the contextual pill block on collection or product templates to surface quick prompts inline.",
+                "Optionally place the product insight, policy strip, and product FAQ blocks on the product template.",
                 "Set Bridge base URL to " + (bridgeBaseUrl == null ? "<bridge-public-base-url>" : bridgeBaseUrl) + ".",
                 "Keep the launcher label as-is or set it from the Companion app widget settings.",
                 "Use the Companion app welcome message as the first assistant response in the launcher.",
@@ -121,7 +124,18 @@ public class ShopifyStorefrontPreviewService {
                 AI_SEARCH_BLOCK_HANDLE,
                 "index",
                 "newAppsSection",
+                "FREE",
                 "Use this as the merchant-placeable Free-tier entry point on a homepage or landing template."
+            ),
+            buildAppBlockPlacement(
+                shopDomain,
+                "contextual-pill",
+                "Contextual pill block",
+                CONTEXTUAL_PILL_BLOCK_HANDLE,
+                "collection",
+                "newAppsSection",
+                "STARTER",
+                "Place this on a collection or product template to keep guided prompts visible inline before shoppers open chat."
             ),
             buildAppBlockPlacement(
                 shopDomain,
@@ -130,6 +144,7 @@ public class ShopifyStorefrontPreviewService {
                 PRODUCT_INSIGHT_BLOCK_HANDLE,
                 "product",
                 "mainSection",
+                "STARTER",
                 "Place this inside the main product section so shoppers see grounded product guidance without opening chat."
             ),
             buildAppBlockPlacement(
@@ -139,7 +154,18 @@ public class ShopifyStorefrontPreviewService {
                 POLICY_STRIP_BLOCK_HANDLE,
                 "product",
                 "mainSection",
+                "STARTER",
                 "Place this near price or add-to-cart so shipping and return guidance appears at the decision point."
+            ),
+            buildAppBlockPlacement(
+                shopDomain,
+                "product-faq",
+                "Product FAQ block",
+                PRODUCT_FAQ_BLOCK_HANDLE,
+                "product",
+                "mainSection",
+                "STARTER",
+                "Place this lower on the product template to answer common shopper questions without switching to a full chat flow."
             )
         );
     }
@@ -150,6 +176,7 @@ public class ShopifyStorefrontPreviewService {
                                                                      String blockHandle,
                                                                      String template,
                                                                      String target,
+                                                                     String requiredTierKey,
                                                                      String guidance) {
         return new ShopifyStorefrontPlacementSummary(
             surfaceId,
@@ -159,6 +186,7 @@ public class ShopifyStorefrontPreviewService {
             template,
             target,
             buildAppBlockThemeEditorUrl(shopDomain, blockHandle, template, target),
+            requiredTierKey,
             guidance
         );
     }

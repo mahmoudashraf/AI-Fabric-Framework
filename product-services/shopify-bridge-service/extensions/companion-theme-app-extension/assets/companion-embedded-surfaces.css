@@ -34,6 +34,10 @@
   box-shadow: none;
 }
 
+.loom-companion-surfaces--inline .loom-companion-chip-row--surface-prompts {
+  margin-top: 0.9rem;
+}
+
 .loom-companion-surface-card,
 .loom-companion-contextual-pillbar {
   pointer-events: auto;
@@ -191,6 +195,10 @@
 
 .loom-companion-surface-copy--results {
   margin-top: 0.45rem;
+}
+
+.loom-companion-surface-copy--muted {
+  color: #6b7280;
 }
 
 .loom-companion-surface-results__cards {

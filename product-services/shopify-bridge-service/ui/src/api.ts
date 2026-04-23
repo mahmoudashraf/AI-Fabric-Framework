@@ -174,6 +174,7 @@ export type ShopifyStorefrontPreviewResponse = {
     template: string
     target: string
     themeEditorUrl: string | null
+    requiredTierKey: string
     guidance: string
   }>
   activationSteps: string[]

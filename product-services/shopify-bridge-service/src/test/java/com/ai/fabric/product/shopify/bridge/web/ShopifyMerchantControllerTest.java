@@ -198,6 +198,7 @@ class ShopifyMerchantControllerTest {
                     "index",
                     "newAppsSection",
                     "https://admin.shopify.com/store/alpha/themes/current/editor?template=index&addAppBlockId=test-shopify-api-key/companion-ai-search&target=newAppsSection",
+                    "FREE",
                     "Use this as the merchant-placeable Free-tier entry point on a homepage or landing template."
                 )
             ),
