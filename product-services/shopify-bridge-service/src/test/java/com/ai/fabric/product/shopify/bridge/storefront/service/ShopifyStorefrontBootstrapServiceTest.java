@@ -124,6 +124,8 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.bridgeReadActionUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/actions/read");
         assertThat(response.bridgeOrderLookupUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/support/order-lookup");
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
+        assertThat(response.groundingSignals())
+            .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
         assertThat(response.message()).contains("Store data is not ready yet");
     }
 

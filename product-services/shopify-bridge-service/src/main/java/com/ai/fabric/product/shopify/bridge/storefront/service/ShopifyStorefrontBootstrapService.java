@@ -188,7 +188,7 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_WELCOME_MESSAGE,
             DEFAULT_SHELL_MODE_PROFILE,
             DEFAULT_ENABLED_SURFACES,
-            List.of("Catalog product grounding", "Policy grounding"),
+            groundingSignals(store),
             supportedReviewProviders(store),
             null,
             null,

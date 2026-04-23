@@ -101,6 +101,11 @@ EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY="${EXPECT_ORDER_LOOKUP_APP_SCOPES_W
 EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED="${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED:-}"
 EXPECT_SUPPORT_LIFECYCLE_STAGE="${EXPECT_SUPPORT_LIFECYCLE_STAGE:-}"
 EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-false}"
+if [[ "${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}" == "true" ]]; then
+  EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="false"
+else
+  EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="true"
+fi
 EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,find_similar_products,compare_products,check_availability,get_policy}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
@@ -1093,7 +1098,7 @@ if [[ ",${effective_expected_surfaces}," == *",comparison,"* ]]; then
 fi
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeOrderLookupUrl")" "storefront bridgeOrderLookupUrl"
 assert_equals "$(json_get "${bootstrap_json}" "orderLookupEnabled")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "storefront bootstrap orderLookupEnabled"
-assert_equals "$(json_get "${bootstrap_json}" "olderOrdersRequireBroaderScope")" "${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}" "storefront bootstrap historical order access"
+assert_equals "$(json_get "${bootstrap_json}" "olderOrdersRequireBroaderScope")" "${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE}" "storefront bootstrap historical order access"
 assert_nonempty "$(json_get "${bootstrap_json}" "orderLookupMessage")" "storefront bootstrap orderLookupMessage"
 assert_optional_equals "$(json_get "${bootstrap_json}" "billingTier")" "${effective_expected_billing_tier}" "storefront bootstrap billingTier"
 assert_optional_equals "$(json_get "${bootstrap_json}" "billingStatus")" "${EXPECT_BILLING_STATUS}" "storefront bootstrap billingStatus"
