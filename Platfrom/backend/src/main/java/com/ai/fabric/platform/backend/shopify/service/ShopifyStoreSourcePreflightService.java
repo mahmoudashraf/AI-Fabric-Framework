@@ -63,6 +63,10 @@ public class ShopifyStoreSourcePreflightService {
             if (hasText(category.message())) {
                 node.put("message", category.message());
             }
+            if (category.signals() != null && !category.signals().isEmpty()) {
+                ArrayNode signalNodes = node.putArray("signals");
+                category.signals().forEach(signalNodes::add);
+            }
         });
         store.setSourceReadinessStatus(overallStatus);
         store.setLastSourcePreflightAt(now);
@@ -123,7 +127,8 @@ public class ShopifyStoreSourcePreflightService {
             category.enabled(),
             normalizedStatus,
             Math.max(category.itemCount(), 0),
-            hasText(category.message()) ? category.message().trim() : null
+            hasText(category.message()) ? category.message().trim() : null,
+            normalizeSignals(category.signals())
         );
     }
 
@@ -155,6 +160,17 @@ public class ShopifyStoreSourcePreflightService {
             throw new ResponseStatusException(CONFLICT, "Preflight category status is required.");
         }
         return status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private List<String> normalizeSignals(List<String> signals) {
+        if (signals == null || signals.isEmpty()) {
+            return List.of();
+        }
+        return signals.stream()
+            .filter(this::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
     }
 
     private boolean hasText(String value) {

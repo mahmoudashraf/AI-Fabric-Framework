@@ -58,9 +58,7 @@ public class ShopifyStorefrontPreviewService {
             ? "Storefront theme app extension can be enabled now."
             : blockingReasons.get(0);
         List<String> groundingSignals = groundingSignals(store);
-        List<String> supportedReviewProviders = store.productsEnabled()
-            ? ShopifyProductReviewSignals.supportedProviderLabels()
-            : List.of();
+        List<String> supportedReviewProviders = supportedReviewProviders(store);
 
         return new ShopifyStorefrontPreviewResponse(
             ready,
@@ -116,6 +114,23 @@ public class ShopifyStorefrontPreviewService {
             signals.add("Metaobject grounding");
         }
         return List.copyOf(signals);
+    }
+
+    private List<String> supportedReviewProviders(ShopifyBridgeStoreSummary store) {
+        if (!store.productsEnabled()) {
+            return List.of();
+        }
+        if (store.sourcePreflight() != null && store.sourcePreflight().categories() != null) {
+            List<String> detected = store.sourcePreflight().categories().stream()
+                .filter(category -> "products".equalsIgnoreCase(category.category()))
+                .flatMap(category -> category.signals() == null ? java.util.stream.Stream.empty() : category.signals().stream())
+                .filter(signal -> signal != null && !signal.isBlank())
+                .toList();
+            if (!detected.isEmpty()) {
+                return List.copyOf(detected);
+            }
+        }
+        return ShopifyProductReviewSignals.supportedProviderLabels();
     }
 
     private String storefrontBaseUrl(String shopDomain) {

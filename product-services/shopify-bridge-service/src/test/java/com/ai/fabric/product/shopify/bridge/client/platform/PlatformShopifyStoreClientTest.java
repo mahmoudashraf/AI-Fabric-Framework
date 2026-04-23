@@ -215,7 +215,7 @@ class PlatformShopifyStoreClientTest {
         ShopifyBridgeStoreSummary response = client.recordSourcePreflight(
             "alpha.myshopify.com",
             new ShopifyBridgeRecordSourcePreflightRequest(List.of(
-                new ShopifyBridgeStoreSourcePreflightCategorySummary("products", true, "READY", 120, "Products reachable")
+                new ShopifyBridgeStoreSourcePreflightCategorySummary("products", true, "READY", 120, "Products reachable", List.of("Judge.me"))
             ))
         );
 

@@ -188,6 +188,7 @@ Now materially real:
 - published Shopify blog/article coverage through sync, vectorization, source toggles, and webhook-triggered refresh
 - Judge.me-compatible review and rating metafield ingestion on Shopify products
 - opt-in metaobject coverage through source toggles, source preflight, sync, vectorization paging, and indexed-field catalog support
+- merchant-visible source-preflight signals now expose detected review-provider coverage and top metaobject types instead of forcing operators to infer source depth from raw counts alone
 
 Still missing:
 
@@ -370,6 +371,7 @@ Progress note:
 - explicit Elite governance posture is now visible to merchants and platform admins through the live billing contract
 - platform-admin store investigation now has explicit source-depth and launch/commercial readiness surfaces instead of forcing operators to infer roadmap status from raw preflight and vectorization data
 - storefront product-insight surfaces now expose shopper-visible grounding cues for reviews, policies, buying guides, and structured content instead of relying only on generic summary text
+- merchant launch/readiness views now surface detected review-provider and metaobject-type evidence from live source preflight instead of only generic capability claims
 - the main remaining Milestone 3 gap is broader live rollout repetition and higher-fidelity merchandising composition, not missing read-first source depth or tier legibility
 
 Recommended supporting data work:

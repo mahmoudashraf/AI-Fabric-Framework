@@ -16,6 +16,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploy
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentVersionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightCategorySummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
@@ -91,7 +93,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.groundingSignals())
             .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
         assertThat(response.supportedReviewProviders())
-            .contains("Judge.me", "Okendo", "Loox", "Stamped", "Yotpo", "Shopify Product Reviews");
+            .containsExactly("Judge.me", "Loox");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
@@ -222,7 +224,20 @@ class ShopifyStorefrontBootstrapServiceTest {
                 "read_products,read_content,read_legal_policies",
                 true
             ),
-            null,
+            new ShopifyBridgeStoreSourcePreflightSummary(
+                "READY",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                List.of(
+                    new ShopifyBridgeStoreSourcePreflightCategorySummary(
+                        "products",
+                        true,
+                        "READY",
+                        12,
+                        "Products reachable",
+                        List.of("Judge.me", "Loox")
+                    )
+                )
+            ),
             null,
             null,
             new ShopifyBridgeStoreWidgetSummary(

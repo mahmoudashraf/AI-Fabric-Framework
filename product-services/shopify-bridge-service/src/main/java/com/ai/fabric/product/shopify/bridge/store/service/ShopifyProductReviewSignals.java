@@ -34,6 +34,32 @@ public final class ShopifyProductReviewSignals {
         return List.copyOf(new LinkedHashSet<>(PROVIDER_LABELS.values()));
     }
 
+    public static List<String> detectedProviderLabels(List<Map<String, Object>> productNodes) {
+        if (productNodes == null || productNodes.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> labels = new LinkedHashSet<>();
+        boolean reviewMetafieldsDetected = false;
+        for (Map<String, Object> productNode : productNodes) {
+            for (Map<String, Object> metafield : metafields(productNode)) {
+                String namespace = text(metafield.get("namespace"));
+                String key = text(metafield.get("key"));
+                if (key == null || !looksLikeReviewMetafield(namespace, key)) {
+                    continue;
+                }
+                reviewMetafieldsDetected = true;
+                String provider = providerLabel(namespace, key);
+                if (provider != null) {
+                    labels.add(provider);
+                }
+            }
+        }
+        if (labels.isEmpty() && reviewMetafieldsDetected) {
+            labels.add("Review metafields detected");
+        }
+        return List.copyOf(labels);
+    }
+
     public static String content(Map<String, Object> productNode) {
         ReviewSignalSummary summary = summary(productNode);
         if (!summary.present()) {

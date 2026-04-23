@@ -55,7 +55,8 @@ public class ShopifyStoreSourcePreflightSupport {
                         node.path("enabled").asBoolean(false),
                         node.path("status").asText("UNKNOWN"),
                         node.path("itemCount").asInt(0),
-                        text(node, "message")
+                        text(node, "message"),
+                        readStringArray(node.get("signals"))
                     ))
                     .toList()
                 : List.of();

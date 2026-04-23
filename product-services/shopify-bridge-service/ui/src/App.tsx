@@ -752,6 +752,7 @@ export default function App() {
   const vectorizationSummary = state.vectorizationSummary
   const shopperSurfaceUsage = usageSummary?.last7DaySurfaceUsage ?? []
   const topShopperQuestions = usageSummary?.topQuestionsLast7Days ?? []
+  const sourceCoverageSignals = buildSourceCoverageSignals(store)
   const intelligenceReadiness = buildStoreIntelligenceReadiness(
     store,
     storefrontPreview,
@@ -796,6 +797,7 @@ export default function App() {
   const launchDossierText = buildLaunchDossier(
     shell,
     session,
+    store,
     storefrontPreview,
     usageSummary,
     billingSummary,
@@ -1575,6 +1577,18 @@ export default function App() {
                       Shopper surface usage appears after real storefront queries run through the live bridge.
                     </Text>
                   )}
+                  {sourceCoverageSignals.length ? (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Detected source depth
+                      </Text>
+                      {sourceCoverageSignals.map((entry) => (
+                        <Text key={entry.category} as="p" variant="bodySm" tone="subdued">
+                          {entry.label} · {entry.signals.join(' · ')}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                  ) : null}
                   {topShopperQuestions.length ? (
                     <BlockStack gap="150">
                       <Text as="p" variant="bodySm" tone="subdued">
@@ -2413,7 +2427,10 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
         <Text as="p" variant="bodySm" tone="subdued">
           Preflight {store.sourcePreflight.overallStatus} ·{' '}
           {store.sourcePreflight.categories
-            .map((category) => `${category.category} ${category.status.toLowerCase()} (${category.itemCount})`)
+            .map((category) => {
+              const signalText = category.signals.length ? ` · ${category.signals.join(', ')}` : ''
+              return `${category.category} ${category.status.toLowerCase()} (${category.itemCount})${signalText}`
+            })
             .join(' · ')}
         </Text>
       ) : null}
@@ -3040,7 +3057,7 @@ function buildLaunchPacket(
   const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => tierSurfaces.includes(surfaceId))
   const activeSurfaceLabels = activeSurfaceIds
     .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
-  const reviewProviders = storefrontPreview?.supportedReviewProviders ?? []
+  const reviewProviders = buildDetectedReviewProviders(store)
   const groundingSignals = storefrontPreview?.groundingSignals ?? []
   const hasEliteGovernance = Boolean(
     billingSummary?.actionCapable &&
@@ -3150,11 +3167,7 @@ function buildGoLiveChecklist(
   const goLiveEligible = Boolean(store?.readiness?.goLiveEligible)
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const activeStarterPlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'STARTER') ?? null
-  const sourceDepthReady = Boolean(
-    store?.productsEnabled &&
-      store?.policiesEnabled &&
-      (store?.articlesEnabled || store?.metaobjectsEnabled || storefrontPreview?.supportedReviewProviders?.length),
-  )
+  const sourceDepthReady = hasLaunchSafeSourceDepth(store)
 
   const items: Array<{
     label: string
@@ -3259,6 +3272,7 @@ function buildGoLiveChecklist(
 function buildLaunchDossier(
   shell: ShopifyBridgeShellResponse | null,
   session: ShopifyBridgeMerchantSessionResponse | null,
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
   storefrontPreview: ShopifyStorefrontPreviewResponse | null,
   usageSummary: ShopifyBridgeUsageSummary | null,
   billingSummary: ShopifyBridgeBillingSummary | null,
@@ -3268,6 +3282,8 @@ function buildLaunchDossier(
   launchPacket: ReturnType<typeof buildLaunchPacket>,
 ): string {
   const shopDomain = session?.shopDomain ?? storefrontPreview?.shopDomain ?? 'shopify-store'
+  const reviewProviders = buildDetectedReviewProviders(store)
+  const sourceCoverageSignals = buildSourceCoverageSignals(store)
   return [
     '# Shopify Companion Launch Dossier',
     '',
@@ -3294,7 +3310,8 @@ function buildLaunchDossier(
     '',
     '## Grounding signals',
     `- ${(storefrontPreview?.groundingSignals ?? []).join(' · ') || 'Core catalog only'}`,
-    `- Review providers: ${(storefrontPreview?.supportedReviewProviders ?? []).join(' · ') || 'None detected'}`,
+    `- Review providers: ${reviewProviders.join(' · ') || 'None detected'}`,
+    ...sourceCoverageSignals.map((entry) => `- ${entry.label}: ${entry.signals.join(' · ')}`),
     '',
     '## Merchant signal',
     `- Last 7 days total events: ${usageSummary?.totalLast7Days ?? 0}`,
@@ -3329,6 +3346,60 @@ function firstArray(...values: unknown[]): unknown[] | null {
     }
   }
   return null
+}
+
+function buildSourceCoverageSignals(
+  store: ShopifyBridgeMerchantSessionResponse['store'] | null,
+): Array<{ category: string; label: string; signals: string[] }> {
+  if (!store?.sourcePreflight?.categories?.length) {
+    return []
+  }
+  return store.sourcePreflight.categories
+    .filter((category) => category.enabled && category.status === 'READY' && category.signals.length)
+    .map((category) => ({
+      category: category.category,
+      label: categoryLabel(category.category),
+      signals: category.signals,
+    }))
+}
+
+function buildDetectedReviewProviders(store: ShopifyBridgeMerchantSessionResponse['store'] | null): string[] {
+  const productsCategory = store?.sourcePreflight?.categories?.find((category) => category.category === 'products')
+  if (!productsCategory?.signals?.length) {
+    return []
+  }
+  return productsCategory.signals.filter((signal) => signal !== 'Review metafields detected')
+}
+
+function hasLaunchSafeSourceDepth(store: ShopifyBridgeMerchantSessionResponse['store'] | null): boolean {
+  if (!store?.productsEnabled || !store?.policiesEnabled) {
+    return false
+  }
+  const articlesReady = Boolean(
+    store.sourcePreflight?.categories?.some(
+      (category) => category.category === 'articles' && category.enabled && category.status === 'READY' && category.itemCount > 0,
+    ),
+  )
+  const metaobjectsReady = Boolean(
+    store.sourcePreflight?.categories?.some(
+      (category) => category.category === 'metaobjects' && category.enabled && category.status === 'READY' && category.itemCount > 0,
+    ),
+  )
+  const reviewProvidersReady = buildDetectedReviewProviders(store).length > 0
+  return articlesReady || metaobjectsReady || reviewProvidersReady
+}
+
+function categoryLabel(category: string): string {
+  switch (category) {
+    case 'products':
+      return 'Product review signals'
+    case 'metaobjects':
+      return 'Metaobject coverage'
+    case 'articles':
+      return 'Article coverage'
+    default:
+      return category.charAt(0).toUpperCase() + category.slice(1)
+  }
 }
 
 function normalizeProductCard(candidate: unknown): PlaygroundProductCard | null {

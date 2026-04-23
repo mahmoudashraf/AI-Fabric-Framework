@@ -4,6 +4,8 @@ import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStore
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightCategorySummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
@@ -56,7 +58,7 @@ class ShopifyStorefrontPreviewServiceTest {
         assertThat(preview.groundingSignals())
             .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
         assertThat(preview.supportedReviewProviders())
-            .contains("Judge.me", "Okendo", "Loox", "Stamped", "Yotpo", "Shopify Product Reviews");
+            .containsExactly("Judge.me", "Loox");
         assertThat(preview.surfacePlacements()).hasSize(6);
         assertThat(preview.surfacePlacements().get(0).blockHandle()).isEqualTo("companion-ai-search");
         assertThat(preview.surfacePlacements().get(0).requiredTierKey()).isEqualTo("FREE");
@@ -137,7 +139,20 @@ class ShopifyStorefrontPreviewServiceTest {
                 "read_products,read_content,read_legal_policies",
                 true
             ),
-            null,
+            new ShopifyBridgeStoreSourcePreflightSummary(
+                ready ? "READY" : "NOT_RUN",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                List.of(
+                    new ShopifyBridgeStoreSourcePreflightCategorySummary(
+                        "products",
+                        true,
+                        ready ? "READY" : "PENDING",
+                        ready ? 12 : 0,
+                        ready ? "Products reachable" : "Store data not ready",
+                        ready ? List.of("Judge.me", "Loox") : List.of()
+                    )
+                )
+            ),
             null,
             null,
             new ShopifyBridgeStoreWidgetSummary(

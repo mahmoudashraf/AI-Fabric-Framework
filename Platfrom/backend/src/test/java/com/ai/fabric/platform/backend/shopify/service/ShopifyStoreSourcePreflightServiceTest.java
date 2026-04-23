@@ -44,10 +44,10 @@ class ShopifyStoreSourcePreflightServiceTest {
         ShopifyStoreConnectionSummary result = service.record(
             "demo.myshopify.com",
             new RecordShopifyStoreSourcePreflightRequest(List.of(
-                new ShopifyStoreSourcePreflightCategorySummary("products", true, "READY", 120, "Products reachable"),
-                new ShopifyStoreSourcePreflightCategorySummary("collections", true, "READY", 12, "Collections reachable"),
-                new ShopifyStoreSourcePreflightCategorySummary("pages", false, "READY", 0, "Disabled"),
-                new ShopifyStoreSourcePreflightCategorySummary("policies", true, "READY", 4, "Policies reachable")
+                new ShopifyStoreSourcePreflightCategorySummary("products", true, "READY", 120, "Products reachable", List.of("Judge.me")),
+                new ShopifyStoreSourcePreflightCategorySummary("collections", true, "READY", 12, "Collections reachable", List.of()),
+                new ShopifyStoreSourcePreflightCategorySummary("pages", false, "READY", 0, "Disabled", List.of()),
+                new ShopifyStoreSourcePreflightCategorySummary("policies", true, "READY", 4, "Policies reachable", List.of())
             ))
         );
 
@@ -56,6 +56,7 @@ class ShopifyStoreSourcePreflightServiceTest {
         assertThat(store.getOnboardingStatus()).isEqualTo("PREFLIGHT_READY");
         assertThat(store.getLastSourcePreflightAt()).isNotNull();
         assertThat(store.getDetailsJson()).contains("\"sourcePreflight\"");
+        assertThat(store.getDetailsJson()).contains("\"signals\":[\"Judge.me\"]");
     }
 
     @Test
@@ -82,8 +83,8 @@ class ShopifyStoreSourcePreflightServiceTest {
         ShopifyStoreConnectionSummary result = service.record(
             "demo.myshopify.com",
             new RecordShopifyStoreSourcePreflightRequest(List.of(
-                new ShopifyStoreSourcePreflightCategorySummary("products", true, "BLOCKED", 0, "Products API scope missing"),
-                new ShopifyStoreSourcePreflightCategorySummary("collections", true, "READY", 12, "Collections reachable")
+                new ShopifyStoreSourcePreflightCategorySummary("products", true, "BLOCKED", 0, "Products API scope missing", List.of()),
+                new ShopifyStoreSourcePreflightCategorySummary("collections", true, "READY", 12, "Collections reachable", List.of())
             ))
         );
 
@@ -106,6 +107,8 @@ class ShopifyStoreSourcePreflightServiceTest {
         entity.setCollectionsEnabled(true);
         entity.setPagesEnabled(false);
         entity.setPoliciesEnabled(true);
+        entity.setArticlesEnabled(false);
+        entity.setMetaobjectsEnabled(false);
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         return entity;

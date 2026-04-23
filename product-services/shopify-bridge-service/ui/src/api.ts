@@ -69,6 +69,7 @@ export type ShopifyBridgeStoreSummary = {
       status: string
       itemCount: number
       message: string | null
+      signals: string[]
     }>
   } | null
   capabilities: {

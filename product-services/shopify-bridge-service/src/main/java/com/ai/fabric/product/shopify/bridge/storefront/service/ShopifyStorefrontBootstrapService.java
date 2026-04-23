@@ -96,9 +96,7 @@ public class ShopifyStorefrontBootstrapService {
             : billingSummary.allowedSurfaces();
         enabledSurfaces = billingService.effectiveAllowedSurfaces(updated.shopDomain(), null, enabledSurfaces);
         List<String> groundingSignals = groundingSignals(updated);
-        List<String> supportedReviewProviders = updated.productsEnabled()
-            ? ShopifyProductReviewSignals.supportedProviderLabels()
-            : List.of();
+        List<String> supportedReviewProviders = supportedReviewProviders(updated);
         ShopifyStorefrontGovernedActionCapability actionCapability =
             governedActionService.capability(updated.shopDomain(), actionGrantUrl, actionCompleteUrl);
 
@@ -149,7 +147,7 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_SHELL_MODE_PROFILE,
             DEFAULT_ENABLED_SURFACES,
             List.of("Catalog product grounding", "Policy grounding"),
-            ShopifyProductReviewSignals.supportedProviderLabels(),
+            supportedReviewProviders(store),
             null,
             null,
             null,
@@ -192,6 +190,23 @@ public class ShopifyStorefrontBootstrapService {
             signals.add("Metaobject grounding");
         }
         return List.copyOf(signals);
+    }
+
+    private List<String> supportedReviewProviders(ShopifyBridgeStoreSummary store) {
+        if (!store.productsEnabled()) {
+            return List.of();
+        }
+        if (store.sourcePreflight() != null && store.sourcePreflight().categories() != null) {
+            List<String> detected = store.sourcePreflight().categories().stream()
+                .filter(category -> "products".equalsIgnoreCase(category.category()))
+                .flatMap(category -> category.signals() == null ? java.util.stream.Stream.empty() : category.signals().stream())
+                .filter(signal -> signal != null && !signal.isBlank())
+                .toList();
+            if (!detected.isEmpty()) {
+                return List.copyOf(detected);
+            }
+        }
+        return ShopifyProductReviewSignals.supportedProviderLabels();
     }
 
     private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {

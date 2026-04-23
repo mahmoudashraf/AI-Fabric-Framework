@@ -116,7 +116,7 @@ final class ShopifyMetaobjectSupport {
                 shopDomain,
                 accessToken,
                 DEFINITIONS_QUERY,
-                Map.of("cursor", cursor)
+                cursorVariables(cursor)
             );
             List<String> errors = errorMessages(response);
             if (!errors.isEmpty()) {
@@ -393,6 +393,12 @@ final class ShopifyMetaobjectSupport {
         return definitions.stream()
             .mapToInt(MetaobjectDefinitionSummary::metaobjectsCount)
             .sum();
+    }
+
+    private static Map<String, Object> cursorVariables(String cursor) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("cursor", cursor);
+        return variables;
     }
 
     @SuppressWarnings("unchecked")

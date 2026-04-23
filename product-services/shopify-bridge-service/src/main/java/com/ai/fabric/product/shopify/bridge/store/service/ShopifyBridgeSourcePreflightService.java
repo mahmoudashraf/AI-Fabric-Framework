@@ -27,6 +27,23 @@ public class ShopifyBridgeSourcePreflightService {
           productsCount(limit: null) {
             count
           }
+          products(first: 12, sortKey: UPDATED_AT, reverse: true) {
+            edges {
+              node {
+                id
+                metafields(first: 12) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      type
+                      value
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
         """;
 
@@ -90,15 +107,10 @@ public class ShopifyBridgeSourcePreflightService {
         String accessToken = acquisition.tokenExchangeMaterial().accessToken();
         Integer catalogProductCap = billingService.catalogProductCap(store.shopDomain(), accessToken);
         List<ShopifyBridgeStoreSourcePreflightCategorySummary> categories = new ArrayList<>();
-        categories.add(evaluateCountCategory(
-            store.shopDomain(),
-            accessToken,
+        categories.add(evaluateCategory(
             "products",
             store.productsEnabled(),
-            PRODUCTS_QUERY,
-            "productsCount",
-            "Products",
-            catalogProductCap
+            () -> fetchProducts(store.shopDomain(), accessToken, catalogProductCap)
         ));
         categories.add(evaluateCountCategory(
             store.shopDomain(),
@@ -157,7 +169,8 @@ public class ShopifyBridgeSourcePreflightService {
                 effectiveCount,
                 count > 0
                     ? describeCountMessage(label, count, effectiveCount, cap)
-                    : "No " + category + " found in the store."
+                    : "No " + category + " found in the store.",
+                List.of()
             );
         });
     }
@@ -176,6 +189,20 @@ public class ShopifyBridgeSourcePreflightService {
         return label + " reachable (" + actualCount + " items).";
     }
 
+    private CategoryResult fetchProducts(String shopDomain, String accessToken, Integer cap) {
+        Map<String, Object> response = shopifyAdminGraphqlClient.execute(shopDomain, accessToken, PRODUCTS_QUERY);
+        int count = extractCount(response, "productsCount");
+        int effectiveCount = applyProductCap("products", count, cap);
+        return new CategoryResult(
+            "READY",
+            effectiveCount,
+            count > 0
+                ? describeCountMessage("Products", count, effectiveCount, cap)
+                : "No products found in the store.",
+            ShopifyProductReviewSignals.detectedProviderLabels(extractConnectionNodes(response, "products"))
+        );
+    }
+
     private CategoryResult fetchPolicies(String shopDomain, String accessToken) {
         Map<String, Object> response = shopifyAdminGraphqlClient.execute(shopDomain, accessToken, POLICIES_QUERY);
         List<String> errors = errorMessages(response);
@@ -189,7 +216,8 @@ public class ShopifyBridgeSourcePreflightService {
         return new CategoryResult(
             "READY",
             count,
-            count > 0 ? "Policies reachable (" + count + " documents)." : "No shop policies configured."
+            count > 0 ? "Policies reachable (" + count + " documents)." : "No shop policies configured.",
+            List.of()
         );
     }
 
@@ -202,16 +230,22 @@ public class ShopifyBridgeSourcePreflightService {
         return new CategoryResult(
             "READY",
             count,
-            count > 0 ? "Articles reachable (" + count + " published posts)." : "No published articles found in the store."
+            count > 0 ? "Articles reachable (" + count + " published posts)." : "No published articles found in the store.",
+            List.of()
         );
     }
 
     private CategoryResult fetchMetaobjects(String shopDomain, String accessToken) {
-        int count = ShopifyMetaobjectSupport.totalCount(shopDomain, accessToken, shopifyAdminGraphqlClient);
+        List<ShopifyMetaobjectSupport.MetaobjectDefinitionSummary> definitions =
+            ShopifyMetaobjectSupport.loadDefinitions(shopDomain, accessToken, shopifyAdminGraphqlClient);
+        int count = definitions.stream()
+            .mapToInt(ShopifyMetaobjectSupport.MetaobjectDefinitionSummary::metaobjectsCount)
+            .sum();
         return new CategoryResult(
             "READY",
             count,
-            count > 0 ? "Metaobjects reachable (" + count + " records)." : "No eligible metaobjects found in the store."
+            count > 0 ? "Metaobjects reachable (" + count + " records)." : "No eligible metaobjects found in the store.",
+            summarizeMetaobjectSignals(definitions)
         );
     }
 
@@ -224,7 +258,8 @@ public class ShopifyBridgeSourcePreflightService {
                 false,
                 "PENDING",
                 0,
-                "Disabled for this store."
+                "Disabled for this store.",
+                List.of()
             );
         }
         try {
@@ -234,21 +269,22 @@ public class ShopifyBridgeSourcePreflightService {
                 true,
                 result.status(),
                 Math.max(result.itemCount(), 0),
-                result.message()
+                result.message(),
+                normalizeSignals(result.signals())
             );
         } catch (RestClientResponseException ex) {
             String status = ex.getStatusCode().is4xxClientError() ? "BLOCKED" : "FAILED";
             String message = ex.getStatusCode().is4xxClientError()
                 ? "Shopify denied access to " + category + ". Verify app scopes and store install."
                 : "Shopify Admin API failed while checking " + category + ".";
-            return new ShopifyBridgeStoreSourcePreflightCategorySummary(category, true, status, 0, message);
+            return new ShopifyBridgeStoreSourcePreflightCategorySummary(category, true, status, 0, message, List.of());
         } catch (ResponseStatusException ex) {
             String message = ex.getReason() == null ? "Shopify preflight failed for " + category + "." : ex.getReason();
             String normalized = message.toLowerCase(Locale.ROOT);
             String status = normalized.contains("access") || normalized.contains("scope") || normalized.contains("denied")
                 ? "BLOCKED"
                 : "FAILED";
-            return new ShopifyBridgeStoreSourcePreflightCategorySummary(category, true, status, 0, message);
+            return new ShopifyBridgeStoreSourcePreflightCategorySummary(category, true, status, 0, message, List.of());
         }
     }
 
@@ -279,6 +315,22 @@ public class ShopifyBridgeSourcePreflightService {
             return list;
         }
         throw new ResponseStatusException(BAD_GATEWAY, message);
+    }
+
+    private List<Map<String, Object>> extractConnectionNodes(Map<String, Object> response, String connectionField) {
+        List<String> errors = errorMessages(response);
+        if (!errors.isEmpty()) {
+            throw new ResponseStatusException(BAD_GATEWAY, String.join(" ", errors));
+        }
+        Map<String, Object> data = requireMap(response.get("data"), "Shopify Admin API response is missing data.");
+        Map<String, Object> connection = requireMap(data.get(connectionField), "Shopify Admin API response is missing " + connectionField + ".");
+        List<?> edges = requireList(connection.get("edges"), "Shopify Admin API response is missing edges for " + connectionField + ".");
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        for (Object edge : edges) {
+            Map<String, Object> edgeMap = requireMapFromListItem(edge);
+            nodes.add(requireMap(edgeMap.get("node"), "Shopify Admin API response is missing node for " + connectionField + "."));
+        }
+        return List.copyOf(nodes);
     }
 
     private List<Map<String, Object>> paginate(String shopDomain,
@@ -353,10 +405,44 @@ public class ShopifyBridgeSourcePreflightService {
         return variables;
     }
 
+    private List<String> summarizeMetaobjectSignals(List<ShopifyMetaobjectSupport.MetaobjectDefinitionSummary> definitions) {
+        if (definitions == null || definitions.isEmpty()) {
+            return List.of();
+        }
+        List<String> signals = definitions.stream()
+            .sorted(java.util.Comparator.comparingInt(ShopifyMetaobjectSupport.MetaobjectDefinitionSummary::metaobjectsCount).reversed())
+            .limit(3)
+            .map(definition -> {
+                String label = hasText(definition.name()) ? definition.name().trim() : definition.type();
+                return label + " (" + definition.metaobjectsCount() + ")";
+            })
+            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        if (definitions.size() > 3) {
+            signals.add("+" + (definitions.size() - 3) + " more types");
+        }
+        return List.copyOf(signals);
+    }
+
+    private List<String> normalizeSignals(List<String> signals) {
+        if (signals == null || signals.isEmpty()) {
+            return List.of();
+        }
+        return signals.stream()
+            .filter(this::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private record CategoryResult(
         String status,
         int itemCount,
-        String message
+        String message,
+        List<String> signals
     ) {
     }
 }
