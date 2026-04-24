@@ -237,6 +237,19 @@ Primary release gate:
 
 - `full-platform-release-readiness`
 
+Shopify posture override:
+
+- when the canonical verification store is intentionally in a pending support-scope posture, dispatch the suite with `shopifyCompanionExpectations`
+- current supported example:
+  - `storefrontReady=false`
+  - `storefrontShopperTrafficReady=true`
+  - `goLiveEligible=false`
+  - `orderLookupStatus=PENDING_SCOPE_GRANT`
+  - `orderLookupSupported=false`
+  - `orderLookupScopeGranted=false`
+  - `supportLifecycleStage=SCOPE_APPROVAL`
+- use this only to verify truthful current posture, not to hide a real launch regression
+
 Release-gate summary:
 
 - `/verification-ops` now also exposes a fresh-pass summary for the full suite

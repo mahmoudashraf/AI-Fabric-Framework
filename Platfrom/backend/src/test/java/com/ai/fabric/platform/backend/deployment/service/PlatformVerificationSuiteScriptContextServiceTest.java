@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -153,6 +154,66 @@ class PlatformVerificationSuiteScriptContextServiceTest {
         assertThatThrownBy(() -> service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("WEAVIATE_API_KEY");
+    }
+
+    @Test
+    void buildMergesShopifyEnvironmentOverrides() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION,
+            Map.of(
+                "EXPECT_STOREFRONT_READY", "false",
+                "EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT"
+            )
+        );
+
+        assertThat(context.environment()).containsEntry("SHOPIFY_BRIDGE_BASE_URL", "https://bridge.example.test");
+        assertThat(context.environment()).containsEntry("SHOP_DOMAIN", "shop.example.test");
+        assertThat(context.environment()).containsEntry("EXPECT_STOREFRONT_READY", "false");
+        assertThat(context.environment()).containsEntry("EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT");
     }
 
 }

@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuite
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationReleaseGateSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.ShopifyCompanionVerificationExpectationOverrides;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunStageRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,7 +54,7 @@ class PlatformVerificationSuiteServiceTest {
 
         PlatformVerificationSuiteDispatchSummary summary = service.dispatch(
             PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
-            new PlatformVerificationSuiteDispatchRequest(false)
+            new PlatformVerificationSuiteDispatchRequest(false, null)
         );
 
         assertThat(summary.suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
@@ -113,7 +114,7 @@ class PlatformVerificationSuiteServiceTest {
 
         PlatformVerificationSuiteDispatchSummary summary = service.dispatch(
             PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
-            new PlatformVerificationSuiteDispatchRequest(false)
+            new PlatformVerificationSuiteDispatchRequest(false, null)
         );
 
         ArgumentCaptor<PlatformVerificationSuiteRunEntity> runCaptor = ArgumentCaptor.forClass(PlatformVerificationSuiteRunEntity.class);
@@ -131,6 +132,58 @@ class PlatformVerificationSuiteServiceTest {
         ));
         assertThat(summary.run().stages()).hasSize(12);
         verify(executionService).execute(summary.run().id(), false);
+    }
+
+    @Test
+    void dispatchStoresShopifyExpectationOverridesOnShopifyStage() {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+        PlatformVerificationSuiteExecutionService executionService = mock(PlatformVerificationSuiteExecutionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        when(runRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+        when(runRepository.existsBySuiteKeyAndStatusIn(any(), any())).thenReturn(false);
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stageRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformVerificationSuiteService service = new PlatformVerificationSuiteService(
+            new PlatformVerificationSuiteCatalog(),
+            runRepository,
+            stageRepository,
+            executionService,
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            auditService,
+            new ObjectMapper()
+        );
+
+        service.dispatch(
+            PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
+            new PlatformVerificationSuiteDispatchRequest(
+                false,
+                new ShopifyCompanionVerificationExpectationOverrides(
+                    false,
+                    true,
+                    false,
+                    "PENDING_SCOPE_GRANT",
+                    false,
+                    false,
+                    true,
+                    false,
+                    "SCOPE_APPROVAL"
+                )
+            )
+        );
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PlatformVerificationSuiteRunStageEntity>> stageCaptor = ArgumentCaptor.forClass(List.class);
+        verify(stageRepository).saveAll(stageCaptor.capture());
+        PlatformVerificationSuiteRunStageEntity shopifyStage = stageCaptor.getValue().stream()
+            .filter(stage -> PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION.equals(stage.getTargetRef()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(shopifyStage.getDetailsJson()).contains("EXPECT_STOREFRONT_READY");
+        assertThat(shopifyStage.getDetailsJson()).contains("PENDING_SCOPE_GRANT");
+        assertThat(shopifyStage.getDetailsJson()).contains("SCOPE_APPROVAL");
     }
 
     @Test

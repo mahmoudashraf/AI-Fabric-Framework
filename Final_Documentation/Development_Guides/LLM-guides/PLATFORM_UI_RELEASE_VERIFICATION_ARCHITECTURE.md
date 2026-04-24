@@ -153,6 +153,12 @@ Current admin endpoints:
 - `GET /api/verification-suites/runs/{runId}`
 - `POST /api/verification-suites/{suiteKey}/runs`
 
+Bounded Shopify posture override:
+
+- `POST /api/verification-suites/{suiteKey}/runs` may include `shopifyCompanionExpectations`
+- use it only when the canonical Shopify verification store is intentionally in a known non-launch posture such as `PENDING_SCOPE_GRANT`
+- this keeps the stage explicit and auditable instead of silently assuming `storefrontReady=true`
+
 Security:
 
 - platform admin only
@@ -196,6 +202,9 @@ Current ordered stages for `canonical-release-readiness`:
 
 These suites are intentionally fixed-order.
 They encode the operational dependency chain instead of asking each operator or CI workflow to reconstruct it.
+
+The Shopify stage remains release-blocking.
+What changed is the expectation source: operators can now tell the suite which Shopify posture is expected for the current verification store instead of relying on one hardcoded launch-ready default.
 
 When `allowControlPlaneRepair=true`, the canonical rollout stage is not only an inventory read.
 It may recreate the canonical fleet before hosted verification so the release gate does not rely on stale rollout runtime contracts.

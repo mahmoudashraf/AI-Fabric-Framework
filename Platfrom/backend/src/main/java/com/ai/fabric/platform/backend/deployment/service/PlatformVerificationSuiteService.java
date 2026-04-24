@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuite
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationReleaseGateSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.ShopifyCompanionVerificationExpectationOverrides;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunStageRepository;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -182,7 +183,7 @@ public class PlatformVerificationSuiteService {
         runRepository.save(run);
 
         List<PlatformVerificationSuiteRunStageEntity> stages = definition.stages().stream()
-            .map(stage -> toStageEntity(run, stage, now))
+            .map(stage -> toStageEntity(run, stage, now, request))
             .toList();
         stageRepository.saveAll(stages);
 
@@ -196,7 +197,10 @@ public class PlatformVerificationSuiteService {
                 "suiteLabel", run.getSuiteLabel(),
                 "requestedByActorId", run.getRequestedByActorId(),
                 "requestedByRole", run.getRequestedByRole(),
-                "allowControlPlaneRepair", allowControlPlaneRepair
+                "allowControlPlaneRepair", allowControlPlaneRepair,
+                "shopifyExpectationOverrides", request == null || request.shopifyCompanionExpectations() == null
+                    ? ""
+                    : request.shopifyCompanionExpectations().toEnvironmentOverrides().toString()
             ))
         );
         executionService.execute(run.getId(), allowControlPlaneRepair);
@@ -237,7 +241,8 @@ public class PlatformVerificationSuiteService {
 
     private PlatformVerificationSuiteRunStageEntity toStageEntity(PlatformVerificationSuiteRunEntity run,
                                                                   com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageDefinitionSummary stage,
-                                                                  Instant createdAt) {
+                                                                  Instant createdAt,
+                                                                  PlatformVerificationSuiteDispatchRequest request) {
         PlatformVerificationSuiteRunStageEntity entity = new PlatformVerificationSuiteRunStageEntity();
         entity.setId(generateStageId());
         entity.setSuiteRunId(run.getId());
@@ -249,10 +254,25 @@ public class PlatformVerificationSuiteService {
         entity.setBlocking(stage.blocking());
         entity.setStatus("QUEUED");
         entity.setSummaryMessage("Awaiting verification suite execution.");
-        entity.setDetailsJson("{}");
+        entity.setDetailsJson(initialStageDetails(stage, request).toString());
         entity.setLogOutput("");
         entity.setCreatedAt(createdAt);
         return entity;
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode initialStageDetails(
+        com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageDefinitionSummary stage,
+        PlatformVerificationSuiteDispatchRequest request
+    ) {
+        com.fasterxml.jackson.databind.node.ObjectNode details = objectMapper.createObjectNode();
+        ShopifyCompanionVerificationExpectationOverrides expectations = request == null ? null : request.shopifyCompanionExpectations();
+        if (expectations == null
+            || expectations.isEmpty()
+            || !PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION.equalsIgnoreCase(stage.targetRef())) {
+            return details;
+        }
+        details.set("scriptEnvironmentOverrides", objectMapper.valueToTree(expectations.toEnvironmentOverrides()));
+        return details;
     }
 
     private int runStageOrder(com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageDefinitionSummary stage,

@@ -58,13 +58,31 @@ public class PlatformVerificationSuiteScriptContextService {
     }
 
     public PlatformVerificationScriptContextSummary build(String scriptKey) {
-        return switch (scriptKey) {
+        return build(scriptKey, Map.of());
+    }
+
+    public PlatformVerificationScriptContextSummary build(String scriptKey, Map<String, String> environmentOverrides) {
+        PlatformVerificationScriptContextSummary base = switch (scriptKey) {
             case SCRIPT_PLATFORM_ADMIN_REGRESSION -> buildPlatformAdminRegression();
             case SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION -> buildManagedProviderVerification();
             case SCRIPT_MARKETPLACE_INSTALL_FLOW -> buildMarketplaceInstallFlow();
             case SCRIPT_SHOPIFY_COMPANION_VERIFICATION -> buildShopifyCompanionVerification();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
+        if (environmentOverrides == null || environmentOverrides.isEmpty()) {
+            return base;
+        }
+        Map<String, String> environment = new LinkedHashMap<>(base.environment());
+        environmentOverrides.forEach((key, value) -> {
+            if (key != null && !key.isBlank() && value != null && !value.isBlank()) {
+                environment.put(key.trim(), value.trim());
+            }
+        });
+        return new PlatformVerificationScriptContextSummary(
+            base.scriptPath(),
+            Map.copyOf(environment),
+            base.secretEnvironment()
+        );
     }
 
     private PlatformVerificationScriptContextSummary buildPlatformAdminRegression() {

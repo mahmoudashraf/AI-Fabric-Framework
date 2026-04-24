@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -286,7 +287,7 @@ class PlatformVerificationSuiteExecutionServiceTest {
         when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId())).thenReturn(List.of(stage));
         when(stageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(scriptContextService.build(PlatformVerificationSuiteScriptContextService.SCRIPT_MARKETPLACE_INSTALL_FLOW))
+        when(scriptContextService.build(PlatformVerificationSuiteScriptContextService.SCRIPT_MARKETPLACE_INSTALL_FLOW, Map.of()))
             .thenReturn(new PlatformVerificationScriptContextSummary("scripts/verify-marketplace-install-flow.sh", java.util.Map.of(), java.util.Map.of()));
         when(scriptRunnerService.run(any()))
             .thenReturn(new PlatformVerificationScriptRunnerService.ScriptRunResult("FAILED", 1, "FAIL: release rel-1 ended in FAILED/SKIPPED at step wait_for_active:"))
@@ -315,5 +316,99 @@ class PlatformVerificationSuiteExecutionServiceTest {
         assertThat(stage.getStatus()).isEqualTo("PASSED");
         assertThat(stage.getDetailsJson()).contains("\"retryAttempted\":true");
         verify(scriptRunnerService, times(2)).run(any());
+    }
+
+    @Test
+    void executeInlinePassesStoredShopifyEnvironmentOverridesToScriptContext() throws Exception {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+        PlatformManagedInferenceAdminService inferenceAdminService = mock(PlatformManagedInferenceAdminService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentHostedVerificationService hostedVerificationService = mock(DeploymentHostedVerificationService.class);
+        DeploymentHostedVerificationRunRepository hostedRunRepository = mock(DeploymentHostedVerificationRunRepository.class);
+        PlatformVerificationSuiteScriptContextService scriptContextService = mock(PlatformVerificationSuiteScriptContextService.class);
+        PlatformVerificationScriptRunnerService scriptRunnerService = mock(PlatformVerificationScriptRunnerService.class);
+        VectorizationService vectorizationService = mock(VectorizationService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        PlatformVerificationSuiteRunEntity run = new PlatformVerificationSuiteRunEntity();
+        run.setId("vsr-shopify-script");
+        run.setSuiteKey(PlatformVerificationSuiteCatalog.SHOPIFY_COMPANION_VERIFICATION_SUITE_KEY);
+        run.setSuiteLabel("Shopify Companion verification");
+        run.setStatus("QUEUED");
+        run.setReleaseBlocking(true);
+        run.setSummaryMessage("queued");
+        run.setRequestedByActorId("actor-1");
+        run.setRequestedByRole("PLATFORM_ADMIN");
+        run.setCreatedAt(Instant.now());
+
+        PlatformVerificationSuiteRunStageEntity stage = new PlatformVerificationSuiteRunStageEntity();
+        stage.setId("vss-shopify-script");
+        stage.setSuiteRunId(run.getId());
+        stage.setStageOrder(1);
+        stage.setStageKey("shopify-companion-verification");
+        stage.setStageLabel("Shopify Companion verification");
+        stage.setStageType("SCRIPT_VERIFICATION");
+        stage.setTargetRef(PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION);
+        stage.setBlocking(true);
+        stage.setStatus("QUEUED");
+        stage.setSummaryMessage("queued");
+        stage.setDetailsJson("""
+            {"scriptEnvironmentOverrides":{
+              "EXPECT_STOREFRONT_READY":"false",
+              "EXPECT_STOREFRONT_SHOPPER_TRAFFIC_READY":"true",
+              "EXPECT_GO_LIVE_ELIGIBLE":"false",
+              "EXPECT_ORDER_LOOKUP_STATUS":"PENDING_SCOPE_GRANT",
+              "EXPECT_ORDER_LOOKUP_SUPPORTED":"false",
+              "EXPECT_ORDER_LOOKUP_SCOPE_GRANTED":"false",
+              "EXPECT_SUPPORT_LIFECYCLE_STAGE":"SCOPE_APPROVAL"
+            }}
+            """);
+        stage.setCreatedAt(Instant.now());
+
+        when(runRepository.findById(run.getId())).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId())).thenReturn(List.of(stage));
+        when(stageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, String> expectedOverrides = Map.of(
+            "EXPECT_STOREFRONT_READY", "false",
+            "EXPECT_STOREFRONT_SHOPPER_TRAFFIC_READY", "true",
+            "EXPECT_GO_LIVE_ELIGIBLE", "false",
+            "EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT",
+            "EXPECT_ORDER_LOOKUP_SUPPORTED", "false",
+            "EXPECT_ORDER_LOOKUP_SCOPE_GRANTED", "false",
+            "EXPECT_SUPPORT_LIFECYCLE_STAGE", "SCOPE_APPROVAL"
+        );
+
+        when(scriptContextService.build(PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION, expectedOverrides))
+            .thenReturn(new PlatformVerificationScriptContextSummary("scripts/verify-shopify-companion.sh", expectedOverrides, Map.of()));
+        when(scriptRunnerService.run(any()))
+            .thenReturn(new PlatformVerificationScriptRunnerService.ScriptRunResult("PASSED", 0, "PASS: shopify verification"));
+
+        PlatformVerificationSuiteExecutionService service = new PlatformVerificationSuiteExecutionService(
+            runRepository,
+            stageRepository,
+            new PlatformVerificationSuiteCatalog(),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofMillis(10), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            inferenceAdminService,
+            rolloutService,
+            deploymentService,
+            hostedVerificationService,
+            hostedRunRepository,
+            scriptContextService,
+            scriptRunnerService,
+            vectorizationService,
+            auditService,
+            new ObjectMapper()
+        );
+
+        service.executeInline(run.getId(), false);
+
+        assertThat(run.getStatus()).isEqualTo("PASSED");
+        assertThat(stage.getStatus()).isEqualTo("PASSED");
+        assertThat(stage.getDetailsJson()).contains("environmentOverrides");
+        verify(scriptContextService).build(PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION, expectedOverrides);
     }
 }

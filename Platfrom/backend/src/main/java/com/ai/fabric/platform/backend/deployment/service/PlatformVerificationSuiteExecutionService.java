@@ -22,6 +22,7 @@ import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSumma
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunDetailsSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummary;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -233,7 +234,8 @@ public class PlatformVerificationSuiteExecutionService {
 
     private boolean executeScriptVerification(PlatformVerificationSuiteRunStageEntity stage) throws InterruptedException, java.io.IOException {
         markStageRunning(stage, "Running allowlisted platform verification script.");
-        PlatformVerificationScriptContextSummary context = scriptContextService.build(stage.getTargetRef());
+        Map<String, String> environmentOverrides = readScriptEnvironmentOverrides(stage);
+        PlatformVerificationScriptContextSummary context = scriptContextService.build(stage.getTargetRef(), environmentOverrides);
         PlatformVerificationScriptRunnerService.ScriptRunResult result = scriptRunnerService.run(context);
         boolean retryAttempted = false;
         if (shouldRetryScriptVerification(stage, result)) {
@@ -246,6 +248,9 @@ public class PlatformVerificationSuiteExecutionService {
             .put("exitCode", result.exitCode() == null ? -1 : result.exitCode())
             .put("timedOut", result.timedOut())
             .put("retryAttempted", retryAttempted);
+        if (!environmentOverrides.isEmpty()) {
+            details.set("environmentOverrides", objectMapper.valueToTree(environmentOverrides));
+        }
         String summary = switch (result.status()) {
             case "PASSED" -> "Verification script completed successfully.";
             case "TIMED_OUT" -> "Verification script timed out before completion.";
@@ -253,6 +258,29 @@ public class PlatformVerificationSuiteExecutionService {
         };
         completeStage(stage, result.status(), summary, details, result.output());
         return result.passed();
+    }
+
+    private Map<String, String> readScriptEnvironmentOverrides(PlatformVerificationSuiteRunStageEntity stage) {
+        try {
+            JsonNode root = objectMapper.readTree(defaultText(stage.getDetailsJson(), "{}"));
+            JsonNode overridesNode = root.path("scriptEnvironmentOverrides");
+            if (!overridesNode.isObject()) {
+                return Map.of();
+            }
+            java.util.LinkedHashMap<String, String> overrides = new java.util.LinkedHashMap<>();
+            overridesNode.fields().forEachRemaining(entry -> {
+                JsonNode value = entry.getValue();
+                if (value != null && !value.isNull()) {
+                    String text = value.asText("");
+                    if (!text.isBlank()) {
+                        overrides.put(entry.getKey(), text.trim());
+                    }
+                }
+            });
+            return Map.copyOf(overrides);
+        } catch (Exception ex) {
+            return Map.of();
+        }
     }
 
     private boolean shouldRetryScriptVerification(PlatformVerificationSuiteRunStageEntity stage,
