@@ -91,6 +91,12 @@ Primary release and hosted verification APIs:
 - `GET /api/verification-suites/release-gate`
 - `POST /api/verification-suites/{suiteKey}/runs`
 
+Important suite-dispatch behavior:
+
+- `POST /api/verification-suites/{suiteKey}/runs` returns `CONFLICT` when the same suite already has a queued or running execution.
+- when that happens, do not keep redispatching; inspect `GET /api/verification-suites/runs` and poll the active run id instead.
+- `GET /api/verification-suites/release-gate` is the top-level operator signal for `full-platform-release-readiness`; use it after the run settles instead of inferring readiness from partial run history alone.
+
 Adjacent vectorization verification APIs:
 
 - `GET /api/deployments/{deploymentId}/vectorization`
@@ -154,6 +160,25 @@ Current release-gate statuses:
 - `STALE`
 - `MISSING`
 
+High-value live operator patterns from `2026-04-24`:
+
+- if the Shopify verification store is intentionally blocked on order-read scope approval, dispatch the full suite with explicit `shopifyCompanionExpectations` instead of assuming `storefrontReady=true`
+- if a canonical hosted deployment fails with:
+  - `runtime_config_matches_expected`
+  - `runtime_prompt_config_matches_expected`
+  - `runtime_knowledge_sources_match_expected`
+  - `runtime_shell_config_matches_expected`
+  - `runtime_actions_match_expected`
+  and the details show runtime artifact URLs coming from an older deployment version than the active release, treat that as stale canonical rollout state first
+- for that stale canonical rollout case, refresh only the affected rollout key instead of resetting the whole fleet:
+  - use `scripts/resolve-verification-rollouts.sh` with `REQUIRED_ROLLOUT_KEYS` narrowed to the failing key and `ALLOW_ROLLOUT_MUTATION=true`
+  - or call `POST /api/deployments/verification-rollouts/recreate` for that key
+- after repairing one canonical rollout, rerun that deployment’s hosted verification directly before rerunning the full suite
+- long healthy stages exist:
+  - `marketplace-install-flow` is often the slowest script stage in the full suite
+  - `ecommerce-hosted-verification` also takes materially longer than the smaller vector provider hosted stages
+  - do not treat those stages as stalled too early if status is still progressing cleanly
+
 Primary ownership source:
 
 - `PLATFORM_UI_RELEASE_VERIFICATION_ARCHITECTURE.md`
@@ -169,10 +194,22 @@ Control-plane and rollout inventory:
 - `scripts/resolve-verification-rollouts.sh`: resolves canonical rollout deployment ids and can optionally recreate missing or unready rollouts.
 - `scripts/run-platform-state-verification-suite.sh`: sequential umbrella runner across the main live verification surfaces.
 
+Useful live-verification pattern:
+
+- narrow `REQUIRED_ROLLOUT_KEYS` when one canonical deployment is bad and the rest of the fleet is healthy
+- example:
+  - `REQUIRED_ROLLOUT_KEYS="pinecone" ALLOW_ROLLOUT_MUTATION=true bash scripts/resolve-verification-rollouts.sh`
+- this was the quickest governed fix when the canonical Pinecone deployment was serving artifact URLs from an older version while the active release expected a newer version
+
 Deployment verification wrappers and profiles:
 
 - `scripts/run-platform-deployment-verification.sh`: fetches hosted verification context from the platform and runs the correct deployment verification profile locally.
 - Supported profiles: `ecommerce`, `marketplace-runtime`, `vector`.
+
+Useful live-verification pattern:
+
+- if one hosted deployment stage fails inside the full suite, use this wrapper directly against that deployment id before rerunning the whole suite
+- this gives the full failure payload, including release-evidence mismatches that are summarized more tersely in suite stage output
 
 Underlying deployment verification scripts:
 
@@ -257,6 +294,20 @@ Relevant live APIs called out in the session context dump:
 ## 9. Private Handoff Boundary
 
 The private companion file is intentionally separate because it contains sensitive operational material.
+
+## 10. Recent Live-Proven Flow
+
+The most useful live recovery sequence from the latest release-gate work was:
+
+1. run the full suite with `allowControlPlaneRepair=true`
+2. if Shopify is intentionally pending scope approval, include explicit `shopifyCompanionExpectations`
+3. if the suite later fails on one provider hosted deployment, inspect that deployment with:
+   - `GET /api/deployments/{deploymentId}/hosted-verifications`
+   - `bash scripts/run-platform-deployment-verification.sh`
+4. if the failure is stale canonical rollout state, recreate only that rollout key
+5. rerun the deployment-scoped hosted verification for that deployment
+6. rerun the full suite
+7. confirm `GET /api/verification-suites/release-gate` returns `READY`
 
 Private file:
 

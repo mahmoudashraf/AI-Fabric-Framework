@@ -536,6 +536,57 @@ env \
   bash scripts/run-platform-state-verification-suite.sh
 ```
 
+Full platform suite through the control plane with a truthful pending-scope Shopify posture:
+
+```bash
+COOKIE_JAR="$(mktemp)"
+trap 'rm -f "$COOKIE_JAR"' EXIT
+
+curl -sS -c "$COOKIE_JAR" \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"'"$PLATFORM_LOGIN_EMAIL"'","password":"'"$PLATFORM_LOGIN_PASSWORD"'"}' \
+  "$PLATFORM_BASE_URL/api/platform/auth/login" >/dev/null
+
+curl -sS -b "$COOKIE_JAR" \
+  -H 'Content-Type: application/json' \
+  --data '{
+    "allowControlPlaneRepair": true,
+    "shopifyCompanionExpectations": {
+      "storefrontReady": false,
+      "storefrontShopperTrafficReady": true,
+      "goLiveEligible": false,
+      "orderLookupStatus": "PENDING_SCOPE_GRANT",
+      "orderLookupSupported": false,
+      "orderLookupScopeGranted": false,
+      "supportLifecycleStage": "SCOPE_APPROVAL"
+    }
+  }' \
+  "$PLATFORM_BASE_URL/api/verification-suites/full-platform-release-readiness/runs" | jq .
+```
+
+Poll the active full-suite run and then confirm the release gate:
+
+```bash
+curl -sS -b "$COOKIE_JAR" \
+  "$PLATFORM_BASE_URL/api/verification-suites/runs/vsr-xxxxxxxx" | jq .
+
+curl -sS -b "$COOKIE_JAR" \
+  "$PLATFORM_BASE_URL/api/verification-suites/release-gate" | jq .
+```
+
+Targeted canonical rollout refresh for one bad provider deployment:
+
+```bash
+env \
+  PLATFORM_BASE_URL="$PLATFORM_BASE_URL" \
+  PLATFORM_LOGIN_EMAIL="$PLATFORM_LOGIN_EMAIL" \
+  PLATFORM_LOGIN_PASSWORD="$PLATFORM_LOGIN_PASSWORD" \
+  REQUIRED_ROLLOUT_KEYS="pinecone" \
+  ALLOW_ROLLOUT_MUTATION="true" \
+  WAIT_FOR_VERIFICATION_READY="true" \
+  bash scripts/resolve-verification-rollouts.sh
+```
+
 ## 8. Read-Only Vs Write
 
 Default posture:
@@ -594,6 +645,35 @@ When that happens:
 - rerun verification evidence through the platform
 - do not stop at “the deployment looks healthy”
 
+### 9.4.1 Canonical rollout state can be stale even when direct hosted verification passed earlier
+
+This matters for the full release suite.
+
+Observed live pattern:
+
+- a direct hosted verification rerun for one deployment passed
+- but a later full suite still failed on that same canonical deployment
+- the root cause was stale canonical rollout state, not a bad script or bad provider credential
+
+Strong signal:
+
+- hosted verification or release evidence shows:
+  - `runtime_config_matches_expected`
+  - `runtime_prompt_config_matches_expected`
+  - `runtime_knowledge_sources_match_expected`
+  - `runtime_shell_config_matches_expected`
+  - `runtime_actions_match_expected`
+  as failed together
+- and the details show runtime artifact URLs coming from an older deployment version than the active release version
+
+Operational fix:
+
+1. refresh only that canonical rollout key
+2. rerun hosted verification for that deployment
+3. rerun the full suite
+
+Do not assume a previously passing direct hosted rerun means the canonical fleet state used by the next full suite is still fresh.
+
 ### 9.5 The provider suite needs real vendor envs
 
 `run-platform-state-verification-suite.sh` does not inject provider credentials for you.
@@ -603,6 +683,17 @@ If you omit them, the suite will pass earlier steps and then fail at the final m
 ### 9.6 `APP_ADMIN_API_KEY` is still required
 
 Even when using platform session login, the umbrella suite still expects `APP_ADMIN_API_KEY` for deployment checks.
+
+### 9.6.1 Suite dispatch can return `CONFLICT`
+
+The control plane now rejects a second dispatch for the same suite while one run is still queued or running.
+
+If `POST /api/verification-suites/{suiteKey}/runs` returns `CONFLICT`:
+
+- do not keep dispatching
+- list recent runs
+- poll the active run id
+- use `GET /api/verification-suites/release-gate` after it settles
 
 ### 9.7 Weaviate default host changed
 

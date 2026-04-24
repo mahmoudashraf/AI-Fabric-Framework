@@ -156,6 +156,39 @@ Where to look in code:
 - `scripts/verify-ecommerce-deployment.sh`
 - `scripts/verify-vector-deployment.sh`
 
+### 4.1.1 Canonical rollout is still serving artifact URLs from an older version
+
+Meaning:
+
+- latest release is newer than the runtime artifact URLs surfaced by admin overview
+- the failing deployment is often one member of the canonical verification fleet
+- direct provider access may still be healthy, so this is easy to misread as a script or provider problem
+
+Strong signal:
+
+- these checks fail together:
+  - `runtime_config_matches_expected`
+  - `runtime_prompt_config_matches_expected`
+  - `runtime_knowledge_sources_match_expected`
+  - `runtime_shell_config_matches_expected`
+  - `runtime_actions_match_expected`
+- the details show expected artifact URLs from deployment version `A`, but runtime is still serving artifact URLs from version `B`
+
+What to do:
+
+1. confirm the canonical rollout inventory entry for that key is not truly ready
+2. recreate only that rollout key instead of resetting the whole fleet
+3. rerun hosted verification for that deployment
+4. rerun the full suite after the single deployment is clean again
+
+Useful APIs and scripts:
+
+- `GET /api/deployments/verification-rollouts`
+- `POST /api/deployments/verification-rollouts/recreate`
+- `GET /api/deployments/{deploymentId}/hosted-verifications`
+- `bash scripts/resolve-verification-rollouts.sh`
+- `bash scripts/run-platform-deployment-verification.sh`
+
 ### 4.2 Hosted verification failed, but direct repo verification passed
 
 Meaning:
@@ -519,6 +552,22 @@ curl -sS -b /tmp/platform.cookies \
   'https://ai-fabric-framework-production-324f.up.railway.app/api/deployments/dep-xxxxxxxx/hosted-verifications' | jq .
 ```
 
+Dispatch a deployment-scoped hosted verification:
+
+```bash
+curl -sS -b /tmp/platform.cookies \
+  -H 'Content-Type: application/json' \
+  --data '{"profile":"ecommerce","verifyWrite":false}' \
+  'https://ai-fabric-framework-production-324f.up.railway.app/api/deployments/dep-xxxxxxxx/hosted-verifications' | jq .
+```
+
+Release gate summary:
+
+```bash
+curl -sS -b /tmp/platform.cookies \
+  'https://ai-fabric-framework-production-324f.up.railway.app/api/verification-suites/release-gate' | jq .
+```
+
 Rerun release verification:
 
 ```bash
@@ -622,6 +671,8 @@ Use destructive rollout reset only after proving the issue is not:
 - if runtime admin routes fail with `401`, auth new model misalignment is a top suspect.
 - if runtime chat says authenticated but policy denies, check orchestration identity mapping and remote authz compatibility.
 - if runtime action succeeds but connector returns `400`, inspect auth-context forwarding into connector routing/templates.
+- if suite dispatch returns `CONFLICT`, a run is already active; poll that run instead of redispatching.
+- if the full suite is green except one canonical provider deployment and that deployment shows stale artifact URLs from an older version, refresh that rollout key before assuming the script is wrong.
 
 ---
 
