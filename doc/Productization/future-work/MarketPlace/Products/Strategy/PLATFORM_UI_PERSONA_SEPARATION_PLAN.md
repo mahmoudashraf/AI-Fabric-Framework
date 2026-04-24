@@ -1,8 +1,14 @@
 # Platform UI Persona Separation Plan
 
-Status: planning document (2026-04-21)
+Status: planning document (updated 2026-04-25)
 
 This document defines who sees what across the LoomAI Labs product surfaces. The current platform UI shows everything to everyone. That is wrong. Each persona needs a different experience designed for their needs, not a filtered version of the admin panel.
+
+Current strategy note:
+
+- Partners are **implementation partners**: agencies, integrators, consultants, and developers helping merchants add LoomAI intelligence pieces to existing stores.
+- This is **not** a passive acquisition program.
+- Public partner signup, partner directories, certification, and commercial attribution surfaces are out of scope until implementation partners prove repeatable deployment and support.
 
 ---
 
@@ -13,7 +19,7 @@ The current platform UI has one layout, one sidebar, one experience. Whether you
 This creates three failures:
 
 - merchants are overwhelmed by technical surfaces they do not need
-- partners cannot efficiently manage multiple stores
+- implementation partners cannot efficiently set up, verify, and support multiple client stores
 - the operator view is cluttered with surfaces that should be contextual
 
 ---
@@ -38,7 +44,7 @@ This creates three failures:
 
 **Technical level:** medium to high. Understands deployment, configuration, and troubleshooting. Does not need to touch infrastructure.
 
-**Goal:** deploy and manage Loom Companion across multiple merchant stores efficiently. Track referrals and commissions.
+**Goal:** implement, verify, and support Loom Companion across multiple client stores efficiently.
 
 **Frequency:** daily. Managing multiple stores, onboarding new merchants, monitoring health.
 
@@ -62,7 +68,7 @@ This creates three failures:
 
 ```
 app.loomai.pro           Merchant dashboard
-partners.loomai.pro      Partner portal and multi-store management
+partners.loomai.pro      Implementation partner workspace
 admin.loomai.pro         Operator control plane (full platform UI)
 ```
 
@@ -185,7 +191,7 @@ Design:
 **Plan and Billing**
 
 What it shows:
-- current plan (Free / Growth / Pro)
+- current plan (Free / Starter / Elite)
 - what each plan includes
 - upgrade/downgrade buttons
 - billing history
@@ -227,7 +233,7 @@ The merchant never sees the word "deployment," "vectorization," "provider," or "
 
 ---
 
-## 5) Partner Portal — partners.loomai.pro
+## 5) Implementation Partner Workspace — partners.loomai.pro
 
 ### 5.1 What the partner sees
 
@@ -237,72 +243,76 @@ The merchant never sees the word "deployment," "vectorization," "provider," or "
 │                                                         │
 │  OVERVIEW                                               │
 │  ◇ Dashboard                                            │
-│  ◇ Merchants                                            │
+│  ◇ Client Stores                                        │
 │                                                         │
-│  DEPLOY                                                 │
-│  ◇ New Deployment                                       │
+│  IMPLEMENT                                              │
+│  ◇ New Client Store                                     │
+│  ◇ Intelligence Catalog                                 │
 │  ◇ Templates                                            │
+│  ◇ Verification Packs                                   │
 │                                                         │
-│  EARNINGS                                               │
-│  ◇ Commissions                                          │
-│  ◇ Referral Link                                        │
-│                                                         │
-│  RESOURCES                                              │
+│  SUPPORT                                                │
+│  ◇ Support Center                                       │
+│  ◇ Escalations                                          │
 │  ◇ Documentation                                        │
-│  ◇ Support                                              │
 └─────────────────────────────────────────────────────────┘
 ```
 
-Total: 8 items in 4 groups.
+Total: 9 items in 4 groups.
 
 ### 5.2 Partner pages
 
 **Dashboard**
 
 What it shows:
-- total active merchants
-- total monthly commission
-- merchants needing attention (sync errors, low usage, churned)
-- recent activity across all merchants
-- quick stats: installs this month, upgrades this month
+- assigned client stores
+- implementations in progress
+- stores needing attention
+- verification failures
+- support escalations
+- recent activity across all client stores
+- quick stats: stores launched, stores waiting on merchant action, surfaces enabled
 
 Design:
-- commission number is the largest element on the page — this is what matters to partners
-- merchant health summary with green/amber/red counts
+- client-store health summary with green/amber/red counts
+- implementation progress summary
 - activity feed showing recent events across all stores
 
 ---
 
-**Merchants**
+**Client Stores**
 
 What it shows:
-- table of all referred merchants:
+- table of assigned client stores:
   - store name
-  - plan (Free / Growth / Pro)
-  - status (active / trial / churned)
-  - sync health (healthy / warning / error)
-  - installed date
-  - monthly revenue (and partner commission)
-- click into any merchant to see their dashboard (same as merchant dashboard but read-only)
-- filter by status, plan, health
+  - client owner
+  - plan (Free / Starter / Elite)
+  - implementation status (not started / in progress / ready / launched / needs attention)
+  - Knowledge Sync health (healthy / warning / error)
+  - active intelligence surfaces
+  - last verification result
+  - next required action
+- click into any client store to see the implementation workspace
+- filter by status, plan, health, surface, and blocker
 
 Design:
 - clean table with status dots
-- click-through to merchant detail
-- bulk actions: "Check sync health for all"
+- click-through to client store workspace
+- bulk actions: "Run verification", "Check Knowledge Sync", "Export launch packet"
 
 ---
 
-**New Deployment**
+**New Client Store**
 
 What it shows:
-- step-by-step deployment flow:
+- step-by-step implementation flow:
   1. enter Shopify store URL
   2. merchant authorizes the app
   3. choose configuration template
   4. trigger initial sync
-  5. configure intelligence surfaces
+  5. configure intelligence surfaces by tier
   6. verify on storefront
+  7. export launch packet
 - estimated time: 30-45 minutes
 - each step has instructions and validation
 
@@ -312,10 +322,44 @@ What it does NOT show:
 - runtime settings
 
 Design:
-- wizard flow (step 1 of 6, step 2 of 6, etc.)
+- wizard flow (step 1 of 7, step 2 of 7, etc.)
 - progress bar at top
 - each step validates before proceeding
 - final step shows live storefront preview
+
+---
+
+**Intelligence Catalog**
+
+What it shows:
+- the reusable intelligence pieces partners can implement:
+  - AI search
+  - product insight block
+  - product FAQ
+  - comparison
+  - policy strip
+  - contextual pill
+  - read-only depth layer
+- plan availability:
+  - Free: AI search only
+  - Starter: full read-only embedded intelligence
+  - Elite: verified governed actions only
+- placement guidance
+- source requirements
+- expected merchant value
+- setup and verification checklist per surface
+
+What it does NOT show:
+- provider configuration
+- vector store internals
+- raw runtime settings
+- unverified Elite action claims
+
+Design:
+- card per intelligence piece
+- plan badges
+- setup checklist
+- "Add to client setup" action
 
 ---
 
@@ -333,35 +377,59 @@ What it shows:
 
 Design:
 - card per template with description and preview
-- one-click apply during deployment
+- one-click apply during client setup
 - partners can save their own custom templates
 
 ---
 
-**Commissions**
+**Verification Packs**
 
 What it shows:
-- total earned (all time)
-- current month earnings
-- pending payout
-- payout history (date, amount, method)
-- per-merchant commission breakdown
+- reusable verification packs for launch and support:
+  - Free AI search check
+  - Starter embedded surfaces check
+  - Knowledge Sync readiness check
+  - App Store screenshot/readiness check
+  - support handoff check
+  - Elite governed-action check only when verified
+- last run result
+- failed checks
+- remediation notes
+- exportable launch/review packet
 
 Design:
-- large numbers for total and current month
-- table for history
-- chart showing commission growth over time
+- checklist-first layout
+- status dots and blockers
+- export button for merchant/client handoff
 
 ---
 
-**Referral Link**
+**Support Center**
 
 What it shows:
-- unique referral URL
-- copy button
-- QR code
-- referral stats: clicks, installs, conversions
-- attribution window reminder (90 days)
+- client support notes
+- common setup blockers
+- install recovery steps
+- Knowledge Sync issue guidance
+- launch packet exports
+- support evidence that can be escalated to the operator
+
+---
+
+**Escalations**
+
+What it shows:
+- open partner escalations
+- affected client store
+- blocker type
+- evidence attached by the partner
+- operator response/status
+- resolution notes
+
+Design:
+- compact queue
+- priority/status filters
+- clear "what we need from you" messaging
 
 ---
 
@@ -371,16 +439,16 @@ Partners see a mix of product language and light technical language:
 
 | Platform term | Partner term |
 |---|---|
-| Deployment | Merchant Setup |
+| Deployment | Client Store Setup |
 | Vectorization | Knowledge Sync |
-| Intelligence surfaces | AI Features |
+| Intelligence surfaces | Intelligence Pieces |
 | Provider | — (hidden, uses defaults) |
 | Confirmation interception | Write Action Governance |
 | Environment | Environment (dev/prod) |
 | Action catalog | Action Catalog |
 | Diagnostics | Health Check |
 
-Partners understand "deployment" and "configuration" but do not need "vectorization strategy" or "embedding dimensions."
+Partners understand setup, configuration, verification, and support evidence. They do not need provider selection, vectorization strategy, embedding dimensions, or commercial attribution tooling.
 
 ---
 
@@ -437,9 +505,12 @@ Everything from the UI redesign document, plus:
 
 What it shows:
 - all registered partners
-- per-partner: merchant count, commission, activity, health
+- per-partner: assigned client stores, implementation activity, health, escalations
 - partner approval/rejection
-- commission payout management
+- scoped store assignment
+- sandbox/demo access
+- implementation status
+- verification history
 - partner communication log
 
 **Platform Health** (replaces Platform Diagnostics)
@@ -462,7 +533,7 @@ Full technical language. Deployments, vectorization, providers, embedding dimens
 
 ```
 MERCHANT        can manage their own store only
-PARTNER         can manage their referred merchants (read-only) + own partner portal
+PARTNER         can manage assigned client stores within scoped implementation permissions + own partner workspace
 OPERATOR        can manage everything
 ```
 
@@ -480,17 +551,17 @@ OPERATOR        can manage everything
 | partners.loomai.pro | — | full access | full access |
 | admin.loomai.pro | — | — | full access |
 | docs.loomai.pro | full access | full access | full access |
-| API (own store) | read + configure | read (referred stores) | full access |
+| API (own store) | read + configure | read/configure assigned client stores within scope | full access |
 | API (all stores) | — | — | full access |
 | Provider config | — | — | full access |
-| Billing (own) | full access | view referred | full access |
-| Commission data | — | own commissions | all commissions |
+| Billing (own) | full access | view assigned client store plan/status where authorized | full access |
+| Partner assignments | — | assigned stores only | full access |
 
 ### 7.4 Cross-portal access
 
 - Operator can impersonate a merchant view (see what the merchant sees for debugging)
 - Operator can impersonate a partner view (see what the partner sees)
-- Partner can view a merchant's dashboard in read-only mode (for support)
+- Partner can view and support assigned client stores within scoped permissions
 - Merchant cannot access partner or operator views
 
 ---
@@ -669,23 +740,24 @@ Apply the UI redesign document to the existing platform UI:
 
 Move to admin.loomai.pro.
 
-### Phase 3: Partner Portal (Week 5-8)
+### Phase 3: Implementation Partner Workspace (after Starter package is coherent)
 
-Build partners.loomai.pro with 8 pages:
+Build partners.loomai.pro around implementation support:
 - Dashboard
-- Merchants
-- New Deployment
+- Client Stores
+- New Client Store
+- Intelligence Catalog
 - Templates
-- Commissions
-- Referral Link
+- Verification Packs
+- Support Center
+- Escalations
 - Documentation
-- Support
 
-This is needed when the first partners sign up.
+This is needed when the first founding implementation partners are ready to deploy and support real client stores.
 
 ### Phase 4: Design System Extraction (Week 6-8)
 
-Extract shared components from the merchant dashboard and operator control plane into @loomai/design-system. Apply to partner portal.
+Extract shared components from the merchant dashboard and operator control plane into @loomai/design-system. Apply to the implementation partner workspace.
 
 ---
 
@@ -694,6 +766,6 @@ Extract shared components from the merchant dashboard and operator control plane
 The persona separation is working when:
 
 - a merchant can configure their AI features without ever seeing the word "vectorization"
-- a partner can deploy to a new merchant store in under 45 minutes using the wizard flow
+- an implementation partner can deploy and verify a new client store in under 45 minutes using the wizard flow
 - the operator can debug a provider connection without navigating through merchant-level screens
 - moving between app.loomai.pro, partners.loomai.pro, and admin.loomai.pro feels like the same product family but each feels designed for its audience

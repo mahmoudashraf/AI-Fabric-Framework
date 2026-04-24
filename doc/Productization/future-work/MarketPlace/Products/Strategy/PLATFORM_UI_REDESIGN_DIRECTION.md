@@ -1,8 +1,16 @@
 # Platform UI Redesign Direction
 
-Status: planning document (2026-04-21)
+Status: planning document (updated 2026-04-25)
 
 This document evaluates the current platform UI, identifies what does not work, and defines the new design direction for the LoomAI Labs control plane.
+
+Current strategy note:
+
+- This document applies first to the **operator control plane** and shared design language.
+- Merchant UI should stay focused on Shopify Companion setup, storefront intelligence surfaces, Knowledge Sync, billing, support, and launch readiness.
+- Partner UI means an **implementation partner workspace** for agencies, integrators, consultants, and developers helping client stores deploy LoomAI intelligence pieces.
+- Partner UI should not be planned around passive acquisition, public signup, directories, or commercial attribution surfaces until founding implementation partners prove a repeatable workflow.
+- Do not let visual redesign interrupt the active Shopify Companion sequence: Launch Truth, Storefront Product Shell, Starter Launch Package, then Partner Enablement Foundation.
 
 ---
 
@@ -18,7 +26,7 @@ Nobody knows where to start. Nobody knows what matters.
 
 The sidebar says "AI Enablement Control Plane" with a "Phase 21 Public API" chip. The top bar says "Configurable AI Enablement Platform" with a subtitle about immutable runtimes.
 
-This is internal engineering language, not product language. A merchant or partner seeing this would not know what they are looking at.
+This is internal engineering language. It belongs only in the operator control plane. If a merchant or implementation partner sees this language, the persona boundary has failed.
 
 ### 1.3 Pages are monolithic
 
@@ -437,6 +445,13 @@ Not:
 
 Do not rewrite everything at once. Migrate in layers.
 
+Roadmap fit:
+
+- During Storefront Product Shell, use this doc only for language and layout guardrails where they unblock merchant-safe setup or verification.
+- During Starter Launch Package, apply the merchant-safe subset: clear status hierarchy, Knowledge Sync language, plan/surface clarity, setup blockers, and launch readiness.
+- During Partner Enablement Foundation, apply the implementation-partner subset: client store workspace, intelligence catalog, templates, verification packs, sandbox/demo access, support center, and escalations.
+- Defer the full operator dark-theme redesign until it improves real platform operation without delaying Starter launch.
+
 ### Step 1: Theme
 
 Switch to dark palette, update typography, update colors. This changes the entire feel without touching component structure.
@@ -451,13 +466,13 @@ Estimated effort: 2-3 days.
 
 ### Step 3: Dashboard
 
-Build the new Dashboard page to replace Overview. This gives an immediate impact.
+Build the new operator Dashboard page to replace Overview. This gives an immediate impact for platform operation.
 
 Estimated effort: 2-3 days.
 
 ### Step 4: Progressive Disclosure
 
-Refactor ProvidersPage and DeploymentsPage to use tabs, collapsible sections, and contextual visibility. This is the most work but the biggest usability improvement.
+Refactor ProvidersPage and DeploymentsPage to use tabs, collapsible sections, and contextual visibility. This is the most work but the biggest operator usability improvement.
 
 Estimated effort: 5-7 days.
 
@@ -508,3 +523,17 @@ Start with Option A (retheme MUI) for Steps 1-3. This gets the visual impact fas
 Evaluate Option B for Steps 4-5 once the design direction is validated. If the product grows and the widget and platform UI need to share a design system, Tailwind becomes the right long-term choice.
 
 Do not let the technology decision block the visual improvement.
+
+---
+
+## 17) What This Must Not Become
+
+This redesign should not become:
+
+- a new broad product track before Shopify Companion is sellable
+- a merchant dashboard that exposes operator concepts
+- an implementation partner portal centered on passive acquisition
+- a reason to build public partner signup before founding implementation partners exist
+- a full Tailwind/design-system migration before the Starter launch package is coherent
+
+Use the redesign to reduce confusion at the exact surface being shipped. Do not use it to expand scope.

@@ -1,76 +1,196 @@
-# Partner Dashboard Strategy Plan
+# Partner Enablement Dashboard Strategy Plan
 
-Status: strategy plan (2026-04-24)
+Status: revised strategy plan (updated 2026-04-25)
 
-This plan defines what must be built to support partners without overloading the merchant Shopify admin UI.
+This plan defines the partner surface needed to support developers, integrators, and agencies who use LoomAI as an AI enablement layer for client stores and existing apps.
+
+This is not a passive acquisition dashboard.
+
+The partner surface should help capable implementation partners deploy, verify, and support LoomAI-powered intelligence pieces without exposing the full operator control plane.
+
+---
 
 ## 1) Decision
 
-Partner and operator material should move out of the merchant admin surface.
+Partner support should be treated as an early platform capability.
 
-Merchant Shopify admin should stay focused on:
+The reason is not only merchant acquisition. The platform may be positioned as:
 
-- setup
-- storefront surfaces
-- knowledge sync
-- billing
-- support handoff
-- usage and value
-- clear launch blockers
+- an AI enablement layer for Shopify and commerce apps
+- a way for agencies to add intelligence pieces to client stores
+- a way for developers and integrators to ship AI surfaces without building RAG, sync, governance, and observability from scratch
 
-Partner dashboard should own:
+That requires a mature partner support surface earlier than a passive acquisition program would.
 
-- multi-store management
-- launch and App Review packets
-- support runbooks
-- design-partner rollout evidence
-- raw support bundles
-- webhook/vectorization diagnostics
-- partner referrals, commissions, and payouts
+However, broad partner recruitment, public signup, commercial attribution surfaces, white-label packaging, and public partner APIs are out of current scope until founding implementation partners prove the flow.
+
+---
 
 ## 2) Product Goal
 
-Build a partner dashboard that lets agencies, consultants, and integrators deploy, monitor, support, and grow Loom Companion across multiple merchant stores.
+Build a partner enablement dashboard that lets agencies, developers, and integrators:
 
-The partner dashboard should make partners effective without exposing the full operator control plane.
+- understand the available intelligence pieces
+- deploy LoomAI surfaces to client stores
+- verify that each surface works
+- monitor client-store health
+- handle first-line setup/support
+- escalate technical issues with useful evidence
 
-## 3) Primary Users
+The dashboard should make partners effective without making them platform operators.
 
-### Partner Admin
+---
 
-Owns the partner account, invited team members, merchant portfolio, billing/revenue view, and partner agreement.
+## 3) Partner Product Positioning
 
-### Partner Operator
+The partner offer is:
 
-Deploys stores, configures surfaces, monitors health, exports support evidence, and handles first-line merchant support.
+> Add LoomAI-powered intelligence surfaces to your client stores and apps without building the AI infrastructure yourself.
 
-### Platform Operator
+The partner does not only sell Loom Companion.
 
-Sees partner activity, escalations, health across partner-managed stores, and operational evidence.
+The partner can implement:
 
-## 4) Non-Goals
+- AI search
+- product insight blocks
+- product FAQ
+- comparison
+- policy strips
+- contextual pills
+- chat/depth layer
+- read-only store intelligence
+- governed action surfaces later
+- analytics and ROI surfaces later
+
+This makes partners implementation multipliers, not passive acquisition channels.
+
+---
+
+## 4) Primary Users
+
+### 4.1 Partner Admin
+
+Owns:
+
+- partner account
+- team members
+- client/store portfolio
+- scoped store access
+- implementation quality
+- support and escalation flow
+
+### 4.2 Partner Implementer
+
+Owns:
+
+- store setup
+- intelligence surface placement
+- source and sync readiness
+- launch verification
+- first-line client support
+- escalation packet creation
+
+### 4.3 Partner Developer
+
+Owns:
+
+- integration understanding
+- API or embed usage when available
+- custom implementation questions
+- future client-app intelligence pieces
+
+This role should get docs, contracts, sandbox examples, and verification tools, not raw platform internals.
+
+### 4.4 Platform Operator
+
+Owns:
+
+- partner approval
+- partner-store access control
+- escalations
+- operational evidence
+- product/support feedback loop
+
+---
+
+## 5) Non-Goals
 
 - Do not turn the partner dashboard into the full platform admin.
-- Do not expose secrets, raw access tokens, provider credentials, or low-level infrastructure controls.
-- Do not make merchants read launch dossiers, App Review packets, or raw support bundles.
-- Do not start broad white-label work until partner onboarding and support workflows are proven.
+- Do not expose secrets, raw tokens, provider credentials, or low-level infrastructure controls.
+- Do not make merchant Shopify admin carry partner/operator packets.
+- Do not make passive acquisition or commercial attribution the partner product.
+- Do not offer broad white-label until powered-by, support, brand, and escalation tradeoffs are proven.
+- Do not expose partner-led custom product assembly until internal product packaging is repeatable.
+- Do not make partners responsible for unresolved platform reliability gaps.
 
-## 5) Information Architecture
+---
 
-### 5.1 Partner Home
+## 6) Information Architecture
 
-Purpose: answer "which stores need attention?"
+### 6.1 Partner Home
+
+Purpose: answer "what needs attention across my client stores?"
 
 Shows:
 
-- active merchants
-- stores blocked by launch/support/billing/sync
+- active client stores
+- setup blockers
+- launch blockers
+- sync/freshness blockers
+- support escalations
+- verification status
 - recent installs
-- plan mix
 - usage/value signal
-- partner revenue summary
 
-### 5.2 Merchant Portfolio
+### 6.2 Intelligence Catalog
+
+Purpose: show what partners can implement.
+
+Shows each intelligence piece:
+
+- name
+- buyer/user value
+- storefront placement
+- required data sources
+- supported tiers
+- setup steps
+- verification steps
+- known limitations
+- demo screenshot or sandbox link
+
+Initial catalog:
+
+- AI search
+- product insight block
+- product FAQ
+- comparison
+- policy strip
+- contextual pill
+- chat/depth layer
+
+Later catalog:
+
+- governed add-to-cart
+- cart update
+- order lookup
+- support handoff
+- advanced value reporting
+
+### 6.3 Sandbox And Demo Center
+
+Purpose: let partners learn and sell before touching a client store.
+
+Includes:
+
+- demo store links
+- sample storefront surfaces
+- sample merchant admin view
+- sample launch packet
+- sample support escalation
+- before/after product-page examples
+- short clips or screenshots for partner sales calls
+
+### 6.4 Client Store Portfolio
 
 Purpose: manage all partner-linked stores.
 
@@ -79,106 +199,153 @@ Shows per store:
 - shop domain and merchant name
 - install status
 - current plan
+- enabled intelligence pieces
 - storefront readiness
 - knowledge sync status
 - webhook/live update health
 - top blocker
 - last activity
 - owner/contact
+- escalation state
 
-### 5.3 Merchant Workspace
+### 6.5 Client Store Workspace
 
-Purpose: let a partner complete setup without using the operator dashboard.
+Purpose: let a partner complete normal setup without using the operator dashboard.
 
 Includes:
 
 - setup checklist
-- source categories
-- storefront surface placement
-- widget settings summary
+- source readiness
+- surface placement status
+- widget/settings summary
 - support handoff profile
 - sync/retry actions
-- safe billing visibility
 - launch readiness
+- bounded billing visibility
+- verification run history
 
-Partner actions must stay bounded and explainable.
+Partner actions must be scoped, logged, and explainable.
 
-### 5.4 Launch And Review Center
+### 6.6 Verification And Launch Center
 
-Purpose: move long generated launch material out of merchant admin.
+Purpose: make partner rollout repeatable.
 
 Includes:
 
-- launch dossier
-- App Review guide
-- review screencast script
-- App Store listing package
-- design-partner rollout packet
+- launch checklist
+- surface verification pack
+- sync verification pack
+- App Review support material when relevant
 - screenshot/evidence checklist
+- generated launch dossier
+- design-partner rollout packet
 
 Default UI should show short summaries and copy/download actions, not long inline text.
 
-### 5.5 Support Center
+### 6.7 Support And Escalation Center
 
-Purpose: make first-line support repeatable.
+Purpose: make first-line support repeatable and escalation useful.
 
 Includes:
 
 - support runbook
-- raw support bundle export
+- support bundle export
 - lifecycle/subscription packet
 - scope and handoff posture
 - recent usage and top questions
 - escalation notes
-- support status per merchant
+- owner
+- next action
+- due date
+- resolution status
 
-### 5.6 Revenue And Referrals
-
-Purpose: make partner economics visible.
-
-Includes:
-
-- referral links/codes
-- referred installs
-- active paid merchants
-- commission events
-- payout history
-- churned stores
-- conversion funnel
-
-### 5.7 Templates And Playbooks
+### 6.8 Templates And Playbooks
 
 Purpose: let partners deploy faster across common merchant types.
 
 Includes:
 
+- vertical presets
 - surface presets
 - source presets
 - support handoff templates
 - launch checklist templates
-- vertical playbooks
+- troubleshooting playbooks
 
-## 6) Required Platform Capabilities
+Initial verticals:
 
-### Identity And Access
+- fashion/apparel
+- electronics
+- health/beauty
+- home/furniture
+- general merchandise
+
+### 6.9 Deferred Commercial Attribution
+
+Purpose: explicitly keep commercial attribution out of the current partner workspace.
+
+Not in current scope:
+
+- public partner signup
+- acquisition tracking
+- partner directory
+- commercial attribution ledgers
+- commercial accounting workflows
+
+Reconsider only after founding implementation partners repeatedly deploy, verify, and support client stores without platform-operator intervention.
+
+---
+
+## 7) Required Platform Capabilities
+
+### 7.1 Identity And Access
 
 - partner account
 - partner member
 - partner roles
-- merchant-to-partner assignment
 - partner invitation flow
-- scoped partner access tokens/session
+- scoped partner sessions
+- partner-store assignment
+- merchant or operator revocation
+- platform-operator override
 
-### Merchant Linking
+### 7.2 Intelligence Piece Registry
+
+Track for each surface:
+
+- id
+- name
+- description
+- tier availability
+- required sources
+- required scopes
+- setup instructions
+- verification checks
+- launch-safe claim text
+- known limitations
+
+### 7.3 Merchant Linking
 
 - merchant can be linked to zero or one primary partner at first
-- platform operator can override partner assignment
 - partner can request access to a merchant
-- merchant or operator can revoke partner access
+- merchant or operator can approve/revoke access
+- partner actions are audited
 
-### Evidence Generation
+### 7.4 Verification Pack APIs
 
-Move generated packet logic behind shared APIs so both partner and operator surfaces can request:
+Expose bounded APIs for:
+
+- setup checklist state
+- source readiness
+- surface activation status
+- sync/freshness status
+- storefront verification status
+- launch readiness
+- support readiness
+
+### 7.5 Evidence Generation
+
+Move generated packet logic behind shared APIs so partner and operator surfaces can request:
 
 - launch dossier
 - App Review guide
@@ -186,9 +353,9 @@ Move generated packet logic behind shared APIs so both partner and operator surf
 - design-partner rollout packet
 - support runbook
 - lifecycle/subscription packet
-- raw support bundle
+- support bundle
 
-### Support Notes
+### 7.6 Support Notes And Escalations
 
 Add partner/operator notes per merchant:
 
@@ -198,19 +365,21 @@ Add partner/operator notes per merchant:
 - next action
 - due date
 - resolved date
+- linked evidence bundle
 
-### Referral And Commission
+### 7.7 Commercial Attribution
 
-Track:
+Current posture:
 
-- partner referral code
-- install attribution
-- plan activation attribution
-- commission event
-- payout batch
-- clawback/cancellation state
+- do not build commercial attribution into the first partner workspace
+- do not expose it in merchant admin
+- do not make it the reason partners use the platform
 
-## 7) Build Roadmap
+Reconsider only after implementation partner workflows are proven and a separate business decision requires it.
+
+---
+
+## 8) Build Roadmap
 
 ### Phase 0: Clean Merchant Boundary
 
@@ -220,16 +389,36 @@ Build:
 
 - keep merchant `Support tools` short
 - remove long packet text from merchant admin
-- add clear copy/download only while partner dashboard does not exist
+- expose copy/download actions while partner dashboard does not exist
 - define partner-only packet ownership
+- keep merchant admin focused on setup, surfaces, knowledge, billing, support handoff, usage/value, and blockers
 
 Gate:
 
 - merchant admin can be understood by a store owner without platform explanation
 
-### Phase 1: Partner Identity And Store Links
+### Phase 1: Founding Partner Enablement Kit
 
-Goal: partners can log in and see assigned stores.
+Goal: support 3-5 founding implementation partners before broad recruitment.
+
+Build:
+
+- demo/sandbox store
+- intelligence catalog as docs or lightweight UI
+- deployment checklist
+- verification checklist
+- escalation template
+- implementation playbooks for 2-3 verticals
+- partner agreement draft
+- private partner communication channel
+
+Gate:
+
+- a founding partner can understand what can be implemented and how to verify it without a live walkthrough every time
+
+### Phase 2: Partner Identity And Store Links
+
+Goal: partners can log in and see assigned stores with scoped access.
 
 Build:
 
@@ -237,15 +426,34 @@ Build:
 - partner member model
 - partner roles
 - partner-store assignment
-- basic partner dashboard shell
+- scoped partner dashboard shell
+- platform-operator override/revocation
 
 Gate:
 
-- one partner can manage multiple test stores with scoped access
+- one partner can manage multiple test stores without full operator access
 
-### Phase 2: Multi-Store Health Dashboard
+### Phase 3: Intelligence Catalog And Verification Packs
 
-Goal: partners can see what needs work across all stores.
+Goal: partners can implement intelligence pieces repeatably.
+
+Build:
+
+- catalog entries for core surfaces
+- per-surface setup requirements
+- per-surface verification checks
+- source readiness requirements
+- launch-safe claim text
+- packet summary cards
+- copy/download actions
+
+Gate:
+
+- partner can choose a surface, install it, verify it, and explain it to a client from the dashboard
+
+### Phase 4: Multi-Store Health And Client Workspace
+
+Goal: partners can manage setup and support across stores.
 
 Build:
 
@@ -253,108 +461,142 @@ Build:
 - health rollups
 - blockers
 - plan status
+- enabled surfaces
 - usage/value signals
-- last sync/live update status
-
-Gate:
-
-- partner can prioritize stores without opening each merchant admin page
-
-### Phase 3: Merchant Workspace
-
-Goal: partners can complete normal setup/support actions for one store.
-
-Build:
-
-- setup checklist
-- source and surface summary
-- support handoff editor
-- launch readiness
+- sync/live update status
 - bounded sync/retry controls
-- link to merchant-facing Shopify admin when needed
+- client store workspace
 
 Gate:
 
-- partner can onboard a design-partner store without platform operator help
+- partner can prioritize stores and onboard a client store without platform-operator help
 
-### Phase 4: Launch And Support Packet Center
+### Phase 5: Support And Escalation Center
 
-Goal: long runbooks and generated documents live in the partner dashboard.
+Goal: partners can handle first-line support and escalate with evidence.
 
 Build:
 
-- packet summary cards
-- copy/download actions
-- generated-at/store posture metadata
-- evidence checklist
-- support runbook export
-- raw support bundle export
+- support runbook surface
+- support bundle export
+- lifecycle/subscription packet
+- escalation notes
+- owner/status/next action
+- evidence links
 
 Gate:
 
-- merchant admin no longer needs any launch dossier, App Review guide, design-partner packet, or raw support bundle
+- support escalations arrive with enough context for the builder/operator to act without reconstructing the issue from chat history
 
-### Phase 5: Partner Revenue And Referral Tracking
+### Phase 6: Advanced Implementation Enablement
 
-Goal: partners can see business value.
+Goal: add implementation leverage once the foundation is proven.
 
 Build:
 
-- referral links/codes
-- install attribution
-- active paid merchants
-- commission ledger
-- payout history
-- churn visibility
+- deeper multi-store health rollups
+- reusable implementation templates
+- richer verification automation
+- client-app intelligence integration examples
+- advanced support evidence exports
 
 Gate:
 
-- commission reporting can be trusted for first partner payouts
+- founding implementation partners can repeatedly deploy and support stores without platform-operator intervention
 
-### Phase 6: Templates And Repeatability
+### Phase 7: Public Partner Scale Gate
 
-Goal: partners can deploy faster and more consistently.
+Goal: decide whether public partner scale is justified.
 
-Build:
+Possible later work:
 
-- vertical presets
-- setup templates
-- support handoff templates
-- reusable launch checklist
-- optional bulk apply after safety review
+- partner API
+- bulk setup templates
+- certification
+- partner directory
+- white-label options
+- client-app intelligence integrations beyond Shopify
+- public signup
 
 Gate:
 
-- repeat partner setup time is under 30-45 minutes per store
+- founding partners repeatedly deploy stores successfully, support load is understood, and platform reliability is strong enough for broader partner promises
 
-## 8) Launch Gates
+---
 
-Do not recruit broad partners until:
+## 9) Launch Gates
+
+Founding implementation partners can start when:
+
+- canonical launch truth is stable
+- demo/sandbox store exists
+- core intelligence pieces have clear setup and verification instructions
+- support escalation path exists
+- partner agreement and scope boundaries are clear
+
+Broad partner recruitment should wait until:
 
 - Shopify Companion live verification is green
 - Free/Starter/Elite tier truth is stable
 - merchant admin is clean and merchant-safe
 - at least 3-5 design-partner stores complete setup
-- support runbook has been used in real incidents
-- partner-store access model is scoped and revocable
+- at least 1-3 founding partners complete real or test deployments
+- support runbook has been used in real support situations
+- partner-store access is scoped and revocable
 
-## 9) Success Metrics
+White-label and partner APIs should wait until:
 
-- partner setup time per store
+- partner operations are stable
+- support load is measurable
+- brand/support ownership is explicit
+- implementation templates are repeatable
+
+---
+
+## 10) Success Metrics
+
+### Enablement Metrics
+
+- founding partners onboarded
+- partner time to first successful deployment
+- partner setup completion without operator help
+- verification-pack pass rate
+- repeated setup questions converted into docs/playbooks
+
+### Portfolio Metrics
+
 - stores per partner
 - stores blocked by support/sync/billing
+- enabled surfaces per store
 - time to resolve launch blockers
-- active paid merchants by partner
-- partner-attributed MRR
-- commission payout accuracy
-- merchant support escalations per store
-- churned partner-managed stores
+- partner-managed activation rate
 
-## 10) Product Boundary
+### Support Metrics
+
+- partner escalations per store
+- escalations with complete evidence
+- time to triage partner escalation
+- support runbook coverage
+- merchant support escalations per partner-managed store
+
+### Partner Enablement Metrics
+
+- client stores implemented
+- time to first verified setup
+- verification pass rate
+- support escalations per partner-managed store
+- stores launched without operator intervention
+- repeated deployments per partner
+
+Commercial metrics are not part of the first enablement milestone.
+
+---
+
+## 11) Product Boundary
 
 The merchant admin is for merchant confidence and action.
 
-The partner dashboard is for deployment, evidence, support, and portfolio management.
+The partner dashboard is for implementation enablement, multi-store support, verification, evidence, templates, and escalation.
 
 The operator dashboard is for platform internals.
 
