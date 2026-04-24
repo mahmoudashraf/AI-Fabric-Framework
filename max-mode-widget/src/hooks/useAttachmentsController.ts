@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { RefObject } from "react";
 
+import type { MaxModeMode, MaxModePosition } from "@/constants";
 import type { Document } from "@/types";
 
 type ToastFn = (opts: any) => void;
@@ -17,11 +18,24 @@ export function useAttachmentsController({
   attachedItems: Array<{ type: string; data: any }>;
   setAttachedItems: (updater: any) => void;
   setCollectingItem: (value: { title: string; type: string } | null) => void;
-  setCurrentPosition: (pos: "landing" | "catalog" | "search" | "cart") => void;
-  setCurrentMode: (mode: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => void;
+  setCurrentPosition: (pos: MaxModePosition) => void;
+  setCurrentMode: (mode: MaxModeMode) => void;
   chatInputRef: RefObject<HTMLTextAreaElement>;
   toast: ToastFn;
 }) {
+  const applyAttachmentFocus = useCallback(
+    (itemType: string) => {
+      if (itemType === "order") {
+        setCurrentPosition("cart");
+        setCurrentMode("executor");
+        return;
+      }
+      setCurrentPosition("catalog");
+      setCurrentMode("navigator");
+    },
+    [setCurrentMode, setCurrentPosition],
+  );
+
   const isItemAttached = useCallback(
     (itemId: string) => {
       return attachedItems.some((item) => (item.data.id && item.data.id === itemId) || (item.data.sku && item.data.sku === itemId));
@@ -97,8 +111,7 @@ export function useAttachmentsController({
       }
 
       setAttachedItems((prev: Array<{ type: string; data: any }>) => [...prev, { type: itemType, data: normalizedItem }]);
-      setCurrentPosition("cart");
-      setCurrentMode("cart_assistant");
+      applyAttachmentFocus(itemType);
 
       toast({
         title: "💬 Added to Chat",
@@ -109,7 +122,7 @@ export function useAttachmentsController({
         chatInputRef.current?.focus();
       }, 100);
     },
-    [attachedItems, chatInputRef, setAttachedItems, setCurrentMode, setCurrentPosition, toast],
+    [applyAttachmentFocus, attachedItems, chatInputRef, setAttachedItems, toast],
   );
 
   const handleAttachDocument = useCallback(
@@ -127,8 +140,7 @@ export function useAttachmentsController({
       setTimeout(() => setCollectingItem(null), 1500);
 
       setAttachedItems((prev: Array<{ type: string; data: any }>) => [...prev, { type: "document", data: doc }]);
-      setCurrentPosition("cart");
-      setCurrentMode("cart_assistant");
+      applyAttachmentFocus("document");
 
       toast({
         title: "💬 Added to Chat",
@@ -139,7 +151,7 @@ export function useAttachmentsController({
         chatInputRef.current?.focus();
       }, 100);
     },
-    [attachedItems, chatInputRef, setAttachedItems, setCollectingItem, setCurrentMode, setCurrentPosition, toast],
+    [applyAttachmentFocus, attachedItems, chatInputRef, setAttachedItems, setCollectingItem, toast],
   );
 
   const removeNonAiAttachmentByIndex = useCallback(

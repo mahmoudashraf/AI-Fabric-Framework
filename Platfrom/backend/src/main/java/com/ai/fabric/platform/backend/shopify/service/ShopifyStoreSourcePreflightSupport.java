@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class ShopifyStoreSourcePreflightSupport {
@@ -24,6 +25,7 @@ public class ShopifyStoreSourcePreflightSupport {
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final String DEFAULT_CONVERSATION_MODE = "navigator";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
         "ai-search",
         "contextual-pill",
@@ -32,6 +34,8 @@ public class ShopifyStoreSourcePreflightSupport {
         "product-faq",
         "comparison"
     );
+    private static final List<String> DEFAULT_ALLOWED_CONVERSATION_MODES = List.of(DEFAULT_CONVERSATION_MODE);
+    private static final Map<String, String> DEFAULT_PAGE_MODE_MAPPINGS = Map.of();
 
     private final ObjectMapper objectMapper;
 
@@ -107,6 +111,9 @@ public class ShopifyStoreSourcePreflightSupport {
             List<String> enabledSurfaces = settings.isObject()
                 ? readStringArray(settings.get("enabledSurfaces"))
                 : List.of();
+            List<String> allowedConversationModes = settings.isObject()
+                ? readStringArray(settings.get("allowedConversationModes"))
+                : List.of();
             return new ShopifyStoreWidgetSummary(
                 widget.path("status").asText("UNKNOWN"),
                 parseInstant(text(widget, "checkedAt")),
@@ -119,13 +126,25 @@ public class ShopifyStoreSourcePreflightSupport {
                         text(settings, "shellModeProfile") == null ? DEFAULT_SHELL_MODE_PROFILE : text(settings, "shellModeProfile"),
                         enabledSurfaces.isEmpty()
                             ? DEFAULT_ENABLED_SURFACES
-                            : enabledSurfaces
+                            : enabledSurfaces,
+                        text(settings, "defaultConversationMode") == null
+                            ? DEFAULT_CONVERSATION_MODE
+                            : text(settings, "defaultConversationMode"),
+                        allowedConversationModes.isEmpty()
+                            ? DEFAULT_ALLOWED_CONVERSATION_MODES
+                            : allowedConversationModes,
+                        readStringMap(settings.get("pageModeMappings")).isEmpty()
+                            ? DEFAULT_PAGE_MODE_MAPPINGS
+                            : readStringMap(settings.get("pageModeMappings"))
                     )
                     : new ShopifyStoreWidgetSettingsSummary(
                         DEFAULT_LAUNCHER_LABEL,
                         DEFAULT_WELCOME_MESSAGE,
                         DEFAULT_SHELL_MODE_PROFILE,
-                        DEFAULT_ENABLED_SURFACES
+                        DEFAULT_ENABLED_SURFACES,
+                        DEFAULT_CONVERSATION_MODE,
+                        DEFAULT_ALLOWED_CONVERSATION_MODES,
+                        DEFAULT_PAGE_MODE_MAPPINGS
                     )
             );
         } catch (Exception ex) {
@@ -265,6 +284,22 @@ public class ShopifyStoreSourcePreflightSupport {
             }
         });
         return List.copyOf(values);
+    }
+
+    private Map<String, String> readStringMap(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return Map.of();
+        }
+        java.util.LinkedHashMap<String, String> values = new java.util.LinkedHashMap<>();
+        node.fields().forEachRemaining(entry -> {
+            if (entry.getValue() != null && entry.getValue().isValueNode()) {
+                String value = entry.getValue().asText("");
+                if (!entry.getKey().isBlank() && !value.isBlank()) {
+                    values.put(entry.getKey().trim(), value.trim());
+                }
+            }
+        });
+        return Map.copyOf(values);
     }
 
     private boolean hasText(String value) {

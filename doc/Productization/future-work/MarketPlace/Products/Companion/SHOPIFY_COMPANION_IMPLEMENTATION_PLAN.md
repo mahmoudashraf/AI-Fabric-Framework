@@ -1,6 +1,6 @@
 # Shopify Companion Implementation Plan
 
-Status: detailed implementation plan (2026-04-18)
+Status: detailed implementation plan (2026-04-24)
 
 This document is the canonical detailed implementation plan for the first Shopify-facing product built on the current platform and marketplace baseline.
 
@@ -8,6 +8,8 @@ It should be read with:
 
 - `doc/Productization/future-work/MarketPlace/Products/PRODUCT_DIRECTION_DECISION_RECORD.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_PRODUCTS_SHIPPING_ROADMAP.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_FETCH_ONLY_INTELLIGENCE_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_CONTEXT_AND_ATTACHMENT_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_MAX_MODE_WIDGET_REFACTOR_PLAN.md`
 - `doc/Productization/future-work/SHOPIFY_VERTICAL_STRATEGY_AND_PRIORITY_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/MARKETPLACE_CONTROL_PLANE_COMPOSITION_PLAN.md`
@@ -148,6 +150,24 @@ Do not expose:
 - private runtime secrets
 
 to the browser.
+
+### 3.6 Storefront intelligence rule
+
+Shopify Companion storefront intelligence must converge on one model:
+
+- UI stays prompt-first and admin-flexible
+- shopper-facing reasoning is LLM-led
+- Shopify bridge tools stay fetch-only plus deterministic control
+
+That means:
+
+- no Shopify-side heuristic ranking as the final shopper intelligence layer
+- no handcrafted comparison reasoning as a separate storefront subsystem
+- no policy keyword matching posing as product intelligence
+- UI-originated prompts remain valid as long as backend policy stays authoritative
+- free-text, text-first storefront rendering remains acceptable in the current phase
+
+Comparison, policy, FAQ, insight, and similar-product behavior should all flow through the same prompt-first query-wrapper model, with the bridge providing evidence and control primitives rather than final shopper reasoning.
 
 ---
 
@@ -349,16 +369,20 @@ Required launch actions:
 
 - `search_products`
 - `get_product_details`
-- `compare_products`
 - `check_availability`
-- `find_similar`
-- `explain_policy`
+- `list_policies` or `get_policies`
 - `get_size_guide` if product data supports it
 
 Optional beta actions:
 
 - `lookup_collection`
 - `lookup_reviews` once a bounded supported review-provider path exists
+
+Important rule:
+
+- comparison, similarity, and policy explanation remain shopper surfaces
+- they should be implemented through the LLM wrapper path over fetched evidence
+- they should not require Shopify-side heuristic `compare_products` / `find_similar_products` reasoning
 
 Do not ship at launch:
 
@@ -861,9 +885,17 @@ The storefront widget should:
 
 - mount through the theme app extension
 - read safe storefront context
+- keep `page context` and `attached target` as separate concepts
+- reuse the existing Max widget attachment system instead of creating a second Shopify-only attachment path
 - attach current product context when appropriate
+- support explicit attach controls on Companion-owned product/article/policy cards
 - render product and comparison results cleanly
 - keep any cart transition user-initiated
+
+Important rule:
+
+- product detail pages may carry automatic page context
+- card-level attach icons do **not** appear automatically on every theme-native product or article card unless the theme is explicitly instrumented
 
 Existing accelerant:
 
@@ -931,9 +963,14 @@ The action catalog should support:
 - product discovery
 - product detail lookup
 - availability lookup
-- comparison
-- similarity discovery
-- policy explanation support where action-backed lookup is needed
+- policy retrieval and grounded policy answering
+- collection lookup where the shopper surface needs it
+
+Reasoning rule:
+
+- comparison, similarity discovery, and shopper-facing policy explanation are LLM-led surface behaviors
+- the bridge action catalog should provide fetched evidence, not handcrafted shopper reasoning
+- dedicated storefront read-action paths should be retired in favor of the main query-wrapper model
 
 ### 12.2 Safe write rule
 
@@ -1156,13 +1193,18 @@ Build:
 - app embed block
 - safe widget loader/config contract
 - storefront context injection
+- page-context plus attached-target contract
 - product-page attachment behavior
+- Companion-owned card attach controls using the existing Max widget attachment model
 - preview and activation guidance in admin app
 
 Acceptance:
 
 - widget can be enabled without manual theme edits
 - widget loads reliably on supported storefront pages
+- page/product/collection context reaches the widget safely
+- Companion-owned product and document cards can attach targets into Max using the shared attachment model
+- collection/list pages do not claim automatic per-card attach behavior unless cards are explicitly instrumented
 - no checkout-page dependency exists
 
 ### Wave 5: Read-First Action Catalog

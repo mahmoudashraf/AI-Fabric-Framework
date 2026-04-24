@@ -20,6 +20,8 @@ import org.springframework.web.util.UriUtils;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class ShopifyStorefrontBootstrapService {
@@ -28,7 +30,10 @@ public class ShopifyStorefrontBootstrapService {
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final String DEFAULT_CONVERSATION_MODE = "navigator";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of("ai-search");
+    private static final List<String> DEFAULT_ALLOWED_CONVERSATION_MODES = List.of(DEFAULT_CONVERSATION_MODE);
+    private static final Map<String, String> DEFAULT_PAGE_MODE_MAPPINGS = Map.of();
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -51,20 +56,19 @@ public class ShopifyStorefrontBootstrapService {
         this.properties = properties;
     }
 
-    public ShopifyStorefrontBootstrapResponse bootstrap(String shopDomain) {
+    public ShopifyStorefrontBootstrapResponse bootstrap(String shopDomain, String pageType) {
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(shopDomain);
         String bridgeQueryUrl = storefrontUrl(store.shopDomain(), "/chat/query");
         String bridgeSuggestionsUrl = storefrontUrl(store.shopDomain(), "/chat/suggestions");
-        String bridgeReadActionUrl = storefrontUrl(store.shopDomain(), "/actions/read");
         String bridgeOrderLookupUrl = storefrontUrl(store.shopDomain(), "/support/order-lookup");
         String bridgeEventUrl = storefrontUrl(store.shopDomain(), "/events");
         if (!ShopifyStorefrontInteractionReadinessSupport.isReady(store)) {
             return unavailable(
                 store,
                 firstStorefrontBlockingReason(store),
+                pageType,
                 bridgeQueryUrl,
                 bridgeSuggestionsUrl,
-                bridgeReadActionUrl,
                 bridgeOrderLookupUrl,
                 bridgeEventUrl
             );
@@ -103,6 +107,29 @@ public class ShopifyStorefrontBootstrapService {
             && updated.widgetDetail().settings().shellModeProfile() != null && !updated.widgetDetail().settings().shellModeProfile().isBlank()
             ? updated.widgetDetail().settings().shellModeProfile().trim()
             : DEFAULT_SHELL_MODE_PROFILE;
+        String defaultConversationMode = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().defaultConversationMode() != null
+            && !updated.widgetDetail().settings().defaultConversationMode().isBlank()
+            ? updated.widgetDetail().settings().defaultConversationMode().trim()
+            : defaultConversationModeForShellProfile(shellModeProfile);
+        List<String> allowedConversationModes = normalizeAllowedConversationModes(
+            updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+                ? updated.widgetDetail().settings().allowedConversationModes()
+                : null,
+            defaultConversationMode
+        );
+        Map<String, String> pageModeMappings = normalizePageModeMappings(
+            updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+                ? updated.widgetDetail().settings().pageModeMappings()
+                : null,
+            allowedConversationModes
+        );
+        String effectiveConversationMode = resolveEffectiveConversationMode(
+            pageType,
+            defaultConversationMode,
+            allowedConversationModes,
+            pageModeMappings
+        );
         List<String> enabledSurfaces = updated.widgetDetail() != null
             && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().enabledSurfaces() != null
@@ -142,6 +169,10 @@ public class ShopifyStorefrontBootstrapService {
             launcherLabel,
             welcomeMessage,
             shellModeProfile,
+            defaultConversationMode,
+            effectiveConversationMode,
+            allowedConversationModes,
+            pageModeMappings,
             enabledSurfaces,
             groundingSignals,
             supportedReviewProviders,
@@ -149,7 +180,6 @@ public class ShopifyStorefrontBootstrapService {
             runtimeAuthMode,
             bridgeQueryUrl,
             bridgeSuggestionsUrl,
-            bridgeReadActionUrl,
             bridgeOrderLookupUrl,
             bridgeEventUrl,
             orderLookupEnabled,
@@ -166,12 +196,13 @@ public class ShopifyStorefrontBootstrapService {
     }
 
     private ShopifyStorefrontBootstrapResponse unavailable(ShopifyBridgeStoreSummary store,
-                                                          String message,
-                                                          String bridgeQueryUrl,
-                                                          String bridgeSuggestionsUrl,
-                                                          String bridgeReadActionUrl,
-                                                          String bridgeOrderLookupUrl,
-                                                          String bridgeEventUrl) {
+                                                           String message,
+                                                           String pageType,
+                                                           String bridgeQueryUrl,
+                                                           String bridgeSuggestionsUrl,
+                                                           String bridgeOrderLookupUrl,
+                                                           String bridgeEventUrl) {
+        String defaultConversationMode = defaultConversationModeForShellProfile(DEFAULT_SHELL_MODE_PROFILE);
         return new ShopifyStorefrontBootstrapResponse(
             false,
             store.shopDomain(),
@@ -187,6 +218,15 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_LAUNCHER_LABEL,
             DEFAULT_WELCOME_MESSAGE,
             DEFAULT_SHELL_MODE_PROFILE,
+            defaultConversationMode,
+            resolveEffectiveConversationMode(
+                pageType,
+                defaultConversationMode,
+                DEFAULT_ALLOWED_CONVERSATION_MODES,
+                DEFAULT_PAGE_MODE_MAPPINGS
+            ),
+            DEFAULT_ALLOWED_CONVERSATION_MODES,
+            DEFAULT_PAGE_MODE_MAPPINGS,
             DEFAULT_ENABLED_SURFACES,
             groundingSignals(store),
             supportedReviewProviders(store),
@@ -194,7 +234,6 @@ public class ShopifyStorefrontBootstrapService {
             null,
             bridgeQueryUrl,
             bridgeSuggestionsUrl,
-            bridgeReadActionUrl,
             bridgeOrderLookupUrl,
             bridgeEventUrl,
             false,
@@ -276,5 +315,72 @@ public class ShopifyStorefrontBootstrapService {
             ? properties.publicBaseUrl().substring(0, properties.publicBaseUrl().length() - 1)
             : properties.publicBaseUrl();
         return base + path;
+    }
+
+    private List<String> normalizeAllowedConversationModes(List<String> configured, String defaultConversationMode) {
+        if (configured == null || configured.isEmpty()) {
+            return List.of(defaultConversationMode);
+        }
+        java.util.LinkedHashSet<String> normalized = new java.util.LinkedHashSet<>();
+        configured.forEach(mode -> {
+            if (mode != null && !mode.isBlank()) {
+                normalized.add(mode.trim().toLowerCase(Locale.ROOT));
+            }
+        });
+        normalized.add(defaultConversationMode.trim().toLowerCase(Locale.ROOT));
+        return List.copyOf(normalized);
+    }
+
+    private Map<String, String> normalizePageModeMappings(Map<String, String> configured, List<String> allowedConversationModes) {
+        if (configured == null || configured.isEmpty()) {
+            return DEFAULT_PAGE_MODE_MAPPINGS;
+        }
+        java.util.LinkedHashMap<String, String> normalized = new java.util.LinkedHashMap<>();
+        configured.forEach((key, value) -> {
+            if (key == null || key.isBlank() || value == null || value.isBlank()) {
+                return;
+            }
+            String normalizedMode = value.trim().toLowerCase(Locale.ROOT);
+            if (!allowedConversationModes.contains(normalizedMode)) {
+                return;
+            }
+            normalized.put(key.trim().toLowerCase(Locale.ROOT), normalizedMode);
+        });
+        return normalized.isEmpty() ? DEFAULT_PAGE_MODE_MAPPINGS : Map.copyOf(normalized);
+    }
+
+    private String resolveEffectiveConversationMode(String rawPageType,
+                                                    String defaultConversationMode,
+                                                    List<String> allowedConversationModes,
+                                                    Map<String, String> pageModeMappings) {
+        String pageModeKey = pageModeKey(rawPageType);
+        String candidate = pageModeMappings.get(pageModeKey);
+        if (candidate != null && allowedConversationModes.contains(candidate)) {
+            return candidate;
+        }
+        return allowedConversationModes.contains(defaultConversationMode)
+            ? defaultConversationMode
+            : allowedConversationModes.getFirst();
+    }
+
+    private String defaultConversationModeForShellProfile(String shellModeProfile) {
+        if ("GUIDED_SUPPORT".equalsIgnoreCase(shellModeProfile)) {
+            return "navigator_deep";
+        }
+        return DEFAULT_CONVERSATION_MODE;
+    }
+
+    private String pageModeKey(String rawPageType) {
+        String normalized = rawPageType == null ? "" : rawPageType.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "product" -> "product";
+            case "collection", "list-collections" -> "collection";
+            case "search" -> "search";
+            case "cart" -> "cart";
+            case "article", "blog", "page" -> "content";
+            case "customers/account", "customers/login", "customers/register", "customers/order", "account", "orders" -> "account";
+            case "index", "home", "landing" -> "landing";
+            default -> "landing";
+        };
     }
 }

@@ -1,11 +1,13 @@
 import type { RefObject } from "react";
 
 import { motion } from "framer-motion";
-import { History, Info, Loader2, Microscope, Search, Send, ShoppingCart, X } from "lucide-react";
+import { History, Info, Loader2, Search, Send, X } from "lucide-react";
 
 import { AISearchDisplay } from "@/components/AISearchDisplay";
+import type { MaxModeMode, MaxModePosition } from "@/constants";
 import { Button } from "@/ui/button";
 import { Textarea } from "@/ui/textarea";
+import { ModeSelector } from "./ModeSelector";
 
 export function ComposerInputRow({
   searchCategory,
@@ -23,6 +25,7 @@ export function ComposerInputRow({
   isLoading,
   currentPosition,
   currentMode,
+  availableModes,
   onModeChange,
   onOpenDebug,
   nonAiAttachmentsCount,
@@ -41,9 +44,10 @@ export function ComposerInputRow({
   onInputFocusChange: (focused: boolean) => void;
   chatInputRef: RefObject<HTMLTextAreaElement>;
   isLoading: boolean;
-  currentPosition: "landing" | "catalog" | "search" | "cart";
-  currentMode: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
-  onModeChange: (mode: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => void;
+  currentPosition: MaxModePosition;
+  currentMode: MaxModeMode;
+  availableModes: MaxModeMode[];
+  onModeChange: (mode: MaxModeMode) => void;
   onOpenDebug: () => void;
   nonAiAttachmentsCount: number;
   onSubmit: () => void;
@@ -52,34 +56,7 @@ export function ComposerInputRow({
     <div className="space-y-1.5">
       {/* Mobile toggles row */}
       <div className="flex md:hidden items-center gap-1.5 px-1">
-        <button
-          onClick={() => {
-            const isDeep = currentMode === "navigator_deep";
-            onModeChange(isDeep ? "navigator" : "navigator_deep");
-          }}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm transition-all active:scale-95 border ${
-            currentMode === "navigator_deep"
-              ? "bg-purple-500 text-white border-purple-400/50"
-              : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600"
-          }`}
-        >
-          <Microscope className="h-3 w-3" />
-          <span>Deep</span>
-        </button>
-        <button
-          onClick={() => {
-            const isAssistant = currentMode === "cart_assistant";
-            onModeChange(isAssistant ? "navigator" : "cart_assistant");
-          }}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm transition-all active:scale-95 border ${
-            currentMode === "cart_assistant"
-              ? "bg-emerald-500 text-white border-emerald-400/50"
-              : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600"
-          }`}
-        >
-          <ShoppingCart className="h-3 w-3" />
-          <span>Assist</span>
-        </button>
+        <ModeSelector currentMode={currentMode} availableModes={availableModes} onModeChange={onModeChange} />
         <span
           className={`text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
             currentPosition === "cart"
@@ -173,36 +150,7 @@ export function ComposerInputRow({
         />
 
         <div className="hidden md:flex absolute right-3 bottom-16 items-center gap-1.5">
-          <button
-            onClick={() => {
-              const isDeep = currentMode === "navigator_deep";
-              onModeChange(isDeep ? "navigator" : "navigator_deep");
-            }}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm transition-all hover:scale-105 border ${
-              currentMode === "navigator_deep"
-                ? "bg-purple-500 text-white border-purple-400/50"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600"
-            }`}
-            title={currentMode === "navigator_deep" ? "Deep mode ON — click to disable" : "Deep mode OFF — click to enable deep search"}
-          >
-            <Microscope className="h-3 w-3" />
-            <span>Deep</span>
-          </button>
-          <button
-            onClick={() => {
-              const isAssistant = currentMode === "cart_assistant";
-              onModeChange(isAssistant ? "navigator" : "cart_assistant");
-            }}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm transition-all hover:scale-105 border ${
-              currentMode === "cart_assistant"
-                ? "bg-emerald-500 text-white border-emerald-400/50"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600"
-            }`}
-            title={currentMode === "cart_assistant" ? "Cart Assistant ON — click to disable" : "Cart Assistant OFF — click to enable"}
-          >
-            <ShoppingCart className="h-3 w-3" />
-            <span>Assist</span>
-          </button>
+          <ModeSelector currentMode={currentMode} availableModes={availableModes} onModeChange={onModeChange} />
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
               currentPosition === "cart"

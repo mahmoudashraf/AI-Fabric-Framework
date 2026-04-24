@@ -186,8 +186,7 @@ export function useChatFlow({
           };
         });
 
-        // Only send mode explicitly for navigator_deep and cart_assistant
-        const explicitMode = (mode === "navigator_deep" || mode === "cart_assistant") ? mode : undefined;
+        const explicitMode = mode !== "navigator" ? mode : undefined;
 
         const requestPayload = {
           query: apiQuery,

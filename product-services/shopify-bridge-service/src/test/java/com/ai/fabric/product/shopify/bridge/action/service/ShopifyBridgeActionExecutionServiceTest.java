@@ -130,48 +130,51 @@ class ShopifyBridgeActionExecutionServiceTest {
     }
 
     @Test
-    void findSimilarProductsReturnsRankedMatches() {
+    void getPolicyReturnsFetchedPoliciesWithoutHeuristicFiltering() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
         ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
-        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenReturn(productsPayload());
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any())).thenReturn(Map.of(
+            "data", Map.of(
+                "shop", Map.of(
+                    "shopPolicies", List.of(
+                        Map.of(
+                            "id", "gid://shopify/ShopPolicy/1",
+                            "title", "Refund Policy",
+                            "type", "REFUND_POLICY",
+                            "body", "<p>Refunds within 30 days</p>",
+                            "url", "https://alpha.myshopify.com/policies/refund-policy",
+                            "updatedAt", "2026-04-19T00:00:00Z"
+                        ),
+                        Map.of(
+                            "id", "gid://shopify/ShopPolicy/2",
+                            "title", "Shipping Policy",
+                            "type", "SHIPPING_POLICY",
+                            "body", "<p>Ships in 2-3 days</p>",
+                            "url", "https://alpha.myshopify.com/policies/shipping-policy",
+                            "updatedAt", "2026-04-19T00:00:00Z"
+                        )
+                    )
+                )
+            )
+        ));
 
         ShopifyBridgeActionResult result = service.execute(
             "alpha.myshopify.com",
-            new ShopifyBridgeActionExecuteRequest("find_similar_products", Map.of("sku", "SKU-1", "limit", 2), null, Map.of())
+            new ShopifyBridgeActionExecuteRequest("get_policy", Map.of("query", "refund", "limit", 1), null, Map.of())
         );
 
         assertThat(result.success()).isTrue();
-        assertThat(result.message()).isEqualTo("Similar products");
-        assertThat(result.data()).containsEntry("count", 2);
-        assertThat(((Map<?, ?>) result.data().get("referenceProduct")).get("primarySku")).isEqualTo("SKU-1");
+        assertThat(result.message()).isEqualTo("Policies");
+        assertThat(result.data()).containsEntry("count", 1);
+        assertThat(result.data()).containsEntry("query", "refund");
         List<?> items = (List<?>) result.data().get("items");
-        assertThat(items).hasSize(2);
+        assertThat(items).hasSize(1);
         Map<?, ?> first = (Map<?, ?>) items.getFirst();
-        assertThat(((Map<?, ?>) first.get("product")).get("primarySku")).isEqualTo("SKU-2");
-    }
-
-    @Test
-    void compareProductsReturnsStructuredHighlights() {
-        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
-        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
-
-        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
-        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenReturn(productsPayload());
-
-        ShopifyBridgeActionResult result = service.execute(
-            "alpha.myshopify.com",
-            new ShopifyBridgeActionExecuteRequest("compare_products", Map.of("referenceSku", "SKU-1", "comparisonSku", "SKU-2"), null, Map.of())
-        );
-
-        assertThat(result.success()).isTrue();
-        assertThat(result.message()).isEqualTo("Product comparison");
-        assertThat(result.data().get("cheaperSku")).isEqualTo("SKU-1");
-        assertThat(result.data().get("betterStockedSku")).isEqualTo("SKU-2");
-        assertThat(((List<?>) result.data().get("keyDifferences"))).isNotEmpty();
+        assertThat(first.get("title")).isEqualTo("Refund Policy");
+        assertThat(first.get("body")).isEqualTo("Refunds within 30 days");
     }
 
     private ShopifyBridgeCredentialAcquisition acquisition(String shopDomain) {

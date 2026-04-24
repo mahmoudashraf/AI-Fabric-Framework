@@ -9,11 +9,8 @@ import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSi
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -106,8 +103,6 @@ public class ShopifyBridgeActionExecutionService {
             case "list_products" -> listProducts(acquisition.get(), request);
             case "search_products" -> searchProducts(acquisition.get(), request);
             case "get_product_details" -> getProductDetails(acquisition.get(), request);
-            case "find_similar_products" -> findSimilarProducts(acquisition.get(), request);
-            case "compare_products" -> compareProducts(acquisition.get(), request);
             case "check_availability" -> checkAvailability(acquisition.get(), request);
             case "get_policy" -> getPolicy(acquisition.get(), request);
             default -> ShopifyBridgeActionResult.failure("ACTION_NOT_SUPPORTED", "Action is not supported.");
@@ -146,100 +141,6 @@ public class ShopifyBridgeActionExecutionService {
         return ShopifyBridgeActionResult.ok("Product details", Map.of("product", product, "sku", sku));
     }
 
-    private ShopifyBridgeActionResult findSimilarProducts(ShopifyBridgeCredentialAcquisition acquisition,
-                                                          ShopifyBridgeActionExecuteRequest request) {
-        String sku = normalize(textParam(request, "sku"));
-        if (sku == null) {
-            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.sku is required.");
-        }
-        int limit = integerParam(request, "limit", 5, 1, 10);
-        Map<String, Object> reference = findProductBySku(acquisition, sku);
-        if (reference == null) {
-            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No product was found for SKU " + sku + ".");
-        }
-
-        List<Map<String, Object>> items = fetchProducts(acquisition, null).stream()
-            .filter(candidate -> !sku.equalsIgnoreCase(text(candidate, "primarySku")))
-            .map(candidate -> scoredCandidate(reference, candidate))
-            .sorted(Comparator.comparingInt(ScoredProduct::score).reversed()
-                .thenComparing(item -> toBigDecimal(item.product().get("price")), Comparator.nullsLast(Comparator.naturalOrder())))
-            .limit(limit)
-            .<Map<String, Object>>map(item -> {
-                LinkedHashMap<String, Object> result = new LinkedHashMap<>();
-                result.put("product", item.product());
-                result.put("similarityScore", item.score());
-                result.put("matchReasons", item.reasons());
-                return result;
-            })
-            .toList();
-
-        return ShopifyBridgeActionResult.ok(
-            items.isEmpty() ? "No similar products found." : "Similar products",
-            Map.of(
-                "referenceProduct", reference,
-                "items", items,
-                "count", items.size()
-            )
-        );
-    }
-
-    private ShopifyBridgeActionResult compareProducts(ShopifyBridgeCredentialAcquisition acquisition,
-                                                      ShopifyBridgeActionExecuteRequest request) {
-        String referenceSku = normalize(textParam(request, "referenceSku"));
-        String comparisonSku = normalize(textParam(request, "comparisonSku"));
-        if (referenceSku == null) {
-            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.referenceSku is required.");
-        }
-        if (comparisonSku == null) {
-            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.comparisonSku is required.");
-        }
-
-        Map<String, Object> reference = findProductBySku(acquisition, referenceSku);
-        Map<String, Object> comparison = findProductBySku(acquisition, comparisonSku);
-        if (reference == null) {
-            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No product was found for SKU " + referenceSku + ".");
-        }
-        if (comparison == null) {
-            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No product was found for SKU " + comparisonSku + ".");
-        }
-
-        BigDecimal referencePrice = toBigDecimal(reference.get("price"));
-        BigDecimal comparisonPrice = toBigDecimal(comparison.get("price"));
-        BigDecimal priceDelta = referencePrice == null || comparisonPrice == null
-            ? null
-            : comparisonPrice.subtract(referencePrice);
-
-        String cheaperSku = null;
-        if (referencePrice != null && comparisonPrice != null && referencePrice.compareTo(comparisonPrice) != 0) {
-            cheaperSku = referencePrice.compareTo(comparisonPrice) < 0 ? referenceSku : comparisonSku;
-        }
-
-        Integer referenceInventory = toInteger(reference.get("inventoryQuantity"));
-        Integer comparisonInventory = toInteger(comparison.get("inventoryQuantity"));
-        Integer inventoryDelta = referenceInventory == null || comparisonInventory == null
-            ? null
-            : comparisonInventory - referenceInventory;
-        String betterStockedSku = null;
-        if (referenceInventory != null && comparisonInventory != null && !referenceInventory.equals(comparisonInventory)) {
-            betterStockedSku = referenceInventory > comparisonInventory ? referenceSku : comparisonSku;
-        }
-
-        List<String> sharedSignals = sharedSignals(reference, comparison);
-        List<String> keyDifferences = comparisonDifferences(reference, comparison, cheaperSku, betterStockedSku, priceDelta);
-
-        LinkedHashMap<String, Object> data = new LinkedHashMap<>();
-        data.put("referenceProduct", reference);
-        data.put("comparisonProduct", comparison);
-        data.put("sameProductType", equalIgnoreCase(text(reference, "productType"), text(comparison, "productType")));
-        data.put("sharedSignals", sharedSignals);
-        data.put("priceDelta", priceDelta);
-        data.put("cheaperSku", cheaperSku);
-        data.put("inventoryDelta", inventoryDelta);
-        data.put("betterStockedSku", betterStockedSku);
-        data.put("keyDifferences", keyDifferences);
-        return ShopifyBridgeActionResult.ok("Product comparison", data);
-    }
-
     private ShopifyBridgeActionResult checkAvailability(ShopifyBridgeCredentialAcquisition acquisition,
                                                         ShopifyBridgeActionExecuteRequest request) {
         String sku = normalize(textParam(request, "sku"));
@@ -270,14 +171,9 @@ public class ShopifyBridgeActionExecutionService {
     private ShopifyBridgeActionResult getPolicy(ShopifyBridgeCredentialAcquisition acquisition,
                                                 ShopifyBridgeActionExecuteRequest request) {
         String query = normalize(textParam(request, "query"));
-        if (query == null) {
-            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.query is required.");
-        }
+        int limit = integerParam(request, "limit", 5, 1, 10);
         List<Map<String, Object>> policies = fetchPolicies(acquisition);
-        List<Map<String, Object>> matches = policies.stream()
-            .filter(policy -> matchesPolicy(policy, query))
-            .toList();
-        List<Map<String, Object>> result = matches.isEmpty() ? policies.stream().limit(3).toList() : matches;
+        List<Map<String, Object>> result = policies.stream().limit(limit).toList();
         return ShopifyBridgeActionResult.ok(
             result.isEmpty() ? "No policies found." : "Policies",
             Map.of("items", result, "count", result.size(), "query", query)
@@ -359,34 +255,6 @@ public class ShopifyBridgeActionExecutionService {
             .filter(variant -> normalizedSku.equals(text(variant, "sku").toLowerCase(Locale.ROOT)))
             .findFirst()
             .orElse(null);
-    }
-
-    private boolean matchesPolicy(Map<String, Object> policy, String query) {
-        String haystack = String.join(
-            "\n",
-            text(policy, "title"),
-            text(policy, "type"),
-            text(policy, "body")
-        ).toLowerCase(Locale.ROOT);
-        for (String token : tokenize(query)) {
-            if (haystack.contains(token)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private List<String> tokenize(String value) {
-        if (value == null || value.isBlank()) {
-            return List.of();
-        }
-        LinkedHashSet<String> tokens = new LinkedHashSet<>();
-        for (String token : value.toLowerCase(Locale.ROOT).split("[^a-z0-9]+")) {
-            if (!token.isBlank()) {
-                tokens.add(token);
-            }
-        }
-        return List.copyOf(tokens);
     }
 
     private Map<String, Object> toProductItem(String shopDomain, Map<String, Object> node) {
@@ -516,119 +384,4 @@ public class ShopifyBridgeActionExecutionService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private BigDecimal toBigDecimal(Object value) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            return new BigDecimal(value.toString().trim());
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-
-    private Integer toInteger(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        try {
-            return Integer.parseInt(value.toString().trim());
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-
-    private ScoredProduct scoredCandidate(Map<String, Object> reference, Map<String, Object> candidate) {
-        List<String> reasons = new ArrayList<>();
-        int score = 0;
-        List<String> sharedTitleTokens = sharedTitleTokens(reference, candidate);
-        if (equalIgnoreCase(text(reference, "productType"), text(candidate, "productType"))) {
-            score += 35;
-            reasons.add("same-product-type");
-        }
-        if (equalIgnoreCase(text(reference, "vendor"), text(candidate, "vendor"))) {
-            score += 15;
-            reasons.add("same-vendor");
-        }
-        if (!sharedTitleTokens.isEmpty()) {
-            score += Math.min(15, sharedTitleTokens.size() * 5);
-            reasons.add("shared-title-keywords");
-        }
-        if (closePrice(toBigDecimal(reference.get("price")), toBigDecimal(candidate.get("price")))) {
-            score += 10;
-            reasons.add("similar-price");
-        }
-        if (Boolean.TRUE.equals(reference.get("available")) && Boolean.TRUE.equals(candidate.get("available"))) {
-            score += 5;
-            reasons.add("both-available");
-        }
-        return new ScoredProduct(candidate, score, List.copyOf(reasons));
-    }
-
-    private List<String> sharedSignals(Map<String, Object> reference, Map<String, Object> comparison) {
-        List<String> signals = new ArrayList<>();
-        if (equalIgnoreCase(text(reference, "productType"), text(comparison, "productType"))) {
-            signals.add("same-product-type");
-        }
-        if (equalIgnoreCase(text(reference, "vendor"), text(comparison, "vendor"))) {
-            signals.add("same-vendor");
-        }
-        if (!sharedTitleTokens(reference, comparison).isEmpty()) {
-            signals.add("shared-title-keywords");
-        }
-        if (closePrice(toBigDecimal(reference.get("price")), toBigDecimal(comparison.get("price")))) {
-            signals.add("similar-price");
-        }
-        return List.copyOf(signals);
-    }
-
-    private List<String> comparisonDifferences(Map<String, Object> reference,
-                                               Map<String, Object> comparison,
-                                               String cheaperSku,
-                                               String betterStockedSku,
-                                               BigDecimal priceDelta) {
-        List<String> differences = new ArrayList<>();
-        if (cheaperSku != null && priceDelta != null) {
-            differences.add(cheaperSku + " is cheaper by " + priceDelta.abs().toPlainString() + ".");
-        }
-        if (betterStockedSku != null) {
-            differences.add(betterStockedSku + " has better live stock availability.");
-        }
-        if (!equalIgnoreCase(text(reference, "vendor"), text(comparison, "vendor"))) {
-            differences.add("The products come from different vendors.");
-        }
-        if (!equalIgnoreCase(text(reference, "productType"), text(comparison, "productType"))) {
-            differences.add("The products are in different Shopify product types.");
-        }
-        if (differences.isEmpty()) {
-            differences.add("These products are best differentiated by price, stock, and variant selection.");
-        }
-        return List.copyOf(differences);
-    }
-
-    private List<String> sharedTitleTokens(Map<String, Object> left, Map<String, Object> right) {
-        LinkedHashSet<String> leftTokens = new LinkedHashSet<>(tokenize(text(left, "title")));
-        leftTokens.retainAll(tokenize(text(right, "title")));
-        return List.copyOf(leftTokens);
-    }
-
-    private boolean equalIgnoreCase(String left, String right) {
-        return left != null && right != null && left.equalsIgnoreCase(right);
-    }
-
-    private boolean closePrice(BigDecimal left, BigDecimal right) {
-        if (left == null || right == null) {
-            return false;
-        }
-        BigDecimal baseline = left.max(right);
-        if (baseline.compareTo(BigDecimal.ZERO) <= 0) {
-            return false;
-        }
-        return left.subtract(right).abs().compareTo(baseline.multiply(new BigDecimal("0.15"))) <= 0;
-    }
-
-    private record ScoredProduct(Map<String, Object> product, int score, List<String> reasons) { }
 }

@@ -688,7 +688,10 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "Need help?",
             "Ask me about products and policies.",
             "GUIDED_COMMERCE",
-            List.of("ai-search", "comparison")
+            List.of("ai-search", "comparison"),
+            "navigator",
+            List.of("navigator", "executor"),
+            java.util.Map.of("account", "executor")
         ))).thenReturn(store("alpha.myshopify.com"));
 
         ShopifyBridgeStoreSummary response = service.updateWidgetSettings(
@@ -697,7 +700,10 @@ class ShopifyBridgeMerchantStoreServiceTest {
                 "Need help?",
                 "Ask me about products and policies.",
                 "GUIDED_COMMERCE",
-                List.of("ai-search", "comparison")
+                List.of("ai-search", "comparison"),
+                "navigator",
+                List.of("navigator", "executor"),
+                java.util.Map.of("account", "executor")
             )
         );
 
@@ -706,7 +712,10 @@ class ShopifyBridgeMerchantStoreServiceTest {
             "Need help?",
             "Ask me about products and policies.",
             "GUIDED_COMMERCE",
-            List.of("ai-search", "comparison")
+            List.of("ai-search", "comparison"),
+            "navigator",
+            List.of("navigator", "executor"),
+            java.util.Map.of("account", "executor")
         ));
     }
 

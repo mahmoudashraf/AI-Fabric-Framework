@@ -291,7 +291,10 @@ class PlatformShopifyStoreClientTest {
                 "Need help?",
                 "Ask me about products and policies.",
                 "GUIDED_COMMERCE",
-                List.of("ai-search", "comparison")
+                List.of("ai-search", "comparison"),
+                "navigator",
+                List.of("navigator", "executor"),
+                java.util.Map.of("account", "executor")
             )
         );
 

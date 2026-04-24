@@ -10,6 +10,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MarketplaceDatasetProductizationMigrationTest {
@@ -139,7 +140,8 @@ class MarketplaceDatasetProductizationMigrationTest {
                 assertTrue(manifestResult.next());
                 String manifestJson = manifestResult.getString("manifest_json");
                 assertTrue(manifestJson.contains("\"actionId\": \"list_products\""));
-                assertTrue(manifestJson.contains("\"actionId\": \"compare_products\""));
+                assertFalse(manifestJson.contains("\"actionId\": \"find_similar_products\""));
+                assertFalse(manifestJson.contains("\"actionId\": \"compare_products\""));
                 assertTrue(manifestJson.contains("\"groundingEligible\": true"));
                 assertTrue(manifestJson.contains("\"readActionResolutionEligible\": true"));
                 assertTrue(manifestJson.contains("\"anonymousAllowed\": true"));

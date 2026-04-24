@@ -324,10 +324,17 @@
   color: #4b5563;
 }
 
+.loom-companion-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+  align-items: center;
+}
+
 .loom-companion-card__link {
   display: inline-flex;
   align-items: center;
-  margin-top: 0.45rem;
   color: #1d4ed8;
   font-size: 0.78rem;
   font-weight: 600;

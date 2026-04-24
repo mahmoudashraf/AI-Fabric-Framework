@@ -524,9 +524,6 @@
   }
 
   function renderStandaloneComparisonCard(options, shellModeProfile) {
-    if (canUseStructuredComparison(options)) {
-      return renderStructuredComparisonCard(options, shellModeProfile)
-    }
     return renderStandalonePromptCard(options, {
       surfaceId: 'comparison',
       surfaceClassName: 'loom-companion-surface-card--comparison',
@@ -540,200 +537,6 @@
       analyticsEventType: 'COMPARISON_CLICKED',
       shellModeProfile: shellModeProfile,
     })
-  }
-
-  function renderStructuredComparisonCard(options, shellModeProfile) {
-    var card = document.createElement('article')
-    card.className = 'loom-companion-surface-card loom-companion-surface-card--comparison'
-
-    var eyebrow = document.createElement('div')
-    eyebrow.className = 'loom-companion-surface-eyebrow'
-    eyebrow.textContent = 'Comparison'
-    card.appendChild(eyebrow)
-
-    var title = document.createElement('h3')
-    title.className = 'loom-companion-surface-title'
-    title.textContent = compareTitle(options.storefrontContext)
-    card.appendChild(title)
-
-    var description = document.createElement('p')
-    description.className = 'loom-companion-surface-copy'
-    description.textContent = 'See similar options for this product, then compare the tradeoffs side by side.'
-    card.appendChild(description)
-
-    if (options.payload.poweredByBadgeRequired) {
-      card.appendChild(renderPoweredByBadge())
-    }
-
-    var status = document.createElement('div')
-    status.className = 'loom-companion-surface-status'
-    status.hidden = true
-    card.appendChild(status)
-
-    var candidatesHost = document.createElement('div')
-    candidatesHost.className = 'loom-companion-surface-results loom-companion-surface-results--comparison'
-    candidatesHost.hidden = true
-    card.appendChild(candidatesHost)
-
-    var candidatesLabel = document.createElement('div')
-    candidatesLabel.className = 'loom-companion-surface-results__label'
-    candidatesLabel.textContent = 'Top alternatives'
-    candidatesHost.appendChild(candidatesLabel)
-
-    var candidatesSummary = document.createElement('div')
-    candidatesSummary.className = 'loom-companion-surface-copy loom-companion-surface-copy--results'
-    candidatesSummary.textContent = 'Loading similar options…'
-    candidatesHost.appendChild(candidatesSummary)
-
-    var candidateCards = document.createElement('div')
-    candidateCards.className = 'loom-companion-surface-results__cards'
-    candidatesHost.appendChild(candidateCards)
-
-    var comparisonHost = document.createElement('div')
-    comparisonHost.className = 'loom-companion-surface-results loom-companion-surface-results--comparison-detail'
-    comparisonHost.hidden = true
-    card.appendChild(comparisonHost)
-
-    var comparisonLabel = document.createElement('div')
-    comparisonLabel.className = 'loom-companion-surface-results__label'
-    comparisonLabel.textContent = 'Tradeoff summary'
-    comparisonHost.appendChild(comparisonLabel)
-
-    var comparisonSummary = document.createElement('div')
-    comparisonSummary.className = 'loom-companion-surface-copy loom-companion-surface-copy--results'
-    comparisonHost.appendChild(comparisonSummary)
-
-    var comparisonChips = document.createElement('div')
-    comparisonChips.className = 'loom-companion-meta-strip'
-    comparisonHost.appendChild(comparisonChips)
-
-    var comparisonCards = document.createElement('div')
-    comparisonCards.className = 'loom-companion-surface-results__cards'
-    comparisonHost.appendChild(comparisonCards)
-
-    var actions = document.createElement('div')
-    actions.className = 'loom-companion-chip-row loom-companion-chip-row--results'
-    card.appendChild(actions)
-
-    var assistantButton = document.createElement('button')
-    assistantButton.type = 'button'
-    assistantButton.className = 'loom-companion-chip'
-    assistantButton.textContent = 'Continue in assistant'
-    assistantButton.addEventListener('click', function () {
-      var query = state.comparison && state.comparison.query
-        ? state.comparison.query
-        : comparePrompt(options.storefrontContext, shellModeProfile)
-      sendPrompt(
-        query,
-        'catalog',
-        defaultInsightMode(shellModeProfile),
-        createRequestContext(options.storefrontContext, shellModeProfile, 'comparison')
-      )
-    })
-    actions.appendChild(assistantButton)
-
-    appendGovernedCommercePanel(card, options, 'comparison', shellModeProfile)
-
-    var state = {
-      loading: true,
-      comparing: false,
-      errorMessage: '',
-      candidates: [],
-      comparison: null,
-      referenceSku: productSkuForContext(options.storefrontContext),
-      referenceTitle: productTitleForContext(options.storefrontContext) || 'this product',
-    }
-
-    loadCandidates()
-    render()
-
-    return card
-
-    function loadCandidates() {
-      state.loading = true
-      state.errorMessage = ''
-      render()
-      executeReadAction(options, 'comparison', 'find_similar_products', {
-        sku: state.referenceSku,
-        limit: 3,
-      })
-        .then(function (result) {
-          state.candidates = extractSimilarCandidates(result)
-          if (!state.candidates.length) {
-            state.errorMessage = 'No close alternatives are available for this product yet.'
-          }
-        })
-        .catch(function (error) {
-          state.errorMessage = error && error.message
-            ? error.message
-            : 'Comparison is not available right now.'
-        })
-        .finally(function () {
-          state.loading = false
-          render()
-        })
-    }
-
-    function loadComparison(candidate) {
-      if (!candidate || !candidate.sku || state.comparing) {
-        return
-      }
-      state.comparing = true
-      state.errorMessage = ''
-      render()
-      executeReadAction(options, 'comparison', 'compare_products', {
-        referenceSku: state.referenceSku,
-        comparisonSku: candidate.sku,
-      })
-        .then(function (result) {
-          state.comparison = buildComparisonState(result, state.referenceSku, state.referenceTitle)
-          recordSurfaceEvent(options, 'COMPARISON_CLICKED')
-        })
-        .catch(function (error) {
-          state.errorMessage = error && error.message
-            ? error.message
-            : 'We could not compare these products right now.'
-        })
-        .finally(function () {
-          state.comparing = false
-          render()
-        })
-    }
-
-    function render() {
-      status.hidden = !(state.loading || state.comparing || state.errorMessage)
-      if (state.loading) {
-        status.textContent = 'Looking for similar options…'
-      } else if (state.comparing) {
-        status.textContent = 'Comparing the best match…'
-      } else if (state.errorMessage) {
-        status.textContent = state.errorMessage
-      } else {
-        status.textContent = ''
-      }
-
-      candidatesHost.hidden = state.candidates.length === 0 && !state.loading && !state.errorMessage
-      candidatesSummary.textContent = state.candidates.length
-        ? 'These picks are based on product details, availability, and store content.'
-        : 'Checking the store catalog for similar options.'
-      candidateCards.innerHTML = ''
-      state.candidates.forEach(function (candidate) {
-        candidateCards.appendChild(renderComparisonCandidateCard(candidate, loadComparison))
-      })
-
-      comparisonHost.hidden = !state.comparison
-      comparisonSummary.textContent = state.comparison ? state.comparison.summary : ''
-      comparisonChips.innerHTML = ''
-      comparisonCards.innerHTML = ''
-      if (state.comparison) {
-        state.comparison.chips.forEach(function (chip) {
-          comparisonChips.appendChild(createMetaChip(chip))
-        })
-        comparisonCards.appendChild(renderCardGroup('Side-by-side view', state.comparison.products, 'Open product'))
-      }
-
-      assistantButton.hidden = !window.MaxMode || typeof window.MaxMode.sendMessage !== 'function'
-    }
   }
 
   function renderStandaloneOrderLookupCard(options, shellModeProfile) {
@@ -1624,14 +1427,24 @@
         card.appendChild(excerpt)
       }
 
-      if (item.url) {
-        var link = document.createElement('a')
-        link.className = 'loom-companion-card__link'
-        link.href = item.url
-        link.target = '_blank'
-        link.rel = 'noreferrer'
-        link.textContent = linkLabel
-        card.appendChild(link)
+      if (item.attachment || item.url) {
+        var actions = document.createElement('div')
+        actions.className = 'loom-companion-card__actions'
+        if (item.attachment && isMaxAttachmentSupported()) {
+          actions.appendChild(createChipButton('Add to Max', function () {
+            attachCardToMax(item)
+          }))
+        }
+        if (item.url) {
+          var link = document.createElement('a')
+          link.className = 'loom-companion-card__link'
+          link.href = item.url
+          link.target = '_blank'
+          link.rel = 'noreferrer'
+          link.textContent = linkLabel
+          actions.appendChild(link)
+        }
+        card.appendChild(actions)
       }
 
       group.appendChild(card)
@@ -2093,6 +1906,13 @@
       detail: detail,
       excerpt: truncateText(excerpt, 140),
       url: url,
+      attachment: buildProductAttachment(item, {
+        title: title,
+        subtitle: subtitle,
+        detail: detail,
+        excerpt: excerpt,
+        url: url,
+      }),
     }
   }
 
@@ -2114,192 +1934,86 @@
       detail: detail,
       excerpt: truncateText(excerpt, 140),
       url: url,
-    }
-  }
-
-  function executeReadAction(options, surfaceId, actionId, params) {
-    if (!options || !options.payload || !options.payload.bridgeReadActionUrl) {
-      return Promise.reject(new Error('Comparison is not configured for this store.'))
-    }
-    return fetchJson(options.payload.bridgeReadActionUrl, {
-      method: 'POST',
-      headers: shopperHeaders(options),
-      body: JSON.stringify({
-        actionId: actionId,
-        params: params,
-        surfaceId: surfaceId,
+      attachment: buildDocumentAttachment(item, {
+        title: title,
+        subtitle: subtitle,
+        detail: detail,
+        excerpt: excerpt,
+        url: url,
       }),
-    }).then(function (response) {
-      if (response && response.success === false) {
-        throw new Error(response.message || 'We could not load comparison details right now.')
-      }
-      return response
-    })
-  }
-
-  function canUseStructuredComparison(options) {
-    return !!(options
-      && options.payload
-      && options.payload.bridgeReadActionUrl
-      && productSkuForContext(options.storefrontContext))
-  }
-
-  function extractSimilarCandidates(payload) {
-    var items = readPath(payload, 'data', 'items')
-    if (!Array.isArray(items)) {
-      return []
-    }
-    return items
-      .map(function (item) {
-        if (!item || typeof item !== 'object' || !item.product || typeof item.product !== 'object') {
-          return null
-        }
-        var product = item.product
-        var sku = trimValue(product.primarySku)
-        if (!sku) {
-          return null
-        }
-        return {
-          sku: sku,
-          title: trimValue(product.title) || sku,
-          subtitle: trimValue(product.vendor || product.productType),
-          detail: productDetailText(product),
-          excerpt: joinUniqueTexts(item.matchReasons).join(' · '),
-          url: trimValue(product.storefrontUrl),
-          similarityScore: item.similarityScore,
-        }
-      })
-      .filter(Boolean)
-      .slice(0, 3)
-  }
-
-  function buildComparisonState(payload, referenceSku, referenceTitle) {
-    var data = payload && payload.data && typeof payload.data === 'object' ? payload.data : {}
-    var referenceProduct = data.referenceProduct && typeof data.referenceProduct === 'object' ? data.referenceProduct : null
-    var comparisonProduct = data.comparisonProduct && typeof data.comparisonProduct === 'object' ? data.comparisonProduct : null
-    var products = []
-    if (referenceProduct) {
-      products.push(normalizeComparisonProductCard(referenceProduct))
-    }
-    if (comparisonProduct) {
-      products.push(normalizeComparisonProductCard(comparisonProduct))
-    }
-    var summaryParts = []
-    if (Array.isArray(data.keyDifferences) && data.keyDifferences.length) {
-      summaryParts.push(joinUniqueTexts(data.keyDifferences).slice(0, 3).join(' '))
-    }
-    if (Array.isArray(data.sharedSignals) && data.sharedSignals.length) {
-      summaryParts.push('Shared signals: ' + joinUniqueTexts(data.sharedSignals).slice(0, 3).join(' · ') + '.')
-    }
-    if (!summaryParts.length && comparisonProduct && comparisonProduct.title) {
-      summaryParts.push('We compared ' + referenceTitle + ' with ' + comparisonProduct.title + ' using live store details.')
-    }
-    var chips = []
-    if (trimValue(data.cheaperSku)) {
-      chips.push(data.cheaperSku === referenceSku ? referenceTitle + ' is cheaper' : trimValue(comparisonProduct && comparisonProduct.title) + ' is cheaper')
-    }
-    if (trimValue(data.betterStockedSku)) {
-      chips.push(data.betterStockedSku === referenceSku ? referenceTitle + ' has better stock' : trimValue(comparisonProduct && comparisonProduct.title) + ' has better stock')
-    }
-    if (data.sameProductType) {
-      chips.push('Same product type')
-    }
-    return {
-      summary: truncateText(summaryParts.join(' '), 320),
-      chips: joinUniqueTexts(chips),
-      products: products.filter(Boolean),
-      query: comparisonProduct && comparisonProduct.title
-        ? 'Compare "' + referenceTitle + '" with "' + comparisonProduct.title + '" and explain the practical tradeoffs.'
-        : 'Compare products similar to "' + referenceTitle + '" and explain the practical tradeoffs.',
     }
   }
 
-  function renderComparisonCandidateCard(candidate, onCompare) {
-    var card = document.createElement('div')
-    card.className = 'loom-companion-card loom-companion-card--comparison'
-
-    var title = document.createElement('div')
-    title.className = 'loom-companion-card__title'
-    title.textContent = candidate.title
-    card.appendChild(title)
-
-    if (candidate.subtitle) {
-      var subtitle = document.createElement('div')
-      subtitle.className = 'loom-companion-card__meta'
-      subtitle.textContent = candidate.subtitle
-      card.appendChild(subtitle)
+  function buildProductAttachment(item, fallbackCard) {
+    if (!item || typeof item !== 'object') {
+      return null
     }
-
-    if (candidate.detail) {
-      var detail = document.createElement('div')
-      detail.className = 'loom-companion-card__meta'
-      detail.textContent = candidate.detail
-      card.appendChild(detail)
-    }
-
-    if (candidate.excerpt) {
-      var excerpt = document.createElement('div')
-      excerpt.className = 'loom-companion-card__meta'
-      excerpt.textContent = truncateText(candidate.excerpt, 140)
-      card.appendChild(excerpt)
-    }
-
-    var actions = document.createElement('div')
-    actions.className = 'loom-companion-chip-row loom-companion-chip-row--results'
-
-    var compareButton = createChipButton('Compare now', function () {
-      onCompare(candidate)
-    })
-    actions.appendChild(compareButton)
-
-    if (candidate.url) {
-      var link = document.createElement('a')
-      link.className = 'loom-companion-card__link'
-      link.href = candidate.url
-      link.target = '_blank'
-      link.rel = 'noreferrer'
-      link.textContent = 'Open product'
-      actions.appendChild(link)
-    }
-
-    card.appendChild(actions)
-    return card
-  }
-
-  function normalizeComparisonProductCard(product) {
-    if (!product || typeof product !== 'object') {
+    var title = trimValue(item.title || item.name || item.productName || (fallbackCard && fallbackCard.title))
+    if (!title) {
       return null
     }
     return {
-      title: trimValue(product.title) || trimValue(product.primarySku) || 'Product',
-      subtitle: trimValue(product.vendor || product.productType),
-      detail: productDetailText(product),
-      excerpt: truncateText(trimValue(product.description), 140),
-      url: trimValue(product.storefrontUrl),
+      type: 'product',
+      data: {
+        id: trimValue(item.id),
+        handle: trimValue(item.handle),
+        sku: trimValue(item.sku || item.primarySku),
+        title: title,
+        name: title,
+        vendor: trimValue(item.vendor || item.brand || (fallbackCard && fallbackCard.subtitle)),
+        productType: trimValue(item.productType || item.category),
+        price: item.price != null ? item.price : trimValue(item.priceText || (fallbackCard && fallbackCard.detail)),
+        storefrontUrl: trimValue(item.storefrontUrl || item.url || item.link || item.productUrl || (fallbackCard && fallbackCard.url)),
+        imageUrl: trimValue(item.imageUrl || item.image || item.imageSrc),
+        description: trimValue(item.description || item.summary || (fallbackCard && fallbackCard.excerpt)),
+      },
     }
   }
 
-  function productDetailText(product) {
-    if (!product || typeof product !== 'object') {
-      return ''
+  function buildDocumentAttachment(item, fallbackCard) {
+    if (!item || typeof item !== 'object') {
+      return null
     }
-    var parts = []
-    var price = trimValue(product.price)
-    if (price) {
-      parts.push('Price ' + price)
+    var title = trimValue(item.title || item.label || item.name || item.source || (fallbackCard && fallbackCard.title))
+    if (!title) {
+      return null
     }
-    if (product.available === true) {
-      parts.push('Available')
-    } else if (product.available === false) {
-      parts.push('Unavailable')
+    return {
+      type: 'document',
+      data: {
+        id: trimValue(item.id || item.url || item.link || title),
+        title: title,
+        documentType: trimValue(item.type || item.kind || item.documentType || 'document'),
+        url: trimValue(item.url || item.link || (fallbackCard && fallbackCard.url)),
+        content: trimValue(item.text || item.summary || item.snippet || item.excerpt || (fallbackCard && fallbackCard.excerpt)),
+        subtitle: trimValue(item.subtitle || item.section || item.category || (fallbackCard && fallbackCard.subtitle)),
+      },
     }
-    if (typeof product.inventoryQuantity === 'number') {
-      parts.push('Stock ' + product.inventoryQuantity)
+  }
+
+  function isMaxAttachmentSupported() {
+    return !!(
+      window.MaxMode &&
+      (
+        typeof window.MaxMode.attachItem === 'function' ||
+        typeof window.MaxMode.attachProduct === 'function'
+      )
+    )
+  }
+
+  function attachCardToMax(item) {
+    if (!item || !item.attachment || !window.MaxMode) {
+      return false
     }
-    if (trimValue(product.reviewAverage) && product.reviewCount != null) {
-      parts.push('Rated ' + product.reviewAverage + ' (' + product.reviewCount + ')')
+    if (typeof window.MaxMode.attachItem === 'function') {
+      window.MaxMode.attachItem(item.attachment)
+      return true
     }
-    return parts.join(' · ')
+    if (item.attachment.type === 'product' && typeof window.MaxMode.attachProduct === 'function') {
+      window.MaxMode.attachProduct(item.attachment.data)
+      return true
+    }
+    return false
   }
 
   function firstArray() {

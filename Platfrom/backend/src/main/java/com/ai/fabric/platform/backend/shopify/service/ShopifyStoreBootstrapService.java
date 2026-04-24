@@ -68,8 +68,6 @@ public class ShopifyStoreBootstrapService {
         "list_products",
         "search_products",
         "get_product_details",
-        "find_similar_products",
-        "compare_products",
         "check_availability",
         "get_policy"
     );

@@ -58,7 +58,7 @@ set -euo pipefail
 #   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
-#   SHOPIFY_COMPARISON_MODE=resolver_assistant
+#   SHOPIFY_COMPARISON_MODE=navigator_deep
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-}"
 PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
@@ -107,13 +107,13 @@ if [[ "${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}" == "true" ]]; then
 else
   EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="true"
 fi
-EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,find_similar_products,compare_products,check_availability,get_policy}"
+EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,check_availability,get_policy}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
-SHOPIFY_COMPARISON_MODE="${SHOPIFY_COMPARISON_MODE:-resolver_assistant}"
+SHOPIFY_COMPARISON_MODE="${SHOPIFY_COMPARISON_MODE:-navigator_deep}"
 ORDER_LOOKUP_ORDER_NUMBER="${ORDER_LOOKUP_ORDER_NUMBER:-}"
 ORDER_LOOKUP_EMAIL="${ORDER_LOOKUP_EMAIL:-}"
 ORDER_LOOKUP_SAMPLE_SOURCE="none"
@@ -1098,10 +1098,10 @@ assert_equals "$(json_get "${bootstrap_json}" "shopDomain")" "${SHOP_DOMAIN}" "s
 assert_equals "$(json_get "${bootstrap_json}" "available")" "${EXPECT_STOREFRONT_SHOPPER_TRAFFIC_READY}" "storefront bootstrap availability"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeQueryUrl")" "storefront bridgeQueryUrl"
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeSuggestionsUrl")" "storefront bridgeSuggestionsUrl"
-if [[ ",${effective_expected_surfaces}," == *",comparison,"* ]]; then
-  assert_nonempty "$(json_get "${bootstrap_json}" "bridgeReadActionUrl")" "storefront bridgeReadActionUrl"
-fi
 assert_nonempty "$(json_get "${bootstrap_json}" "bridgeOrderLookupUrl")" "storefront bridgeOrderLookupUrl"
+assert_nonempty "$(json_get "${bootstrap_json}" "defaultConversationMode")" "storefront defaultConversationMode"
+assert_nonempty "$(json_get "${bootstrap_json}" "effectiveConversationMode")" "storefront effectiveConversationMode"
+assert_nonempty "$(json_get "${bootstrap_json}" "allowedConversationModes.0")" "storefront allowedConversationModes.0"
 assert_equals "$(json_get "${bootstrap_json}" "orderLookupEnabled")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "storefront bootstrap orderLookupEnabled"
 assert_equals "$(json_get "${bootstrap_json}" "olderOrdersRequireBroaderScope")" "${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE}" "storefront bootstrap historical order access"
 assert_nonempty "$(json_get "${bootstrap_json}" "orderLookupMessage")" "storefront bootstrap orderLookupMessage"
@@ -1213,53 +1213,6 @@ PY
     assert_nonempty "${comparison_reference_sku}" "comparison reference SKU"
     assert_nonempty "${comparison_secondary_sku}" "comparison secondary SKU"
 
-    echo "== Storefront comparison read actions =="
-    comparison_similar_payload="$(python3 - <<'PY' "${comparison_reference_sku}"
-import json
-import sys
-
-reference_sku = sys.argv[1]
-print(json.dumps({
-    "surfaceId": "comparison",
-    "actionId": "find_similar_products",
-    "params": {
-        "sku": reference_sku,
-        "limit": 3
-    }
-}))
-PY
-)"
-    http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/actions/read" "${comparison_similar_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
-    assert_equals "${HTTP_STATUS}" "200" "storefront comparison similar action status"
-    comparison_similar_json="${HTTP_BODY}"
-    assert_equals "$(json_get "${comparison_similar_json}" "success")" "true" "storefront comparison similar action success"
-    assert_nonempty "$(json_get "${comparison_similar_json}" "message")" "storefront comparison similar action message"
-    assert_nonempty "$(json_get "${comparison_similar_json}" "data.items.0.primarySku")" "storefront comparison similar action first SKU"
-
-    comparison_read_action_payload="$(python3 - <<'PY' "${comparison_reference_sku}" "${comparison_secondary_sku}"
-import json
-import sys
-
-reference_sku = sys.argv[1]
-comparison_sku = sys.argv[2]
-print(json.dumps({
-    "surfaceId": "comparison",
-    "actionId": "compare_products",
-    "params": {
-        "referenceSku": reference_sku,
-        "comparisonSku": comparison_sku
-    }
-}))
-PY
-)"
-    http_request POST "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/actions/read" "${comparison_read_action_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
-    assert_equals "${HTTP_STATUS}" "200" "storefront comparison read action status"
-    comparison_read_action_json="${HTTP_BODY}"
-    assert_equals "$(json_get "${comparison_read_action_json}" "success")" "true" "storefront comparison read action success"
-    assert_nonempty "$(json_get "${comparison_read_action_json}" "message")" "storefront comparison read action message"
-    assert_nonempty "$(json_get "${comparison_read_action_json}" "data.referenceProduct.primarySku")" "storefront comparison read action reference SKU"
-    assert_nonempty "$(json_get "${comparison_read_action_json}" "data.comparisonProduct.primarySku")" "storefront comparison read action comparison SKU"
-
     comparison_resolver_payload="$(python3 - <<'PY' "${comparison_reference_sku}" "${comparison_secondary_sku}" "${SHOPIFY_COMPARISON_MODE}"
 import json
 import sys
@@ -1282,7 +1235,17 @@ PY
     retry_storefront_query "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${comparison_resolver_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
     assert_equals "${HTTP_STATUS}" "200" "storefront comparison resolver query status"
     comparison_resolver_json="${HTTP_BODY}"
-    assert_storefront_resolution_contains_action "${comparison_resolver_json}" "compare_products" "storefront comparison resolver executed compare_products"
+    comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "result.sanitizedPayload.safeSummary")"
+    if [[ -z "${comparison_resolver_summary}" ]]; then
+      comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "result.sanitizedPayload.message")"
+    fi
+    if [[ -z "${comparison_resolver_summary}" ]]; then
+      comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "result.message")"
+    fi
+    if [[ -z "${comparison_resolver_summary}" ]]; then
+      comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "message")"
+    fi
+    assert_nonempty "${comparison_resolver_summary}" "storefront comparison resolver summary"
   fi
 fi
 

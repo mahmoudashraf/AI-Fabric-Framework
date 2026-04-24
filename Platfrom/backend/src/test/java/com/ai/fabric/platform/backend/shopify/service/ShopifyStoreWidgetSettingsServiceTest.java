@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,7 +43,10 @@ class ShopifyStoreWidgetSettingsServiceTest {
                 "Need help?",
                 "Ask me about products and policies.",
                 "GUIDED_COMMERCE",
-                java.util.List.of("ai-search", "comparison")
+                List.of("ai-search", "comparison"),
+                "executor",
+                List.of("navigator", "executor"),
+                Map.of("account", "executor", "landing", "navigator")
             )
         );
 
@@ -50,6 +55,11 @@ class ShopifyStoreWidgetSettingsServiceTest {
         assertThat(store.getDetailsJson()).contains("\"welcomeMessage\":\"Ask me about products and policies.\"");
         assertThat(store.getDetailsJson()).contains("\"shellModeProfile\":\"GUIDED_COMMERCE\"");
         assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\"]");
+        assertThat(store.getDetailsJson()).contains("\"defaultConversationMode\":\"executor\"");
+        assertThat(store.getDetailsJson()).contains("\"allowedConversationModes\":[\"navigator\",\"executor\"]");
+        assertThat(store.getDetailsJson()).contains("\"pageModeMappings\":");
+        assertThat(store.getDetailsJson()).contains("\"account\":\"executor\"");
+        assertThat(store.getDetailsJson()).contains("\"landing\":\"navigator\"");
     }
 
     private ShopifyStoreConnectionEntity store() {

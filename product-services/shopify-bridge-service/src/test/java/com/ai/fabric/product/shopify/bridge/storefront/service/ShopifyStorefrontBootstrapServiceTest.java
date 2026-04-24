@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,7 +81,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of("ai-search", "comparison")))
             .thenReturn(List.of("ai-search"));
 
-        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com");
+        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com", "product");
 
         assertThat(response.available()).isTrue();
         assertThat(response.consumerId()).isEqualTo("consumer-alpha");
@@ -96,6 +97,10 @@ class ShopifyStorefrontBootstrapServiceTest {
             .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
         assertThat(response.supportedReviewProviders())
             .containsExactly("Judge.me", "Loox");
+        assertThat(response.defaultConversationMode()).isEqualTo("navigator");
+        assertThat(response.effectiveConversationMode()).isEqualTo("navigator");
+        assertThat(response.allowedConversationModes()).containsExactly("navigator", "executor");
+        assertThat(response.pageModeMappings()).containsEntry("account", "executor");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
@@ -116,14 +121,17 @@ class ShopifyStorefrontBootstrapServiceTest {
         when(platformClient.getStore("alpha.myshopify.com"))
             .thenReturn(store("INSTALLED", "NOT_RUN", "NOT_ENABLED", "consumer-alpha", "dep-1"));
 
-        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com");
+        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com", "product");
 
         assertThat(response.available()).isFalse();
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
         assertThat(response.bridgeSuggestionsUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/suggestions");
-        assertThat(response.bridgeReadActionUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/actions/read");
         assertThat(response.bridgeOrderLookupUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/support/order-lookup");
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
+        assertThat(response.defaultConversationMode()).isEqualTo("navigator");
+        assertThat(response.effectiveConversationMode()).isEqualTo("navigator");
+        assertThat(response.allowedConversationModes()).containsExactly("navigator");
+        assertThat(response.pageModeMappings()).isEmpty();
         assertThat(response.groundingSignals())
             .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
         assertThat(response.message()).contains("Store data is not ready yet");
@@ -172,10 +180,11 @@ class ShopifyStorefrontBootstrapServiceTest {
         when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of("ai-search", "comparison")))
             .thenReturn(List.of("ai-search"));
 
-        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com");
+        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com", "account");
 
         assertThat(response.available()).isTrue();
         assertThat(response.orderLookupEnabled()).isFalse();
+        assertThat(response.effectiveConversationMode()).isEqualTo("executor");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
     }
 
@@ -345,7 +354,10 @@ class ShopifyStorefrontBootstrapServiceTest {
                     "Need help?",
                     "Ask me about products and store policies.",
                     "GUIDED_COMMERCE",
-                    List.of("ai-search", "comparison")
+                    List.of("ai-search", "comparison"),
+                    "navigator",
+                    List.of("navigator", "executor"),
+                    Map.of("account", "executor")
                 )
             ),
             null,

@@ -246,7 +246,10 @@ class ShopifyStorefrontOrderLookupServiceTest {
                     "Need help?",
                     "Ask me about products and policies.",
                     "SHOPIFY_COMPANION",
-                    enabledSurfaces
+                    enabledSurfaces,
+                    "navigator",
+                    List.of("navigator", "executor"),
+                    java.util.Map.of("account", "executor")
                 )
             ),
             null,

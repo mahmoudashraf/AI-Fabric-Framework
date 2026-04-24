@@ -167,36 +167,6 @@ actions:
       resourceId: action:get_product_details
       operationType: EXECUTE_ACTION
 
-  find_similar_products:
-    method: GET
-    path: /api/products/similar
-    request:
-      query:
-        sku: "{{params.sku}}"
-        limit: "{{params.limit|5}}"
-    response:
-      success-http-status: [200]
-      message: "Similar products"
-    authz:
-      enabled: true
-      resourceId: action:find_similar_products
-      operationType: EXECUTE_ACTION
-
-  compare_products:
-    method: GET
-    path: /api/products/compare
-    request:
-      query:
-        referenceSku: "{{params.referenceSku}}"
-        comparisonSku: "{{params.comparisonSku}}"
-    response:
-      success-http-status: [200]
-      message: "Product comparison"
-    authz:
-      enabled: true
-      resourceId: action:compare_products
-      operationType: EXECUTE_ACTION
-
   check_availability:
     method: GET
     path: /api/products/by-sku

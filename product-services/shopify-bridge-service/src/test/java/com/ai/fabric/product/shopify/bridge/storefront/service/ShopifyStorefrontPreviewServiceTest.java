@@ -165,7 +165,10 @@ class ShopifyStorefrontPreviewServiceTest {
                     "Need help?",
                     "Ask me about products and store policies.",
                     "GUIDED_COMMERCE",
-                    List.of("ai-search", "comparison")
+                    List.of("ai-search", "comparison"),
+                    "navigator",
+                    List.of("navigator", "executor"),
+                    java.util.Map.of("account", "executor")
                 )
             ),
             null,

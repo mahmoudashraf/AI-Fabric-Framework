@@ -55,38 +55,38 @@ class IntentHandlingStepReadActionPolicyToleranceTest {
         AIActionRegistry registry = mock(AIActionRegistry.class);
         AIActionHandler handler = mock(AIActionHandler.class);
         AIActionMetaData metadata = AIActionMetaData.builder()
-            .name("compare_products")
-            .description("Compare two products by SKU.")
+            .name("check_availability")
+            .description("Check product availability by SKU.")
             .category("commerce")
             .accessMode(ActionAccessMode.READ)
             .anonymousAllowed(true)
             .groundingEligible(true)
             .readActionResolutionEligible(true)
-            .requiredParameters(Set.of("referenceSku", "comparisonSku"))
+            .requiredParameters(Set.of("sku"))
             .build();
 
-        when(registry.findHandler("compare_products")).thenReturn(Optional.of(handler));
-        when(registry.findMetadata("compare_products")).thenReturn(Optional.of(metadata));
+        when(registry.findHandler("check_availability")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("check_availability")).thenReturn(Optional.of(metadata));
         when(handler.validateActionAllowed(any())).thenReturn(true);
         when(handler.requiresConfirmation()).thenReturn(false);
         when(handler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
             .success(true)
-            .message("Product comparison")
+            .message("Availability")
             .build());
 
         IntentHandlingStep step = newStep(registry);
         Intent intent = Intent.builder()
             .type(IntentType.ACTION)
-            .action("compare_products")
-            .actionParams(Map.of("referenceSku", "SKU-AAA-100", "comparisonSku", "SKU-BBB-200"))
+            .action("check_availability")
+            .actionParams(Map.of("sku", "SKU-AAA-100"))
             .build();
 
         PipelineContext context = PipelineContext.from(
-                "Compare SKU-AAA-100 and SKU-BBB-200",
+                "Check if SKU-AAA-100 is available",
                 OrchestrationContext.anonymous()
             )
             .toBuilder()
-            .orchestrationPolicy(resolverAssistantPolicy(List.of("compare_products")))
+            .orchestrationPolicy(resolverAssistantPolicy(List.of("check_availability")))
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
@@ -94,7 +94,7 @@ class IntentHandlingStepReadActionPolicyToleranceTest {
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.getMessage()).isEqualTo("Product comparison");
+        assertThat(result.getMessage()).isEqualTo("Availability");
         verify(handler).executeAction(anyMap(), any());
     }
 
@@ -128,7 +128,7 @@ class IntentHandlingStepReadActionPolicyToleranceTest {
                 OrchestrationContext.forUser("user-1")
             )
             .toBuilder()
-            .orchestrationPolicy(resolverAssistantPolicy(List.of("compare_products")))
+            .orchestrationPolicy(resolverAssistantPolicy(List.of("check_availability")))
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 

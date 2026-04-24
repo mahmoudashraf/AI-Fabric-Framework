@@ -1,14 +1,15 @@
 # Shopify Companion Max Mode Widget Refactor Plan
 
-Status: detailed follow-on refactor plan (2026-04-19)
+Status: detailed follow-on refactor plan (2026-04-24)
 
 This document defines the concrete refactor path for converging the Shopify storefront widget onto the shared `max-mode-widget` shell instead of continuing to maintain a separate custom Shopify chat UI.
 
 It should be read with:
 
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_FETCH_ONLY_INTELLIGENCE_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_CONTEXT_AND_ATTACHMENT_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_SUPPORT_RUNBOOK.md`
 
 Relevant code surfaces today:
 
@@ -33,6 +34,14 @@ The future target is:
 - `Shopify theme app extension -> Shopify wrapper bootstrap -> MaxMode.init(...) -> Shopify bridge storefront routes`
 
 This is a convergence refactor, not a runtime/auth rewrite.
+
+Session-aligned rules:
+
+- remove the legacy Shopify chat UI once the Max-backed shell is stable
+- keep shopper interaction prompt-first and text-first in the current phase
+- let users intentionally enable advanced modes from the Max widget instead of hiding them in implicit shell defaults
+- honor admin-configured page-aware mode defaults through the shell contract rather than ad hoc theme behavior
+- reuse the existing Max attachment system for page-context handoff and explicit attached targets
 
 ---
 
@@ -118,6 +127,7 @@ The Shopify wrapper should own only:
 - extracting page/product/collection context from theme data attributes
 - calling storefront bootstrap
 - converting storefront context into shared widget attachments/initial context
+- converting explicit card-level attach clicks into the existing Max widget attachment model
 - wiring bridge event recording
 - applying Shopify-specific launcher label / welcome message / defaults
 
@@ -225,6 +235,7 @@ To avoid reintroducing custom UI logic outside Max Mode, the shared widget shoul
 - host-provided context attachment(s)
 - host-visible open/close/send/error events for bridge event recording
 - host-level launcher label override
+- host-provided conversation mode metadata and advanced-mode affordances where the shell contract allows them
 
 If one of these is missing in the current Max Mode public API, add it to Max Mode instead of rebuilding the same behavior in the Shopify wrapper.
 
@@ -252,6 +263,9 @@ What Shopify needs is more explicit host-level configuration for:
 - initial greeting override
 - bounded starter prompts / suggestions
 - storefront event callbacks
+- generic host attachment insertion while preserving existing `attachProduct(...)` compatibility
+- explicit `defaultConversationMode`, `effectiveConversationMode`, and `allowedConversationModes` support where shell mode enablement requires it
+- user-visible advanced-mode affordances that can be enabled intentionally when allowed by the backend contract
 
 ### 7.2 Shopify context gap
 
@@ -260,6 +274,11 @@ The Shopify storefront context currently exists as:
 - page/product/collection data in the custom Shopify script
 
 This should be normalized into a host attachment/config shape that Max Mode can consume directly.
+
+Important rule:
+
+- page context is automatic host grounding
+- explicit product/article/policy attachments are separate host-selected targets
 
 ### 7.3 Build/distribution gap
 
@@ -280,6 +299,17 @@ The current Shopify widget styling lives in:
 
 The target styling should live primarily in Max Mode, with only minimal Shopify host/reset styling left in the wrapper if needed.
 
+### 7.5 Shell-mode product gap
+
+The Max-backed Shopify shell must also absorb the storefront mode decisions already made in the roadmap.
+
+That means:
+
+- advanced modes are intentional widget affordances, not hidden runtime behavior
+- admin-configured page-aware mode defaults must influence shell startup where the backend allows them
+- the long-term target is one Max-backed shopper shell, not perpetual `legacy` plus `max-mode` coexistence
+- these mode behaviors must work with the same prompt-first, text-first UI posture rather than requiring a second specialized shell
+
 ---
 
 ## 8) Refactor Waves
@@ -296,7 +326,9 @@ Required outputs:
   - launcher label
   - welcome message
   - initial context attachment(s)
+  - explicit attached target shape
   - starter suggestions
+  - page-aware preferred mode / allowed modes
   - bridge event hooks
 - explicit mapping from Shopify bridge bootstrap response to Max Mode config
 - explicit file ownership split:
@@ -319,8 +351,10 @@ Required outputs:
 
 - support for host-provided initial greeting
 - support for host-provided initial attachments
+- support for generic `attachItem(...)` style host insertion while preserving `attachProduct(...)`
 - support for bounded host-provided starter suggestions
 - support for reliable event callbacks needed by Shopify bridge analytics
+- support for bounded host-provided conversation mode metadata and advanced-mode affordances
 - remove any POC-only assumptions from the IIFE public surface where they block Shopify reuse
 
 Primary code ownership:
@@ -346,6 +380,8 @@ Required outputs:
 - new lightweight Shopify wrapper asset
 - wrapper calls bridge bootstrap
 - wrapper converts storefront context into shared widget attachment/config input
+- wrapper reuses the Max attachment system for Companion-owned card attach controls instead of inventing a parallel Shopify-only store
+- wrapper passes through page-aware mode defaults and allowed-mode metadata from bootstrap to Max Mode
 - wrapper calls `MaxMode.init(...)`
 - wrapper records storefront events through bridge callbacks
 
@@ -391,6 +427,7 @@ Required outputs:
 - remove duplicate CSS/JS no longer needed
 - update docs and support runbook
 - keep only the minimal Shopify wrapper + shared Max Mode bundle
+- keep advanced-mode affordances and page-aware defaults working on the surviving Max-backed shell
 
 Success criteria:
 
@@ -446,6 +483,9 @@ The refactor is complete only when all of these are true:
 6. Merchant-configured launcher label and welcome behavior still work.
 7. The platform POC widget and Shopify storefront widget share the same core UI shell.
 8. The Shopify wrapper stays thin and does not grow into a second widget implementation.
+9. Users can intentionally enable allowed advanced modes from the Max widget.
+10. Admin-configured page-aware mode defaults influence shell startup through the backend-backed shell contract.
+11. The legacy Shopify chat UI is removed rather than left as a permanent second shell.
 
 ---
 

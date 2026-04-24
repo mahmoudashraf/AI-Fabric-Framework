@@ -42,19 +42,19 @@ import static org.mockito.Mockito.when;
 class ReadActionResolutionServiceTest {
 
     @Test
-    void shouldPreferPurposeBuiltCompareActionForExplicitSkuComparisonRequests() {
+    void shouldPreferPurposeBuiltAvailabilityActionForExplicitSkuAvailabilityRequests() {
         AICoreService aiCoreService = mock(AICoreService.class);
         AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
         PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
 
-        AIActionMetaData compareProducts = AIActionMetaData.builder()
-            .name("compare_products")
-            .description("Compare two products by SKU and return key differences.")
+        AIActionMetaData availability = AIActionMetaData.builder()
+            .name("check_availability")
+            .description("Check product stock by SKU.")
             .category("commerce")
             .accessMode(ActionAccessMode.READ)
             .groundingEligible(true)
             .readActionResolutionEligible(true)
-            .requiredParameters(Set.of("referenceSku", "comparisonSku"))
+            .requiredParameters(Set.of("sku"))
             .build();
         AIActionMetaData productDetails = AIActionMetaData.builder()
             .name("get_product_details")
@@ -66,32 +66,31 @@ class ReadActionResolutionServiceTest {
             .requiredParameters(Set.of("sku"))
             .build();
 
-        AIActionHandler compareHandler = mock(AIActionHandler.class);
+        AIActionHandler availabilityHandler = mock(AIActionHandler.class);
         AIActionHandler detailsHandler = mock(AIActionHandler.class);
-        when(compareHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
-        when(compareHandler.executeAction(eq(Map.of("referenceSku", "SKU-AAA-100", "comparisonSku", "SKU-BBB-200")), any(ActionContext.class)))
+        when(availabilityHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
+        when(availabilityHandler.executeAction(eq(Map.of("sku", "SKU-AAA-100")), any(ActionContext.class)))
             .thenReturn(ActionResult.builder()
                 .success(true)
-                .message("Product comparison")
+                .message("Availability")
                 .data(ActionPayload.object(Map.of(
-                    "referenceSku", "SKU-AAA-100",
-                    "comparisonSku", "SKU-BBB-200",
-                    "highlights", List.of("price", "stock"),
-                    "keyDifferences", List.of("price")
+                    "sku", "SKU-AAA-100",
+                    "available", true,
+                    "inventory", 21
                 )))
                 .build());
-        when(compareHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class))).thenReturn(
+        when(availabilityHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class))).thenReturn(
             Optional.of(Map.of(
-                "referenceSku", "SKU-AAA-100",
-                "comparisonSku", "SKU-BBB-200",
-                "keyDifferences", List.of("price", "stock")
+                "sku", "SKU-AAA-100",
+                "available", true,
+                "inventory", 21
             ))
         );
 
-        when(actionRegistry.getAllMetadata()).thenReturn(List.of(compareProducts, productDetails));
-        when(actionRegistry.findHandler("compare_products")).thenReturn(Optional.of(compareHandler));
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(availability, productDetails));
+        when(actionRegistry.findHandler("check_availability")).thenReturn(Optional.of(availabilityHandler));
         when(actionRegistry.findHandler("get_product_details")).thenReturn(Optional.of(detailsHandler));
-        when(actionRegistry.findMetadata("compare_products")).thenReturn(Optional.of(compareProducts));
+        when(actionRegistry.findMetadata("check_availability")).thenReturn(Optional.of(availability));
         when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
             .thenReturn(resolvedTemplate("system", ""));
         when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
@@ -105,8 +104,7 @@ class ReadActionResolutionServiceTest {
                     {
                       "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
                       "actions": [
-                        {"name": "get_product_details", "params": {"sku": "SKU-AAA-100"}, "priority": 1},
-                        {"name": "get_product_details", "params": {"sku": "SKU-BBB-200"}, "priority": 2}
+                        {"name": "get_product_details", "params": {"sku": "SKU-AAA-100"}, "priority": 1}
                       ],
                       "needsMoreSteps": false
                     }
@@ -125,13 +123,13 @@ class ReadActionResolutionServiceTest {
         ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(
             Intent.builder()
                 .type(IntentType.INFORMATION)
-                .intent("Compare SKU-AAA-100 with SKU-BBB-200.")
-                .optimizedQuery("Compare SKU-AAA-100 with SKU-BBB-200 and summarize the differences.")
+                .intent("Is SKU-AAA-100 available right now?")
+                .optimizedQuery("Check availability for SKU-AAA-100.")
                 .build(),
             OrchestrationContext.forUser("user-1"),
-            PipelineContext.from("Compare SKU-AAA-100 with SKU-BBB-200.", OrchestrationContext.forUser("user-1"))
+            PipelineContext.from("Is SKU-AAA-100 available right now?", OrchestrationContext.forUser("user-1"))
                 .toBuilder()
-                .orchestrationPolicy(readActionPolicy("resolver_assistant", List.of("compare_products", "get_product_details"),
+                .orchestrationPolicy(readActionPolicy("resolver_assistant", List.of("check_availability", "get_product_details"),
                     OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
                     OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT))
                 .build()
@@ -141,10 +139,10 @@ class ReadActionResolutionServiceTest {
         assertThat(outcome.useRag()).isFalse();
         assertThat(outcome.canAnswerFromActionEvidenceOnly()).isTrue();
         assertThat(outcome.executedActions()).hasSize(1);
-        assertThat(outcome.executedActions().getFirst().actionName()).isEqualTo("compare_products");
+        assertThat(outcome.executedActions().getFirst().actionName()).isEqualTo("check_availability");
         assertThat(outcome.diagnostics()).containsEntry("executedActionsCount", 1);
         assertThat(outcome.diagnostics()).containsEntry("finalDecision", "EXECUTE_READ_ACTIONS");
-        verify(compareHandler).executeAction(eq(Map.of("referenceSku", "SKU-AAA-100", "comparisonSku", "SKU-BBB-200")), any(ActionContext.class));
+        verify(availabilityHandler).executeAction(eq(Map.of("sku", "SKU-AAA-100")), any(ActionContext.class));
         verify(detailsHandler, never()).executeAction(any(), any(ActionContext.class));
     }
 

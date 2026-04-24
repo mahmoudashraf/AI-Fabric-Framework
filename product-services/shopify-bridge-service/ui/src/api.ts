@@ -114,6 +114,9 @@ export type ShopifyBridgeStoreSummary = {
       launcherLabel: string | null
       welcomeMessage: string | null
       shellModeProfile: string | null
+      defaultConversationMode: string | null
+      allowedConversationModes: string[]
+      pageModeMappings: Record<string, string>
       enabledSurfaces: string[]
     } | null
   } | null
@@ -643,6 +646,9 @@ export async function updateWidgetSettings(settings: {
   launcherLabel: string
   welcomeMessage: string
   shellModeProfile: string
+  defaultConversationMode: string
+  allowedConversationModes: string[]
+  pageModeMappings: Record<string, string>
   enabledSurfaces: string[]
 }): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/widget-settings', {

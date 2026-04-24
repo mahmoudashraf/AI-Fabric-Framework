@@ -1,6 +1,8 @@
 import type { RefObject } from "react";
 import { useState } from "react";
 
+import type { MaxModeMode, MaxModePosition } from "@/constants";
+
 import { LockedConversationBanner } from "./Composer/LockedConversationBanner";
 import { AttachmentsRow } from "./Composer/AttachmentsRow";
 import { ComposerInputRow } from "./Composer/ComposerInputRow";
@@ -32,6 +34,7 @@ export function Composer({
   isLoading,
   currentPosition,
   currentMode,
+  availableModes,
   onModeChange,
   onOpenDebug,
   onSubmit,
@@ -56,9 +59,10 @@ export function Composer({
   onInputFocusChange: (focused: boolean) => void;
   chatInputRef: RefObject<HTMLTextAreaElement>;
   isLoading: boolean;
-  currentPosition: "landing" | "catalog" | "search" | "cart";
-  currentMode: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
-  onModeChange: (mode: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => void;
+  currentPosition: MaxModePosition;
+  currentMode: MaxModeMode;
+  availableModes: MaxModeMode[];
+  onModeChange: (mode: MaxModeMode) => void;
   onOpenDebug: () => void;
   onSubmit: () => void;
 }) {
@@ -112,6 +116,7 @@ export function Composer({
             isLoading={isLoading}
             currentPosition={currentPosition}
             currentMode={currentMode}
+            availableModes={availableModes}
             onModeChange={onModeChange}
             onOpenDebug={onOpenDebug}
             nonAiAttachmentsCount={nonAiAttachments.length}

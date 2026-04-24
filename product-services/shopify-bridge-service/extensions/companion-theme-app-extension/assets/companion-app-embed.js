@@ -83,30 +83,6 @@
               root.dataset.activeShell = config.widgetShell
               return renderEmbeddedSurfaces(root, config, payload)
             })
-            .catch(function (error) {
-              if (config.widgetShell !== 'max-mode') {
-                throw error
-              }
-              return loadShellRenderer('legacy', config).then(function (legacyRenderer) {
-                teardownActiveShell(root)
-                teardownEmbeddedSurfaces(root)
-                return Promise.resolve(
-                  legacyRenderer.render({
-                    root: root,
-                    bridgeBaseUrl: config.bridgeBaseUrl,
-                    launcherLabel: config.launcherLabel,
-                    maxModeScriptUrl: config.maxModeScriptUrl,
-                    payload: payload,
-                    storefrontContext: config.storefrontContext,
-                  })
-                ).then(function () {
-                  root.dataset.activeShell = 'legacy'
-                  root.dataset.widgetShell = 'max-mode'
-                  root.dataset.fallbackShell = 'legacy'
-                  return renderEmbeddedSurfaces(root, config, payload)
-                })
-              })
-            })
         })
       })
       .catch(function (error) {
@@ -116,10 +92,14 @@
   }
 
   function loadBootstrapPayload(config) {
-    var key = [config.bridgeBaseUrl, config.shopDomain].join('|')
+    var key = [config.bridgeBaseUrl, config.shopDomain, config.storefrontContext.pageType || 'unknown'].join('|')
     if (!bootstrapPayloadPromises[key]) {
+      var bootstrapUrl = joinUrl(
+        config.bridgeBaseUrl,
+        '/api/storefront/shops/' + encodeURIComponent(config.shopDomain) + '/bootstrap?pageType=' + encodeURIComponent(config.storefrontContext.pageType || 'unknown')
+      )
       bootstrapPayloadPromises[key] = fetch(
-        joinUrl(config.bridgeBaseUrl, '/api/storefront/shops/' + encodeURIComponent(config.shopDomain) + '/bootstrap'),
+        bootstrapUrl,
         {
           headers: {
             Accept: 'application/json',
@@ -316,18 +296,34 @@
       }
     }
 
+    var documentTitle = trimValue(root.dataset.documentTitle)
+    var documentHandle = trimValue(root.dataset.documentHandle)
+    var documentId = trimValue(root.dataset.documentId)
+    if (documentTitle || documentHandle || documentId) {
+      context.document = {
+        id: documentId,
+        handle: documentHandle,
+        title: documentTitle || pageTitle || 'this page',
+        type: trimValue(root.dataset.documentType) || pageType,
+        url: trimValue(root.dataset.documentUrl),
+      }
+    }
+
     return context
   }
 
   function normalizeWidgetShell(value) {
-    return value === 'max-mode' ? 'max-mode' : 'legacy'
+    return value === 'max-mode' ? 'max-mode' : 'max-mode'
   }
 
   function resolveEffectiveWidgetShell(requestedWidgetShell, maxModeShellScriptUrl, maxModeScriptUrl) {
+    if (requestedWidgetShell === 'max-mode') {
+      return 'max-mode'
+    }
     if (maxModeShellScriptUrl && maxModeScriptUrl) {
       return 'max-mode'
     }
-    return requestedWidgetShell
+    return 'max-mode'
   }
 
   function trimValue(value) {

@@ -159,8 +159,6 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("list_products")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("search_products")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_product_details")))
-            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("find_similar_products")))
-            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("compare_products")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("check_availability")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_policy")));
 
@@ -170,8 +168,8 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='list_products')].groundingEligible", is(List.of(true))))
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='list_products')].readActionResolutionEligible", is(List.of(true))))
-            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='compare_products')].groundingEligible", is(List.of(true))))
-            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='compare_products')].readActionResolutionEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='check_availability')].groundingEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='check_availability')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='get_policy')].anonymousAllowed", is(List.of(true))));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
@@ -844,7 +842,7 @@ class MarketplaceIntegrationTest {
 
     @Test
     void shopifyCompanionReadInstallCompilesGroundedReadResolutionActionsIntoDraftAndArtifact() throws Exception {
-        DeploymentSummary deployment = createSharedQdrantDeployment("Marketplace Shopify Companion Read Flags");
+        DeploymentSummary deployment = runAsAdmin(() -> createSharedQdrantDeployment("Marketplace Shopify Companion Read Flags"));
 
         mockMvc.perform(asAdmin(
                 post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
@@ -866,8 +864,8 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='list_products')].groundingEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='list_products')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='list_products')].anonymousAllowed", is(List.of(true))))
-            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='compare_products')].groundingEligible", is(List.of(true))))
-            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='compare_products')].readActionResolutionEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='check_availability')].groundingEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='check_availability')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].groundingEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].readActionResolutionEligible", is(List.of(true))));
 
@@ -877,8 +875,10 @@ class MarketplaceIntegrationTest {
             .orElseThrow()
             .getActionsArtifactYaml();
 
-        assertThat(actionsArtifactYaml).contains("name: list_products");
-        assertThat(actionsArtifactYaml).contains("name: compare_products");
+        assertThat(actionsArtifactYaml).contains("name: \"list_products\"");
+        assertThat(actionsArtifactYaml).contains("name: \"check_availability\"");
+        assertThat(actionsArtifactYaml).doesNotContain("name: \"find_similar_products\"");
+        assertThat(actionsArtifactYaml).doesNotContain("name: \"compare_products\"");
         assertThat(actionsArtifactYaml).contains("groundingEligible: true");
         assertThat(actionsArtifactYaml).contains("readActionResolutionEligible: true");
         assertThat(actionsArtifactYaml).contains("anonymousAllowed: true");

@@ -7,7 +7,7 @@
   data-shell-enabled="{{ shell_enabled | default: 'true' | escape }}"
   data-bridge-base-url="{{ bridge_base_url | escape }}"
   data-launcher-label="{{ launcher_label | default: 'Ask the store assistant' | escape }}"
-  data-widget-shell="{{ widget_shell | default: 'legacy' | escape }}"
+  data-widget-shell="{{ widget_shell | default: 'max-mode' | escape }}"
   data-legacy-shell-script-url="{{ 'companion-legacy-shell.js' | asset_url | escape }}"
   data-max-mode-shell-script-url="{{ 'companion-max-mode-shell.js' | asset_url | escape }}"
   data-max-mode-script-url="{{ 'max-mode-widget.iife.js' | asset_url | escape }}"
@@ -27,4 +27,9 @@
   data-collection-id="{% if collection %}{{ collection.id }}{% endif %}"
   data-collection-handle="{% if collection %}{{ collection.handle | escape }}{% endif %}"
   data-collection-title="{% if collection %}{{ collection.title | escape }}{% endif %}"
+  data-document-id="{% if article %}{{ article.id }}{% elsif page %}{{ page.id }}{% elsif blog %}{{ blog.id }}{% endif %}"
+  data-document-handle="{% if article %}{{ article.handle | escape }}{% elsif page %}{{ page.handle | escape }}{% elsif blog %}{{ blog.handle | escape }}{% endif %}"
+  data-document-title="{% if article %}{{ article.title | escape }}{% elsif page %}{{ page.title | escape }}{% elsif blog %}{{ blog.title | escape }}{% endif %}"
+  data-document-type="{% if article %}article{% elsif page %}page{% elsif blog %}blog{% endif %}"
+  data-document-url="{% if article %}{{ article.url | escape }}{% elsif page %}{{ page.url | escape }}{% elsif blog %}{{ blog.url | escape }}{% endif %}"
 ></div>

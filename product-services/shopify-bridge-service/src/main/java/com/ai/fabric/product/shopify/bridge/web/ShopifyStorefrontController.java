@@ -6,17 +6,14 @@ import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefro
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantRequest;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
-import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEngagementEventRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontChatService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontEngagementService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontOrderLookupRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontOrderLookupResponse;
-import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontReadActionRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontOrderLookupService;
-import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontReadActionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -36,7 +34,6 @@ public class ShopifyStorefrontController {
     private final ShopifyStorefrontBootstrapService storefrontBootstrapService;
     private final ShopifyStorefrontChatService storefrontChatService;
     private final ShopifyStorefrontEngagementService storefrontEngagementService;
-    private final ShopifyStorefrontReadActionService storefrontReadActionService;
     private final ShopifyStorefrontOrderLookupService storefrontOrderLookupService;
     private final ShopifyStorefrontGovernedActionService governedActionService;
     private final ShopifyBridgeUsageService usageService;
@@ -44,22 +41,21 @@ public class ShopifyStorefrontController {
     public ShopifyStorefrontController(ShopifyStorefrontBootstrapService storefrontBootstrapService,
                                        ShopifyStorefrontChatService storefrontChatService,
                                        ShopifyStorefrontEngagementService storefrontEngagementService,
-                                       ShopifyStorefrontReadActionService storefrontReadActionService,
                                        ShopifyStorefrontOrderLookupService storefrontOrderLookupService,
                                        ShopifyStorefrontGovernedActionService governedActionService,
                                        ShopifyBridgeUsageService usageService) {
         this.storefrontBootstrapService = storefrontBootstrapService;
         this.storefrontChatService = storefrontChatService;
         this.storefrontEngagementService = storefrontEngagementService;
-        this.storefrontReadActionService = storefrontReadActionService;
         this.storefrontOrderLookupService = storefrontOrderLookupService;
         this.governedActionService = governedActionService;
         this.usageService = usageService;
     }
 
     @GetMapping("/{shopDomain}/bootstrap")
-    public ShopifyStorefrontBootstrapResponse bootstrap(@PathVariable String shopDomain) {
-        ShopifyStorefrontBootstrapResponse response = storefrontBootstrapService.bootstrap(shopDomain);
+    public ShopifyStorefrontBootstrapResponse bootstrap(@PathVariable String shopDomain,
+                                                        @RequestParam(value = "pageType", required = false) String pageType) {
+        ShopifyStorefrontBootstrapResponse response = storefrontBootstrapService.bootstrap(shopDomain, pageType);
         if (response.available()) {
             usageService.recordEvent(shopDomain, "STOREFRONT_BOOTSTRAP");
         }
@@ -93,14 +89,6 @@ public class ShopifyStorefrontController {
                                       String shopperSessionId) {
         storefrontEngagementService.record(shopDomain, request, shopperSessionId);
         return ResponseEntity.accepted().build();
-    }
-
-    @PostMapping("/{shopDomain}/actions/read")
-    public ShopifyBridgeActionResult readAction(@PathVariable String shopDomain,
-                                                @RequestBody(required = false) ShopifyStorefrontReadActionRequest request,
-                                                @RequestHeader(value = SHOPPER_SESSION_HEADER, required = false)
-                                                String shopperSessionId) {
-        return storefrontReadActionService.execute(shopDomain, request, shopperSessionId);
     }
 
     @PostMapping("/{shopDomain}/support/order-lookup")

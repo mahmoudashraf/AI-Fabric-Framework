@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.storefront.model;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCapability;
 
 import java.util.List;
+import java.util.Map;
 
 public record ShopifyStorefrontBootstrapResponse(
     boolean available,
@@ -19,6 +20,10 @@ public record ShopifyStorefrontBootstrapResponse(
     String launcherLabel,
     String welcomeMessage,
     String shellModeProfile,
+    String defaultConversationMode,
+    String effectiveConversationMode,
+    List<String> allowedConversationModes,
+    Map<String, String> pageModeMappings,
     List<String> enabledSurfaces,
     List<String> groundingSignals,
     List<String> supportedReviewProviders,
@@ -26,7 +31,6 @@ public record ShopifyStorefrontBootstrapResponse(
     String runtimeAuthMode,
     String bridgeQueryUrl,
     String bridgeSuggestionsUrl,
-    String bridgeReadActionUrl,
     String bridgeOrderLookupUrl,
     String bridgeEventUrl,
     boolean orderLookupEnabled,

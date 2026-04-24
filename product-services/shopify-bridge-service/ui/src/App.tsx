@@ -123,6 +123,16 @@ type VectorizationPolicyDraft = {
   sourcePolicies: ShopifyBridgeStoreVectorizationSourcePolicyInput[]
 }
 
+type WidgetSettingsState = {
+  launcherLabel: string
+  welcomeMessage: string
+  shellModeProfile: string
+  defaultConversationMode: string
+  allowedConversationModes: string[]
+  pageModeMappings: Record<string, string>
+  enabledSurfaces: string[]
+}
+
 const UPDATE_TRIGGER_OPTIONS = [
   { label: 'Disabled', value: 'NONE' },
   { label: 'Any update', value: 'ANY_UPDATE' },
@@ -155,6 +165,67 @@ const SHELL_MODE_PROFILE_OPTIONS = [
   { label: 'Guided Commerce', value: 'GUIDED_COMMERCE' },
   { label: 'Guided Support', value: 'GUIDED_SUPPORT' },
 ]
+
+const CONVERSATION_MODE_OPTIONS = [
+  { label: 'Navigator', value: 'navigator' },
+  { label: 'Deep', value: 'navigator_deep' },
+  { label: 'Assistant', value: 'cart_assistant' },
+  { label: 'Resolver', value: 'executor' },
+]
+
+const PAGE_MODE_OPTIONS = [
+  { label: 'Landing pages', value: 'landing', helpText: 'Home pages and generic non-commerce entry points.' },
+  { label: 'Product pages', value: 'product', helpText: 'Individual product detail pages.' },
+  { label: 'Collection pages', value: 'collection', helpText: 'Collections and list-collections pages.' },
+  { label: 'Search pages', value: 'search', helpText: 'Search results and search-led discovery flows.' },
+  { label: 'Cart pages', value: 'cart', helpText: 'Cart review and checkout-adjacent pages.' },
+  { label: 'Account pages', value: 'account', helpText: 'Customer account, orders, and login/register flows.' },
+  { label: 'Content pages', value: 'content', helpText: 'Articles, blogs, and CMS pages.' },
+]
+
+function defaultConversationModeForShellProfile(shellModeProfile?: string | null): string {
+  return shellModeProfile === 'GUIDED_SUPPORT' ? 'navigator_deep' : 'navigator'
+}
+
+function normalizeAllowedConversationModes(values: string[] | null | undefined, fallback: string): string[] {
+  const normalized = (values ?? [])
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .map((value) => value.trim())
+    .filter((value, index, array) => array.indexOf(value) === index)
+  if (!normalized.includes(fallback)) {
+    normalized.push(fallback)
+  }
+  return normalized.length ? normalized : [fallback]
+}
+
+function normalizePageModeMappings(values: Record<string, string> | null | undefined, allowedModes: string[]): Record<string, string> {
+  if (!values) {
+    return {}
+  }
+  return Object.fromEntries(
+    Object.entries(values).filter(([pageKey, mode]) => Boolean(pageKey) && Boolean(mode) && allowedModes.includes(mode))
+  )
+}
+
+function buildWidgetSettingsState(snapshot?: WidgetSettingsSnapshot | null): WidgetSettingsState {
+  const shellModeProfile = snapshot?.shellModeProfile ?? 'SHOPIFY_COMPANION'
+  const defaultConversationMode =
+    snapshot?.defaultConversationMode ?? defaultConversationModeForShellProfile(shellModeProfile)
+  const allowedConversationModes = normalizeAllowedConversationModes(
+    snapshot?.allowedConversationModes,
+    defaultConversationMode
+  )
+  return {
+    launcherLabel: snapshot?.launcherLabel ?? 'Ask the store assistant',
+    welcomeMessage:
+      snapshot?.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.',
+    shellModeProfile,
+    defaultConversationMode,
+    allowedConversationModes,
+    pageModeMappings: normalizePageModeMappings(snapshot?.pageModeMappings, allowedConversationModes),
+    enabledSurfaces: snapshot?.enabledSurfaces?.length ? [...snapshot.enabledSurfaces] : [...DEFAULT_WIDGET_SURFACES],
+  }
+}
 
 function buildVectorizationPolicyDraft(summary: ShopifyBridgeStoreVectorizationSummary | null): VectorizationPolicyDraft | null {
   if (!summary?.policy) {
@@ -218,12 +289,7 @@ export default function App() {
     | 'vectorization-auto-retry'
     | null
   >(null)
-  const [widgetSettings, setWidgetSettings] = useState({
-    launcherLabel: 'Ask the store assistant',
-    welcomeMessage: 'Store assistant is ready. Ask about products, policies, or collections.',
-    shellModeProfile: 'SHOPIFY_COMPANION',
-    enabledSurfaces: DEFAULT_WIDGET_SURFACES,
-  })
+  const [widgetSettings, setWidgetSettings] = useState<WidgetSettingsState>(buildWidgetSettingsState())
   const [busyWidgetSettings, setBusyWidgetSettings] = useState(false)
   const [supportProfileSettings, setSupportProfileSettings] = useState({
     contactEmail: '',
@@ -351,17 +417,7 @@ export default function App() {
           articlesEnabled: session.store.articlesEnabled,
           metaobjectsEnabled: session.store.metaobjectsEnabled,
         })
-        setWidgetSettings({
-          launcherLabel: session.store.widgetDetail?.settings?.launcherLabel ?? 'Ask the store assistant',
-          welcomeMessage:
-            session.store.widgetDetail?.settings?.welcomeMessage ??
-            'Store assistant is ready. Ask about products, policies, or collections.',
-          shellModeProfile: session.store.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION',
-          enabledSurfaces:
-            session.store.widgetDetail?.settings?.enabledSurfaces?.length
-              ? [...session.store.widgetDetail.settings.enabledSurfaces]
-              : [...DEFAULT_WIDGET_SURFACES],
-        })
+        setWidgetSettings(buildWidgetSettingsState(session.store.widgetDetail?.settings))
         setSupportProfileSettings({
           contactEmail: session.supportReadiness?.supportProfile?.contactEmail ?? '',
           contactUrl: session.supportReadiness?.supportProfile?.contactUrl ?? '',
@@ -958,12 +1014,18 @@ export default function App() {
       store.metaobjectsEnabled !== sourceSettings.metaobjectsEnabled)
   const widgetSettingsDirty =
     !!store &&
-    ((store.widgetDetail?.settings?.launcherLabel ?? 'Ask the store assistant') !== widgetSettings.launcherLabel ||
-      (store.widgetDetail?.settings?.welcomeMessage ??
-        'Store assistant is ready. Ask about products, policies, or collections.') !== widgetSettings.welcomeMessage ||
-      (store.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION') !== widgetSettings.shellModeProfile ||
-      JSON.stringify(store.widgetDetail?.settings?.enabledSurfaces ?? DEFAULT_WIDGET_SURFACES) !==
-        JSON.stringify(widgetSettings.enabledSurfaces))
+    (() => {
+      const persisted = buildWidgetSettingsState(store.widgetDetail?.settings)
+      return (
+        persisted.launcherLabel !== widgetSettings.launcherLabel ||
+        persisted.welcomeMessage !== widgetSettings.welcomeMessage ||
+        persisted.shellModeProfile !== widgetSettings.shellModeProfile ||
+        persisted.defaultConversationMode !== widgetSettings.defaultConversationMode ||
+        JSON.stringify(persisted.allowedConversationModes) !== JSON.stringify(widgetSettings.allowedConversationModes) ||
+        JSON.stringify(persisted.pageModeMappings) !== JSON.stringify(widgetSettings.pageModeMappings) ||
+        JSON.stringify(persisted.enabledSurfaces) !== JSON.stringify(widgetSettings.enabledSurfaces)
+      )
+    })()
   const supportProfileDirty =
     (supportReadiness?.supportProfile?.contactEmail ?? '') !== supportProfileSettings.contactEmail ||
     (supportReadiness?.supportProfile?.contactUrl ?? '') !== supportProfileSettings.contactUrl ||
@@ -2549,6 +2611,83 @@ export default function App() {
                     }
                     disabled={billingSummary?.chatFallbackEnabled === false}
                   />
+                  <Select
+                    label="Default mode"
+                    options={CONVERSATION_MODE_OPTIONS}
+                    value={widgetSettings.defaultConversationMode}
+                    onChange={(value) =>
+                      setWidgetSettings((current) => ({
+                        ...current,
+                        defaultConversationMode: value,
+                        allowedConversationModes: normalizeAllowedConversationModes(
+                          current.allowedConversationModes,
+                          value
+                        ),
+                      }))
+                    }
+                    helpText="This is the default Max widget mode before page-specific routing or shopper selection changes it."
+                  />
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Intentional advanced modes
+                    </Text>
+                    {CONVERSATION_MODE_OPTIONS.map((mode) => (
+                      <Checkbox
+                        key={mode.value}
+                        label={mode.label}
+                        checked={widgetSettings.allowedConversationModes.includes(mode.value)}
+                        disabled={mode.value === widgetSettings.defaultConversationMode}
+                        onChange={(checked) =>
+                          setWidgetSettings((current) => {
+                            const nextAllowed = checked
+                              ? normalizeAllowedConversationModes(
+                                  [...current.allowedConversationModes, mode.value],
+                                  current.defaultConversationMode
+                                )
+                              : current.allowedConversationModes.filter((value) => value !== mode.value)
+                            return {
+                              ...current,
+                              allowedConversationModes: nextAllowed,
+                              pageModeMappings: normalizePageModeMappings(current.pageModeMappings, nextAllowed),
+                            }
+                          })
+                        }
+                      />
+                    ))}
+                  </BlockStack>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Page-aware mode routing
+                    </Text>
+                    {PAGE_MODE_OPTIONS.map((pageOption) => (
+                      <Select
+                        key={pageOption.value}
+                        label={pageOption.label}
+                        options={[
+                          { label: 'Use default mode', value: '' },
+                          ...CONVERSATION_MODE_OPTIONS.filter((mode) =>
+                            widgetSettings.allowedConversationModes.includes(mode.value)
+                          ),
+                        ]}
+                        value={widgetSettings.pageModeMappings[pageOption.value] ?? ''}
+                        onChange={(value) =>
+                          setWidgetSettings((current) => {
+                            const nextMappings = { ...current.pageModeMappings }
+                            if (!value) {
+                              delete nextMappings[pageOption.value]
+                            } else {
+                              nextMappings[pageOption.value] = value
+                            }
+                            return {
+                              ...current,
+                              pageModeMappings: nextMappings,
+                            }
+                          })
+                        }
+                        helpText={pageOption.helpText}
+                      />
+                    ))}
+                  </BlockStack>
                   <BlockStack gap="150">
                     <Text as="p" variant="bodySm" tone="subdued">
                       Embedded surfaces · current tier allows {billingAllowedSurfaces.join(' · ')}
@@ -3484,6 +3623,9 @@ type WidgetSettingsSnapshot = {
   launcherLabel?: string | null
   welcomeMessage?: string | null
   shellModeProfile?: string | null
+  defaultConversationMode?: string | null
+  allowedConversationModes?: string[]
+  pageModeMappings?: Record<string, string>
   enabledSurfaces?: string[]
 }
 

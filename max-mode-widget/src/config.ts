@@ -157,6 +157,14 @@ export interface MaxModeHostConfig {
   starterSuggestions?: string[];
   /** Optional host-owned request payload merged into query and suggestions calls */
   requestContext?: Record<string, any>;
+  /** Default user-selectable conversation mode for this host */
+  defaultConversationMode?: MaxModeMode;
+  /** Effective conversation mode after host/page routing is resolved */
+  effectiveConversationMode?: MaxModeMode;
+  /** User-selectable advanced modes intentionally enabled by the host */
+  allowedConversationModes?: MaxModeMode[];
+  /** Optional page-group -> mode routing hints provided by the host */
+  pageModeMappings?: Record<string, MaxModeMode>;
   /** Optional host-owned initial attachments/context */
   initialAttachments?: MaxModeHostAttachment[];
   /** Hide POC-only utility controls when embedding in storefronts */
@@ -245,6 +253,10 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     starterPrompts: undefined,
     starterSuggestions: undefined,
     requestContext: undefined,
+    defaultConversationMode: undefined,
+    effectiveConversationMode: undefined,
+    allowedConversationModes: undefined,
+    pageModeMappings: undefined,
     initialAttachments: undefined,
     showUtilityPanel: true,
   },

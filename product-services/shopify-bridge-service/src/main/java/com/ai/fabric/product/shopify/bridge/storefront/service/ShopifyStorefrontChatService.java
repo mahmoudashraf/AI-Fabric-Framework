@@ -81,6 +81,15 @@ public class ShopifyStorefrontChatService {
             copyLimitedTextField(rawCollection, metadata, "title", "collectionTitle");
         }
 
+        JsonNode rawDocument = rawContext.get("document");
+        if (rawDocument != null && rawDocument.isObject()) {
+            copyLimitedTextField(rawDocument, metadata, "id", "documentId");
+            copyLimitedTextField(rawDocument, metadata, "handle", "documentHandle");
+            copyLimitedTextField(rawDocument, metadata, "title", "documentTitle");
+            copyLimitedTextField(rawDocument, metadata, "type", "documentType");
+            copyLimitedTextField(rawDocument, metadata, "url", "documentUrl");
+        }
+
         String contentText = storefrontContextSummary(metadata);
         if (!StringUtils.hasText(contentText) && metadata.isEmpty()) {
             return null;
@@ -127,6 +136,9 @@ public class ShopifyStorefrontChatService {
         addSummaryPart(parts, metadata, "productPriceCents", "Product price cents");
         addSummaryPart(parts, metadata, "collectionTitle", "Collection");
         addSummaryPart(parts, metadata, "collectionHandle", "Collection handle");
+        addSummaryPart(parts, metadata, "documentTitle", "Document");
+        addSummaryPart(parts, metadata, "documentType", "Document type");
+        addSummaryPart(parts, metadata, "documentHandle", "Document handle");
         if (parts.isEmpty()) {
             return null;
         }

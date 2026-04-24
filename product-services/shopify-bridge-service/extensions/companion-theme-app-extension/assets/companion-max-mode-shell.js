@@ -21,10 +21,31 @@
         }
         var resolvedLauncherLabel = (options.payload.launcherLabel || options.launcherLabel || 'Ask the store assistant').trim()
         var shellModeProfile = normalizeShellModeProfile(options.payload.shellModeProfile)
+        var defaultConversationMode = normalizeConversationMode(
+          options.payload.defaultConversationMode || defaultLauncherMode(shellModeProfile)
+        )
+        var allowedConversationModes = normalizeAllowedConversationModes(
+          options.payload.allowedConversationModes,
+          defaultConversationMode
+        )
+        var pageModeMappings = normalizePageModeMappings(options.payload.pageModeMappings, allowedConversationModes)
+        var effectiveConversationMode = resolveEffectiveConversationMode(
+          options.storefrontContext,
+          options.payload.effectiveConversationMode,
+          defaultConversationMode,
+          allowedConversationModes,
+          pageModeMappings
+        )
         var resolvedWelcomeMessage = deriveWelcomeMessage(options.payload, options.storefrontContext, shellModeProfile)
         var shopperSessionId = getOrCreateShopperSessionId(options.payload.shopDomain || options.root.dataset.shopDomain || 'storefront')
         var starterSuggestions = defaultSuggestionsForContext(options.storefrontContext, shellModeProfile)
-        var requestContext = buildRequestContext(options.storefrontContext, shellModeProfile)
+        var requestContext = buildRequestContext(
+          options.storefrontContext,
+          shellModeProfile,
+          effectiveConversationMode,
+          allowedConversationModes,
+          pageModeMappings
+        )
 
         maxModeApi.init({
           apiConfig: {
@@ -62,9 +83,13 @@
             launcherVariant: 'pill',
             assistantLabel: assistantLabelForShellModeProfile(shellModeProfile),
             welcomeMessage: resolvedWelcomeMessage,
-            starterPrompts: starterPromptsForContext(starterSuggestions, shellModeProfile),
+            starterPrompts: starterPromptsForContext(starterSuggestions, effectiveConversationMode, options.storefrontContext),
             starterSuggestions: starterSuggestions,
             requestContext: requestContext,
+            defaultConversationMode: defaultConversationMode,
+            effectiveConversationMode: effectiveConversationMode,
+            allowedConversationModes: allowedConversationModes,
+            pageModeMappings: pageModeMappings,
             showUtilityPanel: false,
           },
           onEvent: function (event) {
@@ -88,13 +113,13 @@
     }
   }
 
-  function starterPromptsForContext(suggestions, shellModeProfile) {
+  function starterPromptsForContext(suggestions, conversationMode, storefrontContext) {
     return (suggestions || []).slice(0, 4).map(function (value) {
       return {
         label: truncateText(value, 48) || value,
         query: value,
-        position: 'search',
-        mode: defaultLauncherMode(shellModeProfile),
+        position: conversationPositionForContext(storefrontContext),
+        mode: normalizeConversationMode(conversationMode),
       }
     })
   }
@@ -255,7 +280,7 @@
     ]
   }
 
-  function buildRequestContext(storefrontContext, shellModeProfile) {
+  function buildRequestContext(storefrontContext, shellModeProfile, effectiveConversationMode, allowedConversationModes, pageModeMappings) {
     var context = {}
     if (storefrontContext && typeof storefrontContext === 'object') {
       Object.keys(storefrontContext).forEach(function (key) {
@@ -264,6 +289,10 @@
     }
     context.shopifyShellModeProfile = shellModeProfile
     context.shopifySurfaceEntry = 'launcher'
+    context.shopifyPageModeGroup = pageModeGroup(storefrontContext)
+    context.shopifyEffectiveConversationMode = normalizeConversationMode(effectiveConversationMode)
+    context.shopifyAllowedConversationModes = allowedConversationModes || []
+    context.shopifyPageModeMappings = pageModeMappings || {}
     return context
   }
 
@@ -290,6 +319,102 @@
       return 'navigator_deep'
     }
     return 'navigator'
+  }
+
+  function normalizeConversationMode(value) {
+    if (value === 'navigator_deep' || value === 'cart_assistant' || value === 'executor') {
+      return value
+    }
+    return 'navigator'
+  }
+
+  function normalizeAllowedConversationModes(values, defaultConversationMode) {
+    var normalized = []
+    if (Array.isArray(values)) {
+      values.forEach(function (value) {
+        var candidate = normalizeConversationMode(value)
+        if (normalized.indexOf(candidate) < 0) {
+          normalized.push(candidate)
+        }
+      })
+    }
+    var fallback = normalizeConversationMode(defaultConversationMode)
+    if (normalized.indexOf(fallback) < 0) {
+      normalized.push(fallback)
+    }
+    return normalized.length ? normalized : [fallback]
+  }
+
+  function normalizePageModeMappings(values, allowedConversationModes) {
+    var normalized = {}
+    if (!values || typeof values !== 'object') {
+      return normalized
+    }
+    Object.keys(values).forEach(function (key) {
+      var normalizedKey = trimValue(key).toLowerCase()
+      var normalizedMode = normalizeConversationMode(values[key])
+      if (!normalizedKey || allowedConversationModes.indexOf(normalizedMode) < 0) {
+        return
+      }
+      normalized[normalizedKey] = normalizedMode
+    })
+    return normalized
+  }
+
+  function resolveEffectiveConversationMode(storefrontContext, payloadEffectiveMode, defaultConversationMode, allowedConversationModes, pageModeMappings) {
+    var payloadMode = normalizeConversationMode(payloadEffectiveMode)
+    if (allowedConversationModes.indexOf(payloadMode) >= 0) {
+      return payloadMode
+    }
+    var mappedMode = pageModeMappings[pageModeGroup(storefrontContext)]
+    if (mappedMode && allowedConversationModes.indexOf(mappedMode) >= 0) {
+      return mappedMode
+    }
+    return normalizeConversationMode(defaultConversationMode)
+  }
+
+  function pageModeGroup(storefrontContext) {
+    var pageType = storefrontContext && storefrontContext.pageType ? String(storefrontContext.pageType).toLowerCase() : ''
+    if (pageType === 'product') {
+      return 'product'
+    }
+    if (pageType === 'collection' || pageType === 'list-collections') {
+      return 'collection'
+    }
+    if (pageType === 'search') {
+      return 'search'
+    }
+    if (pageType === 'cart') {
+      return 'cart'
+    }
+    if (pageType === 'article' || pageType === 'blog' || pageType === 'page') {
+      return 'content'
+    }
+    if (
+      pageType === 'customers/account' ||
+      pageType === 'customers/login' ||
+      pageType === 'customers/register' ||
+      pageType === 'customers/order' ||
+      pageType === 'account' ||
+      pageType === 'orders'
+    ) {
+      return 'account'
+    }
+    return 'landing'
+  }
+
+  function conversationPositionForContext(storefrontContext) {
+    var pageGroup = pageModeGroup(storefrontContext)
+    if (pageGroup === 'product' || pageGroup === 'collection' || pageGroup === 'content') {
+      return 'catalog'
+    }
+    if (pageGroup === 'search') {
+      return 'search'
+    }
+    if (pageGroup === 'cart' || pageGroup === 'account') {
+      return 'cart'
+    }
+    return 'landing'
   }
 
   function getOrCreateShopperSessionId(shopDomain) {

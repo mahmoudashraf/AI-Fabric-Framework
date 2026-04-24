@@ -48,6 +48,8 @@ export interface MaxModeAPI {
   close: () => void;
   /** Toggle widget open/closed */
   toggle: () => void;
+  /** Attach a generic item to the chat */
+  attachItem: (item: SharedAttachment) => void;
   /** Attach a product to the chat */
   attachProduct: (product: { sku: string; name: string; price: number; [key: string]: any }) => void;
   /** Send a message programmatically */
@@ -58,8 +60,7 @@ export interface MaxModeAPI {
   version: string;
 }
 
-// Pending attachments queue (for products attached before widget opens)
-const _pendingProducts: SharedAttachment[] = [];
+const PENDING_ATTACHMENTS_KEY = "maxmode_widget_pending_attachments";
 
 const MaxModeInstance: MaxModeAPI = {
   version: "1.0.0",
@@ -85,19 +86,19 @@ const MaxModeInstance: MaxModeAPI = {
     toggleWidget();
   },
 
-  attachProduct(product) {
-    _pendingProducts.push({ type: "product", data: product });
-    // If widget is mounted, add to sessionStorage for pickup
+  attachItem(item) {
+    if (!item?.type || !item?.data || typeof item.data !== "object") {
+      console.warn("[MaxMode] attachItem() requires an item with a type and object data payload");
+      return;
+    }
+    queueAttachment(item);
     try {
-      const existing = JSON.parse(
-        sessionStorage.getItem("maxmode_widget_pending_attachments") || "[]",
-      );
-      existing.push({ type: "product", data: product });
-      sessionStorage.setItem(
-        "maxmode_widget_pending_attachments",
-        JSON.stringify(existing),
-      );
+      window.dispatchEvent(new CustomEvent("maxmode:attach-item", { detail: { item } }));
     } catch {}
+  },
+
+  attachProduct(product) {
+    MaxModeInstance.attachItem({ type: "product", data: product });
   },
 
   sendMessage(message, options) {
@@ -147,3 +148,19 @@ function enqueuePrompt(prompt: MaxModeQueuedPrompt) {
 }
 
 export default MaxModeInstance;
+
+function queueAttachment(item: SharedAttachment) {
+  try {
+    const existing = JSON.parse(sessionStorage.getItem(PENDING_ATTACHMENTS_KEY) || "[]");
+    const alreadyQueued = Array.isArray(existing) && existing.some((entry) =>
+      entry?.type === item.type &&
+      ((entry?.data?.id && entry.data.id === item.data.id) ||
+        (entry?.data?.sku && entry.data.sku === item.data.sku)),
+    );
+    if (alreadyQueued) {
+      return;
+    }
+    const next = Array.isArray(existing) ? [...existing, item] : [item];
+    sessionStorage.setItem(PENDING_ATTACHMENTS_KEY, JSON.stringify(next));
+  } catch {}
+}
