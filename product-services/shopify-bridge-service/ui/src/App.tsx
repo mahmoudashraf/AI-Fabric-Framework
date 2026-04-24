@@ -14,6 +14,7 @@ import {
   List,
   Page,
   Select,
+  Tabs,
   Text,
   TextField,
 } from '@shopify/polaris'
@@ -183,6 +184,16 @@ const PAGE_MODE_OPTIONS = [
   { label: 'Content pages', value: 'content', helpText: 'Articles, blogs, and CMS pages.' },
 ]
 
+const ADMIN_TABS = [
+  { id: 'home', content: 'Home' },
+  { id: 'setup', content: 'Setup' },
+  { id: 'insights', content: 'Insights' },
+  { id: 'billing', content: 'Billing' },
+  { id: 'support', content: 'Support' },
+  { id: 'launch', content: 'Go live' },
+  { id: 'advanced', content: 'Advanced' },
+]
+
 function defaultConversationModeForShellProfile(shellModeProfile?: string | null): string {
   return shellModeProfile === 'GUIDED_SUPPORT' ? 'navigator_deep' : 'navigator'
 }
@@ -268,6 +279,7 @@ export default function App() {
     loading: true,
     error: null,
   })
+  const [selectedTab, setSelectedTab] = useState(0)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [pendingBillingReturn, setPendingBillingReturn] = useState(() => hasBillingReturnQueryParam())
@@ -1032,6 +1044,7 @@ export default function App() {
     (supportReadiness?.supportProfile?.helpCenterUrl ?? '') !== supportProfileSettings.helpCenterUrl ||
     (supportReadiness?.supportProfile?.orderLookupPageUrl ?? '') !== supportProfileSettings.orderLookupPageUrl ||
     (supportReadiness?.supportProfile?.supportPolicyNote ?? '') !== supportProfileSettings.supportPolicyNote
+  const selectedSection = ADMIN_TABS[selectedTab]?.id ?? 'home'
 
   useEffect(() => {
     if (!store) {
@@ -1289,8 +1302,8 @@ export default function App() {
   return (
     <AppProvider i18n={enTranslations}>
       <Page
-        title={shell?.appName ?? 'Shopify Bridge Service'}
-        subtitle="Merchant-facing shell for onboarding, source readiness, sync, and storefront enablement."
+        title="Loom Companion"
+        subtitle="Store setup, storefront surfaces, shopper insights, billing, and support."
         primaryAction={{ content: 'Refresh', onAction: () => void refresh() }}
       >
         <BlockStack gap="400">
@@ -1298,28 +1311,29 @@ export default function App() {
           {actionError ? <Banner tone="critical">{actionError}</Banner> : null}
           {actionMessage ? <Banner tone="success">{actionMessage}</Banner> : null}
           {state.loading ? <Banner tone="info">Loading Shopify Bridge shell…</Banner> : null}
+          <Tabs tabs={ADMIN_TABS} selected={selectedTab} onSelect={setSelectedTab} />
 
+          {selectedSection === 'home' ? (
           <Card>
             <BlockStack gap="300">
               <InlineStack align="space-between">
                 <Text as="h2" variant="headingMd">
-                  Bridge status
+                  App status
                 </Text>
                 <Badge tone={badgeTone(shell?.status ?? 'UNKNOWN')}>{shell?.status ?? 'UNKNOWN'}</Badge>
               </InlineStack>
               <Text as="p" variant="bodyMd" tone="subdued">
-                Service ref: {shell?.serviceRef ?? '—'} · Environment: {shell?.environmentScope ?? '—'}
-              </Text>
-              <Text as="p" variant="bodyMd">
-                Merchant traffic now depends on Shopify session tokens. This shell only drives one bounded store lifecycle instead of exposing raw platform composition.
+                Manage one Shopify store, keep shopper-facing surfaces aligned with the active plan, and close only the actions that are blocking launch.
               </Text>
               <Text as="p" variant="bodyMd" tone={shell?.merchantSessionAuthConfigured ? 'success' : 'critical'}>
                 Merchant session auth configured: {shell?.merchantSessionAuthConfigured ? 'yes' : 'no'}
               </Text>
             </BlockStack>
           </Card>
+          ) : null}
 
           <InlineStack gap="400" blockAlign="start" align="start">
+            {selectedSection === 'home' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -1328,12 +1342,10 @@ export default function App() {
                   </Text>
                   {session ? (
                     <BlockStack gap="200">
-                      <List type="bullet">
-                        <List.Item>Shop: {session.shopDomain}</List.Item>
-                        <List.Item>User: {session.userId}</List.Item>
-                        <List.Item>Expires: {new Date(session.expiresAt).toLocaleString()}</List.Item>
+                        <List type="bullet">
+                          <List.Item>Shop: {session.shopDomain}</List.Item>
+                        <List.Item>Session active until: {new Date(session.expiresAt).toLocaleString()}</List.Item>
                         <List.Item>Install record: {session.installRecord?.status ?? 'MISSING'}</List.Item>
-                        <List.Item>Credential refs: {session.installRecord?.accessTokenSecretRef ? 'present' : 'missing'}</List.Item>
                       </List>
                       {installRecoveryRequired ? (
                         <Banner tone="warning">
@@ -1376,7 +1388,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'setup' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -1428,7 +1442,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'home' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -1443,7 +1459,94 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'billing' ? (
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Billing and plan
+                    </Text>
+                    <Badge tone={billingSummary?.launchBlocked ? 'critical' : 'success'}>
+                      {billingSummary?.tierKey ?? 'UNKNOWN'}
+                    </Badge>
+                  </InlineStack>
+                  {billingSummary ? (
+                    <BlockStack gap="200">
+                      <Text as="p" variant="bodyMd" tone={billingSummary.launchBlocked ? 'critical' : 'subdued'}>
+                        {billingSummary.message}
+                      </Text>
+                      <List type="bullet">
+                        <List.Item>Current plan: {billingSummary.planName}</List.Item>
+                        <List.Item>Allowed surfaces: {billingAllowedSurfaces.join(' · ') || '—'}</List.Item>
+                        <List.Item>Product cap: {billingSummary.catalogProductCap ?? 'unlimited'}</List.Item>
+                        <List.Item>Sync cadence: {billingSummary.syncCadence ?? 'platform default'}</List.Item>
+                        <List.Item>Powered-by badge: {billingSummary.poweredByBadgeRequired ? 'required' : 'optional'}</List.Item>
+                        <List.Item>Chat fallback: {billingSummary.chatFallbackEnabled ? 'enabled' : 'disabled'}</List.Item>
+                      </List>
+                      {billingSummary.availablePlans?.length ? (
+                        <BlockStack gap="200">
+                          <Text as="h3" variant="headingSm">
+                            Available plans
+                          </Text>
+                          {billingSummary.availablePlans.map((plan) => {
+                            const canActivate = !plan.active && plan.merchantApprovalSupported && plan.commerciallyAvailable
+                            return (
+                              <Box key={plan.tierKey} padding="200" borderWidth="025" borderColor="border" borderRadius="200">
+                                <BlockStack gap="150">
+                                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                                    <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                      {plan.planName}
+                                    </Text>
+                                    <InlineStack gap="150">
+                                      <Badge tone={plan.active ? 'success' : 'info'}>
+                                        {plan.active ? 'Current' : plan.tierKey}
+                                      </Badge>
+                                      <Badge tone={plan.commerciallyAvailable ? 'success' : 'attention'}>
+                                        {plan.commerciallyAvailable ? 'Available' : 'Not available yet'}
+                                      </Badge>
+                                    </InlineStack>
+                                  </InlineStack>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {formatPlanPrice(plan)} · {plan.allowedSurfaces.join(' · ') || 'No storefront surfaces'}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {plan.actionCapable ? 'Read + governed actions' : 'Read-only shopper intelligence'} · sync {plan.syncCadence ?? 'platform default'}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {plan.message}
+                                  </Text>
+                                  {canActivate ? (
+                                    <InlineStack gap="200">
+                                      <Button
+                                        variant="primary"
+                                        onClick={() => void handleBillingApproval(plan.tierKey)}
+                                        loading={busyAction === 'billing-approval'}
+                                      >
+                                        Activate {plan.planName}
+                                      </Button>
+                                    </InlineStack>
+                                  ) : null}
+                                </BlockStack>
+                              </Box>
+                            )
+                          })}
+                        </BlockStack>
+                      ) : null}
+                    </BlockStack>
+                  ) : (
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Billing appears after the current merchant session resolves.
+                    </Text>
+                  )}
+                </BlockStack>
+              </Card>
+            </Box>
+            ) : null}
+
+            {selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -1756,7 +1859,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'setup' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -1886,7 +1991,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'insights' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2037,12 +2144,14 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'launch' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Launch and App Review readiness
+                    Go-live readiness
                   </Text>
                   <InlineStack gap="200" align="start">
                     <Badge tone={launchReadiness.tone}>{launchReadiness.status}</Badge>
@@ -2072,7 +2181,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2118,13 +2229,15 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'launch' || selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
                   <InlineStack gap="200" align="space-between" blockAlign="center">
                     <Text as="h2" variant="headingMd">
-                      Go-live checklist and dossier
+                      {selectedSection === 'advanced' ? 'Go-live checklist and dossier' : 'Go-live checklist'}
                     </Text>
                     <Badge tone={goLiveChecklist.tone}>{goLiveChecklist.status}</Badge>
                   </InlineStack>
@@ -2193,25 +2306,31 @@ export default function App() {
                       )
                     })}
                   </BlockStack>
-                  <TextField
-                    label="Launch dossier"
-                    autoComplete="off"
-                    multiline={12}
-                    value={launchDossierText}
-                    readOnly
-                  />
-                  <InlineStack gap="200">
-                    <Button onClick={() => void handleCopyLaunchDossier()} disabled={!session}>
-                      Copy launch dossier
-                    </Button>
-                    <Button onClick={handleDownloadLaunchDossier} disabled={!session}>
-                      Download launch dossier
-                    </Button>
-                  </InlineStack>
+                  {selectedSection === 'advanced' ? (
+                    <BlockStack gap="150">
+                      <TextField
+                        label="Launch dossier"
+                        autoComplete="off"
+                        multiline={12}
+                        value={launchDossierText}
+                        readOnly
+                      />
+                      <InlineStack gap="200">
+                        <Button onClick={() => void handleCopyLaunchDossier()} disabled={!session}>
+                          Copy launch dossier
+                        </Button>
+                        <Button onClick={handleDownloadLaunchDossier} disabled={!session}>
+                          Download launch dossier
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  ) : null}
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2264,7 +2383,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2308,7 +2429,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2401,7 +2524,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2571,9 +2696,11 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
           </InlineStack>
 
           <InlineStack gap="400" blockAlign="start" align="start">
+            {selectedSection === 'setup' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2745,7 +2872,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'support' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2825,7 +2954,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'insights' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2968,7 +3099,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2983,7 +3116,9 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
 
+            {selectedSection === 'advanced' ? (
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
@@ -2998,8 +3133,10 @@ export default function App() {
                 </BlockStack>
               </Card>
             </Box>
+            ) : null}
           </InlineStack>
 
+          {selectedSection === 'home' || selectedSection === 'launch' ? (
           <Card>
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">
@@ -3126,6 +3263,7 @@ export default function App() {
               </InlineStack>
             </BlockStack>
           </Card>
+          ) : null}
         </BlockStack>
       </Page>
     </AppProvider>
@@ -3153,24 +3291,16 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
         <List.Item>Data sync: {store.syncStatus}</List.Item>
         <List.Item>Source readiness: {store.sourceReadinessStatus}</List.Item>
         <List.Item>Widget: {store.widgetStatus}</List.Item>
-        <List.Item>Credentials: {store.credentials?.status ?? 'MISSING'}</List.Item>
-        <List.Item>Deployment: {store.deploymentName ?? '—'} ({store.deploymentStatus ?? '—'})</List.Item>
-        <List.Item>Latest version: {store.latestVersion?.versionLabel ?? '—'} ({store.latestVersion?.status ?? '—'})</List.Item>
-        <List.Item>Latest release: {store.latestRelease?.status ?? '—'} / verification {store.latestRelease?.verificationStatus ?? '—'}</List.Item>
-        <List.Item>Consumer: {store.consumerId ?? '—'}</List.Item>
+        <List.Item>Last successful sync: {formatTimestamp(store.lastSyncAt)}</List.Item>
+        <List.Item>Last Shopify update: {formatTimestamp(store.lastWebhookAt)}</List.Item>
       </List>
-      {store.credentials ? (
-        <Text as="p" variant="bodySm" tone="subdued">
-          Token refs {store.credentials.accessTokenPresent ? 'ready' : 'missing'} / {store.credentials.refreshTokenPresent ? 'refresh ready' : 'refresh missing'} · Scope {store.credentials.scopesText ?? '—'}
-        </Text>
-      ) : null}
       {store.sourcePreflight ? (
         <Text as="p" variant="bodySm" tone="subdued">
-          Preflight {store.sourcePreflight.overallStatus} ·{' '}
+          Source check {store.sourcePreflight.overallStatus} ·{' '}
           {store.sourcePreflight.categories
+            .filter((category) => category.enabled)
             .map((category) => {
-              const signalText = category.signals.length ? ` · ${category.signals.join(', ')}` : ''
-              return `${category.category} ${category.status.toLowerCase()} (${category.itemCount})${signalText}`
+              return `${category.category} ${category.status.toLowerCase()} (${category.itemCount})`
             })
             .join(' · ')}
         </Text>
@@ -3186,30 +3316,10 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
           ).join(', ')}
         </Text>
       ) : null}
-      {store.capabilities ? (
-        <Text as="p" variant="bodySm" tone="subdued">
-          Capabilities: {store.capabilities.actionCount} actions, {store.capabilities.knowledgeSourceCount} knowledge sources, {store.capabilities.marketplaceDatasetCount} datasets, {store.capabilities.shellModuleCount} shell modules
-        </Text>
-      ) : null}
       {store.syncDetail ? (
         <Text as="p" variant="bodySm" tone="subdued">
-          Sync {store.syncDetail.status} · mode {store.syncDetail.mode ?? '—'} · documents {store.syncDetail.documentCount}
+          Synced documents: {store.syncDetail.documentCount}
           {store.syncDetail.message ? ` · ${store.syncDetail.message}` : ''}
-        </Text>
-      ) : null}
-      {store.webhookDetail ? (
-        <Text as="p" variant="bodySm" tone="subdued">
-          Last webhook {store.webhookDetail.topic ?? '—'} · event {store.webhookDetail.eventType ?? '—'} · source {store.webhookDetail.sourceCategory ?? '—'} · received{' '}
-          {store.webhookDetail.receivedAt ? new Date(store.webhookDetail.receivedAt).toLocaleString() : '—'}
-          {store.webhookDetail.invalidateSync ? ' · sync invalidated' : ''}
-          {store.webhookDetail.message ? ` · ${store.webhookDetail.message}` : ''}
-        </Text>
-      ) : null}
-      {store.latestRelease ? (
-        <Text as="p" variant="bodySm" tone="subdued">
-          Release step {store.latestRelease.currentStepKey ?? '—'} · provisioning {store.latestRelease.provisioningStatus} · updated{' '}
-          {store.latestRelease.updatedAt ? new Date(store.latestRelease.updatedAt).toLocaleString() : '—'}
-          {store.latestRelease.errorMessage ? ` · ${store.latestRelease.errorMessage}` : ''}
         </Text>
       ) : null}
       {store.readiness?.goLiveBlockingReasons?.length ? (
