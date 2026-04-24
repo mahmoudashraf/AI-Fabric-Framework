@@ -163,6 +163,12 @@ Current release-gate statuses:
 High-value live operator patterns from `2026-04-24`:
 
 - if the Shopify verification store is intentionally blocked on order-read scope approval, dispatch the full suite with explicit `shopifyCompanionExpectations` instead of assuming `storefrontReady=true`
+- if Shopify storefront query traffic suddenly starts failing with nested action errors while the bridge itself is healthy, inspect the published Shopify Companion `ai-actions.yml` before blaming runtime auth or connector transport
+  - the strongest signal is: direct bridge `POST /api/admin/stores/{shopDomain}/actions/execute` succeeds when you send a real `query`, but the public shopper query path fails because the live action catalog no longer exposes `query` for `list_products` or `search_products`
+- if the published artifact is wrong on the active deployment version, remember that runtime action metadata is loaded and cached at startup
+  - patching the platform DB artifact alone is not enough for immediate live recovery; restart or redeploy the runtime service after the artifact is corrected
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` in the Shopify verification scripts is the live `SHOPIFY_BRIDGE_SHARED_SECRET`
+  - `APP_ADMIN_API_KEY` is not the correct credential for bridge admin endpoints
 - if a canonical hosted deployment fails with:
   - `runtime_config_matches_expected`
   - `runtime_prompt_config_matches_expected`
@@ -227,6 +233,22 @@ Shopify Companion verification:
 - `scripts/verify-shopify-companion.sh`: non-destructive live Shopify Companion verification.
 - `scripts/run-shopify-companion-rollout.sh`: platform-side bootstrap, source preflight, and go-live progression.
 - `scripts/verify-shopify-companion-uninstall.sh`: destructive uninstall verification for a disposable store mapping only.
+
+Useful live Shopify checks from the latest storefront repair:
+
+- public shopper query:
+  - `POST /api/storefront/shops/{shopDomain}/chat/query`
+- bridge admin overview:
+  - `GET /api/admin/overview`
+- direct bridge action execution:
+  - `POST /api/admin/stores/{shopDomain}/actions/execute`
+- published action artifact:
+  - `GET /api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml`
+
+Important credential distinction:
+
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` should be the bridge shared secret currently mounted as `SHOPIFY_BRIDGE_SHARED_SECRET`
+- do not substitute `APP_ADMIN_API_KEY` for bridge admin verification
 
 Safety model:
 
@@ -301,13 +323,22 @@ The most useful live recovery sequence from the latest release-gate work was:
 
 1. run the full suite with `allowControlPlaneRepair=true`
 2. if Shopify is intentionally pending scope approval, include explicit `shopifyCompanionExpectations`
-3. if the suite later fails on one provider hosted deployment, inspect that deployment with:
+3. if a Shopify shopper query now fails with nested `ACTION_EXECUTED` transport errors, compare:
+   - the public shopper query path
+   - direct bridge `/actions/execute` with an explicit `query`
+   - direct bridge `/actions/execute` with empty `params`
+4. if direct bridge works only when `query` is present, inspect the published `ai-actions.yml` for missing `params` on `list_products` or `search_products`
+5. repair the source migration and, for immediate live recovery on an already-published version, repair the active deployment version artifact and draft so `actions_config_json`, `actions_artifact_yaml`, and `manifest_json` are coherent
+6. restart or redeploy the runtime service because the connector action catalog is cached at startup
+7. rerun `scripts/verify-shopify-companion.sh` with the truthful pending-scope expectations and the correct bridge shared secret
+8. only then rerun the full suite
+9. if the suite later fails on one provider hosted deployment, inspect that deployment with:
    - `GET /api/deployments/{deploymentId}/hosted-verifications`
    - `bash scripts/run-platform-deployment-verification.sh`
-4. if the failure is stale canonical rollout state, recreate only that rollout key
-5. rerun the deployment-scoped hosted verification for that deployment
-6. rerun the full suite
-7. confirm `GET /api/verification-suites/release-gate` returns `READY`
+10. if the failure is stale canonical rollout state, recreate only that rollout key
+11. rerun the deployment-scoped hosted verification for that deployment
+12. rerun the full suite
+13. confirm `GET /api/verification-suites/release-gate` returns `READY`
 
 Private file:
 

@@ -152,6 +152,8 @@ Optional for deeper Shopify verification coverage:
 Operational notes:
 
 - baseline non-destructive Shopify verification can run without the optional values
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` should be the bridge shared secret currently mounted as `SHOPIFY_BRIDGE_SHARED_SECRET`
+  - do not use `APP_ADMIN_API_KEY` for bridge admin verification
 - uninstall verification is destructive and should only target a disposable shop mapping
 - the private handoff is the source of truth for current live Shopify credentials and app values
 - for GitHub Actions, keep non-secret Shopify config in variables and keep only keys, bearer tokens, and passwords in secrets
@@ -435,6 +437,51 @@ Current read-only checks in `scripts/verify-shopify-companion.sh`:
 - recent vectorization event visibility
 - bridge admin vectorization source-page reachability when bridge admin auth is configured
 
+### 6.8.1 Shopify fetch-only action artifact drift
+
+Observed live pattern:
+
+- the Shopify bridge itself is healthy
+- direct bridge `POST /api/admin/stores/{shopDomain}/actions/execute` succeeds when `search_products` is called with a real `query`
+- the public shopper query path still fails because the active published `ai-actions.yml` no longer exposes `query` for `list_products` or `search_products`
+
+Strong signal:
+
+- the shopper query response contains nested action execution failure details rather than a bridge auth failure
+- direct bridge execution fails only when `params` is empty
+- `GET /api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml` shows missing `params` for `list_products` or `search_products`
+
+Operational fix:
+
+1. repair the source migration or manifest generator in code
+2. if the bad artifact is already published live, repair the active deployment version artifact and active draft so `actions_config_json`, `actions_artifact_yaml`, and `manifest_json` agree
+3. restart or redeploy the runtime service because the connector action catalog is cached at startup
+4. rerun `scripts/verify-shopify-companion.sh`
+
+Useful live commands:
+
+```bash
+curl -sS \
+  "$PLATFORM_BASE_URL/api/deployments/$PLATFORM_DEPLOYMENT_ID/versions/$PLATFORM_VERSION_ID/artifacts/ai-actions.yml?expires=...&sig=..." | sed -n '1,120p'
+```
+
+```bash
+curl -sS -H "X-BRIDGE-API-KEY: $SHOPIFY_BRIDGE_ADMIN_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -X POST \
+  "$SHOPIFY_BRIDGE_BASE_URL/api/admin/stores/$SHOP_DOMAIN/actions/execute" \
+  -d '{"actionId":"search_products","params":{"query":"best snowboard"}}' | jq .
+```
+
+```bash
+curl -sS -H "Accept: application/json" \
+  -H 'Content-Type: application/json' \
+  -H "X-AI-FABRIC-SHOPPER-SESSION-ID: shopper-debug-$(date +%s)" \
+  -X POST \
+  "$SHOPIFY_BRIDGE_BASE_URL/api/storefront/shops/$SHOP_DOMAIN/chat/query" \
+  -d '{"query":"best snowboard","mode":"navigator","storefrontContext":{"pageType":"index","pageTitle":"Shopping Companion Test","product":null,"collection":null,"shopifyShellModeProfile":"SHOPIFY_COMPANION","shopifySurfaceEntry":"ai-search"}}' | jq .
+```
+
 ## 7. Recommended Order
 
 ### 7.1 If you did not change code
@@ -694,6 +741,39 @@ If `POST /api/verification-suites/{suiteKey}/runs` returns `CONFLICT`:
 - list recent runs
 - poll the active run id
 - use `GET /api/verification-suites/release-gate` after it settles
+
+### 9.6.2 Shopify bridge admin verification uses a different key
+
+`scripts/verify-shopify-companion.sh` mixes:
+
+- platform session auth for the platform control plane
+- bridge admin auth for Shopify bridge operator reads
+
+For the bridge admin reads:
+
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` must be the live bridge shared secret
+- that value is mounted on the bridge as `SHOPIFY_BRIDGE_SHARED_SECRET`
+- `APP_ADMIN_API_KEY` is not accepted by bridge admin endpoints
+
+If the script reaches:
+
+- `Bridge admin overview`
+
+and fails with `401`, check this credential first before debugging the bridge service itself.
+
+### 9.6.3 Runtime restart is required after live action-artifact repair
+
+For Shopify Companion fetch-only actions, the runtime action catalog is loaded from `AI_ACTIONS_CATALOG_PATH` and cached at startup.
+
+That means:
+
+- fixing the source migration is necessary for future publishes
+- fixing the live platform DB artifact may restore the published `ai-actions.yml`
+- but the already-running runtime process will still serve old action metadata until it restarts
+
+Operational rule:
+
+- if you repair the active version artifact for Shopify action params, restart or redeploy the runtime service before trusting live shopper query results
 
 ### 9.7 Weaviate default host changed
 

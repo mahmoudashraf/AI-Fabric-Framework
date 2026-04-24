@@ -332,11 +332,68 @@ Likely causes:
 
 - connector templates depend on `trace.authContext.subjectId`
 - action executor only forwarded older trace fields
+- published action metadata dropped required parameter definitions, so runtime executed the action with empty `params`
 
 Where to look in code:
 
 - `ai-infrastructure-module/ai-infrastructure-actions-connector/src/main/java/com/ai/infrastructure/intent/action/connector/ActionConnectorExecutor.java`
 - `ai-infrastructure-module/ai-infrastructure-actions-connector/src/main/java/com/ai/infrastructure/intent/action/connector/ActionConnectorProtocol.java`
+
+### 4.5.1 Shopify Companion shopper query fails because the published action artifact dropped `query`
+
+Meaning:
+
+- the bridge and runtime transport are up
+- but the active published Shopify Companion action catalog no longer declares `query` for `list_products` or `search_products`
+- runtime therefore executes the connector action with empty `params`
+
+Observed live shape:
+
+- public storefront query returns nested action execution failure details instead of a top-level auth failure
+- direct bridge `POST /api/admin/stores/{shopDomain}/actions/execute` works when called with:
+  - `{"actionId":"search_products","params":{"query":"best snowboard"}}`
+- the same direct bridge endpoint fails when called with empty `params`
+- the published `ai-actions.yml` for the active deployment version shows no `params` for `list_products` or `search_products`
+
+Do not misdiagnose this as:
+
+- runtime private auth drift
+- connector base URL drift
+- random upstream transport failure
+
+What to check:
+
+1. public shopper query path:
+   - `POST /api/storefront/shops/{shopDomain}/chat/query`
+2. direct bridge action execution:
+   - `POST /api/admin/stores/{shopDomain}/actions/execute`
+3. published artifact:
+   - `GET /api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml`
+4. active deployment version source fields:
+   - `platform_deployment_versions.actions_config_json`
+   - `platform_deployment_versions.actions_artifact_yaml`
+   - `platform_deployment_versions.manifest_json`
+
+Likely causes:
+
+- marketplace plugin manifest regression
+- migration changed the Shopify Companion action manifest but accidentally removed `params`
+- already-published deployment version still serves the bad artifact snapshot
+
+Operational fix:
+
+1. repair the source migration or manifest definition in code
+2. if the bad artifact is already published live, repair the active deployment version artifact and the active draft so they are coherent
+3. restart or redeploy the runtime service because the connector action catalog is cached at startup
+4. rerun `scripts/verify-shopify-companion.sh`
+
+Where to look in code:
+
+- `Platfrom/backend/src/main/resources/db/migration/V63__shopify_companion_fetch_only_actions.sql`
+- `Platfrom/backend/src/main/resources/db/migration/V64__shopify_companion_restore_query_params.sql`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentConfigCompiler.java`
+- `ai-infrastructure-module/ai-infrastructure-actions-connector/src/main/java/com/ai/infrastructure/intent/action/connector/ConnectorActionCatalogService.java`
+- `scripts/verify-shopify-companion.sh`
 
 ### 4.6 POC conversation lookup returns `404 Conversation not found`
 
