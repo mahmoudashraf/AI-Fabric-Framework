@@ -23,6 +23,7 @@ Rules:
 - Do not start WooCommerce, Docs, Comply, Slack, Smart Brain, or broad white-label work before Shopify Companion has real product and commercial signal.
 - Partner support is a separate product surface. Long launch dossiers, App Review guides, support runbooks, design-partner packets, raw support bundles, webhook/vectorization diagnostics, and referral/commission views belong in a partner/operator dashboard, not merchant Shopify admin.
 - Merchant Shopify admin should remain action-oriented and merchant-safe: setup, storefront surfaces, knowledge sync, billing, support handoff, usage/value, and clear blockers.
+- Shopify indexing must use the platform vectorization capability. Shopify Bridge supplies Shopify-specific source data and orchestration, but vectorization lifecycle, runners, policies, queues, retries, and provider/vector-store internals belong to the platform/operator surface.
 
 ## Canonical Strategy Files
 
@@ -53,6 +54,7 @@ Current P0 decisions still open:
 - Keep Elite claims bounded to verified live governed-action surfaces.
 - Finish storefront shell convergence before opening new product tracks.
 - Build partner dashboard only after the merchant/admin boundary is clean enough that partner/operator packets no longer need to render inside the Shopify merchant app.
+- Merchant-facing indexing language is `Knowledge Sync`; raw index/reindex/replay/vectorization controls belong in the merged partner/operator dashboard.
 
 ## Strategic Decision Log
 
@@ -61,3 +63,4 @@ Current P0 decisions still open:
 - 2026-04-24: Starter is the first commercial launch target; Elite remains gated by real governed actions and supportability.
 - 2026-04-24: WooCommerce is the preferred second product only after Shopify install, review, paid-conversion, support, and reliability gates are green.
 - 2026-04-24: Created `PARTNER_DASHBOARD_STRATEGY_PLAN.md`; partner dashboard owns multi-store management, launch/review/support packets, raw support exports, diagnostics, referrals, commissions, and partner playbooks.
+- 2026-04-24: Decided Shopify indexing is platform-backed vectorization, not a separate Shopify indexing stack; merchant UI should expose only Knowledge Sync while partner/operator handles internals.
