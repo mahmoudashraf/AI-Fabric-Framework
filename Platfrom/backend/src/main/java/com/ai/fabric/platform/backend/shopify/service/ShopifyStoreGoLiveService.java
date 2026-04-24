@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
@@ -21,8 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -43,6 +47,7 @@ public class ShopifyStoreGoLiveService {
 
     private final ShopifyStoreConnectionRepository repository;
     private final DeploymentService deploymentService;
+    private final DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService;
     private final PlatformManagedProductServiceRepository productServiceRepository;
     private final PlatformManagedProductAdminService productAdminService;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
@@ -50,12 +55,14 @@ public class ShopifyStoreGoLiveService {
 
     public ShopifyStoreGoLiveService(ShopifyStoreConnectionRepository repository,
                                      DeploymentService deploymentService,
+                                     DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService,
                                      PlatformManagedProductServiceRepository productServiceRepository,
                                      PlatformManagedProductAdminService productAdminService,
                                      ShopifyStoreConnectionService shopifyStoreConnectionService,
                                      PlatformAuditService platformAuditService) {
         this.repository = repository;
         this.deploymentService = deploymentService;
+        this.deploymentMarketplaceDraftCompilerService = deploymentMarketplaceDraftCompilerService;
         this.productServiceRepository = productServiceRepository;
         this.productAdminService = productAdminService;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
@@ -70,6 +77,7 @@ public class ShopifyStoreGoLiveService {
         validateReadyForGoLive(summary);
         validateSupportReadyForGoLive(store);
 
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(store.getDeploymentId());
         DeploymentDraftResponse draft = ensureShopifyCompanionSecurityDefaults(store.getDeploymentId());
         draft = ensureShopifyCompanionConnectorDefaults(store, draft);
         DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
@@ -175,6 +183,8 @@ public class ShopifyStoreGoLiveService {
         changed |= putText(upstreamAuth, "value", "${" + SHOPIFY_BRIDGE_SHARED_SECRET_ENV + "}");
 
         ObjectNode actions = ensureNestedObject(routingConfig, "actions");
+        Set<String> allowedActionIds = allowedShopifyCompanionActionIds(draft.actionsConfig());
+        changed |= pruneStaleShopifyCompanionActionRoutes(actions, allowedActionIds, store.getShopDomain());
         for (String actionId : SHOPIFY_COMPANION_ACTION_IDS) {
             changed |= ensureShopifyCompanionActionRoute(actions, actionId, store.getShopDomain());
         }
@@ -213,6 +223,52 @@ public class ShopifyStoreGoLiveService {
         changed |= putText(body, "idempotencyKey", "{{idempotencyKey}}");
         changed |= putText(body, "trace", "{{trace}}");
         return changed;
+    }
+
+    private Set<String> allowedShopifyCompanionActionIds(JsonNode actionsConfig) {
+        LinkedHashSet<String> actionIds = new LinkedHashSet<>();
+        if (actionsConfig != null && actionsConfig.path("actions").isArray()) {
+            for (JsonNode action : actionsConfig.path("actions")) {
+                String actionId = blankToNull(action.path("name").asText(null));
+                if (actionId != null) {
+                    actionIds.add(actionId);
+                }
+            }
+        }
+        if (actionIds.isEmpty()) {
+            actionIds.addAll(SHOPIFY_COMPANION_ACTION_IDS);
+        }
+        return actionIds;
+    }
+
+    private boolean pruneStaleShopifyCompanionActionRoutes(ObjectNode actions,
+                                                           Set<String> allowedActionIds,
+                                                           String shopDomain) {
+        String expectedPath = "/api/admin/stores/" + shopDomain + "/actions/execute";
+        List<String> staleActionIds = new ArrayList<>();
+        actions.fields().forEachRemaining(entry -> {
+            String actionId = entry.getKey();
+            JsonNode action = entry.getValue();
+            if (allowedActionIds.contains(actionId) || !isManagedShopifyCompanionActionRoute(action, expectedPath)) {
+                return;
+            }
+            staleActionIds.add(actionId);
+        });
+        staleActionIds.forEach(actions::remove);
+        return !staleActionIds.isEmpty();
+    }
+
+    private boolean isManagedShopifyCompanionActionRoute(JsonNode action, String expectedPath) {
+        if (action == null || !action.isObject()) {
+            return false;
+        }
+        String method = blankToNull(action.path("method").asText(null));
+        String path = blankToNull(action.path("path").asText(null));
+        JsonNode body = action.path("request").path("body");
+        return "POST".equalsIgnoreCase(method)
+            && expectedPath.equals(path)
+            && "{{actionId}}".equals(body.path("actionId").asText(null))
+            && "{{params}}".equals(body.path("params").asText(null));
     }
 
     private ObjectNode ensureObject(JsonNode node) {

@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfil
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplaceTemplateBootstrapRequest;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallSummary;
+import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
@@ -52,6 +53,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -83,6 +85,7 @@ public class ShopifyStoreBootstrapService {
     private final DeploymentService deploymentService;
     private final MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService;
     private final DeploymentMarketplaceInstallService deploymentMarketplaceInstallService;
+    private final DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService;
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final PlatformManagedProductServiceRepository productServiceRepository;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
@@ -100,6 +103,7 @@ public class ShopifyStoreBootstrapService {
                                         DeploymentService deploymentService,
                                         MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService,
                                         DeploymentMarketplaceInstallService deploymentMarketplaceInstallService,
+                                        DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService,
                                         MarketplaceCatalogService marketplaceCatalogService,
                                         PlatformManagedProductServiceRepository productServiceRepository,
                                         ShopifyStoreConnectionService shopifyStoreConnectionService,
@@ -116,6 +120,7 @@ public class ShopifyStoreBootstrapService {
         this.deploymentService = deploymentService;
         this.marketplaceTemplateBootstrapService = marketplaceTemplateBootstrapService;
         this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
+        this.deploymentMarketplaceDraftCompilerService = deploymentMarketplaceDraftCompilerService;
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.productServiceRepository = productServiceRepository;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
@@ -147,7 +152,6 @@ public class ShopifyStoreBootstrapService {
             );
         ensureSharedVectorBootstrapDefaults(deployment.id());
         ensureShopifyCompanionSecurityDefaults(deployment.id());
-        ensureShopifyCompanionConnectorDefaults(store, deployment.id());
 
         PlatformConsumerEntity existingConsumer = resolveConsumer(store.getConsumerId());
         boolean createdConsumer = existingConsumer == null;
@@ -156,6 +160,8 @@ public class ShopifyStoreBootstrapService {
             : ensureConsumerBinding(existingConsumer, deployment);
 
         List<String> installedPluginIds = ensureBundle(store, deployment.id(), createdDeployment, resolvedRequest);
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.id());
+        ensureShopifyCompanionConnectorDefaults(store, deployment.id());
 
         store.setCustomerId(customer.getId());
         store.setDeploymentId(deployment.id());
@@ -465,6 +471,8 @@ public class ShopifyStoreBootstrapService {
         changed |= putText(upstreamAuth, "value", "${" + SHOPIFY_BRIDGE_SHARED_SECRET_ENV + "}");
 
         ObjectNode actions = ensureNestedObject(routingConfig, "actions");
+        Set<String> allowedActionIds = allowedShopifyCompanionActionIds(draft.actionsConfig());
+        changed |= pruneStaleShopifyCompanionActionRoutes(actions, allowedActionIds, store.getShopDomain());
         for (String actionId : SHOPIFY_COMPANION_ACTION_IDS) {
             changed |= ensureShopifyCompanionActionRoute(actions, actionId, store.getShopDomain());
         }
@@ -503,6 +511,52 @@ public class ShopifyStoreBootstrapService {
         changed |= putText(body, "idempotencyKey", "{{idempotencyKey}}");
         changed |= putText(body, "trace", "{{trace}}");
         return changed;
+    }
+
+    private Set<String> allowedShopifyCompanionActionIds(JsonNode actionsConfig) {
+        LinkedHashSet<String> actionIds = new LinkedHashSet<>();
+        if (actionsConfig != null && actionsConfig.path("actions").isArray()) {
+            for (JsonNode action : actionsConfig.path("actions")) {
+                String actionId = blankToNull(action.path("name").asText(null));
+                if (actionId != null) {
+                    actionIds.add(actionId);
+                }
+            }
+        }
+        if (actionIds.isEmpty()) {
+            actionIds.addAll(SHOPIFY_COMPANION_ACTION_IDS);
+        }
+        return actionIds;
+    }
+
+    private boolean pruneStaleShopifyCompanionActionRoutes(ObjectNode actions,
+                                                           Set<String> allowedActionIds,
+                                                           String shopDomain) {
+        String expectedPath = "/api/admin/stores/" + shopDomain + "/actions/execute";
+        List<String> staleActionIds = new ArrayList<>();
+        actions.fields().forEachRemaining(entry -> {
+            String actionId = entry.getKey();
+            JsonNode action = entry.getValue();
+            if (allowedActionIds.contains(actionId) || !isManagedShopifyCompanionActionRoute(action, expectedPath)) {
+                return;
+            }
+            staleActionIds.add(actionId);
+        });
+        staleActionIds.forEach(actions::remove);
+        return !staleActionIds.isEmpty();
+    }
+
+    private boolean isManagedShopifyCompanionActionRoute(JsonNode action, String expectedPath) {
+        if (action == null || !action.isObject()) {
+            return false;
+        }
+        String method = blankToNull(action.path("method").asText(null));
+        String path = blankToNull(action.path("path").asText(null));
+        JsonNode body = action.path("request").path("body");
+        return "POST".equalsIgnoreCase(method)
+            && expectedPath.equals(path)
+            && "{{actionId}}".equals(body.path("actionId").asText(null))
+            && "{{params}}".equals(body.path("params").asText(null));
     }
 
     private ResolvedSharedQdrantRoot resolveSharedQdrantRoot() {

@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
@@ -38,6 +39,7 @@ class ShopifyStoreGoLiveServiceTest {
     void goLivePublishesAndAppliesDeployment() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
@@ -54,9 +56,9 @@ class ShopifyStoreGoLiveServiceTest {
             "dep-1",
             3,
             "DRAFT",
+            currentActionsConfig(),
             null,
-            null,
-            null,
+            staleRoutingConfig(),
             null,
             null,
             null,
@@ -71,9 +73,9 @@ class ShopifyStoreGoLiveServiceTest {
             "dep-1",
             3,
             "MODIFIED",
+            currentActionsConfig(),
             null,
-            null,
-            null,
+            staleRoutingConfig(),
             null,
             JsonNodeFactory.instance.objectNode().put("authzMode", "ALLOW_VERIFIED"),
             null,
@@ -115,6 +117,7 @@ class ShopifyStoreGoLiveServiceTest {
         ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
             repository,
             deploymentService,
+            draftCompilerService,
             productServiceRepository,
             productAdminService,
             connectionService,
@@ -129,6 +132,7 @@ class ShopifyStoreGoLiveServiceTest {
             matchesShopifyCompanionSecurityDefaults(request)
         ));
         verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyBridgeRoutingDefaults));
+        verify(draftCompilerService).syncDeploymentDraft("dep-1");
         verify(deploymentService).publishDraft("drf-1");
         verify(deploymentService).applyVersion("dep-1", "ver-1");
     }
@@ -137,6 +141,7 @@ class ShopifyStoreGoLiveServiceTest {
     void goLiveRepairsMissingBridgePrivateRuntimeIssuerEvenWhenAllowVerifiedAlreadySet() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
@@ -156,9 +161,9 @@ class ShopifyStoreGoLiveServiceTest {
             "dep-1",
             3,
             "DRAFT",
+            currentActionsConfig(),
             null,
-            null,
-            null,
+            staleRoutingConfig(),
             null,
             securityConfig,
             null,
@@ -173,9 +178,9 @@ class ShopifyStoreGoLiveServiceTest {
             "dep-1",
             3,
             "MODIFIED",
+            currentActionsConfig(),
             null,
-            null,
-            null,
+            staleRoutingConfig(),
             null,
             securityConfig,
             null,
@@ -217,6 +222,7 @@ class ShopifyStoreGoLiveServiceTest {
         ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
             repository,
             deploymentService,
+            draftCompilerService,
             productServiceRepository,
             productAdminService,
             connectionService,
@@ -232,6 +238,7 @@ class ShopifyStoreGoLiveServiceTest {
     void goLiveRejectsWhenStoreIsNotPreflightReady() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
@@ -254,6 +261,7 @@ class ShopifyStoreGoLiveServiceTest {
         ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
             repository,
             deploymentService,
+            draftCompilerService,
             productServiceRepository,
             productAdminService,
             connectionService,
@@ -269,6 +277,7 @@ class ShopifyStoreGoLiveServiceTest {
     void goLiveRejectsWhenSupportScopeGrantIsPending() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
@@ -283,6 +292,7 @@ class ShopifyStoreGoLiveServiceTest {
         ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
             repository,
             deploymentService,
+            draftCompilerService,
             productServiceRepository,
             productAdminService,
             connectionService,
@@ -298,6 +308,7 @@ class ShopifyStoreGoLiveServiceTest {
     void goLiveRejectsWhenMerchantHandoffIsNotConfigured() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         PlatformManagedProductAdminService productAdminService = mock(PlatformManagedProductAdminService.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
@@ -312,6 +323,7 @@ class ShopifyStoreGoLiveServiceTest {
         ShopifyStoreGoLiveService service = new ShopifyStoreGoLiveService(
             repository,
             deploymentService,
+            draftCompilerService,
             productServiceRepository,
             productAdminService,
             connectionService,
@@ -405,18 +417,54 @@ class ShopifyStoreGoLiveServiceTest {
         }
         ObjectNode upstream = (ObjectNode) routing.path("connector").path("upstream");
         ObjectNode auth = (ObjectNode) upstream.path("auth");
+        ObjectNode actions = (ObjectNode) routing.path("actions");
         ObjectNode listProducts = (ObjectNode) routing.path("actions").path("list_products");
         ObjectNode requestBody = (ObjectNode) listProducts.path("request").path("body");
         return "https://shopify-bridge.example.com".equals(upstream.path("base-url").asText())
             && "API_KEY".equals(auth.path("type").asText())
             && "X-BRIDGE-API-KEY".equals(auth.path("header").asText())
             && "${SHOPIFY_BRIDGE_SHARED_SECRET}".equals(auth.path("value").asText())
+            && !actions.has("find_similar_products")
+            && !actions.has("compare_products")
+            && actions.has("custom_unrelated_action")
             && "POST".equals(listProducts.path("method").asText())
             && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(listProducts.path("path").asText())
             && "{{actionId}}".equals(requestBody.path("actionId").asText())
             && "{{params}}".equals(requestBody.path("params").asText())
             && "{{idempotencyKey}}".equals(requestBody.path("idempotencyKey").asText())
             && "{{trace}}".equals(requestBody.path("trace").asText());
+    }
+
+    private ObjectNode currentActionsConfig() {
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        var actions = root.putArray("actions");
+        actions.addObject().put("name", "list_products");
+        actions.addObject().put("name", "search_products");
+        actions.addObject().put("name", "get_product_details");
+        actions.addObject().put("name", "check_availability");
+        actions.addObject().put("name", "get_policy");
+        return root;
+    }
+
+    private ObjectNode staleRoutingConfig() {
+        ObjectNode routing = JsonNodeFactory.instance.objectNode();
+        ObjectNode actions = routing.putObject("actions");
+        managedShopifyBridgeRoute(actions.putObject("find_similar_products"));
+        managedShopifyBridgeRoute(actions.putObject("compare_products"));
+        ObjectNode unrelated = actions.putObject("custom_unrelated_action");
+        unrelated.put("method", "POST");
+        unrelated.put("path", "/api/custom/actions");
+        return routing;
+    }
+
+    private void managedShopifyBridgeRoute(ObjectNode action) {
+        action.put("method", "POST");
+        action.put("path", "/api/admin/stores/alpha.myshopify.com/actions/execute");
+        ObjectNode body = action.putObject("request").putObject("body");
+        body.put("actionId", "{{actionId}}");
+        body.put("params", "{{params}}");
+        body.put("idempotencyKey", "{{idempotencyKey}}");
+        body.put("trace", "{{trace}}");
     }
 
     private boolean matchesShopifyCompanionSecurityDefaults(UpdateDeploymentDraftRequest request) {
