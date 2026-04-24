@@ -1,6 +1,8 @@
 # Loom Companion: Shopify Go-To-Market Playbook
 
-Status: go-to-market plan (2026-04-20)
+Status: go-to-market plan (2026-04-20; tier wording updated 2026-04-25)
+
+Launch tier rule: current Shopify Companion tiers are `Free / Starter / Elite`; Free is AI search only.
 
 ---
 
@@ -21,7 +23,7 @@ BuiltWith.com tracks which websites use Shopify. Filter by:
 - Traffic rank: stores with real traffic, not dead stores
 - Category: fashion, electronics, home goods — verticals where product comparison matters most
 
-Free tier gives limited results. Pro gives export lists with contact emails.
+Free tier gives limited results. BuiltWith Pro gives export lists with contact emails.
 
 Alternative free tools:
 - **myip.ms** — search for sites hosted on Shopify's IP ranges
@@ -403,7 +405,7 @@ Track weekly:
 | Total installs | 10 | 40-50 |
 | Reviews | 1-2 | 8-10 |
 | Average rating | 4.5+ | 4.5+ |
-| Free to Growth conversion | N/A (too early) | 15-20% |
+| Free to Starter conversion | N/A (too early) | 15-20% |
 
 The most important number: review count and rating. Everything else is input. Reviews are the output that makes organic discovery work.
 

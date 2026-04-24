@@ -25,19 +25,26 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 @Service
 public class ShopifyBridgeBillingService {
 
-    private static final List<String> FREE_ALLOWED_SURFACES = List.of("ai-search", "order-lookup");
+    private static final List<String> FREE_ALLOWED_SURFACES = List.of("ai-search");
     private static final List<String> STARTER_ALLOWED_SURFACES = List.of(
         "ai-search",
-        "order-lookup",
         "contextual-pill",
         "product-insight",
         "policy-strip",
         "product-faq",
         "comparison"
     );
-    private static final List<String> ELITE_ALLOWED_SURFACES = STARTER_ALLOWED_SURFACES;
+    private static final List<String> ELITE_ALLOWED_SURFACES = List.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison",
+        "order-lookup"
+    );
     private static final List<String> NO_ACTION_PACKAGES = List.of();
-    private static final List<String> ELITE_ACTION_PACKAGES = List.of("guided-support", "guided-commerce");
+    private static final List<String> ELITE_ACTION_PACKAGES = List.of("guided-commerce");
 
     private static final String ACTIVE_SUBSCRIPTIONS_QUERY = """
         query ShopifyBridgeActiveSubscriptions {

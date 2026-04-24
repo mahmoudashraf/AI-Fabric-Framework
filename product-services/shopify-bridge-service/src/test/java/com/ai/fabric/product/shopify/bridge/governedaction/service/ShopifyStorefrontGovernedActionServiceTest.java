@@ -181,8 +181,8 @@ class ShopifyStorefrontGovernedActionServiceTest {
             true,
             true,
             true,
-            List.of("guided-support", "guided-commerce"),
-            List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
+            List.of("guided-commerce"),
+            List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
             List.of(
                 new ShopifyBridgeBillingPlanSummary(
                     "ELITE",
@@ -200,8 +200,8 @@ class ShopifyStorefrontGovernedActionServiceTest {
                     true,
                     true,
                     true,
-                    List.of("guided-support", "guided-commerce"),
-                    List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
+                    List.of("guided-commerce"),
+                    List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
                     "Elite tier is active."
                 )
             ),

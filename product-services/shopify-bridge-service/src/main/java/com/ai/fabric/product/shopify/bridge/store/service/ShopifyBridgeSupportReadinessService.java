@@ -53,22 +53,26 @@ public class ShopifyBridgeSupportReadinessService {
         boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_orders");
         boolean allOrdersScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_all_orders");
         boolean scopesWebhookReady = supportState.appScopesUpdateWebhookReady();
-        List<String> missingScopes = orderLookupScopeGranted ? List.of() : List.of("read_orders");
-        boolean scopeGrantRequired = !installRecoveryRequired && !orderLookupScopeGranted;
+        boolean orderLookupTierAllowed = "ELITE".equalsIgnoreCase(billingState.tierKey());
+        List<String> missingScopes = orderLookupTierAllowed && !orderLookupScopeGranted ? List.of("read_orders") : List.of();
+        boolean scopeGrantRequired = orderLookupTierAllowed && !installRecoveryRequired && !orderLookupScopeGranted;
         String scopeGrantUrl = scopeGrantRequired ? buildInstallUrl(shopDomain) : null;
-        boolean orderLookupSupported = !installRecoveryRequired && orderLookupScopeGranted;
+        boolean orderLookupSupported = orderLookupTierAllowed && !installRecoveryRequired && orderLookupScopeGranted;
         boolean merchantHandoffConfigured = supportProfile.merchantHandoffConfigured();
         String status;
         String message;
         if (installRecoveryRequired) {
             status = "INSTALL_RECOVERY_REQUIRED";
-            message = "This shop must complete the Shopify install flow again before customer-safe order lookup can run.";
+            message = "This shop must complete the Shopify install flow again before storefront and governed support features can be trusted.";
         } else if ("PAYMENT_ISSUE".equalsIgnoreCase(billingState.status())) {
             status = "DEGRADED";
             message = "Shopify billing needs merchant review before governed support posture can be trusted for this store.";
         } else if ("CHECK_FAILED".equalsIgnoreCase(billingState.status())) {
             status = "DEGRADED";
             message = "Shopify billing posture could not be verified for this store. Review lifecycle and subscription state before go-live.";
+        } else if (!orderLookupTierAllowed) {
+            status = "READY";
+            message = "Order lookup is outside the current Companion tier. Keep order-specific support on merchant handoff unless Elite order lookup is entitled and verified.";
         } else if (!orderLookupScopeGranted) {
             status = "PENDING_SCOPE_GRANT";
             message = "Customer-safe order lookup is waiting for Shopify order-read scope approval on this store.";
@@ -85,6 +89,7 @@ public class ShopifyBridgeSupportReadinessService {
         String lifecycleStage = lifecycleStage(
             installRecoveryRequired,
             billingState.status(),
+            orderLookupTierAllowed,
             orderLookupScopeGranted,
             scopesWebhookReady,
             merchantHandoffConfigured,
@@ -92,6 +97,7 @@ public class ShopifyBridgeSupportReadinessService {
         );
         List<String> nextActions = buildNextActions(
             installRecoveryRequired,
+            orderLookupTierAllowed,
             orderLookupScopeGranted,
             allOrdersScopeGranted,
             scopesWebhookReady,
@@ -124,16 +130,20 @@ public class ShopifyBridgeSupportReadinessService {
             merchantHandoffConfigured,
             merchantHandoffMessage(supportProfile),
             nextActions,
-            merchantHandoffConfigured
-                ? List.of("ORDER_NUMBER_AND_EMAIL", "MERCHANT_SUPPORT_HANDOFF")
-                : List.of("ORDER_NUMBER_AND_EMAIL"),
-            List.of(
-                "order-status",
-                "fulfillment-status",
-                "tracking-link",
-                "line-items",
-                "billing-status"
-            ),
+            orderLookupTierAllowed
+                ? (merchantHandoffConfigured
+                    ? List.of("ORDER_NUMBER_AND_EMAIL", "MERCHANT_SUPPORT_HANDOFF")
+                    : List.of("ORDER_NUMBER_AND_EMAIL"))
+                : List.of("MERCHANT_SUPPORT_HANDOFF"),
+            orderLookupTierAllowed
+                ? List.of(
+                    "order-status",
+                    "fulfillment-status",
+                    "tracking-link",
+                    "line-items",
+                    "billing-status"
+                )
+                : List.of("merchant-handoff"),
             List.of(
                 "refunds",
                 "order-edits",
@@ -359,6 +369,7 @@ public class ShopifyBridgeSupportReadinessService {
 
     private String lifecycleStage(boolean installRecoveryRequired,
                                   String billingStatus,
+                                  boolean orderLookupTierAllowed,
                                   boolean orderLookupScopeGranted,
                                   boolean scopesWebhookReady,
                                   boolean merchantHandoffConfigured,
@@ -368,6 +379,9 @@ public class ShopifyBridgeSupportReadinessService {
         }
         if ("PAYMENT_ISSUE".equalsIgnoreCase(billingStatus)) {
             return "BILLING_REVIEW";
+        }
+        if (!orderLookupTierAllowed) {
+            return merchantHandoffConfigured ? "MERCHANT_HANDOFF" : "SUPPORT_HANDOFF_SETUP";
         }
         if (!orderLookupScopeGranted) {
             return "SCOPE_APPROVAL";
@@ -385,6 +399,7 @@ public class ShopifyBridgeSupportReadinessService {
     }
 
     private List<String> buildNextActions(boolean installRecoveryRequired,
+                                          boolean orderLookupTierAllowed,
                                           boolean orderLookupScopeGranted,
                                           boolean allOrdersScopeGranted,
                                           boolean scopesWebhookReady,
@@ -395,19 +410,19 @@ public class ShopifyBridgeSupportReadinessService {
         if (installRecoveryRequired) {
             actions.add("Complete the Shopify install flow again for this store before relying on governed support features.");
         }
-        if (!orderLookupScopeGranted) {
+        if (orderLookupTierAllowed && !orderLookupScopeGranted) {
             actions.add("Grant Shopify read_orders scope so customer-safe order lookup can verify recent orders.");
         }
-        if (!allOrdersScopeGranted) {
+        if (orderLookupTierAllowed && !allOrdersScopeGranted) {
             actions.add("Decide whether historical order support needs read_all_orders before launch commitments are made.");
         }
-        if (!scopesWebhookReady) {
+        if (orderLookupTierAllowed && !scopesWebhookReady) {
             actions.add("Repair the APP_SCOPES_UPDATE webhook so order-scope drift is detected automatically.");
         }
         if (!merchantHandoffConfigured) {
             actions.add("Configure a merchant support email, contact URL, or help center URL for unsupported order and account cases.");
         }
-        if (orderLookupScopeGranted && optionalText(supportProfile.orderLookupPageUrl()) == null) {
+        if (orderLookupTierAllowed && orderLookupScopeGranted && optionalText(supportProfile.orderLookupPageUrl()) == null) {
             actions.add("Publish the order lookup block on a support or contact page and save that page URL in the merchant support profile.");
         }
         if ("PAYMENT_ISSUE".equalsIgnoreCase(billingStatus)) {

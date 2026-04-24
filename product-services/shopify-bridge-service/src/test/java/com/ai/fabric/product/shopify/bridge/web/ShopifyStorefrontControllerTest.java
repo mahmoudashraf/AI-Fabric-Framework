@@ -92,9 +92,9 @@ class ShopifyStorefrontControllerTest {
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/suggestions",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/support/order-lookup",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events",
-            true,
             false,
-            "Order lookup is available for recent orders with the exact order number and checkout email.",
+            false,
+            "Order lookup is available only on Elite stores with verified support access.",
             new ShopifyStorefrontGovernedActionCapability(
                 false,
                 false,

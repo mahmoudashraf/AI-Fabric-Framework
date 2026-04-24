@@ -46,7 +46,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
             "read_products,read_content,read_legal_policies,read_orders",
             true
         )));
-        when(billingService.summarize()).thenReturn(billingSummary());
+        when(billingService.summarize()).thenReturn(eliteBillingSummary());
 
         ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
             platformClient,
@@ -90,7 +90,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
             "read_products,read_content,read_legal_policies",
             false
         )));
-        when(billingService.summarize()).thenReturn(billingSummary());
+        when(billingService.summarize()).thenReturn(eliteBillingSummary());
 
         ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
             platformClient,
@@ -162,10 +162,10 @@ class ShopifyBridgeSupportReadinessServiceTest {
 
         var summary = service.summarizeForShop("alpha.myshopify.com");
 
-        assertThat(summary.status()).isEqualTo("PENDING_SCOPE_GRANT");
+        assertThat(summary.status()).isEqualTo("READY");
         assertThat(summary.orderLookupScopeGranted()).isFalse();
         assertThat(summary.appScopesUpdateWebhookReady()).isTrue();
-        assertThat(summary.lifecycleStage()).isEqualTo("SCOPE_APPROVAL");
+        assertThat(summary.lifecycleStage()).isEqualTo("MERCHANT_HANDOFF");
         verify(installRecordService).recordAppScopesUpdateWebhookReady("alpha.myshopify.com", true);
     }
 
@@ -244,7 +244,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.installStatus()).isEqualTo("INSTALLED");
         assertThat(summary.billingTier()).isEqualTo("STARTER");
         assertThat(summary.orderLookupScopeGranted()).isTrue();
-        assertThat(summary.orderLookupSupported()).isTrue();
+        assertThat(summary.orderLookupSupported()).isFalse();
         assertThat(summary.appScopesUpdateWebhookReady()).isTrue();
         assertThat(summary.activeSubscriptionNames()).containsExactly("Loom Companion Starter");
     }
@@ -386,9 +386,32 @@ class ShopifyBridgeSupportReadinessServiceTest {
             false,
             false,
             List.of(),
-            List.of("ai-search", "order-lookup"),
+            List.of("ai-search"),
             List.of(),
             "Billing ready."
+        );
+    }
+
+    private ShopifyBridgeBillingSummary eliteBillingSummary() {
+        return new ShopifyBridgeBillingSummary(
+            "SHOPIFY_APP_SUBSCRIPTION",
+            "ELITE",
+            "Loom Companion Elite",
+            "ACTIVE",
+            false,
+            false,
+            true,
+            true,
+            null,
+            "HOURLY",
+            false,
+            true,
+            true,
+            true,
+            List.of("guided-commerce"),
+            List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
+            List.of(),
+            "Elite tier is active."
         );
     }
 

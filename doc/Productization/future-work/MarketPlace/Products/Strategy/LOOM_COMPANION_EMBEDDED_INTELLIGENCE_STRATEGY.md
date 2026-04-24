@@ -231,17 +231,17 @@ These are thin wrappers over the existing RAG search. The intelligence is alread
 
 The embedded intelligence surfaces integrate into the existing tier structure:
 
-| Surface | Free | Growth ($29) | Pro ($79) |
+| Surface | Free | Starter ($29) | Elite ($179) |
 |---|---|---|---|
-| Product Insight Block | Basic (1 insight) | Full (all insights) | Full + custom |
-| AI Search | 10 searches/day | Unlimited | Unlimited |
+| Product Insight Block | — | Included | Included |
+| AI Search | Included | Included | Included |
 | Product FAQ | — | Included | Included |
-| Comparison | — | 5/day | Unlimited |
+| Comparison | — | Included | Included |
 | Policy Strip | — | Included | Included |
-| Context Pill | Basic | Full | Full + custom |
-| Companion Chat | 50 conversations | Unlimited | Unlimited |
+| Context Pill | — | Included | Included |
+| Companion Chat | — | Read-only depth | Read + verified governed actions |
 
-The free tier includes the product insight block with limited content. This gives every store visitor a taste of AI intelligence. Merchants who see the impact on engagement upgrade for full access.
+The free tier includes AI search only. Merchants who want the full embedded intelligence surface set upgrade to Starter; Elite is reserved for verified governed actions.
 
 ---
 
@@ -297,7 +297,7 @@ Ship the comparison feature. This is the most complex component (multiple produc
 
 - **Install conversion improvement:** new installs should increase when the App Store listing shows embedded intelligence, not just a chatbot
 - **Merchant retention improvement:** merchants who place 3+ blocks churn less than merchants who only use the chat
-- **Upgrade rate improvement:** merchants who see block engagement data upgrade to Growth/Pro at higher rates
+- **Upgrade rate improvement:** merchants who see block engagement data upgrade to Starter or, when verified action demand exists, Elite at higher rates
 
 ---
 

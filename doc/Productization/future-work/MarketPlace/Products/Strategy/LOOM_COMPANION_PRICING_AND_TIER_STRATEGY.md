@@ -91,39 +91,28 @@ Every feature falls on one side of this line. No ambiguity, no feature-by-featur
 
 ### 2.3 Elite ($179/month)
 
-**Purpose:** the premium tier for merchants who want AI to take action, not just answer questions.
+**Purpose:** the premium tier for merchants who want verified governed actions, not just read-only answers.
 
 **What it includes:**
 
-Everything in Starter, plus:
+Everything in Starter, plus only verified governed action surfaces:
 
-- Write actions with confirmation governance:
-  - Order status lookup and tracking
-  - Return and exchange initiation
-  - Cart assistance (add to cart, modify cart)
-  - Support ticket creation and escalation
-- Confirmation interception (safety layer for all write operations)
-- Counter-offer governance (retention offers, alternatives before cancellation)
-- Deep Resolver pattern (multi-step investigate-then-act for complex issues)
-- Abandoned cart recovery conversations
-- Discount and coupon application (within merchant-defined rules)
-- Cross-sell and upsell suggestions from product graph
-- Real-time knowledge sync
-- Advanced analytics with export
-- Full appearance customization (colors, fonts, positioning)
-- No "Powered by" badge
-- Custom knowledge sources (merchant can add custom content)
-- Priority support (24-hour response)
+- governed add-to-cart when enabled and verified
+- governed cart update when enabled and verified
+- customer-safe order lookup only when explicitly assigned to Elite and verified
+- confirmation governance for action classes
+- action audit history
+- merchant controls for enabled action classes
+- no mandatory "Powered by" badge
+- advanced analytics or exports only when actually implemented
 
 **What the merchant gets:**
 
 Everything Starter provides for product discovery, plus:
 
-- 24/7 automated support for order questions
-- Fewer support tickets through automated resolution
-- Higher retention through counter-offer governance
-- Cart recovery without email fatigue
-- Higher average order value through intelligent upsell
+- bounded shopper actions with explicit confirmation
+- auditability for action attempts and completions
+- a launch-safe path to action handling without broad autonomous support claims
 
 ---
 
@@ -140,8 +129,8 @@ Everything Starter provides for product discovery, plus:
 ### 3.2 Why $179 for Elite
 
 - Positioned as premium but not enterprise
-- The write actions + governance + Deep Resolver combination does not exist in any competitor
-- Merchants evaluating Elite are already measuring support costs and conversion rates — $179 pays for itself if it resolves 5 support tickets per day
+- Verified governed actions with confirmation and audit are meaningfully harder than read-only intelligence
+- Merchants evaluating Elite are already seeing action-intent demand in Starter analytics
 - High enough margin to fund partner commissions (20% = $35.80/month per Elite store)
 - Room for future Enterprise tier above at $500+ without repricing existing tiers
 
@@ -282,7 +271,7 @@ Not at launch. Consider when:
 - 50+ Elite merchants prove the product at scale
 - merchants ask for features like: dedicated infrastructure, SSO, custom SLA, API access, multiple store management under one account
 
-### 8.2 Starter Plus or Growth ($79-99/month)
+### 8.2 Possible Future Mid-Tier ($79-99/month)
 
 Possible mid-tier if the gap between $29 and $179 proves too wide. Would include:
 
@@ -344,34 +333,34 @@ Elite net margin:    ~$128-135/store/month (after commission + LLM)
 | Product Comparison | — | yes | yes |
 | Policy Strip | — | yes | yes |
 | Contextual Pill | — | yes | yes |
-| Companion Chat | — | read-only | read + write |
+| Companion Chat | — | read-only | read + verified governed actions |
 | | | | |
 | **Knowledge** | | | |
 | Products | 50 max | unlimited | unlimited |
 | Pages | — | yes | yes |
 | Policies | — | yes | yes |
 | Collections | — | yes | yes |
-| Custom Sources | — | — | yes |
-| Sync Frequency | daily | every 2 hours | real-time |
+| Custom Sources | — | — | future/gated |
+| Sync Frequency | daily | every 2 hours | faster/gated |
 | | | | |
 | **Actions** | | | |
 | Read-only actions | search only | all read actions | all read actions |
-| Order status | — | — | yes |
-| Return/exchange | — | — | yes + confirmation |
-| Cart assistance | — | — | yes |
-| Ticket creation | — | — | yes |
-| Deep Resolver | — | — | yes |
-| Counter-offers | — | — | yes |
-| Discount application | — | — | yes (merchant rules) |
+| Order status | — | — | gated order lookup only if verified |
+| Return/exchange | — | — | future |
+| Cart assistance | — | — | governed add-to-cart/cart update when verified |
+| Ticket creation | — | — | future |
+| Deep Resolver | — | — | future |
+| Counter-offers | — | — | future |
+| Discount application | — | — | future |
 | | | | |
 | **Appearance** | | | |
 | Powered by badge | mandatory | optional | no badge |
 | Custom accent color | — | yes | yes |
-| Full customization | — | — | yes |
+| Full customization | — | — | future/gated |
 | | | | |
 | **Analytics** | | | |
 | Basic dashboard | — | yes | yes |
-| Advanced + export | — | — | yes |
+| Advanced + export | — | — | future/gated |
 | Unanswered questions | — | yes | yes |
 | | | | |
 | **Support** | | | |
@@ -393,18 +382,18 @@ This is the same as the original Layer 1 launch but with the updated naming and 
 
 ### Phase 2: Elite (Month 3-5)
 
-Add write actions, confirmation governance, and the Elite tier.
+Add verified governed actions, confirmation governance, and the Elite tier.
 
-- Order status, returns, cart assistance, ticket creation
-- Confirmation interception for all write operations
-- Deep Resolver for complex multi-step flows
-- Counter-offer governance
+- governed add-to-cart and cart update first
+- customer-safe order lookup only if deliberately assigned to Elite and verified
+- confirmation interception for enabled action classes
+- action audit history and merchant controls
 
 Gate: only ship Elite if Starter has 30+ active merchants proving the read-only value.
 
 ### Phase 3: Elite Advanced (Month 6-8)
 
-Add advanced Elite features:
+Add advanced Elite features only after the basic governed-action tier is real:
 
 - Abandoned cart recovery
 - Discount and coupon application
@@ -422,7 +411,7 @@ Gate: only ship if 10+ Elite merchants are actively using write actions.
 - "Pro" is overused in SaaS — every product has a Pro tier
 - "Elite" signals genuine premium, not just "more features"
 - "Elite" justifies the price gap ($29 to $179) — it is not just "a bit more," it is a different category
-- "Elite" gives room for a future "Pro" or "Growth" mid-tier if needed without naming conflicts
+- "Elite" gives room for a future mid-tier if needed without launch naming conflicts
 
 **Why "Starter" not "Growth":**
 
@@ -438,6 +427,6 @@ Three tiers, one clean line:
 
 - **Free** — AI search only, 50 products, distribution engine
 - **Starter** ($29/month) — all read-only intelligence, full product catalog
-- **Elite** ($179/month) — everything + write actions + governance + Deep Resolver
+- **Elite** ($179/month) — Starter plus verified governed actions only
 
 The line between Starter and Elite is read vs. read+write. Merchants understand it in one sentence. Partners can explain it in one breath. The upgrade path is built into the product — shoppers asking action questions that Starter cannot answer is the most honest upsell possible.

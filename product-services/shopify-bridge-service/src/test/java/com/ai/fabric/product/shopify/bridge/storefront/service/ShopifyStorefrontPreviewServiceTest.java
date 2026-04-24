@@ -67,6 +67,7 @@ class ShopifyStorefrontPreviewServiceTest {
         assertThat(preview.surfacePlacements().get(4).blockHandle()).isEqualTo("companion-product-faq");
         assertThat(preview.surfacePlacements().get(5).blockHandle()).isEqualTo("companion-comparison");
         assertThat(preview.surfacePlacements().get(6).blockHandle()).isEqualTo("companion-order-lookup");
+        assertThat(preview.surfacePlacements().get(6).requiredTierKey()).isEqualTo("ELITE");
         assertThat(preview.activationSteps()).isNotEmpty();
     }
 

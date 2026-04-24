@@ -143,17 +143,11 @@ const UPDATE_TRIGGER_OPTIONS = [
 
 const DEFAULT_WIDGET_SURFACES = [
   'ai-search',
-  'order-lookup',
-  'contextual-pill',
-  'product-insight',
-  'policy-strip',
-  'product-faq',
-  'comparison',
 ]
 
 const WIDGET_SURFACE_OPTIONS = [
   { label: 'AI search dock', value: 'ai-search' },
-  { label: 'Order lookup block', value: 'order-lookup' },
+  { label: 'Elite order lookup block', value: 'order-lookup' },
   { label: 'Contextual pill', value: 'contextual-pill' },
   { label: 'Product insight card', value: 'product-insight' },
   { label: 'Policy strip', value: 'policy-strip' },
@@ -982,9 +976,11 @@ export default function App() {
   )
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
-  const scopeGrantRequired = Boolean(supportReadiness?.scopeGrantRequired)
+  const orderLookupTierAllowed = billingAllowedSurfaces.includes('order-lookup')
+  const scopeGrantRequired = Boolean(orderLookupTierAllowed && supportReadiness?.scopeGrantRequired)
   const scopeGrantUrl = supportReadiness?.scopeGrantUrl ?? null
-  const supportReadinessLaunchBlocked = supportReadiness?.status != null && supportReadiness.status !== 'READY'
+  const supportReadinessLaunchBlocked =
+    orderLookupTierAllowed && supportReadiness?.status != null && supportReadiness.status !== 'READY'
   const billingLaunchBlocked = Boolean(billingSummary?.launchBlocked)
   const canGoLive =
     Boolean(session) &&
@@ -2899,13 +2895,15 @@ export default function App() {
                     value={supportProfileSettings.helpCenterUrl}
                     onChange={(value) => setSupportProfileSettings((current) => ({ ...current, helpCenterUrl: value }))}
                   />
-                  <TextField
-                    label="Order lookup page URL"
-                    autoComplete="off"
-                    value={supportProfileSettings.orderLookupPageUrl}
-                    onChange={(value) => setSupportProfileSettings((current) => ({ ...current, orderLookupPageUrl: value }))}
-                    helpText="Set the support or contact page where the governed order lookup block lives."
-                  />
+                  {orderLookupTierAllowed ? (
+                    <TextField
+                      label="Elite order lookup page URL"
+                      autoComplete="off"
+                      value={supportProfileSettings.orderLookupPageUrl}
+                      onChange={(value) => setSupportProfileSettings((current) => ({ ...current, orderLookupPageUrl: value }))}
+                      helpText="Set the support or contact page where the governed Elite order lookup block lives."
+                    />
+                  ) : null}
                   <TextField
                     label="Support policy note"
                     autoComplete="off"
@@ -3468,6 +3466,9 @@ function buildSupportBundle(
     store?.policiesEnabled ||
       (storefrontPreview?.groundingSignals ?? []).includes('Policy grounding'),
   )
+  const orderLookupClaimReady = Boolean(
+    billingSummary?.allowedSurfaces?.includes('order-lookup') && supportReadiness?.orderLookupSupported
+  )
   return JSON.stringify(
     {
       generatedAt: new Date().toISOString(),
@@ -3582,12 +3583,12 @@ function buildSupportBundle(
         supportReadiness
       ),
       supportGuidance: {
-        customerSafeOrderLookupSupported: Boolean(supportReadiness?.orderLookupSupported),
+        customerSafeOrderLookupSupported: orderLookupClaimReady,
         policyGroundingAvailable,
         returnGuidanceMode: policyGroundingAvailable ? 'POLICY_GROUNDED_ONLY' : 'HANDOFF_ONLY',
-        orderSpecificPostPurchaseMode: supportReadiness?.orderLookupSupported ? 'LOOKUP_PLUS_HANDOFF' : 'MERCHANT_HANDOFF_REQUIRED',
-        boundedHandoffText: supportReadiness?.orderLookupSupported
-          ? `${supportReadiness.message} Refunds, cancellations, address changes, and account-specific actions still require merchant support handoff.`
+        orderSpecificPostPurchaseMode: orderLookupClaimReady ? 'LOOKUP_PLUS_HANDOFF' : 'MERCHANT_HANDOFF_REQUIRED',
+        boundedHandoffText: orderLookupClaimReady
+          ? `${supportReadiness?.message ?? 'Customer-safe order lookup is verified for this store.'} Refunds, cancellations, address changes, and account-specific actions still require merchant support handoff.`
           : policyGroundingAvailable
             ? 'Use published policy grounding for general return and refund guidance, but hand off order-specific decisions, tracking, cancellations, and account changes to the merchant support channel.'
             : 'Do not answer return, refund, tracking, or order-status questions as if the assistant has order access. Hand off those cases to the merchant support channel.',
@@ -3926,12 +3927,36 @@ function buildLaunchReadiness(
   const productTierReady = configuredSurfaces
     .filter((surfaceId) => requiredProductSurfaces.includes(surfaceId))
     .every((surfaceId) => (billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES).includes(surfaceId))
+  const orderLookupTierAllowed = Boolean(billingSummary?.allowedSurfaces?.includes('order-lookup'))
   const orderLookupReady = Boolean(
-    supportReadiness?.orderLookupSupported &&
+    orderLookupTierAllowed &&
+      supportReadiness?.orderLookupSupported &&
       supportReadiness.orderLookupScopeGranted &&
       supportReadiness.appScopesUpdateWebhookReady &&
       supportSurfaceReady
   )
+  const launchGateReady = storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady
+  const orderLookupReadinessItem: {
+    label: string
+    status: string
+    tone: 'success' | 'attention' | 'critical'
+    detail: string
+  } | null = orderLookupTierAllowed ? {
+    label: 'Elite customer-safe order lookup',
+    status: orderLookupReady
+      ? 'Ready'
+      : supportReadiness?.status === 'PENDING_SCOPE_GRANT'
+        ? 'Waiting for scope'
+        : 'Needs attention',
+    tone: orderLookupReady
+      ? 'success'
+      : supportReadiness?.status === 'INSTALL_RECOVERY_REQUIRED'
+        ? 'critical'
+        : 'attention',
+    detail: orderLookupReady
+      ? 'A merchant-placeable order lookup block is available with exact order number plus checkout email verification.'
+      : supportReadiness?.message ?? 'Order lookup still needs scope, install, or support-surface work before it is launch-safe.',
+  } : null
 
   const items: Array<{
     label: string
@@ -3957,10 +3982,10 @@ function buildLaunchReadiness(
     },
     {
       label: 'Launch gate',
-      status: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady && orderLookupReady ? 'Ready' : 'Blocked',
-      tone: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady && orderLookupReady ? 'success' : 'critical',
-      detail: storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady && orderLookupReady
-        ? 'Storefront activation, go-live posture, sync, webhooks, live updates, and customer-safe order lookup are aligned for a clean launch story.'
+      status: launchGateReady ? 'Ready' : 'Blocked',
+      tone: launchGateReady ? 'success' : 'critical',
+      detail: launchGateReady
+        ? 'Storefront activation, go-live posture, sync, webhooks, and live updates are aligned for a clean launch story.'
         : 'One or more operational launch gates are still not clean enough for launch, App Review, or merchant-safe support claims.',
     },
     {
@@ -3971,14 +3996,7 @@ function buildLaunchReadiness(
         ? 'Companion now ingests Judge.me-compatible review and rating metafields from Shopify products when they are present.'
         : 'Product ingestion is disabled, so review and rating signals cannot flow into Companion yet.',
     },
-    {
-      label: 'Customer-safe order lookup',
-      status: orderLookupReady ? 'Ready' : supportReadiness?.status === 'PENDING_SCOPE_GRANT' ? 'Waiting for scope' : 'Needs attention',
-      tone: orderLookupReady ? 'success' : supportReadiness?.status === 'INSTALL_RECOVERY_REQUIRED' ? 'critical' : 'attention',
-      detail: orderLookupReady
-        ? 'A merchant-placeable order lookup block is available with exact order number plus checkout email verification.'
-        : supportReadiness?.message ?? 'Order lookup still needs scope, install, or support-surface work before it is launch-safe.',
-    },
+    ...(orderLookupReadinessItem ? [orderLookupReadinessItem] : []),
     {
       label: 'Merchant legibility',
       status: shopperSignalsReady ? 'Observed' : 'Awaiting traffic',
@@ -4042,12 +4060,13 @@ function buildLaunchPacket(
       billingSummary.auditTrailAvailable &&
       billingSummary.actionPackages.length,
   )
+  const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
 
   const safeClaims: string[] = []
   if (activeSurfaceIds.includes('ai-search')) {
     safeClaims.push('Free-tier shoppers can use a real AI search block without opening the launcher shell.')
   }
-  if (supportReadiness?.orderLookupSupported) {
+  if (orderLookupClaimReady) {
     safeClaims.push('Customer-safe order lookup is available with the exact order number and checkout email, and stays read-only inside the bridge.')
   }
   if (
@@ -4092,11 +4111,11 @@ function buildLaunchPacket(
     store?.readiness?.goLiveEligible
       ? 'Go-live posture is already clean enough to use for launch and App Review walk-throughs.'
       : 'Go-live posture still has at least one blocker; keep launch messaging conservative until it is green.',
-    supportReadiness?.orderLookupSupported
-      ? supportReadiness.allOrdersScopeGranted
+    orderLookupClaimReady
+      ? supportReadiness?.allOrdersScopeGranted
         ? 'Order lookup can be shown as a live recent-and-historical support surface.'
         : 'Order lookup can be shown for recent orders, but avoid promising older-order coverage until broader Shopify order access is granted.'
-      : supportReadiness?.message ?? 'Do not claim customer-safe order lookup until the scope and support posture are ready.',
+      : 'Order lookup is not part of the Free or Starter launch package; keep post-purchase support handoff-based unless Elite order lookup is entitled and verified.',
   ]
 
   const hasCritical = !storefrontPreview?.ready || Boolean(billingSummary?.launchBlocked)
@@ -4146,13 +4165,14 @@ function buildGoLiveChecklist(
   const configuredSurfaces = widgetSettings?.enabledSurfaces?.length ? widgetSettings.enabledSurfaces : DEFAULT_WIDGET_SURFACES
   const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
   const needsPaidTier = configuredSurfaces.some((surfaceId) => !allowedSurfaces.includes(surfaceId))
+  const orderLookupTierAllowed = allowedSurfaces.includes('order-lookup')
   const storefrontReady = Boolean(storefrontPreview?.ready)
   const vectorizationReady = Boolean(vectorizationSummary?.readyToRun)
   const liveUpdatesHealthy = !vectorizationSummary?.automation || vectorizationSummary.automation.autoIndexingHealthy !== false
   const webhooksReady = !webhookSubscriptions || webhookSubscriptions.status === 'READY'
   const goLiveEligible = Boolean(store?.readiness?.goLiveEligible)
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
-  const scopeGrantRequired = Boolean(supportReadiness?.scopeGrantRequired)
+  const scopeGrantRequired = Boolean(orderLookupTierAllowed && supportReadiness?.scopeGrantRequired)
   const scopeGrantUrl = supportReadiness?.scopeGrantUrl ?? null
   const activeStarterPlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'STARTER') ?? null
   const sourceDepthReady = hasLaunchSafeSourceDepth(store)
@@ -4163,7 +4183,8 @@ function buildGoLiveChecklist(
         supportReadiness.supportProfile?.helpCenterUrl),
   )
   const orderLookupReady = Boolean(
-    supportReadiness?.orderLookupSupported &&
+    orderLookupTierAllowed &&
+      supportReadiness?.orderLookupSupported &&
       supportReadiness.orderLookupScopeGranted &&
       supportReadiness.appScopesUpdateWebhookReady &&
       supportSurfaceReady
@@ -4248,12 +4269,14 @@ function buildGoLiveChecklist(
     },
     {
       label: 'Go-live and App Review packet',
-      status: storefrontReady && sourceDepthReady && orderLookupReady ? 'Ready' : 'Needs attention',
-      tone: storefrontReady && sourceDepthReady && orderLookupReady ? 'success' : 'attention',
-      detail: goLiveEligible && orderLookupReady
+      status: storefrontReady && sourceDepthReady && (!orderLookupTierAllowed || orderLookupReady) ? 'Ready' : 'Needs attention',
+      tone: storefrontReady && sourceDepthReady && (!orderLookupTierAllowed || orderLookupReady) ? 'success' : 'attention',
+      detail: goLiveEligible && (!orderLookupTierAllowed || orderLookupReady)
         ? 'The current store posture is strong enough to generate a merchant-facing launch dossier and run go-live.'
-        : 'Generate the launch dossier now, then use it to close the remaining launch blockers before go-live.',
-      action: goLiveEligible && orderLookupReady
+        : orderLookupTierAllowed
+          ? 'Generate the launch dossier now, then close the remaining Elite order lookup blockers before go-live.'
+          : 'Generate the launch dossier now, then use it to close the remaining launch blockers before go-live.',
+      action: goLiveEligible && (!orderLookupTierAllowed || orderLookupReady)
         ? { kind: 'run-go-live', label: 'Run go-live' }
         : { kind: 'copy-launch-dossier', label: 'Copy launch dossier' },
     },
@@ -4289,6 +4312,9 @@ function buildLaunchDossier(
   const shopDomain = session?.shopDomain ?? storefrontPreview?.shopDomain ?? 'shopify-store'
   const reviewProviders = buildDetectedReviewProviders(store)
   const sourceCoverageSignals = buildSourceCoverageSignals(store)
+  const orderLookupClaimReady = Boolean(
+    billingSummary?.allowedSurfaces?.includes('order-lookup') && supportReadiness?.orderLookupSupported
+  )
   return [
     '# Shopify Companion Launch Dossier',
     '',
@@ -4320,11 +4346,11 @@ function buildLaunchDossier(
     ...sourceCoverageSignals.map((entry) => `- ${entry.label}: ${entry.signals.join(' · ')}`),
     '',
     '## Support and order lookup posture',
-    `- Customer-safe order lookup: ${supportReadiness?.orderLookupSupported ? 'yes' : 'no'}`,
+    `- Customer-safe order lookup: ${orderLookupClaimReady ? 'yes' : 'no'}`,
     `- Support lifecycle stage: ${supportReadiness?.lifecycleStage ?? 'UNKNOWN'}`,
     `- Granted scopes: ${supportReadiness?.grantedScopes?.join(' · ') || 'None detected'}`,
     `- App scopes webhook ready: ${supportReadiness?.appScopesUpdateWebhookReady ? 'yes' : 'no'}`,
-    `- Older-order coverage: ${supportReadiness?.allOrdersScopeGranted ? 'recent and historical order access available' : 'recent orders only until broader Shopify order access is granted'}`,
+    `- Older-order coverage: ${orderLookupClaimReady ? (supportReadiness?.allOrdersScopeGranted ? 'recent and historical order access available' : 'recent orders only until broader Shopify order access is granted') : 'not in current tier posture'}`,
     `- Active support subscriptions: ${formatSupportSubscriptions(supportReadiness)}`,
     `- Merchant handoff configured: ${supportReadiness?.merchantHandoffConfigured ? 'yes' : 'no'}`,
     `- Merchant handoff channels: ${formatSupportChannels(supportReadiness)}`,
@@ -4368,10 +4394,11 @@ function buildAppReviewGuide(
     ? store.widgetDetail.settings.enabledSurfaces
     : DEFAULT_WIDGET_SURFACES
   const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
-  const activeSurfaceLabels = configuredSurfaces
-    .filter((surfaceId) => allowedSurfaces.includes(surfaceId))
+  const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => allowedSurfaces.includes(surfaceId))
+  const activeSurfaceLabels = activeSurfaceIds
     .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
   const reviewProviders = buildDetectedReviewProviders(store)
+  const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
   const scopesText = session?.installRecord?.scopesText ?? 'Not captured in the current merchant session'
   const verificationLines = [
     `Storefront ready: ${storefrontPreview?.ready ? 'yes' : 'no'}`,
@@ -4397,9 +4424,9 @@ function buildAppReviewGuide(
     '',
     '## Explicit non-goals for this review package',
     '- Do not present autonomous checkout, arbitrary merchant automation, or unsupported order/customer writes.',
-    supportReadiness?.orderLookupSupported
+    orderLookupClaimReady
       ? '- Do not imply refunds, cancellations, address changes, payment detail access, or customer profile access. Order lookup stays read-only and verification-bound.'
-      : '- Do not imply customer-safe order lookup until the review store has granted Shopify order-read access and the support posture is ready.',
+      : '- Do not imply customer-safe order lookup for Free or Starter review stores.',
     '- Only mention Elite governed actions if the current review store is intentionally configured for that commercial posture.',
     '',
     '## Requested scope posture',
@@ -4414,7 +4441,7 @@ function buildAppReviewGuide(
     '4. Review storefront preview and theme activation guidance.',
     '5. Run one shopper discovery flow, one policy flow, and one comparison flow on the live storefront.',
     '6. Confirm grounded answers and visible source cards.',
-    supportReadiness?.orderLookupSupported
+    orderLookupClaimReady
       ? '7. Demonstrate the support order lookup with an exact order number and checkout email, then state clearly that refunds, edits, and account changes still require merchant handoff.'
       : '7. Review support bundle, App Store package, support runbook, and screencast script exports from the merchant app.',
     billingSummary?.actionCapable
@@ -4448,9 +4475,10 @@ function buildReviewScreencastScript(
     ? store.widgetDetail.settings.enabledSurfaces
     : DEFAULT_WIDGET_SURFACES
   const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
-  const activeSurfaceLabels = configuredSurfaces
-    .filter((surfaceId) => allowedSurfaces.includes(surfaceId))
+  const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => allowedSurfaces.includes(surfaceId))
+  const activeSurfaceLabels = activeSurfaceIds
     .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+  const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
 
   return [
     '# Shopify Companion Review Screencast Script',
@@ -4479,9 +4507,9 @@ function buildReviewScreencastScript(
     '## Segment 4 — Shopper walkthrough',
     '- Demonstrate one discovery question and one policy or comparison question.',
     '- Keep the narration focused on grounded answers, source cards, and embedded intelligence before chat depth.',
-    supportReadiness?.orderLookupSupported
+    orderLookupClaimReady
       ? '- Show the order lookup block on a support page with an exact order number plus checkout email, then explain that the flow is read-only and still hands off refunds or edits to the merchant.'
-      : '- State that post-purchase support remains policy-grounded and handoff-based until customer-safe order lookup is enabled.',
+      : '- State that post-purchase support remains policy-grounded and handoff-based unless Elite order lookup is entitled and verified.',
     '',
     '## Segment 5 — Launch and support exports',
     '- Show the App Store listing package, App Review guide, support runbook, support bundle, and design-partner packet exports.',
@@ -4492,11 +4520,11 @@ function buildReviewScreencastScript(
       : '## No Elite appendix\n- Do not show governed actions for this store because the current commercial posture is read-first.',
     '',
     '## Claims to avoid',
-    supportReadiness?.orderLookupSupported
-      ? supportReadiness.allOrdersScopeGranted
+    orderLookupClaimReady
+      ? supportReadiness?.allOrdersScopeGranted
         ? '- Do not imply refunds, cancellations, address changes, payment-detail access, or customer account changes.'
         : '- Do not imply refunds, cancellations, address changes, payment-detail access, customer account changes, or guaranteed older-order coverage.'
-      : '- Do not imply customer-safe order lookup or order-status reads.',
+      : '- Do not imply customer-safe order lookup or order-status reads for Free or Starter.',
     '- Do not imply broad support desk replacement.',
     ...launchPacket.reviewNotes.map((note) => `- ${note}`),
   ].join('\n')
@@ -4524,11 +4552,12 @@ function buildAppStoreListingPackage(
       billingSummary.auditTrailAvailable &&
       billingSummary.actionPackages.length,
   )
+  const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
   const subtitle = activeSurfaceIds.includes('product-insight') && activeSurfaceIds.includes('policy-strip')
     ? 'AI search, product insights, and policy answers for Shopify'
     : 'Embedded AI shopping intelligence for Shopify'
   const oneLineDescription = activeSurfaceIds.includes('comparison')
-    ? supportReadiness?.orderLookupSupported
+    ? orderLookupClaimReady
       ? 'Add AI search, product insights, FAQs, comparison help, grounded policy answers, and verified order lookup to your Shopify storefront.'
       : 'Add AI search, product insights, FAQs, comparison help, and grounded policy answers to your Shopify storefront.'
     : 'Help shoppers discover products and get grounded answers from your store’s real catalog, content, and policies.'
@@ -4537,11 +4566,11 @@ function buildAppStoreListingPackage(
     activeSurfaceLabels.length
       ? `Shoppers can use ${activeSurfaceLabels.join(', ')} powered by live store data.`
       : 'Shoppers can use AI search and grounded storefront guidance powered by live store data.',
-    supportReadiness?.orderLookupSupported
-      ? supportReadiness.allOrdersScopeGranted
+    orderLookupClaimReady
+      ? supportReadiness?.allOrdersScopeGranted
         ? 'Support teams can also verify orders through a read-only order lookup block using the exact order number and checkout email.'
         : 'Support teams can also verify recent orders through a read-only order lookup block using the exact order number and checkout email.'
-      : 'Post-purchase support remains policy-grounded and merchant-handoff based until order-read access is fully enabled.',
+      : 'Post-purchase support remains policy-grounded and merchant-handoff based unless Elite order lookup is entitled and verified.',
     sourceCoverageSignals.length
       ? `Grounding currently draws on ${sourceCoverageSignals.map((entry) => `${entry.label.toLowerCase()} (${entry.signals.join(', ')})`).join('; ')}.`
       : 'Grounding currently draws on live catalog, content, and policy data.',
@@ -4557,7 +4586,7 @@ function buildAppStoreListingPackage(
     activeSurfaceIds.includes('contextual-pill') ? 'Collection or product page with the contextual pill block active.' : null,
     activeSurfaceIds.includes('product-faq') ? 'Product FAQ block in use on a real product page.' : null,
     activeSurfaceIds.includes('comparison') ? 'Comparison block in use on a real product page.' : null,
-    supportReadiness?.orderLookupSupported ? 'Support page with the read-only order lookup block in use.' : null,
+    orderLookupClaimReady ? 'Support page with the read-only order lookup block in use.' : null,
     hasEliteGovernance ? 'Optional Elite screenshot showing governed action history or explicit confirmation UI.' : null,
   ].filter(Boolean) as string[]
   const commerciallyAvailablePlans = (billingSummary?.availablePlans ?? [])
@@ -4601,9 +4630,9 @@ function buildAppStoreListingPackage(
     '## Disallowed claims',
     '- Do not claim autonomous purchasing or checkout automation.',
     '- Do not claim full support desk replacement or broad workflow automation.',
-    supportReadiness?.orderLookupSupported
+    orderLookupClaimReady
       ? '- Do not claim refunds, cancellations, address changes, or customer account updates from the order lookup surface.'
-      : '- Do not claim customer-safe order lookup until the live store has granted Shopify order-read access.',
+      : '- Do not claim customer-safe order lookup for Free or Starter stores.',
     '- Do not claim all review providers are supported.',
     '- Do not claim Elite actions when the current commercial rollout is not active.',
     '',
@@ -4632,12 +4661,15 @@ function buildDesignPartnerRolloutPacket(
   supportReadiness: ShopifyBridgeMerchantSessionResponse['supportReadiness'] | null,
 ): string {
   const shopDomain = session?.shopDomain ?? store?.shopDomain ?? 'shopify-store'
-  const activeSurfaceIds = store?.widgetDetail?.settings?.enabledSurfaces?.length
+  const configuredSurfaceIds = store?.widgetDetail?.settings?.enabledSurfaces?.length
     ? store.widgetDetail.settings.enabledSurfaces
     : DEFAULT_WIDGET_SURFACES
+  const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
+  const activeSurfaceIds = configuredSurfaceIds.filter((surfaceId) => allowedSurfaces.includes(surfaceId))
   const activeSurfaceLabels = activeSurfaceIds
     .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
   const reviewProviders = buildDetectedReviewProviders(store)
+  const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
 
   return [
     '# Shopify Companion Design-Partner Rollout Packet',
@@ -4656,9 +4688,9 @@ function buildDesignPartnerRolloutPacket(
     '- Use a real development or partner-approved merchant store.',
     '- Prefer a safe preview theme before touching a production theme.',
     `- Confirm enough source depth for the rollout story: ${reviewProviders.join(' · ') || 'catalog/policy only so far'}.`,
-    supportReadiness?.orderLookupSupported
+    orderLookupClaimReady
       ? '- Place the order lookup block on a support or contact page before the partner walkthrough.'
-      : '- Keep post-purchase support handoff-based until order-read scope is granted and support readiness is green.',
+      : '- Keep post-purchase support handoff-based unless Elite order lookup is entitled and support readiness is green.',
     '',
     '## Rollout sequence',
     ...goLiveChecklist.items.map((item) => `- ${item.label}: ${item.status}. ${item.detail}`),
@@ -4671,7 +4703,7 @@ function buildDesignPartnerRolloutPacket(
     '- Launch and App Review readiness screenshot.',
     '- Tier ladder screenshot.',
     '- Storefront preview screenshot with the intended surfaces visible.',
-    supportReadiness?.orderLookupSupported ? '- Order lookup screenshot or clip showing exact order number plus checkout email verification.' : null,
+    orderLookupClaimReady ? '- Order lookup screenshot or clip showing exact order number plus checkout email verification.' : null,
     '- Support bundle export.',
     '- Launch dossier export.',
     '- App Store listing package export.',
@@ -4711,6 +4743,7 @@ function buildSupportRunbook(
   const activeSurfaceLabels = configuredSurfaces
     .filter((surfaceId) => allowedSurfaces.includes(surfaceId))
     .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+  const orderLookupClaimReady = Boolean(allowedSurfaces.includes('order-lookup') && supportReadiness?.orderLookupSupported)
   const reviewProviders = buildDetectedReviewProviders(store)
   const subscriptionWebhook = webhookSubscriptions?.topics.find((topic) => topic.topic === 'APP_SUBSCRIPTIONS_UPDATE') ?? null
   const policyGroundingAvailable = Boolean(
@@ -4743,17 +4776,17 @@ function buildSupportRunbook(
     '',
     '## Support-safe scope',
     '- Product discovery, comparison, policy grounding, and storefront activation guidance are in scope.',
-    supportReadiness?.orderLookupSupported
-      ? supportReadiness.allOrdersScopeGranted
+    orderLookupClaimReady
+      ? supportReadiness?.allOrdersScopeGranted
         ? '- Customer-safe order lookup is in scope with exact order number plus checkout email verification.'
         : '- Customer-safe order lookup is in scope for recent orders only, with exact order number plus checkout email verification.'
-      : '- Keep order-specific support in merchant handoff mode until order-read scope and support readiness are green.',
+      : '- Keep order-specific support in merchant handoff mode unless Elite order lookup is entitled and verified.',
     billingSummary?.actionCapable
       ? '- Elite governed commerce is in scope only when the current store is entitled and the flow uses explicit confirmation plus audit history.'
       : '- Keep the support posture read-first for this store. Do not imply guided commerce unless the live billing tier changes.',
     '',
     '## Out of scope',
-    supportReadiness?.orderLookupSupported
+    orderLookupClaimReady
       ? '- Refunds, cancellations, address changes, payment-detail access, and customer account actions stay out of scope for Companion.'
       : '- Customer-safe order lookup is not currently supported.',
     '- Do not promise refund approval, cancellation, tracking, or account changes from Companion.',
@@ -4763,10 +4796,10 @@ function buildSupportRunbook(
     policyGroundingAvailable
       ? '- Use published store policy grounding for general return or refund guidance, but keep it policy-grounded and non-transactional.'
       : '- The store does not currently expose enough policy grounding for safe return guidance. Hand off return/refund questions directly.',
-    supportReadiness?.orderLookupSupported
+    orderLookupClaimReady
       ? '- Order-specific status and tracking lookups may use the governed order lookup block, but any refund, cancellation, address change, or account-specific action must still be handed off to the merchant support channel.'
       : '- Any order-specific return, refund, tracking, or order-status question must be handed off to the merchant support channel.',
-    supportReadiness?.orderLookupSupported
+    orderLookupClaimReady
       ? '- Use a support handoff like: “I can verify your order status with your order number and checkout email, but refunds, changes, and account-specific help still go through the merchant support team.”'
       : '- Use a support handoff like: “I can explain the store’s published policy, but I cannot inspect or change your order. Please continue with the merchant support channel for order-specific help.”',
     `- Current merchant handoff note: ${supportReadiness?.supportProfile?.supportPolicyNote ?? supportReadiness?.merchantHandoffMessage ?? 'Not configured'}`,
@@ -4800,6 +4833,9 @@ function buildLifecycleSubscriptionPacket(
   const shopDomain = session?.shopDomain ?? store?.shopDomain ?? 'shopify-store'
   const subscriptionWebhook = webhookSubscriptions?.topics.find((topic) => topic.topic === 'APP_SUBSCRIPTIONS_UPDATE') ?? null
   const scopesWebhook = webhookSubscriptions?.topics.find((topic) => topic.topic === 'APP_SCOPES_UPDATE') ?? null
+  const orderLookupClaimReady = Boolean(
+    billingSummary?.allowedSurfaces?.includes('order-lookup') && supportReadiness?.orderLookupSupported
+  )
   const availablePlans = (billingSummary?.availablePlans ?? []).map((plan) => {
     const posture = [plan.tierKey, plan.planName]
     if (plan.active) {
@@ -4849,7 +4885,7 @@ function buildLifecycleSubscriptionPacket(
     `- Active subscriptions: ${formatSupportSubscriptions(supportReadiness)}`,
     '',
     '## Support and order scope posture',
-    `- Order lookup supported: ${supportReadiness?.orderLookupSupported ? 'yes' : 'no'}`,
+    `- Order lookup supported: ${orderLookupClaimReady ? 'yes' : 'no'}`,
     `- Order scope granted: ${supportReadiness?.orderLookupScopeGranted ? 'yes' : 'no'}`,
     `- Historical order scope granted: ${supportReadiness?.allOrdersScopeGranted ? 'yes' : 'no'}`,
     `- Granted scopes: ${supportReadiness?.grantedScopes?.join(' · ') || 'None detected'}`,

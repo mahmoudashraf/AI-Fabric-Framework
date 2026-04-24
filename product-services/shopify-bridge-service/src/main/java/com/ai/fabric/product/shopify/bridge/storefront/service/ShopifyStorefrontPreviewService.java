@@ -80,7 +80,7 @@ public class ShopifyStorefrontPreviewService {
                 "Optionally place the AI search block on a homepage or collection-oriented template.",
                 "Optionally place the contextual pill block on collection or product templates to surface quick prompts inline.",
                 "Optionally place the product insight, policy strip, product FAQ, and comparison blocks on the product template.",
-                "Optionally place the order lookup block on a support or contact page so shoppers can verify recent orders safely.",
+                "Place the order lookup block only for Elite stores after order-read scope and support readiness are verified.",
                 "Set Bridge base URL to " + (bridgeBaseUrl == null ? "<bridge-public-base-url>" : bridgeBaseUrl) + ".",
                 "Keep the launcher label as-is or set it from the Companion app widget settings.",
                 "Use the Companion app welcome message as the first assistant response in the launcher.",
@@ -226,12 +226,12 @@ public class ShopifyStorefrontPreviewService {
             buildAppBlockPlacement(
                 shopDomain,
                 "order-lookup",
-                "Order lookup block",
+                "Elite order lookup block",
                 ORDER_LOOKUP_BLOCK_HANDLE,
                 "page",
                 "newAppsSection",
-                "FREE",
-                "Place this on a support, contact, or order-help page so shoppers can verify recent orders with the exact order number and checkout email."
+                "ELITE",
+                "Place this on a support, contact, or order-help page only for Elite stores with verified order-read scope and customer-safe support posture."
             )
         );
     }

@@ -7,6 +7,7 @@ import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublic
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCapability;
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
@@ -92,9 +93,12 @@ public class ShopifyStorefrontBootstrapService {
             ? null
             : credentials.integration().posture().runtimeAuthMode();
         String guidance = credentials.integration() == null ? null : credentials.integration().guidance();
-        ShopifyBridgeBillingSummary billingSummary = installCredentialService.resolvePersistedMaterial(updated.shopDomain())
-            .map(acquisition -> billingService.summarizeForShop(updated.shopDomain(), acquisition.tokenExchangeMaterial().accessToken()))
-            .orElseGet(() -> billingService.summarizeForShop(updated.shopDomain(), null));
+        ShopifyBridgeCredentialAcquisition credentialAcquisition =
+            installCredentialService.resolvePersistedMaterial(updated.shopDomain()).orElse(null);
+        String storefrontAccessToken = credentialAcquisition == null
+            ? null
+            : credentialAcquisition.tokenExchangeMaterial().accessToken();
+        ShopifyBridgeBillingSummary billingSummary = billingService.summarizeForShop(updated.shopDomain(), storefrontAccessToken);
         String launcherLabel = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().launcherLabel() != null && !updated.widgetDetail().settings().launcherLabel().isBlank()
             ? updated.widgetDetail().settings().launcherLabel().trim()
@@ -136,19 +140,27 @@ public class ShopifyStorefrontBootstrapService {
             && !updated.widgetDetail().settings().enabledSurfaces().isEmpty()
             ? List.copyOf(updated.widgetDetail().settings().enabledSurfaces())
             : billingSummary.allowedSurfaces();
-        enabledSurfaces = billingService.effectiveAllowedSurfaces(updated.shopDomain(), null, enabledSurfaces);
+        enabledSurfaces = billingService.effectiveAllowedSurfaces(updated.shopDomain(), storefrontAccessToken, enabledSurfaces);
         String scopesText = installRecordService.findByShopDomain(updated.shopDomain())
             .map(summary -> summary.scopesText() == null ? null : summary.scopesText())
-            .orElseGet(() -> installCredentialService.resolvePersistedMaterial(updated.shopDomain())
-                .map(acquisition -> acquisition.tokenExchangeMaterial().scopesText())
-                .orElse(null));
-        boolean orderLookupEnabled = ShopifyScopeSupport.hasScope(scopesText, "read_orders");
-        boolean olderOrdersRequireBroaderScope = !ShopifyScopeSupport.hasScope(scopesText, "read_all_orders");
-        if (orderLookupEnabled && !enabledSurfaces.contains("order-lookup")) {
-            List<String> mergedSurfaces = new ArrayList<>(enabledSurfaces);
-            mergedSurfaces.add("order-lookup");
-            enabledSurfaces = List.copyOf(mergedSurfaces);
-        }
+            .orElseGet(() -> credentialAcquisition == null ? null : credentialAcquisition.tokenExchangeMaterial().scopesText());
+        List<String> billingAllowedSurfaces = billingSummary.allowedSurfaces() == null
+            ? List.of()
+            : billingSummary.allowedSurfaces();
+        boolean orderLookupInTier = billingAllowedSurfaces.contains("order-lookup");
+        boolean orderLookupConfigured = enabledSurfaces.contains("order-lookup");
+        boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(scopesText, "read_orders");
+        boolean orderLookupEnabled = orderLookupInTier && orderLookupConfigured && orderLookupScopeGranted;
+        boolean olderOrdersRequireBroaderScope = orderLookupEnabled && !ShopifyScopeSupport.hasScope(scopesText, "read_all_orders");
+        String orderLookupMessage = orderLookupEnabled
+            ? (olderOrdersRequireBroaderScope
+                ? "Order lookup is available with the exact order number and checkout email. Orders older than Shopify's default window still require broader order access."
+                : "Order lookup is available with the exact order number and checkout email.")
+            : !orderLookupInTier
+                ? "Order lookup is available only on Elite stores with verified support access."
+                : !orderLookupConfigured
+                    ? "Order lookup is disabled in the storefront surface configuration."
+                    : "Order lookup is waiting for Shopify order-read scope approval on this store.";
         List<String> groundingSignals = groundingSignals(updated);
         List<String> supportedReviewProviders = supportedReviewProviders(updated);
         ShopifyStorefrontGovernedActionCapability actionCapability =
@@ -184,11 +196,7 @@ public class ShopifyStorefrontBootstrapService {
             bridgeEventUrl,
             orderLookupEnabled,
             olderOrdersRequireBroaderScope,
-            orderLookupEnabled
-                ? (olderOrdersRequireBroaderScope
-                    ? "Order lookup is available with the exact order number and checkout email. Orders older than Shopify's default window still require broader order access."
-                    : "Order lookup is available with the exact order number and checkout email.")
-                : "Order lookup is waiting for Shopify order-read scope approval on this store.",
+            orderLookupMessage,
             actionCapability,
             guidance,
             "Storefront bootstrap resolved. Theme app extension can now call the bridge-backed shopper endpoints."

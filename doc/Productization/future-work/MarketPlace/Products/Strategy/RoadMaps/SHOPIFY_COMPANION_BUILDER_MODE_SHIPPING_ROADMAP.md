@@ -31,7 +31,7 @@ The correct near-term Shopify roadmap is:
 
 1. finish **Loom Companion** as a strong embedded-intelligence product
 2. launch it with a real tier posture
-3. expand into **Companion Pro / Elite** only after the read-first product is strong
+3. expand into **Companion Elite** only after the read-first product is strong and governed actions are verified
 4. expand to new products only after Shopify has real signal and the reliability gate is green
 
 The product shape is now:
@@ -78,8 +78,8 @@ The roadmap below is not aspirational-only. It is grounded in the current codeba
 | Richer Shopify data coverage | Code-backed coverage now exists for published blog/article content, bounded shopper-relevant product metafield enrichment, and opt-in metaobject ingestion in addition to catalog/content/policy sources. Judge.me-compatible review and rating metafields now flow into product sync, vectorization content, and read-first shopper actions when present. | Wave 1 data-expansion work is now materially stronger; the remaining gap is broader review-provider depth and richer merchandising polish, not total structured-content absence. |
 | Read-first reasoning model | Many storefront surfaces already behave as prompt-first LLM wrappers over bridge/runtime query handling, but Shopify still keeps heuristic comparison/similar-product/policy interpretation paths. | Remove rule-based storefront intelligence, converge on fetch-only tools plus LLM reasoning, then polish rendering and size/fit depth on top of that single model. |
 | Tiered commercial model | Bridge billing already models `Free / Starter / Elite`, allowed surfaces, chat fallback, product caps, and explicit Elite governance posture (`confirmation`, `audit`, `action packages`). Merchant and platform admin UIs now surface those details directly. Governed action grants, audit history, and shopper-safe cart action surfaces are now materially real in the bridge/theme-extension stack. | The remaining gap is fully aligned commercial rollout, live Starter/Elite rollout by default, and launch-safe packaging, not missing technical foundations. |
-| Free-tier distribution wedge | Pricing strategy says Free is AI search only. Current implementation now exposes AI search and customer-safe `order-lookup` as Free storefront surfaces. | The remaining gap is roadmap/code alignment: decide whether Free remains AI-search-only or keeps order lookup, then align billing truth, storefront gating, and App Store copy to the same answer. |
-| Elite posture | Pricing strategy says Elite is read+write with governance. | Shopify now has bounded governed action capability for `add to cart` and `cart update` with explicit confirmation, signed grants, audit trail, and platform-admin investigation visibility. `Variant guidance` is still a guided chat continuation rather than a governed action, and `guided-support` exists as packaging language before there is a matching governed support-action layer. The remaining gap is broader action/support depth and commercial rollout, not total absence of Elite execution support. |
+| Free-tier distribution wedge | Pricing strategy says Free is AI search only, and the launch implementation now enforces Free as AI search only. | Free billing, storefront bootstrap, theme surfaces, merchant UI, and App Store/support copy must keep order lookup out of Free and Starter. |
+| Elite posture | Pricing strategy says Elite is read+write with governance. | Shopify now has bounded governed action capability for `add to cart` and `cart update` with explicit confirmation, signed grants, audit trail, and platform-admin investigation visibility. `Variant guidance` is still a guided chat continuation rather than a governed action, and support actions remain outside launch packaging until there is a matching governed support-action layer. The remaining gap is broader action/support depth and commercial rollout, not total absence of Elite execution support. |
 
 ### 2.3 What this means
 
@@ -110,10 +110,10 @@ Resolved rule:
 - if Free is the real distribution wedge, **AI search must move earlier**
 - otherwise the Free tier is not a product, only a pricing idea
 
-Current implementation note:
+Launch enforcement note:
 
-- `Free` currently exposes both AI search and customer-safe order lookup
-- resolve whether that remains true before launch copy and tier truth are frozen
+- `Free` exposes AI search only
+- customer-safe order lookup is kept out of Free and Starter and can only be claimed when Elite entitlement and support readiness are verified
 
 ### 3.2 Older launch-plan pricing vs new pricing strategy
 
@@ -145,13 +145,13 @@ Resolved rule:
 The product ladder remains:
 
 1. **Loom Companion**
-2. **Loom Companion Pro / Elite posture**
+2. **Loom Companion Elite posture**
 3. **Loom AI Platform for Shopify**
 
 Interpretation:
 
 - `Loom Companion` is the read-first embedded-intelligence product
-- `Companion Pro / Elite` is the action-capable commercial expansion of the same app
+- `Companion Elite` is the action-capable commercial expansion of the same app
 - `Loom AI Platform for Shopify` is the later platform packaging layer after the opinionated app proves demand
 
 Deferred:
@@ -342,7 +342,7 @@ Progress note:
 
 - the direct bridge-backed AI search surface is now real inside the Shopify app embed
 - AI search is now also a merchant-placeable Shopify app block
-- current implementation also exposes customer-safe order lookup as a Free surface, so roadmap/code alignment is still required before launch
+- customer-safe order lookup is not part of the Free or Starter launch package
 - remaining Milestone 1 work is mostly around commercial clarity, tier-truth alignment, and App Store legibility
 
 Exit criteria:
@@ -522,7 +522,7 @@ Progress note:
 
 - the live billing contract now exposes Elite confirmation posture, audit availability, and packaged action families to both merchant and platform-admin surfaces
 - governed `add-to-cart` and `cart update` surfaces are now materially real with bridge-issued grants, signed completion, shopper confirmation, and audit history
-- `variant guidance` currently exists as guided chat continuation rather than a governed action, and `guided-support` still needs a matching governed support-action layer
+- `variant guidance` currently exists as guided chat continuation rather than a governed action, and support-action packaging must stay out of launch claims until a matching governed support-action layer exists
 - the remaining Milestone 5 gap is live commercial rollout repetition and merchant adoption evidence, not missing governance primitives or missing operator visibility
 
 Elite should not launch as a promise bundle.
@@ -557,7 +557,7 @@ Only after that should Elite messaging include:
 Progress note:
 
 - the current Shopify implementation now has bounded governed commerce for `add-to-cart` and `cart update`
-- `variant guidance` is still guided chat continuation rather than a governed action, and guided support is still packaging language before it is a full governed support surface
+- `variant guidance` is still guided chat continuation rather than a governed action, and support actions remain future work until they are full governed support surfaces
 - the remaining Milestone 6 gap is broader action/support depth and live commercial rollout rather than zero action capability
 
 Deep Resolver belongs here only if it materially improves Elite outcomes. It is not a prerequisite for Milestone 5.
@@ -628,15 +628,14 @@ This is the target tier map that implementation should converge toward.
 |---|---|---|
 | Free | distribution engine | AI search, capped catalog, daily sync, powered-by badge |
 | Starter | full read-only store intelligence | insights, policy strip, FAQ, comparison, chat fallback, basic analytics |
-| Elite | read + action with governance | cart/support actions, confirmation, audit, richer sync, advanced analytics |
+| Elite | read + action with governance | verified cart actions, confirmation, audit, richer sync, advanced analytics; support actions only after a governed support layer exists |
 
 Important rule:
 
 - do not sell a tier before the tier’s core product truth is actually implemented
 
-Current implementation drifts to resolve before launch:
+Current implementation drifts to keep out of launch claims:
 
-- `Free` currently exposes customer-safe `order-lookup` in addition to AI search
 - `Elite` currently has governed cart actions, but `variant guidance` and support actions are not yet a full governed-action surface
 
 ---
@@ -720,7 +719,7 @@ Tracking snapshot as of `2026-04-24`.
 
 | Track | Current state | What closes it | Priority | Milestone |
 |---|---|---|---|---|
-| Free-tier truth alignment | AI search is real, and current implementation also exposes Free `order-lookup`. | Decide whether Free is AI-search-only or AI-search-plus-order-lookup, then align roadmap, billing copy, and allowed surfaces. | P0 | 1 |
+| Free-tier truth alignment | AI search is real, and launch implementation enforces Free as AI-search-only. | Keep billing copy, allowed surfaces, storefront gating, App Store copy, and partner/support language aligned to AI-search-only Free. | P0 | 1 |
 | Max Mode host convergence | Shopify still carries `legacy` plus `max-mode` host behavior. | Converged host contract with no long-term dual-shell dependency. | P0 | 2 |
 | Shell conversation-mode contract | `shellModeProfile` is real, but full `default/effective/allowed` mode semantics are not. | Land and verify the fuller bootstrap/runtime mode contract. | P0 | 2 |
 | Fetch-only intelligence conversion | Shopify still carries heuristic `compare_products`, `find_similar_products`, policy keyword matching, and a dedicated storefront read-action path. | Remove rule-based storefront intelligence, converge on fetch-only bridge tools, and route comparison through the same LLM wrapper model as other surfaces. | P0 | 2 / 3 |

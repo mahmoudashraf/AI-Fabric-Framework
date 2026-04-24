@@ -1,6 +1,8 @@
 # Shopify Products Shipping Roadmap
 
-Status: realistic product shipping roadmap (2026-04-17)
+Status: historical shipping roadmap (2026-04-17; tier names superseded 2026-04-25)
+
+Current launch truth: use `Free / Starter / Elite`; older `Loom Companion Pro` references below mean the historical action-capable expansion of the same app and are not current tier names.
 
 This document translates the current platform and marketplace state into a realistic path for shipping Shopify-facing products.
 
@@ -50,7 +52,7 @@ It should not ship as:
 The realistic product sequence is:
 
 1. `Loom Companion` — read-first shopper companion
-2. `Loom Companion Pro` — same app, more merchant controls and richer knowledge/actions
+2. `Loom Companion Elite posture` — same app, verified governed actions only after Starter proof
 3. `Loom AI Platform for Shopify` — white-label / platform packaging after the standalone product proves out
 
 Deferred:
@@ -121,7 +123,7 @@ Deliberate non-goals:
 - broad merchant workflow automation
 - write-heavy customer support actions
 
-### 3.2 Product 2: Loom Companion Pro
+### 3.2 Product 2: Historical Loom Companion Pro / Current Elite Posture
 
 Goal:
 
@@ -438,7 +440,7 @@ Exit criteria:
 - storefront app embed path is stable
 - all requested scopes are justified
 
-### Phase 3: Loom Companion Pro
+### Phase 3: Historical Loom Companion Pro / Current Elite Posture
 
 Goal:
 
@@ -600,7 +602,7 @@ The realistic shipping order is:
 
 1. internal platform-backed Shopify companion bundle
 2. review-ready public `Loom Companion` app
-3. `Loom Companion Pro`
+3. `Loom Companion Elite posture`
 4. broader `Loom AI Platform for Shopify` packaging
 
 Keep these separate:

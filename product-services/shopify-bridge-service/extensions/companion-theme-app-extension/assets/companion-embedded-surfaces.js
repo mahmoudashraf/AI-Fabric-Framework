@@ -11,11 +11,10 @@
     teardown(options.root)
     var enabledSurfaces = normalizeEnabledSurfaces(options.payload.enabledSurfaces)
     var surfaceScope = normalizeSurfaceScope(options.surfaceScope)
-    var allowDedicatedOrderLookup = surfaceScope === 'order-lookup'
-    if (enabledSurfaces.length === 0 && !allowDedicatedOrderLookup) {
+    if (enabledSurfaces.length === 0) {
       return
     }
-    if (surfaceScope !== 'all' && enabledSurfaces.indexOf(surfaceScope) < 0 && !allowDedicatedOrderLookup) {
+    if (surfaceScope !== 'all' && enabledSurfaces.indexOf(surfaceScope) < 0) {
       return
     }
 
@@ -2073,7 +2072,7 @@
 
   function normalizeEnabledSurfaces(values) {
     if (!Array.isArray(values) || values.length === 0) {
-      return ['ai-search', 'order-lookup', 'contextual-pill', 'product-insight', 'policy-strip', 'product-faq', 'comparison']
+      return ['ai-search']
     }
     return values
       .map(function (value) {

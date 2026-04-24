@@ -325,7 +325,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
         when(billingService.summarizeForShop("alpha.myshopify.com", "shpat_access")).thenReturn(new ShopifyBridgeBillingSummary(
             "SHOPIFY_APP_SUBSCRIPTION",
             "STARTER",
-            "Companion Pro",
+            "Loom Companion Starter",
             "SETUP_REQUIRED",
             true,
             true,

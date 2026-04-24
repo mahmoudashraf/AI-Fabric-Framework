@@ -57,7 +57,7 @@ The platform, runtime, vectorization, and shell are shared across all products.
 
 **Total addressable:** ~12,000,000 online stores.
 
-**Revenue model:** Free tier + $29/mo Growth + $79/mo Pro per store.
+**Revenue model:** Free tier + $29/mo Starter + $179/mo Elite per store, using the current Shopify Companion launch truth.
 
 **Why this category first:** Validated by Amazon Rufus. No competitor does proper RAG. Distribution channels (app stores) exist and are free. Revenue per unit is predictable.
 

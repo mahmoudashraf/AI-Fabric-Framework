@@ -32,11 +32,11 @@ class ShopifyBridgeBillingServiceTest {
         assertThat(summary.launchBlocked()).isFalse();
         assertThat(summary.merchantApprovalRequired()).isFalse();
         assertThat(summary.catalogProductCap()).isEqualTo(50);
-        assertThat(summary.allowedSurfaces()).containsExactly("ai-search", "order-lookup");
+        assertThat(summary.allowedSurfaces()).containsExactly("ai-search");
         assertThat(summary.availablePlans())
             .anySatisfy(plan -> {
                 if ("FREE".equals(plan.tierKey())) {
-                    assertThat(plan.allowedSurfaces()).containsExactly("ai-search", "order-lookup");
+                    assertThat(plan.allowedSurfaces()).containsExactly("ai-search");
                     assertThat(plan.chatFallbackEnabled()).isFalse();
                 }
             });
@@ -106,7 +106,7 @@ class ShopifyBridgeBillingServiceTest {
                         "activeSubscriptions", List.of(
                             Map.of(
                                 "id", "gid://shopify/AppSubscription/1",
-                                "name", "Companion Pro",
+                                "name", "Loom Companion Starter",
                                 "status", "ACTIVE"
                             )
                         )

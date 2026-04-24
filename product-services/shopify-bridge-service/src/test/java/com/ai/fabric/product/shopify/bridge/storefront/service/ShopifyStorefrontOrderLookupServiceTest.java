@@ -27,6 +27,8 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ShopifyStorefrontOrderLookupServiceTest {
@@ -127,6 +129,38 @@ class ShopifyStorefrontOrderLookupServiceTest {
         assertThat(response.available()).isFalse();
         assertThat(response.status()).isEqualTo("SCOPE_REQUIRED");
         assertThat(response.matched()).isFalse();
+    }
+
+    @Test
+    void blocksLookupWhenCurrentTierDoesNotAllowOrderLookup() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
+
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store(true, List.of("ai-search", "order-lookup")));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
+        when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", "access-token", List.of("ai-search", "order-lookup")))
+            .thenReturn(List.of("ai-search"));
+
+        ShopifyStorefrontOrderLookupService service = new ShopifyStorefrontOrderLookupService(
+            platformClient,
+            installCredentialService,
+            installRecordService,
+            billingService,
+            shopifyAdminGraphqlClient
+        );
+
+        var response = service.lookup(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontOrderLookupRequest("#1001", "shopper@example.com", "order-lookup")
+        );
+
+        assertThat(response.available()).isFalse();
+        assertThat(response.status()).isEqualTo("SURFACE_NOT_ENABLED");
+        assertThat(response.matched()).isFalse();
+        verify(shopifyAdminGraphqlClient, never()).execute(anyString(), anyString(), anyString(), anyMap());
     }
 
     @Test
