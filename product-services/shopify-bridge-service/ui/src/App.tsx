@@ -191,7 +191,7 @@ const ADMIN_TABS = [
   { id: 'billing', content: 'Billing' },
   { id: 'support', content: 'Support' },
   { id: 'launch', content: 'Go live' },
-  { id: 'advanced', content: 'Advanced' },
+  { id: 'advanced', content: 'Support tools' },
 ]
 
 function defaultConversationModeForShellProfile(shellModeProfile?: string | null): string {
@@ -1550,6 +1550,24 @@ export default function App() {
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
+                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Support tools
+                    </Text>
+                    <Badge tone="info">Internal</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    This area is for support, App Review, and operator handoff. Merchants do not need it for daily setup.
+                  </Text>
+                </BlockStack>
+              </Card>
+            </Box>
+            ) : null}
+
+            {selectedSection === 'advanced' ? (
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
                     Deployment vectorization
                   </Text>
@@ -2308,13 +2326,9 @@ export default function App() {
                   </BlockStack>
                   {selectedSection === 'advanced' ? (
                     <BlockStack gap="150">
-                      <TextField
-                        label="Launch dossier"
-                        autoComplete="off"
-                        multiline={12}
-                        value={launchDossierText}
-                        readOnly
-                      />
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Export the full launch dossier only when support or App Review needs the current live-store evidence.
+                      </Text>
                       <InlineStack gap="200">
                         <Button onClick={() => void handleCopyLaunchDossier()} disabled={!session}>
                           Copy launch dossier
@@ -2344,13 +2358,9 @@ export default function App() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       App Store listing package
                     </Text>
-                    <TextField
-                      label="App Store listing package"
-                      autoComplete="off"
-                      multiline={10}
-                      value={appStoreListingPackageText}
-                      readOnly
-                    />
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Claim-safe listing copy, screenshot plan, and disallowed claims generated from the current store posture.
+                    </Text>
                     <InlineStack gap="200">
                       <Button onClick={() => void handleCopyAppStoreListingPackage()} disabled={!session}>
                         Copy App Store package
@@ -2364,13 +2374,9 @@ export default function App() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       Design-partner rollout packet
                     </Text>
-                    <TextField
-                      label="Design-partner rollout packet"
-                      autoComplete="off"
-                      multiline={10}
-                      value={designPartnerRolloutText}
-                      readOnly
-                    />
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Repeatable beta rollout steps and evidence checklist for partner stores.
+                    </Text>
                     <InlineStack gap="200">
                       <Button onClick={() => void handleCopyDesignPartnerRollout()} disabled={!session}>
                         Copy design-partner packet
@@ -2445,13 +2451,9 @@ export default function App() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       App Review guide
                     </Text>
-                    <TextField
-                      label="App Review guide"
-                      autoComplete="off"
-                      multiline={10}
-                      value={appReviewGuideText}
-                      readOnly
-                    />
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Reviewer-safe walkthrough, scope posture, and claims to avoid.
+                    </Text>
                     <InlineStack gap="200">
                       <Button onClick={() => void handleCopyAppReviewGuide()} disabled={!session}>
                         Copy App Review guide
@@ -2465,13 +2467,9 @@ export default function App() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       Review screencast script
                     </Text>
-                    <TextField
-                      label="Review screencast script"
-                      autoComplete="off"
-                      multiline={10}
-                      value={reviewScreencastScriptText}
-                      readOnly
-                    />
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Short recording script for the current verified storefront story.
+                    </Text>
                     <InlineStack gap="200">
                       <Button onClick={() => void handleCopyReviewScreencastScript()} disabled={!session}>
                         Copy screencast script
@@ -2485,13 +2483,9 @@ export default function App() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       Support runbook
                     </Text>
-                    <TextField
-                      label="Support runbook"
-                      autoComplete="off"
-                      multiline={10}
-                      value={supportRunbookText}
-                      readOnly
-                    />
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Support-safe triage order and merchant handoff guidance.
+                    </Text>
                     <InlineStack gap="200">
                       <Button onClick={() => void handleCopySupportRunbook()} disabled={!session}>
                         Copy support runbook
@@ -2505,13 +2499,9 @@ export default function App() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       Lifecycle and subscription packet
                     </Text>
-                    <TextField
-                      label="Lifecycle and subscription packet"
-                      autoComplete="off"
-                      multiline={10}
-                      value={lifecycleSubscriptionPacketText}
-                      readOnly
-                    />
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Install, subscription, scope, and support lifecycle evidence.
+                    </Text>
                     <InlineStack gap="200">
                       <Button onClick={() => void handleCopyLifecycleSubscriptionPacket()} disabled={!session}>
                         Copy lifecycle packet
@@ -2678,13 +2668,9 @@ export default function App() {
                       </Text>
                     </BlockStack>
                   ) : null}
-                  <TextField
-                    label="Support bundle"
-                    autoComplete="off"
-                    multiline={12}
-                    value={supportBundleText}
-                    readOnly
-                  />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Export the raw support bundle only for engineering/support escalation. It includes IDs and operational state.
+                  </Text>
                   <InlineStack gap="200">
                     <Button onClick={() => void handleCopySupportBundle()} disabled={!session}>
                       Copy support bundle
