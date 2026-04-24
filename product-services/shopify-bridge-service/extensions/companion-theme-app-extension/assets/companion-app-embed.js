@@ -60,7 +60,9 @@
           root.textContent = payload && payload.message ? payload.message : 'Store assistant is not ready yet.'
           return
         }
-        if (payload.chatFallbackEnabled === false || !config.shellEnabled) {
+        // Embedded surfaces can still render without the shell, but the app embed must
+        // keep mounting Max Mode even when storefront chat fallback is disabled.
+        if (!config.shellEnabled) {
           teardownActiveShell(root)
           teardownEmbeddedSurfaces(root)
           root.dataset.status = 'ready'
