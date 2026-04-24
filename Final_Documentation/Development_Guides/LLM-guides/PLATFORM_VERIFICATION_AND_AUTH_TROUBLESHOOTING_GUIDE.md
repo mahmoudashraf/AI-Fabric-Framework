@@ -339,61 +339,53 @@ Where to look in code:
 - `ai-infrastructure-module/ai-infrastructure-actions-connector/src/main/java/com/ai/infrastructure/intent/action/connector/ActionConnectorExecutor.java`
 - `ai-infrastructure-module/ai-infrastructure-actions-connector/src/main/java/com/ai/infrastructure/intent/action/connector/ActionConnectorProtocol.java`
 
-### 4.5.1 Shopify Companion shopper query fails because the published action artifact dropped `query`
+### 4.5.1 Shopify browser verification stopped at a password or login page
 
 Meaning:
 
-- the bridge and runtime transport are up
-- but the active published Shopify Companion action catalog no longer declares `query` for `list_products` or `search_products`
-- runtime therefore executes the connector action with empty `params`
+- the browser session hit an auth boundary before the real UI loaded
+- this is not, by itself, proof of a storefront or app regression
 
-Observed live shape:
+Common shapes:
 
-- public storefront query returns nested action execution failure details instead of a top-level auth failure
-- direct bridge `POST /api/admin/stores/{shopDomain}/actions/execute` works when called with:
-  - `{"actionId":"search_products","params":{"query":"best snowboard"}}`
-- the same direct bridge endpoint fails when called with empty `params`
-- the published `ai-actions.yml` for the active deployment version shows no `params` for `list_products` or `search_products`
+- shopper storefront opens to the shop password page
+- Shopify Admin / Theme Editor path opens to the Shopify login page
+- embedded merchant flow needs merchant session material before the app shell loads
 
 Do not misdiagnose this as:
 
-- runtime private auth drift
-- connector base URL drift
-- random upstream transport failure
+- missing Max launcher
+- missing app blocks
+- broken storefront activation
 
 What to check:
 
-1. public shopper query path:
-   - `POST /api/storefront/shops/{shopDomain}/chat/query`
-2. direct bridge action execution:
-   - `POST /api/admin/stores/{shopDomain}/actions/execute`
-3. published artifact:
-   - `GET /api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml`
-4. active deployment version source fields:
-   - `platform_deployment_versions.actions_config_json`
-   - `platform_deployment_versions.actions_artifact_yaml`
-   - `platform_deployment_versions.manifest_json`
+1. shopper storefront:
+   - if the store is password protected, unlock it with the current storefront password from the private handoff or the human operator before judging the UI
+2. merchant bridge app:
+   - use the merchant bridge app and storefront activation preview to verify install state, widget state, and current block placements even when Theme Editor is not yet reachable
+3. Shopify Admin / Theme Editor:
+   - reaching the real Shopify login page proves route reachability only
+   - a real merchant session is required to visually confirm Theme Editor block inventory
 
-Likely causes:
+Useful evidence:
 
-- marketplace plugin manifest regression
-- migration changed the Shopify Companion action manifest but accidentally removed `params`
-- already-published deployment version still serves the bad artifact snapshot
+- local screenshots under `/tmp/shopify-verify/`
+- storefront screenshot proving Max launcher visibility
+- merchant bridge preview screenshot proving `Theme embed ready`, `ENABLED`, block count, and placement rows
 
-Operational fix:
+Operational rule:
 
-1. repair the source migration or manifest definition in code
-2. if the bad artifact is already published live, repair the active deployment version artifact and the active draft so they are coherent
-3. restart or redeploy the runtime service because the connector action catalog is cached at startup
-4. rerun `scripts/verify-shopify-companion.sh`
+- record exactly which surface was verified:
+  - storefront
+  - merchant bridge preview
+  - Theme Editor
+- do not collapse those into one generic “Shopify UI verified” statement
 
-Where to look in code:
+Where to look next:
 
-- `Platfrom/backend/src/main/resources/db/migration/V63__shopify_companion_fetch_only_actions.sql`
-- `Platfrom/backend/src/main/resources/db/migration/V64__shopify_companion_restore_query_params.sql`
-- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentConfigCompiler.java`
-- `ai-infrastructure-module/ai-infrastructure-actions-connector/src/main/java/com/ai/infrastructure/intent/action/connector/ConnectorActionCatalogService.java`
-- `scripts/verify-shopify-companion.sh`
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESTART_GUIDE.md`
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESOURCES_MAP.md`
 
 ### 4.6 POC conversation lookup returns `404 Conversation not found`
 

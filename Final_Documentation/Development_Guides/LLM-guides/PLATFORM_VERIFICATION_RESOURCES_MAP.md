@@ -162,13 +162,20 @@ Current release-gate statuses:
 
 High-value live operator patterns from `2026-04-24`:
 
-- if the Shopify verification store is intentionally blocked on order-read scope approval, dispatch the full suite with explicit `shopifyCompanionExpectations` instead of assuming `storefrontReady=true`
-- if Shopify storefront query traffic suddenly starts failing with nested action errors while the bridge itself is healthy, inspect the published Shopify Companion `ai-actions.yml` before blaming runtime auth or connector transport
-  - the strongest signal is: direct bridge `POST /api/admin/stores/{shopDomain}/actions/execute` succeeds when you send a real `query`, but the public shopper query path fails because the live action catalog no longer exposes `query` for `list_products` or `search_products`
-- if the published artifact is wrong on the active deployment version, remember that runtime action metadata is loaded and cached at startup
-  - patching the platform DB artifact alone is not enough for immediate live recovery; restart or redeploy the runtime service after the artifact is corrected
-- `SHOPIFY_BRIDGE_ADMIN_API_KEY` in the Shopify verification scripts is the live `SHOPIFY_BRIDGE_SHARED_SECRET`
-  - `APP_ADMIN_API_KEY` is not the correct credential for bridge admin endpoints
+- Shopify Companion needs both script verification and browser verification
+  - scripts prove live APIs and operator surfaces
+  - browser checks prove the merchant and shopper UI actually render the expected shell and blocks
+- treat Shopify visual verification as three separate surfaces:
+  - storefront shopper UI
+  - merchant bridge app / storefront activation preview
+  - Shopify Admin / Theme Editor
+- the merchant bridge app is the most useful visual proof when Theme Editor auth is unavailable
+  - it can prove install state, widget enabled state, `Theme embed ready`, `7` merchant-placeable blocks, and the current placement rows before you ever reach Theme Editor
+- reaching the real Shopify login page only proves route reachability
+  - it does not prove the blocks are present in Theme Editor until a real merchant session opens the editor
+- keep browser evidence local and disposable
+  - save screenshots under a temp path like `/tmp/shopify-verify/`
+  - do not commit screenshots or copy live credentials into committed docs
 - if a canonical hosted deployment fails with:
   - `runtime_config_matches_expected`
   - `runtime_prompt_config_matches_expected`
@@ -234,21 +241,15 @@ Shopify Companion verification:
 - `scripts/run-shopify-companion-rollout.sh`: platform-side bootstrap, source preflight, and go-live progression.
 - `scripts/verify-shopify-companion-uninstall.sh`: destructive uninstall verification for a disposable store mapping only.
 
-Useful live Shopify checks from the latest storefront repair:
+Useful visual-verification targets:
 
-- public shopper query:
-  - `POST /api/storefront/shops/{shopDomain}/chat/query`
-- bridge admin overview:
-  - `GET /api/admin/overview`
-- direct bridge action execution:
-  - `POST /api/admin/stores/{shopDomain}/actions/execute`
-- published action artifact:
-  - `GET /api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml`
-
-Important credential distinction:
-
-- `SHOPIFY_BRIDGE_ADMIN_API_KEY` should be the bridge shared secret currently mounted as `SHOPIFY_BRIDGE_SHARED_SECRET`
-- do not substitute `APP_ADMIN_API_KEY` for bridge admin verification
+- shopper storefront root:
+  - verify the Max launcher is present and clickable
+- merchant bridge app storefront activation preview:
+  - verify install state, widget state, block count, and placement rows
+  - use it as the source of the current `themeEditorActivationUrl` handoff into Shopify Admin
+- Shopify Admin / Theme Editor path:
+  - verify actual Theme Editor block presence only when a real merchant session is available
 
 Safety model:
 
@@ -313,32 +314,59 @@ Relevant live APIs called out in the session context dump:
 - `GET /api/deployments/{deploymentId}/vectorization`
 - `GET /api/deployments/{deploymentId}/vectorization/runs/{runId}`
 
+Browser verification surfaces and tools:
+
+- Browser automation tool used in the live session:
+  - `Playwright` with `Chromium`
+- Surfaces that future sessions should open:
+  - shopper storefront on `https://{shopDomain}`
+  - merchant bridge app UI for the installed store
+  - Shopify Admin login / Theme Editor path
+- What each surface proves:
+  - shopper storefront:
+    - Max launcher is visible
+    - Max launcher is clickable
+    - widget/composer opens
+    - Companion-owned cards can show `Add to Max` when the relevant surface is rendered
+  - merchant bridge app:
+    - store is installed
+    - widget is enabled
+    - onboarding/live state is visible
+    - storefront activation preview shows `Theme embed ready`, `ENABLED`, block count, and placement rows
+    - preview data is the best handoff into Theme Editor because it carries the current activation URL
+  - Shopify Admin / Theme Editor:
+    - only a real merchant session can prove the blocks are visually present in Theme Editor
+    - reaching the Shopify login page without a merchant session is only a reachability check
+- Evidence handling:
+  - save screenshots locally under `/tmp/shopify-verify/`
+  - use the screenshot set as operator evidence for the current session only
+  - keep live storefront passwords, merchant cookies, and embedded auth material in the private handoff only
+
 ## 9. Private Handoff Boundary
 
 The private companion file is intentionally separate because it contains sensitive operational material.
 
-## 10. Recent Live-Proven Flow
+## 10. Recent Live-Proven Browser Verification Flow
 
-The most useful live recovery sequence from the latest release-gate work was:
+The most reusable browser verification flow from the latest Shopify session was:
 
-1. run the full suite with `allowControlPlaneRepair=true`
-2. if Shopify is intentionally pending scope approval, include explicit `shopifyCompanionExpectations`
-3. if a Shopify shopper query now fails with nested `ACTION_EXECUTED` transport errors, compare:
-   - the public shopper query path
-   - direct bridge `/actions/execute` with an explicit `query`
-   - direct bridge `/actions/execute` with empty `params`
-4. if direct bridge works only when `query` is present, inspect the published `ai-actions.yml` for missing `params` on `list_products` or `search_products`
-5. repair the source migration and, for immediate live recovery on an already-published version, repair the active deployment version artifact and draft so `actions_config_json`, `actions_artifact_yaml`, and `manifest_json` are coherent
-6. restart or redeploy the runtime service because the connector action catalog is cached at startup
-7. rerun `scripts/verify-shopify-companion.sh` with the truthful pending-scope expectations and the correct bridge shared secret
-8. only then rerun the full suite
-9. if the suite later fails on one provider hosted deployment, inspect that deployment with:
-   - `GET /api/deployments/{deploymentId}/hosted-verifications`
-   - `bash scripts/run-platform-deployment-verification.sh`
-10. if the failure is stale canonical rollout state, recreate only that rollout key
-11. rerun the deployment-scoped hosted verification for that deployment
-12. rerun the full suite
-13. confirm `GET /api/verification-suites/release-gate` returns `READY`
+1. run the non-destructive Shopify verification script first so the API/operator state is already known
+2. open the shopper storefront with browser automation
+3. if the storefront is password protected, unlock it with the current storefront password from the private handoff or the human operator
+4. verify the Max launcher is visible on the page
+5. click the launcher and confirm the widget/composer opens
+6. open the merchant bridge app for the installed store
+7. use the storefront activation preview as the main visual proof when Theme Editor is not yet accessible
+8. verify the preview shows:
+   - `Theme embed ready`
+   - `ENABLED`
+   - the current merchant-placeable block count
+   - the placement rows for each Companion block
+9. open the Shopify Admin / Theme Editor path next
+10. if you only reach the Shopify login page, record that as an auth boundary, not as a product failure
+11. if you have a real merchant session, continue into Theme Editor and visually confirm the blocks there
+12. save screenshots under `/tmp/shopify-verify/` so the current session has local operator evidence
+13. finish by correlating the browser evidence with the platform release gate and script verification results
 
 Private file:
 

@@ -152,8 +152,7 @@ Optional for deeper Shopify verification coverage:
 Operational notes:
 
 - baseline non-destructive Shopify verification can run without the optional values
-- `SHOPIFY_BRIDGE_ADMIN_API_KEY` should be the bridge shared secret currently mounted as `SHOPIFY_BRIDGE_SHARED_SECRET`
-  - do not use `APP_ADMIN_API_KEY` for bridge admin verification
+- `SHOPIFY_MERCHANT_AUTHORIZATION` and `SHOPIFY_EMBEDDED_HOST` are the useful extras when you need merchant-session or embedded-app browser verification
 - uninstall verification is destructive and should only target a disposable shop mapping
 - the private handoff is the source of truth for current live Shopify credentials and app values
 - for GitHub Actions, keep non-secret Shopify config in variables and keep only keys, bearer tokens, and passwords in secrets
@@ -437,50 +436,45 @@ Current read-only checks in `scripts/verify-shopify-companion.sh`:
 - recent vectorization event visibility
 - bridge admin vectorization source-page reachability when bridge admin auth is configured
 
-### 6.8.1 Shopify fetch-only action artifact drift
+### 6.8.1 Shopify browser verification flow
 
-Observed live pattern:
+Use browser verification after the non-destructive Shopify script pass. It proves the merchant and shopper UI, not just the APIs.
 
-- the Shopify bridge itself is healthy
-- direct bridge `POST /api/admin/stores/{shopDomain}/actions/execute` succeeds when `search_products` is called with a real `query`
-- the public shopper query path still fails because the active published `ai-actions.yml` no longer exposes `query` for `list_products` or `search_products`
+Tooling used in the live session:
 
-Strong signal:
+- `Playwright`
+- `Chromium`
 
-- the shopper query response contains nested action execution failure details rather than a bridge auth failure
-- direct bridge execution fails only when `params` is empty
-- `GET /api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml` shows missing `params` for `list_products` or `search_products`
+Target surfaces:
 
-Operational fix:
+- shopper storefront on `https://{shopDomain}`
+- merchant bridge app UI for the installed store
+- Shopify Admin / Theme Editor path
 
-1. repair the source migration or manifest generator in code
-2. if the bad artifact is already published live, repair the active deployment version artifact and active draft so `actions_config_json`, `actions_artifact_yaml`, and `manifest_json` agree
-3. restart or redeploy the runtime service because the connector action catalog is cached at startup
-4. rerun `scripts/verify-shopify-companion.sh`
+Recommended order:
 
-Useful live commands:
+1. run `scripts/verify-shopify-companion.sh` first
+2. open the shopper storefront in browser automation
+3. if the storefront is password protected, use the current storefront password from the private handoff or the operator
+4. verify the Max launcher is visible
+5. click the launcher and verify the widget/composer opens
+6. open the merchant bridge app for the store
+7. inspect the storefront activation preview
+8. verify the preview shows:
+   - `Theme embed ready`
+   - `ENABLED`
+   - current merchant-placeable block count
+   - placement rows for each Companion block
+   - the current `themeEditorActivationUrl` handoff into Shopify Admin
+9. open the Shopify Admin / Theme Editor path last
+10. if you only reach the Shopify login page, record that as an auth boundary
+11. only treat Theme Editor block presence as verified when a real merchant session opens the editor
 
-```bash
-curl -sS \
-  "$PLATFORM_BASE_URL/api/deployments/$PLATFORM_DEPLOYMENT_ID/versions/$PLATFORM_VERSION_ID/artifacts/ai-actions.yml?expires=...&sig=..." | sed -n '1,120p'
-```
+Evidence handling:
 
-```bash
-curl -sS -H "X-BRIDGE-API-KEY: $SHOPIFY_BRIDGE_ADMIN_API_KEY" \
-  -H 'Content-Type: application/json' \
-  -X POST \
-  "$SHOPIFY_BRIDGE_BASE_URL/api/admin/stores/$SHOP_DOMAIN/actions/execute" \
-  -d '{"actionId":"search_products","params":{"query":"best snowboard"}}' | jq .
-```
-
-```bash
-curl -sS -H "Accept: application/json" \
-  -H 'Content-Type: application/json' \
-  -H "X-AI-FABRIC-SHOPPER-SESSION-ID: shopper-debug-$(date +%s)" \
-  -X POST \
-  "$SHOPIFY_BRIDGE_BASE_URL/api/storefront/shops/$SHOP_DOMAIN/chat/query" \
-  -d '{"query":"best snowboard","mode":"navigator","storefrontContext":{"pageType":"index","pageTitle":"Shopping Companion Test","product":null,"collection":null,"shopifyShellModeProfile":"SHOPIFY_COMPANION","shopifySurfaceEntry":"ai-search"}}' | jq .
-```
+- save screenshots under a local temp path such as `/tmp/shopify-verify/`
+- do not commit screenshots
+- keep storefront passwords, merchant cookies, and embedded auth material in the private handoff only
 
 ## 7. Recommended Order
 
@@ -742,38 +736,42 @@ If `POST /api/verification-suites/{suiteKey}/runs` returns `CONFLICT`:
 - poll the active run id
 - use `GET /api/verification-suites/release-gate` after it settles
 
-### 9.6.2 Shopify bridge admin verification uses a different key
+### 9.6.2 Shopify visual verification has separate auth boundaries
 
-`scripts/verify-shopify-companion.sh` mixes:
+Do not treat all Shopify browser surfaces as equivalent.
 
-- platform session auth for the platform control plane
-- bridge admin auth for Shopify bridge operator reads
+They prove different things:
 
-For the bridge admin reads:
-
-- `SHOPIFY_BRIDGE_ADMIN_API_KEY` must be the live bridge shared secret
-- that value is mounted on the bridge as `SHOPIFY_BRIDGE_SHARED_SECRET`
-- `APP_ADMIN_API_KEY` is not accepted by bridge admin endpoints
-
-If the script reaches:
-
-- `Bridge admin overview`
-
-and fails with `401`, check this credential first before debugging the bridge service itself.
-
-### 9.6.3 Runtime restart is required after live action-artifact repair
-
-For Shopify Companion fetch-only actions, the runtime action catalog is loaded from `AI_ACTIONS_CATALOG_PATH` and cached at startup.
-
-That means:
-
-- fixing the source migration is necessary for future publishes
-- fixing the live platform DB artifact may restore the published `ai-actions.yml`
-- but the already-running runtime process will still serve old action metadata until it restarts
+- shopper storefront:
+  - proves the live shopper shell and visible Companion UI
+- merchant bridge app:
+  - proves install state, widget state, and storefront activation preview
+- Shopify Admin / Theme Editor:
+  - proves the actual editor-visible block inventory only when a merchant session is present
 
 Operational rule:
 
-- if you repair the active version artifact for Shopify action params, restart or redeploy the runtime service before trusting live shopper query results
+- if browser automation reaches the Shopify login page but not the editor, that is an auth boundary, not proof that the app blocks are missing
+
+### 9.6.3 Merchant bridge preview is the best fallback when Theme Editor is unavailable
+
+When a future session cannot reach Theme Editor because merchant auth is unavailable, use the merchant bridge app preview as the next best visual proof.
+
+What it can prove:
+
+- store is installed
+- widget is enabled
+- onboarding/live posture is visible
+- storefront activation preview shows `Theme embed ready`
+- current block count is visible
+- block placement rows are visible
+
+Operational rule:
+
+- record clearly whether the session proved:
+  - storefront rendering
+  - merchant bridge preview
+  - Theme Editor itself
 
 ### 9.7 Weaviate default host changed
 
