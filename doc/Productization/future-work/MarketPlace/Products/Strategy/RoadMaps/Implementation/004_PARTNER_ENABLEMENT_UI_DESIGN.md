@@ -780,6 +780,27 @@ Platfrom/partner-ui/
 - TypeScript `strict: true`, `noUncheckedIndexedAccess: true`. No `any` in components.
 - Add a `tsx` smoke script at `scripts/partner-ui-smoke.mjs` mirroring the existing `phase19-ui-auth-smoke.mjs` pattern in `Platfrom/ui/scripts/` for the auth callback path.
 
+### Platform Release Gate Requirements
+
+The Partner UI is not release-ready just because the Vite build passes. Any UI change that affects auth routing, access guards, partner API calls, store visibility, evidence downloads, verification pack screens, escalation visibility, or deployed routing must be included in the Platform live release gate.
+
+Minimum UI live gate coverage:
+
+- deployed Partner UI shell loads from the target environment.
+- `/login` renders with missing-config and configured Supabase states handled cleanly.
+- `/auth/callback` handles success and failure without exposing tokens in URL, console, screenshots, or local storage.
+- authenticated new partner lands on the empty workspace with zero stores.
+- client store routes render unauthorized/revoked states without leaking store data.
+- API client refuses non-partner endpoint paths client-side.
+- invalid/expired session returns user to login; `403` renders `UnauthorizedState` and does not retry in a loop.
+- catalog page shows correct tier truth: Free AI search only, Starter read-only surfaces, no Starter order lookup.
+- verification/evidence pages do not show raw vectorization/runtime/provider/secret/operator terms.
+- escalation thread shows only `PARTNER_VISIBLE` replies and drops any unexpected visibility value.
+- desktop and mobile smoke pass for dashboard, stores, new implementation, catalog, verification, evidence, and support routes.
+- axe or equivalent accessibility smoke passes for login, dashboard, store list, and escalation detail in light and dark mode.
+
+If no deployed partner UI exists yet, the implementing session must add the live gate as a tracked release blocker or create the first deployment path before claiming release readiness. Docs-only changes may skip live UI verification only with an explicit `CODEX_WORKING_CONTEXT.md` note.
+
 ### Things to be careful about
 
 - **Never call operator endpoints from this UI.** Even if the network allows it, the audit log will flag it. The API client should refuse any URL not under `/api/partners/*` or `/api/merchant/partner-access/*`.

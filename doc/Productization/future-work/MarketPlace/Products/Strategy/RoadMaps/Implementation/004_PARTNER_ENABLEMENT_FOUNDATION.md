@@ -1749,6 +1749,31 @@ For live bridge admin checks:
 - Do not print, paste, commit, or log the secret.
 - Use secret files or environment variables only.
 
+### Platform Release Gate Requirement
+
+Partner Enablement must not be marked release-ready from local tests alone. Any slice that changes partner auth, partner APIs, store-access authorization, evidence exports, verification packs, escalation visibility, partner UI routing, or platform release-verification behavior must be considered part of the Platform live release gate.
+
+Before releasing beyond a local/dev-only slice, the implementing session must either extend an existing Platform-owned live verification path or add a focused partner live verifier. The gate must be runnable from the Platform release workflow and must produce release evidence in the same operational posture as the existing platform verification suite.
+
+Minimum live gate coverage for the first release-capable slice:
+
+- Platform backend health and partner route reachability.
+- Partner UI artifact served successfully in the deployed environment.
+- valid Supabase partner JWT accepted, invalid issuer/audience/signature rejected.
+- new/self-service partner sees an empty workspace and zero client stores by default.
+- unassigned partner receives `403` or equivalent denial for client-store data and no store details leak.
+- approved/assigned partner can read only assigned partner-safe store summaries.
+- revoked/suspended partner is denied even with a valid Supabase session.
+- partner catalog returns claim-safe Free/Starter/Elite tier truth: Free AI search only, Starter read-only surfaces, no Starter order lookup.
+- verification pack output includes Free AI-search-only and Starter no-order-lookup gates.
+- evidence bundle output excludes secrets, raw vectorization/runtime/provider details, and operator-only notes.
+- support escalation create/read works only for approved/assigned stores.
+- operator-only escalation replies/notes are filtered from partner responses.
+- partner state-changing actions create audit records with partner, store/request, action, timestamp, and result.
+- existing operator/admin auth and release verification still pass.
+
+Live verification may be skipped only for docs-only changes or when no deployed behavior, auth, release gate, API, UI route, or evidence contract changed. If skipped, record the exact reason in `CODEX_WORKING_CONTEXT.md`.
+
 ---
 
 ## Completion Section For Implementing LLM

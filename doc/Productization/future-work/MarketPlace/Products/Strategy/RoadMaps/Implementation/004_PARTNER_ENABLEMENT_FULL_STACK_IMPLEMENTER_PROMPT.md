@@ -226,6 +226,27 @@ Run:
 
 If you add focused backend tests, run them explicitly too.
 
+Platform live release gate:
+- Do not consider this slice release-ready from local tests alone.
+- If partner auth, partner APIs, store assignment/access, evidence bundles, verification packs, escalation visibility, deployed partner UI routing, or release-verification behavior changes, live verification must be part of the Platform release gate.
+- Extend an existing Platform-owned live verification path or add a focused partner live verifier before marking the release complete.
+- Minimum live gate coverage:
+  - deployed Platform backend health and `/api/partners/session` reachability
+  - deployed Partner UI route/artifact reachable
+  - valid Supabase partner JWT accepted and invalid JWT rejected
+  - new partner sees empty workspace and no client stores
+  - unassigned partner cannot access client-store data
+  - approved/assigned partner can access only assigned partner-safe store summary
+  - revoked/suspended partner denied
+  - catalog returns Free AI-search-only, Starter read-only surfaces, and no Starter order lookup
+  - verification pack output includes Free AI-search-only and Starter no-order-lookup checks
+  - evidence export excludes secrets, raw vectorization/runtime/provider data, and operator-only notes
+  - escalation create/read works only for approved/assigned stores
+  - operator-only replies/notes are not returned to partner UI
+  - partner state-changing action audit records exist
+  - existing operator/admin auth and platform release verification still pass
+- Live verification may be skipped only for docs-only work or if no deployed behavior/API/UI/auth/evidence/release-gate contract changed. Record the exact skip reason in `CODEX_WORKING_CONTEXT.md`.
+
 Working context:
 Append compact status to:
 `Final_Documentation/Development_Guides/LLM-guides/CODEX_WORKING_CONTEXT.md`
