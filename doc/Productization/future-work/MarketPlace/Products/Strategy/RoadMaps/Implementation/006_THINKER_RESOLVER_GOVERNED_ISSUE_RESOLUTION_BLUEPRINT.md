@@ -1,0 +1,765 @@
+# Thinker Resolver Governed Issue Resolution Blueprint
+
+Status: product blueprint (2026-04-25)
+
+Owner mode: strategic/product architecture LLM session
+
+Roadmap phase: Next Product Archetype Candidate
+
+Priority: P0 blueprint, not implementation before the first-product readiness gate
+
+Depends on:
+
+- [005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md](005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md)
+
+Related foundation:
+
+- [PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md](../../../../../../../../Final_Documentation/System_Archtecture_Guides/PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md)
+- [PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md](../../../../../../../../Final_Documentation/System_Archtecture_Guides/PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md)
+- [004_PARTNER_ENABLEMENT_FOUNDATION.md](004_PARTNER_ENABLEMENT_FOUNDATION.md)
+
+---
+
+## Strategic Handover
+
+Thinker/Resolver is the next major product archetype to consider after Shopify Companion proves first-product readiness.
+
+Product goal:
+
+> A governed issue-resolution assistant that can understand user problems, inspect trusted system state, propose a resolution plan, and execute approved read/write actions with policy, confirmation, audit, and recovery.
+
+This is higher leverage than launching another search/chat product because it moves the platform from:
+
+- answering questions
+- to resolving user issues
+- with evidence and governed action execution
+
+Strategic posture:
+
+- Do not start implementation before `005` establishes Shopify Companion readiness.
+- Do not market this as autonomous write access.
+- Position it as governed resolution, not "AI can do anything".
+- Treat write actions as a platform risk boundary, not a UI feature.
+- Build the product class once, then adapt it to Shopify, SaaS support, CRM, internal tools, and partner client apps.
+
+Recommended positioning:
+
+> Governed issue-resolution assistant with evidence, approvals, audited actions, and safe handoff.
+
+Avoid positioning:
+
+- autonomous agent
+- chatbot with write access
+- AI support bot that can change accounts
+- unrestricted workflow automation
+- self-healing app without policy boundaries
+
+---
+
+## Read First
+
+Before expanding this blueprint into implementation, read:
+
+1. [CODEX_WORKING_CONTEXT.md](../../../../../../../../Final_Documentation/Development_Guides/LLM-guides/CODEX_WORKING_CONTEXT.md)
+2. [Codex_Strategic_Context.md](../../../../../../../../Final_Documentation/Development_Guides/LLM-guides/Codex_Strategic_Context.md)
+3. [005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md](005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md)
+4. [PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md](../../../../../../../../Final_Documentation/System_Archtecture_Guides/PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md)
+5. [PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md](../../../../../../../../Final_Documentation/System_Archtecture_Guides/PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md)
+
+Working rule:
+
+- Keep [CODEX_WORKING_CONTEXT.md](../../../../../../../../Final_Documentation/Development_Guides/LLM-guides/CODEX_WORKING_CONTEXT.md) updated with compact decisions/status.
+- Keep [Codex_Strategic_Context.md](../../../../../../../../Final_Documentation/Development_Guides/LLM-guides/Codex_Strategic_Context.md) updated when product sequence or strategic positioning changes.
+- Do not bury write-action safety decisions in implementation code only.
+
+---
+
+## Product Definition
+
+Thinker/Resolver is two cooperating layers.
+
+### Thinker
+
+Purpose:
+
+- understand the user's issue
+- classify issue type and risk
+- ask clarifying questions when needed
+- inspect trusted read-only system state
+- collect evidence
+- identify possible root causes
+- propose a resolution plan
+- decide whether a write action is needed
+- explain uncertainty and escalation paths
+
+Thinker is allowed to:
+
+- run planner-eligible read-only actions
+- use retrieval when it improves evidence
+- summarize facts
+- propose next steps
+- recommend a resolver action
+
+Thinker is not allowed to:
+
+- execute write actions
+- invent system state
+- override policies
+- create permissions
+- mark a resolution complete without evidence
+
+### Resolver
+
+Purpose:
+
+- turn an approved plan into governed action execution
+- validate action eligibility
+- run dry-run/simulation when available
+- request confirmation or approval
+- execute safe read/write actions
+- record audit trail
+- verify the result
+- expose rollback or compensation guidance when possible
+- escalate when the action is unsafe, unsupported, or ambiguous
+
+Resolver is allowed to:
+
+- execute registered actions only
+- execute write actions only when policy permits
+- require user/operator confirmation based on risk
+- stop and escalate if confidence or policy is insufficient
+
+Resolver is not allowed to:
+
+- execute unregistered actions
+- bypass tenant/user/app permissions
+- perform destructive actions without explicit policy and confirmation
+- silently retry risky writes
+- hide failures
+- claim a rollback exists when it does not
+
+---
+
+## Product Truth
+
+Non-negotiable truths:
+
+- Thinker/Resolver is a governed resolution system, not a chatbot.
+- The LLM is not the authority for action availability, safety, permissions, or execution.
+- The platform is the authority for policy, validation, execution boundaries, audit, and fail-closed behavior.
+- Read actions and write actions must be classified separately.
+- Write actions require explicit governance before any customer-facing claim.
+- High-risk writes require confirmation or approval.
+- Destructive actions are out of scope for early versions unless rollback/compensation and approval are proven.
+- Every write attempt must have an audit record, whether it succeeds, fails, is denied, or is cancelled.
+- Every resolution must show evidence, not only a final answer.
+- Human handoff is a product feature, not a failure.
+
+Tier principle:
+
+- Read-only thinking can be lower tier.
+- Governed resolving belongs to a higher tier because it requires policy, audit, support, and accountability.
+- Shopify Companion Free/Starter must stay read-only; governed actions remain Elite-only until proven.
+
+---
+
+## Target Users
+
+Primary buyer:
+
+- developers, integrators, agencies, and platform teams adding AI issue-resolution to existing apps
+
+Primary operator:
+
+- app/platform admin configuring actions, policies, and escalation
+
+Primary end user:
+
+- customer, shopper, employee, or account user trying to resolve an issue
+
+Partner role:
+
+- configure client-specific action packs
+- run resolution readiness tests
+- attach evidence to escalations
+- support client rollout
+- never redefine canonical safety thresholds
+
+Merchant/customer role:
+
+- approve installation, access, and scoped action permissions
+- configure visible product behavior
+- review audit/support outcomes where appropriate
+
+---
+
+## First Use Cases
+
+Good first use cases:
+
+- answer and resolve account setup issues
+- diagnose failed checkout or failed workflow states
+- update low-risk user preferences after confirmation
+- resend verification or notification emails
+- create a support ticket with evidence
+- apply non-destructive configuration changes
+- explain and route billing/subscription questions without direct destructive action
+- Shopify Elite governed action rehearsal using current audit primitives
+
+Avoid first:
+
+- refunds
+- cancellations
+- financial adjustments
+- permission grants
+- account deletion
+- irreversible data mutation
+- broad admin automation
+- cross-system write chains
+
+First reference implementation should be a bounded support domain with low-risk writes, not a broad all-actions assistant.
+
+---
+
+## Core Capability Map
+
+### Issue Session
+
+Captures:
+
+- tenant/customer/app context
+- end-user identity context
+- issue text and conversation state
+- detected issue category
+- risk level
+- evidence gathered
+- proposed resolution plan
+- chosen action path
+- final outcome
+- escalation state
+
+### Evidence Bundle
+
+Contains:
+
+- read-action results
+- retrieval snippets
+- user-provided context
+- system state snapshot metadata
+- confidence and uncertainty
+- source timestamps
+- redaction state
+
+Rules:
+
+- evidence must be inspectable
+- evidence must be redacted for the viewer
+- stale evidence must be marked stale
+- final answers must distinguish observed facts from inferred causes
+
+### Resolution Plan
+
+Contains:
+
+- summary of issue
+- diagnosis
+- options considered
+- recommended action
+- action risk
+- expected outcome
+- user-facing explanation
+- required confirmation or approval
+- rollback/compensation note
+- escalation fallback
+
+### Action Registry
+
+Every action must define:
+
+- action id
+- product/app boundary
+- owner service
+- access mode: `READ`, `WRITE`, or `READ_WRITE`
+- side-effect level
+- risk level
+- allowed actor types
+- required scopes
+- tenant/store/customer binding rules
+- parameter schema
+- validation rules
+- dry-run support
+- idempotency support
+- rollback/compensation support
+- confirmation requirement
+- approval requirement
+- audit classification
+- rate limits
+- timeout and retry policy
+- result redaction policy
+
+### Policy Engine
+
+Must decide:
+
+- whether Thinker may call a read action
+- whether Resolver may propose a write action
+- whether Resolver may execute a write action
+- whether confirmation is required
+- whether operator approval is required
+- whether action is blocked by tier, tenant, identity, risk, or missing evidence
+- whether escalation is required
+
+Policy must be fail-closed.
+
+### Execution Gateway
+
+Responsibilities:
+
+- validate action is registered
+- validate tenant/app/user binding
+- validate scopes and policies
+- run dry-run when required
+- execute action through authoritative product/service boundary
+- normalize action result
+- record audit trail
+- return evidence to the resolution session
+
+The runtime should not call sensitive third-party APIs directly when a product boundary exists.
+
+For Shopify:
+
+- Shopify control/execution plane owns Shopify calls.
+- Platform/runtime requests approved capability execution through the Shopify boundary.
+- Deployment-scoped config may request capabilities, but Shopify credentials and policy remain centralized.
+
+---
+
+## Safety Model
+
+Action risk levels:
+
+- `READ_ONLY`: no state change
+- `LOW_WRITE`: reversible or low-impact preference/config update
+- `MEDIUM_WRITE`: meaningful state change requiring confirmation
+- `HIGH_WRITE`: financial, access, legal, destructive, irreversible, or trust-sensitive action
+- `BLOCKED`: out of scope for AI execution
+
+Required controls:
+
+- read action allowlist
+- write action allowlist
+- tenant/customer binding validation
+- user identity validation
+- actor permission check
+- plan approval check
+- dry-run for write-capable actions when supported
+- explicit confirmation for medium/high risk
+- operator approval for high-risk or sensitive writes
+- audit trail before and after execution
+- idempotency key for writes
+- retry policy that avoids duplicate writes
+- rollback/compensation declaration
+- escalation path
+
+Hard blocks:
+
+- no unregistered action execution
+- no policy mutation by LLM
+- no permission creation by LLM
+- no hidden writes
+- no destructive autonomous actions
+- no cross-tenant action execution
+- no execution when evidence is stale or binding is ambiguous
+- no action from prompt-injected instructions
+
+---
+
+## UI Requirements
+
+Thinker/Resolver needs three UI surfaces.
+
+### End-User Resolution Surface
+
+Purpose:
+
+- describe the issue
+- show what the assistant understands
+- ask clarifying questions
+- present evidence-backed diagnosis
+- show proposed resolution
+- request confirmation when needed
+- show final outcome or escalation
+
+Required states:
+
+- collecting issue
+- thinking/gathering evidence
+- needs clarification
+- plan proposed
+- confirmation required
+- action running
+- resolved
+- blocked
+- escalated
+- failed with recovery path
+
+### Operator/Admin Console
+
+Purpose:
+
+- configure action registry
+- configure policies
+- configure risk thresholds
+- review audit logs
+- review denied actions
+- inspect resolution quality
+- manage escalations
+- disable actions quickly
+
+Required views:
+
+- action catalog
+- policy matrix
+- risk/confirmation settings
+- audit trail
+- resolution sessions
+- failed/blocked actions
+- escalation queue
+- readiness tests
+
+### Partner/Integrator Surface
+
+Purpose:
+
+- configure client-specific action packs
+- map app APIs to action schemas
+- run readiness tests
+- collect evidence packets
+- escalate failed resolution cases
+
+Scope rule:
+
+- partner UI may operationalize resolution setup later
+- platform operator UI owns canonical policy and safety thresholds first
+- merchant/client approval is required before partner-configured write actions affect client systems
+
+---
+
+## Data Ownership
+
+Platform owns:
+
+- action registry
+- policy definitions
+- issue session metadata
+- resolution plans
+- audit records
+- approval records
+- evidence metadata
+- readiness test results
+
+Product/service boundary owns:
+
+- domain credentials
+- domain-specific execution
+- domain-specific source truth
+- service-specific rate limits
+- third-party API behavior
+
+Partner owns:
+
+- client implementation notes
+- client-specific test packs
+- evidence packets they generate
+- escalation context
+
+Partner does not own:
+
+- platform safety thresholds
+- product truth
+- global action policy
+- merchant/client consent
+- third-party credentials
+
+---
+
+## Implementation Phases
+
+### Phase 0: Blueprint And Readiness Gate
+
+Goal:
+
+- keep this as a blueprint until `005` is complete
+- choose first reference domain
+- define minimum action governance contract
+- define resolution readiness audit pack
+
+Exit criteria:
+
+- Shopify Companion readiness audit is complete or explicitly accepted as the active blocker
+- first reference domain is selected
+- low-risk write use cases are identified
+- action governance contract is reviewed
+
+### Phase 1: Thinker-Only Read Resolution
+
+Goal:
+
+- resolve issues with read-only action planning and evidence
+- no write action execution
+
+Scope:
+
+- issue session model
+- read-action planning loop
+- evidence bundle
+- resolution plan
+- escalation when write is needed
+- readiness test pack
+
+Exit criteria:
+
+- issue diagnosis is grounded in evidence
+- no write action can execute
+- source gaps are handled honestly
+- operator can inspect evidence and plan
+
+### Phase 2: Resolver Dry-Run
+
+Goal:
+
+- introduce Resolver without real writes
+- validate plans, policies, confirmations, and audit model
+
+Scope:
+
+- write action proposal
+- policy check
+- dry-run/simulation
+- confirmation UI
+- audit record for proposed/denied/simulated actions
+- failure and escalation paths
+
+Exit criteria:
+
+- Resolver can show what it would do
+- denied writes are explainable
+- audit trail exists before real writes
+- no real state mutation happens
+
+### Phase 3: Governed Low-Risk Writes
+
+Goal:
+
+- allow bounded, reversible, low-risk writes with confirmation and audit
+
+Scope:
+
+- one reference action pack
+- idempotency key
+- confirmation
+- execution gateway
+- post-action verification
+- rollback/compensation note
+- operator audit
+
+Exit criteria:
+
+- low-risk writes execute only when policy permits
+- failed writes are visible and recoverable
+- action duplication is prevented
+- audit evidence is sufficient for support review
+
+### Phase 4: Productized Resolution Assistant
+
+Goal:
+
+- package Thinker/Resolver as a reusable product archetype
+
+Scope:
+
+- product shell
+- operator/admin console
+- partner setup flow
+- readiness audit UI integration
+- query/scenario pack
+- support runbook
+- pricing/tier model
+
+Exit criteria:
+
+- product can be deployed to a second bounded domain
+- partner can configure client-specific tests without changing canonical safety
+- non-founder operator can review readiness and audit evidence
+
+---
+
+## Readiness Audit For Thinker Resolver
+
+This product needs its own readiness audit before any design partner.
+
+Required scenario categories:
+
+- issue diagnosis with enough evidence
+- issue diagnosis with missing evidence
+- clarification required
+- read-only resolution
+- write needed but blocked by tier
+- write needed but blocked by policy
+- write proposed with dry-run
+- write requires confirmation
+- write denied by permission
+- write execution success
+- write execution failure
+- stale evidence
+- prompt injection attempt
+- cross-tenant attempt
+- escalation required
+
+Minimum pass criteria:
+
+- every scenario has expected behavior
+- unsafe writes fail closed
+- action result evidence is visible
+- audit record exists for proposed, denied, simulated, executed, failed, and cancelled actions
+- UI shows status clearly
+- support packet can explain what happened without reading chat history
+- no secrets or raw credentials appear in evidence
+
+---
+
+## Product UI Readiness
+
+Do not ship Thinker/Resolver without visible governance.
+
+Required UI proof:
+
+- end-user sees diagnosis before action
+- user sees what action will happen before confirmation
+- action risk is visible in plain language
+- result is visible after execution
+- escalation is available
+- operator sees action policy and audit history
+- partner sees only scoped client/store/workspace data
+- stale evidence is visually flagged
+- blocked actions explain why without exposing internals
+
+---
+
+## Commercial Model
+
+Likely packaging:
+
+- Thinker-only read resolution: lower paid tier or platform add-on
+- Resolver dry-run: higher tier or implementation package
+- Governed writes: premium tier because audit, support, and risk are higher
+- High-risk domain actions: custom approval, enterprise, or implementation-led only
+
+Do not price governed writes as a simple usage add-on until support and audit costs are known.
+
+---
+
+## Partner Enablement Relationship
+
+Thinker/Resolver strengthens Partner Enablement, but should not start as a partner-only feature.
+
+Partner can:
+
+- configure client-specific action packs
+- write client-specific scenario tests
+- run readiness audits for assigned clients
+- collect evidence
+- escalate failures
+- support rollout
+
+Partner cannot:
+
+- bypass platform policy
+- override canonical thresholds
+- enable write actions without merchant/client approval
+- access unassigned client data
+- change product-level action truth
+
+---
+
+## Shopify Relationship
+
+Thinker/Resolver can become the long-term foundation for Shopify Elite governed actions.
+
+Shopify mapping:
+
+- Free: AI search only
+- Starter: read-only embedded intelligence
+- Elite: governed resolving only after audit, confirmation, execution, and support paths are ready
+
+Do not use Shopify as the first broad write-action playground. Use Shopify only where the control/execution boundary, entitlement, and audit model are already proven.
+
+---
+
+## Open Decisions
+
+- First reference domain: Shopify Elite rehearsal, SaaS support, internal admin support, or partner demo app.
+- Whether the first write action should be app-owned or product-service-owned.
+- Which policy engine abstraction should be platform-level versus product-service-level.
+- How much of the audit UI belongs in Platform UI versus a product-specific operator surface.
+- Whether approval should support user-only, operator-only, or dual approval in phase 3.
+- Whether every write action requires dry-run support, or whether low-risk idempotent actions can launch without dry-run.
+
+---
+
+## Non-Goals
+
+- Autonomous destructive actions.
+- Broad workflow automation.
+- Public marketplace action packs.
+- Partner-defined safety policy.
+- Unbounded API agents.
+- Runtime-owned third-party credentials.
+- Write action support for Free or Starter Shopify tiers.
+- WooCommerce or second vertical implementation inside this blueprint.
+
+---
+
+## Acceptance Criteria For This Blueprint
+
+This blueprint is complete when:
+
+- Thinker and Resolver responsibilities are separate.
+- Read/write action boundaries are explicit.
+- Policy, confirmation, audit, and recovery are non-negotiable.
+- UI surfaces are defined.
+- Partner role is supportive, not authoritative.
+- Shopify relationship is clear and does not weaken Free/Starter read-only truth.
+- Implementation is gated behind `005`.
+
+---
+
+## Next Handoff
+
+Do not create an implementation handoff until one of these is true:
+
+- `005` reaches `DESIGN_PARTNER_READY`; or
+- the user explicitly decides Thinker/Resolver should be researched in parallel as a future product track without implementation.
+
+Recommended next artifact after `005`:
+
+- `006A_THINKER_RESOLVER_REFERENCE_DOMAIN_SELECTION.md`
+
+That next artifact should select one bounded reference domain, one low-risk write action family, the first readiness scenario pack, and the minimum operator UI.
+
+---
+
+## Completion Section For Future LLM
+
+Append compact completion notes here when this blueprint is revised or promoted.
+
+Required fields:
+
+- decision summary
+- selected reference domain, if chosen
+- changed files
+- validation performed
+- blockers
+- next handoff
+
+Do not paste long logs, secrets, or raw diffs.
