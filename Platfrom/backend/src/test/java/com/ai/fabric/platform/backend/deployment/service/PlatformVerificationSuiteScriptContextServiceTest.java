@@ -70,7 +70,8 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                 "https://bridge.example.test",
                 "shop.example.test",
                 "shopify-bridge-prod",
-                null
+                null,
+                "https://partner-ui.example.test"
             ),
             new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
             new PlatformAuthProperties(
@@ -128,7 +129,8 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                 "https://bridge.example.test",
                 "shop.example.test",
                 "shopify-bridge-prod",
-                null
+                null,
+                "https://partner-ui.example.test"
             ),
             new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
             new PlatformAuthProperties(
@@ -179,7 +181,8 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                 "https://bridge.example.test",
                 "shop.example.test",
                 "shopify-bridge-prod",
-                null
+                null,
+                "https://partner-ui.example.test"
             ),
             new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
             new PlatformAuthProperties(
@@ -214,6 +217,169 @@ class PlatformVerificationSuiteScriptContextServiceTest {
         assertThat(context.environment()).containsEntry("SHOP_DOMAIN", "shop.example.test");
         assertThat(context.environment()).containsEntry("EXPECT_STOREFRONT_READY", "false");
         assertThat(context.environment()).containsEntry("EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT");
+    }
+
+    @Test
+    void buildsPartnerEnablementStrictLiveContext() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PARTNER_SUPABASE_JWT")).thenReturn("partner-jwt");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-partner-enablement-live.sh");
+        assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
+        assertThat(context.environment()).containsEntry("PARTNER_UI_BASE_URL", "https://partner-ui.example.test");
+        assertThat(context.environment()).containsEntry("PARTNER_LIVE_STRICT", "true");
+        assertThat(context.secretEnvironment()).containsEntry("PARTNER_SUPABASE_JWT", "partner-jwt");
+    }
+
+    @Test
+    void partnerEnablementContextCannotDisableStrictModeWithOverrides() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PARTNER_SUPABASE_JWT")).thenReturn("partner-jwt");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
+            Map.of("PARTNER_LIVE_STRICT", "false")
+        );
+
+        assertThat(context.environment()).containsEntry("PARTNER_LIVE_STRICT", "true");
+    }
+
+    @Test
+    void partnerEnablementContextRequiresPartnerJwtSecret() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        assertThatThrownBy(() -> service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("PARTNER_SUPABASE_JWT");
     }
 
 }

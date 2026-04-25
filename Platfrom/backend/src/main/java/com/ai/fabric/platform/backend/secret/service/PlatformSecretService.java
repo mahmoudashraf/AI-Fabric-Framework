@@ -396,6 +396,14 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "PARTNER_SUPABASE_JWT",
+            new SecretDefinition(
+                "Partner Verification Supabase JWT",
+                "Short-lived test partner Supabase access token used only by the platform release gate to verify Partner Enablement authenticated flows.",
+                false
+            )
+        );
+        secrets.put(
             "QDRANT_API_KEY",
             new SecretDefinition(
                 "Qdrant API Key",

@@ -2365,3 +2365,29 @@ Executed after the installed-store approval runtime changes were pushed to `Plat
 - Live partner assigned-store list returned HTTP `200` with count `0`, proving denial did not create an assignment.
 
 The live mutation path intentionally used denial instead of approval so no active partner store assignment remained in production data.
+
+## Release Gate Wiring Update - 2026-04-25
+
+### Completed Changes
+
+- Added Partner Enablement to the primary `full-platform-release-readiness` suite as a required `SCRIPT_VERIFICATION` stage after Shopify Companion verification and before hosted deployment verification.
+- Added standalone suite key `partner-enablement-verification`.
+- Wired `scripts/verify-partner-enablement-live.sh` into the Platform suite script context service.
+- Platform suite execution now forces `PARTNER_LIVE_STRICT=true` for the Partner Enablement stage.
+- Added configurable Partner UI target `platform.verification.suites.partner-ui-base-url`, defaulting to the temporary Railway Partner UI service.
+- Added `PARTNER_SUPABASE_JWT` as a supported platform secret and required it for the Partner Enablement release-gate stage before script execution.
+
+### Verification Proof
+
+Executed local proof for this release-gate wiring:
+
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformVerificationSuiteScriptContextServiceTest,PlatformVerificationSuiteServiceTest,PlatformVerificationSuiteExecutionServiceTest,PlatformSecretServiceTest test`
+- `git diff --check`
+
+Operational release proof after deployment:
+
+- Store a valid, short-lived `PARTNER_SUPABASE_JWT` platform secret before dispatching the full release suite.
+- Dispatch `full-platform-release-readiness`.
+- Confirm the Partner Enablement stage runs `scripts/verify-partner-enablement-live.sh` in strict mode and passes.
+- Confirm `GET /api/verification-suites/release-gate` reports `READY` only after the full suite passes fresh.

@@ -234,6 +234,7 @@ Platform and provider verification:
 - `scripts/verify-platform-admin-regression.sh`: platform-admin auth, admin-only APIs, assignment visibility, inference-service operations, consumer resolution, and canonical rollout checks.
 - `scripts/verify-managed-vector-providers.sh`: direct Pinecone, Qdrant Cloud, Zilliz Cloud, and Weaviate verification.
 - `scripts/verify-marketplace-install-flow.sh`: end-to-end plugin install, publish, apply, and retrieval proof on a temporary validation deployment.
+- `scripts/verify-partner-enablement-live.sh`: Partner Enablement backend auth, deployed Partner UI routing/runtime config, Supabase partner session acceptance, and partner-safe catalog/store response verification.
 
 Shopify Companion verification:
 

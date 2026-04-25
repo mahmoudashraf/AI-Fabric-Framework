@@ -144,15 +144,24 @@ Expected strict result:
 - new partner sees an empty workspace
 - provisioned partner catalog and store checks pass when using a provisioned test partner
 
-## Current Blocker
+## Platform Release Gate
 
-As of 2026-04-25, production still returns `401` for:
+Partner Enablement is wired into the platform-owned release gate:
+
+- primary suite: `full-platform-release-readiness`
+- standalone suite: `partner-enablement-verification`
+- stage script: `scripts/verify-partner-enablement-live.sh`
+- strict mode: forced by the platform suite
+- Partner UI target config: `platform.verification.suites.partner-ui-base-url`
+- default Partner UI target: `https://ai-fabric-framework-production-158d.up.railway.app`
+
+Before dispatching the full release suite, store a valid short-lived test partner token as the platform secret:
 
 ```bash
-POST /api/merchant/partner-access/not-a-real-code/approve
+PARTNER_SUPABASE_JWT
 ```
 
-That means the deployed Platform backend does not yet include the partner routes. Do not interpret valid Supabase JWT `401` as a Supabase failure until the Platform backend deployment branch includes commit `032d5b53` or later and the backend env values above are configured.
+Do not commit or paste the token. If the secret is missing, the Partner Enablement release-gate stage fails before script execution with a missing-secret error.
 
 ## Completion Checklist
 
@@ -160,5 +169,6 @@ That means the deployed Platform backend does not yet include the partner routes
 - Backend Supabase env configured.
 - Partner UI deployed using `Platfrom/partner-ui/deploy/railway/Dockerfile`.
 - `partners.loomai.pro` DNS points at the Partner UI service.
-- Supabase email/password test account JWT is available in a temp file.
+- Supabase email/password test account JWT is available in a temp file and stored as `PARTNER_SUPABASE_JWT` before a platform-owned release-gate run.
 - Strict verifier passes.
+- `full-platform-release-readiness` passes and `/api/verification-suites/release-gate` reports `READY`.

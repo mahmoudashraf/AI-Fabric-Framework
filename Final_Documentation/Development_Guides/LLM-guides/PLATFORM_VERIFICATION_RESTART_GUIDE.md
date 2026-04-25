@@ -237,6 +237,7 @@ Control-plane suite keys:
 - `managed-vector-provider-verification`
 - `marketplace-install-flow`
 - `shopify-companion-verification`
+- `partner-enablement-verification`
 
 Primary release gate:
 
@@ -274,12 +275,13 @@ Current ordered stages:
 4. managed vector provider verification
 5. marketplace install flow
 6. Shopify Companion verification
-7. marketplace hosted verification
-8. ecommerce hosted verification
-9. qdrant hosted verification
-10. pinecone hosted verification
-11. milvus hosted verification
-12. weaviate hosted verification
+7. Partner Enablement verification
+8. marketplace hosted verification
+9. ecommerce hosted verification
+10. qdrant hosted verification
+11. pinecone hosted verification
+12. milvus hosted verification
+13. weaviate hosted verification
 
 Important runtime behavior:
 
@@ -794,7 +796,21 @@ Current default:
 
 ### 9.8 Partner Enablement live verifier
 
-Partner Enablement has a focused live verifier:
+Partner Enablement is part of the primary `full-platform-release-readiness` release gate and is also available as a standalone suite:
+
+- suite key: `partner-enablement-verification`
+- stage script: `scripts/verify-partner-enablement-live.sh`
+- strict mode is forced by the platform-owned suite
+- default Partner UI URL: `https://ai-fabric-framework-production-158d.up.railway.app`
+- override config property: `platform.verification.suites.partner-ui-base-url`
+
+The platform-owned suite requires this platform secret before the Partner Enablement stage can run:
+
+- `PARTNER_SUPABASE_JWT`
+
+This must be a valid, non-committed test partner Supabase access token. Do not paste or commit it. Store it in Platform secrets, Railway secrets, or another approved local secret source before dispatching the suite.
+
+The same verifier can still be run directly:
 
 ```bash
 PLATFORM_BASE_URL="https://ai-fabric-framework-production-324f.up.railway.app" \
@@ -822,7 +838,7 @@ Do not paste or commit the JWT.
 If strict mode fails before authenticated API checks:
 
 - DNS failure for `partners.loomai.pro` means the partner UI is not deployed or DNS is not configured.
-- Missing `PARTNER_SUPABASE_JWT` means authenticated workspace, catalog, and store-summary checks were not run.
+- Missing `PARTNER_SUPABASE_JWT` means the platform release-gate stage should fail before script execution with a missing-secret error.
 - A valid JWT returning `401` means deployed Platform Supabase auth env values or issuer/audience/JWKS settings are wrong.
 - A valid JWT returning `403` for assigned-store checks usually means the test partner is not approved/assigned yet.
 

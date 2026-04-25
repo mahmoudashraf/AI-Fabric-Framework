@@ -23,9 +23,11 @@ public class PlatformVerificationSuiteScriptContextService {
     public static final String SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION = "managed-vector-provider-verification";
     public static final String SCRIPT_MARKETPLACE_INSTALL_FLOW = "marketplace-install-flow";
     public static final String SCRIPT_SHOPIFY_COMPANION_VERIFICATION = "shopify-companion-verification";
+    public static final String SCRIPT_PARTNER_ENABLEMENT_VERIFICATION = "partner-enablement-verification";
 
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
+    private static final String PARTNER_SUPABASE_JWT_SECRET_NAME = "PARTNER_SUPABASE_JWT";
     private static final List<String> PROVIDER_SECRET_NAMES = List.of(
         "PINECONE_API_KEY",
         "QDRANT_CLOUD_MANAGEMENT_API_KEY",
@@ -67,6 +69,7 @@ public class PlatformVerificationSuiteScriptContextService {
             case SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION -> buildManagedProviderVerification();
             case SCRIPT_MARKETPLACE_INSTALL_FLOW -> buildMarketplaceInstallFlow();
             case SCRIPT_SHOPIFY_COMPANION_VERIFICATION -> buildShopifyCompanionVerification();
+            case SCRIPT_PARTNER_ENABLEMENT_VERIFICATION -> buildPartnerEnablementVerification();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
         if (environmentOverrides == null || environmentOverrides.isEmpty()) {
@@ -78,6 +81,9 @@ public class PlatformVerificationSuiteScriptContextService {
                 environment.put(key.trim(), value.trim());
             }
         });
+        if (SCRIPT_PARTNER_ENABLEMENT_VERIFICATION.equals(scriptKey)) {
+            environment.put("PARTNER_LIVE_STRICT", "true");
+        }
         return new PlatformVerificationScriptContextSummary(
             base.scriptPath(),
             Map.copyOf(environment),
@@ -173,6 +179,30 @@ public class PlatformVerificationSuiteScriptContextService {
         );
     }
 
+    private PlatformVerificationScriptContextSummary buildPartnerEnablementVerification() {
+        String partnerUiBaseUrl = requireValue(
+            suiteProperties.partnerUiBaseUrl(),
+            "platform.verification.suites.partner-ui-base-url must be configured for Partner Enablement verification."
+        );
+        String partnerSupabaseJwt = requireSecret(
+            PARTNER_SUPABASE_JWT_SECRET_NAME,
+            "Missing required platform secret for Partner Enablement verification: " + PARTNER_SUPABASE_JWT_SECRET_NAME
+        );
+
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("PARTNER_UI_BASE_URL", partnerUiBaseUrl);
+        environment.put("PARTNER_LIVE_STRICT", "true");
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>();
+        secretEnvironment.put(PARTNER_SUPABASE_JWT_SECRET_NAME, partnerSupabaseJwt);
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-partner-enablement-live.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
     private Map<String, String> basePlatformEnvironment() {
         Map<String, String> environment = new LinkedHashMap<>();
         environment.put("PLATFORM_BASE_URL", requireValue(
@@ -244,6 +274,14 @@ public class PlatformVerificationSuiteScriptContextService {
 
     private String requireValue(String value, String message) {
         String normalized = trimToNull(value);
+        if (normalized == null) {
+            throw new ResponseStatusException(BAD_REQUEST, message);
+        }
+        return normalized;
+    }
+
+    private String requireSecret(String secretName, String message) {
+        String normalized = trimToNull(platformSecretService.resolveSecret(secretName));
         if (normalized == null) {
             throw new ResponseStatusException(BAD_REQUEST, message);
         }

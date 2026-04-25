@@ -18,6 +18,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String MANAGED_VECTOR_PROVIDER_VERIFICATION_SUITE_KEY = "managed-vector-provider-verification";
     public static final String MARKETPLACE_INSTALL_FLOW_SUITE_KEY = "marketplace-install-flow";
     public static final String SHOPIFY_COMPANION_VERIFICATION_SUITE_KEY = "shopify-companion-verification";
+    public static final String PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY = "partner-enablement-verification";
     public static final String SHARED_INFERENCE_SERVICE_REF = "shared-ollama-orchestration";
     public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
@@ -36,7 +37,8 @@ public class PlatformVerificationSuiteCatalog {
             platformAdminLiveRegression(),
             managedVectorProviderVerification(),
             marketplaceInstallFlowVerification(),
-            shopifyCompanionVerification()
+            shopifyCompanionVerification(),
+            partnerEnablementVerification()
         );
     }
 
@@ -178,6 +180,14 @@ public class PlatformVerificationSuiteCatalog {
                     "Verify the shared Shopify Bridge service, store binding, storefront bootstrap, and shopper query path."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
+                    "partner-enablement-verification",
+                    "Partner Enablement verification",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
+                    true,
+                    "Verify Partner Enablement backend auth, deployed Partner UI routing, Supabase partner session acceptance, and partner-safe workspace/catalog responses."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
                     "marketplace-hosted-verification",
                     "Marketplace hosted verification",
                     "HOSTED_DEPLOYMENT_VERIFICATION",
@@ -300,6 +310,25 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION,
                     true,
                     "Verify the shared Shopify Bridge service, store binding, storefront bootstrap, and shopper query path."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary partnerEnablementVerification() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY,
+            "Partner Enablement verification",
+            "Standalone Partner Enablement verification for backend auth, deployed Partner UI routing, Supabase partner session acceptance, and partner-safe workspace/catalog responses.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "partner-enablement-verification",
+                    "Partner Enablement verification",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
+                    true,
+                    "Verify Partner Enablement backend auth, deployed Partner UI routing, Supabase partner session acceptance, and partner-safe workspace/catalog responses."
                 )
             )
         );

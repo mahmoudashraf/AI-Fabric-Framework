@@ -47,7 +47,7 @@ class PlatformVerificationSuiteServiceTest {
             runRepository,
             stageRepository,
             executionService,
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
             auditService,
             new ObjectMapper()
         );
@@ -59,8 +59,10 @@ class PlatformVerificationSuiteServiceTest {
 
         assertThat(summary.suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
         assertThat(summary.run().status()).isEqualTo("QUEUED");
-        assertThat(summary.run().stages()).hasSize(12);
+        assertThat(summary.run().stages()).hasSize(13);
         assertThat(summary.run().stages().getFirst().stageKey()).isEqualTo("shared-inference-health");
+        assertThat(summary.run().stages().get(6).targetRef())
+            .isEqualTo(PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION);
         assertThat(summary.run().stages().getLast().targetRef()).isEqualTo("weaviate");
 
         verify(executionService).execute(summary.run().id(), false);
@@ -107,7 +109,7 @@ class PlatformVerificationSuiteServiceTest {
             runRepository,
             stageRepository,
             executionService,
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(180), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(180), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
             auditService,
             new ObjectMapper()
         );
@@ -130,7 +132,7 @@ class PlatformVerificationSuiteServiceTest {
                 && "SUPERSEDED".equals(stage.getStatus())
                 && stage.getCompletedAt() != null
         ));
-        assertThat(summary.run().stages()).hasSize(12);
+        assertThat(summary.run().stages()).hasSize(13);
         verify(executionService).execute(summary.run().id(), false);
     }
 
@@ -151,7 +153,7 @@ class PlatformVerificationSuiteServiceTest {
             runRepository,
             stageRepository,
             executionService,
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
             auditService,
             new ObjectMapper()
         );
@@ -230,7 +232,7 @@ class PlatformVerificationSuiteServiceTest {
             runRepository,
             stageRepository,
             executionService,
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
             auditService,
             new ObjectMapper()
         );
@@ -273,7 +275,7 @@ class PlatformVerificationSuiteServiceTest {
             runRepository,
             stageRepository,
             executionService,
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
             auditService,
             new ObjectMapper()
         );
@@ -315,7 +317,7 @@ class PlatformVerificationSuiteServiceTest {
             runRepository,
             stageRepository,
             executionService,
-            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
             auditService,
             new ObjectMapper()
         );
