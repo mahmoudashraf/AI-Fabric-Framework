@@ -447,3 +447,73 @@ Required completion fields:
 - blockers or no pending handoff items
 
 Do not include secrets, long logs, or raw diffs.
+
+---
+
+## Implementation And Verification Summary
+
+Implementation status: complete. Runtime/UI implementation was pushed in commit `64f7093c` and live verified against the deployed Shopify Bridge and `shopping-companion-test.myshopify.com`.
+
+Implementation summary:
+
+- Added live usage-summary fields for `unansweredQuestionsLast7Days` and `actionIntentQuestionsLast7Days` so Starter can show source-gap and future Elite demand signals without implying Starter can act.
+- Added backend classification for common unanswered/source-gap shopper questions and action-intent questions.
+- Updated merchant admin Insights, launch packet, App Store listing package, App Review guide, screencast script, support runbook, and design-partner packet so Starter is framed as full read-only embedded store intelligence.
+- Kept Free as AI search only and kept order lookup/governed actions out of Starter claims.
+- Replaced remaining merchant-facing vectorization/runtime/governed-support wording in touched launch and setup surfaces with `Knowledge Sync`, source reachability, storefront setup, and support handoff language.
+- Decoupled Starter commercial readiness from Elite action-governance readiness while keeping Elite action claims gated.
+
+Changed files:
+
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/analytics/model/ShopifyBridgeUsageSummary.java`
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/analytics/service/ShopifyBridgeUsageService.java`
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/store/service/ShopifyBridgeSupportReadinessService.java`
+- `product-services/shopify-bridge-service/src/test/java/com/ai/fabric/product/shopify/bridge/analytics/service/ShopifyBridgeUsageServiceTest.java`
+- `product-services/shopify-bridge-service/src/test/java/com/ai/fabric/product/shopify/bridge/web/ShopifyBridgeAdminControllerTest.java`
+- `product-services/shopify-bridge-service/src/test/java/com/ai/fabric/product/shopify/bridge/web/ShopifyMerchantControllerTest.java`
+- `product-services/shopify-bridge-service/ui/src/App.tsx`
+- `product-services/shopify-bridge-service/ui/src/api.ts`
+- `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/003_SHOPIFY_COMPANION_STARTER_LAUNCH_PACKAGE.md`
+- `Final_Documentation/Development_Guides/LLM-guides/CODEX_WORKING_CONTEXT.md`
+
+Decisions made:
+
+- Treat unanswered/source-gap questions as merchant value evidence, not as proof that Starter can complete support or order work.
+- Treat action-intent questions as future Elite demand only; Starter remains read-only and must hand off order/account-specific cases.
+- Starter launch readiness can be ready when Free/Starter/Elite are visible and Starter is commercially available, even if Elite governed-action packaging is not yet live for the store.
+- Merchant-facing setup copy should say `Knowledge Sync`; raw vectorization/runtime terms remain operator-only.
+
+Local verification passed:
+
+- `git diff --check`
+- `bash -n scripts/verify-shopify-companion.sh`
+- `npm --prefix product-services/shopify-bridge-service/ui run build`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=ShopifyBridgeBillingServiceTest,ShopifyStorefrontBootstrapServiceTest,ShopifyStorefrontPreviewServiceTest,ShopifyMerchantControllerTest,ShopifyBridgeAdminControllerTest,ShopifyBridgeSupportReadinessServiceTest,ShopifyBridgeUsageServiceTest,ShopifyBridgeMerchantStoreServiceTest test`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q test`
+
+Live verification passed:
+
+- Waited for the deployed Shopify Bridge to serve the new admin UI bundle: `/assets/index-C_82foy0.js`.
+- Verified deployed bundle contains the new Starter launch proof strings:
+  - `Future Elite demand signals`
+  - `Action-intent questions`
+  - `Starter remains read-only`
+- Ran `scripts/verify-shopify-companion.sh` against:
+  - Platform: `https://ai-fabric-framework-production-324f.up.railway.app`
+  - Shopify Bridge: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
+  - Shop: `shopping-companion-test.myshopify.com`
+  - Product service ref: `shopify-bridge-prod`
+- Full live verifier passed with bridge admin checks enabled, covering platform health, bridge health, product-service status, Railway deployment/log surfaces, store binding, billing posture, support readiness, webhook diagnostics, vectorization, governed actions, bridge shell, embedded app shell/assets, admin overview, vectorization source page, Shopify webhook subscriptions, storefront bootstrap, suggestions, storefront AI-search query, storefront event, and post-bootstrap store summary.
+- Direct live admin usage-summary proof passed for `shopping-companion-test.myshopify.com`:
+  - `topQuestionsLast7Days` present with 1 item
+  - `unansweredQuestionsLast7Days` present with 1 item
+  - `actionIntentQuestionsLast7Days` present with 0 items
+  - `roiSummary.status`: `EARLY_SIGNAL`
+
+Blockers:
+
+- None known.
+
+Pending handoff items:
+
+- None.
