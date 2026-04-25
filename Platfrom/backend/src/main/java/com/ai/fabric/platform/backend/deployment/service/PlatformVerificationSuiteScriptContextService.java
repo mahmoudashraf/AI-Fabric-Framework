@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -192,8 +193,17 @@ public class PlatformVerificationSuiteScriptContextService {
         Map<String, String> environment = basePlatformEnvironment();
         environment.put("PARTNER_UI_BASE_URL", partnerUiBaseUrl);
         environment.put("PARTNER_LIVE_STRICT", "true");
+        if (suiteProperties.shopifyShopDomain() != null && !suiteProperties.shopifyShopDomain().isBlank()) {
+            environment.put("PARTNER_LIVE_SHOP_DOMAIN", suiteProperties.shopifyShopDomain().trim());
+        }
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>();
+        String merchantAccessApiKey = resolvePartnerMerchantAccessApiKey();
+        if (merchantAccessApiKey != null) {
+            secretEnvironment.put("PLATFORM_API_KEY", merchantAccessApiKey);
+        } else {
+            secretEnvironment.putAll(basePlatformSecretEnvironment());
+        }
         secretEnvironment.put(PARTNER_SUPABASE_JWT_SECRET_NAME, partnerSupabaseJwt);
 
         return new PlatformVerificationScriptContextSummary(
@@ -210,6 +220,17 @@ public class PlatformVerificationSuiteScriptContextService {
             "platform.delivery.public-base-url must be configured for verification suite scripts."
         ));
         return environment;
+    }
+
+    private String resolvePartnerMerchantAccessApiKey() {
+        String productServiceRef = trimToNull(suiteProperties.shopifyProductServiceRef());
+        if (productServiceRef == null) {
+            return null;
+        }
+        String secretName = "MANAGED_PRODUCT_"
+            + productServiceRef.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_")
+            + "_API_KEY";
+        return trimToNull(platformSecretService.resolveSecret(secretName));
     }
 
     private Map<String, String> basePlatformSecretEnvironment() {

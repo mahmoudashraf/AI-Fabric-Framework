@@ -2410,6 +2410,55 @@ Remaining full-release-gate status:
 - `GET /api/verification-suites/release-gate` still reports `FAILED` from latest full run `vsr-17744b05`, which started on 2026-04-24 and failed before Partner Enablement on `Qdrant temporary cluster creation -> HTTP 429`.
 - To make the full release gate `READY`, clear the Qdrant provider-rate blocker, refresh/store a non-expired `PARTNER_SUPABASE_JWT`, dispatch `full-platform-release-readiness`, and confirm `/api/verification-suites/release-gate` reports `READY` after the full suite passes.
 
+## Release Gate Workflow Coverage Extension - 2026-04-25
+
+### Completed Changes
+
+- Extended `scripts/verify-partner-enablement-live.sh` from baseline smoke coverage into a blocking real-workflow release gate.
+- Strict mode now provisions a verified signup-only partner JWT into a real Partner workspace instead of passing on signup-only state.
+- The script now verifies deployed Partner UI assets include workflow routes for verification packs/runs, evidence bundles, templates, notes, and escalations.
+- The script now creates a real implementation request for the configured installed Shopify test store, approves it through the merchant partner-access endpoint, verifies Partner-side approved request status, runs persisted workflow checks, and revokes the temporary access before completion.
+- Added workflow coverage for:
+  - installed eligible store lookup
+  - implementation request creation and merchant approval
+  - active assigned store detail
+  - verification pack evaluation
+  - verification run creation/detail/history
+  - manual verification step persistence
+  - evidence bundle detail and ZIP export contract
+  - launch evidence bundle creation/listing
+  - template detail/application/listing
+  - store note creation/listing
+  - member listing and profile update
+  - evidence-linked support escalation/reply/thread/list
+  - merchant revoke cleanup and revoked store access denial
+- Platform suite context now injects the managed Shopify Bridge product-service API key for this Partner gate when available, because the gate only needs merchant partner-access approval/revoke authority. It falls back to the existing Platform admin/operator/session auth path when the product-service key is unavailable.
+- The full-suite and standalone Partner Enablement suite descriptions now describe merchant approval/revoke and persisted workflow evidence coverage instead of catalog/session smoke only.
+
+### Verification Proof
+
+Local proof executed after the gate extension:
+
+- `bash -n scripts/verify-partner-enablement-live.sh`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformVerificationSuiteScriptContextServiceTest,PlatformVerificationScriptRunnerServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q test`
+- `git diff --check`
+
+Live proof executed against Railway Platform backend `https://ai-fabric-framework-production-324f.up.railway.app` and Partner UI `https://ai-fabric-framework-production-158d.up.railway.app` using a fresh confirmed non-social Supabase partner test user:
+
+- Backend health, unauthenticated partner rejection, invalid JWT rejection, deployed Partner UI health/runtime config/route, and deployed UI workflow asset checks passed.
+- Strict gate completed Partner workspace signup for the fresh test JWT.
+- Installed store eligibility passed for `shopping-companion-test.myshopify.com`.
+- Created live implementation request `pci-0e7e32f1-b8d8-48d6-a778-5c010767d714`.
+- Merchant access request `psar-3256a3d0-f38b-4e6b-ba4e-c343efb8cb8c` was listed, approved, and created active assignment `psa-5591be14-90e0-415a-a088-f8d9b86074b6`.
+- Partner implementation status reflected merchant approval.
+- Verification run `pvr-d75d700b-0b20-4287-8cd8-4ddcd976f472` was created, persisted, and passed.
+- Evidence bundle export validated required ZIP files: `manifest.json`, `summary.json`, `attachments.json`, and `merchant-safe-summary.md`.
+- Launch evidence bundle `peb-5edc86dc-7e54-4acb-94f9-2efae482fb6b` was created and linked to the support escalation/reply workflow.
+- Template application, store note, members, profile, support escalation, support reply, support thread, and support escalation list checks all passed.
+- Temporary access was revoked through the merchant partner-access endpoint; the Partner implementation then showed `REVOKED`, and the revoked store detail returned HTTP `403`.
+- A stale pending request from the interrupted first live attempt, `psar-919ddced-6713-414f-8992-84b034f5bf98`, was denied as cleanup.
+
 ## Merchant-Configured Access Correction - 2026-04-25
 
 ### Completed Changes

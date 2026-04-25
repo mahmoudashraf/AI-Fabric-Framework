@@ -185,7 +185,7 @@ public class PlatformVerificationSuiteCatalog {
                     "SCRIPT_VERIFICATION",
                     PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
                     true,
-                    "Verify Partner Enablement backend auth, deployed Partner UI routing, Supabase partner session acceptance, and partner-safe workspace/catalog responses."
+                    "Verify Partner Enablement backend auth, deployed Partner UI routing, merchant approval/revoke flow, and persisted partner workflow evidence."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "marketplace-hosted-verification",
@@ -319,7 +319,7 @@ public class PlatformVerificationSuiteCatalog {
         return new PlatformVerificationSuiteDefinitionSummary(
             PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY,
             "Partner Enablement verification",
-            "Standalone Partner Enablement verification for backend auth, deployed Partner UI routing, Supabase partner session acceptance, and partner-safe workspace/catalog responses.",
+            "Standalone Partner Enablement verification for backend auth, deployed Partner UI routing, merchant approval/revoke flow, persisted verification runs, evidence bundles, templates, notes, members, profile, and support workflows.",
             false,
             List.of(
                 new PlatformVerificationSuiteStageDefinitionSummary(
@@ -328,7 +328,7 @@ public class PlatformVerificationSuiteCatalog {
                     "SCRIPT_VERIFICATION",
                     PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
                     true,
-                    "Verify Partner Enablement backend auth, deployed Partner UI routing, Supabase partner session acceptance, and partner-safe workspace/catalog responses."
+                    "Verify Partner Enablement backend auth, deployed Partner UI routing, merchant approval/revoke flow, and persisted partner workflow evidence."
                 )
             )
         );
