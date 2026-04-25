@@ -2269,6 +2269,88 @@ For installed-store-first flow, do not create `ACTIVE` assignments without a rea
 - Platform DB remains the authority for partner authorization, approval records, assignments, and audit.
 - Shopify Bridge/product service remains the authority for Shopify connection truth and store facts.
 
+### Product-Scoped Partner Control Addendum
+
+Correction to the partner action boundary:
+
+The partner should not be limited to read-mostly implementation support after assignment. Once a partner has an `ACTIVE` assignment for an installed store, the partner should be able to control everything related to LoomAI products on that store, because that is the point of assigning an implementation/support partner.
+
+The boundary is product-scoped, not passive:
+
+```text
+Active merchant-approved partner assignment
+-> partner can operate LoomAI product configuration and workflows for that assigned store
+-> no per-action merchant approval request is required inside the assigned product scope
+-> Platform audits every state-changing action
+-> Shopify Bridge executes only product-scoped Shopify/app operations
+-> merchant can revoke assignment
+-> operator can emergency revoke or override
+```
+
+Allowed partner control surface for assigned stores:
+
+- Companion storefront surface configuration: enable/disable LoomAI surfaces, configure surface placement intent, greetings, launcher behavior, Max Mode behavior, quick prompts, fallback copy, and product-specific display settings.
+- Companion AI behavior: manage product-owned prompt/profile settings, answer tone, retrieval preferences, blocked phrases, suggested questions, comparison behavior, and support handoff copy.
+- Knowledge/source controls: enable/disable store-configured source categories supported by our product, trigger preflight, trigger Knowledge Sync, request/retry product-owned indexing jobs, inspect partner-safe source coverage, and resolve product-specific content blockers.
+- App-owned Shopify resources: create/update/delete only app-owned metafields, metaobjects, files, snippets, or configuration records that are required by LoomAI products and supported by the installed app scopes.
+- Verification and launch proof: run verification packs, mark partner-owned manual steps, generate/export evidence bundles, compare runs, and publish partner-safe readiness notes.
+- Product lifecycle on the assigned store: pause/resume LoomAI product surfaces, apply/reapply product playbooks, update product setup notes, and create support escalations linked to evidence.
+- Partner-safe analytics: view aggregate product usage, shopper query themes, unanswered question clusters, and product-specific conversion/support indicators without exposing customer/order PII by default.
+
+Actions that remain outside partner control unless a separate merchant-approved product capability explicitly requires them:
+
+- Shopify-native store administration: staff, billing, payments, taxes, shipping, domains, markets, gift cards, inventory operations, price changes, discount campaigns, fulfillments, refunds, and order/customer PII.
+- Merchant-owned catalog content edits that are not app-owned LoomAI product configuration.
+- Raw theme-code writes. Partner may control our theme-app-extension/app-embed configuration and verify placement, but direct theme file edits require a separate high-risk approval path.
+- Provider credentials, Shopify access tokens, Railway variables, runtime internals, raw vectorization/replay controls, database records, and operator diagnostics.
+
+Partner product-control capabilities should be explicit on the assignment, not inferred from the role alone:
+
+- `PRODUCT_CONFIG_READ`
+- `PRODUCT_CONFIG_WRITE`
+- `PRODUCT_CONFIG_PUBLISH`
+- `STOREFRONT_SURFACE_CONTROL`
+- `KNOWLEDGE_SOURCE_CONTROL`
+- `KNOWLEDGE_SYNC_TRIGGER`
+- `APP_OWNED_CONTENT_WRITE`
+- `VERIFICATION_RUN`
+- `EVIDENCE_EXPORT`
+- `SUPPORT_MANAGE`
+- `AGGREGATE_ANALYTICS_READ`
+- `PRODUCT_PAUSE_RESUME`
+
+Execution model:
+
+- Partner UI sends product commands to Platform partner endpoints, never directly to Shopify Admin API.
+- Platform validates active assignment, product capability, store connection, merchant revocation state, and installed app scope availability.
+- Active assignment is the standing merchant authorization for all allowed product-scoped commands; do not interrupt partner workflows with a new approval request for each command.
+- Platform writes a partner action audit record before/after execution.
+- Shopify Bridge performs the product-scoped action using the installed app token and returns a partner-safe result.
+- Every product command should have a partner-safe status, failure reason, and suggested merchant/operator next action.
+- Destructive or shopper-facing publish actions should support preview/draft where useful, but approval is not re-requested unless the command requires a new Shopify scope, a higher product capability, or a new store assignment boundary.
+
+UI implication:
+
+Assigned store workspace should evolve into a product control center, not only a proof dashboard:
+
+- **Product setup**: product-owned configuration, surfaces, launch state, pause/resume.
+- **Knowledge**: source toggles, sync/preflight, coverage, blockers.
+- **AI behavior**: prompt/profile settings, quick prompts, fallback/support handoff, comparison/search behavior.
+- **Proof**: verification runs, checked steps, evidence bundles, launch history.
+- **Support**: escalations, notes, evidence-linked replies.
+- **Activity**: complete product-scoped audit trail.
+
+Release-gate implication:
+
+Partner Enablement is not complete at enterprise level until live verification proves at least one state-changing product-scoped command against an assigned store, then proves:
+
+- command is denied for an unassigned partner
+- command is denied after merchant revoke
+- command is audited
+- command result appears in Partner UI activity
+- Shopify Bridge/product service applied the product-owned change
+- no Shopify token, provider secret, runtime detail, or unrelated store/admin data leaks in the partner response
+
 ### Implementation Slices
 
 Slice 1: backend authority update
