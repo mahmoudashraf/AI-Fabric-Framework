@@ -11,9 +11,10 @@ import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.RSASSASigner;
-import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jose.crypto.ECDSASigner;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sun.net.httpserver.HttpServer;
@@ -64,7 +65,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PartnerEnablementIntegrationTest {
 
     private static final String ISSUER = "http://supabase.test/project";
-    private static final RSAKey RSA_KEY = createRsaKey();
+    private static final ECKey EC_KEY = createEcKey();
     private static HttpServer jwksServer;
     private static String jwksUri;
 
@@ -384,19 +385,19 @@ class PartnerEnablementIntegrationTest {
             claims.claim("user_metadata", userMetadata);
         }
         SignedJWT signed = new SignedJWT(
-            new JWSHeader.Builder(JWSAlgorithm.RS256)
+            new JWSHeader.Builder(JWSAlgorithm.ES256)
                 .type(JOSEObjectType.JWT)
-                .keyID(RSA_KEY.getKeyID())
+                .keyID(EC_KEY.getKeyID())
                 .build(),
             claims.build()
         );
-        signed.sign(new RSASSASigner(RSA_KEY.toPrivateKey()));
+        signed.sign(new ECDSASigner(EC_KEY.toECPrivateKey()));
         return signed.serialize();
     }
 
-    private static RSAKey createRsaKey() {
+    private static ECKey createEcKey() {
         try {
-            return new RSAKeyGenerator(2048)
+            return new ECKeyGenerator(Curve.P_256)
                 .keyID("partner-test-key")
                 .generate();
         } catch (Exception exception) {
@@ -411,7 +412,7 @@ class PartnerEnablementIntegrationTest {
         try {
             jwksServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             jwksServer.createContext("/.well-known/jwks.json", exchange -> {
-                byte[] body = ("{\"keys\":[" + RSA_KEY.toPublicJWK().toJSONString() + "]}").getBytes(StandardCharsets.UTF_8);
+                byte[] body = ("{\"keys\":[" + EC_KEY.toPublicJWK().toJSONString() + "]}").getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().put("Content-Type", List.of("application/json"));
                 exchange.sendResponseHeaders(200, body.length);
                 exchange.getResponseBody().write(body);
