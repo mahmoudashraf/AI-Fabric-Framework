@@ -2474,3 +2474,37 @@ Executed after commit `497e8705` was pushed to `Platform-V6` and Railway deploym
 - The deployed Shopify Bridge asset contains both `partner-access/requests` and `Partner access requests could not be loaded`, proving the merchant-admin `Partners` tab and explicit load-error path are live.
 - `mvn -f Platfrom/backend/pom.xml -q test`
 - `git diff --check`
+
+## Partner Access Revocation Correction - 2026-04-25
+
+### Completed Changes
+
+- Added active partner access revocation to the Platform merchant partner-access controller.
+- Revocation is allowed for the scoped Shopify Bridge product-service principal, `PLATFORM_ADMIN`, and `PLATFORM_OPERATOR`.
+- Revocation changes the access request, store assignment, and implementation request to `REVOKED`, records `revokedAt`, and writes a `STORE_ACCESS_REVOKED` audit event.
+- Shopify admin `Partners` tab now shows active approved requests with a `Revoke access` action.
+- Platform Shopify Stores page now shows partner access requests for the selected store and gives operators an emergency revoke dialog with a required reason.
+- Partner request summaries now expose `assignmentId` and `revokedAt` so merchant/admin and operator UIs can distinguish active and revoked access.
+
+### Verification Proof
+
+Executed local proof for the revocation correction:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformProductServiceAuthIntegrationTest test`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=PlatformShopifyStoreClientTest,ShopifyMerchantControllerTest test`
+- `npm --prefix product-services/shopify-bridge-service/ui run build`
+- `npm --prefix Platfrom/ui run build`
+- `git diff --check`
+
+Executed live proof after commit `9d776abc` was pushed to `Platform-V6`:
+
+- Platform health returned HTTP `200`.
+- Platform admin login returned HTTP `200` with `role=PLATFORM_ADMIN`.
+- Live admin `GET /api/merchant/partner-access/requests?shopDomain=shopping-companion-test.myshopify.com` returned HTTP `200`, two requests, and the new `assignmentId` and `revokedAt` fields.
+- Live bridge product-service key `GET /api/merchant/partner-access/requests?shopDomain=shopping-companion-test.myshopify.com` returned HTTP `200`, proving the previously blocked Shopify Bridge product-service auth path is live.
+- Non-destructive revoke probe against a non-active request returned HTTP `400` with `Partner access request does not have active access to revoke.`
+- Post-probe listing remained unchanged: one `WAITING_ON_MERCHANT` request and one `DENIED` request.
+- Deployed Shopify Bridge asset contains both `Revoke access` and `/revoke`.
+
+No live active partner assignment existed for the test store at verification time, so destructive live revocation was not performed. The active revoke path is covered in `PartnerEnablementIntegrationTest`, including merchant/product-service revocation, operator override revocation, assignment status change to `REVOKED`, implementation status change to `REVOKED`, audit evidence, and partner store-detail denial after revoke.
