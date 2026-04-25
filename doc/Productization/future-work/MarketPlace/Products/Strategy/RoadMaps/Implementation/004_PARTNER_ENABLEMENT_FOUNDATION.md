@@ -1917,3 +1917,80 @@ Deployment/live proof blockers before release-ready status:
 - configure deployed Platform Supabase partner auth env values
 - obtain a valid non-committed `PARTNER_SUPABASE_JWT` for a test partner account
 - rerun `scripts/verify-partner-enablement-live.sh` with `PARTNER_LIVE_STRICT=true`
+
+---
+
+## 2026-04-25 Supabase And Deployment Verification Update
+
+### Implementation Summary
+
+Added the deployment/runtime support needed to move Partner Enablement from local foundation to live proof:
+
+- created `Final_Documentation/Development_Guides/PARTNER_ENABLEMENT_DEPLOYMENT_GUIDE.md`
+- added Partner UI runtime config loading through `/runtime-config.js`
+- added Railway Partner UI Docker/server assets for `partners.loomai.pro`
+- added `Platfrom/partner-ui/.env.example`
+- used the ignored private handoff Supabase section to create a non-social email/password test account without committing secrets
+
+### Verification Proof
+
+Passed:
+
+```bash
+npm --prefix Platfrom/partner-ui run build
+npm --prefix Platfrom/partner-ui run smoke
+node --check Platfrom/partner-ui/deploy/railway/server.mjs
+git diff --check
+git diff --cached --check
+```
+
+Partner UI runtime server proof also passed locally against the built `dist`:
+
+- `/health` returned HTTP `200`
+- `/runtime-config.js` returned HTTP `200`
+- SPA fallback route returned HTTP `200`
+
+Supabase proof:
+
+- created a confirmed email/password Supabase test user
+- token issuer/audience/provider shape matched the expected Supabase project and `email` provider
+- token lacks a top-level `email_verified` claim, so first email/password live test should set `PLATFORM_SUPABASE_REQUIRE_EMAIL_VERIFIED=false`
+
+### Live Verification Status
+
+Strict live verification is still blocked by deployment state:
+
+```bash
+PARTNER_UI_BASE_URL=https://partners.loomai.pro \
+PARTNER_SUPABASE_JWT="<valid temp JWT>" \
+PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
+PARTNER_LIVE_STRICT=true \
+  scripts/verify-partner-enablement-live.sh
+```
+
+Observed result:
+
+- backend health reachable
+- unauthenticated partner session rejected with HTTP `401`
+- invalid partner JWT rejected with HTTP `401`
+- `partners.loomai.pro` DNS does not currently resolve
+
+Backend-only authenticated check with the valid Supabase JWT is also blocked because the deployed production backend is not serving the partner-enabled routes yet:
+
+- valid Supabase partner JWT returned HTTP `401`
+- public merchant approval route probe returned HTTP `401`
+- production Railway deploy branch is `Platform_V1`, while Partner Enablement is on `Platform-V6`
+- `Platform_V1..Platform-V6` is a large branch gap, so do not blindly fast-forward production without an explicit deployment decision
+
+### Pushed Commit Refs
+
+- `032d5b53` implements the Partner Enablement foundation.
+- `62865a5a` adds Partner UI runtime deployment support and the deployment guide.
+
+### Remaining Release Blockers
+
+- deploy a Platform backend branch that contains the Partner Enablement slice
+- configure the Platform Supabase auth env values from the deployment guide
+- deploy the Partner UI service using `Platfrom/partner-ui/deploy/railway/Dockerfile`
+- point `partners.loomai.pro` DNS to the Partner UI service
+- rerun strict live verification with the non-committed temp JWT
