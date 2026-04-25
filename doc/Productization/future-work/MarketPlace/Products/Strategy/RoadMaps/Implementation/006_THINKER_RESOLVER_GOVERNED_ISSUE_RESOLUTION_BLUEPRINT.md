@@ -41,6 +41,7 @@ Strategic posture:
 - Position it as governed resolution, not "AI can do anything".
 - Treat write actions as a platform risk boundary, not a UI feature.
 - Build the product class once, then adapt it to Shopify, SaaS support, CRM, internal tools, and partner client apps.
+- Do not reimplement the existing read-action reasoning loop; build on the current platform capability and extend it into governed resolution.
 
 Recommended positioning:
 
@@ -53,6 +54,45 @@ Avoid positioning:
 - AI support bot that can change accounts
 - unrestricted workflow automation
 - self-healing app without policy boundaries
+
+---
+
+## Current Platform Foundation
+
+The platform already supports the important Thinker-side primitive:
+
+> LLM plans one or more eligible read actions, the framework executes them under policy, the loop may continue for bounded iterations, and final generation uses the resulting action evidence with optional RAG cooperation.
+
+Code-level anchors:
+
+- `ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/information/ReadActionResolutionService.java`
+- `ai-infrastructure-module/ai-infrastructure-core/src/test/java/com/ai/infrastructure/intent/orchestration/information/ReadActionResolutionServiceTest.java`
+- `ai-infrastructure-module/ai-infrastructure-core/src/test/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/IntentHandlingStepReadActionResolutionTest.java`
+- `ai-infrastructure-module/curated/ai-curated-commerce/src/main/resources/ai-curated/packs/commerce.yml`
+
+Current supported behavior:
+
+- `resolver_assistant` mode can run single-pass read-action resolution.
+- `thinker` mode can run iterative read-action resolution.
+- read actions are allowlisted and must be `READ`.
+- actions must be `readActionResolutionEligible`.
+- planner proposals are bounded by max iterations, max actions per iteration, and max total actions.
+- action evidence can answer directly or cooperate with RAG.
+- final user-facing generation happens after read-action evidence is gathered.
+- diagnostics include planner iterations, executed actions, grounding-usable action count, RAG cooperation, and final decision.
+
+Important boundary:
+
+- This existing capability is read-only.
+- It is a Thinker foundation, not the full Resolver product.
+- Write-capable resolving still needs policy, confirmation, dry-run, audit, recovery, escalation, product UI, and readiness gates.
+- Older notes that describe the read-action planning loop as missing should be treated as historical unless updated by current code inspection.
+
+Product implication:
+
+- Phase 1 should productize and prove the existing read-action loop for issue resolution.
+- Phase 2 and beyond should add Resolver dry-run and governed write execution.
+- The main new product risk is no longer "can the LLM use multiple read actions before generation"; it is "can we govern write-capable resolution safely."
 
 ---
 
@@ -94,7 +134,8 @@ Purpose:
 
 Thinker is allowed to:
 
-- run planner-eligible read-only actions
+- run planner-eligible read-only actions through the existing read-action resolution loop
+- use multiple bounded read actions before final generation when policy allows
 - use retrieval when it improves evidence
 - summarize facts
 - propose next steps
@@ -243,6 +284,7 @@ Captures:
 Contains:
 
 - read-action results
+- planner iteration diagnostics
 - retrieval snippets
 - user-provided context
 - system state snapshot metadata
@@ -505,13 +547,15 @@ Exit criteria:
 
 Goal:
 
-- resolve issues with read-only action planning and evidence
+- productize the existing read-action resolution loop for issue diagnosis
+- resolve issues with bounded multi-read-action planning and evidence
 - no write action execution
 
 Scope:
 
 - issue session model
-- read-action planning loop
+- existing read-action planning loop integration
+- issue-resolution mode and prompts
 - evidence bundle
 - resolution plan
 - escalation when write is needed
@@ -520,6 +564,7 @@ Scope:
 Exit criteria:
 
 - issue diagnosis is grounded in evidence
+- multi-read-action evidence can feed final generation
 - no write action can execute
 - source gaps are handled honestly
 - operator can inspect evidence and plan

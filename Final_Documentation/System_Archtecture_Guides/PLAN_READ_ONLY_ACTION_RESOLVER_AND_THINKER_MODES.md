@@ -2,6 +2,13 @@
 
 Status: proposed framework implementation plan (2026-04-22)
 
+Update (2026-04-25): the core read-action resolution capability now exists in code. The current platform supports bounded LLM planning over eligible read-only actions, optional iterative planning for `thinker`, action evidence collection, RAG cooperation, and final answer generation from gathered evidence. Treat older "missing" notes below as historical implementation-plan context; verify current behavior in:
+
+- `ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/information/ReadActionResolutionService.java`
+- `ai-infrastructure-module/ai-infrastructure-core/src/test/java/com/ai/infrastructure/intent/orchestration/information/ReadActionResolutionServiceTest.java`
+- `ai-infrastructure-module/ai-infrastructure-core/src/test/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/IntentHandlingStepReadActionResolutionTest.java`
+- `ai-infrastructure-module/curated/ai-curated-commerce/src/main/resources/ai-curated/packs/commerce.yml`
+
 This document defines how the framework should support a new capability where the LLM can plan and use **read-only actions** as live information tools, then answer the user using the returned evidence, optionally cooperating with the existing RAG flow.
 
 This is a **framework capability plan**, not a Shopify-only product note.

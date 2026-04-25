@@ -23,6 +23,7 @@ Rules:
 - The platform is a credible product foundry, not yet a high-throughput product factory.
 - Do not start WooCommerce, Docs, Comply, Slack, Smart Brain, or broad white-label work before Shopify Companion has real product and commercial signal.
 - Thinker/Resolver is the next new product archetype candidate after the first-product readiness gate: governed issue resolution with evidence, policy, confirmation, audited read/write actions, and escalation. Blueprint work is allowed; implementation must not bypass `005`.
+- Platform already supports the Thinker-side primitive: bounded LLM read-action resolution with eligible read actions, iterative `thinker` mode, evidence collection, optional RAG cooperation, and final generation. 006 should build on this instead of re-planning it from scratch.
 - Partner support is an early platform capability for developers, integrators, and agencies using LoomAI as an AI enablement layer.
 - Partner enablement means self-service signup, empty partner workspace by default, sandbox/demo access, intelligence-piece catalog, deployment templates, verification packs, merchant-approved scoped store access, support escalation, and implementation playbooks.
 - Partners are implementation partners, not passive acquisition partners.
@@ -74,6 +75,7 @@ Current P0 cleanup items:
 - Treat query-to-answer quality as part of first-product readiness, using Shopify Companion as the first concrete instance of a future platform-level Product Generation Audit Framework.
 - Product readiness audit UI is a platform/operator console first, not Shopify merchant admin or partner-first UI; partners may later run scoped client-store audits after canonical thresholds exist.
 - Keep `006_THINKER_RESOLVER_GOVERNED_ISSUE_RESOLUTION_BLUEPRINT.md` as blueprint-only until `005` readiness and governed action safety gates are satisfied.
+- For 006, the new product risk is governed write-capable Resolver behavior; multi-read-action Thinker planning is an existing platform capability.
 
 ## Strategic Decision Log
 
@@ -95,3 +97,4 @@ Current P0 cleanup items:
 - 2026-04-25: Query-to-answer quality belongs inside `005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md`; implement it with reusable platform audit primitives from day one so future products and partner-run client-store audits can reuse the query pack shape, scoring rubric, evidence output, forbidden-claim checks, and pass/fail semantics.
 - 2026-04-25: Added Product Readiness Audit UI requirement to `005`: build an operator console for overview, checklist, query pack, answer results, evidence, and final decision; do not mark design-partner-ready from private scripts/chat history alone.
 - 2026-04-25: Created `006_THINKER_RESOLVER_GOVERNED_ISSUE_RESOLUTION_BLUEPRINT.md` as the next product archetype candidate: Thinker diagnoses with evidence/read actions; Resolver executes approved registered write actions only through policy, confirmation, dry-run where possible, audit, recovery, and escalation. This is blueprint-only until `005` is complete.
+- 2026-04-25: Corrected 006 foundation: read-action resolution is already implemented through `ReadActionResolutionService` with single-pass `resolver_assistant`, iterative `thinker`, eligible read-action allowlists, bounded action counts, RAG cooperation, diagnostics, and final generation from action evidence. Do not treat multi-read-action Thinker planning as missing.
