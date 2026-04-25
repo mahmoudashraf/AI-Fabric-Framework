@@ -2621,3 +2621,37 @@ Live proof IDs retained for audit lookup:
 - assignment: `psa-7ab46513-4c4e-494f-bfcf-f70e8d5b370a`
 - verification run: `pvr-76bc1db1-d4b9-448b-bd44-66591657ae33`
 - evidence bundle: `peb-a828e8a5-6ca9-4e53-b6f1-4e355c8e9f4d`
+
+## Independent Release Gate Verification - 2026-04-25
+
+Follow-up verification of commit `1043e167` confirmed the Partner Enablement release gate is materially live-gated, not just smoke-checked.
+
+Local proof passed:
+
+- `git diff --check`
+- `bash -n scripts/verify-partner-enablement-live.sh`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformVerificationSuiteScriptContextServiceTest,PlatformVerificationScriptRunnerServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q test`
+
+Verifier correction:
+
+- Fixed `scripts/verify-partner-enablement-live.sh` so platform-login cookie auth works under Bash `set -u` when no API-key header is present.
+
+Live proof passed after refreshing the short-lived local Supabase JWT and denying one stale pending request from the failed verifier attempt:
+
+- live Platform backend: `https://ai-fabric-framework-production-324f.up.railway.app`
+- live Partner UI: `https://ai-fabric-framework-production-158d.up.railway.app`
+- shop: `shopping-companion-test.myshopify.com`
+- merchant approval, partner assignment visibility, verification run, evidence bundle export, launch evidence bundle, templates, notes, members, profile, support escalation/reply/thread/list, revoke, and revoked-store `403` all passed.
+
+Live proof IDs:
+
+- merchant access request: `psar-f27b319b-8b5e-4cf5-88d5-9d4e661b9b28`
+- active assignment: `psa-a722f586-47fa-434e-849a-66325d174cd8`
+- verification run: `pvr-2e786f19-945d-44d6-809a-5ac0305c6ba3`
+- launch evidence bundle: `peb-724121c2-8697-4ae6-a93c-1a4ec9c5137a`
+
+Cleanup proof:
+
+- temporary active assignment was revoked by the verifier.
+- a failed-run pending release-gate request was denied before the successful rerun.

@@ -67,16 +67,20 @@ platform_request() {
   local out="$3"
   shift 3
   local headers=()
+  local curl_args=(-sS -X "${method}" -o "${out}" -w "%{http_code}")
   if [[ -n "${PLATFORM_API_KEY}" ]]; then
     headers+=("-H" "${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
   fi
   if [[ -n "${PLATFORM_COOKIE}" ]]; then
     headers+=("-H" "Cookie: ${PLATFORM_COOKIE}")
   fi
+  if ((${#headers[@]})); then
+    curl_args+=("${headers[@]}")
+  fi
   if [[ -n "${PLATFORM_COOKIE_JAR}" && -s "${PLATFORM_COOKIE_JAR}" ]]; then
-    curl -sS -X "${method}" -o "${out}" -w "%{http_code}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}"
+    curl "${curl_args[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}"
   else
-    curl -sS -X "${method}" -o "${out}" -w "%{http_code}" "${headers[@]}" "$@" "${url}"
+    curl "${curl_args[@]}" "$@" "${url}"
   fi
 }
 
