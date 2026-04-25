@@ -2459,5 +2459,18 @@ Executed after this correction:
 - `git diff --check`
 
 The backend integration test now proves the partner can list a created implementation request while it is `WAITING_ON_MERCHANT`, after merchant approval updates it to `APPROVED`, and after merchant denial updates it to `DENIED`.
+
+### Live Verification Proof
+
+Executed after commit `497e8705` was pushed to `Platform-V6` and Railway deployments caught up:
+
+- Partner UI Railway service returned the deployed asset `assets/index-BN4XNWI2.js`.
+- The deployed Partner UI asset contains `Implementation request history could not be loaded`.
+- The deployed Partner UI asset no longer contains the old `Merchant approvals created from implementation requests will appear here after the backend exposes list history` placeholder.
+- A fresh Supabase email/password test JWT authenticated against live Platform:
+  - `GET /api/partners/session` returned HTTP `200`, `signupRequired=false`, and partner role `PARTNER_ADMIN`.
+  - `GET /api/partners/client-implementations` returned HTTP `200` with an empty array for the current test partner workspace.
+- Shopify Bridge Railway service returned the deployed asset `assets/index-DxFkYgEa.js`.
+- The deployed Shopify Bridge asset contains both `partner-access/requests` and `Partner access requests could not be loaded`, proving the merchant-admin `Partners` tab and explicit load-error path are live.
 - `mvn -f Platfrom/backend/pom.xml -q test`
 - `git diff --check`
