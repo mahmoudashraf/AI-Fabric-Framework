@@ -1,6 +1,6 @@
 # Partner Enablement Foundation
 
-Status: implemented local foundation with live gate added (revised 2026-04-25)
+Status: implemented and live verified on Railway (revised 2026-04-25)
 
 Owner mode: technical LLM implementation session
 
@@ -2040,3 +2040,66 @@ Verification passed:
 mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test
 git diff --check
 ```
+
+### 2026-04-25 Railway Backend Auth And Live Verification Completion
+
+The remaining live `401` was resolved and the Partner Enablement Foundation is now live verified against Railway.
+
+Root cause:
+
+- Supabase email/password tokens for the launch project are signed with `ES256`.
+- Spring `NimbusJwtDecoder.withJwkSetUri(...)` only trusted the default algorithm set, so the deployed partner auth filter rejected the otherwise valid Supabase token.
+- The integration test fixture previously used an RSA/`RS256` test JWKS, which did not cover the live Supabase signing shape.
+
+Implementation:
+
+- `PartnerAuthConfiguration` now trusts both `RS256` and Supabase `ES256` JWKS signatures.
+- `PartnerEnablementIntegrationTest` now signs partner JWT fixtures with an EC P-256 `ES256` key and serves the matching public JWKS.
+- Railway `Platform-Backend` variables were upserted with the partner Supabase issuer/JWKS/project-ref, email verification gate set to `false` for the current email-only verification path, temporary Partner UI URL, and CORS allowance. Unrelated variables were not replaced.
+
+Deployment proof:
+
+- Platform project: `platform`
+- Platform backend service: `Platform-Backend`
+- Railway environment: `production`
+- Backend domain: `https://ai-fabric-framework-production-324f.up.railway.app`
+- Partner UI domain: `https://ai-fabric-framework-production-158d.up.railway.app`
+- Backend deployment `14f21bfe-1cec-427c-b25d-b4257984dfb0` reached `SUCCESS`
+- Code commits pushed: `87851362` for default/config/email-verification handling, `3054159c` for Supabase `ES256` JWT support
+
+Verification proof:
+
+```bash
+mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test
+git diff --check
+
+PARTNER_UI_BASE_URL=https://ai-fabric-framework-production-158d.up.railway.app \
+PARTNER_SUPABASE_JWT="<valid temp JWT from private/local secret>" \
+PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
+PARTNER_LIVE_STRICT=true \
+  scripts/verify-partner-enablement-live.sh
+```
+
+Strict live verifier result:
+
+- backend health reachable
+- unauthenticated partner session rejected with HTTP `401`
+- invalid partner JWT rejected with HTTP `401`
+- Partner UI `/health` reachable with HTTP `200`
+- Partner UI `/runtime-config.js` reachable and populated
+- Partner UI route reachable
+- valid Supabase partner JWT accepted with HTTP `200`
+- partner session payload shaped correctly
+- new partner sees empty workspace state with `assignedStoreCount=0`
+- catalog/store checks skipped because the verification account is intentionally unprovisioned and has no partner workspace/store assignment yet
+- final result: `PASS: partner enablement live gate completed`
+
+Direct browser-origin proof:
+
+- `GET /api/partners/session` with the fresh Supabase bearer token and `Origin: https://ai-fabric-framework-production-158d.up.railway.app` returned HTTP `200`
+- response included `authenticated=true`, `signupRequired=true`, and `assignedStoreCount=0`
+
+Remaining non-blocking production follow-up:
+
+- Point `partners.loomai.pro` to the Partner UI Railway service when moving from the temporary Railway domain to production DNS.
+- Create/provision a partner workspace/store assignment when catalog and assigned-store live checks are needed beyond the empty-workspace launch gate.
