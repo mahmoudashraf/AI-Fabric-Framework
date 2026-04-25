@@ -2795,7 +2795,22 @@ Executed locally on 2026-04-26:
 - `bash -n scripts/verify-partner-enablement-live.sh` passed.
 - `git diff --check` passed.
 
-Pending before marking this addendum fully live-complete:
+Executed live on Railway on 2026-04-26:
 
-- Deploy Platform backend and Partner UI.
-- Run strict live partner enablement verification against Railway and record proof IDs.
+- Pushed implementation commit `4447fff0` to `Platform-V6`.
+- Railway Platform backend deployment `2664ee26-7b84-4d5e-82fd-1ccaa27a8f99` reached `SUCCESS`.
+- Railway Partner UI deployment `5a29065f-1e04-4e4a-b00d-361dd1b3c984` reached `SUCCESS`.
+- Strict live verification passed against:
+  - Platform backend: `https://ai-fabric-framework-production-324f.up.railway.app`
+  - Partner UI: `https://ai-fabric-framework-production-158d.up.railway.app`
+  - Shopify store: `shopping-companion-test.myshopify.com`
+- Live verifier proved product-control reachability, secret-safe partner projection, real partner support-profile write, canonical Platform/admin visibility, support-profile restoration, partner-visible product audit activity, and `403` product-control denial after revoke.
+- Live proof IDs:
+  - client implementation: `pci-fa339182-dbe3-4c50-85a1-10d05a1b4b56`
+  - merchant access request: `psar-a3a8288f-4fcd-4b14-aa62-9b074f124787`
+  - temporary active assignment: `psa-a722f586-47fa-434e-849a-66325d174cd8`
+  - verification run: `pvr-ca8da17d-af99-42f3-9576-e9884d736c14`
+  - launch evidence bundle: `peb-ea6eff23-e370-4079-8e29-e86822ce2bea`
+- Cleanup proof: the temporary merchant access was revoked and revoked partner store/product-control reads returned `403`.
+
+Status: Product-Scoped Partner Control addendum is implemented, locally verified, deployed, live verified, and cleaned up.
