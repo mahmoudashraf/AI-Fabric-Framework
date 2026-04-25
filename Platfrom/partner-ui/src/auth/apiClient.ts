@@ -1,5 +1,6 @@
 import type { Session } from '@supabase/supabase-js'
 import type { ZodSchema } from 'zod'
+import { partnerRuntimeConfig } from '../config/runtimeConfig'
 
 const allowedPathPrefixes = ['/api/partners/', '/api/merchant/partner-access/']
 
@@ -24,7 +25,7 @@ export interface PartnerApiClient {
 }
 
 function apiBaseUrl() {
-  return (import.meta.env.VITE_PLATFORM_API_BASE_URL ?? '').replace(/\/+$/, '')
+  return partnerRuntimeConfig().platformApiBaseUrl
 }
 
 function assertPartnerPath(path: string) {

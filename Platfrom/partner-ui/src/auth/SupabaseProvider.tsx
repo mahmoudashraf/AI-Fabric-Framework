@@ -1,5 +1,6 @@
 import { createClient, type Provider, type Session, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { partnerRuntimeConfig } from '../config/runtimeConfig'
 import { createPartnerApiClient, type PartnerApiClient } from './apiClient'
 
 interface SupabaseAuthContextValue {
@@ -22,8 +23,7 @@ function authRedirectUrl(path = '/auth/callback') {
 }
 
 function createSupabaseClient() {
-  const url = import.meta.env.VITE_SUPABASE_URL
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  const { supabaseUrl: url, supabaseAnonKey: anonKey } = partnerRuntimeConfig()
   if (!url || !anonKey) {
     return null
   }
