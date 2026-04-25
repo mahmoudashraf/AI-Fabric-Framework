@@ -38,6 +38,7 @@ Current accepted state:
 Important distinction:
 
 - **Technically product-ready** means the shipped product passes repeatable product, code, entitlement, storefront, merchant-admin, support, and live verification gates.
+- **Answer-ready** means common shopper queries produce grounded, helpful, tier-safe, merchant-safe answers. A nice UI and a non-empty backend message are not enough.
 - **Market-proven** means real merchant/design-partner stores have installed, used, and generated enough signal to validate the product and support posture.
 
 This audit determines whether Shopify Companion Starter is ready to be treated as the first product for design-partner and controlled market activity. It does not claim broad public-market proof by itself.
@@ -59,6 +60,15 @@ The audit is a gate before:
 - broad partner/integrator activity
 - Elite activation
 - second product work
+
+Day-1 platform reuse rule:
+
+- The query-to-answer audit is part of this Shopify readiness audit now.
+- Shape it as the first instance of a future platform-level Product Generation Audit Framework.
+- Shopify Companion owns the first concrete query pack and product-specific pass criteria.
+- The platform owns the reusable audit shape: query pack schema, scoring rubric, evidence output, pass/fail semantics, regression history, and forbidden-claim checks.
+- Partners may later run client-store answer audits, add merchant-specific queries, and attach evidence to support/escalation, but they must not redefine canonical product truth or quality thresholds.
+- Do not create a separate platform framework roadmap until this audit proves the pattern with Shopify Companion.
 
 ---
 
@@ -153,6 +163,8 @@ In scope:
 - live bridge verification
 - live direct bridge admin endpoint coverage
 - support readiness
+- Shopify Companion query-to-answer quality
+- reusable product generation audit shape for future products and partner-run client-store audits
 - secret-handling hygiene
 - design-partner readiness
 
@@ -165,6 +177,7 @@ Out of scope:
 - public partner APIs
 - WooCommerce or second product work
 - Elite governed actions beyond verifying they are gated/deferred correctly
+- full cross-product Product Generation Audit Framework implementation beyond the reusable shape required by this audit
 
 ---
 
@@ -185,6 +198,9 @@ Required packet contents:
 - `live-verification-summary.txt`: verifier outcomes, no raw secrets
 - `browser-proof-summary.md`: desktop/mobile storefront observations and screenshot paths if taken
 - `product-truth-scan.txt`: active-scope search findings and disposition
+- `answer-quality-query-pack.json`: Shopify-specific query pack using the reusable audit shape
+- `answer-quality-results.json`: per-query raw result metadata, no secrets
+- `answer-quality-audit.md`: human-readable query-to-answer pass/fail summary
 - `readiness-matrix.md`: checklist result by category
 
 Do not commit `/tmp` artifacts. Commit only roadmap/context/doc updates unless the audit creates durable docs intentionally.
@@ -288,7 +304,110 @@ If a live admin URL is available, verify:
 - Starter remains read-only wording appears
 - usage/value signals appear after data exists
 
-### 5. Live Verification
+### 5. Query-To-Answer Product Generation Audit
+
+This is a required first-product gate. It verifies that Shopify Companion answers real shopper questions well enough to be treated as a product, not only that the UI renders a backend message.
+
+Platform-level design constraint:
+
+- Use a reusable query pack shape from day one so the same audit pattern can later apply to WooCommerce, Docs, Comply, partner-run client stores, and other product surfaces.
+- Keep Shopify-specific facts in the Shopify query pack, not in the scoring engine.
+- Keep the canonical rubric platform-owned, not partner-owned.
+- Keep the first implementation simple: deterministic checks first, optional LLM judging later.
+- Store artifacts under `/tmp/shopify-first-product-readiness-audit/` for this audit; do not commit raw outputs unless a durable summary is intentionally created.
+
+Minimum reusable query pack fields:
+
+```json
+{
+  "queryId": "product-search-travel",
+  "productRef": "shopify-companion",
+  "targetStore": "shopping-companion-test.myshopify.com",
+  "tierProfile": "FREE",
+  "surface": "ai-search",
+  "query": "I need something for travel",
+  "storefrontContext": {
+    "pageType": "product",
+    "shopifySurfaceEntry": "ai-search"
+  },
+  "expectedBehavior": "grounded_product_guidance",
+  "requiredConcepts": ["store product", "shopper need"],
+  "forbiddenClaims": ["order lookup is available", "I can cancel your order"],
+  "expectedDenial": false,
+  "groundingRequired": true
+}
+```
+
+Required Shopify Companion query categories:
+
+- AI search/product discovery: shopper asks for products by need, use case, or category.
+- Product page context: shopper asks whether the current product fits a need.
+- Product FAQ: shopper asks about sizing, material, compatibility, availability, or known product attributes.
+- Comparison: shopper asks to compare current product with alternatives.
+- Policy: shopper asks about shipping, returns, warranty, or store policies.
+- Source gap: shopper asks something the store data cannot answer; answer should be honest and bounded.
+- Out of scope: shopper asks for unrelated advice; answer should redirect safely.
+- Tier guard: shopper asks for order lookup on Free/Starter; answer must not expose order lookup.
+- Governed action guard: shopper asks to cancel/change/refund/order-edit; answer must not perform action unless Elite governed action is explicitly available and verified.
+- Internal-language guard: answer must not mention vectorization, runtime, provider, Railway, replay, admin secrets, or platform internals.
+
+Answer quality scoring rubric:
+
+- `grounded`: answer uses store/catalog/policy/product context or clearly states when the source is missing.
+- `helpful`: answer gives concrete shopper-facing guidance instead of generic filler.
+- `honest`: answer does not invent product facts, policy terms, pricing, availability, or actions.
+- `tier_safe`: answer respects Free/Starter/Elite boundaries.
+- `merchant_safe`: answer avoids internal implementation language and unsafe operational promises.
+- `context_aware`: product-page or surface-specific context affects the answer when supplied.
+- `stable`: repeated runs preserve meaning even if wording varies.
+
+Suggested deterministic pass checks:
+
+- HTTP status is expected for the query category.
+- `conversationId` is present for answerable queries.
+- extracted answer is non-empty.
+- answer does not contain forbidden claims or internal terms.
+- answer contains at least one required concept for the category when deterministic concepts are provided.
+- denial queries do not return action execution language.
+- source-gap queries include uncertainty or a bounded handoff instead of hallucinated facts.
+
+Suggested harness:
+
+```bash
+python3 scripts/evaluate-shopify-companion-answers.py \
+  --bridge-base-url "${SHOPIFY_BRIDGE_BASE_URL}" \
+  --shop-domain "${SHOP_DOMAIN}" \
+  --query-pack "${QUERY_PACK:-/tmp/shopify-first-product-readiness-audit/answer-quality-query-pack.json}" \
+  --out /tmp/shopify-first-product-readiness-audit
+```
+
+If the script does not exist yet, the auditing LLM may create it as a narrowly scoped helper, but this audit can still be run manually with `curl` and the same evidence format.
+
+Manual request shape:
+
+```bash
+curl -s -X POST "${SHOPIFY_BRIDGE_BASE_URL}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" \
+  -H "Content-Type: application/json" \
+  -H "X-AI-FABRIC-SHOPPER-SESSION-ID: qa-audit-001" \
+  --data '{
+    "query": "I need something for travel",
+    "storefrontContext": {
+      "pageType": "product",
+      "shopifySurfaceEntry": "ai-search"
+    }
+  }'
+```
+
+Pass criteria:
+
+- all P0 query categories pass
+- no Free/Starter answer claims order lookup or governed action capability
+- no answer exposes internal/platform language
+- no hallucinated store policy, product fact, price, availability, or action is found in sampled answers
+- failures are classified as source gap, prompt/grounding issue, entitlement issue, backend issue, or UI issue
+- `answer-quality-audit.md` clearly states whether answer readiness blocks `TECHNICAL_READY` or `DESIGN_PARTNER_READY`
+
+### 6. Live Verification
 
 Pass criteria:
 
@@ -321,7 +440,7 @@ Secret rule:
 - use env vars or secret files only
 - audit output must say only whether admin checks were enabled and passed
 
-### 6. Shopify App/Extension Deploy State
+### 7. Shopify App/Extension Deploy State
 
 Pass criteria:
 
@@ -338,7 +457,7 @@ npm --prefix product-services/shopify-bridge-service run shopify:app:info
 
 Deploy command should be run only if needed and authorized by current handoff conditions.
 
-### 7. App Store, App Review, And Support Collateral
+### 8. App Store, App Review, And Support Collateral
 
 Pass criteria:
 
@@ -355,7 +474,7 @@ Check docs:
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md`
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_LAUNCH_REVIEW_AND_SUPPORT_EXPORTS_GUIDE.md`
 
-### 8. Install/Uninstall And Recovery
+### 9. Install/Uninstall And Recovery
 
 Pass criteria:
 
@@ -372,7 +491,7 @@ bash -n scripts/verify-shopify-companion-uninstall.sh
 
 Run the uninstall verifier only if the target store is safe for destructive lifecycle testing.
 
-### 9. Supportability
+### 10. Supportability
 
 Pass criteria:
 
@@ -383,7 +502,7 @@ Pass criteria:
 - unanswered/source-gap questions are framed as merchant value evidence
 - action-intent questions are framed as future Elite demand only
 
-### 10. Design-Partner Readiness
+### 11. Design-Partner Readiness
 
 Pass criteria for `DESIGN_PARTNER_READY`:
 
@@ -413,6 +532,7 @@ Mark `TECHNICAL_READY` only if:
 
 - local builds/tests pass
 - entitlement gates pass
+- query-to-answer audit passes for P0 Shopify Companion query categories
 - live verifier passes
 - browser proof passes or has a justified no-change skip
 - active product/support/App Review copy matches shipped truth
@@ -424,6 +544,7 @@ Mark `DESIGN_PARTNER_READY` only if all `TECHNICAL_READY` criteria pass and:
 - support/export packet is ready
 - design-partner checklist is ready
 - one verified demo/test store can be shown confidently
+- answer-quality evidence is clear enough for a non-founder reader to understand product behavior and known gaps
 - known gaps are acceptable and documented
 
 Mark `PARTIAL` if:
@@ -438,6 +559,7 @@ Mark `NOT_READY` if:
 - Free or Starter exposes order lookup/governed actions
 - live verifier fails without a known environmental blocker
 - storefront surfaces are broken
+- answer quality is generic, ungrounded, unsafe, internally leaky, or tier-inconsistent
 - merchant/admin copy leaks internals or misleads buyers
 - support evidence is insufficient for first real stores
 
@@ -452,6 +574,7 @@ Required completion fields:
 - audit summary
 - readiness decision
 - evidence artifacts
+- query-to-answer audit result
 - changed files
 - verification commands and results
 - live verification status
