@@ -41,7 +41,7 @@ The partner strategy is implementation support for developers, integrators, agen
 
 The implementation target is now a mature partner enablement operating layer, not only a founding-partner document kit. The platform already has one working Shopify store and verified intelligent embedded surfaces, so partner enablement should be designed as a complete product capability from the start, shipped in controlled increments.
 
-The first usable release can still start with founding partners, but the architecture and handoff must cover the complete path: partner access, client-store portfolio, intelligence catalog, client store workspace, setup and verification packs, support escalation, evidence exports, templates, auditing, and operator override. The goal is to make a serious implementation partner able to deploy and support multiple client stores without full operator access or live explanation every time.
+The first usable release can still start with founding partners, but the architecture and handoff must cover the complete path: partner access, client-store portfolio, intelligence catalog, client store workspace, setup and verification packs, support escalation, evidence exports, templates, auditing, and operator override. The goal is to make a serious implementation partner able to implement and support multiple client stores without full operator access or live explanation every time.
 
 Canonical partner offer:
 
@@ -129,13 +129,21 @@ Task:
 
 Primary outcome:
 
-- implementation partners can understand the Shopify Companion Starter package, deploy verified LoomAI intelligence surfaces to approved/assigned client/test stores, verify each surface, monitor health, support normal setup issues, and escalate with evidence without full operator access or live platform-operator explanation
+- implementation partners can understand the Shopify Companion Starter package, implement verified LoomAI intelligence surfaces for approved/assigned client/test stores, verify each surface, monitor health, support normal setup issues, and escalate with evidence without full operator access or live platform-operator explanation
 
 Authority boundary:
 
 - admins/operators own the deployment level
 - partners/integrators own the product implementation level
 - merchants own their store-level configuration and approvals
+
+Backend modularity decision:
+
+- build Partner Enablement inside `Platfrom/backend` as a separate partner domain module/package first
+- keep it extraction-ready so it can later become a separate deployable service if operationally justified
+- do not split it into a separate service in the first slice
+- do not let partner code depend directly on deployment/provider/secret/vectorization internals
+- integrate with existing Platform and Shopify Bridge capabilities through narrow service/gateway contracts
 
 This handoff should be treated as a mature platform implementation plan, delivered incrementally. Do not stop at a documentation kit if code-level partner capabilities are feasible. Build the self-managed implementation-partner operating system first: partners can sign up and work from an empty workspace, while client-store access remains approved, scoped, revocable, and audited.
 
@@ -152,7 +160,7 @@ Complete product capabilities:
 - client store workspace
 - intelligence-piece catalog
 - sandbox/demo center
-- setup/deployment checklist
+- setup/implementation checklist
 - verification and launch center
 - evidence/export packet generation
 - support and escalation center
@@ -601,6 +609,87 @@ Exit:
 
 ---
 
+## Backend Module Boundary And Future Extraction
+
+Build Partner Enablement as a modular domain inside the existing Platform backend first.
+
+Initial package boundary:
+
+```text
+Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/
+  config/
+  security/
+  entity/
+  repository/
+  service/
+  web/
+  model/
+  audit/
+  gateway/
+```
+
+Boundary rules:
+
+- `partner/web` exposes only partner-safe routes under `/api/partners/*` and merchant approval routes under `/api/merchant/partner-access/*`.
+- `partner/service` owns partner business rules, signup completion, client implementation requests, store-access approvals, assignments, escalation workflow, and visibility enforcement.
+- `partner/entity` and `partner/repository` own partner tables and persistence.
+- `partner/security` owns Supabase partner principal mapping and partner authorization.
+- `partner/audit` owns partner action audit event creation or adapts to the existing platform audit service.
+- `partner/gateway` contains narrow contracts to existing Platform/Shopify capabilities.
+
+Extraction-ready gateway contracts:
+
+- `PartnerStoreAccessGateway`
+- `PartnerShopifyStoreReadModel`
+- `PartnerEvidenceSource`
+- `PartnerAuditPublisher`
+- `PartnerNotificationGateway`
+- `PartnerCatalogSource`
+- `PartnerVerificationSource`
+
+Gateway intent:
+
+- partner domain can read partner-safe Shopify/store readiness summaries without owning Shopify tokens
+- partner domain can request product-safe verification/evidence operations without exposing raw runtime or vectorization controls
+- partner domain can publish audit/notification events without depending on UI/operator internals
+- partner domain can be extracted later by replacing in-process gateway implementations with HTTP/message clients
+
+Keep in the Platform backend for now:
+
+- partner accounts and members
+- partner roles and status
+- client implementation requests
+- merchant approval links/codes
+- partner-store assignments
+- verification/evidence metadata
+- support escalations, reply threads, and note visibility
+- Supabase partner identity mapping
+
+Do not copy into the partner module:
+
+- Shopify tokens
+- provider config
+- runtime/deployment orchestration
+- raw vectorization/replay controls
+- secrets
+- billing internals
+
+Do not create in the first slice:
+
+- a separate partner deployable service
+- a public partner API product
+- partner-owned database outside the Platform backend
+- partner access to operator/admin endpoints
+
+Exit:
+
+- partner domain can be tested independently at service/controller level
+- partner tables are isolated by naming and ownership
+- partner controllers do not expose operator routes
+- future extraction would require adapter replacement, not business-rule rewrites
+
+---
+
 ## Build Order
 
 ### Step 0: Product Boundary And Current-State Inventory
@@ -1009,6 +1098,8 @@ Deliver:
 
 - Supabase project/provider configuration checklist
 - Google, Apple, and LinkedIn OIDC login enabled in Supabase
+- extraction-ready `com.ai.fabric.platform.backend.partner` package boundary
+- partner auth/security configuration inside the partner module boundary where practical
 - `Platfrom/partner-ui` project scaffold
 - partner login page
 - `/auth/callback` route
@@ -1042,6 +1133,16 @@ Exit:
 
 Deliver:
 
+- partner module package structure:
+  - `config`
+  - `security`
+  - `entity`
+  - `repository`
+  - `service`
+  - `web`
+  - `model`
+  - `audit`
+  - `gateway`
 - partner account/member/role model
 - self-service partner account creation model
 - partner invite model for operator-created/internal cases
@@ -1050,11 +1151,13 @@ Deliver:
 - partner-store assignment model
 - access/revocation model
 - audit model
+- extraction-ready gateway interfaces for Shopify/store readiness, evidence, audit, notification, catalog, and verification sources
 - API summaries for partner home, portfolio, client workspace, catalog, verification, and escalations
 
 Exit:
 
 - contracts exist and can be tested without a polished UI
+- partner domain can later be extracted without rewriting business rules
 
 ### Slice C: Partner Workspace Shell
 
@@ -1355,6 +1458,7 @@ Operator-only language:
 
 This handoff is complete when:
 
+- partner backend exists as a separate, extraction-ready module/package inside `Platfrom/backend`
 - partner UI is a separate project suitable for `partners.loomai.pro`
 - partner login uses Supabase Auth
 - Google, Apple, and LinkedIn OIDC login are configured or documented with local/staging/production redirect URLs
@@ -1368,6 +1472,7 @@ This handoff is complete when:
 - partner can inspect client-store readiness without operator internals
 - deployment-level admin/operator controls are not exposed to partners
 - partner product implementation workflows are separated from operator deployment workflows
+- partner module integrates with Platform/Shopify capabilities through narrow gateway contracts rather than direct dependency on deployment/provider/secret/vectorization internals
 - intelligence catalog covers verified Shopify Companion Starter surfaces
 - partner can run or follow a verification pack for each surface
 - Free AI-search-only and Starter no-order-lookup gates are included in partner verification
@@ -1541,6 +1646,7 @@ Minimum acceptable partial slice:
 
 - Supabase auth boundary is explicit
 - data ownership boundary is explicit
+- partner backend module boundary and future extraction posture are explicit
 - partner UI project decision is explicit
 - deployment-level admin authority vs product implementation partner authority is explicit
 - self-service signup with zero default store access is explicit
@@ -1548,7 +1654,7 @@ Minimum acceptable partial slice:
 - partner domain and access assumptions are recorded
 - intelligence catalog covers verified Shopify Companion Starter surfaces
 - each catalog entry has tier, source, setup, verification, limitations, and claim-safe copy
-- deployment checklist is complete enough for a partner to follow without a live walkthrough
+- implementation checklist is complete enough for a partner to follow without a live walkthrough
 - verification pack can prove Free AI-search-only and Starter no-order-lookup boundaries
 - escalation template captures owner, status, severity, next action, evidence, reply visibility, and resolution summary
 - at least 3 vertical playbooks exist

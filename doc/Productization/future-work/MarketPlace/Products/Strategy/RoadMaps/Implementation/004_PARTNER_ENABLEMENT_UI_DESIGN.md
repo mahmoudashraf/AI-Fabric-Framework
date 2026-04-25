@@ -690,6 +690,33 @@ Targets WCAG 2.2 AA. Concrete rules:
 
 ## 10. Implementation Notes for a React/MUI Engineer
 
+### Backend companion boundary
+
+This UI must be backed by the extraction-ready Partner Enablement module inside `Platfrom/backend`.
+
+Expected backend package boundary:
+
+```text
+Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/
+  config/
+  security/
+  entity/
+  repository/
+  service/
+  web/
+  model/
+  audit/
+  gateway/
+```
+
+UI integration rules:
+
+- call only `/api/partners/*` and `/api/merchant/partner-access/*`
+- never call operator/admin/deployment/provider/secret/vectorization endpoints
+- expect partner-safe read models from the backend partner module
+- treat Shopify/store readiness, evidence, catalog, and verification as partner-safe summaries, not raw Platform or Shopify internals
+- preserve the ability for the backend partner module to be extracted later by depending only on API contracts, not frontend assumptions about internal services
+
 ### Project layout
 
 ```
