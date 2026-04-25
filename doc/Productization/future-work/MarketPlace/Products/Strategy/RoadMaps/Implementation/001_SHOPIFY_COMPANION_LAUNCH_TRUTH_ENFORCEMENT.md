@@ -327,6 +327,59 @@ This task is complete only when:
 
 ---
 
+## Implementation And Verification Summary
+
+Completion date: 2026-04-25
+
+Pushed commits:
+
+- `08174962 Enforce Shopify Companion launch truth`
+- `d908c499 Align Shopify Companion readiness gates with launch truth`
+
+Implementation summary:
+
+- Billing truth now uses `Free / Starter / Elite`; Free allowed surfaces are AI search only, Starter excludes order lookup, and Elite is the only tier with `order-lookup`.
+- Storefront bootstrap, storefront preview, direct order lookup routes, theme extension rendering, and merchant UI copy now enforce the same launch truth.
+- Support readiness no longer blocks Free or Starter on order lookup scope/webhook posture; Elite keeps the strict order lookup support gates.
+- Platform Shopify readiness and go-live gates now treat non-Elite support readiness as ready when the product service returns `READY`, while preserving Elite order lookup requirements.
+- Generated launch, App Store, support, partner, and review copy no longer claims Free or Starter order lookup access.
+- Verification script assertions were updated so Free and Starter must not include `order-lookup`, support fallback is merchant handoff, and direct bridge admin verification can run when the deployed bridge shared secret is supplied as `SHOPIFY_BRIDGE_ADMIN_API_KEY`.
+
+Build and test proof:
+
+- `node --check product-services/shopify-bridge-service/extensions/companion-theme-app-extension/assets/companion-embedded-surfaces.js` passed.
+- `npm --prefix product-services/shopify-bridge-service/ui run build` passed.
+- Shopify Bridge targeted Maven tests passed for billing, storefront bootstrap, storefront preview, order lookup, merchant controller, admin controller, support readiness, governed actions, merchant store service, and storefront controller coverage.
+- Full Shopify Bridge suite passed with `mvn -f product-services/shopify-bridge-service/pom.xml -q test`.
+- Platform backend targeted tests passed with `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyStoreConnectionServiceTest,ShopifyStoreGoLiveServiceTest,PlatformManagedProductAdminServiceTest test`.
+- Full Platform backend suite passed with `mvn -f Platfrom/backend/pom.xml -q test`.
+- `bash -n scripts/verify-shopify-companion.sh` passed.
+- `git diff --check` passed.
+
+Live verification proof:
+
+- Full live Shopify Companion verification passed against:
+  - platform: `https://ai-fabric-framework-production-324f.up.railway.app`
+  - bridge: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
+  - shop: `shopping-companion-test.myshopify.com`
+- Expected live launch truth was Free tier, active billing, enabled surfaces `ai-search`, order lookup unsupported, governed actions unavailable, chat fallback disabled, powered-by badge required, and catalog product cap `50`.
+- Direct bridge admin checks passed after resolving the deployed bridge `SHOPIFY_BRIDGE_SHARED_SECRET` from Railway and supplying it only as the process-local `SHOPIFY_BRIDGE_ADMIN_API_KEY` with header `X-BRIDGE-API-KEY`.
+- Verified direct admin endpoints included `/api/admin/overview`, `/api/admin/stores/{shop}/billing-summary`, `/api/admin/stores/{shop}/webhook-subscriptions`, `/api/admin/stores/{shop}/support-readiness`, `/api/admin/stores/{shop}/usage-summary`, `/api/admin/stores/{shop}/vectorization`, `/api/admin/stores/{shop}/actions/recent`, and `/api/admin/stores/{shop}/vectorization-source/{entityType}`.
+- Final verifier proof line:
+
+```text
+PASS: storefront standalone AI search contract
+Shopify Companion verification passed for shopping-companion-test.myshopify.com
+```
+
+Secret handling note:
+
+- Do not paste the bridge admin key into chat, docs, commits, or logs.
+- The verification script variable is `SHOPIFY_BRIDGE_ADMIN_API_KEY`; for the deployed bridge it must equal the Railway `SHOPIFY_BRIDGE_SHARED_SECRET`.
+- A missing key skips direct bridge admin checks; a wrong key returns HTTP 401; an unconfigured bridge admin key returns HTTP 503 for `/api/admin/*`.
+
+---
+
 ## Handoff Template
 
 Append a compact note to `CODEX_WORKING_CONTEXT.md` using this shape:
