@@ -23,9 +23,9 @@ Rules:
 - The platform is a credible product foundry, not yet a high-throughput product factory.
 - Do not start WooCommerce, Docs, Comply, Slack, Smart Brain, or broad white-label work before Shopify Companion has real product and commercial signal.
 - Partner support is an early platform capability for developers, integrators, and agencies using LoomAI as an AI enablement layer.
-- Partner enablement means sandbox/demo access, intelligence-piece catalog, deployment templates, verification packs, scoped store access, support escalation, and implementation playbooks.
+- Partner enablement means self-service signup, empty partner workspace by default, sandbox/demo access, intelligence-piece catalog, deployment templates, verification packs, merchant-approved scoped store access, support escalation, and implementation playbooks.
 - Partners are implementation partners, not passive acquisition partners.
-- Public partner signup, partner directories, certification, commercial attribution surfaces, white-label, partner APIs, and partner-led custom product assembly are out of current scope until founding implementation partners prove repeatable deployment and support.
+- Client-store access from signup alone, partner directories, certification, commercial attribution surfaces, white-label, partner APIs, and partner-led custom product assembly are out of current scope until implementation partners prove repeatable deployment and support.
 - Long launch dossiers, App Review guides, support runbooks, design-partner packets, raw support bundles, webhook/vectorization diagnostics, and partner implementation evidence belong in partner/operator surfaces, not merchant Shopify admin.
 - Merchant Shopify admin should remain action-oriented and merchant-safe: setup, storefront surfaces, knowledge sync, billing, support handoff, usage/value, and clear blockers.
 - Shopify indexing must use the platform vectorization capability. Shopify Bridge supplies Shopify-specific source data and orchestration, but vectorization lifecycle, runners, policies, queues, retries, and provider/vector-store internals belong to the platform/operator surface.
@@ -52,7 +52,7 @@ Active sequence:
 1. **Canonical Launch Truth**: launch truth created; Free is AI search only; align product, pricing, billing, gating, and launch copy.
 2. **Storefront Product Shell**: make embedded intelligence visibly real; converge on Max Mode and retire legacy chat as a long-term shell.
 3. **Starter Launch Package**: make full read-only store intelligence sellable and App Store-ready.
-4. **Partner Enablement Foundation**: support founding implementation partners with sandbox, intelligence catalog, templates, verification packs, scoped access, and escalation.
+4. **Partner Enablement Foundation**: support self-managed implementation partners with Supabase signup, empty workspace, sandbox, intelligence catalog, templates, verification packs, merchant-approved scoped access, and escalation.
 5. **Design-Partner Proof**: test with 5-10 real stores before scaling public outreach or broad partner recruitment.
 6. **Public Launch Push**: earn the first install/review loop; target 40-50 installs or clear rejection signal.
 7. **Elite Activation**: launch governed actions only after Starter demand and action-intent signal exist.
@@ -64,7 +64,7 @@ Current P0 cleanup items:
 - Remove order lookup from any active Free-tier copy, entitlement, partner catalog, or App Store claim.
 - Keep Elite claims bounded to verified live governed-action surfaces.
 - Finish storefront shell convergence before opening new product tracks.
-- Build partner enablement early enough to support founding integrators, but keep public partner scale, commercial attribution surfaces, white-label, and partner APIs out of current scope.
+- Build partner enablement early enough to support integrators, but keep broad partner scale, commercial attribution surfaces, white-label, and partner APIs out of current scope.
 - Keep merchant/admin boundary clean so partner/operator packets do not render inside the Shopify merchant app.
 - Merchant-facing indexing language is `Knowledge Sync`; raw index/reindex/replay/vectorization controls belong in the merged partner/operator dashboard.
 
@@ -83,3 +83,4 @@ Current P0 cleanup items:
 - 2026-04-25: Partner direction is implementation-partner-first, not passive acquisition. Updated UI and partner strategy docs to center client store setup, intelligence catalog, templates, verification packs, sandbox/demo access, support center, escalations, and scoped store access; commercial attribution surfaces are out of current scope.
 - 2026-04-25: Revised Partner Enablement Foundation to target a mature private partner operating layer, not only a document kit: partner identity/access, scoped store assignment, partner workspace, client portfolio/workspace, intelligence catalog, verification/evidence packs, support escalations, templates/playbooks, audit/security, and rollout gates; public partner signup, commissions, white-label, and public partner APIs remain out of current scope.
 - 2026-04-25: Partner Enablement auth decision: use Supabase Auth for partner login with Google, Apple, and LinkedIn OIDC; keep Platform backend as the authorization source for partner roles, invitations, scoped store assignment, revocation, audit, and Shopify Bridge access; partner UI should live in a separate `Platfrom/partner-ui` project for `partners.loomai.pro`.
+- 2026-04-25: Partner signup decision superseded: self-service partner signup is allowed and should create an empty workspace by default; client-store access requires merchant approval, signed approval link/code, approved install/claim flow, or operator assignment. Keep commissions, referral tracking, white-label, public partner API, directories, and certification out of current scope.

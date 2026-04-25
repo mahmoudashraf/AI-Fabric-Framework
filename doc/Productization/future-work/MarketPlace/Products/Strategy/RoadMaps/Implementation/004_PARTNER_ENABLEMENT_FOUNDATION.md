@@ -37,7 +37,7 @@ Accepted state:
 
 This Phase 3 handoff starts Partner Enablement Foundation.
 
-The partner strategy is implementation support for developers, integrators, agencies, and consultants who help client stores or current apps add LoomAI intelligence pieces. This is not an affiliate program, referral dashboard, passive acquisition surface, public partner signup, commission workflow, or white-label program.
+The partner strategy is implementation support for developers, integrators, agencies, and consultants who help client stores or current apps add LoomAI intelligence pieces. Self-service partner signup is in scope, but signup creates an empty partner workspace by default. Client-store access requires merchant approval, an approved install/claim flow, or explicit operator assignment. This is not an affiliate program, referral dashboard, passive acquisition surface, commission workflow, or white-label program.
 
 The implementation target is now a mature partner enablement operating layer, not only a founding-partner document kit. The platform already has one working Shopify store and verified intelligent embedded surfaces, so partner enablement should be designed as a complete product capability from the start, shipped in controlled increments.
 
@@ -53,7 +53,7 @@ Canonical partner offer:
 Why this goes next:
 
 - Starter is now sellable and verified enough to be used as the first partner-facing package.
-- Partner enablement gives the solo developer leverage without promising public partner scale.
+- Partner enablement gives the solo developer leverage without creating a manual partner-management team.
 - The intelligence catalog, setup checklist, verification pack, and escalation template will also strengthen design-partner and launch workflows.
 - Building partner materials now prevents future partner sessions from inventing product claims, tier rules, or support promises.
 - A mature platform needs the partner operating layer before broad market activity, otherwise every implementation becomes bespoke support from the founder.
@@ -129,15 +129,18 @@ Task:
 
 Primary outcome:
 
-- implementation partners can understand the Shopify Companion Starter package, deploy verified LoomAI intelligence surfaces to assigned client/test stores, verify each surface, monitor health, support normal setup issues, and escalate with evidence without full operator access or live platform-operator explanation
+- implementation partners can understand the Shopify Companion Starter package, deploy verified LoomAI intelligence surfaces to approved/assigned client/test stores, verify each surface, monitor health, support normal setup issues, and escalate with evidence without full operator access or live platform-operator explanation
 
-This handoff should be treated as a mature platform implementation plan, delivered incrementally. Do not stop at a documentation kit if code-level partner capabilities are feasible. Also do not start with public partner scale. Build the private implementation-partner operating system first.
+This handoff should be treated as a mature platform implementation plan, delivered incrementally. Do not stop at a documentation kit if code-level partner capabilities are feasible. Build the self-managed implementation-partner operating system first: partners can sign up and work from an empty workspace, while client-store access remains approved, scoped, revocable, and audited.
 
 Complete product capabilities:
 
 - Supabase Auth login and social login for partner users
+- self-service partner signup
 - partner identity and scoped access
 - partner-member roles
+- client implementation request flow
+- merchant-approved store access flow
 - partner-store assignment and revocation
 - partner home and client-store portfolio
 - client store workspace
@@ -199,7 +202,7 @@ Optional fourth playbook if cheap:
 Do not:
 
 - build affiliate/referral/commission workflows
-- build public partner signup
+- grant client-store access from signup alone
 - build partner directory
 - build certification
 - build white-label packaging
@@ -232,7 +235,8 @@ Platform backend owns:
 - partner account
 - partner member profile
 - partner role
-- partner invitation state
+- self-service signup state
+- partner invitation state for operator-created/internal cases
 - partner-store assignment
 - partner permissions
 - partner action audit
@@ -282,26 +286,40 @@ Provider setup notes:
 - Do not request provider scopes beyond profile/email unless a later feature explicitly needs provider API access.
 - Do not store `provider_token` or `provider_refresh_token` unless a later integration explicitly needs it and a secret-handling design is approved.
 
-### Partner Invitation And Activation
+### Self-Service Signup And Store Access
 
-Public signup is out of scope.
+Self-service partner signup is in scope.
 
 First release flow:
 
-1. Platform operator creates a `PartnerAccount`.
-2. Platform operator invites one or more `PartnerMember` emails.
-3. Partner user signs in through Supabase with Google, Apple, or LinkedIn OIDC.
-4. Platform backend validates the Supabase JWT.
-5. Platform backend matches the Supabase user email or approved identity to a pending partner invitation.
-6. Platform backend activates the partner member and records provider, Supabase `sub`, email, display name, and activation timestamp.
-7. Partner sees only assigned stores.
+1. Partner signs in through Supabase with Google, Apple, or LinkedIn OIDC.
+2. Platform backend validates the Supabase JWT.
+3. If the identity is new, Platform backend creates a `PartnerAccount` and first `PartnerMember` with `PARTNER_ADMIN`.
+4. New partner lands in an empty self-managed workspace.
+5. Partner can read docs, browse the catalog, use the sandbox/demo center, use templates, and create draft client implementation requests.
+6. Partner cannot see client-store data, merchant data, live store readiness, evidence bundles, or support history from signup alone.
+7. Store access starts only through merchant-approved link/code, approved app install/claim flow, or explicit operator assignment.
+8. After approval, partner sees only approved/assigned stores.
+
+Client-store access flow:
+
+1. Partner creates a client implementation request with store/client context.
+2. Platform generates a merchant approval link/code or approved claim path.
+3. Merchant or store admin approves the partner-store relationship in a merchant-safe flow.
+4. Platform records approver, approval time, requested scope, approved scope, partner, store, and source flow.
+5. Platform creates or activates the partner-store assignment.
+6. Partner workspace shows the store with scoped permissions.
+7. Merchant or operator can revoke the assignment.
+
+Operator-created flow remains available for internal, demo, founding-partner, or recovery scenarios.
 
 Edge cases:
 
-- If Apple private relay hides the expected email, keep the member pending until operator approval links the Supabase `sub` to the invitation.
-- If provider email is unverified or missing, do not auto-activate.
-- If an email belongs to multiple partner accounts, require explicit operator selection/assignment.
+- If Apple private relay hides the expected email, allow the partner account to exist but keep client-store access gated by merchant approval or operator assignment.
+- If provider email is unverified or missing, create only a restricted workspace until identity requirements are satisfied.
+- If an email belongs to multiple partner accounts, require explicit account selection or operator resolution.
 - If a partner member is suspended or revoked, backend denies access even if Supabase login succeeds.
+- If a partner submits a shop domain, return no store data before merchant approval or operator assignment.
 
 ### Backend Token Validation
 
@@ -314,7 +332,7 @@ Platform backend must:
 - validate Supabase JWT issuer, audience, expiry, signature, and subject
 - map Supabase `sub` and verified email to a platform `PartnerMember`
 - create a platform principal with partner-safe authorities
-- enforce partner-store assignment on every partner API
+- enforce partner-store assignment on every store-scoped partner API
 - reject inactive, pending, suspended, or revoked partner members
 - audit login, session usage, access denial, assignment changes, and state-changing actions
 
@@ -346,7 +364,7 @@ Add or model partner roles:
 
 Role intent:
 
-- `PARTNER_ADMIN`: manages partner members and client assignments visible to the partner account; cannot self-assign new stores unless operator-approved.
+- `PARTNER_ADMIN`: manages partner members and client assignments visible to the partner account; cannot self-assign new stores unless merchant-approved or operator-assigned.
 - `PARTNER_IMPLEMENTER`: performs setup, verification, evidence capture, and notes for assigned stores.
 - `PARTNER_DEVELOPER`: reads catalog, integration docs, sandbox, verification details, and implementation contracts; can create technical escalation evidence.
 - `PARTNER_SUPPORT`: sees assigned stores, runbooks, support bundles, escalation workflow, and usage/value summaries.
@@ -436,7 +454,7 @@ Partner endpoints should accept Supabase bearer auth. Operator endpoints may con
 - Social login is authentication only, never authorization.
 - All partner API responses are scoped server-side.
 - Every store lookup checks active partner-store assignment.
-- Every mutation checks explicit assignment permission.
+- Every store-scoped mutation checks explicit assignment permission.
 - Secrets never leave backend/operator-only surfaces.
 - Shopify credentials stay in Shopify Bridge/platform secret boundaries.
 - Provider OAuth tokens are not stored by default.
@@ -458,7 +476,8 @@ Close:
 - confirm long partner/operator packet text is not rendered inline for merchants
 - confirm partner-only enablement language does not leak into shopper surfaces
 - decide what is partner-facing, operator-only, merchant-facing, or shopper-facing
-- record any old affiliate/referral/commission/public-signup language as deferred or retired
+- record any old affiliate/referral/commission language as deferred or retired
+- record any old no-signup/private-only partner language as superseded by self-managed signup with zero default store access
 
 Exit:
 
@@ -476,7 +495,7 @@ Close:
   - partner implementer
   - partner developer
   - partner support
-- partner invitation/activation posture
+- self-service signup and store-access approval posture
 - partner session and access boundary
 - partner-store assignment model
 - merchant/operator revocation model
@@ -485,16 +504,17 @@ Close:
 
 Recommended first implementation:
 
-- start with private/operator-created partners
-- no public signup
+- allow self-service partner signup through Supabase
+- partner starts with zero client-store access
+- merchant approval, approved install/claim flow, or operator assignment is required before store data appears
 - partners authenticate through Supabase social login
-- partner can be linked to assigned stores only
+- partner can be linked to approved/assigned stores only
 - partner actions are read-mostly until explicit safe actions are defined
 - all write actions require scoped permission and audit
 
 Exit:
 
-- one implementation partner can be represented in the platform with assigned stores and without full operator access
+- one implementation partner can self-onboard, see an empty workspace, request/receive approved store access, and work without full operator access
 
 ### Step 2: Partner Workspace Shell
 
@@ -723,7 +743,8 @@ Close:
 - launch checklist templates
 - troubleshooting playbooks
 - partner agreement/scope checklist
-- private founding-partner operating flow
+- self-managed partner operating flow
+- private/manual founding-partner fallback flow
 
 Initial vertical playbooks:
 
@@ -764,10 +785,11 @@ Close:
 - documentation readiness gate
 - verification readiness gate
 - support readiness gate
+- self-managed signup readiness gate
 - rollback/revocation procedure
 - metrics dashboard or report
 
-Private founding partner gate:
+Private/manual founding partner gate:
 
 - one partner account exists
 - one or more stores assigned
@@ -777,6 +799,15 @@ Private founding partner gate:
 - escalation template usable
 - partner cannot access unassigned stores
 - partner cannot see secrets or operator internals
+
+Self-managed partner gate:
+
+- any verified partner user can create an empty workspace through Supabase
+- self-signed partner sees catalog, sandbox, docs, templates, and draft implementation tools
+- self-signed partner sees no client-store data before merchant approval, approved install/claim flow, or operator assignment
+- partner can generate a store-access request link/code or approved claim path
+- merchant approval activates a scoped partner-store assignment
+- merchant or operator can revoke the assignment
 
 Broad partner scale gate:
 
@@ -789,7 +820,7 @@ Broad partner scale gate:
 
 Exit:
 
-- platform can support founding implementation partners now and has clear gates before public scale
+- platform can support self-managed implementation partners now and has clear gates before broader scale
 
 ---
 
@@ -810,6 +841,8 @@ Deliver:
 - logout flow
 - authenticated Platform API client with bearer token
 - Platform backend Supabase JWT validation
+- self-service partner account creation from first verified Supabase login
+- empty workspace for partners with no approved store assignments
 - partner member lookup by Supabase `sub` and verified email
 - pending/revoked/unauthorized states
 - local development env examples without secrets
@@ -825,7 +858,8 @@ Backend changes expected:
 Exit:
 
 - a Supabase-authenticated partner user can reach the partner session endpoint
-- an uninvited Supabase user is authenticated but not authorized
+- a new Supabase-authenticated partner can create an empty partner workspace
+- an unassigned partner sees no client-store data
 - a revoked partner member is denied
 - operator auth is not broken
 
@@ -833,8 +867,11 @@ Exit:
 
 Deliver:
 
-- partner invite model
 - partner account/member/role model
+- self-service partner account creation model
+- partner invite model for operator-created/internal cases
+- client implementation request model
+- merchant store-access approval link/code model
 - partner-store assignment model
 - access/revocation model
 - audit model
@@ -856,7 +893,7 @@ Deliver:
 
 Exit:
 
-- one private partner can log in or be simulated and see only assigned stores
+- one self-managed partner can log in, see an empty workspace, and see only approved/assigned stores after access is granted
 
 ### Slice D: Intelligence Catalog And Demo Center
 
@@ -907,13 +944,14 @@ Deliver:
 
 - vertical playbooks
 - implementation templates
-- private founding-partner operating flow
+- self-managed partner operating flow
+- private/manual founding-partner fallback flow
 - rollout checklist
 - metrics and acceptance proof
 
 Exit:
 
-- Partner Enablement Foundation is ready for a real founding implementation partner
+- Partner Enablement Foundation is ready for a real self-managed implementation partner
 
 ---
 
@@ -927,6 +965,9 @@ Required concepts:
 - `PartnerInvite`
 - `PartnerMember`
 - `PartnerRole`
+- `PartnerClientImplementationRequest`
+- `PartnerStoreAccessRequest`
+- `PartnerStoreAccessApproval`
 - `PartnerStoreAssignment`
 - `PartnerStoreAccessStatus`
 - `PartnerActionAudit`
@@ -956,15 +997,21 @@ Relationship rules:
 
 - partner account has many members
 - partner account has many invites
+- partner account can exist with zero store assignments
+- self-service signup can create a partner account and first member, but not a store assignment
+- partner account has many client implementation requests
+- client implementation requests can produce merchant store-access requests
 - partner account has many assigned stores
 - store can start with zero or one primary partner
 - assignment can be approved, active, suspended, or revoked
-- partner can only see assigned stores
+- partner can only see approved/assigned stores
+- merchant approval is the preferred store-access path
 - operator can override or revoke
-- merchant approval can be added later if not already available
+- store assignment requires merchant approval, approved install/claim flow, or operator assignment
 - every partner action that changes state is audited
 - Supabase `sub` maps to at most one active partner member unless a deliberate multi-account switcher is built
 - invitation email must match a verified provider email unless operator manually links the Supabase identity
+- submitted shop domains and client details must not reveal store data before approved assignment
 
 ---
 
@@ -988,7 +1035,10 @@ Required read APIs:
 
 Required write APIs:
 
+- complete self-service partner signup from first Supabase login
 - accept partner invite after Supabase login
+- create client implementation request
+- create merchant store-access approval link/code or claim path
 - create/update partner note
 - create/update escalation
 - mark manual verification step
@@ -1002,6 +1052,7 @@ Operator-only APIs:
 - link Supabase identity manually when provider email cannot be matched safely
 - assign store
 - revoke store assignment
+- suspend partner account or member
 - override partner access
 - resolve escalations
 - view internal evidence
@@ -1019,7 +1070,11 @@ Do not expose:
 Auth/session API examples:
 
 - `GET /api/partners/session`
+- `POST /api/partners/signup/complete`
 - `POST /api/partners/invites/{inviteId}/accept`
+- `POST /api/partners/client-implementations`
+- `POST /api/partners/client-implementations/{requestId}/store-access-links`
+- `POST /api/merchant/partner-access/{approvalCode}/approve`
 - `GET /api/partners/stores`
 - `GET /api/partners/stores/{storeId}/workspace`
 - `GET /api/partners/catalog`
@@ -1099,9 +1154,11 @@ This handoff is complete when:
 - partner login uses Supabase Auth
 - Google, Apple, and LinkedIn OIDC login are configured or documented with local/staging/production redirect URLs
 - Platform backend validates Supabase JWTs and maps identities to partner members
-- partner enablement is represented as a real private partner workspace or equivalent mature platform surface
-- partner identity, roles, store assignment, revocation, and audit are implemented or explicitly stubbed with a safe migration path
-- partner can see only assigned stores
+- partner enablement is represented as a real self-managed partner workspace or equivalent mature platform surface
+- self-service partner signup creates an empty partner workspace without default store access
+- partner identity, roles, client implementation requests, store assignment, revocation, and audit are implemented or explicitly stubbed with a safe migration path
+- merchant-approved store access or operator assignment is implemented or explicitly stubbed with a safe migration path
+- partner can see only approved/assigned stores
 - partner can inspect client-store readiness without operator internals
 - intelligence catalog covers verified Shopify Companion Starter surfaces
 - partner can run or follow a verification pack for each surface
@@ -1110,12 +1167,12 @@ This handoff is complete when:
 - evidence packets reuse live product truth and do not drift from merchant/App Review/support exports
 - vertical playbooks exist for at least 3 merchant types
 - merchant admin remains merchant-safe and not cluttered with partner/operator long-form content
-- operator can create/revoke partner access
+- merchant or operator can approve/revoke partner-store access
 - partner cannot access secrets, provider credentials, Railway/runtime internals, raw vectorization controls, or unassigned stores
-- uninvited Supabase users cannot access partner workspace data
+- unassigned Supabase partner users cannot access client-store workspace data
 - revoked partner members are denied even if their Supabase session is valid
-- no public partner signup, commissions, referral tracking, white-label, public partner API, directory, or certification is introduced
-- rollout gates are documented for founding partner, broad partner scale, white-label, and public APIs
+- no commissions, referral tracking, white-label, public partner API, directory, or certification is introduced
+- rollout gates are documented for self-managed partner launch, broad partner scale, white-label, and public APIs
 - `CODEX_WORKING_CONTEXT.md` has compact completion status
 
 Do not accept a docs-only outcome unless the implementation session proves code changes are blocked or intentionally deferred. The desired direction is mature platform capability, not only planning collateral.
@@ -1186,7 +1243,7 @@ If adding partner workspace or platform/operator retrieval surfaces, inspect fir
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/web/ShopifyAdminController.java`
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/web/PlatformVerificationSuiteController.java`
 
-Introduce a backend partner domain when implementing Slice A or later slices. Keep it private, scoped, audited, and testable. Avoid public partner signup, public partner APIs, and broad auth churn until founding implementation partners prove the workflow.
+Introduce a backend partner domain when implementing Slice A or later slices. Keep it scoped, audited, and testable. Allow self-service signup, but avoid public partner APIs and broad auth churn until implementation partners prove the workflow.
 
 ---
 
@@ -1273,6 +1330,7 @@ Minimum acceptable partial slice:
 
 - Supabase auth boundary is explicit
 - partner UI project decision is explicit
+- self-service signup with zero default store access is explicit
 - implementation partner positioning is explicit and does not read like affiliate/referral copy
 - partner domain and access assumptions are recorded
 - intelligence catalog covers verified Shopify Companion Starter surfaces
@@ -1282,7 +1340,7 @@ Minimum acceptable partial slice:
 - escalation template captures owner, status, next action, and evidence
 - at least 3 vertical playbooks exist
 - merchant admin remains merchant-safe and not cluttered with partner/operator long-form content
-- no public partner signup, commissions, white-label, public partner API, or certification is introduced
+- no commissions, white-label, public partner API, directory, or certification is introduced
 - `CODEX_WORKING_CONTEXT.md` has compact slice status and next handoff
 
 ---
@@ -1298,7 +1356,7 @@ git diff --check
 If a slice touches only docs:
 
 ```bash
-rg -n "affiliate|referral|commission|white-label|partner API|public partner signup|order lookup.*Starter|Starter.*order lookup|Growth|Pro" \
+rg -n "affiliate|referral|commission|white-label|partner API|unapproved store access|order lookup.*Starter|Starter.*order lookup|Growth|Pro" \
   doc/Productization/future-work/MarketPlace/Products/Strategy \
   Final_Documentation/User_Guides \
   Final_Documentation/Development_Guides
@@ -1347,7 +1405,9 @@ If those tests do not exist yet, the implementing session should create equivale
 
 - valid Supabase JWT accepted
 - invalid issuer/audience/signature rejected
-- uninvited user denied
+- new self-service partner gets empty workspace
+- unassigned partner cannot access store data
+- merchant-approved assignment can access assigned store
 - pending member denied
 - revoked member denied
 - assigned store allowed
