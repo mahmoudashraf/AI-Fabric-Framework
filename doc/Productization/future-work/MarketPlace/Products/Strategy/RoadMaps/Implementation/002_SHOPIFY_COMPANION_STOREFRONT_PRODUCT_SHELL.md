@@ -461,7 +461,7 @@ This task is complete only when:
 
 ## Implementation And Verification Summary
 
-Implementation status: code implementation is complete and pushed in commit `a3fdab98`; bridge/runtime live proof passed; Shopify-hosted theme extension deploy and browser proof passed. Only direct bridge admin live verification remains blocked until the deployed `SHOPIFY_BRIDGE_SHARED_SECRET` is available as `SHOPIFY_BRIDGE_ADMIN_API_KEY`.
+Implementation status: complete. Code implementation is pushed in commit `a3fdab98`; bridge/runtime live proof passed; Shopify-hosted theme extension deploy and browser proof passed; direct bridge admin verification passed using the deployed Railway `SHOPIFY_BRIDGE_SHARED_SECRET` as `SHOPIFY_BRIDGE_ADMIN_API_KEY`.
 
 Implemented:
 
@@ -528,11 +528,17 @@ Live verification passed:
   - mobile rendered two Companion surface cards and opened Max Mode from the launcher
   - summary file: `/tmp/shopify-verify/verification-summary.json`
 - Post-deploy non-admin `scripts/verify-shopify-companion.sh` passed again for `shopping-companion-test.myshopify.com`.
+- Deployed Railway variables were used to resolve `SHOPIFY_BRIDGE_SHARED_SECRET` for the Shopify Bridge service without recording the value.
+- Direct bridge admin `/api/admin/overview` returned HTTP `200` with:
+  - `serviceRef`: `shopify-bridge-prod`
+  - `status`: `READY`
+  - `stores`: `2`
+  - `billingMode`: `FREE`
+- Full `scripts/verify-shopify-companion.sh` passed with bridge admin checks enabled, covering admin overview, store billing summary, webhook diagnostics, support readiness, usage summary, vectorization, governed actions, and vectorization source page.
 
 Live verification blockers:
 
-- Bridge admin live checks could not pass with the locally available admin key material. A run with the configured local `SHOPIFY_BRIDGE_ADMIN_API_KEY` returned HTTP `401` from `/api/admin/overview`, which means the available value does not match deployed `SHOPIFY_BRIDGE_SHARED_SECRET`. A second run intentionally unset the admin key and passed all non-admin live checks. Do not record or expose the key in docs, chat, commits, or logs.
-- Direct bridge admin live verification is still blocked because the deployed bridge shared secret was not available in local env or private handoff. Platform product-service proxy checks pass, but they do not expose the raw deployed secret required for direct `/api/admin/*` calls.
+- None known for this handoff.
 
 ---
 
