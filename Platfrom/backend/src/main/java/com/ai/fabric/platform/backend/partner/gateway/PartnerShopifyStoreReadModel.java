@@ -13,6 +13,7 @@ public record PartnerShopifyStoreReadModel(
     String widgetStatus,
     Instant lastSyncAt,
     Instant lastWebhookAt,
-    List<String> enabledSourceCategories
+    List<String> enabledSourceCategories,
+    List<String> enabledSurfaces
 ) {
 }

@@ -186,11 +186,11 @@ class PlatformShopifyStoreClientTest {
                     "contactEmail":"merchant@example.com",
                     "storeConnectionId":"store-1",
                     "shopDomain":"alpha.myshopify.com",
-                    "requestedTier":"STARTER",
-                    "requestedSurfaces":["ai-search"],
+                    "requestedTier":"MERCHANT_CONFIGURED",
+                    "requestedSurfaces":["ai-search","product-faq"],
                     "knownIntegrations":["reviews"],
-                    "notes":"Starter launch",
-                    "requestedScope":"IMPLEMENTATION_SUPPORT",
+                    "notes":"Full configured store access",
+                    "requestedScope":"FULL_STORE_ACCESS",
                     "status":"WAITING_ON_MERCHANT",
                     "createdAt":"2026-04-25T12:00:00Z",
                     "expiresAt":"2026-05-25T12:00:00Z",
@@ -226,7 +226,7 @@ class PlatformShopifyStoreClientTest {
         ShopifyBridgePartnerAccessDecisionSummary response = client.approvePartnerAccessRequest(
             "alpha.myshopify.com",
             "par-1",
-            new ShopifyBridgePartnerAccessDecisionRequest("Merchant Owner", "owner@example.com", "IMPLEMENTATION_SUPPORT", null)
+            new ShopifyBridgePartnerAccessDecisionRequest("Merchant Owner", "owner@example.com", "FULL_STORE_ACCESS", null)
         );
 
         assertThat(response.assignmentId()).isEqualTo("assignment-1");

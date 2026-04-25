@@ -422,11 +422,11 @@ class ShopifyMerchantControllerTest {
                 "merchant@example.com",
                 "store-1",
                 "alpha.myshopify.com",
-                "STARTER",
+                "MERCHANT_CONFIGURED",
                 List.of("ai-search", "product-faq"),
                 List.of("reviews"),
-                "Starter launch",
-                "IMPLEMENTATION_SUPPORT",
+                "Full configured store access",
+                "FULL_STORE_ACCESS",
                 "WAITING_ON_MERCHANT",
                 Instant.parse("2026-04-25T12:00:00Z"),
                 Instant.parse("2026-05-25T12:00:00Z"),
@@ -460,9 +460,9 @@ class ShopifyMerchantControllerTest {
                 .header("Authorization", "Bearer " + token())
                 .contentType("application/json")
                 .content("""
-                    {
-                      "approvedScope": "IMPLEMENTATION_SUPPORT"
-                    }
+	                    {
+	                      "approvedScope": "FULL_STORE_ACCESS"
+	                    }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.requestId").value("par-1"))

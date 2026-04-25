@@ -6,7 +6,6 @@ import { getClientImplementation } from '../api/implementations'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { PageHeader } from '../components/PageHeader'
 import { StatusChip } from '../components/StatusChip'
-import { TierBadge } from '../components/TierBadge'
 import { formatDateTime, titleize } from '../utils/format'
 
 export function ImplementationRequestDetailPage() {
@@ -39,7 +38,7 @@ export function ImplementationRequestDetailPage() {
                 <Typography color="text.secondary">{implementation.contactEmail ?? 'No contact email provided'}</Typography>
               </Stack>
               <Stack direction="row" spacing={3} flexWrap="wrap">
-                <Metric label="Tier" value={<TierBadge tier={implementation.requestedTier} />} />
+                <Metric label="Access" value="Merchant configured" />
                 <Metric label="Vertical" value={implementation.vertical ? titleize(implementation.vertical) : 'Not set'} />
                 <Metric label="Created" value={formatDateTime(implementation.createdAt)} />
               </Stack>
@@ -60,7 +59,7 @@ export function ImplementationRequestDetailPage() {
             ) : null}
           </Paper>
           <Paper sx={{ p: 2 }}>
-            <Typography variant="h3">Requested surfaces</Typography>
+            <Typography variant="h3">Store configured surfaces</Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
               {implementation.requestedSurfaces.map((surface) => (
                 <Typography key={surface} sx={{ px: 1, py: 0.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>

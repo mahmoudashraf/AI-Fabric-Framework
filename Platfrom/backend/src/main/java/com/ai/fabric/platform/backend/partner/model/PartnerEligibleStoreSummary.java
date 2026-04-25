@@ -12,6 +12,7 @@ public record PartnerEligibleStoreSummary(
     String readinessStatus,
     String widgetStatus,
     Instant lastActivityAt,
-    List<String> enabledSourceCategories
+    List<String> enabledSourceCategories,
+    List<String> enabledSurfaces
 ) {
 }

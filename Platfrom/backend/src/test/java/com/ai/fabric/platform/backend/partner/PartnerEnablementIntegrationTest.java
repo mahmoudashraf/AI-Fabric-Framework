@@ -195,7 +195,8 @@ class PartnerEnablementIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()", is(1)))
             .andExpect(jsonPath("$[0].storeConnectionId", is("shopify-store-approved")))
-            .andExpect(jsonPath("$[0].shopDomain", is("approved-client.myshopify.com")));
+            .andExpect(jsonPath("$[0].shopDomain", is("approved-client.myshopify.com")))
+            .andExpect(jsonPath("$[0].enabledSurfaces", hasItem("product-faq")));
 
         var implementationResult = mockMvc.perform(post("/api/partners/client-implementations")
                 .header("Authorization", "Bearer " + token)
@@ -206,17 +207,17 @@ class PartnerEnablementIntegrationTest {
                       "contactEmail": "merchant@example.com",
                       "storeConnectionId": "shopify-store-approved",
                       "vertical": "fashion",
-                      "requestedTier": "STARTER",
-                      "requestedSurfaces": ["ai-search", "product-faq", "order-lookup"],
                       "knownIntegrations": ["reviews"],
-                      "notes": "Starter implementation only."
+                      "notes": "Full configured store access."
                     }
                     """))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.status", is("WAITING_ON_MERCHANT")))
             .andExpect(jsonPath("$.storeConnectionId", is("shopify-store-approved")))
             .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
+            .andExpect(jsonPath("$.requestedTier", is("MERCHANT_CONFIGURED")))
             .andExpect(jsonPath("$.requestedSurfaces", hasItem("ai-search")))
+            .andExpect(jsonPath("$.requestedSurfaces", hasItem("product-faq")))
             .andExpect(jsonPath("$.requestedSurfaces", not(hasItem("order-lookup"))))
             .andReturn();
 
@@ -228,6 +229,8 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.length()", is(1)))
             .andExpect(jsonPath("$[0].implementationRequestId", is(implementationId)))
             .andExpect(jsonPath("$[0].partnerName", is("Approved Partner Workspace")))
+            .andExpect(jsonPath("$[0].requestedTier", is("MERCHANT_CONFIGURED")))
+            .andExpect(jsonPath("$[0].requestedScope", is("FULL_STORE_ACCESS")))
             .andExpect(jsonPath("$[0].status", is("WAITING_ON_MERCHANT")))
             .andReturn();
         String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
@@ -237,11 +240,11 @@ class PartnerEnablementIntegrationTest {
                 .param("shopDomain", "approved-client.myshopify.com")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {
-                      "approverName": "Merchant Owner",
-                      "approverEmail": "owner@example.com",
-                      "approvedScope": "IMPLEMENTATION_SUPPORT"
-                    }
+	                    {
+	                      "approverName": "Merchant Owner",
+	                      "approverEmail": "owner@example.com",
+	                      "approvedScope": "FULL_STORE_ACCESS"
+	                    }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
@@ -302,14 +305,12 @@ class PartnerEnablementIntegrationTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {
-                      "clientName": "Denied Client",
-                      "storeConnectionId": "shopify-store-denied",
-                      "requestedTier": "STARTER",
-                      "requestedSurfaces": ["ai-search"],
-                      "knownIntegrations": [],
-                      "notes": "Merchant should be able to deny this."
-                    }
+	                    {
+	                      "clientName": "Denied Client",
+	                      "storeConnectionId": "shopify-store-denied",
+	                      "knownIntegrations": [],
+	                      "notes": "Merchant should be able to deny this."
+	                    }
                     """))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.status", is("WAITING_ON_MERCHANT")))
@@ -404,7 +405,17 @@ class PartnerEnablementIntegrationTest {
         entity.setLastSourcePreflightAt(now);
         entity.setLastSyncAt(now);
         entity.setLastWebhookAt(now);
-        entity.setDetailsJson("{}");
+        entity.setDetailsJson("""
+            {
+              "widget": {
+                "settings": {
+                  "enabledSurfaces": ["ai-search", "product-faq", "comparison"],
+                  "allowedConversationModes": ["navigator"],
+                  "defaultConversationMode": "navigator"
+                }
+              }
+            }
+            """);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         storeConnectionRepository.save(entity);

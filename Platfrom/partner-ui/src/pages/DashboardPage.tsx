@@ -121,7 +121,7 @@ function ProvisionedDashboard({ session }: { session: PartnerSession }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
         <KpiTile label="Stores assigned" value={String(stores.length)} />
         <KpiTile label="Open escalations" value={String(openEscalations.length)} />
-        <KpiTile label="Starter surfaces" value={String(stores.reduce((count, store) => count + store.enabledSurfaces.length, 0))} />
+        <KpiTile label="Configured surfaces" value={String(stores.reduce((count, store) => count + store.enabledSurfaces.length, 0))} />
         <KpiTile label="Pending merchant approvals" value="0" />
       </Box>
       <Stack spacing={3}>

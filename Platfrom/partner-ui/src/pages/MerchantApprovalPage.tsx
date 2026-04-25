@@ -12,7 +12,7 @@ import { formatDateTime } from '../utils/format'
 const approvalSchema = z.object({
   approverName: z.string().min(2, 'Name is required.'),
   approverEmail: z.string().email('Enter a valid email.').optional().or(z.literal('')),
-  approvedScope: z.string().default('IMPLEMENTATION_SUPPORT'),
+  approvedScope: z.string().default('FULL_STORE_ACCESS'),
 })
 
 type ApprovalForm = z.infer<typeof approvalSchema>
@@ -22,7 +22,7 @@ export function MerchantApprovalPage() {
   const { api } = useSupabaseAuth()
   const form = useForm<ApprovalForm>({
     resolver: zodResolver(approvalSchema),
-    defaultValues: { approverName: '', approverEmail: '', approvedScope: 'IMPLEMENTATION_SUPPORT' },
+    defaultValues: { approverName: '', approverEmail: '', approvedScope: 'FULL_STORE_ACCESS' },
   })
   const mutation = useMutation({
     mutationFn: (values: ApprovalForm) =>
@@ -41,7 +41,7 @@ export function MerchantApprovalPage() {
             <StatusChip status={mutation.data.status} />
             <Typography variant="h1">Partner access approved</Typography>
             <Typography color="text.secondary">
-              The partner can now see the scoped implementation summary for {mutation.data.shopDomain}.
+              The partner can now see the merchant-approved implementation workspace for {mutation.data.shopDomain}.
             </Typography>
             <Typography variant="caption" color="text.secondary">
               Approved at {formatDateTime(mutation.data.approvedAt)}

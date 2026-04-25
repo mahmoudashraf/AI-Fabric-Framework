@@ -72,6 +72,8 @@ public class PartnerEnablementService {
         "ESCALATION_CREATE",
         "ESCALATION_REPLY"
     );
+    private static final String MERCHANT_CONFIGURED_TIER = "MERCHANT_CONFIGURED";
+    private static final String FULL_STORE_ACCESS_SCOPE = "FULL_STORE_ACCESS";
 
     private final PartnerSupabaseAuthProperties authProperties;
     private final PartnerAccountRepository accountRepository;
@@ -219,8 +221,8 @@ public class PartnerEnablementService {
     public PartnerClientImplementationSummary createImplementation(PartnerClientImplementationRequest request) {
         PartnerContext context = requireProvisionedContext();
         Instant now = Instant.now();
-        List<String> requestedSurfaces = tierSafeSurfaces(request.requestedTier(), safeList(request.requestedSurfaces()));
         PartnerShopifyStoreReadModel store = requireEligibleInstalledStore(context.account().getId(), request.storeConnectionId());
+        List<String> requestedSurfaces = storeConfiguredSurfaces(store);
         PartnerClientImplementationRequestEntity entity = new PartnerClientImplementationRequestEntity();
         entity.setId(id("pci"));
         entity.setPartnerAccountId(context.account().getId());
@@ -230,7 +232,7 @@ public class PartnerEnablementService {
         entity.setStoreConnectionId(store.storeConnectionId());
         entity.setShopDomain(normalizeShopDomain(store.shopDomain()));
         entity.setVertical(trimToNull(request.vertical()));
-        entity.setRequestedTier(normalizeTier(request.requestedTier()));
+        entity.setRequestedTier(MERCHANT_CONFIGURED_TIER);
         entity.setRequestedSurfacesJson(writeJson(requestedSurfaces));
         entity.setKnownIntegrationsJson(writeJson(safeList(request.knownIntegrations())));
         entity.setNotes(trimToNull(request.notes()));
@@ -377,7 +379,7 @@ public class PartnerEnablementService {
         approval.setShopDomain(accessRequest.getShopDomain());
         approval.setApproverName(clean(request.approverName(), "approverName"));
         approval.setApproverEmail(trimToNull(request.approverEmail()));
-        approval.setApprovedScope(firstNonBlank(request.approvedScope(), "IMPLEMENTATION_SUPPORT"));
+        approval.setApprovedScope(firstNonBlank(request.approvedScope(), FULL_STORE_ACCESS_SCOPE));
         approval.setSourceFlow(sourceFlow);
         approval.setApprovedAt(now);
         approval.setDetailsJson(writeJson(Map.of(
@@ -596,7 +598,7 @@ public class PartnerEnablementService {
         accessRequest.setRequestedByMemberId(context.member().getId());
         accessRequest.setStoreConnectionId(implementation.getStoreConnectionId());
         accessRequest.setShopDomain(implementation.getShopDomain());
-        accessRequest.setRequestedScope("IMPLEMENTATION_SUPPORT");
+        accessRequest.setRequestedScope(FULL_STORE_ACCESS_SCOPE);
         accessRequest.setStatus("WAITING_ON_MERCHANT");
         accessRequest.setApprovalCode(approvalCode);
         accessRequest.setApprovalUrl(approvalUrl);
@@ -631,9 +633,9 @@ public class PartnerEnablementService {
             assignment.getId(),
             assignment.getShopDomain(),
             firstNonBlank(assignment.getMerchantName(), store.map(PartnerShopifyStoreReadModel::displayName).orElse(null), assignment.getShopDomain()),
-            "Starter-ready",
+            "Merchant configured",
             statusFor(readiness, widget, assignment.getStatus()),
-            List.of("ai-search", "product-insight", "product-faq", "comparison", "policy-strip", "contextual-pill", "read-only-chat"),
+            store.map(PartnerShopifyStoreReadModel::enabledSurfaces).orElse(List.of()),
             knowledgeSync,
             readiness,
             blockerFor(knowledgeSync, readiness, widget),
@@ -678,7 +680,8 @@ public class PartnerEnablementService {
             store.sourceReadinessStatus(),
             store.widgetStatus(),
             firstNonNull(store.lastWebhookAt(), store.lastSyncAt()),
-            store.enabledSourceCategories()
+            store.enabledSourceCategories(),
+            store.enabledSurfaces()
         );
     }
 
@@ -786,28 +789,15 @@ public class PartnerEnablementService {
         return List.of("IMPLEMENTATION_CREATE", "STORE_READ", "ESCALATION_CREATE", "ESCALATION_REPLY", "CATALOG_READ");
     }
 
-    private List<String> tierSafeSurfaces(String tier, List<String> requested) {
-        String normalized = normalizeTier(tier);
-        if ("FREE".equals(normalized)) {
-            return List.of("ai-search");
+    private List<String> storeConfiguredSurfaces(PartnerShopifyStoreReadModel store) {
+        if (store.enabledSurfaces() == null || store.enabledSurfaces().isEmpty()) {
+            return List.of();
         }
-        List<String> starter = List.of("ai-search", "product-insight", "product-faq", "comparison", "policy-strip", "contextual-pill", "read-only-chat");
-        if (requested == null || requested.isEmpty()) {
-            return starter;
-        }
-        return requested.stream()
-            .map(String::trim)
-            .filter(starter::contains)
+        return store.enabledSurfaces().stream()
+            .filter(StringUtils::hasText)
+            .map(value -> value.trim().toLowerCase(Locale.ROOT))
             .distinct()
             .toList();
-    }
-
-    private String normalizeTier(String value) {
-        String normalized = clean(value, "requestedTier").toUpperCase(Locale.ROOT).replace('-', '_');
-        if (!List.of("FREE", "STARTER", "ELITE").contains(normalized)) {
-            throw new IllegalArgumentException("requestedTier must be Free, Starter, or Elite.");
-        }
-        return normalized;
     }
 
     private String normalizeShopDomain(String value) {

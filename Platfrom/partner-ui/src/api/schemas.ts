@@ -70,6 +70,7 @@ export const partnerEligibleStoreSchema = z.object({
   widgetStatus: z.string(),
   lastActivityAt: nullableDateString,
   enabledSourceCategories: z.array(z.string()),
+  enabledSurfaces: z.array(z.string()),
 })
 
 export const partnerStoreAccessLinkSchema = z.object({

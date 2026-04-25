@@ -400,7 +400,7 @@ public class ShopifyBridgeMerchantStoreService {
             approverName,
             request == null ? null : request.approverEmail(),
             request == null || request.approvedScope() == null || request.approvedScope().isBlank()
-                ? "IMPLEMENTATION_SUPPORT"
+                ? "FULL_STORE_ACCESS"
                 : request.approvedScope().trim(),
             request == null ? null : request.decisionReason()
         );

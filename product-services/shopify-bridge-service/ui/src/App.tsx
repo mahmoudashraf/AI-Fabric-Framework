@@ -599,7 +599,7 @@ export default function App() {
     try {
       const summary = await approvePartnerAccessRequest(requestId, {
         approverName: session?.userId ? `Shopify admin ${session.userId}` : 'Shopify admin',
-        approvedScope: 'IMPLEMENTATION_SUPPORT',
+        approvedScope: 'FULL_STORE_ACCESS',
       })
       await refresh()
       setActionMessage(`Approved partner access for ${summary.shopDomain}.`)
@@ -617,7 +617,7 @@ export default function App() {
     try {
       const summary = await denyPartnerAccessRequest(requestId, {
         approverName: session?.userId ? `Shopify admin ${session.userId}` : 'Shopify admin',
-        approvedScope: 'IMPLEMENTATION_SUPPORT',
+        approvedScope: 'FULL_STORE_ACCESS',
         decisionReason: 'Merchant denied from Shopify admin.',
       })
       await refresh()
@@ -2107,14 +2107,14 @@ export default function App() {
                                     {request.partnerName}
                                   </Text>
                                   <Text as="p" variant="bodySm" tone="subdued">
-                                    {request.clientName} · {request.requestedTier ?? 'Tier not set'}
+                                    {request.clientName} · Merchant controls tier
                                   </Text>
                                 </BlockStack>
                                 <Badge tone={badgeTone(request.status)}>{request.status}</Badge>
                               </InlineStack>
                               <List type="bullet">
                                 <List.Item>Requested scope: {request.requestedScope}</List.Item>
-                                <List.Item>Surfaces: {request.requestedSurfaces.join(' · ') || 'None requested'}</List.Item>
+                                <List.Item>Store configured surfaces: {request.requestedSurfaces.join(' · ') || 'No configured surfaces'}</List.Item>
                                 <List.Item>Requested: {formatTimestamp(request.createdAt)}</List.Item>
                                 <List.Item>Expires: {formatTimestamp(request.expiresAt)}</List.Item>
                               </List>

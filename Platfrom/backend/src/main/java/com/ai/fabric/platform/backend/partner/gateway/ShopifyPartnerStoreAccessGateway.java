@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.partner.gateway;
 
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightSupport;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -14,10 +15,22 @@ import java.util.Optional;
 @Component
 public class ShopifyPartnerStoreAccessGateway implements PartnerStoreAccessGateway {
 
-    private final ShopifyStoreConnectionRepository storeConnectionRepository;
+    private static final List<String> DEFAULT_STORE_ENABLED_SURFACES = List.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison"
+    );
 
-    public ShopifyPartnerStoreAccessGateway(ShopifyStoreConnectionRepository storeConnectionRepository) {
+    private final ShopifyStoreConnectionRepository storeConnectionRepository;
+    private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
+
+    public ShopifyPartnerStoreAccessGateway(ShopifyStoreConnectionRepository storeConnectionRepository,
+                                            ShopifyStoreSourcePreflightSupport sourcePreflightSupport) {
         this.storeConnectionRepository = storeConnectionRepository;
+        this.sourcePreflightSupport = sourcePreflightSupport;
     }
 
     @Override
@@ -78,8 +91,20 @@ public class ShopifyPartnerStoreAccessGateway implements PartnerStoreAccessGatew
             entity.getWidgetStatus(),
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),
-            categories
+            categories,
+            enabledSurfaces(entity)
         );
+    }
+
+    private List<String> enabledSurfaces(ShopifyStoreConnectionEntity entity) {
+        var widget = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
+        if (widget != null
+            && widget.settings() != null
+            && widget.settings().enabledSurfaces() != null
+            && !widget.settings().enabledSurfaces().isEmpty()) {
+            return widget.settings().enabledSurfaces();
+        }
+        return DEFAULT_STORE_ENABLED_SURFACES;
     }
 
     private boolean containsIgnoreCase(String value, String query) {

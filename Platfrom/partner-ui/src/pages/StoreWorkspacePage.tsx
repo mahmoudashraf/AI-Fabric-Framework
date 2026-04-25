@@ -122,7 +122,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 function OverviewTab({ surfaces }: { surfaces: string[] }) {
   return (
     <Paper sx={{ p: 2 }}>
-      <Typography variant="h3">Enabled Starter surfaces</Typography>
+      <Typography variant="h3">Store configured surfaces</Typography>
       <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
         {surfaces.map((surface) => (
           <Box key={surface} sx={{ px: 1, py: 0.5, border: 1, borderColor: 'divider', borderRadius: 2, fontSize: '0.8125rem' }}>
@@ -135,7 +135,7 @@ function OverviewTab({ surfaces }: { surfaces: string[] }) {
 }
 
 function SetupTab() {
-  return <Checklist title="Setup checklist" items={['Confirm Companion install', 'Enable app embed', 'Run Knowledge Sync', 'Place read-only Starter surfaces', 'Capture storefront screenshots']} />
+  return <Checklist title="Setup checklist" items={['Confirm Companion install', 'Enable app embed', 'Run Knowledge Sync', 'Confirm store configured surfaces', 'Capture storefront screenshots']} />
 }
 
 function VerificationTab() {

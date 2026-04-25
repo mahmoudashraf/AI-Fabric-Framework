@@ -7,8 +7,6 @@ export interface ClientImplementationPayload {
   contactEmail?: string
   storeConnectionId: string
   vertical?: string
-  requestedTier: string
-  requestedSurfaces: string[]
   knownIntegrations: string[]
   notes?: string
 }

@@ -2128,7 +2128,7 @@ Partner side:
 
 1. Partner opens **New implementation**.
 2. Partner searches/selects from eligible installed stores instead of typing a shop domain.
-3. Partner enters implementation details: client context, requested tier, requested surfaces, known integrations, notes.
+3. Partner enters implementation details: client context, known integrations, and notes. Partner does not choose tier or surfaces.
 4. Platform creates a client implementation request linked to the real `storeConnectionId`.
 5. Request status becomes `WAITING_ON_MERCHANT`.
 
@@ -2136,7 +2136,7 @@ Merchant side:
 
 1. Merchant opens the connected merchant/admin UI.
 2. Merchant sees pending partner access requests for that store.
-3. Merchant reviews partner name, requested tier, requested surfaces, scope, notes, and expiry.
+3. Merchant reviews partner name, full-access scope, store-configured surfaces, known integrations, notes, and expiry.
 4. Merchant approves or denies.
 5. Platform records the decision and updates partner-visible request status.
 
@@ -2156,7 +2156,7 @@ The partner dropdown must not expose every installed store by default. It should
 - store is not already assigned to the same partner account
 - no duplicate pending request exists for the same partner and store
 - merchant setting `partnerAccessRequestsEnabled=true`, or an operator has explicitly marked the store requestable
-- returned fields are partner-safe: display name, `.myshopify.com` domain, readiness/connection status, plan/tier eligibility, and no secrets/runtime internals
+- returned fields are partner-safe: display name, `.myshopify.com` domain, readiness/connection status, store-configured surfaces, and no secrets/runtime internals
 
 Default posture should be private: if merchant/operator requestability is not configured, the store does not appear in partner search.
 
@@ -2180,6 +2180,13 @@ GET /api/partners/client-implementations/{requestId}
 
 `POST /api/partners/client-implementations` should accept `storeConnectionId`, not a free-text authoritative `shopDomain`. Backend derives the shop domain from `ShopifyStoreConnection`.
 
+Tier and surface authority:
+
+- Partner input must not decide implementation tier.
+- Partner input must not submit requested surfaces.
+- Platform derives request surfaces from the installed store's widget/store configuration.
+- The access request uses full configured store access; the merchant decides tier/billing posture inside the connected Shopify/admin experience.
+
 Merchant/admin APIs:
 
 ```http
@@ -2202,8 +2209,8 @@ Update `Platfrom/partner-ui`:
 
 - Replace the **Shop domain** text field in `NewImplementationPage` with an installed-store autocomplete/search dropdown.
 - Search calls `GET /api/partners/eligible-stores`.
-- On selection, show a compact store summary: store name, shop domain, connection/readiness status, and requestability status.
-- Submit `storeConnectionId` with requested tier/surfaces/notes.
+- On selection, show a compact store summary: store name, shop domain, connection/readiness status, requestability status, and store-configured surfaces.
+- Submit `storeConnectionId`, known integrations, and notes. Do not submit partner-selected tier or requested surfaces.
 - After creation, route to the implementation detail page with status `WAITING_ON_MERCHANT`.
 - Detail page should show merchant decision status and no longer position a public approval link as the default CTA.
 
@@ -2213,7 +2220,8 @@ Add a merchant-facing request review surface in the connected store admin experi
 
 - pending partner access requests
 - partner workspace/name
-- requested tier and surfaces
+- full configured store access scope
+- store-configured surfaces
 - requested scope, known integrations, and notes
 - approve button
 - deny button with optional reason
@@ -2401,3 +2409,29 @@ Remaining full-release-gate status:
 
 - `GET /api/verification-suites/release-gate` still reports `FAILED` from latest full run `vsr-17744b05`, which started on 2026-04-24 and failed before Partner Enablement on `Qdrant temporary cluster creation -> HTTP 429`.
 - To make the full release gate `READY`, clear the Qdrant provider-rate blocker, refresh/store a non-expired `PARTNER_SUPABASE_JWT`, dispatch `full-platform-release-readiness`, and confirm `/api/verification-suites/release-gate` reports `READY` after the full suite passes.
+
+## Merchant-Configured Access Correction - 2026-04-25
+
+### Completed Changes
+
+- Removed partner-selected tier and requested-surface authority from new implementation requests.
+- New implementation requests now use `FULL_STORE_ACCESS` as the requested scope.
+- Platform stores `requestedTier=MERCHANT_CONFIGURED` for partner implementation requests; the merchant/store remains the authority for tier and billing posture.
+- Platform derives request surfaces from the installed Shopify store's widget configuration instead of fixed Partner UI checkboxes.
+- Eligible store responses now include store-configured `enabledSurfaces` for Partner UI display.
+- Partner UI no longer renders requested-tier or requested-surface controls on **New implementation**.
+- Partner implementation detail, assigned-store workspace, and merchant/admin review copy now refer to store-configured surfaces and merchant-controlled tier.
+- Shopify Bridge merchant approval defaults to `FULL_STORE_ACCESS`.
+
+### Verification Proof
+
+Executed after this correction:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test`
+- `npm --prefix Platfrom/partner-ui run build`
+- `npm --prefix Platfrom/partner-ui run smoke`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=PlatformShopifyStoreClientTest,ShopifyMerchantControllerTest test`
+- `npm --prefix product-services/shopify-bridge-service/ui run build`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q test`
+- `mvn -f Platfrom/backend/pom.xml -q test`
+- `git diff --check`

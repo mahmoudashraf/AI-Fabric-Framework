@@ -4,10 +4,7 @@ import {
   Autocomplete,
   Box,
   Button,
-  Checkbox,
-  FormControlLabel,
-  FormGroup,
-  MenuItem,
+  Chip,
   Paper,
   Stack,
   TextField,
@@ -24,23 +21,11 @@ import { AccessGuard } from '../auth/AccessGuard'
 import { PageHeader } from '../components/PageHeader'
 import { useState } from 'react'
 
-const starterSurfaces = [
-  { id: 'ai-search', label: 'AI search' },
-  { id: 'product-insight', label: 'Product insight block' },
-  { id: 'product-faq', label: 'Product FAQ' },
-  { id: 'comparison', label: 'Comparison' },
-  { id: 'policy-strip', label: 'Policy strip' },
-  { id: 'contextual-pill', label: 'Contextual pill' },
-  { id: 'read-only-chat', label: 'Read-only chat' },
-]
-
 const formSchema = z.object({
   clientName: z.string().min(2, 'Client name is required.'),
   contactEmail: z.string().email('Enter a valid email.').optional().or(z.literal('')),
   storeConnectionId: z.string().min(1, 'Choose an installed Shopify store.'),
   vertical: z.string().optional(),
-  requestedTier: z.enum(['FREE', 'STARTER', 'ELITE']),
-  requestedSurfaces: z.array(z.string()).min(1),
   knownIntegrationsText: z.string().optional(),
   notes: z.string().optional(),
 })
@@ -68,13 +53,10 @@ function NewImplementationForm() {
       contactEmail: '',
       storeConnectionId: '',
       vertical: '',
-      requestedTier: 'STARTER',
-      requestedSurfaces: starterSurfaces.map((item) => item.id),
       knownIntegrationsText: '',
       notes: '',
     },
   })
-  const tier = form.watch('requestedTier')
   const eligibleStoresQuery = useQuery({
     queryKey: ['eligible-stores', storeQuery],
     queryFn: () => fetchEligibleStores(api, storeQuery),
@@ -87,8 +69,6 @@ function NewImplementationForm() {
         contactEmail: values.contactEmail || undefined,
         storeConnectionId: values.storeConnectionId,
         vertical: values.vertical || undefined,
-        requestedTier: values.requestedTier,
-        requestedSurfaces: values.requestedTier === 'FREE' ? ['ai-search'] : values.requestedSurfaces,
         knownIntegrations: values.knownIntegrationsText?.split(',').map((item) => item.trim()).filter(Boolean) ?? [],
         notes: values.notes || undefined,
       }),
@@ -99,7 +79,7 @@ function NewImplementationForm() {
     <>
       <PageHeader
         title="New implementation"
-        subtitle="Create a client implementation request for an installed Shopify store. The merchant approves access inside Shopify admin."
+        subtitle="Create a full-access implementation request for an installed Shopify store. The merchant approves access inside Shopify admin."
         breadcrumbs={[{ label: 'Dashboard', to: '/' }, { label: 'New implementation' }]}
       />
       <Paper sx={{ p: 3, maxWidth: 860 }}>
@@ -146,45 +126,18 @@ function NewImplementationForm() {
               )}
             />
             <TextField label="Vertical" {...form.register('vertical')} placeholder="Fashion, electronics, health/beauty" />
-            <TextField label="Requested tier" select {...form.register('requestedTier')}>
-              <MenuItem value="FREE">Free</MenuItem>
-              <MenuItem value="STARTER">Starter</MenuItem>
-              <MenuItem value="ELITE">Elite request</MenuItem>
-            </TextField>
             <TextField label="Known integrations" {...form.register('knownIntegrationsText')} placeholder="Reviews app, page builder" />
           </Box>
-          <Box>
-            <Typography variant="h3">Requested surfaces</Typography>
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 2 }}>
+            <Typography variant="h3">Store configured access</Typography>
             <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-              Free requests are limited to AI search. Starter requests stay read-only and exclude order lookup.
+              The request uses the merchant store configuration. Tier changes stay with the merchant in Shopify.
             </Typography>
-            <Controller
-              control={form.control}
-              name="requestedSurfaces"
-              render={({ field }) => (
-                <FormGroup sx={{ mt: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
-                  {starterSurfaces.map((surface) => (
-                    <FormControlLabel
-                      key={surface.id}
-                      control={
-                        <Checkbox
-                          checked={tier === 'FREE' ? surface.id === 'ai-search' : field.value.includes(surface.id)}
-                          disabled={tier === 'FREE'}
-                          onChange={(event) => {
-                            if (event.target.checked) {
-                              field.onChange([...new Set([...field.value, surface.id])])
-                            } else {
-                              field.onChange(field.value.filter((value) => value !== surface.id))
-                            }
-                          }}
-                        />
-                      }
-                      label={surface.label}
-                    />
-                  ))}
-                </FormGroup>
-              )}
-            />
+            <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1.25 }}>
+              {(selectedStore?.enabledSurfaces?.length ? selectedStore.enabledSurfaces : ['Select a store']).map((surface) => (
+                <Chip key={surface} label={surface} size="small" />
+              ))}
+            </Stack>
           </Box>
           <TextField label="Notes" minRows={4} multiline {...form.register('notes')} />
           <Stack direction="row" justifyContent="flex-end" spacing={1}>

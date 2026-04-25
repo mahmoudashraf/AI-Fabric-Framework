@@ -11,7 +11,7 @@ public record PartnerClientImplementationRequest(
     @Email @Size(max = 255) String contactEmail,
     @NotBlank @Size(max = 64) String storeConnectionId,
     @Size(max = 64) String vertical,
-    @NotBlank @Size(max = 64) String requestedTier,
+    @Size(max = 64) String requestedTier,
     List<String> requestedSurfaces,
     List<String> knownIntegrations,
     @Size(max = 4000) String notes
