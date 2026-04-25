@@ -5,12 +5,14 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Divider,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   LinearProgress,
   MenuItem,
   Paper,
@@ -33,7 +35,7 @@ import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
@@ -41,7 +43,8 @@ import { createStoreEvidenceBundle, listStoreEvidenceBundles } from '../api/evid
 import { createEscalation, listEscalations } from '../api/escalations'
 import { listClientImplementations } from '../api/implementations'
 import { createStoreNote, listStoreNotes } from '../api/notes'
-import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
+import { getProductControls, updateProductSourceSettings, updateProductSupportProfile, updateProductWidgetSettings } from '../api/productControls'
+import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerProductControl, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
 import { getPartnerStore } from '../api/stores'
 import { listTemplateApplications } from '../api/templates'
 import { completeVerificationStep, getStoreVerificationPack, listStoreVerificationRuns, runStoreVerification } from '../api/verification'
@@ -64,6 +67,26 @@ const escalationFormSchema = z.object({
 })
 
 type EscalationForm = z.infer<typeof escalationFormSchema>
+
+const STOREFRONT_SURFACES = [
+  'ai-search',
+  'contextual-pill',
+  'product-insight',
+  'policy-strip',
+  'product-faq',
+  'comparison',
+]
+
+const CONVERSATION_MODES = ['navigator', 'navigator_deep', 'cart_assistant', 'executor']
+
+const SOURCE_CATEGORIES = [
+  { key: 'productsEnabled', label: 'Products' },
+  { key: 'collectionsEnabled', label: 'Collections' },
+  { key: 'pagesEnabled', label: 'Pages' },
+  { key: 'policiesEnabled', label: 'Policies' },
+  { key: 'articlesEnabled', label: 'Articles' },
+  { key: 'metaobjectsEnabled', label: 'Metaobjects' },
+] as const
 
 export function StoreWorkspacePage() {
   const { storeId = '' } = useParams()
@@ -129,6 +152,7 @@ export function StoreWorkspacePage() {
       <Paper sx={{ mb: 2 }}>
         <Tabs value={tab} onChange={(_event, value) => setTab(value)} variant="scrollable" scrollButtons="auto">
           <Tab label="Overview" />
+          <Tab label="Product controls" />
           <Tab label="Setup checklist" />
           <Tab label="Verification" />
           <Tab label="Evidence" />
@@ -146,10 +170,11 @@ export function StoreWorkspacePage() {
           latestEvidence={latestEvidence}
         />
       ) : null}
-      {tab === 1 ? <SetupTab store={store} latestRun={latestRun} templates={appliedTemplates} /> : null}
-      {tab === 2 ? <VerificationTab storeId={store.id} /> : null}
-      {tab === 3 ? <EvidenceTab storeId={store.id} /> : null}
-      {tab === 4 ? (
+      {tab === 1 ? <ProductControlsTab storeId={store.id} /> : null}
+      {tab === 2 ? <SetupTab store={store} latestRun={latestRun} templates={appliedTemplates} /> : null}
+      {tab === 3 ? <VerificationTab storeId={store.id} /> : null}
+      {tab === 4 ? <EvidenceTab storeId={store.id} /> : null}
+      {tab === 5 ? (
         <Paper sx={{ p: 2 }}>
           <Typography variant="h3">Support center</Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
@@ -158,7 +183,7 @@ export function StoreWorkspacePage() {
           <Button sx={{ mt: 2 }} onClick={() => navigate('/support')}>Open support</Button>
         </Paper>
       ) : null}
-      {tab === 5 ? <NotesTab storeId={store.id} /> : null}
+      {tab === 6 ? <NotesTab storeId={store.id} /> : null}
       <EscalationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} storeId={store.id} />
     </>
   )
@@ -230,6 +255,28 @@ function statusLabel(status: string) {
     default:
       return undefined
   }
+}
+
+function toggleValue(values: string[], value: string) {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)))
+}
+
+function trimNullable(value: string) {
+  const trimmed = value.trim()
+  return trimmed.length === 0 ? null : trimmed
+}
+
+function compactStringRecord(value: Record<string, string>) {
+  return Object.entries(value).reduce<Record<string, string>>((result, [key, current]) => {
+    if (key.trim().length > 0 && current.trim().length > 0) {
+      result[key.trim()] = current.trim()
+    }
+    return result
+  }, {})
 }
 
 function StoreCommandCenter({
@@ -364,6 +411,235 @@ function OverviewTab({
             {escalations.length === 0 ? <Typography color="text.secondary">No support escalations are open for this store.</Typography> : null}
           </Stack>
         </Paper>
+      </Box>
+    </Stack>
+  )
+}
+
+function ProductControlsTab({ storeId }: { storeId: string }) {
+  const { api } = useSupabaseAuth()
+  const queryClient = useQueryClient()
+  const controlsQuery = useQuery({ queryKey: ['product-controls', storeId], queryFn: () => getProductControls(api, storeId) })
+  const [launcherLabel, setLauncherLabel] = useState('')
+  const [welcomeMessage, setWelcomeMessage] = useState('')
+  const [shellModeProfile, setShellModeProfile] = useState('SHOPIFY_COMPANION')
+  const [enabledSurfaces, setEnabledSurfaces] = useState<string[]>([])
+  const [defaultConversationMode, setDefaultConversationMode] = useState('navigator')
+  const [allowedConversationModes, setAllowedConversationModes] = useState<string[]>(['navigator'])
+  const [pageModeMappings, setPageModeMappings] = useState<Record<string, string>>({})
+  const [sourceSettings, setSourceSettings] = useState<Record<(typeof SOURCE_CATEGORIES)[number]['key'], boolean>>({
+    productsEnabled: true,
+    collectionsEnabled: true,
+    pagesEnabled: true,
+    policiesEnabled: true,
+    articlesEnabled: true,
+    metaobjectsEnabled: true,
+  })
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactUrl, setContactUrl] = useState('')
+  const [helpCenterUrl, setHelpCenterUrl] = useState('')
+  const [orderLookupPageUrl, setOrderLookupPageUrl] = useState('')
+  const [supportPolicyNote, setSupportPolicyNote] = useState('')
+
+  useEffect(() => {
+    if (!controlsQuery.data) {
+      return
+    }
+    const controls = controlsQuery.data
+    setLauncherLabel(controls.widgetSettings.launcherLabel)
+    setWelcomeMessage(controls.widgetSettings.welcomeMessage)
+    setShellModeProfile(controls.widgetSettings.shellModeProfile)
+    setEnabledSurfaces(controls.widgetSettings.enabledSurfaces)
+    setDefaultConversationMode(controls.widgetSettings.defaultConversationMode)
+    setAllowedConversationModes(controls.widgetSettings.allowedConversationModes)
+    setPageModeMappings(controls.widgetSettings.pageModeMappings)
+    setSourceSettings({
+      productsEnabled: controls.sourceSettings.productsEnabled,
+      collectionsEnabled: controls.sourceSettings.collectionsEnabled,
+      pagesEnabled: controls.sourceSettings.pagesEnabled,
+      policiesEnabled: controls.sourceSettings.policiesEnabled,
+      articlesEnabled: controls.sourceSettings.articlesEnabled,
+      metaobjectsEnabled: controls.sourceSettings.metaobjectsEnabled,
+    })
+    setContactEmail(controls.supportProfile.contactEmail ?? '')
+    setContactUrl(controls.supportProfile.contactUrl ?? '')
+    setHelpCenterUrl(controls.supportProfile.helpCenterUrl ?? '')
+    setOrderLookupPageUrl(controls.supportProfile.orderLookupPageUrl ?? '')
+    setSupportPolicyNote(controls.supportProfile.supportPolicyNote ?? '')
+  }, [controlsQuery.data])
+
+  const applyProductControlUpdate = async (updated: PartnerProductControl) => {
+    queryClient.setQueryData(['product-controls', storeId], updated)
+    await queryClient.invalidateQueries({ queryKey: ['store', storeId] })
+    await queryClient.invalidateQueries({ queryKey: ['activity'] })
+  }
+
+  const widgetMutation = useMutation({
+    mutationFn: () => updateProductWidgetSettings(api, storeId, {
+      launcherLabel,
+      welcomeMessage,
+      shellModeProfile,
+      enabledSurfaces,
+      defaultConversationMode,
+      allowedConversationModes: uniqueStrings([...allowedConversationModes, defaultConversationMode]),
+      pageModeMappings: compactStringRecord(pageModeMappings),
+    }),
+    onSuccess: applyProductControlUpdate,
+  })
+  const sourceMutation = useMutation({
+    mutationFn: () => updateProductSourceSettings(api, storeId, sourceSettings),
+    onSuccess: applyProductControlUpdate,
+  })
+  const supportMutation = useMutation({
+    mutationFn: () => updateProductSupportProfile(api, storeId, {
+      contactEmail: trimNullable(contactEmail),
+      contactUrl: trimNullable(contactUrl),
+      helpCenterUrl: trimNullable(helpCenterUrl),
+      orderLookupPageUrl: trimNullable(orderLookupPageUrl),
+      supportPolicyNote: trimNullable(supportPolicyNote),
+    }),
+    onSuccess: applyProductControlUpdate,
+  })
+
+  if (controlsQuery.isLoading) {
+    return <LinearProgress />
+  }
+  if (controlsQuery.isError || !controlsQuery.data) {
+    return <Alert severity="error">{controlsQuery.error instanceof Error ? controlsQuery.error.message : 'Product controls could not be loaded.'}</Alert>
+  }
+
+  const controls = controlsQuery.data
+  const canChangeWidget = controls.capabilities.includes('STOREFRONT_SURFACE_CONTROL')
+  const canChangeSources = controls.capabilities.includes('KNOWLEDGE_SOURCE_CONTROL')
+  const canChangeSupport = controls.capabilities.includes('SUPPORT_MANAGE')
+  const anySourceEnabled = Object.values(sourceSettings).some(Boolean)
+  const pageKeys = ['landing', 'product', 'collection', 'search', 'cart', 'account', 'content']
+
+  return (
+    <Stack spacing={2}>
+      <Paper sx={{ p: 2 }}>
+        <SectionHeading icon={<StorefrontOutlinedIcon />} title="Product control state" />
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 1.5, mt: 2 }}>
+          <InfoTile label="Install" value={titleize(controls.installStatus)} />
+          <InfoTile label="Widget" value={titleize(controls.widgetStatus)} />
+          <InfoTile label="Knowledge" value={titleize(controls.knowledgeSyncStatus)} />
+          <InfoTile label="Readiness" value={titleize(controls.readinessStatus)} />
+          <InfoTile label="Updated" value={formatDateTime(controls.updatedAt)} />
+        </Box>
+        <ChipRow values={controls.capabilities} empty="No product control capabilities are active." />
+      </Paper>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1.2fr 0.8fr' }, gap: 2 }}>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<StorefrontOutlinedIcon />} title="Storefront surfaces" />
+          {widgetMutation.isError ? <Alert sx={{ mt: 2 }} severity="error">{widgetMutation.error instanceof Error ? widgetMutation.error.message : 'Widget settings update failed.'}</Alert> : null}
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            <TextField label="Launcher label" value={launcherLabel} onChange={(event) => setLauncherLabel(event.target.value)} disabled={!canChangeWidget || widgetMutation.isPending} />
+            <TextField label="Welcome message" minRows={3} multiline value={welcomeMessage} onChange={(event) => setWelcomeMessage(event.target.value)} disabled={!canChangeWidget || widgetMutation.isPending} />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.5 }}>
+              <TextField select label="Shell profile" value={shellModeProfile} onChange={(event) => setShellModeProfile(event.target.value)} disabled={!canChangeWidget || widgetMutation.isPending}>
+                {['SHOPIFY_COMPANION', 'GUIDED_COMMERCE', 'GUIDED_SUPPORT'].map((profile) => <MenuItem key={profile} value={profile}>{titleize(profile)}</MenuItem>)}
+              </TextField>
+              <TextField select label="Default mode" value={defaultConversationMode} onChange={(event) => setDefaultConversationMode(event.target.value)} disabled={!canChangeWidget || widgetMutation.isPending}>
+                {CONVERSATION_MODES.map((mode) => <MenuItem key={mode} value={mode}>{titleize(mode)}</MenuItem>)}
+              </TextField>
+            </Box>
+            <Divider />
+            <Typography variant="caption" color="text.secondary">Requested surfaces</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 0.5 }}>
+              {STOREFRONT_SURFACES.map((surface) => (
+                <FormControlLabel
+                  key={surface}
+                  control={<Checkbox checked={enabledSurfaces.includes(surface)} onChange={() => setEnabledSurfaces(toggleValue(enabledSurfaces, surface))} />}
+                  label={titleize(surface)}
+                  disabled={!canChangeWidget || widgetMutation.isPending}
+                />
+              ))}
+            </Box>
+            <Typography variant="caption" color="text.secondary">Conversation modes</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 0.5 }}>
+              {CONVERSATION_MODES.map((mode) => (
+                <FormControlLabel
+                  key={mode}
+                  control={<Checkbox checked={allowedConversationModes.includes(mode) || defaultConversationMode === mode} onChange={() => setAllowedConversationModes(toggleValue(allowedConversationModes, mode))} />}
+                  label={titleize(mode)}
+                  disabled={!canChangeWidget || widgetMutation.isPending || defaultConversationMode === mode}
+                />
+              ))}
+            </Box>
+            <Typography variant="caption" color="text.secondary">Page mode mappings</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
+              {pageKeys.map((key) => (
+                <TextField
+                  key={key}
+                  select
+                  label={titleize(key)}
+                  value={pageModeMappings[key] ?? ''}
+                  onChange={(event) => setPageModeMappings({ ...pageModeMappings, [key]: event.target.value })}
+                  disabled={!canChangeWidget || widgetMutation.isPending}
+                >
+                  <MenuItem value="">Default</MenuItem>
+                  {CONVERSATION_MODES.map((mode) => <MenuItem key={mode} value={mode}>{titleize(mode)}</MenuItem>)}
+                </TextField>
+              ))}
+            </Box>
+            <Button
+              variant="contained"
+              sx={{ alignSelf: 'flex-end' }}
+              onClick={() => widgetMutation.mutate()}
+              disabled={!canChangeWidget || widgetMutation.isPending || enabledSurfaces.length === 0 || launcherLabel.trim().length === 0 || welcomeMessage.trim().length === 0}
+            >
+              Save storefront controls
+            </Button>
+          </Stack>
+        </Paper>
+
+        <Stack spacing={2}>
+          <Paper sx={{ p: 2 }}>
+            <SectionHeading icon={<SyncOutlinedIcon />} title="Knowledge sources" />
+            {sourceMutation.isError ? <Alert sx={{ mt: 2 }} severity="error">{sourceMutation.error instanceof Error ? sourceMutation.error.message : 'Source settings update failed.'}</Alert> : null}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5, mt: 2 }}>
+              {SOURCE_CATEGORIES.map((item) => (
+                <FormControlLabel
+                  key={item.key}
+                  control={<Checkbox checked={sourceSettings[item.key]} onChange={() => setSourceSettings({ ...sourceSettings, [item.key]: !sourceSettings[item.key] })} />}
+                  label={item.label}
+                  disabled={!canChangeSources || sourceMutation.isPending}
+                />
+              ))}
+            </Box>
+            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
+              <Chip size="small" variant="outlined" label={`Preflight ${formatDateTime(controls.sourceSettings.lastSourcePreflightAt)}`} />
+              <Chip size="small" variant="outlined" label={`Sync ${formatDateTime(controls.sourceSettings.lastSyncAt)}`} />
+            </Stack>
+            <Button
+              variant="contained"
+              sx={{ mt: 2, float: 'right' }}
+              onClick={() => sourceMutation.mutate()}
+              disabled={!canChangeSources || sourceMutation.isPending || !anySourceEnabled}
+            >
+              Save source controls
+            </Button>
+          </Paper>
+
+          <Paper sx={{ p: 2 }}>
+            <SectionHeading icon={<ReportProblemOutlinedIcon />} title="Merchant handoff" />
+            {supportMutation.isError ? <Alert sx={{ mt: 2 }} severity="error">{supportMutation.error instanceof Error ? supportMutation.error.message : 'Support profile update failed.'}</Alert> : null}
+            <Stack spacing={1.5} sx={{ mt: 2 }}>
+              <TextField label="Contact email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} disabled={!canChangeSupport || supportMutation.isPending} />
+              <TextField label="Contact URL" value={contactUrl} onChange={(event) => setContactUrl(event.target.value)} disabled={!canChangeSupport || supportMutation.isPending} />
+              <TextField label="Help center URL" value={helpCenterUrl} onChange={(event) => setHelpCenterUrl(event.target.value)} disabled={!canChangeSupport || supportMutation.isPending} />
+              <TextField label="Order lookup page" value={orderLookupPageUrl} onChange={(event) => setOrderLookupPageUrl(event.target.value)} disabled={!canChangeSupport || supportMutation.isPending} />
+              <TextField label="Policy note" minRows={3} multiline value={supportPolicyNote} onChange={(event) => setSupportPolicyNote(event.target.value)} disabled={!canChangeSupport || supportMutation.isPending} />
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                <StatusChip status={controls.supportProfile.merchantHandoffConfigured ? 'READY' : 'NEEDS_SETUP'} label={controls.supportProfile.merchantHandoffConfigured ? 'Handoff ready' : 'Needs handoff'} />
+                <Button variant="contained" onClick={() => supportMutation.mutate()} disabled={!canChangeSupport || supportMutation.isPending}>
+                  Save handoff
+                </Button>
+              </Stack>
+            </Stack>
+          </Paper>
+        </Stack>
       </Box>
     </Stack>
   )

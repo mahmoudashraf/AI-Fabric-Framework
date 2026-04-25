@@ -615,6 +615,116 @@ PY
 )"
   echo "PASS: selected active partner store is workflow-ready (${workflow_shop_domain})"
 
+  product_controls_body="${TMP_DIR}/product-controls.json"
+  product_controls_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/product-controls" "${product_controls_body}")"
+  cp "${product_controls_body}" "${TMP_DIR}/last-body"
+  assert_status "${product_controls_status}" "200" "partner product controls reachable"
+  product_support_restore_payload="${TMP_DIR}/product-support-restore.json"
+  product_support_update_payload="${TMP_DIR}/product-support-update.json"
+  python3 - <<'PY' "${product_controls_body}" "${workflow_store_id}" "${workflow_shop_domain}" "${RUN_TAG}" "${product_support_restore_payload}" "${product_support_update_payload}"
+import json
+import pathlib
+import sys
+
+controls = json.loads(pathlib.Path(sys.argv[1]).read_text())
+store_id = sys.argv[2]
+shop = sys.argv[3].lower()
+run_tag = sys.argv[4]
+restore_path = pathlib.Path(sys.argv[5])
+update_path = pathlib.Path(sys.argv[6])
+assert controls["storeId"] == store_id, controls
+assert str(controls.get("shopDomain") or "").lower() == shop, controls
+assert controls["assignmentStatus"] == "ACTIVE", controls
+assert controls["installStatus"] == "INSTALLED", controls
+assert "PRODUCT_CONFIG_READ" in (controls.get("capabilities") or []), controls
+assert "STOREFRONT_SURFACE_CONTROL" in (controls.get("capabilities") or []), controls
+assert "KNOWLEDGE_SOURCE_CONTROL" in (controls.get("capabilities") or []), controls
+assert "SUPPORT_MANAGE" in (controls.get("capabilities") or []), controls
+assert "ai-search" in (controls.get("enabledSurfaces") or []), controls
+assert controls.get("sourceSettings", {}).get("productsEnabled") is True, controls
+raw = json.dumps(controls).lower()
+for forbidden in ("secret", "token", "password", "credential", "runtimebaseurl", "deploymentstatus"):
+    assert forbidden not in raw, controls
+support = controls.get("supportProfile") or {}
+restore = {
+    "contactEmail": support.get("contactEmail"),
+    "contactUrl": support.get("contactUrl"),
+    "helpCenterUrl": support.get("helpCenterUrl"),
+    "orderLookupPageUrl": support.get("orderLookupPageUrl"),
+    "supportPolicyNote": support.get("supportPolicyNote"),
+}
+update = dict(restore)
+update["contactEmail"] = update.get("contactEmail") or "release-gate@loom.test"
+update["contactUrl"] = update.get("contactUrl") or "https://loom.test/release-gate"
+update["helpCenterUrl"] = update.get("helpCenterUrl") or "https://loom.test/help"
+update["supportPolicyNote"] = f"Release gate partner product-control proof {run_tag}."
+restore_path.write_text(json.dumps(restore), encoding="utf-8")
+update_path.write_text(json.dumps(update), encoding="utf-8")
+print("PASS: partner product controls are scoped and secret-safe")
+PY
+
+  product_support_update_body="${TMP_DIR}/product-support-update-response.json"
+  product_support_update_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/product-controls/support-profile" "${product_support_update_body}" \
+    -H "Content-Type: application/json" \
+    --data "@${product_support_update_payload}")"
+  cp "${product_support_update_body}" "${TMP_DIR}/last-body"
+  assert_status "${product_support_update_status}" "200" "partner product support profile update persisted"
+  python3 - <<'PY' "${product_support_update_body}" "${RUN_TAG}"
+import json
+import pathlib
+import sys
+
+controls = json.loads(pathlib.Path(sys.argv[1]).read_text())
+profile = controls.get("supportProfile") or {}
+assert profile.get("merchantHandoffConfigured") is True, controls
+assert profile.get("supportPolicyNote") == f"Release gate partner product-control proof {sys.argv[2]}.", profile
+print("PASS: partner product support profile write returned canonical state")
+PY
+
+  if [[ "${STRICT}" == "true" ]]; then
+    encoded_product_shop="$(urlencode "${workflow_shop_domain}")"
+    product_admin_support_body="${TMP_DIR}/product-admin-support-profile.json"
+    product_admin_support_status="$(platform_request GET "${BASE_URL}/api/shopify/stores/${encoded_product_shop}/support-profile" "${product_admin_support_body}")"
+    cp "${product_admin_support_body}" "${TMP_DIR}/last-body"
+    assert_status "${product_admin_support_status}" "200" "platform support profile sees partner product-control write"
+    python3 - <<'PY' "${product_admin_support_body}" "${RUN_TAG}"
+import json
+import pathlib
+import sys
+
+profile = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert profile.get("supportPolicyNote") == f"Release gate partner product-control proof {sys.argv[2]}.", profile
+assert profile.get("merchantHandoffConfigured") is True, profile
+print("PASS: partner write landed in canonical Shopify support profile")
+PY
+  fi
+
+  product_support_restore_body="${TMP_DIR}/product-support-restore-response.json"
+  product_support_restore_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/product-controls/support-profile" "${product_support_restore_body}" \
+    -H "Content-Type: application/json" \
+    --data "@${product_support_restore_payload}")"
+  cp "${product_support_restore_body}" "${TMP_DIR}/last-body"
+  assert_status "${product_support_restore_status}" "200" "partner product support profile restored"
+  echo "PASS: partner product-control proof state restored"
+
+  product_activity_body="${TMP_DIR}/product-activity.json"
+  product_activity_status="$(partner_request GET "${BASE_URL}/api/partners/activity" "${product_activity_body}")"
+  cp "${product_activity_body}" "${TMP_DIR}/last-body"
+  assert_status "${product_activity_status}" "200" "partner product-control activity visible"
+  python3 - <<'PY' "${product_activity_body}"
+import json
+import pathlib
+import sys
+
+activity = json.loads(pathlib.Path(sys.argv[1]).read_text())
+actions = {item.get("action") for item in activity}
+assert "PRODUCT_SUPPORT_PROFILE_UPDATED" in actions, activity
+raw = json.dumps(activity).lower()
+for forbidden in ("secret", "token", "password", "credential"):
+    assert forbidden not in raw, activity
+print("PASS: product-control audit action is partner-visible and secret-safe")
+PY
+
   implementations_body="${TMP_DIR}/implementations.json"
   implementations_status="$(partner_request GET "${BASE_URL}/api/partners/client-implementations" "${implementations_body}")"
   cp "${implementations_body}" "${TMP_DIR}/last-body"
@@ -1031,7 +1141,13 @@ import sys
 
 activity = json.loads(pathlib.Path(sys.argv[1]).read_text())
 actions = {item.get("action") for item in activity}
-required = {"STORE_ACCESS_APPROVED", "VERIFICATION_RUN_CREATED", "EVIDENCE_BUNDLE_CREATED", "TEMPLATE_APPLICATION_REUSED", "SUPPORT_REPLY_CREATED"}
+required = {
+    "STORE_ACCESS_APPROVED",
+    "VERIFICATION_RUN_CREATED",
+    "EVIDENCE_BUNDLE_CREATED",
+    "TEMPLATE_APPLICATION_REUSED",
+    "SUPPORT_REPLY_CREATED",
+}
 missing = required - actions
 assert not missing, {"missing": sorted(missing), "activity": activity}
 raw = json.dumps(activity).lower()
@@ -1077,6 +1193,10 @@ PY
     revoked_store_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}" "${revoked_store_body}")"
     cp "${revoked_store_body}" "${TMP_DIR}/last-body"
     assert_status "${revoked_store_status}" "403" "revoked partner store detail is forbidden"
+    revoked_product_controls_body="${TMP_DIR}/revoked-product-controls.json"
+    revoked_product_controls_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/product-controls" "${revoked_product_controls_body}")"
+    cp "${revoked_product_controls_body}" "${TMP_DIR}/last-body"
+    assert_status "${revoked_product_controls_status}" "403" "revoked partner product controls are forbidden"
     TEMP_ACCESS_REQUEST_ID=""
     TEMP_ACCESS_SHOP_DOMAIN=""
   fi

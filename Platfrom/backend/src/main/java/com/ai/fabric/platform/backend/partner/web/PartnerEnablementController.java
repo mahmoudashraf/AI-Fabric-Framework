@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary
 import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSignupCompleteRequest;
@@ -29,6 +30,9 @@ import com.ai.fabric.platform.backend.partner.model.PartnerVerificationPackSumma
 import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunSummary;
 import com.ai.fabric.platform.backend.partner.service.PartnerEnablementService;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
@@ -79,6 +83,33 @@ public class PartnerEnablementController {
     @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
     public PartnerStoreSummary getStore(@PathVariable String storeId) {
         return service.getStore(storeId);
+    }
+
+    @GetMapping("/stores/{storeId}/product-controls")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerProductControlSummary getProductControls(@PathVariable String storeId) {
+        return service.getProductControls(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/product-controls/widget-settings")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerProductControlSummary updateProductWidgetSettings(@PathVariable String storeId,
+                                                                    @RequestBody UpdateShopifyStoreWidgetSettingsRequest request) {
+        return service.updateProductWidgetSettings(storeId, request);
+    }
+
+    @PostMapping("/stores/{storeId}/product-controls/source-settings")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerProductControlSummary updateProductSourceSettings(@PathVariable String storeId,
+                                                                    @RequestBody UpdateShopifyStoreSourceSettingsRequest request) {
+        return service.updateProductSourceSettings(storeId, request);
+    }
+
+    @PostMapping("/stores/{storeId}/product-controls/support-profile")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerProductControlSummary updateProductSupportProfile(@PathVariable String storeId,
+                                                                    @RequestBody UpdateShopifyStoreSupportProfileRequest request) {
+        return service.updateProductSupportProfile(storeId, request);
     }
 
     @GetMapping("/activity")

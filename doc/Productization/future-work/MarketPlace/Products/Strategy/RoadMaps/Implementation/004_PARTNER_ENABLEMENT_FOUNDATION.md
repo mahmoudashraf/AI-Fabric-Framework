@@ -2766,3 +2766,36 @@ Cleanup proof:
 
 - temporary active assignment was revoked by the verifier.
 - a failed-run pending release-gate request was denied before the successful rerun.
+
+## Product-Scoped Partner Control Implementation - 2026-04-26
+
+### Completed Changes
+
+- Added canonical Shopify source settings command support through `ShopifyStoreSourceSettingsService` and `POST /api/shopify/stores/{shopDomain}/source-settings`; it updates `ShopifyStoreConnection` source toggles, invalidates readiness/sync only when the source set changes, and audits the canonical store action.
+- Added partner product-control summaries and endpoints:
+  - `GET /api/partners/stores/{storeId}/product-controls`
+  - `POST /api/partners/stores/{storeId}/product-controls/widget-settings`
+  - `POST /api/partners/stores/{storeId}/product-controls/source-settings`
+  - `POST /api/partners/stores/{storeId}/product-controls/support-profile`
+- Partner product-control writes require an active assignment plus explicit assignment capabilities such as `STOREFRONT_SURFACE_CONTROL`, `KNOWLEDGE_SOURCE_CONTROL`, and `SUPPORT_MANAGE`.
+- Partner product-control endpoints write through the same canonical Shopify store services used by admin/operator routes. No partner-only widget/source/support config bucket was added.
+- Partner responses project only product-safe store state: source settings, enabled surfaces, widget settings, support handoff, assignment state, capabilities, and readiness/sync statuses. Secrets, provider credentials, deployment/runtime internals, and raw vectorization controls remain outside the partner projection.
+- Partner activity now includes product-scoped audit actions such as `PRODUCT_WIDGET_SETTINGS_UPDATED`, `PRODUCT_SOURCE_SETTINGS_UPDATED`, and `PRODUCT_SUPPORT_PROFILE_UPDATED`.
+- Partner UI store workspace now includes a real Product controls tab backed by authenticated Platform APIs for storefront surfaces, source categories, and merchant handoff fields.
+- The live verifier now proves product-control reachability, performs a real partner-authenticated support profile write, verifies canonical admin visibility in strict mode, restores the previous support profile, checks product-control audit activity, and verifies product controls are denied after revoke.
+
+### Verification Proof
+
+Executed locally on 2026-04-26:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test` passed.
+- `mvn -f Platfrom/backend/pom.xml -q test` passed.
+- `npm --prefix Platfrom/partner-ui run build` passed.
+- `npm --prefix Platfrom/partner-ui run smoke` passed.
+- `bash -n scripts/verify-partner-enablement-live.sh` passed.
+- `git diff --check` passed.
+
+Pending before marking this addendum fully live-complete:
+
+- Deploy Platform backend and Partner UI.
+- Run strict live partner enablement verification against Railway and record proof IDs.

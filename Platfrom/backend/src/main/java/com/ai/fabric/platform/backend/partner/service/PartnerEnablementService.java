@@ -35,6 +35,8 @@ import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary
 import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerProductSourceSettingsSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSignupCompleteRequest;
@@ -74,6 +76,16 @@ import com.ai.fabric.platform.backend.partner.security.PartnerSecurityContext;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSupportProfileSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWidgetSettingsSummary;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourceSettingsService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSupportProfileService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetSettingsService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -103,10 +115,42 @@ public class PartnerEnablementService {
     private static final List<String> DEFAULT_ASSIGNMENT_PERMISSIONS = List.of(
         "STORE_READ",
         "CATALOG_READ",
+        "PRODUCT_CONFIG_READ",
+        "PRODUCT_CONFIG_WRITE",
+        "PRODUCT_CONFIG_PUBLISH",
+        "STOREFRONT_SURFACE_CONTROL",
+        "KNOWLEDGE_SOURCE_CONTROL",
+        "KNOWLEDGE_SYNC_TRIGGER",
+        "APP_OWNED_CONTENT_WRITE",
         "VERIFICATION_READ",
+        "VERIFICATION_RUN",
         "EVIDENCE_READ",
+        "EVIDENCE_EXPORT",
         "ESCALATION_CREATE",
-        "ESCALATION_REPLY"
+        "ESCALATION_REPLY",
+        "SUPPORT_MANAGE",
+        "AGGREGATE_ANALYTICS_READ",
+        "PRODUCT_PAUSE_RESUME"
+    );
+    private static final List<String> PARTNER_PRODUCT_CONTROL_CAPABILITIES = List.of(
+        "PRODUCT_CONFIG_READ",
+        "PRODUCT_CONFIG_WRITE",
+        "PRODUCT_CONFIG_PUBLISH",
+        "STOREFRONT_SURFACE_CONTROL",
+        "KNOWLEDGE_SOURCE_CONTROL",
+        "KNOWLEDGE_SYNC_TRIGGER",
+        "APP_OWNED_CONTENT_WRITE",
+        "SUPPORT_MANAGE",
+        "PRODUCT_PAUSE_RESUME"
+    );
+    private static final ShopifyStoreWidgetSettingsSummary DEFAULT_WIDGET_SETTINGS = new ShopifyStoreWidgetSettingsSummary(
+        "Ask the store assistant",
+        "Store assistant is ready. Ask about products, policies, or collections.",
+        "SHOPIFY_COMPANION",
+        List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
+        "navigator",
+        List.of("navigator"),
+        Map.of()
     );
     private static final String MERCHANT_CONFIGURED_TIER = "MERCHANT_CONFIGURED";
     private static final String FULL_STORE_ACCESS_SCOPE = "FULL_STORE_ACCESS";
@@ -137,6 +181,10 @@ public class PartnerEnablementService {
     private final PartnerStoreAccessGateway storeAccessGateway;
     private final PartnerCatalogSource catalogSource;
     private final PartnerAuditPublisher auditPublisher;
+    private final ShopifyStoreConnectionService shopifyStoreConnectionService;
+    private final ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService;
+    private final ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService;
+    private final ShopifyStoreSupportProfileService shopifyStoreSupportProfileService;
     private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -158,6 +206,10 @@ public class PartnerEnablementService {
                                     PartnerStoreAccessGateway storeAccessGateway,
                                     PartnerCatalogSource catalogSource,
                                     PartnerAuditPublisher auditPublisher,
+                                    ShopifyStoreConnectionService shopifyStoreConnectionService,
+                                    ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService,
+                                    ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService,
+                                    ShopifyStoreSupportProfileService shopifyStoreSupportProfileService,
                                     ObjectMapper objectMapper) {
         this.authProperties = authProperties;
         this.accountRepository = accountRepository;
@@ -177,6 +229,10 @@ public class PartnerEnablementService {
         this.storeAccessGateway = storeAccessGateway;
         this.catalogSource = catalogSource;
         this.auditPublisher = auditPublisher;
+        this.shopifyStoreConnectionService = shopifyStoreConnectionService;
+        this.shopifyStoreWidgetSettingsService = shopifyStoreWidgetSettingsService;
+        this.shopifyStoreSourceSettingsService = shopifyStoreSourceSettingsService;
+        this.shopifyStoreSupportProfileService = shopifyStoreSupportProfileService;
         this.objectMapper = objectMapper;
     }
 
@@ -277,6 +333,65 @@ public class PartnerEnablementService {
     public PartnerStoreSummary getStore(String storeId) {
         PartnerContext context = requireProvisionedContext();
         return toStoreSummary(requireActiveAssignment(context.account().getId(), storeId));
+    }
+
+    @Transactional(readOnly = true)
+    public PartnerProductControlSummary getProductControls(String storeId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        requireAssignmentCapability(assignment, "PRODUCT_CONFIG_READ");
+        return toProductControlSummary(assignment, shopifyStoreConnectionService.getConnection(assignment.getShopDomain()));
+    }
+
+    @Transactional
+    public PartnerProductControlSummary updateProductWidgetSettings(String storeId,
+                                                                    UpdateShopifyStoreWidgetSettingsRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        requireAssignmentCapability(assignment, "STOREFRONT_SURFACE_CONTROL");
+        requireInstalledStoreForProductControl(assignment);
+        ShopifyStoreConnectionSummary summary = shopifyStoreWidgetSettingsService.update(assignment.getShopDomain(), request);
+        audit(context, "PRODUCT_WIDGET_SETTINGS_UPDATED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", assignment.getShopDomain(),
+            "enabledSurfaces", summary.widgetDetail() == null || summary.widgetDetail().settings() == null
+                ? List.of()
+                : summary.widgetDetail().settings().enabledSurfaces()
+        )));
+        return toProductControlSummary(assignment, summary);
+    }
+
+    @Transactional
+    public PartnerProductControlSummary updateProductSourceSettings(String storeId,
+                                                                    UpdateShopifyStoreSourceSettingsRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        requireAssignmentCapability(assignment, "KNOWLEDGE_SOURCE_CONTROL");
+        requireInstalledStoreForProductControl(assignment);
+        ShopifyStoreConnectionSummary summary = shopifyStoreSourceSettingsService.update(assignment.getShopDomain(), request);
+        audit(context, "PRODUCT_SOURCE_SETTINGS_UPDATED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", assignment.getShopDomain(),
+            "enabledCategories", enabledSourceCategories(summary)
+        )));
+        return toProductControlSummary(assignment, summary);
+    }
+
+    @Transactional
+    public PartnerProductControlSummary updateProductSupportProfile(String storeId,
+                                                                    UpdateShopifyStoreSupportProfileRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        requireAssignmentCapability(assignment, "SUPPORT_MANAGE");
+        requireInstalledStoreForProductControl(assignment);
+        ShopifyStoreSupportProfileSummary supportProfile = shopifyStoreSupportProfileService.update(assignment.getShopDomain(), request);
+        ShopifyStoreConnectionSummary summary = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        audit(context, "PRODUCT_SUPPORT_PROFILE_UPDATED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", assignment.getShopDomain(),
+            "merchantHandoffConfigured", supportProfile.merchantHandoffConfigured(),
+            "contactEmailConfigured", supportProfile.contactEmail() != null && !supportProfile.contactEmail().isBlank(),
+            "contactUrlConfigured", supportProfile.contactUrl() != null && !supportProfile.contactUrl().isBlank(),
+            "helpCenterUrlConfigured", supportProfile.helpCenterUrl() != null && !supportProfile.helpCenterUrl().isBlank()
+        )));
+        return toProductControlSummary(assignment, summary, supportProfile);
     }
 
     @Transactional(readOnly = true)
@@ -1671,6 +1786,19 @@ public class PartnerEnablementService {
         return assignment;
     }
 
+    private void requireAssignmentCapability(PartnerStoreAssignmentEntity assignment, String capability) {
+        if (!readList(assignment.getPermissionsJson()).contains(capability)) {
+            throw new PartnerForbiddenException("Partner assignment does not include " + capability + ".");
+        }
+    }
+
+    private void requireInstalledStoreForProductControl(PartnerStoreAssignmentEntity assignment) {
+        PartnerShopifyStoreReadModel store = storeForAssignment(assignment);
+        if (!"INSTALLED".equalsIgnoreCase(store.installStatus())) {
+            throw new PartnerForbiddenException("Shopify Companion must be installed before partner product controls can be changed.");
+        }
+    }
+
     private PartnerSupportEscalationEntity requireEscalation(String accountId, String escalationId) {
         return escalationRepository.findByIdAndPartnerAccountId(escalationId, accountId)
             .orElseThrow(() -> new PartnerForbiddenException("Escalation is not available to this partner."));
@@ -1710,6 +1838,92 @@ public class PartnerEnablementService {
         );
     }
 
+    private PartnerProductControlSummary toProductControlSummary(PartnerStoreAssignmentEntity assignment,
+                                                                 ShopifyStoreConnectionSummary store) {
+        return toProductControlSummary(
+            assignment,
+            store,
+            shopifyStoreSupportProfileService.get(store.shopDomain())
+        );
+    }
+
+    private PartnerProductControlSummary toProductControlSummary(PartnerStoreAssignmentEntity assignment,
+                                                                 ShopifyStoreConnectionSummary store,
+                                                                 ShopifyStoreSupportProfileSummary supportProfile) {
+        ShopifyStoreWidgetSettingsSummary widgetSettings = widgetSettings(store);
+        return new PartnerProductControlSummary(
+            assignment.getId(),
+            store.id(),
+            store.shopDomain(),
+            firstNonBlank(assignment.getMerchantName(), store.displayName(), store.shopDomain()),
+            assignment.getStatus(),
+            store.installStatus(),
+            store.widgetStatus(),
+            store.syncStatus(),
+            store.sourceReadinessStatus(),
+            new PartnerProductSourceSettingsSummary(
+                store.productsEnabled(),
+                store.collectionsEnabled(),
+                store.pagesEnabled(),
+                store.policiesEnabled(),
+                store.articlesEnabled(),
+                store.metaobjectsEnabled(),
+                enabledSourceCategories(store),
+                store.lastSourcePreflightAt(),
+                store.lastSyncAt()
+            ),
+            widgetSettings.enabledSurfaces(),
+            widgetSettings,
+            supportProfile,
+            productControlCapabilities(assignment),
+            store.updatedAt()
+        );
+    }
+
+    private ShopifyStoreWidgetSettingsSummary widgetSettings(ShopifyStoreConnectionSummary store) {
+        if (store.widgetDetail() != null && store.widgetDetail().settings() != null) {
+            return store.widgetDetail().settings();
+        }
+        return new ShopifyStoreWidgetSettingsSummary(
+            DEFAULT_WIDGET_SETTINGS.launcherLabel(),
+            DEFAULT_WIDGET_SETTINGS.welcomeMessage(),
+            DEFAULT_WIDGET_SETTINGS.shellModeProfile(),
+            DEFAULT_WIDGET_SETTINGS.enabledSurfaces(),
+            DEFAULT_WIDGET_SETTINGS.defaultConversationMode(),
+            DEFAULT_WIDGET_SETTINGS.allowedConversationModes(),
+            DEFAULT_WIDGET_SETTINGS.pageModeMappings()
+        );
+    }
+
+    private List<String> enabledSourceCategories(ShopifyStoreConnectionSummary store) {
+        List<String> categories = new ArrayList<>();
+        if (store.productsEnabled()) {
+            categories.add("products");
+        }
+        if (store.collectionsEnabled()) {
+            categories.add("collections");
+        }
+        if (store.pagesEnabled()) {
+            categories.add("pages");
+        }
+        if (store.policiesEnabled()) {
+            categories.add("policies");
+        }
+        if (store.articlesEnabled()) {
+            categories.add("articles");
+        }
+        if (store.metaobjectsEnabled()) {
+            categories.add("metaobjects");
+        }
+        return List.copyOf(categories);
+    }
+
+    private List<String> productControlCapabilities(PartnerStoreAssignmentEntity assignment) {
+        return readList(assignment.getPermissionsJson()).stream()
+            .filter(PARTNER_PRODUCT_CONTROL_CAPABILITIES::contains)
+            .toList();
+    }
+
     private boolean partnerVisibleActivity(PartnerActionAuditEntity entity) {
         if (entity == null || !StringUtils.hasText(entity.getAction())) {
             return false;
@@ -1721,7 +1935,9 @@ public class PartnerEnablementService {
             || action.startsWith("EVIDENCE_BUNDLE_")
             || action.startsWith("TEMPLATE_")
             || action.startsWith("STORE_NOTE_")
-            || action.startsWith("SUPPORT_");
+            || action.startsWith("SUPPORT_")
+            || action.startsWith("PRODUCT_")
+            || action.startsWith("KNOWLEDGE_");
     }
 
     private PartnerActivityEventSummary toActivitySummary(PartnerActionAuditEntity entity) {
@@ -1930,9 +2146,36 @@ public class PartnerEnablementService {
 
     private List<String> permissionsFor(String role) {
         if (PlatformRole.PARTNER_ADMIN.name().equals(role)) {
-            return List.of("WORKSPACE_ADMIN", "IMPLEMENTATION_CREATE", "STORE_READ", "ESCALATION_CREATE", "ESCALATION_REPLY", "CATALOG_READ");
+            List<String> permissions = new ArrayList<>(List.of(
+                "WORKSPACE_ADMIN",
+                "IMPLEMENTATION_CREATE",
+                "STORE_READ",
+                "ESCALATION_CREATE",
+                "ESCALATION_REPLY",
+                "CATALOG_READ"
+            ));
+            permissions.addAll(PARTNER_PRODUCT_CONTROL_CAPABILITIES);
+            permissions.addAll(List.of("VERIFICATION_READ", "VERIFICATION_RUN", "EVIDENCE_READ", "EVIDENCE_EXPORT"));
+            return List.copyOf(permissions);
         }
-        return List.of("IMPLEMENTATION_CREATE", "STORE_READ", "ESCALATION_CREATE", "ESCALATION_REPLY", "CATALOG_READ");
+        List<String> permissions = new ArrayList<>(List.of(
+            "IMPLEMENTATION_CREATE",
+            "STORE_READ",
+            "ESCALATION_CREATE",
+            "ESCALATION_REPLY",
+            "CATALOG_READ",
+            "PRODUCT_CONFIG_READ"
+        ));
+        permissions.addAll(List.of("VERIFICATION_READ", "VERIFICATION_RUN", "EVIDENCE_READ", "EVIDENCE_EXPORT"));
+        if (PlatformRole.PARTNER_IMPLEMENTER.name().equals(role) || PlatformRole.PARTNER_DEVELOPER.name().equals(role)) {
+            permissions.addAll(PARTNER_PRODUCT_CONTROL_CAPABILITIES.stream()
+                .filter(permission -> !"PRODUCT_CONFIG_READ".equals(permission))
+                .toList());
+        }
+        if (PlatformRole.PARTNER_SUPPORT.name().equals(role)) {
+            permissions.add("SUPPORT_MANAGE");
+        }
+        return List.copyOf(permissions);
     }
 
     private List<String> storeConfiguredSurfaces(PartnerShopifyStoreReadModel store) {

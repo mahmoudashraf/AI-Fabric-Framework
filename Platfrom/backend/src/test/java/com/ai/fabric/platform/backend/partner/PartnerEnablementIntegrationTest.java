@@ -188,6 +188,26 @@ class PartnerEnablementIntegrationTest {
                     }
                     """))
             .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/partners/stores/psa-missing/product-controls")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/partners/stores/psa-missing/product-controls/widget-settings")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "launcherLabel": "Should not save",
+                      "welcomeMessage": "This must not be accepted for an unassigned store.",
+                      "shellModeProfile": "SHOPIFY_COMPANION",
+                      "enabledSurfaces": ["ai-search"],
+                      "defaultConversationMode": "navigator",
+                      "allowedConversationModes": ["navigator"],
+                      "pageModeMappings": {}
+                    }
+                    """))
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -298,8 +318,92 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$[0].installStatus", is("INSTALLED")))
             .andExpect(jsonPath("$[0].widgetStatus", is("ENABLED")))
             .andExpect(jsonPath("$[0].permissions", hasItem("VERIFICATION_READ")))
+            .andExpect(jsonPath("$[0].permissions", hasItem("PRODUCT_CONFIG_READ")))
+            .andExpect(jsonPath("$[0].permissions", hasItem("STOREFRONT_SURFACE_CONTROL")))
+            .andExpect(jsonPath("$[0].permissions", hasItem("KNOWLEDGE_SOURCE_CONTROL")))
             .andExpect(jsonPath("$[0].approvedAt", notNullValue()))
             .andExpect(jsonPath("$[0].enabledSurfaces", not(hasItem("order-lookup"))));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/product-controls", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.storeConnectionId", is("shopify-store-approved")))
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
+            .andExpect(jsonPath("$.sourceSettings.productsEnabled", is(true)))
+            .andExpect(jsonPath("$.sourceSettings.enabledCategories", hasItem("products")))
+            .andExpect(jsonPath("$.enabledSurfaces", hasItem("product-faq")))
+            .andExpect(jsonPath("$.capabilities", hasItem("STOREFRONT_SURFACE_CONTROL")))
+            .andExpect(jsonPath("$.supportProfile.merchantHandoffConfigured", is(false)));
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/product-controls/widget-settings", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "launcherLabel": "Ask Loom Companion",
+                      "welcomeMessage": "Ask about products, collections, policy details, or size guidance.",
+                      "shellModeProfile": "GUIDED_SUPPORT",
+                      "enabledSurfaces": ["ai-search", "product-faq", "comparison"],
+                      "defaultConversationMode": "navigator_deep",
+                      "allowedConversationModes": ["navigator", "navigator_deep"],
+                      "pageModeMappings": {
+                        "product": "navigator_deep",
+                        "collection": "navigator"
+                      }
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.widgetSettings.launcherLabel", is("Ask Loom Companion")))
+            .andExpect(jsonPath("$.widgetSettings.enabledSurfaces", hasItem("comparison")))
+            .andExpect(jsonPath("$.enabledSurfaces", hasItem("product-faq")));
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/product-controls/source-settings", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "productsEnabled": true,
+                      "collectionsEnabled": true,
+                      "pagesEnabled": true,
+                      "policiesEnabled": true,
+                      "articlesEnabled": true,
+                      "metaobjectsEnabled": true
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.sourceSettings.enabledCategories", hasItem("metaobjects")))
+            .andExpect(jsonPath("$.readinessStatus", is("READY")))
+            .andExpect(jsonPath("$.knowledgeSyncStatus", is("SYNCED")));
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/product-controls/support-profile", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "contactEmail": "support@approved-client.test",
+                      "contactUrl": "https://approved-client.test/contact",
+                      "helpCenterUrl": "https://approved-client.test/help",
+                      "orderLookupPageUrl": "/apps/order-lookup",
+                      "supportPolicyNote": "Escalate policy edge cases to the merchant support queue."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.supportProfile.contactEmail", is("support@approved-client.test")))
+            .andExpect(jsonPath("$.supportProfile.merchantHandoffConfigured", is(true)));
+
+        mockMvc.perform(get("/api/shopify/stores/{shopDomain}", "approved-client.myshopify.com")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.widgetDetail.settings.launcherLabel", is("Ask Loom Companion")))
+            .andExpect(jsonPath("$.widgetDetail.settings.defaultConversationMode", is("navigator_deep")))
+            .andExpect(jsonPath("$.productsEnabled", is(true)))
+            .andExpect(jsonPath("$.metaobjectsEnabled", is(true)));
+
+        mockMvc.perform(get("/api/shopify/stores/{shopDomain}/support-profile", "approved-client.myshopify.com")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.contactEmail", is("support@approved-client.test")))
+            .andExpect(jsonPath("$.merchantHandoffConfigured", is(true)));
 
         mockMvc.perform(get("/api/partners/verification-packs")
                 .header("Authorization", "Bearer " + token))
@@ -488,6 +592,9 @@ class PartnerEnablementIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[*].action", hasItem("STORE_ACCESS_APPROVED")))
+            .andExpect(jsonPath("$[*].action", hasItem("PRODUCT_WIDGET_SETTINGS_UPDATED")))
+            .andExpect(jsonPath("$[*].action", hasItem("PRODUCT_SOURCE_SETTINGS_UPDATED")))
+            .andExpect(jsonPath("$[*].action", hasItem("PRODUCT_SUPPORT_PROFILE_UPDATED")))
             .andExpect(jsonPath("$[*].action", hasItem("VERIFICATION_RUN_CREATED")))
             .andExpect(jsonPath("$[*].action", hasItem("TEMPLATE_APPLICATION_REUSED")))
             .andExpect(jsonPath("$[*].action", hasItem("SUPPORT_REPLY_CREATED")));
@@ -527,11 +634,18 @@ class PartnerEnablementIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isForbidden());
 
+        mockMvc.perform(get("/api/partners/stores/{storeId}/product-controls", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden());
+
         assertThat(auditRepository.findAll())
             .extracting("action")
             .contains(
                 "PARTNER_SIGNUP_COMPLETED",
                 "STORE_ACCESS_APPROVED",
+                "PRODUCT_WIDGET_SETTINGS_UPDATED",
+                "PRODUCT_SOURCE_SETTINGS_UPDATED",
+                "PRODUCT_SUPPORT_PROFILE_UPDATED",
                 "VERIFICATION_RUN_CREATED",
                 "EVIDENCE_BUNDLE_CREATED",
                 "TEMPLATE_APPLIED",

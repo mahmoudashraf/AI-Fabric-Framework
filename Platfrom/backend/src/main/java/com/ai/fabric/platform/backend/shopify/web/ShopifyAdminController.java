@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationEve
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreVectorizationPolicyRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
@@ -27,6 +28,7 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreDocumentSyncSe
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGovernedActionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGoLiveService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourceSettingsService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreUninstallService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSupportProfileService;
@@ -64,6 +66,7 @@ public class ShopifyAdminController {
     private final ShopifyStoreGovernedActionService shopifyStoreGovernedActionService;
     private final ShopifyStoreVectorizationService shopifyStoreVectorizationService;
     private final ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService;
+    private final ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService;
     private final ShopifyStoreSyncService shopifyStoreSyncService;
     private final ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService;
     private final ShopifyStoreWebhookService shopifyStoreWebhookService;
@@ -79,6 +82,7 @@ public class ShopifyAdminController {
                                   ShopifyStoreGovernedActionService shopifyStoreGovernedActionService,
                                   ShopifyStoreVectorizationService shopifyStoreVectorizationService,
                                   ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService,
+                                  ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService,
                                   ShopifyStoreSyncService shopifyStoreSyncService,
                                   ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService,
                                   ShopifyStoreWebhookService shopifyStoreWebhookService,
@@ -93,6 +97,7 @@ public class ShopifyAdminController {
         this.shopifyStoreGovernedActionService = shopifyStoreGovernedActionService;
         this.shopifyStoreVectorizationService = shopifyStoreVectorizationService;
         this.shopifyStoreSourcePreflightService = shopifyStoreSourcePreflightService;
+        this.shopifyStoreSourceSettingsService = shopifyStoreSourceSettingsService;
         this.shopifyStoreSyncService = shopifyStoreSyncService;
         this.shopifyStoreDocumentSyncService = shopifyStoreDocumentSyncService;
         this.shopifyStoreWebhookService = shopifyStoreWebhookService;
@@ -251,6 +256,13 @@ public class ShopifyAdminController {
     public ShopifyStoreConnectionSummary recordSourcePreflight(@PathVariable String shopDomain,
                                                                @RequestBody RecordShopifyStoreSourcePreflightRequest request) {
         return shopifyStoreSourcePreflightService.record(shopDomain, request);
+    }
+
+    @PostMapping("/{shopDomain}/source-settings")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreConnectionSummary updateSourceSettings(@PathVariable String shopDomain,
+                                                              @RequestBody UpdateShopifyStoreSourceSettingsRequest request) {
+        return shopifyStoreSourceSettingsService.update(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/sync-status")

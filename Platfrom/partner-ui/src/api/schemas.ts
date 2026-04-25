@@ -56,6 +56,55 @@ export const partnerStoreSchema = z.object({
   permissions: z.array(z.string()),
 })
 
+export const partnerProductWidgetSettingsSchema = z.object({
+  launcherLabel: z.string(),
+  welcomeMessage: z.string(),
+  shellModeProfile: z.string(),
+  enabledSurfaces: z.array(z.string()),
+  defaultConversationMode: z.string(),
+  allowedConversationModes: z.array(z.string()),
+  pageModeMappings: z.record(z.string()),
+})
+
+export const partnerProductSupportProfileSchema = z.object({
+  contactEmail: nullableString,
+  contactUrl: nullableString,
+  helpCenterUrl: nullableString,
+  orderLookupPageUrl: nullableString,
+  supportPolicyNote: nullableString,
+  merchantHandoffConfigured: z.boolean(),
+})
+
+export const partnerProductSourceSettingsSchema = z.object({
+  productsEnabled: z.boolean(),
+  collectionsEnabled: z.boolean(),
+  pagesEnabled: z.boolean(),
+  policiesEnabled: z.boolean(),
+  articlesEnabled: z.boolean(),
+  metaobjectsEnabled: z.boolean(),
+  enabledCategories: z.array(z.string()),
+  lastSourcePreflightAt: nullableDateString,
+  lastSyncAt: nullableDateString,
+})
+
+export const partnerProductControlSchema = z.object({
+  storeId: z.string(),
+  storeConnectionId: z.string(),
+  shopDomain: z.string(),
+  merchantName: z.string(),
+  assignmentStatus: z.string(),
+  installStatus: z.string(),
+  widgetStatus: z.string(),
+  knowledgeSyncStatus: z.string(),
+  readinessStatus: z.string(),
+  sourceSettings: partnerProductSourceSettingsSchema,
+  enabledSurfaces: z.array(z.string()),
+  widgetSettings: partnerProductWidgetSettingsSchema,
+  supportProfile: partnerProductSupportProfileSchema,
+  capabilities: z.array(z.string()),
+  updatedAt: z.string(),
+})
+
 export const partnerActivityEventSchema = z.object({
   id: z.string(),
   action: z.string(),
@@ -249,6 +298,10 @@ export const partnerStoreNoteSchema = z.object({
 export type PartnerSession = z.infer<typeof partnerSessionSchema>
 export type PartnerMember = z.infer<typeof partnerMemberSchema>
 export type PartnerStore = z.infer<typeof partnerStoreSchema>
+export type PartnerProductControl = z.infer<typeof partnerProductControlSchema>
+export type PartnerProductWidgetSettings = z.infer<typeof partnerProductWidgetSettingsSchema>
+export type PartnerProductSupportProfile = z.infer<typeof partnerProductSupportProfileSchema>
+export type PartnerProductSourceSettings = z.infer<typeof partnerProductSourceSettingsSchema>
 export type PartnerActivityEvent = z.infer<typeof partnerActivityEventSchema>
 export type PartnerClientImplementation = z.infer<typeof partnerClientImplementationSchema>
 export type PartnerEligibleStore = z.infer<typeof partnerEligibleStoreSchema>
