@@ -135,6 +135,7 @@ This handoff should be treated as a mature platform implementation plan, deliver
 
 Complete product capabilities:
 
+- Supabase Auth login and social login for partner users
 - partner identity and scoped access
 - partner-member roles
 - partner-store assignment and revocation
@@ -150,6 +151,22 @@ Complete product capabilities:
 - partner action audit trail
 - operator override and revocation
 - merchant-safe boundary
+
+Auth decision:
+
+- use Supabase Auth for partner login and identity
+- support Google, Apple, and LinkedIn OIDC social login
+- use the Platform backend as the source of truth for authorization, partner roles, store assignment, audit, and Shopify/Bridge access
+- do not use Shopify credentials, Shopify collaborator access, or provider OAuth tokens as partner platform authorization
+- do not make Supabase metadata the only source of partner permissions
+
+Official Supabase auth references:
+
+- Supabase Auth overview: `https://supabase.com/docs/guides/auth`
+- Supabase Social Login: `https://supabase.com/docs/guides/auth/social-login`
+- Google provider: `https://supabase.com/docs/guides/auth/social-login/auth-google`
+- Apple provider: `https://supabase.com/docs/guides/auth/social-login/auth-apple`
+- LinkedIn OIDC provider: `https://supabase.com/docs/guides/auth/social-login/auth-linkedin`
 
 Initial intelligence catalog:
 
@@ -197,6 +214,238 @@ Do not:
 
 ---
 
+## Supabase Auth Architecture
+
+### Identity Boundary
+
+Supabase owns:
+
+- user sign-in
+- OAuth redirects
+- social identity providers
+- user session tokens
+- token refresh on the partner UI
+- provider account linking where supported
+
+Platform backend owns:
+
+- partner account
+- partner member profile
+- partner role
+- partner invitation state
+- partner-store assignment
+- partner permissions
+- partner action audit
+- escalation ownership
+- operator override/revocation
+- all authorization decisions
+
+Shopify Bridge owns:
+
+- Shopify Admin API access
+- Shopify storefront readiness
+- Shopify billing/readiness checks
+- Shopify support readiness
+- Shopify usage and verification evidence
+
+Partners own:
+
+- their authenticated user session
+- assigned client implementation workflow
+- setup, verification, evidence capture, support notes, and escalations inside their scope
+
+Rule:
+
+- Supabase identity proves who the partner user is.
+- Platform authorization decides what that partner user can see and do.
+- Shopify Bridge decides what is true for the Shopify store.
+
+### Login Providers
+
+Enable these Supabase providers for partner login:
+
+- Google: provider key `google`
+- Apple: provider key `apple`
+- LinkedIn OIDC: provider key `linkedin_oidc`
+
+Required redirect URLs:
+
+- local partner UI callback, for example `http://localhost:<partner-ui-port>/auth/callback`
+- production partner UI callback: `https://partners.loomai.pro/auth/callback`
+- any preview/staging callback domains used by the deployment pipeline
+
+Provider setup notes:
+
+- Google requires a Google Cloud OAuth client and configured authorized origins/redirects.
+- Apple requires Sign in with Apple configuration in Apple Developer and Supabase provider settings.
+- LinkedIn requires a LinkedIn Developer app with `Sign In with LinkedIn using OpenID Connect` and the Supabase callback URL.
+- Do not request provider scopes beyond profile/email unless a later feature explicitly needs provider API access.
+- Do not store `provider_token` or `provider_refresh_token` unless a later integration explicitly needs it and a secret-handling design is approved.
+
+### Partner Invitation And Activation
+
+Public signup is out of scope.
+
+First release flow:
+
+1. Platform operator creates a `PartnerAccount`.
+2. Platform operator invites one or more `PartnerMember` emails.
+3. Partner user signs in through Supabase with Google, Apple, or LinkedIn OIDC.
+4. Platform backend validates the Supabase JWT.
+5. Platform backend matches the Supabase user email or approved identity to a pending partner invitation.
+6. Platform backend activates the partner member and records provider, Supabase `sub`, email, display name, and activation timestamp.
+7. Partner sees only assigned stores.
+
+Edge cases:
+
+- If Apple private relay hides the expected email, keep the member pending until operator approval links the Supabase `sub` to the invitation.
+- If provider email is unverified or missing, do not auto-activate.
+- If an email belongs to multiple partner accounts, require explicit operator selection/assignment.
+- If a partner member is suspended or revoked, backend denies access even if Supabase login succeeds.
+
+### Backend Token Validation
+
+Partner UI sends:
+
+- `Authorization: Bearer <supabase-access-token>`
+
+Platform backend must:
+
+- validate Supabase JWT issuer, audience, expiry, signature, and subject
+- map Supabase `sub` and verified email to a platform `PartnerMember`
+- create a platform principal with partner-safe authorities
+- enforce partner-store assignment on every partner API
+- reject inactive, pending, suspended, or revoked partner members
+- audit login, session usage, access denial, assignment changes, and state-changing actions
+
+Implementation options:
+
+- preferred: Spring Security OAuth2 Resource Server with Supabase JWKS URI
+- fallback: a dedicated Supabase JWT authentication filter with cached JWKS verification
+
+Do not rely on frontend checks for store access.
+
+### Platform Role Model
+
+Keep operator roles separate from partner roles.
+
+Existing roles:
+
+- `PLATFORM_ADMIN`
+- `PLATFORM_OPERATOR`
+- `PLATFORM_PRODUCT_SERVICE`
+- `CUSTOMER_ADMIN`
+- `PUBLIC_API_CLIENT`
+
+Add or model partner roles:
+
+- `PARTNER_ADMIN`
+- `PARTNER_IMPLEMENTER`
+- `PARTNER_DEVELOPER`
+- `PARTNER_SUPPORT`
+
+Role intent:
+
+- `PARTNER_ADMIN`: manages partner members and client assignments visible to the partner account; cannot self-assign new stores unless operator-approved.
+- `PARTNER_IMPLEMENTER`: performs setup, verification, evidence capture, and notes for assigned stores.
+- `PARTNER_DEVELOPER`: reads catalog, integration docs, sandbox, verification details, and implementation contracts; can create technical escalation evidence.
+- `PARTNER_SUPPORT`: sees assigned stores, runbooks, support bundles, escalation workflow, and usage/value summaries.
+
+Authorization must combine:
+
+- platform role
+- partner account status
+- partner member status
+- partner-store assignment
+- assignment permissions
+- requested action
+
+### Partner UI Project
+
+Create a separate partner UI project.
+
+Recommended path:
+
+- `Platfrom/partner-ui`
+
+Recommended stack:
+
+- Vite
+- React
+- TypeScript
+- MUI or the platform design system once extracted
+- `@supabase/supabase-js`
+- TanStack Query
+- React Router
+
+Environment variables:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_PLATFORM_API_BASE_URL`
+- `VITE_PARTNER_APP_URL`
+
+Partner UI auth routes:
+
+- `/login`
+- `/auth/callback`
+- `/logout`
+- `/`
+- `/stores`
+- `/stores/:storeId`
+- `/catalog`
+- `/sandbox`
+- `/verification`
+- `/support`
+- `/escalations`
+- `/templates`
+
+Login buttons:
+
+- Continue with Google
+- Continue with Apple
+- Continue with LinkedIn
+
+Partner UI must not:
+
+- include operator nav
+- expose API-key login
+- expose platform password login
+- expose secrets or raw diagnostics
+- expose unassigned stores
+- store Shopify tokens
+
+### Platform Backend Configuration
+
+Add configuration for Supabase:
+
+- `platform.auth.supabase.enabled`
+- `platform.auth.supabase.issuer`
+- `platform.auth.supabase.jwks-uri`
+- `platform.auth.supabase.audience`
+- `platform.auth.supabase.project-ref`
+- `platform.auth.supabase.allowed-provider-ids`
+- `platform.auth.supabase.require-email-verified`
+
+Keep existing API-key/session auth temporarily for operator/admin automation until the operator UI migration is planned.
+
+Partner endpoints should accept Supabase bearer auth. Operator endpoints may continue to use existing platform auth during transition.
+
+### Security Rules
+
+- Social login is authentication only, never authorization.
+- All partner API responses are scoped server-side.
+- Every store lookup checks active partner-store assignment.
+- Every mutation checks explicit assignment permission.
+- Secrets never leave backend/operator-only surfaces.
+- Shopify credentials stay in Shopify Bridge/platform secret boundaries.
+- Provider OAuth tokens are not stored by default.
+- Partner token expiry and revoked partner status must be handled gracefully in the UI.
+- CORS must allow partner UI origins only.
+- Audit every state-changing partner action.
+
+---
+
 ## Build Order
 
 ### Step 0: Product Boundary And Current-State Inventory
@@ -204,6 +453,7 @@ Do not:
 Close:
 
 - inventory current Shopify Companion surfaces, merchant admin exports, platform product-service views, Shopify store views, verification scripts, and live evidence sources
+- inventory current platform auth/session/API-key model and decide what remains operator-only during Supabase partner auth rollout
 - confirm merchant admin remains focused on setup, surfaces, Knowledge Sync, billing, support handoff, usage/value, and blockers
 - confirm long partner/operator packet text is not rendered inline for merchants
 - confirm partner-only enablement language does not leak into shopper surfaces
@@ -218,6 +468,7 @@ Exit:
 
 Close:
 
+- Supabase identity mapping contract
 - partner account model
 - partner member model
 - partner roles:
@@ -236,6 +487,7 @@ Recommended first implementation:
 
 - start with private/operator-created partners
 - no public signup
+- partners authenticate through Supabase social login
 - partner can be linked to assigned stores only
 - partner actions are read-mostly until explicit safe actions are defined
 - all write actions require scoped permission and audit
@@ -248,6 +500,11 @@ Exit:
 
 Close:
 
+- new `Platfrom/partner-ui` project
+- Supabase client setup
+- social login screen for Google, Apple, and LinkedIn
+- auth callback and logout routes
+- authenticated API client that sends Supabase bearer token to Platform backend
 - partner-specific navigation and information architecture
 - partner home page
 - client stores page
@@ -261,13 +518,13 @@ Close:
 
 Recommended first UI:
 
-- use a separate partner route or workspace inside the Platform UI if fastest
+- use a separate partner UI project; only use the current Platform UI for operator-only admin screens
 - keep labels partner-safe and implementation-focused
 - do not expose deployments, providers, secrets, Railway, raw vectorization controls, or runtime internals
 
 Exit:
 
-- partner has a dedicated workspace surface that does not look like a filtered operator admin panel
+- partner has a dedicated workspace surface that is not a filtered operator admin panel
 
 ### Step 3: Client Store Portfolio
 
@@ -540,10 +797,43 @@ Exit:
 
 Use these as discrete LLM work packages. Do not collapse all of them into one risky session.
 
-### Slice A: Partner Enablement Data And Contracts
+### Slice A: Supabase Auth Foundation
 
 Deliver:
 
+- Supabase project/provider configuration checklist
+- Google, Apple, and LinkedIn OIDC login enabled in Supabase
+- `Platfrom/partner-ui` project scaffold
+- partner login page
+- `/auth/callback` route
+- Supabase session provider
+- logout flow
+- authenticated Platform API client with bearer token
+- Platform backend Supabase JWT validation
+- partner member lookup by Supabase `sub` and verified email
+- pending/revoked/unauthorized states
+- local development env examples without secrets
+
+Backend changes expected:
+
+- add OAuth2 Resource Server/JWT support or equivalent Supabase JWT filter
+- add Supabase auth configuration properties
+- add partner principal mapping
+- add partner-specific authorities or role handling
+- keep existing operator API-key/session auth working during transition
+
+Exit:
+
+- a Supabase-authenticated partner user can reach the partner session endpoint
+- an uninvited Supabase user is authenticated but not authorized
+- a revoked partner member is denied
+- operator auth is not broken
+
+### Slice B: Partner Enablement Data And Contracts
+
+Deliver:
+
+- partner invite model
 - partner account/member/role model
 - partner-store assignment model
 - access/revocation model
@@ -554,7 +844,7 @@ Exit:
 
 - contracts exist and can be tested without a polished UI
 
-### Slice B: Partner Workspace Shell
+### Slice C: Partner Workspace Shell
 
 Deliver:
 
@@ -568,7 +858,7 @@ Exit:
 
 - one private partner can log in or be simulated and see only assigned stores
 
-### Slice C: Intelligence Catalog And Demo Center
+### Slice D: Intelligence Catalog And Demo Center
 
 Deliver:
 
@@ -582,7 +872,7 @@ Exit:
 
 - catalog is usable by a partner without reading strategy docs
 
-### Slice D: Client Store Workspace And Verification Pack
+### Slice E: Client Store Workspace And Verification Pack
 
 Deliver:
 
@@ -597,7 +887,7 @@ Exit:
 
 - partner can verify a store from the workspace
 
-### Slice E: Support And Escalation Center
+### Slice F: Support And Escalation Center
 
 Deliver:
 
@@ -611,7 +901,7 @@ Exit:
 
 - escalations are structured and actionable
 
-### Slice F: Templates, Playbooks, And Rollout Gate
+### Slice G: Templates, Playbooks, And Rollout Gate
 
 Deliver:
 
@@ -634,6 +924,7 @@ Use existing platform/customer/store entities where they fit, but keep partner c
 Required concepts:
 
 - `PartnerAccount`
+- `PartnerInvite`
 - `PartnerMember`
 - `PartnerRole`
 - `PartnerStoreAssignment`
@@ -649,9 +940,22 @@ Required concepts:
 - `PartnerTemplate`
 - `PartnerPlaybook`
 
+Supabase identity fields:
+
+- `supabaseUserId`
+- `authProvider`
+- `authProviderSubject`
+- `email`
+- `emailVerified`
+- `displayName`
+- `avatarUrl`
+- `lastLoginAt`
+- `lastAuthProviderSeenAt`
+
 Relationship rules:
 
 - partner account has many members
+- partner account has many invites
 - partner account has many assigned stores
 - store can start with zero or one primary partner
 - assignment can be approved, active, suspended, or revoked
@@ -659,6 +963,8 @@ Relationship rules:
 - operator can override or revoke
 - merchant approval can be added later if not already available
 - every partner action that changes state is audited
+- Supabase `sub` maps to at most one active partner member unless a deliberate multi-account switcher is built
+- invitation email must match a verified provider email unless operator manually links the Supabase identity
 
 ---
 
@@ -668,6 +974,7 @@ Prefer partner-safe APIs over exposing operator APIs directly.
 
 Required read APIs:
 
+- partner auth/session summary
 - partner session summary
 - partner home summary
 - partner client-store portfolio
@@ -681,6 +988,7 @@ Required read APIs:
 
 Required write APIs:
 
+- accept partner invite after Supabase login
 - create/update partner note
 - create/update escalation
 - mark manual verification step
@@ -691,6 +999,7 @@ Operator-only APIs:
 
 - create partner
 - invite partner member
+- link Supabase identity manually when provider email cannot be matched safely
 - assign store
 - revoke store assignment
 - override partner access
@@ -707,12 +1016,27 @@ Do not expose:
 - arbitrary sync/retry until scoped and audited
 - unassigned store data
 
+Auth/session API examples:
+
+- `GET /api/partners/session`
+- `POST /api/partners/invites/{inviteId}/accept`
+- `GET /api/partners/stores`
+- `GET /api/partners/stores/{storeId}/workspace`
+- `GET /api/partners/catalog`
+- `GET /api/partners/stores/{storeId}/verification-pack`
+- `POST /api/partners/stores/{storeId}/verification-steps/{stepId}/complete`
+- `GET /api/partners/stores/{storeId}/evidence-bundles`
+- `POST /api/partners/stores/{storeId}/escalations`
+- `PATCH /api/partners/escalations/{escalationId}`
+
 ---
 
 ## UI Surface Targets
 
 Partner workspace pages:
 
+- Login
+- Auth Callback
 - Home
 - Client Stores
 - Client Store Workspace
@@ -771,6 +1095,10 @@ Operator-only language:
 
 This handoff is complete when:
 
+- partner UI is a separate project suitable for `partners.loomai.pro`
+- partner login uses Supabase Auth
+- Google, Apple, and LinkedIn OIDC login are configured or documented with local/staging/production redirect URLs
+- Platform backend validates Supabase JWTs and maps identities to partner members
 - partner enablement is represented as a real private partner workspace or equivalent mature platform surface
 - partner identity, roles, store assignment, revocation, and audit are implemented or explicitly stubbed with a safe migration path
 - partner can see only assigned stores
@@ -784,6 +1112,8 @@ This handoff is complete when:
 - merchant admin remains merchant-safe and not cluttered with partner/operator long-form content
 - operator can create/revoke partner access
 - partner cannot access secrets, provider credentials, Railway/runtime internals, raw vectorization controls, or unassigned stores
+- uninvited Supabase users cannot access partner workspace data
+- revoked partner members are denied even if their Supabase session is valid
 - no public partner signup, commissions, referral tracking, white-label, public partner API, directory, or certification is introduced
 - rollout gates are documented for founding partner, broad partner scale, white-label, and public APIs
 - `CODEX_WORKING_CONTEXT.md` has compact completion status
@@ -941,6 +1271,8 @@ Use this only for partial slice completion. The full handoff is complete only wh
 
 Minimum acceptable partial slice:
 
+- Supabase auth boundary is explicit
+- partner UI project decision is explicit
 - implementation partner positioning is explicit and does not read like affiliate/referral copy
 - partner domain and access assumptions are recorded
 - intelligence catalog covers verified Shopify Companion Starter surfaces
@@ -990,11 +1322,37 @@ If Platform UI changes:
 npm --prefix Platfrom/ui run build
 ```
 
+If Partner UI changes:
+
+```bash
+npm --prefix Platfrom/partner-ui run build
+```
+
 If Platform backend changes:
 
 ```bash
 mvn -f Platfrom/backend/pom.xml -q test
 ```
+
+If Supabase auth changes:
+
+```bash
+mvn -f Platfrom/backend/pom.xml -q \
+  -Dtest=PlatformSupabaseAuthIntegrationTest,PartnerAuthIntegrationTest,PartnerStoreAccessIntegrationTest \
+  test
+npm --prefix Platfrom/partner-ui run build
+```
+
+If those tests do not exist yet, the implementing session should create equivalent focused tests for:
+
+- valid Supabase JWT accepted
+- invalid issuer/audience/signature rejected
+- uninvited user denied
+- pending member denied
+- revoked member denied
+- assigned store allowed
+- unassigned store denied
+- operator auth still works
 
 If live deployment or verifier behavior changes:
 
