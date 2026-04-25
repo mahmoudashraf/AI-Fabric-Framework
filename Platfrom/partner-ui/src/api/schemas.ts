@@ -116,6 +116,7 @@ export const partnerEscalationSchema = z.object({
   dueAt: nullableDateString,
   description: z.string(),
   resolutionSummary: nullableString,
+  evidenceBundleIds: z.array(z.string()),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -135,7 +136,95 @@ export const partnerThreadSchema = z.object({
   replies: z.array(partnerReplySchema),
 })
 
+export const partnerVerificationStepSchema = z.object({
+  stepId: z.string(),
+  label: z.string(),
+  status: z.string(),
+  partnerSafeMessage: z.string(),
+  suggestedFix: nullableString,
+  evidence: z.array(z.string()),
+  checkedAt: nullableDateString,
+  sortOrder: z.number(),
+})
+
+export const partnerVerificationPackSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  steps: z.array(partnerVerificationStepSchema),
+})
+
+export const partnerVerificationRunSchema = z.object({
+  id: z.string(),
+  storeAssignmentId: z.string(),
+  shopDomain: nullableString,
+  packId: z.string(),
+  packName: z.string(),
+  status: z.string(),
+  totalSteps: z.number(),
+  passedSteps: z.number(),
+  failedSteps: z.number(),
+  blockedSteps: z.number(),
+  evidenceBundleId: nullableString,
+  summary: z.record(z.unknown()),
+  startedAt: z.string(),
+  completedAt: nullableDateString,
+  steps: z.array(partnerVerificationStepSchema),
+})
+
+export const partnerEvidenceBundleSchema = z.object({
+  id: z.string(),
+  storeAssignmentId: nullableString,
+  shopDomain: nullableString,
+  verificationRunId: nullableString,
+  bundleName: z.string(),
+  bundleKind: z.string(),
+  status: z.string(),
+  generatedBy: nullableString,
+  summary: z.record(z.unknown()),
+  attachments: z.array(z.string()),
+  generatedAt: z.string(),
+  expiresAt: nullableDateString,
+})
+
+export const partnerTemplateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  category: z.string(),
+  vertical: z.string(),
+  surfaceIds: z.array(z.string()),
+  bodyMarkdown: z.string(),
+  assumptions: z.array(z.string()),
+  checklist: z.array(z.string()),
+  updatedAt: z.string(),
+})
+
+export const partnerTemplateApplicationSchema = z.object({
+  id: z.string(),
+  templateId: z.string(),
+  templateName: z.string(),
+  category: z.string(),
+  storeAssignmentId: nullableString,
+  shopDomain: nullableString,
+  status: z.string(),
+  checklist: z.array(z.string()),
+  assumptions: z.array(z.string()),
+  appliedAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const partnerStoreNoteSchema = z.object({
+  id: z.string(),
+  storeAssignmentId: z.string(),
+  authorName: z.string(),
+  bodyMarkdown: z.string(),
+  status: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
 export type PartnerSession = z.infer<typeof partnerSessionSchema>
+export type PartnerMember = z.infer<typeof partnerMemberSchema>
 export type PartnerStore = z.infer<typeof partnerStoreSchema>
 export type PartnerClientImplementation = z.infer<typeof partnerClientImplementationSchema>
 export type PartnerEligibleStore = z.infer<typeof partnerEligibleStoreSchema>
@@ -144,3 +233,10 @@ export type MerchantApproval = z.infer<typeof merchantApprovalSchema>
 export type PartnerCatalogEntry = z.infer<typeof partnerCatalogEntrySchema>
 export type PartnerEscalation = z.infer<typeof partnerEscalationSchema>
 export type PartnerThread = z.infer<typeof partnerThreadSchema>
+export type PartnerVerificationPack = z.infer<typeof partnerVerificationPackSchema>
+export type PartnerVerificationRun = z.infer<typeof partnerVerificationRunSchema>
+export type PartnerVerificationStep = z.infer<typeof partnerVerificationStepSchema>
+export type PartnerEvidenceBundle = z.infer<typeof partnerEvidenceBundleSchema>
+export type PartnerTemplate = z.infer<typeof partnerTemplateSchema>
+export type PartnerTemplateApplication = z.infer<typeof partnerTemplateApplicationSchema>
+export type PartnerStoreNote = z.infer<typeof partnerStoreNoteSchema>

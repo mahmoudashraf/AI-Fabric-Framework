@@ -12,10 +12,12 @@ export function EscalationThread({ thread }: { thread: PartnerThread }) {
   const { api } = useSupabaseAuth()
   const queryClient = useQueryClient()
   const [body, setBody] = useState('')
+  const [evidenceIds, setEvidenceIds] = useState('')
   const mutation = useMutation({
-    mutationFn: () => addEscalationReply(api, thread.escalation.id, body),
+    mutationFn: () => addEscalationReply(api, thread.escalation.id, body, evidenceIds.split(',').map((item) => item.trim()).filter(Boolean)),
     onSuccess: async () => {
       setBody('')
+      setEvidenceIds('')
       await queryClient.invalidateQueries({ queryKey: ['escalation-thread', thread.escalation.id] })
       await queryClient.invalidateQueries({ queryKey: ['escalations'] })
     },
@@ -62,6 +64,12 @@ export function EscalationThread({ thread }: { thread: PartnerThread }) {
             multiline
             onChange={(event) => setBody(event.target.value)}
             placeholder="Add a partner-visible update, reproduction detail, or evidence note."
+          />
+          <TextField
+            label="Evidence bundle IDs"
+            value={evidenceIds}
+            onChange={(event) => setEvidenceIds(event.target.value)}
+            placeholder="peb-... , peb-..."
           />
           <Stack direction="row" justifyContent="flex-end">
             <Button

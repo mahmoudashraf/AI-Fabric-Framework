@@ -3,12 +3,17 @@ package com.ai.fabric.platform.backend.partner.service;
 import com.ai.fabric.platform.backend.partner.config.PartnerSupabaseAuthProperties;
 import com.ai.fabric.platform.backend.partner.entity.PartnerAccountEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerClientImplementationRequestEntity;
+import com.ai.fabric.platform.backend.partner.entity.PartnerEvidenceBundleEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerMemberEntity;
+import com.ai.fabric.platform.backend.partner.entity.PartnerStoreNoteEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerStoreAccessApprovalEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerStoreAccessRequestEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerStoreAssignmentEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerSupportEscalationEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerSupportReplyEntity;
+import com.ai.fabric.platform.backend.partner.entity.PartnerTemplateApplicationEntity;
+import com.ai.fabric.platform.backend.partner.entity.PartnerVerificationRunEntity;
+import com.ai.fabric.platform.backend.partner.entity.PartnerVerificationRunStepEntity;
 import com.ai.fabric.platform.backend.partner.gateway.PartnerAuditPublisher;
 import com.ai.fabric.platform.backend.partner.gateway.PartnerCatalogSource;
 import com.ai.fabric.platform.backend.partner.gateway.PartnerShopifyStoreReadModel;
@@ -23,24 +28,43 @@ import com.ai.fabric.platform.backend.partner.model.PartnerCatalogEntrySummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerEligibleStoreSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleCreateRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSignupCompleteRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerStoreAccessLinkSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerStoreNoteRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerStoreNoteSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerStoreSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportEscalationCreateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportEscalationSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportReplyRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportReplySummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportThreadSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerTemplateApplicationRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerTemplateApplicationSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerTemplateSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerVerificationPackSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerVerificationStepSummary;
 import com.ai.fabric.platform.backend.partner.repository.PartnerAccountRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerClientImplementationRequestRepository;
+import com.ai.fabric.platform.backend.partner.repository.PartnerEvidenceBundleRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerStoreAccessApprovalRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerStoreAccessRequestRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerStoreAssignmentRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerMemberRepository;
+import com.ai.fabric.platform.backend.partner.repository.PartnerStoreNoteRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerSupportEscalationRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerSupportReplyRepository;
+import com.ai.fabric.platform.backend.partner.repository.PartnerTemplateApplicationRepository;
+import com.ai.fabric.platform.backend.partner.repository.PartnerVerificationRunRepository;
+import com.ai.fabric.platform.backend.partner.repository.PartnerVerificationRunStepRepository;
 import com.ai.fabric.platform.backend.partner.security.PartnerForbiddenException;
 import com.ai.fabric.platform.backend.partner.security.PartnerPrincipal;
 import com.ai.fabric.platform.backend.partner.security.PartnerSecurityContext;
@@ -54,14 +78,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class PartnerEnablementService {
@@ -76,6 +107,14 @@ public class PartnerEnablementService {
     );
     private static final String MERCHANT_CONFIGURED_TIER = "MERCHANT_CONFIGURED";
     private static final String FULL_STORE_ACCESS_SCOPE = "FULL_STORE_ACCESS";
+    private static final List<String> FORBIDDEN_PARTNER_SURFACES = List.of(
+        "order-lookup",
+        "governed-add-to-cart",
+        "cart-update",
+        "checkout-completion",
+        "refund-initiation"
+    );
+    private static final Instant TEMPLATE_UPDATED_AT = Instant.parse("2026-04-25T00:00:00Z");
 
     private final PartnerSupabaseAuthProperties authProperties;
     private final PartnerAccountRepository accountRepository;
@@ -86,6 +125,11 @@ public class PartnerEnablementService {
     private final PartnerStoreAssignmentRepository storeAssignmentRepository;
     private final PartnerSupportEscalationRepository escalationRepository;
     private final PartnerSupportReplyRepository replyRepository;
+    private final PartnerEvidenceBundleRepository evidenceBundleRepository;
+    private final PartnerVerificationRunRepository verificationRunRepository;
+    private final PartnerVerificationRunStepRepository verificationRunStepRepository;
+    private final PartnerTemplateApplicationRepository templateApplicationRepository;
+    private final PartnerStoreNoteRepository storeNoteRepository;
     private final PartnerStoreAccessGateway storeAccessGateway;
     private final PartnerCatalogSource catalogSource;
     private final PartnerAuditPublisher auditPublisher;
@@ -101,6 +145,11 @@ public class PartnerEnablementService {
                                     PartnerStoreAssignmentRepository storeAssignmentRepository,
                                     PartnerSupportEscalationRepository escalationRepository,
                                     PartnerSupportReplyRepository replyRepository,
+                                    PartnerEvidenceBundleRepository evidenceBundleRepository,
+                                    PartnerVerificationRunRepository verificationRunRepository,
+                                    PartnerVerificationRunStepRepository verificationRunStepRepository,
+                                    PartnerTemplateApplicationRepository templateApplicationRepository,
+                                    PartnerStoreNoteRepository storeNoteRepository,
                                     PartnerStoreAccessGateway storeAccessGateway,
                                     PartnerCatalogSource catalogSource,
                                     PartnerAuditPublisher auditPublisher,
@@ -114,6 +163,11 @@ public class PartnerEnablementService {
         this.storeAssignmentRepository = storeAssignmentRepository;
         this.escalationRepository = escalationRepository;
         this.replyRepository = replyRepository;
+        this.evidenceBundleRepository = evidenceBundleRepository;
+        this.verificationRunRepository = verificationRunRepository;
+        this.verificationRunStepRepository = verificationRunStepRepository;
+        this.templateApplicationRepository = templateApplicationRepository;
+        this.storeNoteRepository = storeNoteRepository;
         this.storeAccessGateway = storeAccessGateway;
         this.catalogSource = catalogSource;
         this.auditPublisher = auditPublisher;
@@ -474,6 +528,320 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    public List<PartnerVerificationPackSummary> listVerificationPacks() {
+        requireProvisionedContext();
+        return verificationPacks().stream()
+            .map(pack -> toPackSummary(pack, pack.steps().stream()
+                .map(step -> stepSummary(step, "NOT_RUN", "Run this pack on an approved store to capture live status.", step.suggestedFix(), List.of(), null))
+                .toList()))
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PartnerVerificationPackSummary getStoreVerificationPack(String storeId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        PartnerShopifyStoreReadModel store = storeForAssignment(assignment);
+        VerificationPack pack = defaultVerificationPack();
+        return toPackSummary(pack, evaluatePack(pack, assignment, store, Instant.now()));
+    }
+
+    @Transactional
+    public PartnerVerificationRunSummary runStoreVerification(String storeId, PartnerVerificationRunRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        PartnerShopifyStoreReadModel store = storeForAssignment(assignment);
+        VerificationPack pack = verificationPack(firstNonBlank(request.packId(), defaultVerificationPack().id()));
+        Instant now = Instant.now();
+        List<PartnerVerificationStepSummary> evaluatedSteps = evaluatePack(pack, assignment, store, now);
+        String status = aggregateVerificationStatus(evaluatedSteps);
+
+        PartnerVerificationRunEntity run = new PartnerVerificationRunEntity();
+        run.setId(id("pvr"));
+        run.setPartnerAccountId(context.account().getId());
+        run.setStoreAssignmentId(assignment.getId());
+        run.setPackId(pack.id());
+        run.setPackName(pack.name());
+        run.setStatus(status);
+        run.setSummaryJson(writeJson(verificationSummaryMap(assignment, store, status, evaluatedSteps)));
+        run.setStartedByMemberId(context.member().getId());
+        run.setStartedAt(now);
+        run.setCompletedAt(now);
+        verificationRunRepository.save(run);
+
+        List<PartnerVerificationRunStepEntity> persistedSteps = evaluatedSteps.stream()
+            .map(step -> toRunStepEntity(run.getId(), step))
+            .toList();
+        verificationRunStepRepository.saveAll(persistedSteps);
+
+        PartnerEvidenceBundleEntity evidence = createEvidenceBundleForRun(context, assignment, store, run, evaluatedSteps, "VERIFICATION_PACK");
+        run.setEvidenceBundleId(evidence.getId());
+        verificationRunRepository.save(run);
+        audit(context, "VERIFICATION_RUN_CREATED", "VERIFICATION_RUN", run.getId(), "SUCCESS", writeJson(Map.of(
+            "packId", pack.id(),
+            "status", status
+        )));
+        return toVerificationRunSummary(run, persistedSteps);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerVerificationRunSummary> listVerificationRuns() {
+        PartnerContext context = requireProvisionedContext();
+        return verificationRunRepository.findByPartnerAccountIdOrderByStartedAtDesc(context.account().getId()).stream()
+            .map(run -> toVerificationRunSummary(run, verificationRunStepRepository.findByRunIdOrderBySortOrderAsc(run.getId())))
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerVerificationRunSummary> listStoreVerificationRuns(String storeId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        return verificationRunRepository.findByPartnerAccountIdAndStoreAssignmentIdOrderByStartedAtDesc(context.account().getId(), assignment.getId()).stream()
+            .map(run -> toVerificationRunSummary(run, verificationRunStepRepository.findByRunIdOrderBySortOrderAsc(run.getId())))
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PartnerVerificationRunSummary getVerificationRun(String runId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerVerificationRunEntity run = requireVerificationRun(context.account().getId(), runId);
+        requireActiveAssignment(context.account().getId(), run.getStoreAssignmentId());
+        return toVerificationRunSummary(run, verificationRunStepRepository.findByRunIdOrderBySortOrderAsc(run.getId()));
+    }
+
+    @Transactional
+    public PartnerVerificationRunSummary completeManualVerificationStep(String storeId,
+                                                                        String stepId,
+                                                                        PartnerManualVerificationStepRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        Instant now = Instant.now();
+        PartnerVerificationRunEntity run = StringUtils.hasText(request.runId())
+            ? requireVerificationRun(context.account().getId(), request.runId())
+            : createManualVerificationRun(context, assignment, now);
+        if (!assignment.getId().equals(run.getStoreAssignmentId())) {
+            throw new PartnerForbiddenException("Verification run is not scoped to this store.");
+        }
+        String normalizedStepId = clean(stepId, "stepId");
+        String status = normalizeStepStatus(request.status());
+        PartnerVerificationRunStepEntity step = verificationRunStepRepository.findByRunIdAndStepId(run.getId(), normalizedStepId)
+            .orElseGet(() -> {
+                PartnerVerificationRunStepEntity created = new PartnerVerificationRunStepEntity();
+                created.setId(id("pvrs"));
+                created.setRunId(run.getId());
+                created.setStepId(normalizedStepId);
+                created.setStepLabel(titleFromId(normalizedStepId));
+                created.setSortOrder(verificationRunStepRepository.findByRunIdOrderBySortOrderAsc(run.getId()).size() + 1);
+                return created;
+            });
+        step.setStatus(status);
+        step.setPartnerSafeMessage(firstNonBlank(request.partnerSafeMessage(), "Manual verification step marked " + status.toLowerCase(Locale.ROOT) + "."));
+        step.setSuggestedFix(status.equals("PASSED") ? null : "Review the store setup checklist and attach evidence before escalating.");
+        step.setEvidenceJson(writeJson(StringUtils.hasText(request.evidenceNote()) ? List.of(request.evidenceNote().trim()) : List.of()));
+        step.setCheckedAt(now);
+        verificationRunStepRepository.save(step);
+
+        List<PartnerVerificationRunStepEntity> steps = verificationRunStepRepository.findByRunIdOrderBySortOrderAsc(run.getId());
+        run.setStatus(aggregateVerificationStatus(steps.stream().map(this::toVerificationStepSummary).toList()));
+        run.setCompletedAt(now);
+        run.setSummaryJson(writeJson(Map.of(
+            "manual", true,
+            "stepCount", steps.size(),
+            "status", run.getStatus()
+        )));
+        verificationRunRepository.save(run);
+        audit(context, "VERIFICATION_STEP_MARKED", "VERIFICATION_RUN", run.getId(), "SUCCESS", writeJson(Map.of(
+            "stepId", normalizedStepId,
+            "status", status
+        )));
+        return toVerificationRunSummary(run, steps);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerEvidenceBundleSummary> listEvidenceBundles() {
+        PartnerContext context = requireProvisionedContext();
+        return evidenceBundleRepository.findByPartnerAccountIdOrderByGeneratedAtDesc(context.account().getId()).stream()
+            .map(this::toEvidenceBundleSummary)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerEvidenceBundleSummary> listStoreEvidenceBundles(String storeId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        return evidenceBundleRepository.findByPartnerAccountIdAndStoreAssignmentIdOrderByGeneratedAtDesc(context.account().getId(), assignment.getId()).stream()
+            .map(this::toEvidenceBundleSummary)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PartnerEvidenceBundleSummary getEvidenceBundle(String bundleId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerEvidenceBundleEntity bundle = requireEvidenceBundle(context.account().getId(), bundleId);
+        if (StringUtils.hasText(bundle.getStoreAssignmentId())) {
+            requireActiveAssignment(context.account().getId(), bundle.getStoreAssignmentId());
+        }
+        return toEvidenceBundleSummary(bundle);
+    }
+
+    @Transactional
+    public PartnerEvidenceBundleSummary createStoreEvidenceBundle(String storeId, PartnerEvidenceBundleCreateRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        PartnerShopifyStoreReadModel store = storeForAssignment(assignment);
+        PartnerVerificationRunEntity run = null;
+        List<PartnerVerificationStepSummary> steps = List.of();
+        if (request != null && StringUtils.hasText(request.verificationRunId())) {
+            run = requireVerificationRun(context.account().getId(), request.verificationRunId());
+            if (!assignment.getId().equals(run.getStoreAssignmentId())) {
+                throw new PartnerForbiddenException("Verification run is not scoped to this store.");
+            }
+            steps = verificationRunStepRepository.findByRunIdOrderBySortOrderAsc(run.getId()).stream()
+                .map(this::toVerificationStepSummary)
+                .toList();
+        }
+        PartnerEvidenceBundleEntity bundle = run == null
+            ? createEvidenceBundleForStore(context, assignment, store, firstNonBlank(request == null ? null : request.bundleKind(), "LAUNCH_PACKET"))
+            : createEvidenceBundleForRun(context, assignment, store, run, steps, firstNonBlank(request == null ? null : request.bundleKind(), "VERIFICATION_PACK"));
+        audit(context, "EVIDENCE_BUNDLE_CREATED", "EVIDENCE_BUNDLE", bundle.getId(), "SUCCESS", writeJson(Map.of(
+            "bundleKind", bundle.getBundleKind()
+        )));
+        return toEvidenceBundleSummary(bundle);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportEvidenceBundle(String bundleId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerEvidenceBundleEntity bundle = requireEvidenceBundle(context.account().getId(), bundleId);
+        if (StringUtils.hasText(bundle.getStoreAssignmentId())) {
+            requireActiveAssignment(context.account().getId(), bundle.getStoreAssignmentId());
+        }
+        return evidenceBundleZip(bundle);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerTemplateSummary> listTemplates() {
+        requireProvisionedContext();
+        return templates();
+    }
+
+    @Transactional(readOnly = true)
+    public PartnerTemplateSummary getTemplate(String templateId) {
+        requireProvisionedContext();
+        return requireTemplate(templateId);
+    }
+
+    @Transactional
+    public PartnerTemplateApplicationSummary applyTemplate(String templateId, PartnerTemplateApplicationRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerTemplateSummary template = requireTemplate(templateId);
+        PartnerStoreAssignmentEntity assignment = request != null && StringUtils.hasText(request.storeId())
+            ? requireActiveAssignment(context.account().getId(), request.storeId())
+            : null;
+        Instant now = Instant.now();
+        PartnerTemplateApplicationEntity application = new PartnerTemplateApplicationEntity();
+        application.setId(id("pta"));
+        application.setPartnerAccountId(context.account().getId());
+        application.setStoreAssignmentId(assignment == null ? null : assignment.getId());
+        application.setTemplateId(template.id());
+        application.setTemplateName(template.name());
+        application.setCategory(template.category());
+        application.setAppliedByMemberId(context.member().getId());
+        application.setStatus("ACTIVE");
+        application.setChecklistJson(writeJson(template.checklist()));
+        application.setAssumptionsJson(writeJson(template.assumptions()));
+        application.setAppliedAt(now);
+        application.setUpdatedAt(now);
+        templateApplicationRepository.save(application);
+        audit(context, "TEMPLATE_APPLIED", "TEMPLATE_APPLICATION", application.getId(), "SUCCESS", writeJson(Map.of(
+            "templateId", template.id(),
+            "storeAssignmentId", assignment == null ? "none" : assignment.getId()
+        )));
+        return toTemplateApplicationSummary(application);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerTemplateApplicationSummary> listTemplateApplications() {
+        PartnerContext context = requireProvisionedContext();
+        return templateApplicationRepository.findByPartnerAccountIdOrderByAppliedAtDesc(context.account().getId()).stream()
+            .map(this::toTemplateApplicationSummary)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerStoreNoteSummary> listStoreNotes(String storeId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        return storeNoteRepository.findByPartnerAccountIdAndStoreAssignmentIdOrderByCreatedAtDesc(context.account().getId(), assignment.getId()).stream()
+            .map(this::toStoreNoteSummary)
+            .toList();
+    }
+
+    @Transactional
+    public PartnerStoreNoteSummary createStoreNote(String storeId, PartnerStoreNoteRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        Instant now = Instant.now();
+        PartnerStoreNoteEntity note = new PartnerStoreNoteEntity();
+        note.setId(id("psn"));
+        note.setPartnerAccountId(context.account().getId());
+        note.setStoreAssignmentId(assignment.getId());
+        note.setCreatedByMemberId(context.member().getId());
+        note.setBodyMarkdown(clean(request.bodyMarkdown(), "bodyMarkdown"));
+        note.setStatus("ACTIVE");
+        note.setCreatedAt(now);
+        note.setUpdatedAt(now);
+        storeNoteRepository.save(note);
+        audit(context, "STORE_NOTE_CREATED", "STORE_NOTE", note.getId(), "SUCCESS", "{}");
+        return toStoreNoteSummary(note);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerMemberSummary> listMembers() {
+        PartnerContext context = requireProvisionedContext();
+        requireWorkspaceAdmin(context);
+        return memberRepository.findByPartnerAccountIdOrderByCreatedAtAsc(context.account().getId()).stream()
+            .map(this::toMemberSummary)
+            .toList();
+    }
+
+    @Transactional
+    public PartnerMemberSummary updateProfile(PartnerProfileUpdateRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerMemberEntity member = context.member();
+        member.setDisplayName(firstNonBlank(request.displayName(), member.getDisplayName(), member.getEmail()));
+        member.setAvatarUrl(trimToNull(request.avatarUrl()));
+        member.setUpdatedAt(Instant.now());
+        memberRepository.save(member);
+        audit(context, "PARTNER_PROFILE_UPDATED", "PARTNER_MEMBER", member.getId(), "SUCCESS", "{}");
+        return toMemberSummary(member);
+    }
+
+    @Transactional
+    public PartnerMemberSummary updateMember(String memberId, PartnerMemberUpdateRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        requireWorkspaceAdmin(context);
+        PartnerMemberEntity target = memberRepository.findByIdAndPartnerAccountId(memberId, context.account().getId())
+            .orElseThrow(() -> new PartnerForbiddenException("Partner member is not available to this workspace."));
+        if (target.getId().equals(context.member().getId()) && StringUtils.hasText(request.status()) && !"ACTIVE".equalsIgnoreCase(request.status())) {
+            throw new IllegalArgumentException("Partner admins cannot suspend or revoke their own member record.");
+        }
+        if (StringUtils.hasText(request.role())) {
+            target.setRole(normalizePartnerRole(request.role()));
+        }
+        if (StringUtils.hasText(request.status())) {
+            target.setStatus(normalizeMemberStatus(request.status()));
+        }
+        target.setUpdatedAt(Instant.now());
+        memberRepository.save(target);
+        audit(context, "PARTNER_MEMBER_UPDATED", "PARTNER_MEMBER", target.getId(), "SUCCESS", writeJson(Map.of(
+            "role", target.getRole(),
+            "status", target.getStatus()
+        )));
+        return toMemberSummary(target);
+    }
+
+    @Transactional(readOnly = true)
     public List<PartnerSupportEscalationSummary> listEscalations() {
         PartnerContext context = requireProvisionedContext();
         return escalationRepository.findByPartnerAccountIdOrderByUpdatedAtDesc(context.account().getId()).stream()
@@ -501,6 +869,7 @@ public class PartnerEnablementService {
         entity.setActualBehavior(trimToNull(request.actualBehavior()));
         entity.setImpact(trimToNull(request.impact()));
         entity.setNextAction(trimToNull(request.nextAction()));
+        entity.setEvidenceBundleIdsJson(writeJson(validatedEvidenceBundleIds(context.account().getId(), assignment.getId(), request.evidenceBundleIds())));
         entity.setDueAt(request.dueAt());
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
@@ -539,13 +908,596 @@ public class PartnerEnablementService {
         reply.setAuthorRole(context.member().getRole());
         reply.setVisibility("PARTNER_VISIBLE");
         reply.setBodyMarkdown(clean(request.bodyMarkdown(), "bodyMarkdown"));
-        reply.setAttachmentsJson("[]");
+        reply.setAttachmentsJson(writeJson(validatedEvidenceBundleIds(context.account().getId(), escalation.getStoreAssignmentId(), request.evidenceBundleIds())));
         reply.setCreatedAt(Instant.now());
         replyRepository.save(reply);
         escalation.setUpdatedAt(reply.getCreatedAt());
         escalationRepository.save(escalation);
         audit(context, "SUPPORT_REPLY_CREATED", "SUPPORT_ESCALATION", escalation.getId(), "SUCCESS", "{}");
         return toReplySummary(reply);
+    }
+
+    private List<VerificationPack> verificationPacks() {
+        return List.of(
+            new VerificationPack(
+                "starter-launch-readiness",
+                "Starter launch readiness",
+                "Checks install, source readiness, storefront activation, read-only Starter boundary, and merchant-safe evidence readiness.",
+                List.of(
+                    new VerificationStepDefinition("companion-installed", "Companion installed", "Confirm the Shopify Companion install is active.", "Install or reconnect the Shopify Companion app."),
+                    new VerificationStepDefinition("knowledge-sync-ready", "Knowledge Sync ready", "Confirm store content has completed Knowledge Sync.", "Run Knowledge Sync from merchant admin or ask an operator to investigate stale sources."),
+                    new VerificationStepDefinition("source-readiness-ready", "Source readiness ready", "Confirm enabled store content is ready for grounded answers.", "Resolve missing source categories or incomplete content before launch."),
+                    new VerificationStepDefinition("storefront-widget-enabled", "Storefront surfaces enabled", "Confirm storefront widget or app embed is enabled.", "Enable the Shopify app embed and place the configured app blocks."),
+                    new VerificationStepDefinition("free-ai-search-boundary", "Free AI-search boundary", "Confirm AI search is available and forbidden governed surfaces are absent.", "Remove order/account/governed action surfaces from Free or Starter configuration."),
+                    new VerificationStepDefinition("starter-read-only-boundary", "Starter read-only boundary", "Confirm Starter surfaces remain read-only and exclude order lookup.", "Keep account/order/guided-commerce actions gated outside Starter."),
+                    new VerificationStepDefinition("evidence-contract-safe", "Evidence contract safe", "Confirm generated evidence is merchant-safe.", "Regenerate evidence through the partner bundle exporter.")
+                )
+            ),
+            new VerificationPack(
+                "free-ai-search",
+                "Free AI search",
+                "Checks the Free tier AI-search-only boundary and grounded source readiness.",
+                List.of(
+                    new VerificationStepDefinition("companion-installed", "Companion installed", "Confirm the Shopify Companion install is active.", "Install or reconnect the Shopify Companion app."),
+                    new VerificationStepDefinition("knowledge-sync-ready", "Knowledge Sync ready", "Confirm product and policy content is synced.", "Run Knowledge Sync from merchant admin."),
+                    new VerificationStepDefinition("free-ai-search-boundary", "Free AI-search boundary", "Confirm AI search is available and forbidden governed surfaces are absent.", "Remove order/account/governed action surfaces from Free configuration.")
+                )
+            ),
+            new VerificationPack(
+                "tier-boundary",
+                "Tier boundary",
+                "Checks Free and Starter launch truth boundaries against store-configured surfaces.",
+                List.of(
+                    new VerificationStepDefinition("free-ai-search-boundary", "Free AI-search boundary", "Confirm AI search remains the Free surface.", "Keep Free limited to AI search."),
+                    new VerificationStepDefinition("starter-read-only-boundary", "Starter read-only boundary", "Confirm Starter surfaces remain read-only and exclude order lookup.", "Keep governed actions gated outside Starter."),
+                    new VerificationStepDefinition("evidence-contract-safe", "Evidence contract safe", "Confirm generated evidence is merchant-safe.", "Regenerate evidence through the partner bundle exporter.")
+                )
+            )
+        );
+    }
+
+    private VerificationPack defaultVerificationPack() {
+        return verificationPacks().get(0);
+    }
+
+    private VerificationPack verificationPack(String packId) {
+        return verificationPacks().stream()
+            .filter(pack -> pack.id().equals(packId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Verification pack is not available."));
+    }
+
+    private PartnerVerificationPackSummary toPackSummary(VerificationPack pack, List<PartnerVerificationStepSummary> steps) {
+        return new PartnerVerificationPackSummary(pack.id(), pack.name(), pack.description(), steps);
+    }
+
+    private List<PartnerVerificationStepSummary> evaluatePack(VerificationPack pack,
+                                                              PartnerStoreAssignmentEntity assignment,
+                                                              PartnerShopifyStoreReadModel store,
+                                                              Instant checkedAt) {
+        List<PartnerVerificationStepSummary> result = new ArrayList<>();
+        int order = 1;
+        for (VerificationStepDefinition step : pack.steps()) {
+            result.add(evaluateStep(step, assignment, store, checkedAt, order++));
+        }
+        List<String> configuredSurfaces = storeConfiguredSurfaces(store);
+        List<String> catalogSurfaces = catalogSource.listCatalog().stream()
+            .map(PartnerCatalogEntrySummary::surfaceId)
+            .toList();
+        for (String surface : configuredSurfaces) {
+            if (!catalogSurfaces.contains(surface) || FORBIDDEN_PARTNER_SURFACES.contains(surface)) {
+                continue;
+            }
+            result.add(new PartnerVerificationStepSummary(
+                "surface-" + surface,
+                titleFromId(surface) + " surface",
+                statusForSurface(store, surface),
+                "Surface " + surface + " is configured for " + assignment.getShopDomain() + ".",
+                "Confirm the app block placement in Shopify admin if the surface is not visible.",
+                List.of("surface=" + surface, "shop=" + assignment.getShopDomain()),
+                checkedAt,
+                order++
+            ));
+        }
+        return result;
+    }
+
+    private PartnerVerificationStepSummary evaluateStep(VerificationStepDefinition step,
+                                                        PartnerStoreAssignmentEntity assignment,
+                                                        PartnerShopifyStoreReadModel store,
+                                                        Instant checkedAt,
+                                                        int sortOrder) {
+        String status;
+        String message;
+        List<String> evidence;
+        switch (step.id()) {
+            case "companion-installed" -> {
+                status = "INSTALLED".equalsIgnoreCase(store.installStatus()) ? "PASSED" : "BLOCKED";
+                message = status.equals("PASSED") ? "Shopify Companion install is active." : "Shopify Companion is not installed.";
+                evidence = List.of("installStatus=" + safeEvidenceValue(store.installStatus()));
+            }
+            case "knowledge-sync-ready" -> {
+                status = "SYNCED".equalsIgnoreCase(store.knowledgeSyncStatus()) ? "PASSED" : "BLOCKED";
+                message = status.equals("PASSED") ? "Knowledge Sync is synced." : "Knowledge Sync needs merchant or operator attention.";
+                evidence = List.of("knowledgeSyncStatus=" + safeEvidenceValue(store.knowledgeSyncStatus()));
+            }
+            case "source-readiness-ready" -> {
+                status = "READY".equalsIgnoreCase(store.sourceReadinessStatus()) ? "PASSED" : "BLOCKED";
+                message = status.equals("PASSED") ? "Enabled store sources are ready." : "Store source readiness is not ready.";
+                evidence = List.of("sourceReadinessStatus=" + safeEvidenceValue(store.sourceReadinessStatus()));
+            }
+            case "storefront-widget-enabled" -> {
+                status = "ENABLED".equalsIgnoreCase(store.widgetStatus()) ? "PASSED" : "BLOCKED";
+                message = status.equals("PASSED") ? "Storefront widget/app embed is enabled." : "Storefront widget/app embed is not enabled.";
+                evidence = List.of("widgetStatus=" + safeEvidenceValue(store.widgetStatus()));
+            }
+            case "free-ai-search-boundary" -> {
+                boolean hasSearch = storeConfiguredSurfaces(store).contains("ai-search");
+                boolean hasForbidden = containsForbiddenSurface(storeConfiguredSurfaces(store));
+                status = hasSearch && !hasForbidden ? "PASSED" : "FAILED";
+                message = status.equals("PASSED")
+                    ? "AI search is configured and forbidden governed surfaces are absent."
+                    : "AI search boundary failed because search is missing or a forbidden governed surface is configured.";
+                evidence = List.of("enabledSurfaces=" + String.join(",", storeConfiguredSurfaces(store)));
+            }
+            case "starter-read-only-boundary" -> {
+                boolean hasForbidden = containsForbiddenSurface(storeConfiguredSurfaces(store));
+                status = hasForbidden ? "FAILED" : "PASSED";
+                message = status.equals("PASSED")
+                    ? "Starter configured surfaces are read-only and do not include order lookup."
+                    : "Starter boundary failed because a governed or order surface is configured.";
+                evidence = List.of("forbiddenSurfacesPresent=" + hasForbidden);
+            }
+            case "evidence-contract-safe" -> {
+                status = "PASSED";
+                message = "Evidence bundle output is generated from partner-safe store, run, and support summary fields.";
+                evidence = List.of("redaction=merchant-safe", "shop=" + assignment.getShopDomain());
+            }
+            default -> {
+                status = "BLOCKED";
+                message = "Verification step requires manual partner review.";
+                evidence = List.of();
+            }
+        }
+        return stepSummary(step, status, message, status.equals("PASSED") ? null : step.suggestedFix(), evidence, checkedAt, sortOrder);
+    }
+
+    private PartnerVerificationStepSummary stepSummary(VerificationStepDefinition step,
+                                                       String status,
+                                                       String message,
+                                                       String suggestedFix,
+                                                       List<String> evidence,
+                                                       Instant checkedAt) {
+        return stepSummary(step, status, message, suggestedFix, evidence, checkedAt, 0);
+    }
+
+    private PartnerVerificationStepSummary stepSummary(VerificationStepDefinition step,
+                                                       String status,
+                                                       String message,
+                                                       String suggestedFix,
+                                                       List<String> evidence,
+                                                       Instant checkedAt,
+                                                       int sortOrder) {
+        return new PartnerVerificationStepSummary(step.id(), step.label(), status, message, suggestedFix, evidence, checkedAt, sortOrder);
+    }
+
+    private String statusForSurface(PartnerShopifyStoreReadModel store, String surface) {
+        if (!"READY".equalsIgnoreCase(store.sourceReadinessStatus())) {
+            return "BLOCKED";
+        }
+        if (!"ENABLED".equalsIgnoreCase(store.widgetStatus())) {
+            return "BLOCKED";
+        }
+        return FORBIDDEN_PARTNER_SURFACES.contains(surface) ? "FAILED" : "PASSED";
+    }
+
+    private boolean containsForbiddenSurface(List<String> surfaces) {
+        return surfaces.stream().anyMatch(FORBIDDEN_PARTNER_SURFACES::contains);
+    }
+
+    private String aggregateVerificationStatus(List<PartnerVerificationStepSummary> steps) {
+        if (steps.stream().anyMatch(step -> "FAILED".equals(step.status()))) {
+            return "FAILED";
+        }
+        if (steps.stream().anyMatch(step -> "BLOCKED".equals(step.status()))) {
+            return "BLOCKED";
+        }
+        if (steps.stream().anyMatch(step -> !"PASSED".equals(step.status()))) {
+            return "PARTIAL";
+        }
+        return "PASSED";
+    }
+
+    private Map<String, Object> verificationSummaryMap(PartnerStoreAssignmentEntity assignment,
+                                                       PartnerShopifyStoreReadModel store,
+                                                       String status,
+                                                       List<PartnerVerificationStepSummary> steps) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("shopDomain", assignment.getShopDomain());
+        summary.put("storeConnectionId", assignment.getStoreConnectionId());
+        summary.put("status", status);
+        summary.put("knowledgeSyncStatus", store.knowledgeSyncStatus());
+        summary.put("sourceReadinessStatus", store.sourceReadinessStatus());
+        summary.put("widgetStatus", store.widgetStatus());
+        summary.put("enabledSurfaces", storeConfiguredSurfaces(store));
+        summary.put("passedSteps", steps.stream().filter(step -> "PASSED".equals(step.status())).count());
+        summary.put("failedSteps", steps.stream().filter(step -> "FAILED".equals(step.status())).count());
+        summary.put("blockedSteps", steps.stream().filter(step -> "BLOCKED".equals(step.status())).count());
+        summary.put("redaction", "merchant-safe");
+        return summary;
+    }
+
+    private PartnerVerificationRunStepEntity toRunStepEntity(String runId, PartnerVerificationStepSummary step) {
+        PartnerVerificationRunStepEntity entity = new PartnerVerificationRunStepEntity();
+        entity.setId(id("pvrs"));
+        entity.setRunId(runId);
+        entity.setStepId(step.stepId());
+        entity.setStepLabel(step.label());
+        entity.setStatus(step.status());
+        entity.setPartnerSafeMessage(step.partnerSafeMessage());
+        entity.setSuggestedFix(step.suggestedFix());
+        entity.setEvidenceJson(writeJson(step.evidence()));
+        entity.setSortOrder(step.sortOrder());
+        entity.setCheckedAt(firstNonNull(step.checkedAt(), Instant.now()));
+        return entity;
+    }
+
+    private PartnerVerificationRunEntity createManualVerificationRun(PartnerContext context,
+                                                                     PartnerStoreAssignmentEntity assignment,
+                                                                     Instant now) {
+        PartnerVerificationRunEntity run = new PartnerVerificationRunEntity();
+        run.setId(id("pvr"));
+        run.setPartnerAccountId(context.account().getId());
+        run.setStoreAssignmentId(assignment.getId());
+        run.setPackId("manual-store-checklist");
+        run.setPackName("Manual store checklist");
+        run.setStatus("PARTIAL");
+        run.setSummaryJson(writeJson(Map.of("manual", true)));
+        run.setStartedByMemberId(context.member().getId());
+        run.setStartedAt(now);
+        run.setCompletedAt(now);
+        return verificationRunRepository.save(run);
+    }
+
+    private PartnerVerificationRunEntity requireVerificationRun(String accountId, String runId) {
+        return verificationRunRepository.findByIdAndPartnerAccountId(clean(runId, "runId"), accountId)
+            .orElseThrow(() -> new PartnerForbiddenException("Verification run is not available to this partner."));
+    }
+
+    private PartnerVerificationRunSummary toVerificationRunSummary(PartnerVerificationRunEntity run,
+                                                                  List<PartnerVerificationRunStepEntity> steps) {
+        List<PartnerVerificationStepSummary> stepSummaries = steps.stream()
+            .sorted(Comparator.comparingInt(PartnerVerificationRunStepEntity::getSortOrder))
+            .map(this::toVerificationStepSummary)
+            .toList();
+        String shopDomain = storeAssignmentRepository.findById(run.getStoreAssignmentId())
+            .map(PartnerStoreAssignmentEntity::getShopDomain)
+            .orElse(null);
+        return new PartnerVerificationRunSummary(
+            run.getId(),
+            run.getStoreAssignmentId(),
+            shopDomain,
+            run.getPackId(),
+            run.getPackName(),
+            run.getStatus(),
+            stepSummaries.size(),
+            (int) stepSummaries.stream().filter(step -> "PASSED".equals(step.status())).count(),
+            (int) stepSummaries.stream().filter(step -> "FAILED".equals(step.status())).count(),
+            (int) stepSummaries.stream().filter(step -> "BLOCKED".equals(step.status())).count(),
+            run.getEvidenceBundleId(),
+            readMap(run.getSummaryJson()),
+            run.getStartedAt(),
+            run.getCompletedAt(),
+            stepSummaries
+        );
+    }
+
+    private PartnerVerificationStepSummary toVerificationStepSummary(PartnerVerificationRunStepEntity entity) {
+        return new PartnerVerificationStepSummary(
+            entity.getStepId(),
+            entity.getStepLabel(),
+            entity.getStatus(),
+            entity.getPartnerSafeMessage(),
+            entity.getSuggestedFix(),
+            readList(entity.getEvidenceJson()),
+            entity.getCheckedAt(),
+            entity.getSortOrder()
+        );
+    }
+
+    private PartnerEvidenceBundleEntity createEvidenceBundleForRun(PartnerContext context,
+                                                                   PartnerStoreAssignmentEntity assignment,
+                                                                   PartnerShopifyStoreReadModel store,
+                                                                   PartnerVerificationRunEntity run,
+                                                                   List<PartnerVerificationStepSummary> steps,
+                                                                   String bundleKind) {
+        Map<String, Object> summary = verificationSummaryMap(assignment, store, run.getStatus(), steps);
+        summary.put("verificationRunId", run.getId());
+        summary.put("packId", run.getPackId());
+        summary.put("packName", run.getPackName());
+        List<String> attachments = List.of(
+            "manifest.json",
+            "verification-run.json",
+            "merchant-safe-summary.md"
+        );
+        return saveEvidenceBundle(
+            context,
+            assignment,
+            run.getId(),
+            run.getPackName() + " evidence - " + assignment.getShopDomain(),
+            normalizeBundleKind(bundleKind),
+            summary,
+            attachments,
+            Instant.now()
+        );
+    }
+
+    private PartnerEvidenceBundleEntity createEvidenceBundleForStore(PartnerContext context,
+                                                                     PartnerStoreAssignmentEntity assignment,
+                                                                     PartnerShopifyStoreReadModel store,
+                                                                     String bundleKind) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("shopDomain", assignment.getShopDomain());
+        summary.put("storeConnectionId", assignment.getStoreConnectionId());
+        summary.put("merchantName", firstNonBlank(assignment.getMerchantName(), store.displayName(), assignment.getShopDomain()));
+        summary.put("knowledgeSyncStatus", store.knowledgeSyncStatus());
+        summary.put("sourceReadinessStatus", store.sourceReadinessStatus());
+        summary.put("widgetStatus", store.widgetStatus());
+        summary.put("enabledSourceCategories", store.enabledSourceCategories());
+        summary.put("enabledSurfaces", storeConfiguredSurfaces(store));
+        summary.put("redaction", "merchant-safe");
+        return saveEvidenceBundle(
+            context,
+            assignment,
+            null,
+            titleFromId(bundleKind) + " - " + assignment.getShopDomain(),
+            normalizeBundleKind(bundleKind),
+            summary,
+            List.of("manifest.json", "store-readiness.json", "merchant-safe-summary.md"),
+            Instant.now()
+        );
+    }
+
+    private PartnerEvidenceBundleEntity saveEvidenceBundle(PartnerContext context,
+                                                           PartnerStoreAssignmentEntity assignment,
+                                                           String verificationRunId,
+                                                           String name,
+                                                           String kind,
+                                                           Map<String, Object> summary,
+                                                           List<String> attachments,
+                                                           Instant now) {
+        PartnerEvidenceBundleEntity bundle = new PartnerEvidenceBundleEntity();
+        bundle.setId(id("peb"));
+        bundle.setPartnerAccountId(context.account().getId());
+        bundle.setStoreAssignmentId(assignment.getId());
+        bundle.setGeneratedByMemberId(context.member().getId());
+        bundle.setVerificationRunId(verificationRunId);
+        bundle.setBundleName(name);
+        bundle.setBundleKind(kind);
+        bundle.setStatus("READY");
+        bundle.setSummaryJson(writeJson(summary));
+        bundle.setAttachmentsJson(writeJson(attachments));
+        bundle.setGeneratedAt(now);
+        bundle.setExpiresAt(now.plusSeconds(60L * 60L * 24L * 30L));
+        return evidenceBundleRepository.save(bundle);
+    }
+
+    private PartnerEvidenceBundleEntity requireEvidenceBundle(String accountId, String bundleId) {
+        return evidenceBundleRepository.findByIdAndPartnerAccountId(clean(bundleId, "bundleId"), accountId)
+            .orElseThrow(() -> new PartnerForbiddenException("Evidence bundle is not available to this partner."));
+    }
+
+    private PartnerEvidenceBundleSummary toEvidenceBundleSummary(PartnerEvidenceBundleEntity entity) {
+        String shopDomain = StringUtils.hasText(entity.getStoreAssignmentId())
+            ? storeAssignmentRepository.findById(entity.getStoreAssignmentId()).map(PartnerStoreAssignmentEntity::getShopDomain).orElse(null)
+            : null;
+        String generatedBy = StringUtils.hasText(entity.getGeneratedByMemberId())
+            ? memberRepository.findById(entity.getGeneratedByMemberId()).map(member -> firstNonBlank(member.getDisplayName(), member.getEmail())).orElse(null)
+            : null;
+        return new PartnerEvidenceBundleSummary(
+            entity.getId(),
+            entity.getStoreAssignmentId(),
+            shopDomain,
+            entity.getVerificationRunId(),
+            entity.getBundleName(),
+            entity.getBundleKind(),
+            entity.getStatus(),
+            generatedBy,
+            readMap(entity.getSummaryJson()),
+            readList(entity.getAttachmentsJson()),
+            entity.getGeneratedAt(),
+            entity.getExpiresAt()
+        );
+    }
+
+    private byte[] evidenceBundleZip(PartnerEvidenceBundleEntity bundle) {
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+                Map<String, Object> manifest = new LinkedHashMap<>();
+                manifest.put("bundleId", bundle.getId());
+                manifest.put("bundleName", bundle.getBundleName());
+                manifest.put("bundleKind", bundle.getBundleKind());
+                manifest.put("status", bundle.getStatus());
+                manifest.put("generatedAt", bundle.getGeneratedAt().toString());
+                manifest.put("expiresAt", bundle.getExpiresAt() == null ? null : bundle.getExpiresAt().toString());
+                manifest.put("redaction", "merchant-safe");
+                writeZipEntry(zip, "manifest.json", writeJson(manifest));
+                writeZipEntry(zip, "summary.json", bundle.getSummaryJson());
+                writeZipEntry(zip, "attachments.json", bundle.getAttachmentsJson());
+                writeZipEntry(zip, "merchant-safe-summary.md", evidenceMarkdown(bundle));
+            }
+            return bytes.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalArgumentException("Could not export evidence bundle.");
+        }
+    }
+
+    private void writeZipEntry(ZipOutputStream zip, String name, String content) throws IOException {
+        zip.putNextEntry(new ZipEntry(name));
+        zip.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        zip.closeEntry();
+    }
+
+    private String evidenceMarkdown(PartnerEvidenceBundleEntity bundle) {
+        Map<String, Object> summary = readMap(bundle.getSummaryJson());
+        return "# " + bundle.getBundleName() + "\n\n"
+            + "- Status: " + bundle.getStatus() + "\n"
+            + "- Kind: " + bundle.getBundleKind() + "\n"
+            + "- Generated: " + bundle.getGeneratedAt() + "\n"
+            + "- Shop: " + summary.getOrDefault("shopDomain", "store scoped") + "\n"
+            + "- Redaction: merchant-safe; excludes secrets, provider data, runtime internals, raw diagnostics, and operator-only notes.\n\n"
+            + "## Summary\n\n```json\n" + bundle.getSummaryJson() + "\n```\n";
+    }
+
+    private List<String> validatedEvidenceBundleIds(String accountId, String storeAssignmentId, List<String> bundleIds) {
+        if (bundleIds == null || bundleIds.isEmpty()) {
+            return List.of();
+        }
+        return bundleIds.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .distinct()
+            .peek(bundleId -> {
+                PartnerEvidenceBundleEntity bundle = requireEvidenceBundle(accountId, bundleId);
+                if (StringUtils.hasText(storeAssignmentId) && StringUtils.hasText(bundle.getStoreAssignmentId()) && !storeAssignmentId.equals(bundle.getStoreAssignmentId())) {
+                    throw new PartnerForbiddenException("Evidence bundle is not scoped to this store.");
+                }
+            })
+            .toList();
+    }
+
+    private List<PartnerTemplateSummary> templates() {
+        return List.of(
+            template("fashion-apparel-starter", "Fashion/apparel Starter playbook", "VERTICAL_PLAYBOOK", "Fashion/apparel", List.of("ai-search", "product-faq", "product-insight", "policy-strip"),
+                "Use this playbook for sizing, fit, care, review, and policy-heavy apparel storefronts. Keep all shopper guidance read-only unless the merchant is on an approved governed-action tier.",
+                List.of("Merchant controls tier and billing.", "Store has product, policy, and review/source coverage.", "No order lookup is exposed in Starter."),
+                List.of("Confirm Companion install", "Enable AI search and product FAQ", "Sync products, policies, and pages", "Place product insight block on product template", "Run Starter launch readiness verification", "Export launch evidence")),
+            template("electronics-comparison-starter", "Electronics comparison playbook", "VERTICAL_PLAYBOOK", "Electronics", List.of("ai-search", "comparison", "product-insight", "policy-strip"),
+                "Use this playbook for specification, compatibility, and comparison-heavy electronics storefronts.",
+                List.of("Comparable product attributes are present.", "Compatibility claims must come from merchant-provided content.", "Checkout and cart updates remain outside Starter."),
+                List.of("Confirm specification source coverage", "Enable comparison surface", "Add compatibility notes to product content", "Run tier boundary verification", "Export verification evidence")),
+            template("health-beauty-safe-claims", "Health/beauty safe-claims playbook", "VERTICAL_PLAYBOOK", "Health/beauty", List.of("ai-search", "product-faq", "contextual-pill", "policy-strip"),
+                "Use this playbook for ingredient, routine, use-case, and policy questions while avoiding unsupported medical or regulated claims.",
+                List.of("Claims must be grounded in merchant content.", "No diagnosis, prescription, or account/order support is presented.", "Escalate unsafe content gaps before launch."),
+                List.of("Review product and ingredient source data", "Enable FAQ and contextual pill", "Run Knowledge Sync readiness verification", "Capture safe-claims evidence", "Escalate unsupported claim gaps")),
+            template("home-furniture-launch", "Home/furniture launch checklist", "LAUNCH_CHECKLIST", "Home/furniture", List.of("ai-search", "comparison", "product-faq", "policy-strip"),
+                "Use this checklist for dimensions, materials, delivery, return, and room-fit guidance.",
+                List.of("Dimension/material data is available.", "Delivery/return policy pages are current.", "No checkout or order mutation is exposed."),
+                List.of("Confirm dimensions and material fields", "Sync policy pages", "Enable product FAQ and comparison", "Run Starter launch readiness verification", "Export launch packet")),
+            template("support-handoff-standard", "Standard support handoff", "SUPPORT_HANDOFF", "All", List.of("ai-search", "read-only-chat"),
+                "Use this handoff when a partner needs to escalate setup, verification, or evidence blockers to LoomAI support.",
+                List.of("Partner-visible replies must stay product-safe.", "Operator-only diagnostics are not included in merchant exports."),
+                List.of("Attach verification run or evidence bundle", "Describe reproduction steps", "Record expected and actual behavior", "Set impact and next action", "Submit escalation"))
+        );
+    }
+
+    private PartnerTemplateSummary template(String id,
+                                            String name,
+                                            String category,
+                                            String vertical,
+                                            List<String> surfaceIds,
+                                            String body,
+                                            List<String> assumptions,
+                                            List<String> checklist) {
+        return new PartnerTemplateSummary(id, name, category, vertical, surfaceIds, body, assumptions, checklist, TEMPLATE_UPDATED_AT);
+    }
+
+    private PartnerTemplateSummary requireTemplate(String templateId) {
+        return templates().stream()
+            .filter(template -> template.id().equals(templateId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Template is not available."));
+    }
+
+    private PartnerTemplateApplicationSummary toTemplateApplicationSummary(PartnerTemplateApplicationEntity entity) {
+        String shopDomain = StringUtils.hasText(entity.getStoreAssignmentId())
+            ? storeAssignmentRepository.findById(entity.getStoreAssignmentId()).map(PartnerStoreAssignmentEntity::getShopDomain).orElse(null)
+            : null;
+        return new PartnerTemplateApplicationSummary(
+            entity.getId(),
+            entity.getTemplateId(),
+            entity.getTemplateName(),
+            entity.getCategory(),
+            entity.getStoreAssignmentId(),
+            shopDomain,
+            entity.getStatus(),
+            readList(entity.getChecklistJson()),
+            readList(entity.getAssumptionsJson()),
+            entity.getAppliedAt(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private PartnerStoreNoteSummary toStoreNoteSummary(PartnerStoreNoteEntity entity) {
+        String author = memberRepository.findById(entity.getCreatedByMemberId())
+            .map(member -> firstNonBlank(member.getDisplayName(), member.getEmail()))
+            .orElse("Partner member");
+        return new PartnerStoreNoteSummary(
+            entity.getId(),
+            entity.getStoreAssignmentId(),
+            author,
+            entity.getBodyMarkdown(),
+            entity.getStatus(),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    private PartnerShopifyStoreReadModel storeForAssignment(PartnerStoreAssignmentEntity assignment) {
+        return storeAccessGateway.findByStoreConnectionId(assignment.getStoreConnectionId())
+            .or(() -> storeAccessGateway.findByShopDomain(assignment.getShopDomain()))
+            .orElse(new PartnerShopifyStoreReadModel(
+                assignment.getStoreConnectionId(),
+                assignment.getShopDomain(),
+                assignment.getMerchantName(),
+                "UNKNOWN",
+                "UNKNOWN",
+                "UNKNOWN",
+                "UNKNOWN",
+                assignment.getUpdatedAt(),
+                assignment.getUpdatedAt(),
+                List.of(),
+                List.of()
+            ));
+    }
+
+    private String normalizeStepStatus(String status) {
+        String normalized = clean(status, "status").toUpperCase(Locale.ROOT);
+        if (!List.of("PASSED", "FAILED", "BLOCKED", "PARTIAL").contains(normalized)) {
+            throw new IllegalArgumentException("Verification step status is not supported.");
+        }
+        return normalized;
+    }
+
+    private String normalizeBundleKind(String kind) {
+        String normalized = clean(kind, "bundleKind").trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        if (!List.of("LAUNCH_PACKET", "VERIFICATION_PACK", "SUPPORT_BUNDLE", "LIFECYCLE_PACKET").contains(normalized)) {
+            throw new IllegalArgumentException("Evidence bundle kind is not supported.");
+        }
+        return normalized;
+    }
+
+    private String normalizePartnerRole(String role) {
+        String normalized = clean(role, "role").toUpperCase(Locale.ROOT);
+        if (!List.of("PARTNER_ADMIN", "PARTNER_IMPLEMENTER", "PARTNER_DEVELOPER", "PARTNER_SUPPORT").contains(normalized)) {
+            throw new IllegalArgumentException("Partner role is not supported.");
+        }
+        return normalized;
+    }
+
+    private String normalizeMemberStatus(String status) {
+        String normalized = clean(status, "status").toUpperCase(Locale.ROOT);
+        if (!List.of("ACTIVE", "SUSPENDED", "REVOKED").contains(normalized)) {
+            throw new IllegalArgumentException("Partner member status is not supported.");
+        }
+        return normalized;
+    }
+
+    private void requireWorkspaceAdmin(PartnerContext context) {
+        if (!PlatformRole.PARTNER_ADMIN.name().equals(context.member().getRole())) {
+            throw new PartnerForbiddenException("Partner admin permission is required.");
+        }
     }
 
     private PartnerContext requireProvisionedContext() {
@@ -843,6 +1795,7 @@ public class PartnerEnablementService {
             entity.getDueAt(),
             entity.getDescription(),
             entity.getResolutionSummary(),
+            readList(entity.getEvidenceBundleIdsJson()),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
@@ -917,6 +1870,17 @@ public class PartnerEnablementService {
         }
     }
 
+    private Map<String, Object> readMap(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (JsonProcessingException exception) {
+            return Map.of();
+        }
+    }
+
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value == null ? List.of() : value);
@@ -967,6 +1931,41 @@ public class PartnerEnablementService {
         return primary == null ? fallback : primary;
     }
 
+    private String safeEvidenceValue(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "UNKNOWN";
+    }
+
+    private String titleFromId(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "Store check";
+        }
+        String[] words = value.replace('_', '-').split("-");
+        List<String> titled = new ArrayList<>();
+        for (String word : words) {
+            if (!StringUtils.hasText(word)) {
+                continue;
+            }
+            titled.add(word.substring(0, 1).toUpperCase(Locale.ROOT) + word.substring(1).toLowerCase(Locale.ROOT));
+        }
+        return String.join(" ", titled);
+    }
+
     private record PartnerContext(PartnerAccountEntity account, PartnerMemberEntity member) {
+    }
+
+    private record VerificationPack(
+        String id,
+        String name,
+        String description,
+        List<VerificationStepDefinition> steps
+    ) {
+    }
+
+    private record VerificationStepDefinition(
+        String id,
+        String label,
+        String description,
+        String suggestedFix
+    ) {
     }
 }

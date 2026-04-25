@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogTitle,
   LinearProgress,
+  MenuItem,
   Paper,
   Stack,
   Tab,
@@ -15,15 +16,22 @@ import {
   Typography,
 } from '@mui/material'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
+import FolderZipOutlinedIcon from '@mui/icons-material/FolderZipOutlined'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
+import { createStoreEvidenceBundle, listStoreEvidenceBundles } from '../api/evidence'
 import { createEscalation } from '../api/escalations'
+import { createStoreNote, listStoreNotes } from '../api/notes'
+import type { PartnerEvidenceBundle, PartnerVerificationRun } from '../api/schemas'
 import { getPartnerStore } from '../api/stores'
+import { completeVerificationStep, getStoreVerificationPack, listStoreVerificationRuns, runStoreVerification } from '../api/verification'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
+import { DataTable, type DataColumn } from '../components/DataTable'
 import { PageHeader } from '../components/PageHeader'
 import { StatusChip } from '../components/StatusChip'
 import { formatDateTime, titleize } from '../utils/format'
@@ -37,6 +45,7 @@ const escalationFormSchema = z.object({
   actualBehavior: z.string().optional(),
   impact: z.string().optional(),
   nextAction: z.string().optional(),
+  evidenceBundleIdsText: z.string().optional(),
 })
 
 type EscalationForm = z.infer<typeof escalationFormSchema>
@@ -89,13 +98,14 @@ export function StoreWorkspacePage() {
           <Tab label="Setup checklist" />
           <Tab label="Verification" />
           <Tab label="Evidence" />
-          <Tab label="Support" />
+          <Tab label="Escalations" />
+          <Tab label="Notes" />
         </Tabs>
       </Paper>
       {tab === 0 ? <OverviewTab surfaces={store.enabledSurfaces} /> : null}
       {tab === 1 ? <SetupTab /> : null}
-      {tab === 2 ? <VerificationTab /> : null}
-      {tab === 3 ? <EvidenceTab /> : null}
+      {tab === 2 ? <VerificationTab storeId={store.id} /> : null}
+      {tab === 3 ? <EvidenceTab storeId={store.id} /> : null}
       {tab === 4 ? (
         <Paper sx={{ p: 2 }}>
           <Typography variant="h3">Support center</Typography>
@@ -105,6 +115,7 @@ export function StoreWorkspacePage() {
           <Button sx={{ mt: 2 }} onClick={() => navigate('/support')}>Open support</Button>
         </Paper>
       ) : null}
+      {tab === 5 ? <NotesTab storeId={store.id} /> : null}
       <EscalationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} storeId={store.id} />
     </>
   )
@@ -138,12 +149,130 @@ function SetupTab() {
   return <Checklist title="Setup checklist" items={['Confirm Companion install', 'Enable app embed', 'Run Knowledge Sync', 'Confirm store configured surfaces', 'Capture storefront screenshots']} />
 }
 
-function VerificationTab() {
-  return <Checklist title="Verification pack" items={['Free exposes AI search only', 'Starter surfaces are read-only', 'No Starter order lookup appears', 'Answers use store content', 'Evidence bundle excludes internals']} />
+function VerificationTab({ storeId }: { storeId: string }) {
+  const { api } = useSupabaseAuth()
+  const queryClient = useQueryClient()
+  const packQuery = useQuery({ queryKey: ['store-verification-pack', storeId], queryFn: () => getStoreVerificationPack(api, storeId) })
+  const runsQuery = useQuery({ queryKey: ['store-verification-runs', storeId], queryFn: () => listStoreVerificationRuns(api, storeId) })
+  const [manualStatus, setManualStatus] = useState('PASSED')
+  const [manualNote, setManualNote] = useState('')
+  const runMutation = useMutation({
+    mutationFn: () => runStoreVerification(api, storeId, packQuery.data?.id ?? 'starter-launch-readiness'),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['store-verification-runs', storeId] })
+      await queryClient.invalidateQueries({ queryKey: ['store-evidence-bundles', storeId] })
+    },
+  })
+  const manualMutation = useMutation({
+    mutationFn: () => completeVerificationStep(api, storeId, 'partner-manual-review', { status: manualStatus, evidenceNote: manualNote }),
+    onSuccess: async () => {
+      setManualNote('')
+      await queryClient.invalidateQueries({ queryKey: ['store-verification-runs', storeId] })
+    },
+  })
+  const columns: DataColumn<PartnerVerificationRun>[] = [
+    { key: 'pack', header: 'Pack', render: (row) => <Typography>{row.packName}</Typography> },
+    { key: 'status', header: 'Status', render: (row) => <StatusChip status={row.status} /> },
+    { key: 'steps', header: 'Steps', render: (row) => <Typography>{row.passedSteps}/{row.totalSteps} passed</Typography> },
+    { key: 'started', header: 'Started', render: (row) => <Typography color="text.secondary">{formatDateTime(row.startedAt)}</Typography> },
+  ]
+  return (
+    <Stack spacing={2}>
+      <Paper sx={{ p: 2 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
+          <Stack spacing={1}>
+            <Typography variant="h3">{packQuery.data?.name ?? 'Store verification pack'}</Typography>
+            <Typography color="text.secondary">{packQuery.data?.description ?? 'Loading verification contract.'}</Typography>
+          </Stack>
+          <Button variant="contained" startIcon={<FactCheckOutlinedIcon />} onClick={() => runMutation.mutate()} disabled={runMutation.isPending || packQuery.isLoading}>
+            Run verification
+          </Button>
+        </Stack>
+      </Paper>
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h3">Manual verification step</Typography>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
+          <TextField select label="Status" value={manualStatus} onChange={(event) => setManualStatus(event.target.value)} sx={{ minWidth: 180 }}>
+            {['PASSED', 'FAILED', 'BLOCKED', 'PARTIAL'].map((status) => <MenuItem key={status} value={status}>{titleize(status)}</MenuItem>)}
+          </TextField>
+          <TextField label="Evidence note" value={manualNote} onChange={(event) => setManualNote(event.target.value)} fullWidth />
+          <Button onClick={() => manualMutation.mutate()} disabled={manualMutation.isPending || manualNote.trim().length === 0}>Mark step</Button>
+        </Stack>
+      </Paper>
+      <DataTable columns={columns} rows={runsQuery.data ?? []} getRowKey={(row) => row.id} loading={runsQuery.isLoading} />
+    </Stack>
+  )
 }
 
-function EvidenceTab() {
-  return <Checklist title="Evidence bundle shell" items={['Storefront URL', 'Surface screenshot', 'Question and answer pair', 'Verification result', 'Merchant-safe summary']} />
+function EvidenceTab({ storeId }: { storeId: string }) {
+  const { api } = useSupabaseAuth()
+  const queryClient = useQueryClient()
+  const bundlesQuery = useQuery({ queryKey: ['store-evidence-bundles', storeId], queryFn: () => listStoreEvidenceBundles(api, storeId) })
+  const createMutation = useMutation({
+    mutationFn: () => createStoreEvidenceBundle(api, storeId, { bundleKind: 'LAUNCH_PACKET' }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['store-evidence-bundles', storeId] })
+      await queryClient.invalidateQueries({ queryKey: ['evidence-bundles'] })
+    },
+  })
+  const columns: DataColumn<PartnerEvidenceBundle>[] = [
+    { key: 'name', header: 'Bundle', render: (row) => <Typography>{row.bundleName}</Typography> },
+    { key: 'kind', header: 'Kind', render: (row) => <Typography>{titleize(row.bundleKind)}</Typography> },
+    { key: 'status', header: 'Status', render: (row) => <StatusChip status={row.status} /> },
+    { key: 'generated', header: 'Generated', render: (row) => <Typography color="text.secondary">{formatDateTime(row.generatedAt)}</Typography> },
+  ]
+  return (
+    <Stack spacing={2}>
+      <Paper sx={{ p: 2 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
+          <Box>
+            <Typography variant="h3">Evidence bundles</Typography>
+            <Typography color="text.secondary">Generated bundles are immutable merchant-safe snapshots.</Typography>
+          </Box>
+          <Button variant="contained" startIcon={<FolderZipOutlinedIcon />} onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
+            Export launch evidence
+          </Button>
+        </Stack>
+      </Paper>
+      <DataTable columns={columns} rows={bundlesQuery.data ?? []} getRowKey={(row) => row.id} loading={bundlesQuery.isLoading} />
+    </Stack>
+  )
+}
+
+function NotesTab({ storeId }: { storeId: string }) {
+  const { api } = useSupabaseAuth()
+  const queryClient = useQueryClient()
+  const [body, setBody] = useState('')
+  const notesQuery = useQuery({ queryKey: ['store-notes', storeId], queryFn: () => listStoreNotes(api, storeId) })
+  const createMutation = useMutation({
+    mutationFn: () => createStoreNote(api, storeId, body),
+    onSuccess: async () => {
+      setBody('')
+      await queryClient.invalidateQueries({ queryKey: ['store-notes', storeId] })
+    },
+  })
+  return (
+    <Stack spacing={2}>
+      <Paper sx={{ p: 2 }}>
+        <Stack spacing={1.5}>
+          <Typography variant="h3">Partner notes</Typography>
+          <TextField label="Add note" minRows={4} multiline value={body} onChange={(event) => setBody(event.target.value)} />
+          <Button sx={{ alignSelf: 'flex-end' }} variant="contained" onClick={() => createMutation.mutate()} disabled={body.trim().length === 0 || createMutation.isPending}>
+            Add note
+          </Button>
+        </Stack>
+      </Paper>
+      <Stack spacing={1.5}>
+        {(notesQuery.data ?? []).map((note) => (
+          <Paper key={note.id} sx={{ p: 2 }}>
+            <Typography sx={{ whiteSpace: 'pre-wrap' }}>{note.bodyMarkdown}</Typography>
+            <Typography variant="caption" color="text.secondary">{note.authorName} · {formatDateTime(note.createdAt)}</Typography>
+          </Paper>
+        ))}
+        {(notesQuery.data ?? []).length === 0 && !notesQuery.isLoading ? <Typography color="text.secondary">No partner notes yet.</Typography> : null}
+      </Stack>
+    </Stack>
+  )
 }
 
 function Checklist({ title, items }: { title: string; items: string[] }) {
@@ -164,10 +293,13 @@ function EscalationDialog({ open, onClose, storeId }: { open: boolean; onClose: 
   const queryClient = useQueryClient()
   const form = useForm<EscalationForm>({
     resolver: zodResolver(escalationFormSchema),
-    defaultValues: { title: '', severity: 'MEDIUM', description: '', reproductionSteps: '', expectedBehavior: '', actualBehavior: '', impact: '', nextAction: '' },
+    defaultValues: { title: '', severity: 'MEDIUM', description: '', reproductionSteps: '', expectedBehavior: '', actualBehavior: '', impact: '', nextAction: '', evidenceBundleIdsText: '' },
   })
   const mutation = useMutation({
-    mutationFn: (values: EscalationForm) => createEscalation(api, storeId, values),
+    mutationFn: ({ evidenceBundleIdsText, ...values }: EscalationForm) => createEscalation(api, storeId, {
+      ...values,
+      evidenceBundleIds: evidenceBundleIdsText?.split(',').map((item) => item.trim()).filter(Boolean) ?? [],
+    }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['escalations'] })
       onClose()
@@ -189,6 +321,7 @@ function EscalationDialog({ open, onClose, storeId }: { open: boolean; onClose: 
           <TextField label="Actual behavior" {...form.register('actualBehavior')} />
           <TextField label="Impact" {...form.register('impact')} />
           <TextField label="Next action" {...form.register('nextAction')} />
+          <TextField label="Evidence bundle IDs" {...form.register('evidenceBundleIdsText')} placeholder="peb-... , peb-..." />
         </Stack>
       </DialogContent>
       <DialogActions>

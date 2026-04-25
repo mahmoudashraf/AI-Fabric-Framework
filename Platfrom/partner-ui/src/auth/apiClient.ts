@@ -22,6 +22,7 @@ export interface PartnerApiClient {
     schema: ZodSchema<T>,
     options?: RequestInit & { token?: string | null; anonymous?: boolean },
   ): Promise<T>
+  download(path: string, options?: RequestInit & { token?: string | null; anonymous?: boolean }): Promise<Blob>
 }
 
 function apiBaseUrl() {
@@ -82,6 +83,20 @@ export function createPartnerApiClient(getSession: () => Promise<Session | null>
 
       const payload = await response.json()
       return schema.parse(payload)
+    },
+    async download(path: string, options: RequestInit & { token?: string | null; anonymous?: boolean } = {}) {
+      assertPartnerPath(path)
+      const headers = new Headers(options.headers)
+      const session = options.anonymous ? null : await getSession()
+      const token = options.token ?? session?.access_token
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`)
+      }
+      const response = await fetch(`${apiBaseUrl()}${path}`, { ...options, headers })
+      if (!response.ok) {
+        throw new PartnerApiError(`Partner download failed with ${response.status}`, response.status)
+      }
+      return response.blob()
     },
   }
 }

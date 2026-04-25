@@ -4,21 +4,39 @@ import com.ai.fabric.platform.backend.partner.model.PartnerCatalogEntrySummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerEligibleStoreSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleCreateRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSignupCompleteRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerStoreAccessLinkSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerStoreNoteRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerStoreNoteSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerStoreSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportEscalationCreateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportEscalationSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportReplyRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportReplySummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSupportThreadSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerTemplateApplicationRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerTemplateApplicationSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerTemplateSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerVerificationPackSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunSummary;
 import com.ai.fabric.platform.backend.partner.service.PartnerEnablementService;
 import jakarta.validation.Valid;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -98,6 +116,147 @@ public class PartnerEnablementController {
     @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
     public List<PartnerCatalogEntrySummary> listCatalog() {
         return service.listCatalog();
+    }
+
+    @GetMapping("/verification-packs")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerVerificationPackSummary> listVerificationPacks() {
+        return service.listVerificationPacks();
+    }
+
+    @GetMapping("/stores/{storeId}/verification-pack")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerVerificationPackSummary getStoreVerificationPack(@PathVariable String storeId) {
+        return service.getStoreVerificationPack(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/verification-runs")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerVerificationRunSummary runStoreVerification(@PathVariable String storeId,
+                                                              @Valid @RequestBody PartnerVerificationRunRequest request) {
+        return service.runStoreVerification(storeId, request);
+    }
+
+    @GetMapping("/verification-runs")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerVerificationRunSummary> listVerificationRuns() {
+        return service.listVerificationRuns();
+    }
+
+    @GetMapping("/stores/{storeId}/verification-runs")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerVerificationRunSummary> listStoreVerificationRuns(@PathVariable String storeId) {
+        return service.listStoreVerificationRuns(storeId);
+    }
+
+    @GetMapping("/verification-runs/{runId}")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerVerificationRunSummary getVerificationRun(@PathVariable String runId) {
+        return service.getVerificationRun(runId);
+    }
+
+    @PostMapping("/stores/{storeId}/verification-steps/{stepId}/complete")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerVerificationRunSummary completeManualVerificationStep(@PathVariable String storeId,
+                                                                        @PathVariable String stepId,
+                                                                        @Valid @RequestBody PartnerManualVerificationStepRequest request) {
+        return service.completeManualVerificationStep(storeId, stepId, request);
+    }
+
+    @GetMapping("/evidence-bundles")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerEvidenceBundleSummary> listEvidenceBundles() {
+        return service.listEvidenceBundles();
+    }
+
+    @GetMapping("/stores/{storeId}/evidence-bundles")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerEvidenceBundleSummary> listStoreEvidenceBundles(@PathVariable String storeId) {
+        return service.listStoreEvidenceBundles(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/evidence-bundles")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerEvidenceBundleSummary createStoreEvidenceBundle(@PathVariable String storeId,
+                                                                  @Valid @RequestBody PartnerEvidenceBundleCreateRequest request) {
+        return service.createStoreEvidenceBundle(storeId, request);
+    }
+
+    @GetMapping("/evidence-bundles/{bundleId}")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerEvidenceBundleSummary getEvidenceBundle(@PathVariable String bundleId) {
+        return service.getEvidenceBundle(bundleId);
+    }
+
+    @GetMapping(value = "/evidence-bundles/{bundleId}/export", produces = "application/zip")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public ResponseEntity<byte[]> exportEvidenceBundle(@PathVariable String bundleId) {
+        byte[] body = service.exportEvidenceBundle(bundleId);
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType("application/zip"))
+            .header("Content-Disposition", ContentDisposition.attachment().filename(bundleId + ".zip").build().toString())
+            .body(body);
+    }
+
+    @GetMapping("/templates")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerTemplateSummary> listTemplates() {
+        return service.listTemplates();
+    }
+
+    @GetMapping("/templates/{templateId}")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerTemplateSummary getTemplate(@PathVariable String templateId) {
+        return service.getTemplate(templateId);
+    }
+
+    @PostMapping("/templates/{templateId}/applications")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerTemplateApplicationSummary applyTemplate(@PathVariable String templateId,
+                                                           @RequestBody PartnerTemplateApplicationRequest request) {
+        return service.applyTemplate(templateId, request);
+    }
+
+    @GetMapping("/template-applications")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerTemplateApplicationSummary> listTemplateApplications() {
+        return service.listTemplateApplications();
+    }
+
+    @GetMapping("/stores/{storeId}/notes")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerStoreNoteSummary> listStoreNotes(@PathVariable String storeId) {
+        return service.listStoreNotes(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/notes")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerStoreNoteSummary createStoreNote(@PathVariable String storeId,
+                                                   @Valid @RequestBody PartnerStoreNoteRequest request) {
+        return service.createStoreNote(storeId, request);
+    }
+
+    @GetMapping("/members")
+    @PreAuthorize("hasRole('PARTNER_ADMIN')")
+    public List<PartnerMemberSummary> listMembers() {
+        return service.listMembers();
+    }
+
+    @PatchMapping("/profile")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerMemberSummary updateProfile(@Valid @RequestBody PartnerProfileUpdateRequest request) {
+        return service.updateProfile(request);
+    }
+
+    @PatchMapping("/members/{memberId}")
+    @PreAuthorize("hasRole('PARTNER_ADMIN')")
+    public PartnerMemberSummary updateMember(@PathVariable String memberId,
+                                             @Valid @RequestBody PartnerMemberUpdateRequest request) {
+        return service.updateMember(memberId, request);
     }
 
     @GetMapping("/support/escalations")

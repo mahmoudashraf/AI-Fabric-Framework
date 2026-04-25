@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -294,6 +295,130 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$[0].status", is("READY")))
             .andExpect(jsonPath("$[0].enabledSurfaces", not(hasItem("order-lookup"))));
 
+        mockMvc.perform(get("/api/partners/verification-packs")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id", is("starter-launch-readiness")));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/verification-pack", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is("starter-launch-readiness")))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'starter-read-only-boundary')].status", hasItem("PASSED")));
+
+        var verificationResult = mockMvc.perform(post("/api/partners/stores/{storeId}/verification-runs", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "packId": "starter-launch-readiness"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.status", is("PASSED")))
+            .andExpect(jsonPath("$.evidenceBundleId", notNullValue()))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'free-ai-search-boundary')].status", hasItem("PASSED")))
+            .andReturn();
+        String verificationRunId = JsonPath.read(verificationResult.getResponse().getContentAsString(), "$.id");
+        String evidenceBundleId = JsonPath.read(verificationResult.getResponse().getContentAsString(), "$.evidenceBundleId");
+
+        mockMvc.perform(get("/api/partners/verification-runs/{runId}", verificationRunId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is(verificationRunId)))
+            .andExpect(jsonPath("$.summary.redaction", is("merchant-safe")));
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/verification-steps/{stepId}/complete", assignmentId, "merchant-screenshot-captured")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "status": "PASSED",
+                      "evidenceNote": "Merchant-safe storefront screenshot captured."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.packId", is("manual-store-checklist")))
+            .andExpect(jsonPath("$.steps[0].evidence[0]", is("Merchant-safe storefront screenshot captured.")));
+
+        mockMvc.perform(get("/api/partners/evidence-bundles/{bundleId}", evidenceBundleId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.verificationRunId", is(verificationRunId)))
+            .andExpect(jsonPath("$.summary.redaction", is("merchant-safe")))
+            .andExpect(jsonPath("$.attachments", hasItem("merchant-safe-summary.md")));
+
+        mockMvc.perform(get("/api/partners/evidence-bundles/{bundleId}/export", evidenceBundleId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/evidence-bundles", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "bundleKind": "LAUNCH_PACKET"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.bundleKind", is("LAUNCH_PACKET")))
+            .andExpect(jsonPath("$.summary.widgetStatus", is("ENABLED")));
+
+        mockMvc.perform(get("/api/partners/templates")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.id == 'fashion-apparel-starter')].category", hasItem("VERTICAL_PLAYBOOK")));
+
+        mockMvc.perform(post("/api/partners/templates/{templateId}/applications", "fashion-apparel-starter")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "storeId": "%s"
+                    }
+                    """.formatted(assignmentId)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.templateId", is("fashion-apparel-starter")))
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")));
+
+        mockMvc.perform(get("/api/partners/template-applications")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].templateId", is("fashion-apparel-starter")));
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/notes", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "bodyMarkdown": "Partner confirmed theme placement with merchant."
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.bodyMarkdown", is("Partner confirmed theme placement with merchant.")));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/notes", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].bodyMarkdown", is("Partner confirmed theme placement with merchant.")));
+
+        mockMvc.perform(get("/api/partners/members")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].role", is("PARTNER_ADMIN")));
+
+        mockMvc.perform(patch("/api/partners/profile")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "displayName": "Verified Partner Admin"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.displayName", is("Verified Partner Admin")));
+
         var escalationResult = mockMvc.perform(post("/api/partners/stores/{storeId}/escalations", assignmentId)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -306,15 +431,28 @@ class PartnerEnablementIntegrationTest {
                       "expectedBehavior": "FAQ block renders.",
                       "actualBehavior": "FAQ block is absent.",
                       "impact": "Launch is blocked.",
-                      "nextAction": "Check app embed placement."
+                      "nextAction": "Check app embed placement.",
+                      "evidenceBundleIds": ["%s"]
                     }
-                    """))
+                    """.formatted(evidenceBundleId)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id", notNullValue()))
+            .andExpect(jsonPath("$.evidenceBundleIds[0]", is(evidenceBundleId)))
             .andReturn();
         String escalationId = JsonPath.read(escalationResult.getResponse().getContentAsString(), "$.id");
 
-        saveReply(escalationId, "PARTNER_VISIBLE", "Visible update for the partner.");
+        mockMvc.perform(post("/api/partners/escalations/{escalationId}/replies", escalationId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "bodyMarkdown": "Visible update for the partner.",
+                      "evidenceBundleIds": ["%s"]
+                    }
+                    """.formatted(evidenceBundleId)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.attachments[0]", is(evidenceBundleId)));
+
         saveReply(escalationId, "OPERATOR_INTERNAL", "Operator-only note must not leak.");
 
         mockMvc.perform(get("/api/partners/escalations/{escalationId}/thread", escalationId)
@@ -322,6 +460,7 @@ class PartnerEnablementIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.replies.length()", is(1)))
             .andExpect(jsonPath("$.replies[0].bodyMarkdown", is("Visible update for the partner.")))
+            .andExpect(jsonPath("$.replies[0].attachments[0]", is(evidenceBundleId)))
             .andExpect(jsonPath("$.replies[0].visibility", is("PARTNER_VISIBLE")));
 
         mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/revoke", accessRequestId)
@@ -361,7 +500,17 @@ class PartnerEnablementIntegrationTest {
 
         assertThat(auditRepository.findAll())
             .extracting("action")
-            .contains("PARTNER_SIGNUP_COMPLETED", "STORE_ACCESS_APPROVED", "SUPPORT_ESCALATION_CREATED", "STORE_ACCESS_REVOKED");
+            .contains(
+                "PARTNER_SIGNUP_COMPLETED",
+                "STORE_ACCESS_APPROVED",
+                "VERIFICATION_RUN_CREATED",
+                "EVIDENCE_BUNDLE_CREATED",
+                "TEMPLATE_APPLIED",
+                "STORE_NOTE_CREATED",
+                "PARTNER_PROFILE_UPDATED",
+                "SUPPORT_ESCALATION_CREATED",
+                "STORE_ACCESS_REVOKED"
+            );
     }
 
     @Test

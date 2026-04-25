@@ -18,6 +18,8 @@ public class PartnerEvidenceBundleEntity {
     private String storeAssignmentId;
     @Column
     private String generatedByMemberId;
+    @Column
+    private String verificationRunId;
     @Column(nullable = false)
     private String bundleName;
     @Column(nullable = false)
@@ -41,6 +43,8 @@ public class PartnerEvidenceBundleEntity {
     public void setStoreAssignmentId(String storeAssignmentId) { this.storeAssignmentId = storeAssignmentId; }
     public String getGeneratedByMemberId() { return generatedByMemberId; }
     public void setGeneratedByMemberId(String generatedByMemberId) { this.generatedByMemberId = generatedByMemberId; }
+    public String getVerificationRunId() { return verificationRunId; }
+    public void setVerificationRunId(String verificationRunId) { this.verificationRunId = verificationRunId; }
     public String getBundleName() { return bundleName; }
     public void setBundleName(String bundleName) { this.bundleName = bundleName; }
     public String getBundleKind() { return bundleKind; }

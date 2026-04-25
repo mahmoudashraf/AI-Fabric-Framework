@@ -40,6 +40,8 @@ public class PartnerSupportEscalationEntity {
     private String impact;
     @Column(columnDefinition = "TEXT")
     private String resolutionSummary;
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String evidenceBundleIdsJson = "[]";
     @Column(nullable = false)
     private Instant createdAt;
     @Column(nullable = false)
@@ -75,6 +77,8 @@ public class PartnerSupportEscalationEntity {
     public void setImpact(String impact) { this.impact = impact; }
     public String getResolutionSummary() { return resolutionSummary; }
     public void setResolutionSummary(String resolutionSummary) { this.resolutionSummary = resolutionSummary; }
+    public String getEvidenceBundleIdsJson() { return evidenceBundleIdsJson; }
+    public void setEvidenceBundleIdsJson(String evidenceBundleIdsJson) { this.evidenceBundleIdsJson = evidenceBundleIdsJson; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

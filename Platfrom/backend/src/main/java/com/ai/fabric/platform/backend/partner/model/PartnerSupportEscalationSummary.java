@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.partner.model;
 
 import java.time.Instant;
+import java.util.List;
 
 public record PartnerSupportEscalationSummary(
     String id,
@@ -13,6 +14,7 @@ public record PartnerSupportEscalationSummary(
     Instant dueAt,
     String description,
     String resolutionSummary,
+    List<String> evidenceBundleIds,
     Instant createdAt,
     Instant updatedAt
 ) {

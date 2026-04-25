@@ -30,9 +30,9 @@ export function getEscalationThread(api: PartnerApiClient, escalationId: string)
   return api.request(`/api/partners/escalations/${encodeURIComponent(escalationId)}/thread`, partnerThreadSchema)
 }
 
-export function addEscalationReply(api: PartnerApiClient, escalationId: string, bodyMarkdown: string) {
+export function addEscalationReply(api: PartnerApiClient, escalationId: string, bodyMarkdown: string, evidenceBundleIds: string[] = []) {
   return api.request(`/api/partners/escalations/${encodeURIComponent(escalationId)}/replies`, partnerReplySchema, {
     method: 'POST',
-    body: JSON.stringify({ bodyMarkdown }),
+    body: JSON.stringify({ bodyMarkdown, evidenceBundleIds }),
   })
 }

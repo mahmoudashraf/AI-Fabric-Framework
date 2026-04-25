@@ -33,11 +33,13 @@ export function statusFromWire(value: string | undefined): PartnerStatus {
     case 'READY':
     case 'ACTIVE':
     case 'APPROVED':
+    case 'PASSED':
       return 'ready'
     case 'BLOCKED':
       return 'blocked'
     case 'VERIFY_FAILED':
     case 'VERIFICATION_FAILED':
+    case 'FAILED':
       return 'verifyFailed'
     case 'WAITING_ON_MERCHANT':
     case 'DRAFT':

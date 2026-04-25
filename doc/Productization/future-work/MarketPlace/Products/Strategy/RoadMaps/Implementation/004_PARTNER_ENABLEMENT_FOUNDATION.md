@@ -1,6 +1,6 @@
 # Partner Enablement Foundation
 
-Status: implemented and live verified on Railway (revised 2026-04-25)
+Status: implemented; prior Railway slices live verified, latest real workflow persistence locally verified and pending deployment/live proof (revised 2026-04-25)
 
 Owner mode: technical LLM implementation session
 
@@ -1464,10 +1464,10 @@ This handoff is complete when:
 - Google, Apple, and LinkedIn OIDC login are configured or documented with local/staging/production redirect URLs
 - Platform backend validates Supabase JWTs and maps identities to partner members
 - partner enablement is represented as a real self-managed partner workspace or equivalent mature platform surface
-- data ownership is implemented or explicitly stubbed: Supabase Auth for identity/session, Platform backend database for partner/support state, Shopify Bridge/product services for Shopify truth and secrets
+- data ownership is implemented with Supabase Auth for identity/session, Platform backend database for partner/support state, and Shopify Bridge/product services for Shopify truth and secrets
 - self-service partner signup creates an empty partner workspace without default store access
-- partner identity, roles, client implementation requests, store assignment, revocation, and audit are implemented or explicitly stubbed with a safe migration path
-- merchant-approved store access or operator assignment is implemented or explicitly stubbed with a safe migration path
+- partner identity, roles, client implementation requests, store assignment, revocation, and audit are implemented with a safe migration path
+- merchant-approved store access or operator assignment is implemented with a safe migration path
 - partner can see only approved/assigned stores
 - partner can inspect client-store readiness without operator internals
 - deployment-level admin/operator controls are not exposed to partners
@@ -2508,3 +2508,46 @@ Executed live proof after commit `9d776abc` was pushed to `Platform-V6`:
 - Deployed Shopify Bridge asset contains both `Revoke access` and `/revoke`.
 
 No live active partner assignment existed for the test store at verification time, so destructive live revocation was not performed. The active revoke path is covered in `PartnerEnablementIntegrationTest`, including merchant/product-service revocation, operator override revocation, assignment status change to `REVOKED`, implementation status change to `REVOKED`, audit evidence, and partner store-detail denial after revoke.
+
+## Real Workflow Completion Update - 2026-04-25
+
+### Completed Changes
+
+- Replaced Partner UI shells for verification packs, evidence bundles, templates/playbooks, members, profile, and store notes with authenticated API-backed workflows.
+- Added persisted partner verification runs and verification run steps in Platform.
+- Verification runs now evaluate the assigned store against Shopify store read-model truth: install status, Knowledge Sync status, source readiness, widget/app embed status, store-configured surfaces, and Free/Starter forbidden-surface boundaries.
+- Missing Shopify store truth now blocks verification instead of passing a fallback install state.
+- Verification runs create immutable merchant-safe evidence bundle records.
+- Added evidence bundle listing, detail, creation, and ZIP export endpoints. Exports include `manifest.json`, `summary.json`, `attachments.json`, and `merchant-safe-summary.md`.
+- Added persisted template application records so use of a playbook is auditable and no longer only a UI action.
+- Added persisted partner store notes scoped to active store assignments.
+- Added partner member listing and member role/status update endpoints, restricted to partner admins.
+- Added partner self-profile update endpoint.
+- Added evidence bundle ID linking to support escalations and replies, with backend validation that linked bundles belong to the same partner workspace and store scope.
+- Partner UI now exposes real verification run detail and evidence bundle detail routes.
+- Partner UI downloads evidence ZIPs through the authenticated partner API client.
+- Partner UI escalation forms send only backend-supported fields; UI-only text helpers are stripped before submission.
+
+### Verification Proof
+
+Executed on 2026-04-25 from `/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo`:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test` passed.
+- `npm --prefix Platfrom/partner-ui run build` passed.
+- `npm --prefix Platfrom/partner-ui run smoke` passed.
+- `git diff --check` passed.
+- `mvn -f Platfrom/backend/pom.xml -q test` passed.
+
+The focused backend integration test now covers signup, installed-store implementation request creation, merchant/admin approval, active assignment visibility, verification-pack evaluation, persisted verification run fetch, manual verification step persistence, evidence bundle fetch/export/create, template application persistence, store note persistence, member listing, profile update, escalation evidence linking, partner-visible reply evidence linking, hidden internal replies, merchant revocation, operator revocation, implementation status transitions, revoked assignment behavior, and audit evidence.
+
+### Live Verification Status
+
+This latest real-workflow persistence slice has not been live verified yet because these changes still need to be deployed to the Platform backend and Partner UI Railway services. After deployment, run the Partner Enablement live verification pack with a fresh `PARTNER_SUPABASE_JWT` and an approved installed test store, then prove:
+
+- `GET /api/partners/verification-packs` returns the canonical packs.
+- `POST /api/partners/stores/{storeId}/verification-runs` creates a persisted run and evidence bundle.
+- `GET /api/partners/verification-runs/{runId}` returns real step results.
+- `GET /api/partners/evidence-bundles/{bundleId}/export` returns a ZIP.
+- `POST /api/partners/templates/{templateId}/applications` persists an application.
+- `POST /api/partners/stores/{storeId}/notes` persists a note.
+- Partner UI routes `/verification`, `/verification/{runId}`, `/evidence`, `/evidence/{bundleId}`, `/templates`, `/members`, `/profile`, and store workspace tabs load against live Platform.

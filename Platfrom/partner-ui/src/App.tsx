@@ -8,6 +8,7 @@ import { ClientStoresPage } from './pages/ClientStoresPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { DocumentationPage } from './pages/DocumentationPage'
 import { EscalationDetailPage } from './pages/EscalationDetailPage'
+import { EvidenceBundleDetailPage } from './pages/EvidenceBundleDetailPage'
 import { EvidenceBundlesPage } from './pages/EvidenceBundlesPage'
 import { ImplementationRequestDetailPage } from './pages/ImplementationRequestDetailPage'
 import { IntelligenceCatalogPage } from './pages/IntelligenceCatalogPage'
@@ -20,6 +21,7 @@ import { StoreWorkspacePage } from './pages/StoreWorkspacePage'
 import { SupportCenterPage } from './pages/SupportCenterPage'
 import { TemplatesPage } from './pages/TemplatesPage'
 import { VerificationPacksPage } from './pages/VerificationPacksPage'
+import { VerificationRunDetailPage } from './pages/VerificationRunDetailPage'
 
 export function App({ mode, onToggleMode }: { mode: 'light' | 'dark'; onToggleMode: () => void }) {
   return (
@@ -75,7 +77,9 @@ function WorkspaceRoutes({ mode, onToggleMode }: { mode: 'light' | 'dark'; onTog
         <Route path="/catalog" element={<IntelligenceCatalogPage session={session} />} />
         <Route path="/templates" element={<TemplatesPage />} />
         <Route path="/verification" element={<VerificationPacksPage />} />
+        <Route path="/verification/:runId" element={<VerificationRunDetailPage />} />
         <Route path="/evidence" element={<EvidenceBundlesPage />} />
+        <Route path="/evidence/:bundleId" element={<EvidenceBundleDetailPage />} />
         <Route path="/support" element={<SupportCenterPage session={session} />} />
         <Route path="/support/:escalationId" element={<EscalationDetailPage />} />
         <Route path="/docs/*" element={<DocumentationPage />} />
