@@ -11,4 +11,6 @@ public interface PartnerClientImplementationRequestRepository extends JpaReposit
     List<PartnerClientImplementationRequestEntity> findByPartnerAccountIdOrderByCreatedAtDesc(String partnerAccountId);
 
     Optional<PartnerClientImplementationRequestEntity> findByIdAndPartnerAccountId(String id, String partnerAccountId);
+
+    boolean existsByPartnerAccountIdAndStoreConnectionIdAndStatusIn(String partnerAccountId, String storeConnectionId, List<String> statuses);
 }

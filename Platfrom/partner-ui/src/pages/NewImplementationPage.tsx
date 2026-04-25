@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -12,15 +13,16 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
-import { createClientImplementation } from '../api/implementations'
-import type { PartnerSession } from '../api/schemas'
+import { createClientImplementation, fetchEligibleStores } from '../api/implementations'
+import type { PartnerEligibleStore, PartnerSession } from '../api/schemas'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { AccessGuard } from '../auth/AccessGuard'
 import { PageHeader } from '../components/PageHeader'
+import { useState } from 'react'
 
 const starterSurfaces = [
   { id: 'ai-search', label: 'AI search' },
@@ -35,7 +37,7 @@ const starterSurfaces = [
 const formSchema = z.object({
   clientName: z.string().min(2, 'Client name is required.'),
   contactEmail: z.string().email('Enter a valid email.').optional().or(z.literal('')),
-  shopDomain: z.string().regex(/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/, 'Use a myshopify.com domain.'),
+  storeConnectionId: z.string().min(1, 'Choose an installed Shopify store.'),
   vertical: z.string().optional(),
   requestedTier: z.enum(['FREE', 'STARTER', 'ELITE']),
   requestedSurfaces: z.array(z.string()).min(1),
@@ -57,12 +59,14 @@ export function NewImplementationPage({ session }: { session: PartnerSession }) 
 function NewImplementationForm() {
   const navigate = useNavigate()
   const { api } = useSupabaseAuth()
+  const [storeQuery, setStoreQuery] = useState('')
+  const [selectedStore, setSelectedStore] = useState<PartnerEligibleStore | null>(null)
   const form = useForm<ImplementationForm>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       clientName: '',
       contactEmail: '',
-      shopDomain: '',
+      storeConnectionId: '',
       vertical: '',
       requestedTier: 'STARTER',
       requestedSurfaces: starterSurfaces.map((item) => item.id),
@@ -71,12 +75,17 @@ function NewImplementationForm() {
     },
   })
   const tier = form.watch('requestedTier')
+  const eligibleStoresQuery = useQuery({
+    queryKey: ['eligible-stores', storeQuery],
+    queryFn: () => fetchEligibleStores(api, storeQuery),
+    staleTime: 30_000,
+  })
   const mutation = useMutation({
     mutationFn: (values: ImplementationForm) =>
       createClientImplementation(api, {
         clientName: values.clientName,
         contactEmail: values.contactEmail || undefined,
-        shopDomain: values.shopDomain.toLowerCase(),
+        storeConnectionId: values.storeConnectionId,
         vertical: values.vertical || undefined,
         requestedTier: values.requestedTier,
         requestedSurfaces: values.requestedTier === 'FREE' ? ['ai-search'] : values.requestedSurfaces,
@@ -90,7 +99,7 @@ function NewImplementationForm() {
     <>
       <PageHeader
         title="New implementation"
-        subtitle="Create a client implementation request and generate a merchant approval link for scoped store access."
+        subtitle="Create a client implementation request for an installed Shopify store. The merchant approves access inside Shopify admin."
         breadcrumbs={[{ label: 'Dashboard', to: '/' }, { label: 'New implementation' }]}
       />
       <Paper sx={{ p: 3, maxWidth: 860 }}>
@@ -99,7 +108,43 @@ function NewImplementationForm() {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
             <TextField label="Client name" {...form.register('clientName')} error={Boolean(form.formState.errors.clientName)} helperText={form.formState.errors.clientName?.message} />
             <TextField label="Contact email" type="email" {...form.register('contactEmail')} error={Boolean(form.formState.errors.contactEmail)} helperText={form.formState.errors.contactEmail?.message} />
-            <TextField label="Shop domain" placeholder="client-store.myshopify.com" {...form.register('shopDomain')} error={Boolean(form.formState.errors.shopDomain)} helperText={form.formState.errors.shopDomain?.message} />
+            <Controller
+              control={form.control}
+              name="storeConnectionId"
+              render={({ field }) => (
+                <Autocomplete
+                  options={eligibleStoresQuery.data ?? []}
+                  value={selectedStore}
+                  inputValue={storeQuery}
+                  loading={eligibleStoresQuery.isLoading}
+                  onInputChange={(_, value) => setStoreQuery(value)}
+                  onChange={(_, value) => {
+                    setSelectedStore(value)
+                    field.onChange(value?.storeConnectionId ?? '')
+                  }}
+                  getOptionLabel={(option) => `${option.displayName} · ${option.shopDomain}`}
+                  isOptionEqualToValue={(option, value) => option.storeConnectionId === value.storeConnectionId}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Installed Shopify store"
+                      error={Boolean(form.formState.errors.storeConnectionId)}
+                      helperText={form.formState.errors.storeConnectionId?.message ?? 'Only installed stores without active or pending partner access appear.'}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props} key={option.storeConnectionId}>
+                      <Stack spacing={0.25}>
+                        <Typography fontWeight={700}>{option.displayName}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {option.shopDomain} · {option.readinessStatus} · {option.widgetStatus}
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  )}
+                />
+              )}
+            />
             <TextField label="Vertical" {...form.register('vertical')} placeholder="Fashion, electronics, health/beauty" />
             <TextField label="Requested tier" select {...form.register('requestedTier')}>
               <MenuItem value="FREE">Free</MenuItem>

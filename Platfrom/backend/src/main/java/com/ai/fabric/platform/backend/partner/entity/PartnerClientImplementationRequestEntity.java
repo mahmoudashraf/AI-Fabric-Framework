@@ -26,6 +26,9 @@ public class PartnerClientImplementationRequestEntity {
     @Column
     private String contactEmail;
 
+    @Column
+    private String storeConnectionId;
+
     @Column(nullable = false)
     private String shopDomain;
 
@@ -72,6 +75,8 @@ public class PartnerClientImplementationRequestEntity {
     public void setClientName(String clientName) { this.clientName = clientName; }
     public String getContactEmail() { return contactEmail; }
     public void setContactEmail(String contactEmail) { this.contactEmail = contactEmail; }
+    public String getStoreConnectionId() { return storeConnectionId; }
+    public void setStoreConnectionId(String storeConnectionId) { this.storeConnectionId = storeConnectionId; }
     public String getShopDomain() { return shopDomain; }
     public void setShopDomain(String shopDomain) { this.shopDomain = shopDomain; }
     public String getVertical() { return vertical; }

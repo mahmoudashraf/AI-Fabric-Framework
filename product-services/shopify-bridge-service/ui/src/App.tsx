@@ -22,7 +22,10 @@ import enTranslations from '@shopify/polaris/locales/en.json'
 import {
   bootstrapStore,
   connectStore,
+  approvePartnerAccessRequest,
+  denyPartnerAccessRequest,
   fetchBillingSummary,
+  fetchPartnerAccessRequests,
   fetchRecentGovernedActions,
   fetchSession,
   fetchShell,
@@ -51,6 +54,7 @@ import {
   type ShopifyBridgeBillingSummary,
   type ShopifyBridgeGovernedActionAuditSummary,
   type ShopifyBridgeMerchantSessionResponse,
+  type ShopifyBridgePartnerAccessRequestSummary,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
@@ -70,12 +74,15 @@ function badgeTone(status: string): 'success' | 'attention' | 'critical' {
     case 'READY':
     case 'SYNCED':
     case 'ENABLED':
+    case 'ACTIVE':
+    case 'APPROVED':
       return 'success'
     case 'PLATFORM_BOOTSTRAPPED':
     case 'CONNECTED':
     case 'NOT_SYNCED':
     case 'NOT_RUN':
     case 'NOT_ENABLED':
+    case 'WAITING_ON_MERCHANT':
       return 'attention'
     default:
       return 'critical'
@@ -92,6 +99,7 @@ type LoadState = {
   storefrontPreview: ShopifyStorefrontPreviewResponse | null
   usageSummary: ShopifyBridgeUsageSummary | null
   recentGovernedActions: ShopifyBridgeGovernedActionAuditSummary[]
+  partnerAccessRequests: ShopifyBridgePartnerAccessRequestSummary[]
   billingSummary: ShopifyBridgeBillingSummary | null
   webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null
   vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null
@@ -193,6 +201,7 @@ const ADMIN_TABS = [
   { id: 'insights', content: 'Insights' },
   { id: 'billing', content: 'Billing' },
   { id: 'support', content: 'Support' },
+  { id: 'partners', content: 'Partners' },
   { id: 'launch', content: 'Go live' },
   { id: 'advanced', content: 'Support tools' },
 ]
@@ -276,6 +285,7 @@ export default function App() {
     storefrontPreview: null,
     usageSummary: null,
     recentGovernedActions: [],
+    partnerAccessRequests: [],
     billingSummary: null,
     webhookSubscriptions: null,
     vectorizationSummary: null,
@@ -294,6 +304,8 @@ export default function App() {
     | 'go-live'
     | 'source-settings'
     | 'billing-approval'
+    | 'partner-access-approve'
+    | 'partner-access-deny'
     | 'vectorization-reconcile'
     | 'vectorize-now'
     | 'vectorization-index-all'
@@ -372,6 +384,7 @@ export default function App() {
       let storefrontPreview: ShopifyStorefrontPreviewResponse | null = null
       let usageSummary: ShopifyBridgeUsageSummary | null = null
       let recentGovernedActions: ShopifyBridgeGovernedActionAuditSummary[] = []
+      let partnerAccessRequests: ShopifyBridgePartnerAccessRequestSummary[] = []
       let billingSummary: ShopifyBridgeBillingSummary | null = null
       let webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null = null
       let vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null = null
@@ -389,6 +402,7 @@ export default function App() {
           storefrontPreview: null,
           usageSummary: null,
           recentGovernedActions: [],
+          partnerAccessRequests: [],
           billingSummary: null,
           webhookSubscriptions: null,
           vectorizationSummary: null,
@@ -396,6 +410,11 @@ export default function App() {
           error: sessionError instanceof Error ? sessionError.message : 'Failed to resolve merchant session.',
         })
         return
+      }
+      try {
+        partnerAccessRequests = await fetchPartnerAccessRequests()
+      } catch {
+        partnerAccessRequests = []
       }
       try {
         webhookSubscriptions = await fetchWebhookSubscriptions()
@@ -415,6 +434,7 @@ export default function App() {
         storefrontPreview,
         usageSummary,
         recentGovernedActions,
+        partnerAccessRequests,
         billingSummary,
         webhookSubscriptions,
         vectorizationSummary,
@@ -448,6 +468,7 @@ export default function App() {
         storefrontPreview: null,
         usageSummary: null,
         recentGovernedActions: [],
+        partnerAccessRequests: [],
         billingSummary: null,
         webhookSubscriptions: null,
         vectorizationSummary: null,
@@ -566,6 +587,43 @@ export default function App() {
       await refresh()
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to request Shopify billing approval.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handlePartnerAccessApprove(requestId: string) {
+    setBusyAction('partner-access-approve')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const summary = await approvePartnerAccessRequest(requestId, {
+        approverName: session?.userId ? `Shopify admin ${session.userId}` : 'Shopify admin',
+        approvedScope: 'IMPLEMENTATION_SUPPORT',
+      })
+      await refresh()
+      setActionMessage(`Approved partner access for ${summary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to approve partner access.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handlePartnerAccessDeny(requestId: string) {
+    setBusyAction('partner-access-deny')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const summary = await denyPartnerAccessRequest(requestId, {
+        approverName: session?.userId ? `Shopify admin ${session.userId}` : 'Shopify admin',
+        approvedScope: 'IMPLEMENTATION_SUPPORT',
+        decisionReason: 'Merchant denied from Shopify admin.',
+      })
+      await refresh()
+      setActionMessage(`Denied partner access for ${summary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to deny partner access.')
     } finally {
       setBusyAction(null)
     }
@@ -848,6 +906,7 @@ export default function App() {
   const storefrontPreview = state.storefrontPreview
   const usageSummary = state.usageSummary
   const recentGovernedActions = state.recentGovernedActions
+  const partnerAccessRequests = state.partnerAccessRequests
   const billingSummary = state.billingSummary
   const billingApprovalRequired = Boolean(
     billingSummary?.availablePlans?.some(
@@ -2013,6 +2072,83 @@ export default function App() {
                   ) : (
                     <Text as="p" variant="bodyMd" tone="subdued">
                       Storefront activation preview is unavailable until the merchant session resolves.
+                    </Text>
+                  )}
+                </BlockStack>
+              </Card>
+            </Box>
+            ) : null}
+
+            {selectedSection === 'partners' ? (
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Partner access requests
+                    </Text>
+                    <Badge tone={partnerAccessRequests.some((request) => request.status === 'WAITING_ON_MERCHANT') ? 'attention' : 'success'}>
+                      {`${partnerAccessRequests.filter((request) => request.status === 'WAITING_ON_MERCHANT').length} pending`}
+                    </Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Review implementation support access for the installed Shopify store. Approval creates scoped partner visibility; denial keeps the store private.
+                  </Text>
+                  {partnerAccessRequests.length ? (
+                    <BlockStack gap="300">
+                      {partnerAccessRequests.map((request) => {
+                        const waiting = request.status === 'WAITING_ON_MERCHANT'
+                        return (
+                          <Box key={request.requestId} padding="300" borderWidth="025" borderColor="border" borderRadius="200">
+                            <BlockStack gap="200">
+                              <InlineStack gap="200" align="space-between" blockAlign="center">
+                                <BlockStack gap="050">
+                                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                    {request.partnerName}
+                                  </Text>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {request.clientName} · {request.requestedTier ?? 'Tier not set'}
+                                  </Text>
+                                </BlockStack>
+                                <Badge tone={badgeTone(request.status)}>{request.status}</Badge>
+                              </InlineStack>
+                              <List type="bullet">
+                                <List.Item>Requested scope: {request.requestedScope}</List.Item>
+                                <List.Item>Surfaces: {request.requestedSurfaces.join(' · ') || 'None requested'}</List.Item>
+                                <List.Item>Requested: {formatTimestamp(request.createdAt)}</List.Item>
+                                <List.Item>Expires: {formatTimestamp(request.expiresAt)}</List.Item>
+                              </List>
+                              {request.notes ? (
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  {request.notes}
+                                </Text>
+                              ) : null}
+                              {waiting ? (
+                                <InlineStack gap="200">
+                                  <Button
+                                    variant="primary"
+                                    onClick={() => void handlePartnerAccessApprove(request.requestId)}
+                                    loading={busyAction === 'partner-access-approve'}
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    tone="critical"
+                                    onClick={() => void handlePartnerAccessDeny(request.requestId)}
+                                    loading={busyAction === 'partner-access-deny'}
+                                  >
+                                    Deny
+                                  </Button>
+                                </InlineStack>
+                              ) : null}
+                            </BlockStack>
+                          </Box>
+                        )
+                      })}
+                    </BlockStack>
+                  ) : (
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      No partner access requests are waiting for this store.
                     </Text>
                   )}
                 </BlockStack>

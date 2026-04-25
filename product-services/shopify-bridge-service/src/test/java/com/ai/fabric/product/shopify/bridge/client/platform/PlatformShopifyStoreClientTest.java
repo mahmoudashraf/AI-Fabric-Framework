@@ -1,6 +1,9 @@
 package com.ai.fabric.product.shopify.bridge.client.platform;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
@@ -164,6 +167,96 @@ class PlatformShopifyStoreClientTest {
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
         assertThat(response.createdDeployment()).isTrue();
         assertThat(response.installedPluginIds()).contains("mkp-action-shopify-companion-read");
+        server.verify();
+    }
+
+    @Test
+    void listPartnerAccessRequestsUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/merchant/partner-access/requests?shopDomain=alpha.myshopify.com"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                [
+                  {
+                    "requestId":"par-1",
+                    "implementationRequestId":"impl-1",
+                    "partnerAccountId":"partner-1",
+                    "partnerName":"Launch Partner",
+                    "clientName":"Alpha",
+                    "contactEmail":"merchant@example.com",
+                    "storeConnectionId":"store-1",
+                    "shopDomain":"alpha.myshopify.com",
+                    "requestedTier":"STARTER",
+                    "requestedSurfaces":["ai-search"],
+                    "knownIntegrations":["reviews"],
+                    "notes":"Starter launch",
+                    "requestedScope":"IMPLEMENTATION_SUPPORT",
+                    "status":"WAITING_ON_MERCHANT",
+                    "createdAt":"2026-04-25T12:00:00Z",
+                    "expiresAt":"2026-05-25T12:00:00Z",
+                    "approvedAt":null,
+                    "updatedAt":"2026-04-25T12:00:00Z"
+                  }
+                ]
+                """, MediaType.APPLICATION_JSON));
+
+        List<ShopifyBridgePartnerAccessRequestSummary> requests = client.listPartnerAccessRequests("alpha.myshopify.com");
+
+        assertThat(requests).hasSize(1);
+        assertThat(requests.get(0).requestId()).isEqualTo("par-1");
+        assertThat(requests.get(0).status()).isEqualTo("WAITING_ON_MERCHANT");
+        server.verify();
+    }
+
+    @Test
+    void approvePartnerAccessRequestUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/merchant/partner-access/requests/par-1/approve?shopDomain=alpha.myshopify.com"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "requestId":"par-1",
+                  "assignmentId":"assignment-1",
+                  "shopDomain":"alpha.myshopify.com",
+                  "status":"ACTIVE",
+                  "decidedAt":"2026-04-25T12:05:00Z"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgePartnerAccessDecisionSummary response = client.approvePartnerAccessRequest(
+            "alpha.myshopify.com",
+            "par-1",
+            new ShopifyBridgePartnerAccessDecisionRequest("Merchant Owner", "owner@example.com", "IMPLEMENTATION_SUPPORT", null)
+        );
+
+        assertThat(response.assignmentId()).isEqualTo("assignment-1");
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        server.verify();
+    }
+
+    @Test
+    void denyPartnerAccessRequestUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/merchant/partner-access/requests/par-1/deny?shopDomain=alpha.myshopify.com"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "requestId":"par-1",
+                  "assignmentId":null,
+                  "shopDomain":"alpha.myshopify.com",
+                  "status":"DENIED",
+                  "decidedAt":"2026-04-25T12:07:00Z"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgePartnerAccessDecisionSummary response = client.denyPartnerAccessRequest(
+            "alpha.myshopify.com",
+            "par-1",
+            new ShopifyBridgePartnerAccessDecisionRequest("Merchant Owner", "owner@example.com", null, "Merchant declined access.")
+        );
+
+        assertThat(response.assignmentId()).isNull();
+        assertThat(response.status()).isEqualTo("DENIED");
         server.verify();
     }
 

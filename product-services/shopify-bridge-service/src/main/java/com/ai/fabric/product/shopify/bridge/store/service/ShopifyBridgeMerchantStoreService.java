@@ -15,6 +15,9 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
@@ -126,6 +129,36 @@ public class ShopifyBridgeMerchantStoreService {
         return installCredentialService.resolvePersistedMaterial(merchantSession.shopDomain())
             .map(acquisition -> billingService.summarizeForShop(merchantSession.shopDomain(), acquisition.tokenExchangeMaterial().accessToken()))
             .orElseGet(() -> billingService.summarizeForShop(merchantSession.shopDomain(), null));
+    }
+
+    public List<ShopifyBridgePartnerAccessRequestSummary> listPartnerAccessRequests(ShopifyMerchantSession merchantSession) {
+        return platformShopifyStoreClient.listPartnerAccessRequests(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgePartnerAccessDecisionSummary approvePartnerAccessRequest(ShopifyMerchantSession merchantSession,
+                                                                                String requestId,
+                                                                                ShopifyBridgePartnerAccessDecisionRequest request) {
+        ShopifyBridgePartnerAccessDecisionRequest payload = normalizePartnerDecisionRequest(merchantSession, request);
+        ShopifyBridgePartnerAccessDecisionSummary summary = platformShopifyStoreClient.approvePartnerAccessRequest(
+            merchantSession.shopDomain(),
+            requestId,
+            payload
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PARTNER_ACCESS_APPROVED");
+        return summary;
+    }
+
+    public ShopifyBridgePartnerAccessDecisionSummary denyPartnerAccessRequest(ShopifyMerchantSession merchantSession,
+                                                                             String requestId,
+                                                                             ShopifyBridgePartnerAccessDecisionRequest request) {
+        ShopifyBridgePartnerAccessDecisionRequest payload = normalizePartnerDecisionRequest(merchantSession, request);
+        ShopifyBridgePartnerAccessDecisionSummary summary = platformShopifyStoreClient.denyPartnerAccessRequest(
+            merchantSession.shopDomain(),
+            requestId,
+            payload
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PARTNER_ACCESS_DENIED");
+        return summary;
     }
 
     public ShopifyBridgeBillingApprovalResponse requestBillingApproval(ShopifyMerchantSession merchantSession,
@@ -356,6 +389,21 @@ public class ShopifyBridgeMerchantStoreService {
             ));
         }
         return installCredentialService.acquireAndPersistMaterial(merchantSession, authorizationHeader);
+    }
+
+    private ShopifyBridgePartnerAccessDecisionRequest normalizePartnerDecisionRequest(ShopifyMerchantSession merchantSession,
+                                                                                     ShopifyBridgePartnerAccessDecisionRequest request) {
+        String approverName = request == null || request.approverName() == null || request.approverName().isBlank()
+            ? "Shopify admin " + merchantSession.userId()
+            : request.approverName().trim();
+        return new ShopifyBridgePartnerAccessDecisionRequest(
+            approverName,
+            request == null ? null : request.approverEmail(),
+            request == null || request.approvedScope() == null || request.approvedScope().isBlank()
+                ? "IMPLEMENTATION_SUPPORT"
+                : request.approvedScope().trim(),
+            request == null ? null : request.decisionReason()
+        );
     }
 
     private ShopifyBridgeStoreSummary findStoreOrNull(String shopDomain) {

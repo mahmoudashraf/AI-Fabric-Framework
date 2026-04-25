@@ -13,6 +13,8 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingPl
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCapabilitySummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
@@ -50,6 +52,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -405,6 +408,95 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.availablePlans[0].actionPackages").isArray());
 
         verify(merchantStoreService).billingSummary(any());
+    }
+
+    @Test
+    void partnerAccessRequestsUseMerchantSessionContext() throws Exception {
+        when(merchantStoreService.listPartnerAccessRequests(any())).thenReturn(List.of(
+            new ShopifyBridgePartnerAccessRequestSummary(
+                "par-1",
+                "impl-1",
+                "partner-1",
+                "Launch Partner",
+                "Alpha",
+                "merchant@example.com",
+                "store-1",
+                "alpha.myshopify.com",
+                "STARTER",
+                List.of("ai-search", "product-faq"),
+                List.of("reviews"),
+                "Starter launch",
+                "IMPLEMENTATION_SUPPORT",
+                "WAITING_ON_MERCHANT",
+                Instant.parse("2026-04-25T12:00:00Z"),
+                Instant.parse("2026-05-25T12:00:00Z"),
+                null,
+                Instant.parse("2026-04-25T12:00:00Z")
+            )
+        ));
+
+        mockMvc.perform(get("/api/app/store/partner-access/requests").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].requestId").value("par-1"))
+            .andExpect(jsonPath("$[0].partnerName").value("Launch Partner"))
+            .andExpect(jsonPath("$[0].status").value("WAITING_ON_MERCHANT"));
+
+        verify(merchantStoreService).listPartnerAccessRequests(any());
+    }
+
+    @Test
+    void approvePartnerAccessRequestUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.approvePartnerAccessRequest(any(), eq("par-1"), any())).thenReturn(
+            new ShopifyBridgePartnerAccessDecisionSummary(
+                "par-1",
+                "assignment-1",
+                "alpha.myshopify.com",
+                "ACTIVE",
+                Instant.parse("2026-04-25T12:05:00Z")
+            )
+        );
+
+        mockMvc.perform(post("/api/app/store/partner-access/requests/par-1/approve")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "approvedScope": "IMPLEMENTATION_SUPPORT"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.requestId").value("par-1"))
+            .andExpect(jsonPath("$.assignmentId").value("assignment-1"))
+            .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        verify(merchantStoreService).approvePartnerAccessRequest(any(), eq("par-1"), any());
+    }
+
+    @Test
+    void denyPartnerAccessRequestUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.denyPartnerAccessRequest(any(), eq("par-1"), any())).thenReturn(
+            new ShopifyBridgePartnerAccessDecisionSummary(
+                "par-1",
+                null,
+                "alpha.myshopify.com",
+                "DENIED",
+                Instant.parse("2026-04-25T12:07:00Z")
+            )
+        );
+
+        mockMvc.perform(post("/api/app/store/partner-access/requests/par-1/deny")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "decisionReason": "Merchant declined access."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.requestId").value("par-1"))
+            .andExpect(jsonPath("$.status").value("DENIED"));
+
+        verify(merchantStoreService).denyPartnerAccessRequest(any(), eq("par-1"), any());
     }
 
     @Test

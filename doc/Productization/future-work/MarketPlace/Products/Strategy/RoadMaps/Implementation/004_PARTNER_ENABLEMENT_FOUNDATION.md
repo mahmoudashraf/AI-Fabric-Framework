@@ -2311,3 +2311,57 @@ Greenfield rollout posture:
 - Existing typed-domain requests can be discarded in non-production/test data or migrated only if they resolve to an installed `ShopifyStoreConnection`.
 - Public approval links should not be presented as the production default.
 - Release gate is not complete until live verification proves merchant-admin approval and partner-side reflection against Railway.
+
+## Implementation Update - 2026-04-25
+
+### Completed Changes
+
+- Platform now stores `storeConnectionId` on partner implementation requests and partner store access requests through migration `V66__partner_installed_store_approval_flow.sql`.
+- Partner implementation creation now requires an installed `ShopifyStoreConnection` and derives `shopDomain` from that store; partners can no longer type or override the shop domain.
+- Platform exposes `GET /api/partners/eligible-stores` for partner-side installed-store search and filters out stores with active or pending access for that partner workspace.
+- Platform creates the merchant review request immediately with status `WAITING_ON_MERCHANT`; public approval links are no longer the primary Partner UI workflow.
+- Platform exposes merchant/admin endpoints for installed-store review:
+  - `GET /api/merchant/partner-access/requests?shopDomain={shop}`
+  - `POST /api/merchant/partner-access/requests/{requestId}/approve?shopDomain={shop}`
+  - `POST /api/merchant/partner-access/requests/{requestId}/deny?shopDomain={shop}`
+- Approval creates an `ACTIVE` `PartnerStoreAssignment` only after the request resolves to an installed store and writes the real `storeConnectionId`.
+- Denial marks the access request and implementation request as `DENIED` and does not create a partner store assignment.
+- Partner UI now uses an installed-store autocomplete on the new implementation form and submits `storeConnectionId`.
+- Partner implementation detail now points partners to merchant review in Shopify admin instead of a public approval-link CTA.
+- Shopify Bridge service now proxies merchant-admin partner access list/approve/deny calls to Platform using the configured Platform admin key.
+- Shopify Bridge admin UI now includes a `Partners` tab with pending partner requests, tier/surface/request details, and approve/deny buttons.
+
+### Verification Proof
+
+Executed on 2026-04-25 from `/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo`:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test` passed.
+- `npm --prefix Platfrom/partner-ui run build` passed.
+- `npm --prefix Platfrom/partner-ui run smoke` passed.
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -DskipTests compile` passed.
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=ShopifyMerchantControllerTest,PlatformShopifyStoreClientTest test` passed.
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q test` passed.
+- `npm --prefix product-services/shopify-bridge-service/ui run build` passed.
+- `mvn -f Platfrom/backend/pom.xml -q test` passed.
+- `git diff --check` passed.
+
+The backend test covers installed-store eligibility, request creation with `storeConnectionId`, merchant/admin request listing, merchant approval creating an active assignment, partner assignment visibility, merchant denial, and the no-assignment guarantee after denial.
+
+### Live Verification Proof
+
+Executed after the installed-store approval runtime changes were pushed to `Platform-V6` and the Railway services were reachable:
+
+- Full `scripts/verify-shopify-companion.sh` passed for the live Shopify Companion stack with bridge admin checks enabled.
+- Deployed Bridge embedded app shell returned HTTP `200`, its JS asset returned HTTP `200`, and the deployed asset contains the new `partner-access/requests` and `Partners` UI strings.
+- Platform live session login returned HTTP `200`.
+- Platform live `GET /api/merchant/partner-access/requests?shopDomain={shop}` returned HTTP `200`.
+- A temporary confirmed Supabase email partner was created for non-social live proof.
+- The partner completed signup through the live Platform API.
+- Live `GET /api/partners/eligible-stores?query={shop}` returned HTTP `200` with one installed eligible store.
+- Live `POST /api/partners/client-implementations` returned HTTP `201` with status `WAITING_ON_MERCHANT`.
+- Live merchant/admin request listing returned HTTP `200` and included the created implementation request.
+- Live merchant/admin denial returned HTTP `200` with status `DENIED`.
+- Live partner implementation fetch returned HTTP `200` with final status `DENIED`.
+- Live partner assigned-store list returned HTTP `200` with count `0`, proving denial did not create an assignment.
+
+The live mutation path intentionally used denial instead of approval so no active partner store assignment remained in production data.

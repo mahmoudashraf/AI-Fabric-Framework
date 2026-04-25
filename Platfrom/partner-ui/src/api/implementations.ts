@@ -1,10 +1,11 @@
 import type { PartnerApiClient } from '../auth/apiClient'
-import { partnerClientImplementationSchema, partnerStoreAccessLinkSchema } from './schemas'
+import { z } from 'zod'
+import { partnerClientImplementationSchema, partnerEligibleStoreSchema, partnerStoreAccessLinkSchema } from './schemas'
 
 export interface ClientImplementationPayload {
   clientName: string
   contactEmail?: string
-  shopDomain: string
+  storeConnectionId: string
   vertical?: string
   requestedTier: string
   requestedSurfaces: string[]
@@ -17,6 +18,11 @@ export function createClientImplementation(api: PartnerApiClient, payload: Clien
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchEligibleStores(api: PartnerApiClient, query?: string) {
+  const params = query?.trim() ? `?query=${encodeURIComponent(query.trim())}` : ''
+  return api.request(`/api/partners/eligible-stores${params}`, z.array(partnerEligibleStoreSchema))
 }
 
 export function getClientImplementation(api: PartnerApiClient, requestId: string) {

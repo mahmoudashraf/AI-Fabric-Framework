@@ -47,6 +47,7 @@ export const partnerClientImplementationSchema = z.object({
   id: z.string(),
   clientName: z.string(),
   contactEmail: nullableString,
+  storeConnectionId: nullableString,
   shopDomain: z.string(),
   vertical: nullableString,
   requestedTier: z.string(),
@@ -57,6 +58,18 @@ export const partnerClientImplementationSchema = z.object({
   approvalExpiresAt: nullableDateString,
   createdAt: z.string(),
   updatedAt: z.string(),
+})
+
+export const partnerEligibleStoreSchema = z.object({
+  storeConnectionId: z.string(),
+  shopDomain: z.string(),
+  displayName: z.string(),
+  installStatus: z.string(),
+  knowledgeSyncStatus: z.string(),
+  readinessStatus: z.string(),
+  widgetStatus: z.string(),
+  lastActivityAt: nullableDateString,
+  enabledSourceCategories: z.array(z.string()),
 })
 
 export const partnerStoreAccessLinkSchema = z.object({
@@ -124,6 +137,7 @@ export const partnerThreadSchema = z.object({
 export type PartnerSession = z.infer<typeof partnerSessionSchema>
 export type PartnerStore = z.infer<typeof partnerStoreSchema>
 export type PartnerClientImplementation = z.infer<typeof partnerClientImplementationSchema>
+export type PartnerEligibleStore = z.infer<typeof partnerEligibleStoreSchema>
 export type PartnerStoreAccessLink = z.infer<typeof partnerStoreAccessLinkSchema>
 export type MerchantApproval = z.infer<typeof merchantApprovalSchema>
 export type PartnerCatalogEntry = z.infer<typeof partnerCatalogEntrySchema>

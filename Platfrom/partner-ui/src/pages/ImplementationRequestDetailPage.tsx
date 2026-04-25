@@ -1,11 +1,8 @@
-import { Alert, Button, Paper, Stack, TextField, Typography } from '@mui/material'
-import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
-import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { Alert, Paper, Stack, Typography } from '@mui/material'
+import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createStoreAccessLink, getClientImplementation } from '../api/implementations'
+import { getClientImplementation } from '../api/implementations'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { PageHeader } from '../components/PageHeader'
 import { StatusChip } from '../components/StatusChip'
@@ -15,19 +12,10 @@ import { formatDateTime, titleize } from '../utils/format'
 export function ImplementationRequestDetailPage() {
   const { requestId = '' } = useParams()
   const { api } = useSupabaseAuth()
-  const [copied, setCopied] = useState(false)
   const implementationQuery = useQuery({
     queryKey: ['implementation', requestId],
     queryFn: () => getClientImplementation(api, requestId),
     enabled: Boolean(requestId),
-  })
-  const linkMutation = useMutation({
-    mutationFn: () => createStoreAccessLink(api, requestId),
-    onSuccess: async (link) => {
-      await navigator.clipboard?.writeText(link.approvalUrl)
-      setCopied(true)
-      await implementationQuery.refetch()
-    },
   })
 
   if (implementationQuery.isError) {
@@ -60,34 +48,14 @@ export function ImplementationRequestDetailPage() {
           <Paper sx={{ p: 2 }}>
             <Typography variant="h3">Merchant approval</Typography>
             <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-              Share this link with the merchant. Approval grants scoped implementation support visibility only.
+              The request is waiting inside Shopify Companion admin for {implementation.shopDomain}. The merchant can approve or deny partner access from the Partners tab.
             </Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2 }}>
-              <TextField value={implementation.approvalUrl ?? linkMutation.data?.approvalUrl ?? ''} fullWidth InputProps={{ readOnly: true }} placeholder="Create approval link to populate this field" />
-              <Button
-                variant="contained"
-                startIcon={<LinkOutlinedIcon />}
-                onClick={() => linkMutation.mutate()}
-                disabled={linkMutation.isPending}
-              >
-                Create link
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<ContentCopyOutlinedIcon />}
-                disabled={!(implementation.approvalUrl ?? linkMutation.data?.approvalUrl)}
-                onClick={async () => {
-                  await navigator.clipboard?.writeText(implementation.approvalUrl ?? linkMutation.data?.approvalUrl ?? '')
-                  setCopied(true)
-                }}
-              >
-                Copy
-              </Button>
-            </Stack>
-            {copied ? <Alert severity="success" sx={{ mt: 2 }}>Approval link copied.</Alert> : null}
+            <Alert severity={implementation.status === 'APPROVED' ? 'success' : implementation.status === 'DENIED' ? 'warning' : 'info'} sx={{ mt: 2 }}>
+              Status: {titleize(implementation.status)}
+            </Alert>
             {implementation.approvalExpiresAt ? (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                Expires {formatDateTime(implementation.approvalExpiresAt)}
+                Merchant review expires {formatDateTime(implementation.approvalExpiresAt)}
               </Typography>
             ) : null}
           </Paper>

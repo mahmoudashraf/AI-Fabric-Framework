@@ -18,6 +18,8 @@ public class PartnerStoreAccessRequestEntity {
     private String implementationRequestId;
     @Column(nullable = false)
     private String requestedByMemberId;
+    @Column
+    private String storeConnectionId;
     @Column(nullable = false)
     private String shopDomain;
     @Column(nullable = false)
@@ -47,6 +49,8 @@ public class PartnerStoreAccessRequestEntity {
     public void setImplementationRequestId(String implementationRequestId) { this.implementationRequestId = implementationRequestId; }
     public String getRequestedByMemberId() { return requestedByMemberId; }
     public void setRequestedByMemberId(String requestedByMemberId) { this.requestedByMemberId = requestedByMemberId; }
+    public String getStoreConnectionId() { return storeConnectionId; }
+    public void setStoreConnectionId(String storeConnectionId) { this.storeConnectionId = storeConnectionId; }
     public String getShopDomain() { return shopDomain; }
     public void setShopDomain(String shopDomain) { this.shopDomain = shopDomain; }
     public String getRequestedScope() { return requestedScope; }

@@ -370,6 +370,42 @@ export type ShopifyBridgeBillingApprovalResponse = {
   message: string
 }
 
+export type ShopifyBridgePartnerAccessRequestSummary = {
+  requestId: string
+  implementationRequestId: string
+  partnerAccountId: string
+  partnerName: string
+  clientName: string
+  contactEmail: string | null
+  storeConnectionId: string | null
+  shopDomain: string
+  requestedTier: string | null
+  requestedSurfaces: string[]
+  knownIntegrations: string[]
+  notes: string | null
+  requestedScope: string
+  status: string
+  createdAt: string
+  expiresAt: string
+  approvedAt: string | null
+  updatedAt: string
+}
+
+export type ShopifyBridgePartnerAccessDecisionRequest = {
+  approverName?: string
+  approverEmail?: string
+  approvedScope?: string
+  decisionReason?: string
+}
+
+export type ShopifyBridgePartnerAccessDecisionSummary = {
+  requestId: string
+  assignmentId: string | null
+  shopDomain: string
+  status: string
+  decidedAt: string
+}
+
 export type ShopifyBridgeStoreVectorizationRunSummary = {
   id: string
   reason: string
@@ -619,6 +655,36 @@ export async function retryLastFailedVectorizationAutoRunStore(): Promise<Shopif
 
 export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary> {
   return authenticatedFetchJson('/api/app/store/billing-summary', { method: 'GET' })
+}
+
+export async function fetchPartnerAccessRequests(): Promise<ShopifyBridgePartnerAccessRequestSummary[]> {
+  return authenticatedFetchJson('/api/app/store/partner-access/requests', { method: 'GET' })
+}
+
+export async function approvePartnerAccessRequest(
+  requestId: string,
+  request: ShopifyBridgePartnerAccessDecisionRequest,
+): Promise<ShopifyBridgePartnerAccessDecisionSummary> {
+  return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/approve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function denyPartnerAccessRequest(
+  requestId: string,
+  request: ShopifyBridgePartnerAccessDecisionRequest,
+): Promise<ShopifyBridgePartnerAccessDecisionSummary> {
+  return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/deny`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
 }
 
 export async function fetchSupportReadiness(): Promise<ShopifyBridgeSupportReadinessSummary> {

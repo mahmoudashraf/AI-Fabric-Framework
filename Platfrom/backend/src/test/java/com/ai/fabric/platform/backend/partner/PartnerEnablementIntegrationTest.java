@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -190,6 +189,14 @@ class PartnerEnablementIntegrationTest {
         completeSignup(token, "Approved Partner Workspace");
         createShopifyStore("shopify-store-approved", "approved-client.myshopify.com", "Approved Client");
 
+        mockMvc.perform(get("/api/partners/eligible-stores")
+                .param("query", "approved")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].storeConnectionId", is("shopify-store-approved")))
+            .andExpect(jsonPath("$[0].shopDomain", is("approved-client.myshopify.com")));
+
         var implementationResult = mockMvc.perform(post("/api/partners/client-implementations")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -197,7 +204,7 @@ class PartnerEnablementIntegrationTest {
                     {
                       "clientName": "Approved Client",
                       "contactEmail": "merchant@example.com",
-                      "shopDomain": "approved-client.myshopify.com",
+                      "storeConnectionId": "shopify-store-approved",
                       "vertical": "fashion",
                       "requestedTier": "STARTER",
                       "requestedSurfaces": ["ai-search", "product-faq", "order-lookup"],
@@ -206,21 +213,28 @@ class PartnerEnablementIntegrationTest {
                     }
                     """))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.status", is("DRAFT")))
+            .andExpect(jsonPath("$.status", is("WAITING_ON_MERCHANT")))
+            .andExpect(jsonPath("$.storeConnectionId", is("shopify-store-approved")))
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
             .andExpect(jsonPath("$.requestedSurfaces", hasItem("ai-search")))
             .andExpect(jsonPath("$.requestedSurfaces", not(hasItem("order-lookup"))))
             .andReturn();
 
         String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
-        var linkResult = mockMvc.perform(post("/api/partners/client-implementations/{requestId}/store-access-links", implementationId)
-                .header("Authorization", "Bearer " + token))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.approvalUrl", startsWith("http://partners.test/merchant/partner-access/")))
+        var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "approved-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].implementationRequestId", is(implementationId)))
+            .andExpect(jsonPath("$[0].partnerName", is("Approved Partner Workspace")))
+            .andExpect(jsonPath("$[0].status", is("WAITING_ON_MERCHANT")))
             .andReturn();
-        String approvalUrl = JsonPath.read(linkResult.getResponse().getContentAsString(), "$.approvalUrl");
-        String approvalCode = approvalUrl.substring(approvalUrl.lastIndexOf('/') + 1);
+        String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
 
-        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/{approvalCode}/approve", approvalCode)
+        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "approved-client.myshopify.com")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -276,6 +290,63 @@ class PartnerEnablementIntegrationTest {
         assertThat(auditRepository.findAll())
             .extracting("action")
             .contains("PARTNER_SIGNUP_COMPLETED", "STORE_ACCESS_APPROVED", "SUPPORT_ESCALATION_CREATED");
+    }
+
+    @Test
+    void merchantCanDenyInstalledStorePartnerAccessFromAdminFlow() throws Exception {
+        String token = partnerJwt("denied-user", "denied-user@example.com");
+        completeSignup(token, "Denied Partner Workspace");
+        createShopifyStore("shopify-store-denied", "denied-client.myshopify.com", "Denied Client");
+
+        var implementationResult = mockMvc.perform(post("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clientName": "Denied Client",
+                      "storeConnectionId": "shopify-store-denied",
+                      "requestedTier": "STARTER",
+                      "requestedSurfaces": ["ai-search"],
+                      "knownIntegrations": [],
+                      "notes": "Merchant should be able to deny this."
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.status", is("WAITING_ON_MERCHANT")))
+            .andReturn();
+        String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
+
+        var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "denied-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andReturn();
+        String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
+
+        mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/deny", accessRequestId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "denied-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "approverName": "Merchant Owner",
+                      "decisionReason": "Merchant does not want partner access."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain", is("denied-client.myshopify.com")))
+            .andExpect(jsonPath("$.status", is("DENIED")));
+
+        mockMvc.perform(get("/api/partners/client-implementations/{requestId}", implementationId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("DENIED")));
+
+        mockMvc.perform(get("/api/partners/stores")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(0)));
     }
 
     private void completeSignup(String token, String workspaceName) throws Exception {

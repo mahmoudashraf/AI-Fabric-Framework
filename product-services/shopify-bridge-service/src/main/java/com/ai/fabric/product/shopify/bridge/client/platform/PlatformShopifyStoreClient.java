@@ -3,6 +3,9 @@ package com.ai.fabric.product.shopify.bridge.client.platform;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicConsumerDeploymentCredentialsResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWebhookEventRequest;
@@ -46,6 +49,8 @@ public class PlatformShopifyStoreClient {
 
     private static final ParameterizedTypeReference<List<ShopifyBridgeStoreSummary>> STORE_LIST_TYPE =
         new ParameterizedTypeReference<>() { };
+    private static final ParameterizedTypeReference<List<ShopifyBridgePartnerAccessRequestSummary>> PARTNER_ACCESS_REQUEST_LIST_TYPE =
+        new ParameterizedTypeReference<>() { };
     private static final ParameterizedTypeReference<List<ShopifyBridgeStoreVectorizationEventSummary>> VECTORIZATION_EVENT_LIST_TYPE =
         new ParameterizedTypeReference<>() { };
 
@@ -72,6 +77,44 @@ public class PlatformShopifyStoreClient {
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .retrieve()
             .body(ShopifyBridgeStoreSummary.class);
+    }
+
+    public List<ShopifyBridgePartnerAccessRequestSummary> listPartnerAccessRequests(String shopDomain) {
+        return restClient.get()
+            .uri(requirePlatformBaseUrl() + "/api/merchant/partner-access/requests?shopDomain=" + encodeQueryParam(shopDomain))
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(PARTNER_ACCESS_REQUEST_LIST_TYPE);
+    }
+
+    public ShopifyBridgePartnerAccessDecisionSummary approvePartnerAccessRequest(String shopDomain,
+                                                                                String requestId,
+                                                                                ShopifyBridgePartnerAccessDecisionRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl()
+                + "/api/merchant/partner-access/requests/"
+                + encodePath(requestId)
+                + "/approve?shopDomain="
+                + encodeQueryParam(shopDomain))
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgePartnerAccessDecisionSummary.class);
+    }
+
+    public ShopifyBridgePartnerAccessDecisionSummary denyPartnerAccessRequest(String shopDomain,
+                                                                             String requestId,
+                                                                             ShopifyBridgePartnerAccessDecisionRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl()
+                + "/api/merchant/partner-access/requests/"
+                + encodePath(requestId)
+                + "/deny?shopDomain="
+                + encodeQueryParam(shopDomain))
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgePartnerAccessDecisionSummary.class);
     }
 
     public ShopifyBridgeStoreSummary upsertStore(ShopifyBridgeUpsertStoreRequest request) {
@@ -385,5 +428,9 @@ public class PlatformShopifyStoreClient {
 
     private String encodePath(String value) {
         return UriUtils.encodePathSegment(value == null ? "" : value.trim(), StandardCharsets.UTF_8);
+    }
+
+    private String encodeQueryParam(String value) {
+        return UriUtils.encodeQueryParam(value == null ? "" : value.trim(), StandardCharsets.UTF_8);
     }
 }

@@ -8,6 +8,9 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingAp
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -161,6 +164,29 @@ public class ShopifyMerchantController {
     @GetMapping("/store/billing-summary")
     public ShopifyBridgeBillingSummary billingSummary(Authentication authentication) {
         return merchantStoreService.billingSummary(requireMerchant(authentication));
+    }
+
+    @GetMapping("/store/partner-access/requests")
+    public java.util.List<ShopifyBridgePartnerAccessRequestSummary> partnerAccessRequests(Authentication authentication) {
+        return merchantStoreService.listPartnerAccessRequests(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/partner-access/requests/{requestId}/approve")
+    public ShopifyBridgePartnerAccessDecisionSummary approvePartnerAccessRequest(
+        Authentication authentication,
+        @PathVariable String requestId,
+        @RequestBody(required = false) ShopifyBridgePartnerAccessDecisionRequest request
+    ) {
+        return merchantStoreService.approvePartnerAccessRequest(requireMerchant(authentication), requestId, request);
+    }
+
+    @PostMapping("/store/partner-access/requests/{requestId}/deny")
+    public ShopifyBridgePartnerAccessDecisionSummary denyPartnerAccessRequest(
+        Authentication authentication,
+        @PathVariable String requestId,
+        @RequestBody(required = false) ShopifyBridgePartnerAccessDecisionRequest request
+    ) {
+        return merchantStoreService.denyPartnerAccessRequest(requireMerchant(authentication), requestId, request);
     }
 
     @GetMapping("/store/support-readiness")

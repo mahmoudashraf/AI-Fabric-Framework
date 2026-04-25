@@ -15,10 +15,14 @@ import com.ai.fabric.platform.backend.partner.gateway.PartnerShopifyStoreReadMod
 import com.ai.fabric.platform.backend.partner.gateway.PartnerStoreAccessGateway;
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessApprovalRequest;
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessApprovalSummary;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessDecisionRequest;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessDecisionSummary;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessRequestSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerAccountSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerCatalogEntrySummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerEligibleStoreSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSignupCompleteRequest;
@@ -53,6 +57,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -196,6 +201,15 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    public List<PartnerEligibleStoreSummary> listEligibleStores(String query) {
+        PartnerContext context = requireProvisionedContext();
+        return storeAccessGateway.listInstalledStores(query, 50).stream()
+            .filter(store -> isStoreEligibleForImplementation(context.account().getId(), store))
+            .map(this::toEligibleStoreSummary)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
     public PartnerStoreSummary getStore(String storeId) {
         PartnerContext context = requireProvisionedContext();
         return toStoreSummary(requireActiveAssignment(context.account().getId(), storeId));
@@ -206,23 +220,34 @@ public class PartnerEnablementService {
         PartnerContext context = requireProvisionedContext();
         Instant now = Instant.now();
         List<String> requestedSurfaces = tierSafeSurfaces(request.requestedTier(), safeList(request.requestedSurfaces()));
+        PartnerShopifyStoreReadModel store = requireEligibleInstalledStore(context.account().getId(), request.storeConnectionId());
         PartnerClientImplementationRequestEntity entity = new PartnerClientImplementationRequestEntity();
         entity.setId(id("pci"));
         entity.setPartnerAccountId(context.account().getId());
         entity.setCreatedByMemberId(context.member().getId());
         entity.setClientName(clean(request.clientName(), "clientName"));
         entity.setContactEmail(trimToNull(request.contactEmail()));
-        entity.setShopDomain(normalizeShopDomain(request.shopDomain()));
+        entity.setStoreConnectionId(store.storeConnectionId());
+        entity.setShopDomain(normalizeShopDomain(store.shopDomain()));
         entity.setVertical(trimToNull(request.vertical()));
         entity.setRequestedTier(normalizeTier(request.requestedTier()));
         entity.setRequestedSurfacesJson(writeJson(requestedSurfaces));
         entity.setKnownIntegrationsJson(writeJson(safeList(request.knownIntegrations())));
         entity.setNotes(trimToNull(request.notes()));
-        entity.setStatus("DRAFT");
+        entity.setStatus("WAITING_ON_MERCHANT");
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         implementationRequestRepository.save(entity);
+
+        PartnerStoreAccessRequestEntity accessRequest = createAccessRequestForImplementation(context, entity, now);
+        entity.setApprovalCode(accessRequest.getApprovalCode());
+        entity.setApprovalUrl(accessRequest.getApprovalUrl());
+        entity.setApprovalExpiresAt(accessRequest.getExpiresAt());
+        entity.setUpdatedAt(now);
+        implementationRequestRepository.save(entity);
+
         audit(context, "CLIENT_IMPLEMENTATION_CREATED", "CLIENT_IMPLEMENTATION", entity.getId(), "SUCCESS", "{}");
+        audit(context, "STORE_ACCESS_REQUESTED", "STORE_ACCESS_REQUEST", accessRequest.getId(), "SUCCESS", "{}");
         return toImplementationSummary(entity);
     }
 
@@ -236,35 +261,28 @@ public class PartnerEnablementService {
     public PartnerStoreAccessLinkSummary createStoreAccessLink(String requestId) {
         PartnerContext context = requireProvisionedContext();
         PartnerClientImplementationRequestEntity implementation = requireImplementation(context.account().getId(), requestId);
+        Optional<PartnerStoreAccessRequestEntity> existing = storeAccessRequestRepository.findFirstByImplementationRequestIdOrderByCreatedAtDesc(implementation.getId());
+        if (existing.isPresent()) {
+            PartnerStoreAccessRequestEntity accessRequest = existing.get();
+            return new PartnerStoreAccessLinkSummary(
+                accessRequest.getId(),
+                implementation.getId(),
+                accessRequest.getApprovalUrl(),
+                accessRequest.getStatus(),
+                accessRequest.getExpiresAt()
+            );
+        }
         Instant now = Instant.now();
-        String approvalCode = approvalCode();
-        Instant expiresAt = now.plus(authProperties.merchantApprovalTtl());
-        String approvalUrl = authProperties.partnerAppUrl().replaceAll("/+$", "")
-            + "/merchant/partner-access/" + approvalCode;
-
-        PartnerStoreAccessRequestEntity accessRequest = new PartnerStoreAccessRequestEntity();
-        accessRequest.setId(id("psar"));
-        accessRequest.setPartnerAccountId(context.account().getId());
-        accessRequest.setImplementationRequestId(implementation.getId());
-        accessRequest.setRequestedByMemberId(context.member().getId());
-        accessRequest.setShopDomain(implementation.getShopDomain());
-        accessRequest.setRequestedScope("IMPLEMENTATION_SUPPORT");
-        accessRequest.setStatus("WAITING_ON_MERCHANT");
-        accessRequest.setApprovalCode(approvalCode);
-        accessRequest.setApprovalUrl(approvalUrl);
-        accessRequest.setExpiresAt(expiresAt);
-        accessRequest.setCreatedAt(now);
-        accessRequest.setUpdatedAt(now);
-        storeAccessRequestRepository.save(accessRequest);
+        PartnerStoreAccessRequestEntity accessRequest = createAccessRequestForImplementation(context, implementation, now);
 
         implementation.setStatus("WAITING_ON_MERCHANT");
-        implementation.setApprovalCode(approvalCode);
-        implementation.setApprovalUrl(approvalUrl);
-        implementation.setApprovalExpiresAt(expiresAt);
+        implementation.setApprovalCode(accessRequest.getApprovalCode());
+        implementation.setApprovalUrl(accessRequest.getApprovalUrl());
+        implementation.setApprovalExpiresAt(accessRequest.getExpiresAt());
         implementation.setUpdatedAt(now);
         implementationRequestRepository.save(implementation);
         audit(context, "STORE_ACCESS_LINK_CREATED", "STORE_ACCESS_REQUEST", accessRequest.getId(), "SUCCESS", "{}");
-        return new PartnerStoreAccessLinkSummary(accessRequest.getId(), implementation.getId(), approvalUrl, accessRequest.getStatus(), expiresAt);
+        return new PartnerStoreAccessLinkSummary(accessRequest.getId(), implementation.getId(), accessRequest.getApprovalUrl(), accessRequest.getStatus(), accessRequest.getExpiresAt());
     }
 
     @Transactional
@@ -272,20 +290,80 @@ public class PartnerEnablementService {
                                                                       MerchantPartnerAccessApprovalRequest request) {
         PartnerStoreAccessRequestEntity accessRequest = storeAccessRequestRepository.findByApprovalCode(approvalCode)
             .orElseThrow(() -> new IllegalArgumentException("Partner access approval code was not found."));
+        MerchantPartnerAccessDecisionSummary decision = approveStoreAccessRequest(
+            accessRequest,
+            new MerchantPartnerAccessDecisionRequest(request.approverName(), request.approverEmail(), request.approvedScope(), null),
+            "MERCHANT_APPROVAL_LINK"
+        );
+        return new MerchantPartnerAccessApprovalSummary(decision.assignmentId(), decision.shopDomain(), decision.status(), decision.decidedAt());
+    }
+
+    @Transactional(readOnly = true)
+    public List<MerchantPartnerAccessRequestSummary> listMerchantAccessRequests(String shopDomain) {
+        String normalizedShopDomain = normalizeShopDomain(shopDomain);
+        return storeAccessRequestRepository.findByShopDomainIgnoreCaseOrderByCreatedAtDesc(normalizedShopDomain).stream()
+            .limit(50)
+            .map(this::toMerchantAccessRequestSummary)
+            .toList();
+    }
+
+    @Transactional
+    public MerchantPartnerAccessDecisionSummary approveMerchantAccessRequest(String requestId,
+                                                                            String shopDomain,
+                                                                            MerchantPartnerAccessDecisionRequest request) {
+        PartnerStoreAccessRequestEntity accessRequest = requireMerchantAccessRequest(requestId, shopDomain);
+        return approveStoreAccessRequest(accessRequest, request, "SHOPIFY_ADMIN_APPROVAL");
+    }
+
+    @Transactional
+    public MerchantPartnerAccessDecisionSummary denyMerchantAccessRequest(String requestId,
+                                                                         String shopDomain,
+                                                                         MerchantPartnerAccessDecisionRequest request) {
+        PartnerStoreAccessRequestEntity accessRequest = requireMerchantAccessRequest(requestId, shopDomain);
         if (!"WAITING_ON_MERCHANT".equals(accessRequest.getStatus())) {
-            throw new IllegalArgumentException("Partner access approval code is not active.");
+            throw new IllegalArgumentException("Partner access request is not waiting on merchant review.");
         }
         Instant now = Instant.now();
         if (accessRequest.getExpiresAt().isBefore(now)) {
             accessRequest.setStatus("EXPIRED");
             accessRequest.setUpdatedAt(now);
             storeAccessRequestRepository.save(accessRequest);
-            throw new IllegalArgumentException("Partner access approval code has expired.");
+            throw new IllegalArgumentException("Partner access request has expired.");
         }
         PartnerClientImplementationRequestEntity implementation = implementationRequestRepository
             .findById(accessRequest.getImplementationRequestId())
             .orElseThrow();
-        Optional<PartnerShopifyStoreReadModel> liveStore = storeAccessGateway.findByShopDomain(accessRequest.getShopDomain());
+        accessRequest.setStatus("DENIED");
+        accessRequest.setUpdatedAt(now);
+        storeAccessRequestRepository.save(accessRequest);
+        implementation.setStatus("DENIED");
+        implementation.setUpdatedAt(now);
+        implementationRequestRepository.save(implementation);
+        audit(accessRequest.getPartnerAccountId(), null, "STORE_ACCESS_DENIED", "STORE_ACCESS_REQUEST", accessRequest.getId(), "SUCCESS", writeJson(Map.of(
+            "sourceFlow", "SHOPIFY_ADMIN_APPROVAL",
+            "approverName", clean(request.approverName(), "approverName"),
+            "reason", firstNonBlank(request.decisionReason(), "not_provided")
+        )));
+        return new MerchantPartnerAccessDecisionSummary(accessRequest.getId(), null, accessRequest.getShopDomain(), accessRequest.getStatus(), now);
+    }
+
+    private MerchantPartnerAccessDecisionSummary approveStoreAccessRequest(PartnerStoreAccessRequestEntity accessRequest,
+                                                                          MerchantPartnerAccessDecisionRequest request,
+                                                                          String sourceFlow) {
+        if (!"WAITING_ON_MERCHANT".equals(accessRequest.getStatus())) {
+            throw new IllegalArgumentException("Partner access request is not waiting on merchant review.");
+        }
+        Instant now = Instant.now();
+        if (accessRequest.getExpiresAt().isBefore(now)) {
+            accessRequest.setStatus("EXPIRED");
+            accessRequest.setUpdatedAt(now);
+            storeAccessRequestRepository.save(accessRequest);
+            throw new IllegalArgumentException("Partner access request has expired.");
+        }
+        PartnerClientImplementationRequestEntity implementation = implementationRequestRepository
+            .findById(accessRequest.getImplementationRequestId())
+            .orElseThrow();
+        PartnerShopifyStoreReadModel liveStore = requireInstalledStore(accessRequest);
 
         accessRequest.setStatus("APPROVED");
         accessRequest.setApprovedAt(now);
@@ -300,24 +378,28 @@ public class PartnerEnablementService {
         approval.setApproverName(clean(request.approverName(), "approverName"));
         approval.setApproverEmail(trimToNull(request.approverEmail()));
         approval.setApprovedScope(firstNonBlank(request.approvedScope(), "IMPLEMENTATION_SUPPORT"));
-        approval.setSourceFlow("MERCHANT_APPROVAL_LINK");
+        approval.setSourceFlow(sourceFlow);
         approval.setApprovedAt(now);
-        approval.setDetailsJson("{}");
+        approval.setDetailsJson(writeJson(Map.of(
+            "storeConnectionId", liveStore.storeConnectionId(),
+            "decisionReason", firstNonBlank(request.decisionReason(), "not_provided")
+        )));
         storeAccessApprovalRepository.save(approval);
 
         PartnerStoreAssignmentEntity assignment = storeAssignmentRepository
-            .findByPartnerAccountIdAndShopDomainIgnoreCase(accessRequest.getPartnerAccountId(), accessRequest.getShopDomain())
+            .findByPartnerAccountIdAndStoreConnectionId(accessRequest.getPartnerAccountId(), liveStore.storeConnectionId())
+            .or(() -> storeAssignmentRepository.findByPartnerAccountIdAndShopDomainIgnoreCase(accessRequest.getPartnerAccountId(), accessRequest.getShopDomain()))
             .orElseGet(PartnerStoreAssignmentEntity::new);
         if (!StringUtils.hasText(assignment.getId())) {
             assignment.setId(id("psa"));
             assignment.setCreatedAt(now);
         }
         assignment.setPartnerAccountId(accessRequest.getPartnerAccountId());
-        assignment.setStoreConnectionId(liveStore.map(PartnerShopifyStoreReadModel::storeConnectionId).orElse(null));
-        assignment.setShopDomain(accessRequest.getShopDomain());
-        assignment.setMerchantName(liveStore.map(PartnerShopifyStoreReadModel::displayName).orElse(implementation.getClientName()));
+        assignment.setStoreConnectionId(liveStore.storeConnectionId());
+        assignment.setShopDomain(liveStore.shopDomain());
+        assignment.setMerchantName(firstNonBlank(liveStore.displayName(), implementation.getClientName()));
         assignment.setStatus("ACTIVE");
-        assignment.setAssignmentSource("MERCHANT_APPROVAL_LINK");
+        assignment.setAssignmentSource(sourceFlow);
         assignment.setApprovedBy(firstNonBlank(request.approverEmail(), request.approverName()));
         assignment.setPermissionsJson(writeJson(DEFAULT_ASSIGNMENT_PERMISSIONS));
         assignment.setApprovedAt(now);
@@ -329,8 +411,11 @@ public class PartnerEnablementService {
         implementation.setStatus("APPROVED");
         implementation.setUpdatedAt(now);
         implementationRequestRepository.save(implementation);
-        audit(accessRequest.getPartnerAccountId(), null, "STORE_ACCESS_APPROVED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", "{}");
-        return new MerchantPartnerAccessApprovalSummary(assignment.getId(), assignment.getShopDomain(), assignment.getStatus(), now);
+        audit(accessRequest.getPartnerAccountId(), null, "STORE_ACCESS_APPROVED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
+            "sourceFlow", sourceFlow,
+            "storeConnectionId", liveStore.storeConnectionId()
+        )));
+        return new MerchantPartnerAccessDecisionSummary(accessRequest.getId(), assignment.getId(), assignment.getShopDomain(), assignment.getStatus(), now);
     }
 
     @Transactional(readOnly = true)
@@ -446,6 +531,81 @@ public class PartnerEnablementService {
             .orElseThrow(() -> new PartnerForbiddenException("Client implementation request is not available to this partner."));
     }
 
+    private PartnerStoreAccessRequestEntity requireMerchantAccessRequest(String requestId, String shopDomain) {
+        return storeAccessRequestRepository.findByIdAndShopDomainIgnoreCase(requestId, normalizeShopDomain(shopDomain))
+            .orElseThrow(() -> new IllegalArgumentException("Partner access request was not found for this shop."));
+    }
+
+    private PartnerShopifyStoreReadModel requireEligibleInstalledStore(String accountId, String storeConnectionId) {
+        PartnerShopifyStoreReadModel store = storeAccessGateway.findByStoreConnectionId(clean(storeConnectionId, "storeConnectionId"))
+            .orElseThrow(() -> new IllegalArgumentException("Installed Shopify store was not found."));
+        if (!"INSTALLED".equalsIgnoreCase(store.installStatus())) {
+            throw new IllegalArgumentException("Shopify store must be installed before a partner implementation can be requested.");
+        }
+        if (!isStoreEligibleForImplementation(accountId, store)) {
+            throw new IllegalArgumentException("Shopify store already has an active or pending partner implementation for this workspace.");
+        }
+        return store;
+    }
+
+    private PartnerShopifyStoreReadModel requireInstalledStore(PartnerStoreAccessRequestEntity accessRequest) {
+        Optional<PartnerShopifyStoreReadModel> byConnection = storeAccessGateway.findByStoreConnectionId(accessRequest.getStoreConnectionId());
+        PartnerShopifyStoreReadModel store = byConnection
+            .or(() -> storeAccessGateway.findByShopDomain(accessRequest.getShopDomain()))
+            .orElseThrow(() -> new IllegalArgumentException("Installed Shopify store was not found for this access request."));
+        if (!"INSTALLED".equalsIgnoreCase(store.installStatus())) {
+            throw new IllegalArgumentException("Shopify store must still be installed before partner access can be approved.");
+        }
+        return store;
+    }
+
+    private boolean isStoreEligibleForImplementation(String accountId, PartnerShopifyStoreReadModel store) {
+        if (store == null || !StringUtils.hasText(store.storeConnectionId())) {
+            return false;
+        }
+        if (!"INSTALLED".equalsIgnoreCase(store.installStatus())) {
+            return false;
+        }
+        return !storeAssignmentRepository.existsByPartnerAccountIdAndStoreConnectionIdAndStatus(
+            accountId,
+            store.storeConnectionId(),
+            "ACTIVE"
+        ) && !storeAccessRequestRepository.existsByPartnerAccountIdAndStoreConnectionIdAndStatusIn(
+            accountId,
+            store.storeConnectionId(),
+            List.of("WAITING_ON_MERCHANT")
+        ) && !implementationRequestRepository.existsByPartnerAccountIdAndStoreConnectionIdAndStatusIn(
+            accountId,
+            store.storeConnectionId(),
+            List.of("WAITING_ON_MERCHANT")
+        );
+    }
+
+    private PartnerStoreAccessRequestEntity createAccessRequestForImplementation(PartnerContext context,
+                                                                                 PartnerClientImplementationRequestEntity implementation,
+                                                                                 Instant now) {
+        String approvalCode = approvalCode();
+        Instant expiresAt = now.plus(authProperties.merchantApprovalTtl());
+        String approvalUrl = authProperties.partnerAppUrl().replaceAll("/+$", "")
+            + "/merchant/partner-access/" + approvalCode;
+
+        PartnerStoreAccessRequestEntity accessRequest = new PartnerStoreAccessRequestEntity();
+        accessRequest.setId(id("psar"));
+        accessRequest.setPartnerAccountId(context.account().getId());
+        accessRequest.setImplementationRequestId(implementation.getId());
+        accessRequest.setRequestedByMemberId(context.member().getId());
+        accessRequest.setStoreConnectionId(implementation.getStoreConnectionId());
+        accessRequest.setShopDomain(implementation.getShopDomain());
+        accessRequest.setRequestedScope("IMPLEMENTATION_SUPPORT");
+        accessRequest.setStatus("WAITING_ON_MERCHANT");
+        accessRequest.setApprovalCode(approvalCode);
+        accessRequest.setApprovalUrl(approvalUrl);
+        accessRequest.setExpiresAt(expiresAt);
+        accessRequest.setCreatedAt(now);
+        accessRequest.setUpdatedAt(now);
+        return storeAccessRequestRepository.save(accessRequest);
+    }
+
     private PartnerStoreAssignmentEntity requireActiveAssignment(String accountId, String storeId) {
         PartnerStoreAssignmentEntity assignment = storeAssignmentRepository.findByIdAndPartnerAccountId(storeId, accountId)
             .or(() -> storeAssignmentRepository.findByPartnerAccountIdAndShopDomainIgnoreCase(accountId, storeId))
@@ -508,11 +668,53 @@ public class PartnerEnablementService {
         return "No active blocker.";
     }
 
+    private PartnerEligibleStoreSummary toEligibleStoreSummary(PartnerShopifyStoreReadModel store) {
+        return new PartnerEligibleStoreSummary(
+            store.storeConnectionId(),
+            store.shopDomain(),
+            firstNonBlank(store.displayName(), store.shopDomain()),
+            store.installStatus(),
+            store.knowledgeSyncStatus(),
+            store.sourceReadinessStatus(),
+            store.widgetStatus(),
+            firstNonNull(store.lastWebhookAt(), store.lastSyncAt()),
+            store.enabledSourceCategories()
+        );
+    }
+
+    private MerchantPartnerAccessRequestSummary toMerchantAccessRequestSummary(PartnerStoreAccessRequestEntity accessRequest) {
+        PartnerClientImplementationRequestEntity implementation = implementationRequestRepository
+            .findById(accessRequest.getImplementationRequestId())
+            .orElse(null);
+        PartnerAccountEntity account = accountRepository.findById(accessRequest.getPartnerAccountId()).orElse(null);
+        return new MerchantPartnerAccessRequestSummary(
+            accessRequest.getId(),
+            accessRequest.getImplementationRequestId(),
+            accessRequest.getPartnerAccountId(),
+            account == null ? "Partner workspace" : account.getName(),
+            implementation == null ? accessRequest.getShopDomain() : implementation.getClientName(),
+            implementation == null ? null : implementation.getContactEmail(),
+            firstNonBlank(accessRequest.getStoreConnectionId(), implementation == null ? null : implementation.getStoreConnectionId()),
+            accessRequest.getShopDomain(),
+            implementation == null ? null : implementation.getRequestedTier(),
+            implementation == null ? List.of() : readList(implementation.getRequestedSurfacesJson()),
+            implementation == null ? List.of() : readList(implementation.getKnownIntegrationsJson()),
+            implementation == null ? null : implementation.getNotes(),
+            accessRequest.getRequestedScope(),
+            accessRequest.getStatus(),
+            accessRequest.getCreatedAt(),
+            accessRequest.getExpiresAt(),
+            accessRequest.getApprovedAt(),
+            accessRequest.getUpdatedAt()
+        );
+    }
+
     private PartnerClientImplementationSummary toImplementationSummary(PartnerClientImplementationRequestEntity entity) {
         return new PartnerClientImplementationSummary(
             entity.getId(),
             entity.getClientName(),
             entity.getContactEmail(),
+            entity.getStoreConnectionId(),
             entity.getShopDomain(),
             entity.getVertical(),
             entity.getRequestedTier(),
