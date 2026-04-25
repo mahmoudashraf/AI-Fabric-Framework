@@ -1974,7 +1974,7 @@ Observed result:
 - unauthenticated partner session rejected with HTTP `401`
 - invalid partner JWT rejected with HTTP `401`
 - temporary Partner UI Railway URL `https://ai-fabric-framework-production-158d.up.railway.app` returns HTTP `200` for `/health`, `/runtime-config.js`, and `/`
-- Partner UI runtime config currently returns empty values, so the Railway service still needs `PARTNER_UI_PLATFORM_API_BASE_URL`, `PARTNER_UI_SUPABASE_URL`, and `PARTNER_UI_SUPABASE_ANON_KEY`
+- Partner UI runtime config is populated and points at the expected Platform backend after Railway env values were added
 
 Backend-only authenticated check with the valid Supabase JWT is also blocked because the deployed production backend is not serving the partner-enabled routes yet:
 
@@ -1992,6 +1992,32 @@ Backend-only authenticated check with the valid Supabase JWT is also blocked bec
 
 - deploy a Platform backend branch that contains the Partner Enablement slice
 - configure the Platform Supabase auth env values from the deployment guide
-- set Partner UI Railway runtime env values and redeploy the temporary Railway service
 - later point `partners.loomai.pro` DNS to the Partner UI service when moving to production
 - rerun strict live verification with the non-committed temp JWT
+
+### 2026-04-25 Railway UI Env Verification
+
+After adding the temporary Partner UI Railway env values, the UI side of the live gate passed:
+
+```bash
+PARTNER_UI_BASE_URL=https://ai-fabric-framework-production-158d.up.railway.app \
+PARTNER_SUPABASE_JWT="<valid temp JWT>" \
+PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
+  scripts/verify-partner-enablement-live.sh
+```
+
+Passed before backend auth failure:
+
+- backend health reachable
+- unauthenticated partner session rejected with HTTP `401`
+- invalid partner JWT rejected with HTTP `401`
+- Partner UI health reachable
+- Partner UI runtime config reachable and populated
+- Partner UI route reachable
+
+Remaining failure:
+
+- valid Supabase partner JWT returned HTTP `401`
+- public merchant approval route probe returned HTTP `401`
+
+This keeps the remaining blocker on the Platform backend deployment/auth configuration, not on the temporary Railway Partner UI service.
