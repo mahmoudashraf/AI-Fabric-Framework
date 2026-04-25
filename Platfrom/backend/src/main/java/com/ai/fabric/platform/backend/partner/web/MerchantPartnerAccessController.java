@@ -35,13 +35,13 @@ public class MerchantPartnerAccessController {
     }
 
     @GetMapping("/requests")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public List<MerchantPartnerAccessRequestSummary> listRequests(@RequestParam String shopDomain) {
         return service.listMerchantAccessRequests(shopDomain);
     }
 
     @PostMapping("/requests/{requestId}/approve")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public MerchantPartnerAccessDecisionSummary approveRequest(@PathVariable String requestId,
                                                                @RequestParam String shopDomain,
                                                                @Valid @RequestBody MerchantPartnerAccessDecisionRequest request) {
@@ -49,10 +49,18 @@ public class MerchantPartnerAccessController {
     }
 
     @PostMapping("/requests/{requestId}/deny")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public MerchantPartnerAccessDecisionSummary denyRequest(@PathVariable String requestId,
                                                             @RequestParam String shopDomain,
                                                             @Valid @RequestBody MerchantPartnerAccessDecisionRequest request) {
         return service.denyMerchantAccessRequest(requestId, shopDomain, request);
+    }
+
+    @PostMapping("/requests/{requestId}/revoke")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public MerchantPartnerAccessDecisionSummary revokeRequest(@PathVariable String requestId,
+                                                              @RequestParam String shopDomain,
+                                                              @Valid @RequestBody MerchantPartnerAccessDecisionRequest request) {
+        return service.revokeMerchantAccessRequest(requestId, shopDomain, request);
     }
 }

@@ -41,6 +41,7 @@ import {
   replayVectorizationEventStore,
   reconcileVectorization,
   requestBillingApproval,
+  revokePartnerAccessRequest,
   retryLastFailedVectorizationAutoRunStore,
   runSourcePreflight,
   suggestMerchantPlayground,
@@ -308,6 +309,7 @@ export default function App() {
     | 'billing-approval'
     | 'partner-access-approve'
     | 'partner-access-deny'
+    | 'partner-access-revoke'
     | 'vectorization-reconcile'
     | 'vectorize-now'
     | 'vectorization-index-all'
@@ -633,6 +635,25 @@ export default function App() {
       setActionMessage(`Denied partner access for ${summary.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to deny partner access.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handlePartnerAccessRevoke(requestId: string) {
+    setBusyAction('partner-access-revoke')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const summary = await revokePartnerAccessRequest(requestId, {
+        approverName: session?.userId ? `Shopify admin ${session.userId}` : 'Shopify admin',
+        approvedScope: 'FULL_STORE_ACCESS',
+        decisionReason: 'Merchant revoked active partner access from Shopify admin.',
+      })
+      await refresh()
+      setActionMessage(`Revoked partner access for ${summary.shopDomain}.`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to revoke partner access.')
     } finally {
       setBusyAction(null)
     }
@@ -2113,6 +2134,7 @@ export default function App() {
                     <BlockStack gap="300">
                       {partnerAccessRequests.map((request) => {
                         const waiting = request.status === 'WAITING_ON_MERCHANT'
+                        const active = request.status === 'APPROVED' || request.status === 'ACTIVE'
                         return (
                           <Box key={request.requestId} padding="300" borderWidth="025" borderColor="border" borderRadius="200">
                             <BlockStack gap="200">
@@ -2132,6 +2154,8 @@ export default function App() {
                                 <List.Item>Store configured surfaces: {request.requestedSurfaces.join(' · ') || 'No configured surfaces'}</List.Item>
                                 <List.Item>Requested: {formatTimestamp(request.createdAt)}</List.Item>
                                 <List.Item>Expires: {formatTimestamp(request.expiresAt)}</List.Item>
+                                {request.approvedAt ? <List.Item>Approved: {formatTimestamp(request.approvedAt)}</List.Item> : null}
+                                {request.revokedAt ? <List.Item>Revoked: {formatTimestamp(request.revokedAt)}</List.Item> : null}
                               </List>
                               {request.notes ? (
                                 <Text as="p" variant="bodySm" tone="subdued">
@@ -2153,6 +2177,17 @@ export default function App() {
                                     loading={busyAction === 'partner-access-deny'}
                                   >
                                     Deny
+                                  </Button>
+                                </InlineStack>
+                              ) : null}
+                              {active ? (
+                                <InlineStack gap="200">
+                                  <Button
+                                    tone="critical"
+                                    onClick={() => void handlePartnerAccessRevoke(request.requestId)}
+                                    loading={busyAction === 'partner-access-revoke'}
+                                  >
+                                    Revoke access
                                   </Button>
                                 </InlineStack>
                               ) : null}

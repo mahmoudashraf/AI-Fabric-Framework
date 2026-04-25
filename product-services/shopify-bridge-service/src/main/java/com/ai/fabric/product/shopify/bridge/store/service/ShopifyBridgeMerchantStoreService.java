@@ -161,6 +161,19 @@ public class ShopifyBridgeMerchantStoreService {
         return summary;
     }
 
+    public ShopifyBridgePartnerAccessDecisionSummary revokePartnerAccessRequest(ShopifyMerchantSession merchantSession,
+                                                                               String requestId,
+                                                                               ShopifyBridgePartnerAccessDecisionRequest request) {
+        ShopifyBridgePartnerAccessDecisionRequest payload = normalizePartnerDecisionRequest(merchantSession, request);
+        ShopifyBridgePartnerAccessDecisionSummary summary = platformShopifyStoreClient.revokePartnerAccessRequest(
+            merchantSession.shopDomain(),
+            requestId,
+            payload
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PARTNER_ACCESS_REVOKED");
+        return summary;
+    }
+
     public ShopifyBridgeBillingApprovalResponse requestBillingApproval(ShopifyMerchantSession merchantSession,
                                                                        String authorizationHeader,
                                                                        ShopifyBridgeBillingApprovalRequest request) {

@@ -189,6 +189,15 @@ public class ShopifyMerchantController {
         return merchantStoreService.denyPartnerAccessRequest(requireMerchant(authentication), requestId, request);
     }
 
+    @PostMapping("/store/partner-access/requests/{requestId}/revoke")
+    public ShopifyBridgePartnerAccessDecisionSummary revokePartnerAccessRequest(
+        Authentication authentication,
+        @PathVariable String requestId,
+        @RequestBody(required = false) ShopifyBridgePartnerAccessDecisionRequest request
+    ) {
+        return merchantStoreService.revokePartnerAccessRequest(requireMerchant(authentication), requestId, request);
+    }
+
     @GetMapping("/store/support-readiness")
     public ShopifyBridgeSupportReadinessSummary supportReadiness(Authentication authentication) {
         return merchantStoreService.supportReadiness(requireMerchant(authentication));

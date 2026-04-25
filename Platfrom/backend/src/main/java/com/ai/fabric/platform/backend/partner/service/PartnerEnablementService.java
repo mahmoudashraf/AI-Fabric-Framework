@@ -44,7 +44,9 @@ import com.ai.fabric.platform.backend.partner.repository.PartnerSupportReplyRepo
 import com.ai.fabric.platform.backend.partner.security.PartnerForbiddenException;
 import com.ai.fabric.platform.backend.partner.security.PartnerPrincipal;
 import com.ai.fabric.platform.backend.partner.security.PartnerSecurityContext;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -357,6 +359,43 @@ public class PartnerEnablementService {
         return new MerchantPartnerAccessDecisionSummary(accessRequest.getId(), null, accessRequest.getShopDomain(), accessRequest.getStatus(), now);
     }
 
+    @Transactional
+    public MerchantPartnerAccessDecisionSummary revokeMerchantAccessRequest(String requestId,
+                                                                           String shopDomain,
+                                                                           MerchantPartnerAccessDecisionRequest request) {
+        PartnerStoreAccessRequestEntity accessRequest = requireMerchantAccessRequest(requestId, shopDomain);
+        if (!"APPROVED".equals(accessRequest.getStatus())) {
+            throw new IllegalArgumentException("Partner access request does not have active access to revoke.");
+        }
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignmentForAccessRequest(accessRequest);
+        PartnerClientImplementationRequestEntity implementation = implementationRequestRepository
+            .findById(accessRequest.getImplementationRequestId())
+            .orElseThrow();
+
+        Instant now = Instant.now();
+        accessRequest.setStatus("REVOKED");
+        accessRequest.setRevokedAt(now);
+        accessRequest.setUpdatedAt(now);
+        storeAccessRequestRepository.save(accessRequest);
+
+        assignment.setStatus("REVOKED");
+        assignment.setRevokedAt(now);
+        assignment.setUpdatedAt(now);
+        storeAssignmentRepository.save(assignment);
+
+        implementation.setStatus("REVOKED");
+        implementation.setUpdatedAt(now);
+        implementationRequestRepository.save(implementation);
+
+        String sourceFlow = revokeSourceFlow();
+        audit(accessRequest.getPartnerAccountId(), null, "STORE_ACCESS_REVOKED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
+            "sourceFlow", sourceFlow,
+            "approverName", clean(request.approverName(), "approverName"),
+            "reason", firstNonBlank(request.decisionReason(), "not_provided")
+        )));
+        return new MerchantPartnerAccessDecisionSummary(accessRequest.getId(), assignment.getId(), assignment.getShopDomain(), assignment.getStatus(), now);
+    }
+
     private MerchantPartnerAccessDecisionSummary approveStoreAccessRequest(PartnerStoreAccessRequestEntity accessRequest,
                                                                           MerchantPartnerAccessDecisionRequest request,
                                                                           String sourceFlow) {
@@ -546,6 +585,19 @@ public class PartnerEnablementService {
             .orElseThrow(() -> new IllegalArgumentException("Partner access request was not found for this shop."));
     }
 
+    private PartnerStoreAssignmentEntity requireActiveAssignmentForAccessRequest(PartnerStoreAccessRequestEntity accessRequest) {
+        Optional<PartnerStoreAssignmentEntity> byConnection = StringUtils.hasText(accessRequest.getStoreConnectionId())
+            ? storeAssignmentRepository.findByPartnerAccountIdAndStoreConnectionId(accessRequest.getPartnerAccountId(), accessRequest.getStoreConnectionId())
+            : Optional.empty();
+        PartnerStoreAssignmentEntity assignment = byConnection
+            .or(() -> storeAssignmentRepository.findByPartnerAccountIdAndShopDomainIgnoreCase(accessRequest.getPartnerAccountId(), accessRequest.getShopDomain()))
+            .orElseThrow(() -> new IllegalArgumentException("Active partner store assignment was not found for this access request."));
+        if (!"ACTIVE".equals(assignment.getStatus())) {
+            throw new IllegalArgumentException("Partner store assignment is not active.");
+        }
+        return assignment;
+    }
+
     private PartnerShopifyStoreReadModel requireEligibleInstalledStore(String accountId, String storeConnectionId) {
         PartnerShopifyStoreReadModel store = storeAccessGateway.findByStoreConnectionId(clean(storeConnectionId, "storeConnectionId"))
             .orElseThrow(() -> new IllegalArgumentException("Installed Shopify store was not found."));
@@ -698,6 +750,10 @@ public class PartnerEnablementService {
             .findById(accessRequest.getImplementationRequestId())
             .orElse(null);
         PartnerAccountEntity account = accountRepository.findById(accessRequest.getPartnerAccountId()).orElse(null);
+        String storeConnectionId = firstNonBlank(accessRequest.getStoreConnectionId(), implementation == null ? null : implementation.getStoreConnectionId());
+        String assignmentId = findAssignmentForAccessRequest(accessRequest, storeConnectionId)
+            .map(PartnerStoreAssignmentEntity::getId)
+            .orElse(null);
         return new MerchantPartnerAccessRequestSummary(
             accessRequest.getId(),
             accessRequest.getImplementationRequestId(),
@@ -705,7 +761,8 @@ public class PartnerEnablementService {
             account == null ? "Partner workspace" : account.getName(),
             implementation == null ? accessRequest.getShopDomain() : implementation.getClientName(),
             implementation == null ? null : implementation.getContactEmail(),
-            firstNonBlank(accessRequest.getStoreConnectionId(), implementation == null ? null : implementation.getStoreConnectionId()),
+            storeConnectionId,
+            assignmentId,
             accessRequest.getShopDomain(),
             implementation == null ? null : implementation.getRequestedTier(),
             implementation == null ? List.of() : readList(implementation.getRequestedSurfacesJson()),
@@ -716,8 +773,37 @@ public class PartnerEnablementService {
             accessRequest.getCreatedAt(),
             accessRequest.getExpiresAt(),
             accessRequest.getApprovedAt(),
+            accessRequest.getRevokedAt(),
             accessRequest.getUpdatedAt()
         );
+    }
+
+    private Optional<PartnerStoreAssignmentEntity> findAssignmentForAccessRequest(PartnerStoreAccessRequestEntity accessRequest,
+                                                                                 String storeConnectionId) {
+        Optional<PartnerStoreAssignmentEntity> byConnection = StringUtils.hasText(storeConnectionId)
+            ? storeAssignmentRepository.findByPartnerAccountIdAndStoreConnectionId(accessRequest.getPartnerAccountId(), storeConnectionId)
+            : Optional.empty();
+        return byConnection.or(() -> storeAssignmentRepository.findByPartnerAccountIdAndShopDomainIgnoreCase(
+            accessRequest.getPartnerAccountId(),
+            accessRequest.getShopDomain()
+        ));
+    }
+
+    private String revokeSourceFlow() {
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null) {
+            return "UNKNOWN_REVOKE";
+        }
+        if (principal.role() == PlatformRole.PLATFORM_ADMIN) {
+            return "PLATFORM_ADMIN_REVOKE";
+        }
+        if (principal.role() == PlatformRole.PLATFORM_OPERATOR) {
+            return "PLATFORM_OPERATOR_REVOKE";
+        }
+        if (principal.role() == PlatformRole.PLATFORM_PRODUCT_SERVICE) {
+            return "SHOPIFY_ADMIN_REVOKE";
+        }
+        return principal.role().name() + "_REVOKE";
     }
 
     private PartnerClientImplementationSummary toImplementationSummary(PartnerClientImplementationRequestEntity entity) {

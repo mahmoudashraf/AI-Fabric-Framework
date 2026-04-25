@@ -30,6 +30,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   bootstrapShopifyStore,
   deleteShopifyStore,
+  fetchMerchantPartnerAccessRequests,
   fetchProductServiceStoreBillingSummary,
   fetchProductServices,
   runProductServiceStoreSourcePreflight,
@@ -45,7 +46,9 @@ import {
   replayShopifyStoreVectorizationEvent,
   reindexAllShopifyStoreVectorization,
   reindexSelectedShopifyStoreVectorization,
+  revokeMerchantPartnerAccessRequest,
   retryLastFailedShopifyStoreVectorizationAutoRun,
+  type MerchantPartnerAccessRequestSummary,
   type RecordShopifyStoreSourcePreflightRequest,
   type PlatformManagedProductServiceStoreBillingSummary,
   type ShopifyStoreBootstrapSummary,
@@ -61,6 +64,7 @@ import {
   type ShopifyStoreConnectionSummary,
   type UpsertShopifyStoreConnectionRequest,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
@@ -74,10 +78,13 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'ENABLED':
     case 'LIVE':
     case 'PREFLIGHT_READY':
+    case 'ACTIVE':
+    case 'APPROVED':
       return 'success'
     case 'FAILED':
     case 'BLOCKED':
     case 'DISCONNECTED':
+    case 'DENIED':
       return 'error'
     case 'NOT_SYNCED':
     case 'NOT_ENABLED':
@@ -86,10 +93,15 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'INSTALL_IDENTITY_READY':
     case 'PLATFORM_BOOTSTRAPPED':
     case 'GO_LIVE_REQUESTED':
+    case 'WAITING_ON_MERCHANT':
       return 'warning'
     default:
       return 'default'
   }
+}
+
+function isActivePartnerAccessStatus(status: string | null | undefined): boolean {
+  return ['ACTIVE', 'APPROVED'].includes((status ?? '').toUpperCase())
 }
 
 function isReleaseInProgress(status: string | null | undefined): boolean {
@@ -375,6 +387,7 @@ function buildLaunchCommercialSummary(
 }
 
 export function ShopifyStoresPage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -383,6 +396,8 @@ export function ShopifyStoresPage() {
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [deleteForce, setDeleteForce] = useState(false)
+  const [partnerAccessRevokeTarget, setPartnerAccessRevokeTarget] = useState<MerchantPartnerAccessRequestSummary | null>(null)
+  const [partnerAccessRevokeReason, setPartnerAccessRevokeReason] = useState('')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [form, setForm] = useState<StoreFormState>(emptyForm)
   const [preflightCategories, setPreflightCategories] = useState<PreflightFormCategory[]>([])
@@ -450,6 +465,14 @@ export function ShopifyStoresPage() {
   })
 
   const selectedGovernedActions = selectedGovernedActionsQuery.data ?? []
+
+  const partnerAccessRequestsQuery = useQuery({
+    queryKey: ['merchant-partner-access-requests', selectedShopDomain],
+    queryFn: () => fetchMerchantPartnerAccessRequests(selectedShopDomain),
+    enabled: selectedShopDomain.length > 0,
+  })
+
+  const partnerAccessRequests = partnerAccessRequestsQuery.data ?? []
 
   const selectedStoreBillingQuery = useQuery({
     queryKey: ['product-services', selectedStore?.productServiceRef, selectedShopDomain, 'billing-summary'],
@@ -602,6 +625,28 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const revokePartnerAccessMutation = useMutation({
+    mutationFn: ({ shopDomain, requestId, reason }: { shopDomain: string; requestId: string; reason: string }) =>
+      revokeMerchantPartnerAccessRequest(shopDomain, requestId, {
+        approverName: auth.session?.displayName?.trim() || 'Platform operator',
+        approvedScope: 'FULL_STORE_ACCESS',
+        decisionReason: reason,
+      }),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Revoked partner access for ${summary.shopDomain}.` })
+      setPartnerAccessRevokeTarget(null)
+      setPartnerAccessRevokeReason('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['merchant-partner-access-requests', summary.shopDomain] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', summary.shopDomain] }),
+      ])
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to revoke partner access.' })
+    },
+  })
+
   const refreshVectorizationState = async (shopDomain: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
@@ -609,6 +654,28 @@ export function ShopifyStoresPage() {
       queryClient.invalidateQueries({ queryKey: ['shopify-stores', shopDomain, 'vectorization'] }),
       queryClient.invalidateQueries({ queryKey: ['product-services'] }),
     ])
+  }
+
+  const openPartnerAccessRevokeDialog = (request: MerchantPartnerAccessRequestSummary) => {
+    setPartnerAccessRevokeTarget(request)
+    setPartnerAccessRevokeReason('')
+  }
+
+  const submitPartnerAccessRevoke = () => {
+    const target = partnerAccessRevokeTarget
+    const reason = partnerAccessRevokeReason.trim()
+    if (!target) {
+      return
+    }
+    if (!reason) {
+      setMessage({ type: 'error', text: 'Enter an emergency revoke reason before revoking partner access.' })
+      return
+    }
+    revokePartnerAccessMutation.mutate({
+      shopDomain: target.shopDomain,
+      requestId: target.requestId,
+      reason,
+    })
   }
 
   const reconcileVectorizationMutation = useMutation({
@@ -903,6 +970,82 @@ export function ShopifyStoresPage() {
                       </Grid>
                     ))}
                   </Grid>
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography sx={{ fontWeight: 700 }}>Partner access override</Typography>
+                          <Chip size="small" label={`${partnerAccessRequests.length} requests`} />
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={`${partnerAccessRequests.filter((request) => isActivePartnerAccessStatus(request.status)).length} active`}
+                            color={partnerAccessRequests.some((request) => isActivePartnerAccessStatus(request.status)) ? 'success' : 'default'}
+                          />
+                        </Stack>
+                        {partnerAccessRequestsQuery.isError ? (
+                          <Alert severity="error">
+                            {partnerAccessRequestsQuery.error instanceof Error
+                              ? partnerAccessRequestsQuery.error.message
+                              : 'Failed to load partner access requests.'}
+                          </Alert>
+                        ) : partnerAccessRequestsQuery.isLoading ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Loading partner access requests...
+                          </Typography>
+                        ) : partnerAccessRequests.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary">
+                            No partner access requests exist for this store.
+                          </Typography>
+                        ) : (
+                          partnerAccessRequests.map((request) => {
+                            const active = isActivePartnerAccessStatus(request.status)
+                            return (
+                              <Card key={request.requestId} variant="outlined">
+                                <CardContent>
+                                  <Stack spacing={1}>
+                                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        <Typography sx={{ fontWeight: 700 }}>{request.partnerAccountName}</Typography>
+                                        <Chip size="small" label={request.status} color={chipColor(request.status)} />
+                                        {request.assignmentId ? <Chip size="small" variant="outlined" label={request.assignmentId} /> : null}
+                                      </Stack>
+                                      {active ? (
+                                        <Button
+                                          variant="outlined"
+                                          color="error"
+                                          onClick={() => openPartnerAccessRevokeDialog(request)}
+                                          disabled={revokePartnerAccessMutation.isPending}
+                                        >
+                                          Revoke access
+                                        </Button>
+                                      ) : null}
+                                    </Stack>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Client {request.clientName} · Contact {request.contactEmail ?? '—'} · Tier {request.requestedTier ?? 'Merchant selected'}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Surfaces {request.requestedSurfaces.join(' · ') || '—'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      Requested {formatTimestamp(request.createdAt)} · Approved {formatTimestamp(request.approvedAt)} · Revoked{' '}
+                                      {formatTimestamp(request.revokedAt)}
+                                    </Typography>
+                                    {request.notes ? (
+                                      <Typography variant="body2" color="text.secondary">
+                                        {request.notes}
+                                      </Typography>
+                                    ) : null}
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            )
+                          })
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
 
                   {selectedStore.readiness ? (
                     <Card variant="outlined">
@@ -1978,6 +2121,59 @@ export function ShopifyStoresPage() {
           <Button onClick={() => setPreflightDialogOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={submitPreflight} disabled={preflightMutation.isPending || preflightCategories.length === 0}>
             Save preflight
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(partnerAccessRevokeTarget)}
+        onClose={() => {
+          if (!revokePartnerAccessMutation.isPending) {
+            setPartnerAccessRevokeTarget(null)
+            setPartnerAccessRevokeReason('')
+          }
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Revoke Partner Access</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="warning">
+              This immediately revokes active partner visibility for the selected Shopify store and records an audited platform override.
+            </Alert>
+            <Typography variant="body2">
+              Partner <strong>{partnerAccessRevokeTarget?.partnerAccountName ?? '—'}</strong> on{' '}
+              <strong>{partnerAccessRevokeTarget?.shopDomain ?? selectedStore?.shopDomain ?? '—'}</strong>.
+            </Typography>
+            <TextField
+              label="Emergency revoke reason"
+              value={partnerAccessRevokeReason}
+              onChange={(event) => setPartnerAccessRevokeReason(event.target.value)}
+              fullWidth
+              required
+              multiline
+              minRows={3}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setPartnerAccessRevokeTarget(null)
+              setPartnerAccessRevokeReason('')
+            }}
+            disabled={revokePartnerAccessMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={submitPartnerAccessRevoke}
+            disabled={!partnerAccessRevokeTarget || !partnerAccessRevokeReason.trim() || revokePartnerAccessMutation.isPending}
+          >
+            Revoke access
           </Button>
         </DialogActions>
       </Dialog>

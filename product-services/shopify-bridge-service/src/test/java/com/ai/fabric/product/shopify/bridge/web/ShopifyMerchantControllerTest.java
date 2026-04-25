@@ -421,6 +421,7 @@ class ShopifyMerchantControllerTest {
                 "Alpha",
                 "merchant@example.com",
                 "store-1",
+                null,
                 "alpha.myshopify.com",
                 "MERCHANT_CONFIGURED",
                 List.of("ai-search", "product-faq"),
@@ -430,6 +431,7 @@ class ShopifyMerchantControllerTest {
                 "WAITING_ON_MERCHANT",
                 Instant.parse("2026-04-25T12:00:00Z"),
                 Instant.parse("2026-05-25T12:00:00Z"),
+                null,
                 null,
                 Instant.parse("2026-04-25T12:00:00Z")
             )
@@ -497,6 +499,34 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.status").value("DENIED"));
 
         verify(merchantStoreService).denyPartnerAccessRequest(any(), eq("par-1"), any());
+    }
+
+    @Test
+    void revokePartnerAccessRequestUsesMerchantSessionContext() throws Exception {
+        when(merchantStoreService.revokePartnerAccessRequest(any(), eq("par-1"), any())).thenReturn(
+            new ShopifyBridgePartnerAccessDecisionSummary(
+                "par-1",
+                "assignment-1",
+                "alpha.myshopify.com",
+                "REVOKED",
+                Instant.parse("2026-04-25T12:10:00Z")
+            )
+        );
+
+        mockMvc.perform(post("/api/app/store/partner-access/requests/par-1/revoke")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "decisionReason": "Merchant revoked active access."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.requestId").value("par-1"))
+            .andExpect(jsonPath("$.assignmentId").value("assignment-1"))
+            .andExpect(jsonPath("$.status").value("REVOKED"));
+
+        verify(merchantStoreService).revokePartnerAccessRequest(any(), eq("par-1"), any());
     }
 
     @Test

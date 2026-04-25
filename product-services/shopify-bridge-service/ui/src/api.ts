@@ -378,6 +378,7 @@ export type ShopifyBridgePartnerAccessRequestSummary = {
   clientName: string
   contactEmail: string | null
   storeConnectionId: string | null
+  assignmentId: string | null
   shopDomain: string
   requestedTier: string | null
   requestedSurfaces: string[]
@@ -388,6 +389,7 @@ export type ShopifyBridgePartnerAccessRequestSummary = {
   createdAt: string
   expiresAt: string
   approvedAt: string | null
+  revokedAt: string | null
   updatedAt: string
 }
 
@@ -679,6 +681,19 @@ export async function denyPartnerAccessRequest(
   request: ShopifyBridgePartnerAccessDecisionRequest,
 ): Promise<ShopifyBridgePartnerAccessDecisionSummary> {
   return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/deny`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function revokePartnerAccessRequest(
+  requestId: string,
+  request: ShopifyBridgePartnerAccessDecisionRequest,
+): Promise<ShopifyBridgePartnerAccessDecisionSummary> {
+  return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/revoke`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

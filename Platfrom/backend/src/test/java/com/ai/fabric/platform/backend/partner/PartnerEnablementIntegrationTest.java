@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.partner.repository.PartnerActionAuditRepos
 import com.ai.fabric.platform.backend.partner.repository.PartnerSupportReplyRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.jayway.jsonpath.JsonPath;
@@ -64,6 +65,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PartnerEnablementIntegrationTest {
 
     private static final String ISSUER = "http://supabase.test/project";
+    private static final String PRODUCT_SERVICE_SECRET_NAME = "MANAGED_SHOPIFY_COMPANION_TEST_API_KEY";
+    private static final String PRODUCT_SERVICE_TEST_KEY = "shopify-companion-product-service-test-key";
     private static final ECKey EC_KEY = createEcKey();
     private static HttpServer jwksServer;
     private static String jwksUri;
@@ -76,6 +79,9 @@ class PartnerEnablementIntegrationTest {
 
     @Autowired
     private PlatformManagedProductServiceRepository productServiceRepository;
+
+    @Autowired
+    private PlatformSecretService platformSecretService;
 
     @Autowired
     private PartnerSupportReplyRepository replyRepository;
@@ -243,6 +249,19 @@ class PartnerEnablementIntegrationTest {
             .andReturn();
         String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
 
+        mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
+                .param("shopDomain", "approved-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].requestId", is(accessRequestId)))
+            .andExpect(jsonPath("$[0].status", is("WAITING_ON_MERCHANT")));
+
+        mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
+                .param("shopDomain", "unassigned-client.myshopify.com"))
+            .andExpect(status().isForbidden());
+
         var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
                 .header("X-PLATFORM-API-KEY", "operator-test-key")
                 .param("shopDomain", "approved-client.myshopify.com")
@@ -305,9 +324,44 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.replies[0].bodyMarkdown", is("Visible update for the partner.")))
             .andExpect(jsonPath("$.replies[0].visibility", is("PARTNER_VISIBLE")));
 
+        mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/revoke", accessRequestId)
+                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
+                .param("shopDomain", "approved-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "approverName": "Merchant Owner",
+                      "approverEmail": "owner@example.com",
+                      "decisionReason": "Merchant revoked active partner access."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assignmentId", is(assignmentId)))
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
+            .andExpect(jsonPath("$.status", is("REVOKED")));
+
+        mockMvc.perform(get("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].id", is(implementationId)))
+            .andExpect(jsonPath("$[0].status", is("REVOKED")));
+
+        mockMvc.perform(get("/api/partners/stores")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].id", is(assignmentId)))
+            .andExpect(jsonPath("$[0].assignmentStatus", is("REVOKED")))
+            .andExpect(jsonPath("$[0].status", is("REVOKED")));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden());
+
         assertThat(auditRepository.findAll())
             .extracting("action")
-            .contains("PARTNER_SIGNUP_COMPLETED", "STORE_ACCESS_APPROVED", "SUPPORT_ESCALATION_CREATED");
+            .contains("PARTNER_SIGNUP_COMPLETED", "STORE_ACCESS_APPROVED", "SUPPORT_ESCALATION_CREATED", "STORE_ACCESS_REVOKED");
     }
 
     @Test
@@ -333,7 +387,7 @@ class PartnerEnablementIntegrationTest {
         String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
 
         var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
-                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
                 .param("shopDomain", "denied-client.myshopify.com"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()", is(1)))
@@ -341,7 +395,7 @@ class PartnerEnablementIntegrationTest {
         String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
 
         mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/deny", accessRequestId)
-                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
                 .param("shopDomain", "denied-client.myshopify.com")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -372,6 +426,78 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.length()", is(0)));
     }
 
+    @Test
+    void operatorCanRevokeApprovedStoreAccessAsEmergencyOverride() throws Exception {
+        String token = partnerJwt("operator-revoke-user", "operator-revoke@example.com");
+        completeSignup(token, "Operator Revoke Partner Workspace");
+        createShopifyStore("shopify-store-operator-revoke", "operator-revoke-client.myshopify.com", "Operator Revoke Client");
+
+        var implementationResult = mockMvc.perform(post("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clientName": "Operator Revoke Client",
+                      "storeConnectionId": "shopify-store-operator-revoke",
+                      "knownIntegrations": [],
+                      "notes": "Operator should be able to revoke approved access."
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
+
+        var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "operator-revoke-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andReturn();
+        String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
+
+        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
+                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
+                .param("shopDomain", "operator-revoke-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "approverName": "Merchant Owner",
+                      "approvedScope": "FULL_STORE_ACCESS"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("ACTIVE")))
+            .andReturn();
+        String assignmentId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.assignmentId");
+
+        mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/revoke", accessRequestId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "operator-revoke-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "approverName": "Platform Operator",
+                      "decisionReason": "Emergency operator override."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assignmentId", is(assignmentId)))
+            .andExpect(jsonPath("$.status", is("REVOKED")));
+
+        mockMvc.perform(get("/api/partners/client-implementations/{requestId}", implementationId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("REVOKED")));
+
+        mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "operator-revoke-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].assignmentId", is(assignmentId)))
+            .andExpect(jsonPath("$[0].status", is("REVOKED")))
+            .andExpect(jsonPath("$[0].revokedAt", notNullValue()));
+    }
+
     private void completeSignup(String token, String workspaceName) throws Exception {
         mockMvc.perform(post("/api/partners/signup/complete")
                 .header("Authorization", "Bearer " + token)
@@ -387,24 +513,34 @@ class PartnerEnablementIntegrationTest {
 
     private void createShopifyStore(String id, String shopDomain, String displayName) {
         Instant now = Instant.now();
-        productServiceRepository.findById("shopify-companion").orElseGet(() -> {
-            PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
-            service.setId("shopify-companion");
-            service.setServiceRef("shopify-companion");
-            service.setDisplayName("Shopify Companion");
-            service.setProductFamily("SHOPIFY_COMPANION");
-            service.setServiceKind("SHOPIFY_APP");
-            service.setDeploymentMode("MANAGED");
-            service.setTenantMode("MULTI_TENANT");
-            service.setEnvironmentScope("test");
-            service.setDesiredReplicas(1);
-            service.setActualReplicas(1);
-            service.setStatus("ACTIVE");
-            service.setDetailsJson("{}");
-            service.setCreatedAt(now);
-            service.setUpdatedAt(now);
-            return productServiceRepository.save(service);
+        PlatformManagedProductServiceEntity service = productServiceRepository.findById("shopify-companion").orElseGet(() -> {
+            PlatformManagedProductServiceEntity created = new PlatformManagedProductServiceEntity();
+            created.setId("shopify-companion");
+            created.setServiceRef("shopify-companion");
+            created.setDisplayName("Shopify Companion");
+            created.setProductFamily("SHOPIFY_COMPANION");
+            created.setServiceKind("SHOPIFY_APP");
+            created.setDeploymentMode("MANAGED");
+            created.setTenantMode("MULTI_TENANT");
+            created.setEnvironmentScope("test");
+            created.setDesiredReplicas(1);
+            created.setActualReplicas(1);
+            created.setStatus("ACTIVE");
+            created.setDetailsJson("{}");
+            created.setCreatedAt(now);
+            created.setUpdatedAt(now);
+            return productServiceRepository.save(created);
         });
+        service.setSecretName(PRODUCT_SERVICE_SECRET_NAME);
+        service.setStatus("ACTIVE");
+        service.setUpdatedAt(now);
+        productServiceRepository.save(service);
+        platformSecretService.upsertManagedSecret(
+            PRODUCT_SERVICE_SECRET_NAME,
+            PRODUCT_SERVICE_TEST_KEY,
+            Map.of("serviceRef", service.getServiceRef(), "purpose", "PRODUCT_SERVICE_SECRET")
+        );
+
         ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
         entity.setId(id);
         entity.setShopDomain(shopDomain);

@@ -786,6 +786,44 @@ export type ShopifyStoreConnectionSummary = {
   updatedAt: string
 }
 
+export type MerchantPartnerAccessRequestSummary = {
+  requestId: string
+  implementationRequestId: string
+  partnerAccountId: string
+  partnerAccountName: string
+  clientName: string
+  contactEmail: string | null
+  storeConnectionId: string | null
+  assignmentId: string | null
+  shopDomain: string
+  requestedTier: string | null
+  requestedSurfaces: string[]
+  notes: string | null
+  approvalCode: string
+  approvalUrl: string
+  status: string
+  createdAt: string
+  expiresAt: string
+  approvedAt: string | null
+  revokedAt: string | null
+  updatedAt: string
+}
+
+export type MerchantPartnerAccessDecisionRequest = {
+  approverName: string
+  approverEmail?: string | null
+  approvedScope?: string | null
+  decisionReason?: string | null
+}
+
+export type MerchantPartnerAccessDecisionSummary = {
+  requestId: string
+  assignmentId: string | null
+  shopDomain: string
+  status: string
+  decidedAt: string
+}
+
 export type ShopifyStoreGovernedActionAuditSummary = {
   id: string
   actionType: string
@@ -3385,6 +3423,26 @@ export function fetchShopifyStores() {
 
 export function fetchShopifyStore(shopDomain: string) {
   return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}`)
+}
+
+export function fetchMerchantPartnerAccessRequests(shopDomain: string) {
+  return request<MerchantPartnerAccessRequestSummary[]>(
+    `/api/merchant/partner-access/requests?shopDomain=${encodeURIComponent(shopDomain)}`,
+  )
+}
+
+export function revokeMerchantPartnerAccessRequest(
+  shopDomain: string,
+  requestId: string,
+  payload: MerchantPartnerAccessDecisionRequest,
+) {
+  return request<MerchantPartnerAccessDecisionSummary>(
+    `/api/merchant/partner-access/requests/${encodeURIComponent(requestId)}/revoke?shopDomain=${encodeURIComponent(shopDomain)}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function fetchShopifyStoreBinding(shopDomain: string) {

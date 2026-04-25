@@ -117,6 +117,21 @@ public class PlatformShopifyStoreClient {
             .body(ShopifyBridgePartnerAccessDecisionSummary.class);
     }
 
+    public ShopifyBridgePartnerAccessDecisionSummary revokePartnerAccessRequest(String shopDomain,
+                                                                               String requestId,
+                                                                               ShopifyBridgePartnerAccessDecisionRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl()
+                + "/api/merchant/partner-access/requests/"
+                + encodePath(requestId)
+                + "/revoke?shopDomain="
+                + encodeQueryParam(shopDomain))
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgePartnerAccessDecisionSummary.class);
+    }
+
     public ShopifyBridgeStoreSummary upsertStore(ShopifyBridgeUpsertStoreRequest request) {
         return restClient.post()
             .uri(requirePlatformBaseUrl() + "/api/shopify/stores")

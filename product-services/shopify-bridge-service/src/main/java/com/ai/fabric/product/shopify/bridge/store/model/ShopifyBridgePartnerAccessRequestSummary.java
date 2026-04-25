@@ -11,6 +11,7 @@ public record ShopifyBridgePartnerAccessRequestSummary(
     String clientName,
     String contactEmail,
     String storeConnectionId,
+    String assignmentId,
     String shopDomain,
     String requestedTier,
     List<String> requestedSurfaces,
@@ -21,6 +22,7 @@ public record ShopifyBridgePartnerAccessRequestSummary(
     Instant createdAt,
     Instant expiresAt,
     Instant approvedAt,
+    Instant revokedAt,
     Instant updatedAt
 ) {
 }

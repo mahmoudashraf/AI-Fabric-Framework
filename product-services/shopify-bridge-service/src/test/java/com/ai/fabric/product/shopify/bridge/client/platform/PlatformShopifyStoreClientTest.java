@@ -185,6 +185,7 @@ class PlatformShopifyStoreClientTest {
                     "clientName":"Alpha",
                     "contactEmail":"merchant@example.com",
                     "storeConnectionId":"store-1",
+                    "assignmentId":null,
                     "shopDomain":"alpha.myshopify.com",
                     "requestedTier":"MERCHANT_CONFIGURED",
                     "requestedSurfaces":["ai-search","product-faq"],
@@ -195,6 +196,7 @@ class PlatformShopifyStoreClientTest {
                     "createdAt":"2026-04-25T12:00:00Z",
                     "expiresAt":"2026-05-25T12:00:00Z",
                     "approvedAt":null,
+                    "revokedAt":null,
                     "updatedAt":"2026-04-25T12:00:00Z"
                   }
                 ]
@@ -257,6 +259,32 @@ class PlatformShopifyStoreClientTest {
 
         assertThat(response.assignmentId()).isNull();
         assertThat(response.status()).isEqualTo("DENIED");
+        server.verify();
+    }
+
+    @Test
+    void revokePartnerAccessRequestUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/merchant/partner-access/requests/par-1/revoke?shopDomain=alpha.myshopify.com"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "requestId":"par-1",
+                  "assignmentId":"assignment-1",
+                  "shopDomain":"alpha.myshopify.com",
+                  "status":"REVOKED",
+                  "decidedAt":"2026-04-25T12:10:00Z"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgePartnerAccessDecisionSummary response = client.revokePartnerAccessRequest(
+            "alpha.myshopify.com",
+            "par-1",
+            new ShopifyBridgePartnerAccessDecisionRequest("Merchant Owner", "owner@example.com", null, "Merchant revoked access.")
+        );
+
+        assertThat(response.assignmentId()).isEqualTo("assignment-1");
+        assertThat(response.status()).isEqualTo("REVOKED");
         server.verify();
     }
 
