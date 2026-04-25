@@ -21,16 +21,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { listPartnerActivity } from '../api/activity'
 import { listEscalations } from '../api/escalations'
 import { listClientImplementations } from '../api/implementations'
 import { completePartnerSignup } from '../api/session'
-import type { PartnerClientImplementation, PartnerEscalation, PartnerSession, PartnerStore } from '../api/schemas'
+import type { PartnerActivityEvent, PartnerClientImplementation, PartnerEscalation, PartnerSession, PartnerStore } from '../api/schemas'
 import { listPartnerStores } from '../api/stores'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { DataTable, type DataColumn } from '../components/DataTable'
 import { PageHeader } from '../components/PageHeader'
 import { StatusChip } from '../components/StatusChip'
-import { formatDate, formatDateTime, firstName } from '../utils/format'
+import { formatDate, formatDateTime, firstName, titleize } from '../utils/format'
 
 export function DashboardPage({ session }: { session: PartnerSession }) {
   if (session.signupRequired) {
@@ -86,6 +87,7 @@ function ProvisionedDashboard({ session }: { session: PartnerSession }) {
   const storesQuery = useQuery({ queryKey: ['stores'], queryFn: () => listPartnerStores(api) })
   const escalationQuery = useQuery({ queryKey: ['escalations'], queryFn: () => listEscalations(api) })
   const implementationsQuery = useQuery({ queryKey: ['implementations'], queryFn: () => listClientImplementations(api) })
+  const activityQuery = useQuery({ queryKey: ['partner-activity'], queryFn: () => listPartnerActivity(api) })
   const stores = storesQuery.data ?? []
   const escalations = escalationQuery.data ?? []
   const implementations = implementationsQuery.data ?? []
@@ -164,8 +166,41 @@ function ProvisionedDashboard({ session }: { session: PartnerSession }) {
             </Stack>
           </Paper>
         </Box>
+        <Box>
+          <Typography variant="h2" sx={{ mb: 1.5 }}>Recent partner activity</Typography>
+          <ActivityFeed rows={activityQuery.data ?? []} loading={activityQuery.isLoading} />
+        </Box>
       </Stack>
     </>
+  )
+}
+
+function ActivityFeed({ rows, loading }: { rows: PartnerActivityEvent[]; loading: boolean }) {
+  if (loading) {
+    return <Paper sx={{ p: 2 }}><Typography color="text.secondary">Loading activity...</Typography></Paper>
+  }
+  if (rows.length === 0) {
+    return <Paper sx={{ p: 2 }}><Typography color="text.secondary">No partner-visible activity yet.</Typography></Paper>
+  }
+  return (
+    <Paper sx={{ p: 2 }}>
+      <Stack spacing={1.5}>
+        {rows.slice(0, 8).map((event) => (
+          <Stack key={event.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between">
+            <Box>
+              <Typography fontWeight={700}>{titleize(event.action)}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {event.targetType ? titleize(event.targetType) : 'Workspace'} {event.targetId ? `· ${event.targetId}` : ''}
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <StatusChip status={event.result} />
+              <Typography variant="caption" color="text.secondary">{formatDateTime(event.createdAt)}</Typography>
+            </Stack>
+          </Stack>
+        ))}
+      </Stack>
+    </Paper>
   )
 }
 

@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.partner.service;
 
 import com.ai.fabric.platform.backend.partner.config.PartnerSupabaseAuthProperties;
 import com.ai.fabric.platform.backend.partner.entity.PartnerAccountEntity;
+import com.ai.fabric.platform.backend.partner.entity.PartnerActionAuditEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerClientImplementationRequestEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerEvidenceBundleEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerMemberEntity;
@@ -24,6 +25,7 @@ import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessDecisio
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessDecisionSummary;
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessRequestSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerAccountSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerActivityEventSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerCatalogEntrySummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationSummary;
@@ -53,6 +55,7 @@ import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunReques
 import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerVerificationStepSummary;
 import com.ai.fabric.platform.backend.partner.repository.PartnerAccountRepository;
+import com.ai.fabric.platform.backend.partner.repository.PartnerActionAuditRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerClientImplementationRequestRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerEvidenceBundleRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerStoreAccessApprovalRepository;
@@ -130,6 +133,7 @@ public class PartnerEnablementService {
     private final PartnerVerificationRunStepRepository verificationRunStepRepository;
     private final PartnerTemplateApplicationRepository templateApplicationRepository;
     private final PartnerStoreNoteRepository storeNoteRepository;
+    private final PartnerActionAuditRepository actionAuditRepository;
     private final PartnerStoreAccessGateway storeAccessGateway;
     private final PartnerCatalogSource catalogSource;
     private final PartnerAuditPublisher auditPublisher;
@@ -150,6 +154,7 @@ public class PartnerEnablementService {
                                     PartnerVerificationRunStepRepository verificationRunStepRepository,
                                     PartnerTemplateApplicationRepository templateApplicationRepository,
                                     PartnerStoreNoteRepository storeNoteRepository,
+                                    PartnerActionAuditRepository actionAuditRepository,
                                     PartnerStoreAccessGateway storeAccessGateway,
                                     PartnerCatalogSource catalogSource,
                                     PartnerAuditPublisher auditPublisher,
@@ -168,6 +173,7 @@ public class PartnerEnablementService {
         this.verificationRunStepRepository = verificationRunStepRepository;
         this.templateApplicationRepository = templateApplicationRepository;
         this.storeNoteRepository = storeNoteRepository;
+        this.actionAuditRepository = actionAuditRepository;
         this.storeAccessGateway = storeAccessGateway;
         this.catalogSource = catalogSource;
         this.auditPublisher = auditPublisher;
@@ -271,6 +277,15 @@ public class PartnerEnablementService {
     public PartnerStoreSummary getStore(String storeId) {
         PartnerContext context = requireProvisionedContext();
         return toStoreSummary(requireActiveAssignment(context.account().getId(), storeId));
+    }
+
+    @Transactional(readOnly = true)
+    public List<PartnerActivityEventSummary> listActivity() {
+        PartnerContext context = requireProvisionedContext();
+        return actionAuditRepository.findTop20ByPartnerAccountIdOrderByCreatedAtDesc(context.account().getId()).stream()
+            .filter(this::partnerVisibleActivity)
+            .map(this::toActivitySummary)
+            .toList();
     }
 
     @Transactional
@@ -739,6 +754,32 @@ public class PartnerEnablementService {
             ? requireActiveAssignment(context.account().getId(), request.storeId())
             : null;
         Instant now = Instant.now();
+        Optional<PartnerTemplateApplicationEntity> existing = assignment == null
+            ? templateApplicationRepository.findFirstByPartnerAccountIdAndStoreAssignmentIdIsNullAndTemplateIdAndStatusOrderByAppliedAtDesc(
+                context.account().getId(),
+                template.id(),
+                "ACTIVE"
+            )
+            : templateApplicationRepository.findFirstByPartnerAccountIdAndStoreAssignmentIdAndTemplateIdAndStatusOrderByAppliedAtDesc(
+                context.account().getId(),
+                assignment.getId(),
+                template.id(),
+                "ACTIVE"
+            );
+        if (existing.isPresent()) {
+            PartnerTemplateApplicationEntity application = existing.get();
+            application.setTemplateName(template.name());
+            application.setCategory(template.category());
+            application.setChecklistJson(writeJson(template.checklist()));
+            application.setAssumptionsJson(writeJson(template.assumptions()));
+            application.setUpdatedAt(now);
+            templateApplicationRepository.save(application);
+            audit(context, "TEMPLATE_APPLICATION_REUSED", "TEMPLATE_APPLICATION", application.getId(), "SUCCESS", writeJson(Map.of(
+                "templateId", template.id(),
+                "storeAssignmentId", assignment == null ? "none" : assignment.getId()
+            )));
+            return toTemplateApplicationSummary(application);
+        }
         PartnerTemplateApplicationEntity application = new PartnerTemplateApplicationEntity();
         application.setId(id("pta"));
         application.setPartnerAccountId(context.account().getId());
@@ -1643,6 +1684,7 @@ public class PartnerEnablementService {
         String widget = store.map(PartnerShopifyStoreReadModel::widgetStatus).orElse("UNKNOWN");
         return new PartnerStoreSummary(
             assignment.getId(),
+            assignment.getStoreConnectionId(),
             assignment.getShopDomain(),
             firstNonBlank(assignment.getMerchantName(), store.map(PartnerShopifyStoreReadModel::displayName).orElse(null), assignment.getShopDomain()),
             "Merchant configured",
@@ -1652,8 +1694,65 @@ public class PartnerEnablementService {
             readiness,
             blockerFor(knowledgeSync, readiness, widget),
             firstNonNull(store.map(PartnerShopifyStoreReadModel::lastSyncAt).orElse(null), assignment.getUpdatedAt()),
-            assignment.getStatus()
+            assignment.getStatus(),
+            assignment.getAssignmentSource(),
+            assignment.getApprovedBy(),
+            assignment.getApprovedAt(),
+            assignment.getRevokedAt(),
+            assignment.getCreatedAt(),
+            assignment.getUpdatedAt(),
+            store.map(PartnerShopifyStoreReadModel::installStatus).orElse("UNKNOWN"),
+            widget,
+            store.map(PartnerShopifyStoreReadModel::lastSyncAt).orElse(null),
+            store.map(PartnerShopifyStoreReadModel::lastWebhookAt).orElse(null),
+            store.map(PartnerShopifyStoreReadModel::enabledSourceCategories).orElse(List.of()),
+            readList(assignment.getPermissionsJson())
         );
+    }
+
+    private boolean partnerVisibleActivity(PartnerActionAuditEntity entity) {
+        if (entity == null || !StringUtils.hasText(entity.getAction())) {
+            return false;
+        }
+        String action = entity.getAction();
+        return action.startsWith("STORE_ACCESS_")
+            || action.startsWith("CLIENT_IMPLEMENTATION_")
+            || action.startsWith("VERIFICATION_")
+            || action.startsWith("EVIDENCE_BUNDLE_")
+            || action.startsWith("TEMPLATE_")
+            || action.startsWith("STORE_NOTE_")
+            || action.startsWith("SUPPORT_");
+    }
+
+    private PartnerActivityEventSummary toActivitySummary(PartnerActionAuditEntity entity) {
+        return new PartnerActivityEventSummary(
+            entity.getId(),
+            entity.getAction(),
+            entity.getTargetType(),
+            entity.getTargetId(),
+            entity.getResult(),
+            partnerSafeDetails(readMap(entity.getDetailsJson())),
+            entity.getCreatedAt()
+        );
+    }
+
+    private Map<String, Object> partnerSafeDetails(Map<String, Object> details) {
+        if (details == null || details.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> safe = new LinkedHashMap<>();
+        details.forEach((key, value) -> {
+            String normalized = key == null ? "" : key.toLowerCase(Locale.ROOT);
+            if (normalized.contains("secret")
+                || normalized.contains("token")
+                || normalized.contains("key")
+                || normalized.contains("password")
+                || normalized.contains("credential")) {
+                return;
+            }
+            safe.put(key, value);
+        });
+        return safe;
     }
 
     private String statusFor(String readiness, String widget, String assignmentStatus) {

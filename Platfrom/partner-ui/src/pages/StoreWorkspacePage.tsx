@@ -1,7 +1,12 @@
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
+  Chip,
+  Divider,
   Dialog,
   DialogActions,
   DialogContent,
@@ -15,20 +20,30 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import FolderZipOutlinedIcon from '@mui/icons-material/FolderZipOutlined'
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined'
+import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined'
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined'
+import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined'
+import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import { createStoreEvidenceBundle, listStoreEvidenceBundles } from '../api/evidence'
-import { createEscalation } from '../api/escalations'
+import { createEscalation, listEscalations } from '../api/escalations'
+import { listClientImplementations } from '../api/implementations'
 import { createStoreNote, listStoreNotes } from '../api/notes'
-import type { PartnerEvidenceBundle, PartnerVerificationRun } from '../api/schemas'
+import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
 import { getPartnerStore } from '../api/stores'
+import { listTemplateApplications } from '../api/templates'
 import { completeVerificationStep, getStoreVerificationPack, listStoreVerificationRuns, runStoreVerification } from '../api/verification'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { DataTable, type DataColumn } from '../components/DataTable'
@@ -57,6 +72,11 @@ export function StoreWorkspacePage() {
   const [tab, setTab] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
   const storeQuery = useQuery({ queryKey: ['store', storeId], queryFn: () => getPartnerStore(api, storeId), enabled: Boolean(storeId) })
+  const runsQuery = useQuery({ queryKey: ['store-verification-runs', storeId], queryFn: () => listStoreVerificationRuns(api, storeId), enabled: Boolean(storeId) })
+  const bundlesQuery = useQuery({ queryKey: ['store-evidence-bundles', storeId], queryFn: () => listStoreEvidenceBundles(api, storeId), enabled: Boolean(storeId) })
+  const implementationsQuery = useQuery({ queryKey: ['implementations'], queryFn: () => listClientImplementations(api), enabled: Boolean(storeId) })
+  const escalationsQuery = useQuery({ queryKey: ['escalations'], queryFn: () => listEscalations(api), enabled: Boolean(storeId) })
+  const templateApplicationsQuery = useQuery({ queryKey: ['template-applications'], queryFn: () => listTemplateApplications(api), enabled: Boolean(storeId) })
 
   if (storeQuery.isLoading) {
     return <LinearProgress />
@@ -66,6 +86,13 @@ export function StoreWorkspacePage() {
   }
 
   const store = storeQuery.data
+  const runs = runsQuery.data ?? []
+  const evidenceBundles = bundlesQuery.data ?? []
+  const implementations = (implementationsQuery.data ?? []).filter((item) => item.storeConnectionId === store.storeConnectionId || item.shopDomain === store.shopDomain)
+  const escalations = (escalationsQuery.data ?? []).filter((item) => item.storeAssignmentId === store.id || item.shopDomain === store.shopDomain)
+  const appliedTemplates = (templateApplicationsQuery.data ?? []).filter((item) => item.storeAssignmentId === store.id || item.shopDomain === store.shopDomain)
+  const latestRun = runs[0]
+  const latestEvidence = evidenceBundles[0]
   return (
     <>
       <PageHeader
@@ -92,6 +119,13 @@ export function StoreWorkspacePage() {
           </Stack>
         </Stack>
       </Paper>
+      <StoreCommandCenter
+        store={store}
+        latestRun={latestRun}
+        latestEvidence={latestEvidence}
+        appliedTemplateCount={appliedTemplates.length}
+        openEscalationCount={escalations.filter((item) => !['RESOLVED', 'CLOSED'].includes(item.status)).length}
+      />
       <Paper sx={{ mb: 2 }}>
         <Tabs value={tab} onChange={(_event, value) => setTab(value)} variant="scrollable" scrollButtons="auto">
           <Tab label="Overview" />
@@ -102,8 +136,17 @@ export function StoreWorkspacePage() {
           <Tab label="Notes" />
         </Tabs>
       </Paper>
-      {tab === 0 ? <OverviewTab surfaces={store.enabledSurfaces} /> : null}
-      {tab === 1 ? <SetupTab /> : null}
+      {tab === 0 ? (
+        <OverviewTab
+          store={store}
+          implementations={implementations}
+          templates={appliedTemplates}
+          escalations={escalations}
+          latestRun={latestRun}
+          latestEvidence={latestEvidence}
+        />
+      ) : null}
+      {tab === 1 ? <SetupTab store={store} latestRun={latestRun} templates={appliedTemplates} /> : null}
       {tab === 2 ? <VerificationTab storeId={store.id} /> : null}
       {tab === 3 ? <EvidenceTab storeId={store.id} /> : null}
       {tab === 4 ? (
@@ -130,23 +173,222 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function OverviewTab({ surfaces }: { surfaces: string[] }) {
+function SectionHeading({ icon, title }: { icon: ReactNode; title: string }) {
+  return (
+    <Stack direction="row" spacing={1} alignItems="center">
+      <Box sx={{ width: 32, height: 32, borderRadius: 1.5, bgcolor: 'action.hover', display: 'grid', placeItems: 'center', color: 'primary.main' }}>
+        {icon}
+      </Box>
+      <Typography variant="h3">{title}</Typography>
+    </Stack>
+  )
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <Box sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography fontWeight={800} sx={{ mt: 0.25 }}>{value}</Typography>
+    </Box>
+  )
+}
+
+function ChipRow({ values, empty }: { values: string[]; empty: string }) {
+  return (
+    <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
+      {values.map((value) => <Chip key={value} size="small" label={titleize(value)} variant="outlined" />)}
+      {values.length === 0 ? <Typography color="text.secondary">{empty}</Typography> : null}
+    </Stack>
+  )
+}
+
+function TimelineRow({ title, subtitle, status, meta }: { title: string; subtitle: string; status: string; meta?: string }) {
+  return (
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+      <Box>
+        <Typography fontWeight={800}>{title}</Typography>
+        <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
+      </Box>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <StatusChip status={status} label={statusLabel(status)} />
+        {meta ? <Typography variant="caption" color="text.secondary">{meta}</Typography> : null}
+      </Stack>
+    </Stack>
+  )
+}
+
+function statusLabel(status: string) {
+  switch (status.toUpperCase()) {
+    case 'APPLIED':
+      return 'Applied'
+    case 'NOT_RUN':
+      return 'Not run'
+    case 'PASSED':
+      return 'Passed'
+    case 'NEEDS_SETUP':
+      return 'Needs setup'
+    default:
+      return undefined
+  }
+}
+
+function StoreCommandCenter({
+  store,
+  latestRun,
+  latestEvidence,
+  appliedTemplateCount,
+  openEscalationCount,
+}: {
+  store: PartnerStore
+  latestRun?: PartnerVerificationRun
+  latestEvidence?: PartnerEvidenceBundle
+  appliedTemplateCount: number
+  openEscalationCount: number
+}) {
+  return (
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.15fr 1fr' }, gap: 2, mb: 2 }}>
+      <Paper sx={{ p: 2 }}>
+        <Stack spacing={2}>
+          <SectionHeading icon={<StorefrontOutlinedIcon />} title="Store access profile" />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+            <InfoTile label="Install" value={titleize(store.installStatus)} />
+            <InfoTile label="Assignment" value={titleize(store.assignmentStatus)} />
+            <InfoTile label="Source" value={titleize(store.assignmentSource ?? 'merchant approval')} />
+            <InfoTile label="Approved" value={formatDateTime(store.approvedAt)} />
+          </Box>
+          <Divider />
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            {store.permissions.map((permission) => <Chip key={permission} size="small" label={titleize(permission)} icon={<KeyOutlinedIcon />} />)}
+            {store.permissions.length === 0 ? <Typography color="text.secondary">No partner permissions are currently exposed.</Typography> : null}
+          </Stack>
+          <Typography variant="caption" color="text.secondary">
+            Partner workspace is scoped to merchant-approved setup, verification, evidence, and support data. Operator diagnostics, provider credentials, billing internals, and deployment secrets are not exposed here.
+          </Typography>
+        </Stack>
+      </Paper>
+      <Paper sx={{ p: 2 }}>
+        <Stack spacing={2}>
+          <SectionHeading icon={<FactCheckOutlinedIcon />} title="Launch proof snapshot" />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+            <InfoTile label="Latest pack" value={latestRun ? latestRun.packName : 'Not run'} />
+            <InfoTile label="Checks" value={latestRun ? `${latestRun.passedSteps}/${latestRun.totalSteps} passed` : '0/0 passed'} />
+            <InfoTile label="Evidence" value={latestEvidence ? titleize(latestEvidence.status) : 'None'} />
+            <InfoTile label="Escalations" value={String(openEscalationCount)} />
+          </Box>
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Chip size="small" color="success" variant="outlined" label={`${appliedTemplateCount} playbook${appliedTemplateCount === 1 ? '' : 's'} applied`} />
+            <Chip size="small" variant="outlined" label={`Widget ${titleize(store.widgetStatus)}`} />
+            <Chip size="small" variant="outlined" label={`Last sync ${formatDateTime(store.lastSyncAt)}`} />
+          </Stack>
+        </Stack>
+      </Paper>
+    </Box>
+  )
+}
+
+function OverviewTab({
+  store,
+  implementations,
+  templates,
+  escalations,
+  latestRun,
+  latestEvidence,
+}: {
+  store: PartnerStore
+  implementations: PartnerClientImplementation[]
+  templates: PartnerTemplateApplication[]
+  escalations: PartnerEscalation[]
+  latestRun?: PartnerVerificationRun
+  latestEvidence?: PartnerEvidenceBundle
+}) {
+  return (
+    <Stack spacing={2}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<SyncOutlinedIcon />} title="Readiness and source coverage" />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mt: 2 }}>
+            <InfoTile label="Knowledge sync" value={titleize(store.knowledgeSyncStatus)} />
+            <InfoTile label="Readiness" value={titleize(store.readinessStatus)} />
+            <InfoTile label="Last webhook" value={formatDateTime(store.lastWebhookAt)} />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>Enabled source categories</Typography>
+          <ChipRow values={store.enabledSourceCategories} empty="No enabled source categories were reported by the store." />
+        </Paper>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<ShieldOutlinedIcon />} title="Partner-visible boundary" />
+          <Typography color="text.secondary" sx={{ mt: 1 }}>
+            This workspace shows merchant-approved implementation data only. It can guide setup, run checks, export evidence, and open support; it cannot reveal platform secrets, provider keys, billing internals, or operator-only remediation logs.
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>Approved partner actions</Typography>
+          <ChipRow values={store.permissions} empty="No active partner actions are available." />
+        </Paper>
+      </Box>
+      <Paper sx={{ p: 2 }}>
+        <SectionHeading icon={<StorefrontOutlinedIcon />} title="Storefront surfaces" />
+        <ChipRow values={store.enabledSurfaces} empty="No storefront surfaces are currently enabled." />
+      </Paper>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<HistoryOutlinedIcon />} title="Implementation and access requests" />
+          <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+            {implementations.map((item) => (
+              <TimelineRow key={item.id} title={item.clientName} subtitle={`${item.shopDomain} · ${item.requestedTier}`} status={item.status} meta={formatDateTime(item.updatedAt)} />
+            ))}
+            {implementations.length === 0 ? <Typography color="text.secondary">No implementation request is linked to this store.</Typography> : null}
+          </Stack>
+        </Paper>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<CheckCircleOutlineIcon />} title="Current proof assets" />
+          <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+            <TimelineRow title={latestRun?.packName ?? 'Verification pack'} subtitle={latestRun ? `${latestRun.passedSteps}/${latestRun.totalSteps} checks passed` : 'No verification run yet'} status={latestRun?.status ?? 'NOT_RUN'} meta={latestRun ? formatDateTime(latestRun.startedAt) : 'Run a pack to create proof'} />
+            <TimelineRow title={latestEvidence?.bundleName ?? 'Evidence bundle'} subtitle={latestEvidence ? titleize(latestEvidence.bundleKind) : 'No evidence bundle yet'} status={latestEvidence?.status ?? 'NOT_RUN'} meta={latestEvidence ? formatDateTime(latestEvidence.generatedAt) : 'Export launch evidence after verification'} />
+          </Stack>
+        </Paper>
+      </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<FactCheckOutlinedIcon />} title="Applied playbooks" />
+          <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+            {templates.map((item) => (
+              <TimelineRow key={item.id} title={item.templateName} subtitle={`${titleize(item.category)} · ${item.checklist.length} checklist items`} status="APPLIED" meta={formatDateTime(item.appliedAt)} />
+            ))}
+            {templates.length === 0 ? <Typography color="text.secondary">No playbooks applied to this store yet.</Typography> : null}
+          </Stack>
+        </Paper>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<ReportProblemOutlinedIcon />} title="Support posture" />
+          <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+            {escalations.map((item) => (
+              <TimelineRow key={item.id} title={item.title} subtitle={item.nextAction ?? item.description} status={item.status} meta={formatDateTime(item.updatedAt)} />
+            ))}
+            {escalations.length === 0 ? <Typography color="text.secondary">No support escalations are open for this store.</Typography> : null}
+          </Stack>
+        </Paper>
+      </Box>
+    </Stack>
+  )
+}
+
+function SetupTab({ store, latestRun, templates }: { store: PartnerStore; latestRun?: PartnerVerificationRun; templates: PartnerTemplateApplication[] }) {
+  const checklist = [
+    { label: 'Companion install is active', status: store.installStatus === 'INSTALLED' ? 'PASSED' : 'NEEDS_SETUP', detail: titleize(store.installStatus) },
+    { label: 'Merchant-approved access is active', status: store.assignmentStatus === 'ACTIVE' ? 'PASSED' : store.assignmentStatus, detail: formatDateTime(store.approvedAt) },
+    { label: 'Store content is synced', status: store.knowledgeSyncStatus === 'SYNCED' ? 'PASSED' : store.knowledgeSyncStatus, detail: formatDateTime(store.lastSyncAt) },
+    { label: 'Source readiness is green', status: store.readinessStatus === 'READY' ? 'PASSED' : store.readinessStatus, detail: store.topBlocker },
+    { label: 'Storefront widget is enabled', status: store.widgetStatus === 'ENABLED' ? 'PASSED' : store.widgetStatus, detail: `${store.enabledSurfaces.length} configured surfaces` },
+    { label: 'Playbook is applied', status: templates.length > 0 ? 'PASSED' : 'NEEDS_SETUP', detail: `${templates.length} applied playbook${templates.length === 1 ? '' : 's'}` },
+    { label: 'Launch verification has proof', status: latestRun?.status ?? 'NOT_RUN', detail: latestRun ? `${latestRun.passedSteps}/${latestRun.totalSteps} passed` : 'Run Starter launch readiness' },
+  ]
   return (
     <Paper sx={{ p: 2 }}>
-      <Typography variant="h3">Store configured surfaces</Typography>
-      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
-        {surfaces.map((surface) => (
-          <Box key={surface} sx={{ px: 1, py: 0.5, border: 1, borderColor: 'divider', borderRadius: 2, fontSize: '0.8125rem' }}>
-            {titleize(surface)}
-          </Box>
+      <Typography variant="h3">Implementation checklist</Typography>
+      <Stack spacing={1.25} sx={{ mt: 2 }}>
+        {checklist.map((item) => (
+          <TimelineRow key={item.label} title={item.label} subtitle={item.detail} status={item.status} />
         ))}
       </Stack>
     </Paper>
   )
-}
-
-function SetupTab() {
-  return <Checklist title="Setup checklist" items={['Confirm Companion install', 'Enable app embed', 'Run Knowledge Sync', 'Confirm store configured surfaces', 'Capture storefront screenshots']} />
 }
 
 function VerificationTab({ storeId }: { storeId: string }) {
@@ -170,12 +412,6 @@ function VerificationTab({ storeId }: { storeId: string }) {
       await queryClient.invalidateQueries({ queryKey: ['store-verification-runs', storeId] })
     },
   })
-  const columns: DataColumn<PartnerVerificationRun>[] = [
-    { key: 'pack', header: 'Pack', render: (row) => <Typography>{row.packName}</Typography> },
-    { key: 'status', header: 'Status', render: (row) => <StatusChip status={row.status} /> },
-    { key: 'steps', header: 'Steps', render: (row) => <Typography>{row.passedSteps}/{row.totalSteps} passed</Typography> },
-    { key: 'started', header: 'Started', render: (row) => <Typography color="text.secondary">{formatDateTime(row.startedAt)}</Typography> },
-  ]
   return (
     <Stack spacing={2}>
       <Paper sx={{ p: 2 }}>
@@ -199,8 +435,68 @@ function VerificationTab({ storeId }: { storeId: string }) {
           <Button onClick={() => manualMutation.mutate()} disabled={manualMutation.isPending || manualNote.trim().length === 0}>Mark step</Button>
         </Stack>
       </Paper>
-      <DataTable columns={columns} rows={runsQuery.data ?? []} getRowKey={(row) => row.id} loading={runsQuery.isLoading} />
+      <VerificationRunList runs={runsQuery.data ?? []} loading={runsQuery.isLoading} />
     </Stack>
+  )
+}
+
+function VerificationRunList({ runs, loading }: { runs: PartnerVerificationRun[]; loading: boolean }) {
+  if (loading) {
+    return <LinearProgress />
+  }
+  if (runs.length === 0) {
+    return <Paper sx={{ p: 2 }}><Typography color="text.secondary">No verification runs yet.</Typography></Paper>
+  }
+  return (
+    <Stack spacing={1.5}>
+      {runs.map((run) => (
+        <VerificationRunProof key={run.id} run={run} />
+      ))}
+    </Stack>
+  )
+}
+
+function VerificationRunProof({ run }: { run: PartnerVerificationRun }) {
+  return (
+    <Accordion>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} justifyContent="space-between" sx={{ width: '100%', pr: 1 }}>
+          <Box>
+            <Typography fontWeight={800}>{run.packName}</Typography>
+            <Typography variant="caption" color="text.secondary">{formatDateTime(run.startedAt)}</Typography>
+          </Box>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <StatusChip status={run.status} />
+            <Typography>{run.passedSteps}/{run.totalSteps} passed</Typography>
+          </Stack>
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Stack spacing={1.25}>
+          {run.steps.map((step) => <VerificationStepProof key={step.stepId} step={step} />)}
+        </Stack>
+      </AccordionDetails>
+    </Accordion>
+  )
+}
+
+function VerificationStepProof({ step }: { step: PartnerVerificationStep }) {
+  return (
+    <Box sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between">
+        <Box>
+          <Typography fontWeight={800}>{step.label}</Typography>
+          <Typography color="text.secondary">{step.partnerSafeMessage}</Typography>
+        </Box>
+        <StatusChip status={step.status} />
+      </Stack>
+      {step.suggestedFix ? <Typography variant="caption" color="text.secondary">{step.suggestedFix}</Typography> : null}
+      {step.evidence.length > 0 ? (
+        <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
+          {step.evidence.map((item) => <Chip key={item} size="small" label={item} variant="outlined" />)}
+        </Stack>
+      ) : null}
+    </Box>
   )
 }
 

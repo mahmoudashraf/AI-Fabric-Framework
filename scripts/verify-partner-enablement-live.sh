@@ -288,6 +288,7 @@ for source in parser.sources:
         combined += response.read().decode("utf-8", errors="replace")
 
 required = [
+    "/api/partners/activity",
     "/api/partners/verification-packs",
     "/api/partners/evidence-bundles",
     "/api/partners/templates",
@@ -599,6 +600,12 @@ import sys
 store = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert store["assignmentStatus"] == "ACTIVE", store
 assert store["status"] == "READY", store
+assert store.get("storeConnectionId"), store
+assert store.get("installStatus") == "INSTALLED", store
+assert store.get("widgetStatus") == "ENABLED", store
+assert store.get("approvedAt"), store
+assert "VERIFICATION_READ" in (store.get("permissions") or []), store
+assert "products" in (store.get("enabledSourceCategories") or []), store
 assert "ai-search" in store.get("enabledSurfaces", []), store
 raw = json.dumps(store).lower()
 for forbidden in ("deployment", "provider", "secret", "vectorization", "runtime"):
@@ -850,6 +857,23 @@ print(application["id"])
 PY
 )"
 
+  template_application_reuse_body="${TMP_DIR}/template-application-reuse.json"
+  template_application_reuse_status="$(partner_request POST "${BASE_URL}/api/partners/templates/fashion-apparel-starter/applications" "${template_application_reuse_body}" \
+    -H "Content-Type: application/json" \
+    -d "{\"storeId\":\"${workflow_store_id}\"}")"
+  cp "${template_application_reuse_body}" "${TMP_DIR}/last-body"
+  assert_status "${template_application_reuse_status}" "201" "partner template application is idempotent"
+  python3 - <<'PY' "${template_application_reuse_body}" "${template_application_id}"
+import json
+import pathlib
+import sys
+
+application = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert application["id"] == sys.argv[2], application
+assert application["status"] == "ACTIVE", application
+print("PASS: repeated template application reuses persisted active playbook")
+PY
+
   template_applications_body="${TMP_DIR}/template-applications.json"
   template_applications_status="$(partner_request GET "${BASE_URL}/api/partners/template-applications" "${template_applications_body}")"
   cp "${template_applications_body}" "${TMP_DIR}/last-body"
@@ -861,6 +885,8 @@ import sys
 
 applications = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert any(application.get("id") == sys.argv[2] for application in applications), applications
+matching = [application for application in applications if application.get("id") == sys.argv[2]]
+assert len(matching) == 1, applications
 print("PASS: partner template application list includes persisted application")
 PY
 
@@ -992,6 +1018,26 @@ import sys
 escalations = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert any(escalation.get("id") == sys.argv[2] for escalation in escalations), escalations
 print("PASS: support escalation list includes persisted escalation")
+PY
+
+  activity_body="${TMP_DIR}/partner-activity.json"
+  activity_status="$(partner_request GET "${BASE_URL}/api/partners/activity" "${activity_body}")"
+  cp "${activity_body}" "${TMP_DIR}/last-body"
+  assert_status "${activity_status}" "200" "partner activity feed reachable"
+  python3 - <<'PY' "${activity_body}"
+import json
+import pathlib
+import sys
+
+activity = json.loads(pathlib.Path(sys.argv[1]).read_text())
+actions = {item.get("action") for item in activity}
+required = {"STORE_ACCESS_APPROVED", "VERIFICATION_RUN_CREATED", "EVIDENCE_BUNDLE_CREATED", "TEMPLATE_APPLICATION_REUSED", "SUPPORT_REPLY_CREATED"}
+missing = required - actions
+assert not missing, {"missing": sorted(missing), "activity": activity}
+raw = json.dumps(activity).lower()
+for forbidden in ("secret", "token", "password", "credential"):
+    assert forbidden not in raw, activity
+print("PASS: partner activity feed includes workflow events without secret material")
 PY
 
   if [[ "${created_temp_access}" == "true" ]]; then

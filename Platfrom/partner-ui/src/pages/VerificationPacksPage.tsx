@@ -1,13 +1,13 @@
-import { Alert, Box, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listPartnerStores } from '../api/stores'
-import type { PartnerVerificationRun } from '../api/schemas'
+import type { PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
 import { listVerificationPacks, listVerificationRuns, runStoreVerification } from '../api/verification'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
-import { DataTable, type DataColumn } from '../components/DataTable'
 import { EmptyState } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
 import { StatusChip } from '../components/StatusChip'
@@ -35,14 +35,6 @@ export function VerificationPacksPage() {
       navigate(`/verification/${encodeURIComponent(run.id)}`)
     },
   })
-
-  const columns: DataColumn<PartnerVerificationRun>[] = [
-    { key: 'store', header: 'Store', render: (row) => <Typography>{row.shopDomain ?? row.storeAssignmentId}</Typography> },
-    { key: 'pack', header: 'Pack', render: (row) => <Button onClick={() => navigate(`/verification/${row.id}`)} sx={{ justifyContent: 'flex-start' }}>{row.packName}</Button> },
-    { key: 'status', header: 'Result', render: (row) => <StatusChip status={row.status} /> },
-    { key: 'steps', header: 'Steps', render: (row) => <Typography>{row.passedSteps}/{row.totalSteps} passed</Typography> },
-    { key: 'started', header: 'Started', render: (row) => <Typography color="text.secondary">{formatDateTime(row.startedAt)}</Typography> },
-  ]
 
   return (
     <>
@@ -79,13 +71,60 @@ export function VerificationPacksPage() {
           ) : null}
         </Stack>
       </Paper>
-      <DataTable
-        columns={columns}
-        rows={runsQuery.data ?? []}
-        getRowKey={(row) => row.id}
-        loading={runsQuery.isLoading}
-        empty={<EmptyState icon={FactCheckOutlinedIcon} title="No verification runs yet" body="Run a pack on an approved store to create a report and evidence bundle." />}
-      />
+      <VerificationRunHistory runs={runsQuery.data ?? []} loading={runsQuery.isLoading} onOpen={(runId) => navigate(`/verification/${encodeURIComponent(runId)}`)} />
     </>
+  )
+}
+
+function VerificationRunHistory({ runs, loading, onOpen }: { runs: PartnerVerificationRun[]; loading: boolean; onOpen: (runId: string) => void }) {
+  if (loading) {
+    return <Paper sx={{ p: 2 }}><Typography color="text.secondary">Loading verification runs...</Typography></Paper>
+  }
+  if (runs.length === 0) {
+    return <EmptyState icon={FactCheckOutlinedIcon} title="No verification runs yet" body="Run a pack on an approved store to create a report and evidence bundle." />
+  }
+  return (
+    <Stack spacing={1.5}>
+      {runs.map((run) => (
+        <Accordion key={run.id}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} justifyContent="space-between" sx={{ width: '100%', pr: 1 }}>
+              <Box>
+                <Button onClick={(event) => { event.stopPropagation(); onOpen(run.id) }} sx={{ justifyContent: 'flex-start', p: 0, minWidth: 0 }}>{run.packName}</Button>
+                <Typography variant="caption" color="text.secondary">{run.shopDomain ?? run.storeAssignmentId} · {formatDateTime(run.startedAt)}</Typography>
+              </Box>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <StatusChip status={run.status} />
+                <Typography>{run.passedSteps}/{run.totalSteps} passed</Typography>
+              </Stack>
+            </Stack>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Stack spacing={1.25}>
+              {run.steps.map((step) => <VerificationStepLine key={step.stepId} step={step} />)}
+            </Stack>
+          </AccordionDetails>
+        </Accordion>
+      ))}
+    </Stack>
+  )
+}
+
+function VerificationStepLine({ step }: { step: PartnerVerificationStep }) {
+  return (
+    <Box sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between">
+        <Box>
+          <Typography fontWeight={800}>{step.label}</Typography>
+          <Typography color="text.secondary">{step.partnerSafeMessage}</Typography>
+        </Box>
+        <StatusChip status={step.status} />
+      </Stack>
+      {step.evidence.length > 0 ? (
+        <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
+          {step.evidence.map((item) => <Chip key={item} size="small" label={item} variant="outlined" />)}
+        </Stack>
+      ) : null}
+    </Box>
   )
 }

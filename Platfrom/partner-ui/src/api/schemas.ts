@@ -31,6 +31,7 @@ export const partnerSessionSchema = z.object({
 
 export const partnerStoreSchema = z.object({
   id: z.string(),
+  storeConnectionId: nullableString,
   shopDomain: z.string(),
   merchantName: z.string(),
   plan: z.string(),
@@ -41,6 +42,28 @@ export const partnerStoreSchema = z.object({
   topBlocker: z.string(),
   lastActivityAt: nullableDateString,
   assignmentStatus: z.string(),
+  assignmentSource: nullableString,
+  approvedBy: nullableString,
+  approvedAt: nullableDateString,
+  revokedAt: nullableDateString,
+  assignmentCreatedAt: nullableDateString,
+  assignmentUpdatedAt: nullableDateString,
+  installStatus: z.string(),
+  widgetStatus: z.string(),
+  lastSyncAt: nullableDateString,
+  lastWebhookAt: nullableDateString,
+  enabledSourceCategories: z.array(z.string()),
+  permissions: z.array(z.string()),
+})
+
+export const partnerActivityEventSchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  targetType: nullableString,
+  targetId: nullableString,
+  result: z.string(),
+  details: z.record(z.unknown()),
+  createdAt: z.string(),
 })
 
 export const partnerClientImplementationSchema = z.object({
@@ -226,6 +249,7 @@ export const partnerStoreNoteSchema = z.object({
 export type PartnerSession = z.infer<typeof partnerSessionSchema>
 export type PartnerMember = z.infer<typeof partnerMemberSchema>
 export type PartnerStore = z.infer<typeof partnerStoreSchema>
+export type PartnerActivityEvent = z.infer<typeof partnerActivityEventSchema>
 export type PartnerClientImplementation = z.infer<typeof partnerClientImplementationSchema>
 export type PartnerEligibleStore = z.infer<typeof partnerEligibleStoreSchema>
 export type PartnerStoreAccessLink = z.infer<typeof partnerStoreAccessLinkSchema>

@@ -5,6 +5,7 @@ import java.util.List;
 
 public record PartnerStoreSummary(
     String id,
+    String storeConnectionId,
     String shopDomain,
     String merchantName,
     String plan,
@@ -14,6 +15,18 @@ public record PartnerStoreSummary(
     String readinessStatus,
     String topBlocker,
     Instant lastActivityAt,
-    String assignmentStatus
+    String assignmentStatus,
+    String assignmentSource,
+    String approvedBy,
+    Instant approvedAt,
+    Instant revokedAt,
+    Instant assignmentCreatedAt,
+    Instant assignmentUpdatedAt,
+    String installStatus,
+    String widgetStatus,
+    Instant lastSyncAt,
+    Instant lastWebhookAt,
+    List<String> enabledSourceCategories,
+    List<String> permissions
 ) {
 }

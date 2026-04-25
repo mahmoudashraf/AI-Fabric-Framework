@@ -24,6 +24,17 @@ export function TemplatesPage() {
   const stores = storesQuery.data ?? []
   const templates = templatesQuery.data ?? []
   const filtered = useMemo(() => templates.filter((template) => template.category === tab), [templates, tab])
+  const applications = useMemo(() => {
+    const seen = new Set<string>()
+    return (applicationsQuery.data ?? []).filter((application) => {
+      const key = `${application.templateId}:${application.storeAssignmentId ?? 'workspace'}`
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+  }, [applicationsQuery.data])
   const applyMutation = useMutation({
     mutationFn: (template: PartnerTemplate) => applyTemplate(api, template.id, storeId || undefined),
     onSuccess: async () => {
@@ -62,16 +73,19 @@ export function TemplatesPage() {
       <Paper sx={{ p: 2, mt: 3 }}>
         <Typography variant="h2" sx={{ mb: 1.5 }}>Applied templates</Typography>
         <Stack spacing={1}>
-          {(applicationsQuery.data ?? []).map((application) => (
+          {applications.map((application) => (
             <Stack key={application.id} direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between">
-              <Typography>{application.templateName} {application.shopDomain ? `· ${application.shopDomain}` : ''}</Typography>
+              <Box>
+                <Typography fontWeight={800}>{application.templateName} {application.shopDomain ? `· ${application.shopDomain}` : ''}</Typography>
+                <Typography variant="caption" color="text.secondary">{titleize(application.category)} · {application.checklist.length} checklist items · {application.assumptions.length} assumptions</Typography>
+              </Box>
               <Stack direction="row" spacing={1} alignItems="center">
-                <StatusChip status={application.status} />
+                <StatusChip status={application.status} label="Applied" />
                 <Typography variant="caption" color="text.secondary">{formatDateTime(application.appliedAt)}</Typography>
               </Stack>
             </Stack>
           ))}
-          {(applicationsQuery.data ?? []).length === 0 ? <Typography color="text.secondary">No templates applied yet.</Typography> : null}
+          {applications.length === 0 ? <Typography color="text.secondary">No templates applied yet.</Typography> : null}
         </Stack>
       </Paper>
       <DetailDrawer open={Boolean(selected)} title={selected?.name ?? 'Template'} onClose={() => setSelected(null)}>

@@ -34,6 +34,8 @@ export function statusFromWire(value: string | undefined): PartnerStatus {
     case 'ACTIVE':
     case 'APPROVED':
     case 'PASSED':
+    case 'SUCCESS':
+    case 'APPLIED':
       return 'ready'
     case 'BLOCKED':
       return 'blocked'

@@ -292,7 +292,13 @@ class PartnerEnablementIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()", is(1)))
             .andExpect(jsonPath("$[0].id", is(assignmentId)))
+            .andExpect(jsonPath("$[0].storeConnectionId", is("shopify-store-approved")))
             .andExpect(jsonPath("$[0].status", is("READY")))
+            .andExpect(jsonPath("$[0].assignmentStatus", is("ACTIVE")))
+            .andExpect(jsonPath("$[0].installStatus", is("INSTALLED")))
+            .andExpect(jsonPath("$[0].widgetStatus", is("ENABLED")))
+            .andExpect(jsonPath("$[0].permissions", hasItem("VERIFICATION_READ")))
+            .andExpect(jsonPath("$[0].approvedAt", notNullValue()))
             .andExpect(jsonPath("$[0].enabledSurfaces", not(hasItem("order-lookup"))));
 
         mockMvc.perform(get("/api/partners/verification-packs")
@@ -369,7 +375,7 @@ class PartnerEnablementIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id == 'fashion-apparel-starter')].category", hasItem("VERTICAL_PLAYBOOK")));
 
-        mockMvc.perform(post("/api/partners/templates/{templateId}/applications", "fashion-apparel-starter")
+        var templateApplicationResult = mockMvc.perform(post("/api/partners/templates/{templateId}/applications", "fashion-apparel-starter")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -379,11 +385,26 @@ class PartnerEnablementIntegrationTest {
                     """.formatted(assignmentId)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.templateId", is("fashion-apparel-starter")))
-            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")));
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
+            .andReturn();
+        String templateApplicationId = JsonPath.read(templateApplicationResult.getResponse().getContentAsString(), "$.id");
+
+        mockMvc.perform(post("/api/partners/templates/{templateId}/applications", "fashion-apparel-starter")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "storeId": "%s"
+                    }
+                    """.formatted(assignmentId)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id", is(templateApplicationId)))
+            .andExpect(jsonPath("$.templateId", is("fashion-apparel-starter")));
 
         mockMvc.perform(get("/api/partners/template-applications")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
             .andExpect(jsonPath("$[0].templateId", is("fashion-apparel-starter")));
 
         mockMvc.perform(post("/api/partners/stores/{storeId}/notes", assignmentId)
@@ -462,6 +483,14 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.replies[0].bodyMarkdown", is("Visible update for the partner.")))
             .andExpect(jsonPath("$.replies[0].attachments[0]", is(evidenceBundleId)))
             .andExpect(jsonPath("$.replies[0].visibility", is("PARTNER_VISIBLE")));
+
+        mockMvc.perform(get("/api/partners/activity")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].action", hasItem("STORE_ACCESS_APPROVED")))
+            .andExpect(jsonPath("$[*].action", hasItem("VERIFICATION_RUN_CREATED")))
+            .andExpect(jsonPath("$[*].action", hasItem("TEMPLATE_APPLICATION_REUSED")))
+            .andExpect(jsonPath("$[*].action", hasItem("SUPPORT_REPLY_CREATED")));
 
         mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/revoke", accessRequestId)
                 .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)

@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.partner.web;
 
 import com.ai.fabric.platform.backend.partner.model.PartnerCatalogEntrySummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerActivityEventSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerEligibleStoreSummary;
@@ -78,6 +79,12 @@ public class PartnerEnablementController {
     @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
     public PartnerStoreSummary getStore(@PathVariable String storeId) {
         return service.getStore(storeId);
+    }
+
+    @GetMapping("/activity")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerActivityEventSummary> listActivity() {
+        return service.listActivity();
     }
 
     @GetMapping("/eligible-stores")
