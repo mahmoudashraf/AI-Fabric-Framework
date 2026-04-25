@@ -2340,6 +2340,35 @@ Assigned store workspace should evolve into a product control center, not only a
 - **Support**: escalations, notes, evidence-linked replies.
 - **Activity**: complete product-scoped audit trail.
 
+Source-of-truth rule:
+
+Partner, merchant/admin, and operator surfaces must not write to separate duplicate buckets for the same assigned store. They are different authorized projections over the same product/store records.
+
+Canonical writable records:
+
+- `ShopifyStoreConnection` remains the canonical installed-store/readiness record: shop domain, install status, widget status, source toggles, sync status, webhook state, enabled surfaces, and product-service/store linkage.
+- LoomAI product configuration tables remain canonical for Companion setup: storefront surfaces, launcher behavior, Max Mode behavior, AI behavior, prompts, fallback/support handoff, source configuration, and product lifecycle state.
+- Partner authorization tables remain canonical for who can operate the product: access requests, approvals, assignments, capabilities, revocations, and member roles.
+- Verification/evidence tables remain canonical for proof: verification runs, step results, evidence bundles, exports, and launch history.
+- Audit tables remain canonical for action history across partner, merchant/admin, operator, and product-service actors.
+
+Implementation rule:
+
+- Merchant/admin UI, Partner UI, operator UI, and Shopify Bridge must read/write the same canonical records for mutable LoomAI product state.
+- Partner/admin differences are enforced through authorization, capability checks, and response projection, not through duplicate partner-only config tables.
+- Shopify Bridge may cache or read Shopify-side state as an integration detail, but Platform must reconcile product-owned state back into the canonical store/product records.
+- Do not create `partner_product_config`, `admin_product_config`, duplicate source-toggle tables, or partner-only widget state for the same store.
+- Do not fork verification state for partner vs admin; use one run/evidence model with role-safe projections.
+
+Allowed denormalized snapshots:
+
+- Access requests may copy `shopDomain`, merchant display name, requested scope, and submitted context for audit/display.
+- Evidence bundles may snapshot verification results and merchant-safe summaries at generation time.
+- Audit events may store before/after metadata and partner-safe details.
+- Implementation requests may store known integrations, notes, and request-time store context.
+
+These snapshots are immutable history, not live product configuration authority.
+
 Release-gate implication:
 
 Partner Enablement is not complete at enterprise level until live verification proves at least one state-changing product-scoped command against an assigned store, then proves:
