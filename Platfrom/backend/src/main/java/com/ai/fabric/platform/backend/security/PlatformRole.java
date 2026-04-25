@@ -5,7 +5,12 @@ public enum PlatformRole {
     PLATFORM_OPERATOR,
     PLATFORM_PRODUCT_SERVICE,
     CUSTOMER_ADMIN,
-    PUBLIC_API_CLIENT;
+    PUBLIC_API_CLIENT,
+    PARTNER_AUTHENTICATED,
+    PARTNER_ADMIN,
+    PARTNER_IMPLEMENTER,
+    PARTNER_DEVELOPER,
+    PARTNER_SUPPORT;
 
     public String authority() {
         return "ROLE_" + name();

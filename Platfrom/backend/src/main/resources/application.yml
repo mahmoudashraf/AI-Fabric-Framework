@@ -53,6 +53,20 @@ platform:
     bootstrap-admin-email: ${PLATFORM_BOOTSTRAP_ADMIN_EMAIL:}
     bootstrap-admin-password: ${PLATFORM_BOOTSTRAP_ADMIN_PASSWORD:}
     bootstrap-admin-display-name: ${PLATFORM_BOOTSTRAP_ADMIN_DISPLAY_NAME:Platform Admin}
+    supabase:
+      enabled: ${PLATFORM_SUPABASE_AUTH_ENABLED:false}
+      issuer: ${PLATFORM_SUPABASE_ISSUER:}
+      jwks-uri: ${PLATFORM_SUPABASE_JWKS_URI:}
+      audience: ${PLATFORM_SUPABASE_AUDIENCE:authenticated}
+      project-ref: ${PLATFORM_SUPABASE_PROJECT_REF:}
+      require-email-verified: ${PLATFORM_SUPABASE_REQUIRE_EMAIL_VERIFIED:true}
+      allowed-provider-ids:
+        - google
+        - apple
+        - linkedin_oidc
+        - email
+      merchant-approval-ttl: ${PLATFORM_PARTNER_MERCHANT_APPROVAL_TTL:7d}
+      partner-app-url: ${PLATFORM_PARTNER_APP_URL:http://localhost:5174}
   public-api:
     enabled: ${PLATFORM_PUBLIC_API_ENABLED:false}
     client-id-header-name: ${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:X-PLATFORM-CLIENT-ID}

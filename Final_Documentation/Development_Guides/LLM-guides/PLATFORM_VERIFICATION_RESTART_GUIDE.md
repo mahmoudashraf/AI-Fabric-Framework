@@ -792,6 +792,40 @@ Current default:
 
 - `weaviate-external-verify-dev.up.railway.app`
 
+### 9.8 Partner Enablement live verifier
+
+Partner Enablement has a focused live verifier:
+
+```bash
+PLATFORM_BASE_URL="https://ai-fabric-framework-production-324f.up.railway.app" \
+  scripts/verify-partner-enablement-live.sh
+```
+
+The non-strict form proves:
+
+- backend health
+- unauthenticated `/api/partners/session` returns `401`
+- invalid partner JWT returns `401`
+
+For release-ready proof, run strict mode with a deployed partner UI and a valid test partner Supabase JWT:
+
+```bash
+PARTNER_UI_BASE_URL="https://partners.loomai.pro" \
+PARTNER_SUPABASE_JWT="<valid test partner JWT>" \
+PLATFORM_BASE_URL="https://ai-fabric-framework-production-324f.up.railway.app" \
+PARTNER_LIVE_STRICT=true \
+  scripts/verify-partner-enablement-live.sh
+```
+
+Do not paste or commit the JWT.
+
+If strict mode fails before authenticated API checks:
+
+- DNS failure for `partners.loomai.pro` means the partner UI is not deployed or DNS is not configured.
+- Missing `PARTNER_SUPABASE_JWT` means authenticated workspace, catalog, and store-summary checks were not run.
+- A valid JWT returning `401` means deployed Platform Supabase auth env values or issuer/audience/JWKS settings are wrong.
+- A valid JWT returning `403` for assigned-store checks usually means the test partner is not approved/assigned yet.
+
 ## 10. Real Failure Patterns Seen In This Session
 
 ### 10.1 Marketplace runner provisioning smoke failed

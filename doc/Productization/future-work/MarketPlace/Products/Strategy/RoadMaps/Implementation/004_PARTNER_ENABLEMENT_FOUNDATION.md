@@ -1,6 +1,6 @@
 # Partner Enablement Foundation
 
-Status: comprehensive implementation handoff (revised 2026-04-25)
+Status: implemented local foundation with live gate added (revised 2026-04-25)
 
 Owner mode: technical LLM implementation session
 
@@ -1791,3 +1791,129 @@ Required completion fields:
 - blockers or no pending handoff items
 
 Do not include secrets, long logs, or raw diffs.
+
+---
+
+## 2026-04-25 Implementation Completion Update
+
+### Implementation Summary
+
+Partner Enablement Foundation has been implemented as the first release-capable local foundation.
+
+Backend delivery:
+
+- added an extraction-ready `com.ai.fabric.platform.backend.partner` domain module inside `Platfrom/backend`
+- added Supabase JWT authentication wiring for `/api/partners/*`
+- kept Platform backend as the source of truth for partner accounts, members, roles, store assignments, access requests, merchant approvals, support escalations, evidence metadata, and audit records
+- added partner roles without granting partner bearer tokens access to operator/admin deployment APIs
+- added Flyway migration `V65__partner_enablement_foundation.sql`
+- added partner APIs for session, signup completion, store portfolio, store workspace summary, implementation requests, merchant approval links, intelligence catalog, support escalations, escalation threads, and partner-visible replies
+- added merchant approval endpoint under `/api/merchant/partner-access/{approvalCode}/approve`
+- added partner-safe Shopify store read gateway that exposes assignment-scoped store summaries only
+- added static current catalog truth: Free has AI search only; Starter has read-only embedded intelligence surfaces; Starter does not include order lookup
+- added audit recording for partner signup, access request, merchant approval, and escalation actions
+
+Partner UI delivery:
+
+- created `Platfrom/partner-ui` as a separate Vite React/MUI application suitable for `partners.loomai.pro`
+- added Supabase login, social provider buttons, auth callback handling, session guard, signup-empty-workspace state, and partner API client
+- added strict UI API path allowlist for `/api/partners/*` and `/api/merchant/partner-access/*`
+- added app shell, dashboard, client stores, store workspace, new implementation request, implementation detail, intelligence catalog, support center, escalation thread, templates, verification packs, evidence bundles, documentation, members, profile, and merchant approval pages
+- added reusable MUI components for page headers, status chips, tier badges, data tables, empty states, detail drawers, confirm dialogs, evidence attachments, and escalation threads
+- kept partner UI away from deployment/provider/secret/vectorization/runtime internals
+
+Verification tooling:
+
+- added `scripts/verify-partner-enablement-live.sh`
+- the live verifier checks platform health, unauthenticated partner rejection, invalid JWT rejection, optional deployed partner UI serving, optional authenticated Supabase partner session, current catalog tier truth, assigned-store summaries, and partner-safe response boundaries
+
+### Changed Files
+
+Primary changed areas:
+
+- `Platfrom/backend/pom.xml`
+- `Platfrom/backend/src/main/resources/application.yml`
+- `Platfrom/backend/src/main/resources/db/migration/V65__partner_enablement_foundation.sql`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/PlatformRole.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/PlatformSecurityConfiguration.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/**`
+- `Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/partner/PartnerEnablementIntegrationTest.java`
+- `Platfrom/partner-ui/**`
+- `scripts/verify-partner-enablement-live.sh`
+- `Final_Documentation/Development_Guides/LLM-guides/CODEX_WORKING_CONTEXT.md`
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESTART_GUIDE.md`
+
+### Decisions Made
+
+- Partner auth uses Supabase identity tokens, but Platform DB remains the authorization source.
+- Self-service signup creates an empty partner workspace by default.
+- Store access requires merchant approval or explicit assignment and is revocable.
+- Partner bearer tokens are not accepted as operator/admin auth.
+- Partner APIs remain under `/api/partners/*`; merchant approval remains under `/api/merchant/partner-access/*`.
+- Partner responses intentionally exclude deployment, provider, secret, vectorization, runtime, and operator-only support internals.
+- Starter partner catalog remains read-only and excludes order lookup.
+
+### Tests And Builds Run
+
+Passed:
+
+```bash
+git diff --check
+mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test
+mvn -f Platfrom/backend/pom.xml -q test
+npm --prefix Platfrom/partner-ui run build
+npm --prefix Platfrom/partner-ui run smoke
+```
+
+Notes:
+
+- `npm --prefix Platfrom/partner-ui run build` passed with Vite's chunk-size warning only.
+- The full Platform backend Maven suite passed after the partner migration and security changes.
+
+### Live Verification Status
+
+Partial live verification passed against the known Railway Platform backend:
+
+```bash
+PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
+  scripts/verify-partner-enablement-live.sh
+```
+
+Observed result:
+
+- backend health reachable
+- unauthenticated `/api/partners/session` rejected with HTTP `401`
+- invalid partner JWT rejected with HTTP `401`
+
+Full deployed live verification is blocked by environment/deployment availability, not by local implementation failures:
+
+- `PARTNER_UI_BASE_URL` is not available in the environment
+- the intended domain `https://partners.loomai.pro` does not currently resolve from this machine
+- `PARTNER_SUPABASE_JWT` is not available in the environment or private handoff context, so authenticated partner workspace checks cannot be run
+
+Required full live command once those values exist:
+
+```bash
+PARTNER_UI_BASE_URL=https://partners.loomai.pro \
+PARTNER_SUPABASE_JWT="<valid test partner JWT>" \
+PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
+PARTNER_LIVE_STRICT=true \
+  scripts/verify-partner-enablement-live.sh
+```
+
+Do not paste or commit the JWT.
+
+### Pushed Commit Refs
+
+The final pushed git SHA is recorded in the session response after commit/push.
+
+### Blockers Or Pending Handoff Items
+
+No local implementation blocker remains.
+
+Deployment/live proof blockers before release-ready status:
+
+- deploy the partner UI and configure DNS for `partners.loomai.pro`
+- configure deployed Platform Supabase partner auth env values
+- obtain a valid non-committed `PARTNER_SUPABASE_JWT` for a test partner account
+- rerun `scripts/verify-partner-enablement-live.sh` with `PARTNER_LIVE_STRICT=true`
