@@ -8,7 +8,9 @@ Current strategy note:
 
 - Partners are **implementation partners**: agencies, integrators, consultants, and developers helping merchants add LoomAI intelligence pieces to existing stores.
 - This is **not** a passive acquisition program.
-- Public partner signup, partner directories, certification, and commercial attribution surfaces are out of scope until implementation partners prove repeatable deployment and support.
+- Self-service partner signup is in scope and creates an empty partner workspace by default.
+- Client-store access requires merchant approval, approved install/claim flow, or operator assignment.
+- Partner directories, certification, commercial attribution surfaces, and client-store access from signup alone are out of scope until implementation partners prove repeatable deployment and support.
 
 ---
 
@@ -265,7 +267,8 @@ Total: 9 items in 4 groups.
 **Dashboard**
 
 What it shows:
-- assigned client stores
+- approved/assigned client stores
+- empty-state guidance for newly signed-up partners with no approved stores yet
 - implementations in progress
 - stores needing attention
 - verification failures
@@ -283,7 +286,7 @@ Design:
 **Client Stores**
 
 What it shows:
-- table of assigned client stores:
+- table of approved/assigned client stores:
   - store name
   - client owner
   - plan (Free / Starter / Elite)
@@ -306,13 +309,14 @@ Design:
 
 What it shows:
 - step-by-step implementation flow:
-  1. enter Shopify store URL
-  2. merchant authorizes the app
-  3. choose configuration template
-  4. trigger initial sync
-  5. configure intelligence surfaces by tier
-  6. verify on storefront
-  7. export launch packet
+  1. enter client/store context
+  2. generate merchant approval link/code or approved install/claim path
+  3. merchant approves the partner-store relationship and authorizes the app where needed
+  4. choose configuration template
+  5. trigger initial sync after access is approved
+  6. configure intelligence surfaces by tier
+  7. verify on storefront
+  8. export launch packet
 - estimated time: 30-45 minutes
 - each step has instructions and validation
 
@@ -505,9 +509,10 @@ Everything from the UI redesign document, plus:
 
 What it shows:
 - all registered partners
-- per-partner: assigned client stores, implementation activity, health, escalations
-- partner approval/rejection
-- scoped store assignment
+- per-partner: approved/assigned client stores, implementation activity, health, escalations
+- partner suspension/revocation
+- store-access requests and merchant approval audit
+- scoped store assignment and revocation
 - sandbox/demo access
 - implementation status
 - verification history
@@ -533,14 +538,15 @@ Full technical language. Deployments, vectorization, providers, embedding dimens
 
 ```
 MERCHANT        can manage their own store only
-PARTNER         can manage assigned client stores within scoped implementation permissions + own partner workspace
+PARTNER         can manage own partner workspace + approved/assigned client stores within scoped implementation permissions
 OPERATOR        can manage everything
 ```
 
 ### 7.2 How roles are assigned
 
 - Merchant: created automatically when a store installs from Shopify App Store
-- Partner: created when partner application is approved
+- Partner: created automatically after Supabase self-service signup, with an empty workspace by default
+- Partner store access: created only after merchant approval, approved install/claim flow, or operator assignment
 - Operator: manually assigned, platform admin only
 
 ### 7.3 What each role can access
@@ -548,20 +554,20 @@ OPERATOR        can manage everything
 | Surface | Merchant | Partner | Operator |
 |---|---|---|---|
 | app.loomai.pro | full access (own store) | — | — |
-| partners.loomai.pro | — | full access | full access |
+| partners.loomai.pro | — | own workspace + approved/assigned stores | full access |
 | admin.loomai.pro | — | — | full access |
 | docs.loomai.pro | full access | full access | full access |
-| API (own store) | read + configure | read/configure assigned client stores within scope | full access |
+| API (own store) | read + configure | read/configure approved/assigned client stores within scope | full access |
 | API (all stores) | — | — | full access |
 | Provider config | — | — | full access |
-| Billing (own) | full access | view assigned client store plan/status where authorized | full access |
-| Partner assignments | — | assigned stores only | full access |
+| Billing (own) | full access | view approved/assigned client store plan/status where authorized | full access |
+| Partner assignments | — | own requests + approved/assigned stores only | full access |
 
 ### 7.4 Cross-portal access
 
 - Operator can impersonate a merchant view (see what the merchant sees for debugging)
 - Operator can impersonate a partner view (see what the partner sees)
-- Partner can view and support assigned client stores within scoped permissions
+- Partner can view and support approved/assigned client stores within scoped permissions
 - Merchant cannot access partner or operator views
 
 ---
@@ -754,6 +760,7 @@ Build partners.loomai.pro around implementation support:
 - Documentation
 
 This is needed when the first founding implementation partners are ready to deploy and support real client stores.
+Self-service signup may launch earlier if it creates only an empty workspace and does not expose client-store data before approval.
 
 ### Phase 4: Design System Extraction (Week 6-8)
 

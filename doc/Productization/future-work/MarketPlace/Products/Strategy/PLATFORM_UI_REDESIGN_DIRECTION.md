@@ -9,7 +9,8 @@ Current strategy note:
 - This document applies first to the **operator control plane** and shared design language.
 - Merchant UI should stay focused on Shopify Companion setup, storefront intelligence surfaces, Knowledge Sync, billing, support, and launch readiness.
 - Partner UI means an **implementation partner workspace** for agencies, integrators, consultants, and developers helping client stores deploy LoomAI intelligence pieces.
-- Partner UI should not be planned around passive acquisition, public signup, directories, or commercial attribution surfaces until founding implementation partners prove a repeatable workflow.
+- Partner UI may support self-service signup, but only into an empty workspace by default.
+- Partner UI should not be planned around passive acquisition, directories, commercial attribution surfaces, or client-store access from signup alone until implementation partners prove a repeatable workflow.
 - Do not let visual redesign interrupt the active Shopify Companion sequence: Launch Truth, Storefront Product Shell, Starter Launch Package, then Partner Enablement Foundation.
 
 ---
@@ -449,7 +450,7 @@ Roadmap fit:
 
 - During Storefront Product Shell, use this doc only for language and layout guardrails where they unblock merchant-safe setup or verification.
 - During Starter Launch Package, apply the merchant-safe subset: clear status hierarchy, Knowledge Sync language, plan/surface clarity, setup blockers, and launch readiness.
-- During Partner Enablement Foundation, apply the implementation-partner subset: client store workspace, intelligence catalog, templates, verification packs, sandbox/demo access, support center, and escalations.
+- During Partner Enablement Foundation, apply the implementation-partner subset: self-service signup, empty partner workspace, client store workspace after approval, intelligence catalog, templates, verification packs, sandbox/demo access, support center, and escalations.
 - Defer the full operator dark-theme redesign until it improves real platform operation without delaying Starter launch.
 
 ### Step 1: Theme
@@ -533,7 +534,7 @@ This redesign should not become:
 - a new broad product track before Shopify Companion is sellable
 - a merchant dashboard that exposes operator concepts
 - an implementation partner portal centered on passive acquisition
-- a reason to build public partner signup before founding implementation partners exist
+- a reason to expose client-store data from signup alone
 - a full Tailwind/design-system migration before the Starter launch package is coherent
 
 Use the redesign to reduce confusion at the exact surface being shipped. Do not use it to expand scope.
