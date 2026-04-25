@@ -269,11 +269,19 @@ Required repository secrets for the workflow:
 Optional repository secrets that enable deeper verification coverage:
 
 - `SHOPIFY_BRIDGE_ADMIN_API_KEY`
-  default: empty
+  default: empty; set to the same secret value configured on the deployed bridge as `SHOPIFY_BRIDGE_SHARED_SECRET`
 - `SHOPIFY_ADMIN_ACCESS_TOKEN`
   default: empty
 - `SHOPIFY_MERCHANT_AUTHORIZATION`
   default: empty
+
+Bridge admin key rule:
+
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` is only for Shopify Bridge operator/admin verification endpoints under `/api/admin/*`.
+- The verification script sends it using `SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER`; the default header is `X-BRIDGE-API-KEY`.
+- It is not the Shopify store Admin API token. Use `SHOPIFY_ADMIN_ACCESS_TOKEN` for Shopify Admin API coverage.
+- If the value is missing, optional bridge admin checks are skipped. If it is wrong, `/api/admin/*` returns `401`. If the deployed bridge has no admin key configured, `/api/admin/*` returns `503`.
+- Keep this value only in GitHub/Railway/local secrets or the private handoff; do not paste it in chat or logs.
 
 Governed support scope rule:
 

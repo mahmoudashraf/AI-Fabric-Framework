@@ -298,6 +298,14 @@ Primary scripts and workflow:
 - `scripts/verify-shopify-companion-uninstall.sh`
 - `.github/workflows/shopify-companion-verification.yml`
 
+Bridge admin verification credential:
+
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` is the verification-side name for the Shopify Bridge private admin key.
+- Set it to the same secret value configured on the deployed bridge as `SHOPIFY_BRIDGE_SHARED_SECRET`.
+- The default header is `X-BRIDGE-API-KEY`; override with `SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER` only when the bridge deployment uses a different header.
+- This is not the Shopify Admin API token. `SHOPIFY_ADMIN_ACCESS_TOKEN` is the Shopify Admin API credential.
+- Missing key skips optional bridge admin checks; wrong key returns `401`; bridge admin key not configured on the service returns `503` for `/api/admin/*`.
+
 Relevant code areas:
 
 - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/`

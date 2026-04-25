@@ -20,7 +20,7 @@ set -euo pipefail
 #   PRODUCT_SERVICE_REF=shopify-bridge-prod
 #   PLATFORM_API_KEY_HEADER=X-PLATFORM-API-KEY
 #   PLATFORM_SESSION_COOKIE_JAR=/tmp/platform.cookies
-#   SHOPIFY_BRIDGE_ADMIN_API_KEY=...
+#   SHOPIFY_BRIDGE_ADMIN_API_KEY=... # same secret value as deployed SHOPIFY_BRIDGE_SHARED_SECRET
 #   SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER=X-BRIDGE-API-KEY
 #   SHOPPER_SESSION_ID=...
 #   SHOPPER_QUERY="Show me your best sellers"

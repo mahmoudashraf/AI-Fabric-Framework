@@ -152,6 +152,10 @@ Optional for deeper Shopify verification coverage:
 Operational notes:
 
 - baseline non-destructive Shopify verification can run without the optional values
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` is the verification-side name for the Shopify Bridge private admin key; set it to the same secret value configured on the deployed bridge as `SHOPIFY_BRIDGE_SHARED_SECRET`
+- bridge admin calls send that value in `SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER`, default `X-BRIDGE-API-KEY`, against `/api/admin/*`
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` is not the Shopify store Admin API token; use `SHOPIFY_ADMIN_ACCESS_TOKEN` for Shopify Admin API coverage
+- missing bridge admin key skips optional bridge admin checks, a wrong key returns `401`, and a bridge deployed without an admin key returns `503` for `/api/admin/*`
 - `SHOPIFY_MERCHANT_AUTHORIZATION` and `SHOPIFY_EMBEDDED_HOST` are the useful extras when you need merchant-session or embedded-app browser verification
 - uninstall verification is destructive and should only target a disposable shop mapping
 - the private handoff is the source of truth for current live Shopify credentials and app values
