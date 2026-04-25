@@ -6,11 +6,34 @@ PARTNER_UI_BASE_URL="${PARTNER_UI_BASE_URL:-}"
 PARTNER_SUPABASE_JWT="${PARTNER_SUPABASE_JWT:-}"
 STRICT="${PARTNER_LIVE_STRICT:-false}"
 
+resolve_secret_value() {
+  local var_name="$1"
+  local file_var_name="${var_name}_FILE"
+  local direct_value="${!var_name:-}"
+  local file_path="${!file_var_name:-}"
+
+  if [[ -n "${file_path}" ]]; then
+    if [[ ! -f "${file_path}" ]]; then
+      echo "Missing secret file for ${var_name}: ${file_path}" >&2
+      exit 2
+    fi
+    python3 - <<'PY' "${file_path}"
+import pathlib
+import sys
+print(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+PY
+    return
+  fi
+
+  printf '%s' "${direct_value}"
+}
+
 if [[ -z "${BASE_URL}" ]]; then
   echo "ERROR: set PLATFORM_BASE_URL or PARTNER_PLATFORM_BASE_URL." >&2
   exit 2
 fi
 
+PARTNER_SUPABASE_JWT="$(resolve_secret_value "PARTNER_SUPABASE_JWT")"
 BASE_URL="${BASE_URL%/}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
