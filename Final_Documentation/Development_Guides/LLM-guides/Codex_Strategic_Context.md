@@ -52,11 +52,12 @@ Active sequence:
 1. **Canonical Launch Truth**: launch truth created; Free is AI search only; align product, pricing, billing, gating, and launch copy.
 2. **Storefront Product Shell**: make embedded intelligence visibly real; converge on Max Mode and retire legacy chat as a long-term shell.
 3. **Starter Launch Package**: make full read-only store intelligence sellable and App Store-ready.
-4. **Partner Enablement Foundation**: support self-managed implementation partners with Supabase signup, empty workspace, sandbox, intelligence catalog, templates, verification packs, merchant-approved scoped access, and escalation.
-5. **Design-Partner Proof**: test with 5-10 real stores before scaling public outreach or broad partner recruitment.
-6. **Public Launch Push**: earn the first install/review loop; target 40-50 installs or clear rejection signal.
-7. **Elite Activation**: launch governed actions only after Starter demand and action-intent signal exist.
-8. **Second Product Gate**: consider WooCommerce only after Shopify signal and reliability gates are green.
+4. **First Product Readiness Audit**: run the final technical/product/commercial-readiness gate for Shopify Companion Starter before design-partner, partner-scale, or public-market activity.
+5. **Partner Enablement Foundation**: support self-managed implementation partners with Supabase signup, empty workspace, sandbox, intelligence catalog, templates, verification packs, merchant-approved scoped access, and escalation.
+6. **Design-Partner Proof**: test with 5-10 real stores before scaling public outreach or broad partner recruitment.
+7. **Public Launch Push**: earn the first install/review loop; target 40-50 installs or clear rejection signal.
+8. **Elite Activation**: launch governed actions only after Starter demand and action-intent signal exist.
+9. **Second Product Gate**: consider WooCommerce only after Shopify signal and reliability gates are green.
 
 Current P0 cleanup items:
 
@@ -67,6 +68,7 @@ Current P0 cleanup items:
 - Build partner enablement early enough to support integrators, but keep broad partner scale, commercial attribution surfaces, white-label, and partner APIs out of current scope.
 - Keep merchant/admin boundary clean so partner/operator packets do not render inside the Shopify merchant app.
 - Merchant-facing indexing language is `Knowledge Sync`; raw index/reindex/replay/vectorization controls belong in the merged partner/operator dashboard.
+- Run `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md` before treating Shopify Companion Starter as design-partner-ready or public-market-ready.
 
 ## Strategic Decision Log
 
@@ -84,3 +86,4 @@ Current P0 cleanup items:
 - 2026-04-25: Revised Partner Enablement Foundation to target a mature private partner operating layer, not only a document kit: partner identity/access, scoped store assignment, partner workspace, client portfolio/workspace, intelligence catalog, verification/evidence packs, support escalations, templates/playbooks, audit/security, and rollout gates; public partner signup, commissions, white-label, and public partner APIs remain out of current scope.
 - 2026-04-25: Partner Enablement auth decision: use Supabase Auth for partner login with Google, Apple, and LinkedIn OIDC; keep Platform backend as the authorization source for partner roles, invitations, scoped store assignment, revocation, audit, and Shopify Bridge access; partner UI should live in a separate `Platfrom/partner-ui` project for `partners.loomai.pro`.
 - 2026-04-25: Partner signup decision superseded: self-service partner signup is allowed and should create an empty workspace by default; client-store access requires merchant approval, signed approval link/code, approved install/claim flow, or operator assignment. Keep commissions, referral tracking, white-label, public partner API, directories, and certification out of current scope.
+- 2026-04-25: Added First Product Readiness Audit gate after Starter Launch Package; Shopify Companion Starter is a technically ready candidate, but design-partner readiness and public-market readiness require a formal evidence audit before scaling outreach or partner activity.
