@@ -2103,3 +2103,211 @@ Remaining non-blocking production follow-up:
 
 - Point `partners.loomai.pro` to the Partner UI Railway service when moving from the temporary Railway domain to production DNS.
 - Create/provision a partner workspace/store assignment when catalog and assigned-store live checks are needed beyond the empty-workspace launch gate.
+
+## Change Plan: Installed-Store-First Merchant Approval Flow
+
+### Reason
+
+The first Partner Enablement implementation proves the authorization shell, partner workspace, Supabase auth, merchant approval record, and scoped assignment model. It currently lets a partner type a `.myshopify.com` domain and generate an approval link even before the Shopify app is installed.
+
+That is useful for early workflow proof, but production should prefer a stronger trust chain:
+
+```text
+Shopify app installed first
+-> Platform knows the real ShopifyStoreConnection
+-> partner selects an eligible installed store
+-> merchant approves or denies inside merchant admin
+-> Platform stores the decision and activates the partner assignment
+```
+
+This avoids granting partner workspace state based only on a typed shop domain, keeps merchant consent inside the connected store context, and makes `storeConnectionId` the primary authorization join.
+
+### Target Behavior
+
+Partner side:
+
+1. Partner opens **New implementation**.
+2. Partner searches/selects from eligible installed stores instead of typing a shop domain.
+3. Partner enters implementation details: client context, requested tier, requested surfaces, known integrations, notes.
+4. Platform creates a client implementation request linked to the real `storeConnectionId`.
+5. Request status becomes `WAITING_ON_MERCHANT`.
+
+Merchant side:
+
+1. Merchant opens the connected merchant/admin UI.
+2. Merchant sees pending partner access requests for that store.
+3. Merchant reviews partner name, requested tier, requested surfaces, scope, notes, and expiry.
+4. Merchant approves or denies.
+5. Platform records the decision and updates partner-visible request status.
+
+Approval outcome:
+
+- approval creates an active `PartnerStoreAssignment` linked to the real `storeConnectionId`
+- denial records the decision and leaves no active assignment
+- partner can only see assigned-store summaries after approval
+- approval records stay in Platform DB as the audit/authorization source of truth
+
+### Store Eligibility Rules
+
+The partner dropdown must not expose every installed store by default. It should return only stores that satisfy all of these:
+
+- Shopify app is installed and represented by a valid `ShopifyStoreConnection`
+- store is not suspended, blocked, or disconnected
+- store is not already assigned to the same partner account
+- no duplicate pending request exists for the same partner and store
+- merchant setting `partnerAccessRequestsEnabled=true`, or an operator has explicitly marked the store requestable
+- returned fields are partner-safe: display name, `.myshopify.com` domain, readiness/connection status, plan/tier eligibility, and no secrets/runtime internals
+
+Default posture should be private: if merchant/operator requestability is not configured, the store does not appear in partner search.
+
+### Backend Changes
+
+Data model:
+
+- Add `storeConnectionId` to `PartnerClientImplementationRequestEntity`.
+- Add `storeConnectionId` to `PartnerStoreAccessRequestEntity`.
+- Keep `shopDomain` as a denormalized audit/display field derived from the installed store, not as partner-entered authority.
+- Add or reuse merchant/store settings for `partnerAccessRequestsEnabled`.
+- Ensure `PartnerStoreAssignment.storeConnectionId` is required for the installed-store-first path.
+
+Partner APIs:
+
+```http
+GET /api/partners/eligible-stores?query=<text>
+POST /api/partners/client-implementations
+GET /api/partners/client-implementations/{requestId}
+```
+
+`POST /api/partners/client-implementations` should accept `storeConnectionId`, not a free-text authoritative `shopDomain`. Backend derives the shop domain from `ShopifyStoreConnection`.
+
+Merchant/admin APIs:
+
+```http
+GET /api/merchant/partner-access/requests
+POST /api/merchant/partner-access/requests/{requestId}/approve
+POST /api/merchant/partner-access/requests/{requestId}/deny
+```
+
+These endpoints must be authenticated by the connected merchant/admin context, not anonymous public approval-link access. The approval/denial handler verifies that the request belongs to the merchant's store before writing a decision.
+
+Existing public approval links:
+
+- remove them from the primary flow
+- keep only as a temporary fallback if explicitly needed for private beta
+- do not let public-link approval create an active assignment unless the shop domain resolves to an installed `ShopifyStoreConnection`
+
+### Partner UI Changes
+
+Update `Platfrom/partner-ui`:
+
+- Replace the **Shop domain** text field in `NewImplementationPage` with an installed-store autocomplete/search dropdown.
+- Search calls `GET /api/partners/eligible-stores`.
+- On selection, show a compact store summary: store name, shop domain, connection/readiness status, and requestability status.
+- Submit `storeConnectionId` with requested tier/surfaces/notes.
+- After creation, route to the implementation detail page with status `WAITING_ON_MERCHANT`.
+- Detail page should show merchant decision status and no longer position a public approval link as the default CTA.
+
+### Merchant/Admin UI Changes
+
+Add a merchant-facing request review surface in the connected store admin experience:
+
+- pending partner access requests
+- partner workspace/name
+- requested tier and surfaces
+- requested scope, known integrations, and notes
+- approve button
+- deny button with optional reason
+- audit trail for approved/denied/revoked decisions
+
+Merchant copy must make the boundary clear:
+
+- approval grants scoped implementation/support visibility only
+- no Shopify tokens, provider secrets, Railway/runtime internals, or unassigned store data are shared
+- merchant can revoke later
+
+### Status Model
+
+Implementation request statuses:
+
+- `DRAFT`
+- `WAITING_ON_MERCHANT`
+- `APPROVED`
+- `DENIED`
+- `CANCELLED`
+
+Store access request statuses:
+
+- `WAITING_ON_MERCHANT`
+- `APPROVED`
+- `DENIED`
+- `EXPIRED`
+- `REVOKED`
+
+Store assignment statuses:
+
+- `ACTIVE`
+- `SUSPENDED`
+- `REVOKED`
+
+For installed-store-first flow, do not create `ACTIVE` assignments without a real `storeConnectionId`.
+
+### Security And Boundary Requirements
+
+- Partner search must not leak stores that did not opt into partner requests.
+- Partner-created request cannot override `shopDomain`; backend derives it from `storeConnectionId`.
+- Merchant approval must be scoped to the authenticated merchant store context.
+- Denied/expired/revoked requests must not expose store workspace data.
+- Partner cannot access secrets, provider credentials, Railway variables, raw runtime logs, raw vectorization controls, or other stores.
+- Platform DB remains the authority for partner authorization, approval records, assignments, and audit.
+- Shopify Bridge/product service remains the authority for Shopify connection truth and store facts.
+
+### Implementation Slices
+
+Slice 1: backend authority update
+
+- Add `storeConnectionId` fields and migrations.
+- Add eligible-store query service.
+- Change client implementation creation to require `storeConnectionId`.
+- Add duplicate-pending-request and already-assigned guards.
+
+Slice 2: merchant decision path
+
+- Add merchant/admin request listing.
+- Add approve/deny endpoints.
+- Store approval/denial records in Platform DB.
+- Create `PartnerStoreAssignment` only on approval and only with real `storeConnectionId`.
+
+Slice 3: partner UI update
+
+- Replace shop-domain text entry with eligible-store autocomplete.
+- Show request status and merchant decision state.
+- Remove public approval-link CTA from the primary path.
+
+Slice 4: merchant/admin UI update
+
+- Add pending partner request list.
+- Add approve/deny workflow and copy.
+- Add visible approval boundary and revocation guidance.
+
+Slice 5: verification and live proof
+
+- Add backend integration tests for eligible-store filtering, duplicate guards, merchant approval, merchant denial, assignment creation, and partner boundary.
+- Add partner UI build/smoke coverage for the store selector.
+- Add merchant/admin UI build/smoke coverage for approve/deny.
+- Extend `scripts/verify-partner-enablement-live.sh` or add a dedicated live script to prove:
+  - installed eligible store appears in partner selector
+  - non-requestable/already-assigned stores do not appear
+  - partner can create a request for an eligible store
+  - merchant can approve from admin
+  - partner sees assigned store after approval
+  - merchant denial does not create an assignment
+  - partner responses remain partner-safe
+
+### Migration And Rollout
+
+Greenfield rollout posture:
+
+- New implementation requests should use installed-store-first flow.
+- Existing typed-domain requests can be discarded in non-production/test data or migrated only if they resolve to an installed `ShopifyStoreConnection`.
+- Public approval links should not be presented as the production default.
+- Release gate is not complete until live verification proves merchant-admin approval and partner-side reflection against Railway.
