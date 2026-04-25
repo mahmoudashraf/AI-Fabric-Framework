@@ -99,8 +99,8 @@ class ShopifyStorefrontBootstrapServiceTest {
             .containsExactly("Judge.me", "Loox");
         assertThat(response.defaultConversationMode()).isEqualTo("navigator");
         assertThat(response.effectiveConversationMode()).isEqualTo("navigator");
-        assertThat(response.allowedConversationModes()).containsExactly("navigator", "executor");
-        assertThat(response.pageModeMappings()).containsEntry("account", "executor");
+        assertThat(response.allowedConversationModes()).containsExactly("navigator");
+        assertThat(response.pageModeMappings()).isEmpty();
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
@@ -184,8 +184,59 @@ class ShopifyStorefrontBootstrapServiceTest {
 
         assertThat(response.available()).isTrue();
         assertThat(response.orderLookupEnabled()).isFalse();
-        assertThat(response.effectiveConversationMode()).isEqualTo("executor");
+        assertThat(response.effectiveConversationMode()).isEqualTo("navigator");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
+    }
+
+    @Test
+    void bootstrapAllowsConfiguredActionModesOnlyWhenTierIsActionCapable() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontBootstrapService service = new ShopifyStorefrontBootstrapService(
+            platformClient,
+            installCredentialService,
+            mock(ShopifyInstallRecordService.class),
+            billingService,
+            mock(ShopifyStorefrontGovernedActionService.class),
+            properties("https://bridge.example.com")
+        );
+        ShopifyBridgeStoreSummary store = store("INSTALLED", "READY", "NOT_ENABLED", "consumer-alpha", "dep-1");
+        ShopifyBridgeStoreSummary updated = store("INSTALLED", "READY", "ENABLED", "consumer-alpha", "dep-1");
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store);
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(platformClient.getConsumerCredentials("consumer-alpha")).thenReturn(new PlatformPublicConsumerDeploymentCredentialsResponse(
+            "consumer-alpha",
+            "dep-1",
+            "https://runtime.example.com",
+            new PlatformPublicDeploymentIntegrationSummary(
+                "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+                new PlatformPublicRuntimePostureSummary("SIGNED_PRIVATE_RUNTIME", true, true, false),
+                new PlatformPublicRuntimeEndpointsSummary(
+                    "https://runtime.example.com/api/chat/me",
+                    "https://runtime.example.com/api/chat/me/query",
+                    "https://runtime.example.com/api/chat/me/suggestions",
+                    "https://runtime.example.com/api/chat/me/conversations",
+                    "https://runtime.example.com/api/chat/me/auth-context"
+                ),
+                "Route storefront traffic through the Shopify Bridge backend."
+            )
+        ));
+        when(platformClient.recordWidgetStatus(eq("alpha.myshopify.com"), eq(new ShopifyBridgeRecordWidgetStatusRequest(
+            "ENABLED",
+            "THEME_APP_EXTENSION",
+            "Theme app extension resolved storefront bootstrap."
+        )))).thenReturn(updated);
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of("ai-search", "comparison")))
+            .thenReturn(List.of("ai-search", "comparison"));
+
+        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com", "account");
+
+        assertThat(response.billingTier()).isEqualTo("ELITE");
+        assertThat(response.allowedConversationModes()).containsExactly("navigator", "executor");
+        assertThat(response.pageModeMappings()).containsEntry("account", "executor");
+        assertThat(response.effectiveConversationMode()).isEqualTo("executor");
     }
 
     private ShopifyBridgeBillingSummary freeTierSummary() {
@@ -229,6 +280,29 @@ class ShopifyStorefrontBootstrapServiceTest {
                 )
             ),
             "Free tier is active."
+        );
+    }
+
+    private ShopifyBridgeBillingSummary eliteTierSummary() {
+        return new ShopifyBridgeBillingSummary(
+            "SHOPIFY_APP_SUBSCRIPTION",
+            "ELITE",
+            "Loom Companion Elite",
+            "ACTIVE",
+            false,
+            false,
+            true,
+            true,
+            null,
+            "HOURLY",
+            false,
+            true,
+            true,
+            true,
+            List.of("guided-commerce"),
+            List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
+            List.of(),
+            "Elite tier is active."
         );
     }
 

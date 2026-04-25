@@ -81,8 +81,8 @@ class ShopifyStorefrontControllerTest {
             "SHOPIFY_COMPANION",
             "navigator",
             "navigator",
-            List.of("navigator", "executor"),
-            java.util.Map.of("account", "executor"),
+            List.of("navigator"),
+            java.util.Map.of(),
             List.of("ai-search"),
             List.of("Catalog product grounding", "Policy grounding"),
             List.of("Judge.me", "Okendo"),
@@ -118,7 +118,7 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.shellModeProfile").value("SHOPIFY_COMPANION"))
             .andExpect(jsonPath("$.defaultConversationMode").value("navigator"))
             .andExpect(jsonPath("$.effectiveConversationMode").value("navigator"))
-            .andExpect(jsonPath("$.allowedConversationModes[1]").value("executor"))
+            .andExpect(jsonPath("$.allowedConversationModes[0]").value("navigator"))
             .andExpect(jsonPath("$.enabledSurfaces[0]").value("ai-search"))
             .andExpect(jsonPath("$.bridgeQueryUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query"))
             .andExpect(jsonPath("$.bridgeEventUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events"));

@@ -1,6 +1,9 @@
 package com.ai.fabric.product.shopify.bridge.storefront.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentReleaseSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploymentVersionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
@@ -9,13 +12,20 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,7 +36,7 @@ class ShopifyStorefrontChatServiceTest {
     @Test
     void queryForwardsReadyStoreTrafficToPlatformConsumerBridge() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
+        ShopifyStorefrontChatService service = service(platformClient);
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
         when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
@@ -83,7 +93,7 @@ class ShopifyStorefrontChatServiceTest {
     @Test
     void suggestionsNormalizesStorefrontContextBeforeForwarding() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
+        ShopifyStorefrontChatService service = service(platformClient);
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
         when(platformClient.suggestConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
@@ -146,7 +156,7 @@ class ShopifyStorefrontChatServiceTest {
     @Test
     void suggestionsAllowsSupportBlockedStoreWhenBaseStorefrontContractIsReady() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
+        ShopifyStorefrontChatService service = service(platformClient);
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(supportBlockedStore());
         when(platformClient.suggestConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {"content":"Current page: Travel Pack","maxSuggestions":4}
@@ -171,12 +181,128 @@ class ShopifyStorefrontChatServiceTest {
     @Test
     void suggestionsRejectsStoreWhenSourceReadinessIsNotReady() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
-        ShopifyStorefrontChatService service = new ShopifyStorefrontChatService(platformClient);
+        ShopifyStorefrontChatService service = service(platformClient);
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "PENDING"));
 
         assertThatThrownBy(() -> service.suggestions("alpha.myshopify.com", objectMapper.createObjectNode(), null))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("Store data is not ready yet");
+    }
+
+    @Test
+    void queryRejectsStarterOnlySurfaceWhenFreeStorePostsDirectContext() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(freeTierSummary());
+
+        assertThatThrownBy(() -> service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Compare this with alternatives",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"comparison",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
+    @Test
+    void queryNormalizesTopLevelShopifyContextIntoHiddenAttachment() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(freeTierSummary());
+        when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {
+              "query":"Show me backpacks",
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Shopify surface: ai-search. Shopify page group: product. Shopify mode: navigator. Product: Travel Pack. Product handle: travel-pack",
+                  "metadata":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"ai-search",
+                    "shopifyPageModeGroup":"product",
+                    "shopifyEffectiveConversationMode":"navigator",
+                    "productHandle":"travel-pack",
+                    "productTitle":"Travel Pack"
+                  }
+                }
+              ]
+            }
+            """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Here are some backpacks."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Show me backpacks",
+                  "pageType":"product",
+                  "shopifySurfaceEntry":"ai-search",
+                  "shopifyPageModeGroup":"product",
+                  "shopifyEffectiveConversationMode":"navigator",
+                  "product":{"handle":"travel-pack","title":"Travel Pack"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+    }
+
+    private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient) {
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        when(installCredentialService.resolvePersistedMaterial(anyString())).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop(anyString(), isNull())).thenReturn(freeTierSummary());
+        return service(platformClient, installCredentialService, billingService);
+    }
+
+    private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient,
+                                                 ShopifyBridgeInstallCredentialService installCredentialService,
+                                                 ShopifyBridgeBillingService billingService) {
+        return new ShopifyStorefrontChatService(platformClient, installCredentialService, billingService);
+    }
+
+    private ShopifyBridgeBillingSummary freeTierSummary() {
+        return new ShopifyBridgeBillingSummary(
+            "SHOPIFY_APP_SUBSCRIPTION",
+            "FREE",
+            "Loom Companion Free",
+            "ACTIVE",
+            false,
+            false,
+            false,
+            false,
+            50,
+            "DAILY",
+            true,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of("ai-search"),
+            List.of(),
+            "Free tier is active."
+        );
     }
 
     private ShopifyBridgeStoreSummary store(String installStatus,

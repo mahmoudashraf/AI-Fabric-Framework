@@ -14,30 +14,22 @@
     Array.prototype.forEach.call(roots, function (root) {
       var bridgeBaseUrl = trimValue(root.dataset.bridgeBaseUrl)
       var shopDomain = trimValue(root.dataset.shopDomain)
-      var requestedWidgetShell = normalizeWidgetShell(root.dataset.widgetShell)
       var maxModeShellScriptUrl = trimValue(root.dataset.maxModeShellScriptUrl)
       var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
       var embeddedSurfacesScriptUrl = trimValue(root.dataset.embeddedSurfacesScriptUrl)
       var embeddedSurfacesStylesheetUrl = trimValue(root.dataset.embeddedSurfacesStylesheetUrl)
-      var effectiveWidgetShell = resolveEffectiveWidgetShell(
-        requestedWidgetShell,
-        maxModeShellScriptUrl,
-        maxModeScriptUrl
-      )
+      var widgetShell = 'max-mode'
       if (!bridgeBaseUrl || !shopDomain) {
         root.dataset.status = 'configuration-required'
         return
       }
-      root.dataset.requestedWidgetShell = requestedWidgetShell
-      root.dataset.widgetShell = effectiveWidgetShell
+      root.dataset.widgetShell = widgetShell
 
       resolveBootstrap(root, {
         bridgeBaseUrl: bridgeBaseUrl,
         shopDomain: shopDomain,
         launcherLabel: trimValue(root.dataset.launcherLabel) || 'Ask the store assistant',
-        widgetShell: effectiveWidgetShell,
-        requestedWidgetShell: requestedWidgetShell,
-        legacyShellScriptUrl: trimValue(root.dataset.legacyShellScriptUrl),
+        widgetShell: widgetShell,
         maxModeShellScriptUrl: maxModeShellScriptUrl,
         maxModeScriptUrl: maxModeScriptUrl,
         embeddedSurfacesScriptUrl: embeddedSurfacesScriptUrl,
@@ -125,9 +117,9 @@
       return Promise.resolve(registry[widgetShell])
     }
 
-    var shellUrl = widgetShell === 'max-mode' ? config.maxModeShellScriptUrl : config.legacyShellScriptUrl
+    var shellUrl = config.maxModeShellScriptUrl
     if (!shellUrl) {
-      return Promise.reject(new Error('Theme app embed is missing the ' + widgetShell + ' shell asset URL.'))
+      return Promise.reject(new Error('Theme app embed is missing the Max Mode shell asset URL.'))
     }
 
     if (!shellLoadPromises[shellUrl]) {
@@ -312,20 +304,6 @@
     }
 
     return context
-  }
-
-  function normalizeWidgetShell(value) {
-    return value === 'max-mode' ? 'max-mode' : 'max-mode'
-  }
-
-  function resolveEffectiveWidgetShell(requestedWidgetShell, maxModeShellScriptUrl, maxModeScriptUrl) {
-    if (requestedWidgetShell === 'max-mode') {
-      return 'max-mode'
-    }
-    if (maxModeShellScriptUrl && maxModeScriptUrl) {
-      return 'max-mode'
-    }
-    return 'max-mode'
   }
 
   function trimValue(value) {

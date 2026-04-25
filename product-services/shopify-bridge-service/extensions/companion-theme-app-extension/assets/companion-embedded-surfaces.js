@@ -112,6 +112,9 @@
       suggestionsLoaded: false,
       suggestions: searchQuickActions(options.storefrontContext, shellModeProfile),
       lastQuery: '',
+      lastPosition: 'search',
+      lastMode: defaultSearchMode(shellModeProfile),
+      lastRequestContext: createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search'),
       resultMessage: '',
       resultProducts: [],
       resultSources: [],
@@ -229,15 +232,18 @@
       state.isLoading = true
       state.errorMessage = ''
       state.lastQuery = query
+      state.lastPosition = 'search'
+      state.lastMode = mode || defaultSearchMode(shellModeProfile)
+      state.lastRequestContext = requestContext || createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search')
       renderResults()
       fetchJson(options.payload.bridgeQueryUrl, {
         method: 'POST',
         headers: shopperHeaders(options),
         body: JSON.stringify({
           query: query,
-          mode: mode || defaultSearchMode(shellModeProfile),
+          mode: state.lastMode,
           conversationId: state.conversationId || undefined,
-          storefrontContext: requestContext || createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search'),
+          storefrontContext: state.lastRequestContext,
         }),
       })
         .then(function (response) {
@@ -328,10 +334,18 @@
       cardsHost.innerHTML = ''
 
       if (state.resultProducts.length > 0) {
-        cardsHost.appendChild(renderCardGroup('Matched products', state.resultProducts, 'Open product'))
+        cardsHost.appendChild(renderCardGroup('Matched products', state.resultProducts, 'Open product', {
+          position: state.lastPosition,
+          mode: state.lastMode,
+          requestContext: state.lastRequestContext,
+        }))
       }
       if (state.resultSources.length > 0) {
-        cardsHost.appendChild(renderCardGroup('Grounding sources', state.resultSources, 'Open source'))
+        cardsHost.appendChild(renderCardGroup('Grounding sources', state.resultSources, 'Open source', {
+          position: state.lastPosition,
+          mode: state.lastMode,
+          requestContext: state.lastRequestContext,
+        }))
       }
 
       continueButton.hidden = !window.MaxMode || typeof window.MaxMode.sendMessage !== 'function'
@@ -931,10 +945,18 @@
       cardsHost.innerHTML = ''
 
       if (state.resultProducts.length > 0) {
-        cardsHost.appendChild(renderCardGroup('Matched products', state.resultProducts, 'Open product'))
+        cardsHost.appendChild(renderCardGroup('Matched products', state.resultProducts, 'Open product', {
+          position: state.lastPosition,
+          mode: state.lastMode,
+          requestContext: state.lastRequestContext,
+        }))
       }
       if (state.resultSources.length > 0) {
-        cardsHost.appendChild(renderCardGroup('Grounding sources', state.resultSources, 'Open source'))
+        cardsHost.appendChild(renderCardGroup('Grounding sources', state.resultSources, 'Open source', {
+          position: state.lastPosition,
+          mode: state.lastMode,
+          requestContext: state.lastRequestContext,
+        }))
       }
 
       continueButton.hidden = !window.MaxMode || typeof window.MaxMode.sendMessage !== 'function'
@@ -1387,7 +1409,7 @@
     return values
   }
 
-  function renderCardGroup(title, items, linkLabel) {
+  function renderCardGroup(title, items, linkLabel, handoffOptions) {
     var group = document.createElement('div')
     group.className = 'loom-companion-card-group'
 
@@ -1433,6 +1455,11 @@
           actions.appendChild(createChipButton('Add to Max', function () {
             attachCardToMax(item)
           }))
+          if (isMaxPromptSupported()) {
+            actions.appendChild(createChipButton('Ask in Max', function () {
+              askCardInMax(item, handoffOptions)
+            }))
+          }
         }
         if (item.url) {
           var link = document.createElement('a')
@@ -2000,6 +2027,10 @@
     )
   }
 
+  function isMaxPromptSupported() {
+    return !!(window.MaxMode && typeof window.MaxMode.sendMessage === 'function')
+  }
+
   function attachCardToMax(item) {
     if (!item || !item.attachment || !window.MaxMode) {
       return false
@@ -2013,6 +2044,22 @@
       return true
     }
     return false
+  }
+
+  function askCardInMax(item, handoffOptions) {
+    if (!attachCardToMax(item)) {
+      return false
+    }
+    var title = trimValue(item.title || item.label || 'this item')
+    var query = item.attachment && item.attachment.type === 'product'
+      ? 'Tell me more about "' + title + '" and compare it with similar options in this store.'
+      : 'Use "' + title + '" as context and help me understand what matters most.'
+    return sendPrompt(
+      query,
+      handoffOptions && handoffOptions.position ? handoffOptions.position : 'catalog',
+      handoffOptions && handoffOptions.mode ? handoffOptions.mode : 'navigator_deep',
+      handoffOptions && handoffOptions.requestContext ? handoffOptions.requestContext : undefined
+    )
   }
 
   function firstArray() {

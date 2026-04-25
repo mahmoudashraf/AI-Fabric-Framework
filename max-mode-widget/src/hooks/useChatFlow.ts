@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import { emitEvent } from "@/config";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
-import { normalizeMessageContent } from "@/utils";
+import { normalizeMessageContent, withRequestContext } from "@/utils";
 
 export function useChatFlow({
   chatQuery,
@@ -188,15 +188,17 @@ export function useChatFlow({
 
         const explicitMode = mode !== "navigator" ? mode : undefined;
 
-        const requestPayload = {
+        const mergedRequestContext = {
+          ...(requestContext || {}),
+          ...(extraRequestContext || {}),
+        };
+        const requestPayload = withRequestContext({
           query: apiQuery,
           conversationId: currentConversationId || undefined,
           position,
           mode: explicitMode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
-          ...(requestContext || {}),
-          ...(extraRequestContext || {}),
-        };
+        }, mergedRequestContext);
 
         setLastRequestData({
           endpoint: resolvedChatQueryUrl(),

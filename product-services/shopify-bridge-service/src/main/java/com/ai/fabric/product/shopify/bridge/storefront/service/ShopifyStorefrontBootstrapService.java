@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class ShopifyStorefrontBootstrapService {
@@ -35,6 +37,16 @@ public class ShopifyStorefrontBootstrapService {
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of("ai-search");
     private static final List<String> DEFAULT_ALLOWED_CONVERSATION_MODES = List.of(DEFAULT_CONVERSATION_MODE);
     private static final Map<String, String> DEFAULT_PAGE_MODE_MAPPINGS = Map.of();
+    private static final Set<String> CANONICAL_CONVERSATION_MODES = Set.of(
+        "navigator",
+        "navigator_deep",
+        "cart_assistant",
+        "executor"
+    );
+    private static final Set<String> ACTION_CONVERSATION_MODES = Set.of(
+        "cart_assistant",
+        "executor"
+    );
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -111,16 +123,22 @@ public class ShopifyStorefrontBootstrapService {
             && updated.widgetDetail().settings().shellModeProfile() != null && !updated.widgetDetail().settings().shellModeProfile().isBlank()
             ? updated.widgetDetail().settings().shellModeProfile().trim()
             : DEFAULT_SHELL_MODE_PROFILE;
-        String defaultConversationMode = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+        String configuredDefaultConversationMode = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().defaultConversationMode() != null
             && !updated.widgetDetail().settings().defaultConversationMode().isBlank()
             ? updated.widgetDetail().settings().defaultConversationMode().trim()
             : defaultConversationModeForShellProfile(shellModeProfile);
+        String defaultConversationMode = resolveDefaultConversationMode(
+            configuredDefaultConversationMode,
+            shellModeProfile,
+            billingSummary
+        );
         List<String> allowedConversationModes = normalizeAllowedConversationModes(
             updated.widgetDetail() != null && updated.widgetDetail().settings() != null
                 ? updated.widgetDetail().settings().allowedConversationModes()
                 : null,
-            defaultConversationMode
+            defaultConversationMode,
+            billingSummary
         );
         Map<String, String> pageModeMappings = normalizePageModeMappings(
             updated.widgetDetail() != null && updated.widgetDetail().settings() != null
@@ -325,15 +343,50 @@ public class ShopifyStorefrontBootstrapService {
         return base + path;
     }
 
-    private List<String> normalizeAllowedConversationModes(List<String> configured, String defaultConversationMode) {
+    private String resolveDefaultConversationMode(String configuredDefaultConversationMode,
+                                                  String shellModeProfile,
+                                                  ShopifyBridgeBillingSummary billingSummary) {
+        return normalizeConversationMode(configuredDefaultConversationMode, billingSummary)
+            .or(() -> normalizeConversationMode(defaultConversationModeForShellProfile(shellModeProfile), billingSummary))
+            .orElse(DEFAULT_CONVERSATION_MODE);
+    }
+
+    private Optional<String> normalizeConversationMode(String value, ShopifyBridgeBillingSummary billingSummary) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (!CANONICAL_CONVERSATION_MODES.contains(normalized)) {
+            return Optional.empty();
+        }
+        if (!conversationModeEntitled(normalized, billingSummary)) {
+            return Optional.empty();
+        }
+        return Optional.of(normalized);
+    }
+
+    private boolean conversationModeEntitled(String mode, ShopifyBridgeBillingSummary billingSummary) {
+        if (DEFAULT_CONVERSATION_MODE.equals(mode)) {
+            return true;
+        }
+        if ("navigator_deep".equals(mode)) {
+            return billingSummary != null && billingSummary.chatFallbackEnabled();
+        }
+        if (ACTION_CONVERSATION_MODES.contains(mode)) {
+            return billingSummary != null && billingSummary.actionCapable();
+        }
+        return false;
+    }
+
+    private List<String> normalizeAllowedConversationModes(List<String> configured,
+                                                           String defaultConversationMode,
+                                                           ShopifyBridgeBillingSummary billingSummary) {
         if (configured == null || configured.isEmpty()) {
             return List.of(defaultConversationMode);
         }
         java.util.LinkedHashSet<String> normalized = new java.util.LinkedHashSet<>();
         configured.forEach(mode -> {
-            if (mode != null && !mode.isBlank()) {
-                normalized.add(mode.trim().toLowerCase(Locale.ROOT));
-            }
+            normalizeConversationMode(mode, billingSummary).ifPresent(normalized::add);
         });
         normalized.add(defaultConversationMode.trim().toLowerCase(Locale.ROOT));
         return List.copyOf(normalized);

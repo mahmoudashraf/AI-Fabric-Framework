@@ -347,6 +347,7 @@ export function useMaxModeController({
   const { toast } = useToast();
   const widgetConfig = getWidgetConfig();
   const hostConfig = widgetConfig.host;
+  const debugEnabled = widgetConfig.features?.debug === true;
   const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
   const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
   const hostStarterSuggestions = useMemo(() => deriveStarterSuggestions(hostConfig), [hostConfig]);
@@ -840,9 +841,12 @@ export function useMaxModeController({
   });
 
   const openDebugInspector = useCallback((message?: ChatMessage) => {
+    if (!debugEnabled) {
+      return;
+    }
     if (message) setSelectedDebugMessage(message);
     setIsDebugModalOpen(true);
-  }, []);
+  }, [debugEnabled]);
 
   const closeDebugInspector = useCallback(() => {
     setIsDebugModalOpen(false);
@@ -1047,6 +1051,7 @@ export function useMaxModeController({
     currentMode,
     setCurrentMode,
     allowedConversationModes,
+    debugEnabled,
     cartEnabled,
     isDebugModalOpen,
     setIsDebugModalOpen,

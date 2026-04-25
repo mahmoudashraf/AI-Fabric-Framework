@@ -54,6 +54,7 @@ export function MessageBubble({
   attachedItems,
   confirmationStatus,
   expandedCount,
+  debugEnabled,
   onOpenDebug,
   onResendAction,
   onReattachItem,
@@ -74,6 +75,7 @@ export function MessageBubble({
   attachedItems: Array<{ type: string; data: any }>;
   confirmationStatus: Record<string, "confirmed" | "rejected" | undefined>;
   expandedCount: number;
+  debugEnabled: boolean;
   onOpenDebug: (message: ChatMessage) => void;
   onResendAction: (fullMessage: string) => void;
   onReattachItem: (item: { type: string; data: any }, isAlreadyAttached: boolean) => void;
@@ -120,7 +122,7 @@ export function MessageBubble({
                 </div>
                 <span className="text-[11px] md:text-xs font-bold text-white drop-shadow-sm">{aiStyles?.label}</span>
               </div>
-              {message.debugData && (
+              {debugEnabled && message.debugData && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -749,7 +751,7 @@ export function MessageBubble({
             </motion.div>
           )}
 
-          {message.type === "ai" && message.debugData && (
+          {debugEnabled && message.type === "ai" && message.debugData && (
             <div className="mt-3 flex justify-end">
               <button
                 onClick={(e) => {

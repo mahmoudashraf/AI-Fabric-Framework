@@ -36,6 +36,7 @@ export function Composer({
   currentMode,
   availableModes,
   onModeChange,
+  debugEnabled,
   onOpenDebug,
   onSubmit,
 }: {
@@ -63,6 +64,7 @@ export function Composer({
   currentMode: MaxModeMode;
   availableModes: MaxModeMode[];
   onModeChange: (mode: MaxModeMode) => void;
+  debugEnabled: boolean;
   onOpenDebug: () => void;
   onSubmit: () => void;
 }) {
@@ -118,6 +120,7 @@ export function Composer({
             currentMode={currentMode}
             availableModes={availableModes}
             onModeChange={onModeChange}
+            debugEnabled={debugEnabled}
             onOpenDebug={onOpenDebug}
             nonAiAttachmentsCount={nonAiAttachments.length}
             onSubmit={onSubmit}

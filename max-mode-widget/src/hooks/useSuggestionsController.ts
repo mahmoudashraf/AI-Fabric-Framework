@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getChatSuggestions } from "@/api/chat";
+import { withRequestContext } from "@/utils";
 
 export function useSuggestionsController({
   attachedItems,
@@ -52,12 +53,11 @@ export function useSuggestionsController({
           return `${item.type}: ${name}`;
         });
 
-        const data = await getChatSuggestions({
+        const data = await getChatSuggestions(withRequestContext({
           content: contentParts.join("; ") || "Give me suggestions based on attached items",
           maxSuggestions: 4,
           attachments: attachments.length > 0 ? attachments : undefined,
-          ...(requestContext || {}),
-        });
+        }, requestContext));
 
         if (data.suggestions && Array.isArray(data.suggestions)) {
           const newSuggestions = data.suggestions.filter((s: unknown): s is string => typeof s === "string" && s.length > 0);

@@ -27,6 +27,7 @@ export function ComposerInputRow({
   currentMode,
   availableModes,
   onModeChange,
+  debugEnabled,
   onOpenDebug,
   nonAiAttachmentsCount,
   onSubmit,
@@ -48,6 +49,7 @@ export function ComposerInputRow({
   currentMode: MaxModeMode;
   availableModes: MaxModeMode[];
   onModeChange: (mode: MaxModeMode) => void;
+  debugEnabled: boolean;
   onOpenDebug: () => void;
   nonAiAttachmentsCount: number;
   onSubmit: () => void;
@@ -70,13 +72,15 @@ export function ComposerInputRow({
         >
           {currentPosition}
         </span>
-        <button
-          onClick={onOpenDebug}
-          className="ml-auto h-5 w-5 rounded-full bg-gray-800/80 text-white flex items-center justify-center"
-          title="View API Debug Info"
-        >
-          <Info className="h-3 w-3" />
-        </button>
+        {debugEnabled && (
+          <button
+            onClick={onOpenDebug}
+            className="ml-auto h-5 w-5 rounded-full bg-gray-800/80 text-white flex items-center justify-center"
+            title="View API Debug Info"
+          >
+            <Info className="h-3 w-3" />
+          </button>
+        )}
       </div>
 
       {/* Input row */}
@@ -164,13 +168,15 @@ export function ComposerInputRow({
           >
             {currentPosition}
           </span>
-          <button
-            onClick={onOpenDebug}
-            className="h-5 w-5 rounded-full bg-gray-800/80 text-white flex items-center justify-center hover:bg-gray-700 transition-colors"
-            title="View API Debug Info"
-          >
-            <Info className="h-3 w-3" />
-          </button>
+          {debugEnabled && (
+            <button
+              onClick={onOpenDebug}
+              className="h-5 w-5 rounded-full bg-gray-800/80 text-white flex items-center justify-center hover:bg-gray-700 transition-colors"
+              title="View API Debug Info"
+            >
+              <Info className="h-3 w-3" />
+            </button>
+          )}
         </div>
 
         <Button

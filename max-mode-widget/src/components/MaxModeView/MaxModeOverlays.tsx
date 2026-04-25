@@ -6,6 +6,7 @@ import type { MaxModeController } from "@/hooks/useMaxModeController";
 export function MaxModeOverlays({ controller }: { controller: MaxModeController }) {
   const {
     isDebugModalOpen,
+    debugEnabled,
     closeDebugInspector,
     selectedDebugMessage,
     lastRequestData,
@@ -23,13 +24,15 @@ export function MaxModeOverlays({ controller }: { controller: MaxModeController 
 
   return (
     <>
-      <DebugInspectorPanel
-        isOpen={isDebugModalOpen}
-        onClose={closeDebugInspector}
-        selectedDebugMessage={selectedDebugMessage}
-        lastRequestData={lastRequestData}
-        lastResponseData={lastResponseData}
-      />
+      {debugEnabled && (
+        <DebugInspectorPanel
+          isOpen={isDebugModalOpen}
+          onClose={closeDebugInspector}
+          selectedDebugMessage={selectedDebugMessage}
+          lastRequestData={lastRequestData}
+          lastResponseData={lastResponseData}
+        />
+      )}
 
       <ConversationHistoryPanel
         isOpen={isConversationsOpen}

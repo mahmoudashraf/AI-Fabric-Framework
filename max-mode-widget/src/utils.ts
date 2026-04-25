@@ -11,6 +11,58 @@ export const normalizeMessageContent = (value: unknown): string => {
   }
 };
 
+const SHOPIFY_REQUEST_CONTEXT_FIELDS = new Set([
+  "pageType",
+  "pageTitle",
+  "product",
+  "collection",
+  "document",
+  "shopifyShellModeProfile",
+  "shopifySurfaceEntry",
+  "shopifyPageModeGroup",
+  "shopifyEffectiveConversationMode",
+  "shopifyAllowedConversationModes",
+  "shopifyPageModeMappings",
+]);
+
+const cleanRequestContext = (requestContext?: Record<string, any>) => {
+  if (!requestContext || typeof requestContext !== "object") {
+    return undefined;
+  }
+  const cleaned = Object.fromEntries(
+    Object.entries(requestContext).filter(([, value]) => value !== undefined),
+  );
+  return Object.keys(cleaned).length ? cleaned : undefined;
+};
+
+export const hasShopifyRequestContext = (requestContext?: Record<string, any>): boolean => {
+  const cleaned = cleanRequestContext(requestContext);
+  if (!cleaned) {
+    return false;
+  }
+  return Object.keys(cleaned).some((key) => SHOPIFY_REQUEST_CONTEXT_FIELDS.has(key));
+};
+
+export const withRequestContext = <T extends Record<string, any>>(
+  payload: T,
+  requestContext?: Record<string, any>,
+): T & Record<string, any> => {
+  const cleaned = cleanRequestContext(requestContext);
+  if (!cleaned) {
+    return payload;
+  }
+  if (hasShopifyRequestContext(cleaned)) {
+    return {
+      ...payload,
+      storefrontContext: cleaned,
+    };
+  }
+  return {
+    ...payload,
+    ...cleaned,
+  };
+};
+
 export const formatFieldName = (key: string): string => {
   return key
     .replace(/([A-Z])/g, " $1")
@@ -36,4 +88,3 @@ export const formatFieldValue = (value: any): string => {
   }
   return String(value);
 };
-
