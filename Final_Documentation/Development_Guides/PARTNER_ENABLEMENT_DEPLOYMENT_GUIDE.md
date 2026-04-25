@@ -68,7 +68,8 @@ For Railway, use the included Dockerfile:
 
 - build context: repository root
 - Dockerfile: `Platfrom/partner-ui/deploy/railway/Dockerfile`
-- public domain: `partners.loomai.pro`
+- temporary verification domain: Railway-generated `*.up.railway.app`
+- production public domain: `partners.loomai.pro`
 
 Set runtime env on the Partner UI Railway service:
 
@@ -83,7 +84,7 @@ The static server serves `/runtime-config.js`, so these values are injected at r
 Health check:
 
 ```bash
-curl -fsS https://partners.loomai.pro/health
+curl -fsS "$PARTNER_UI_BASE_URL/health"
 ```
 
 Expected:
@@ -91,6 +92,14 @@ Expected:
 ```json
 {"status":"UP"}
 ```
+
+Runtime config check:
+
+```bash
+curl -fsS "$PARTNER_UI_BASE_URL/runtime-config.js"
+```
+
+The script must contain non-empty `platformApiBaseUrl`, `supabaseUrl`, and `supabaseAnonKey` values. If it returns empty strings, set the Partner UI Railway env vars above and redeploy.
 
 ## Email-Only Test Account
 
@@ -115,10 +124,10 @@ PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
   scripts/verify-partner-enablement-live.sh
 ```
 
-Strict release gate after backend and UI are deployed:
+Strict release gate after backend and UI are deployed. Use the Railway-generated service URL until `partners.loomai.pro` is ready:
 
 ```bash
-PARTNER_UI_BASE_URL=https://partners.loomai.pro \
+PARTNER_UI_BASE_URL=https://<partner-ui-service>.up.railway.app \
 PARTNER_SUPABASE_JWT="$(cat /tmp/partner_supabase_jwt.secret)" \
 PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
 PARTNER_LIVE_STRICT=true \

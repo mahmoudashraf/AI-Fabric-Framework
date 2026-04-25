@@ -1961,7 +1961,7 @@ Supabase proof:
 Strict live verification is still blocked by deployment state:
 
 ```bash
-PARTNER_UI_BASE_URL=https://partners.loomai.pro \
+PARTNER_UI_BASE_URL=https://<partner-ui-service>.up.railway.app \
 PARTNER_SUPABASE_JWT="<valid temp JWT>" \
 PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
 PARTNER_LIVE_STRICT=true \
@@ -1973,7 +1973,8 @@ Observed result:
 - backend health reachable
 - unauthenticated partner session rejected with HTTP `401`
 - invalid partner JWT rejected with HTTP `401`
-- `partners.loomai.pro` DNS does not currently resolve
+- temporary Partner UI Railway URL `https://ai-fabric-framework-production-158d.up.railway.app` returns HTTP `200` for `/health`, `/runtime-config.js`, and `/`
+- Partner UI runtime config currently returns empty values, so the Railway service still needs `PARTNER_UI_PLATFORM_API_BASE_URL`, `PARTNER_UI_SUPABASE_URL`, and `PARTNER_UI_SUPABASE_ANON_KEY`
 
 Backend-only authenticated check with the valid Supabase JWT is also blocked because the deployed production backend is not serving the partner-enabled routes yet:
 
@@ -1991,6 +1992,6 @@ Backend-only authenticated check with the valid Supabase JWT is also blocked bec
 
 - deploy a Platform backend branch that contains the Partner Enablement slice
 - configure the Platform Supabase auth env values from the deployment guide
-- deploy the Partner UI service using `Platfrom/partner-ui/deploy/railway/Dockerfile`
-- point `partners.loomai.pro` DNS to the Partner UI service
+- set Partner UI Railway runtime env values and redeploy the temporary Railway service
+- later point `partners.loomai.pro` DNS to the Partner UI service when moving to production
 - rerun strict live verification with the non-committed temp JWT

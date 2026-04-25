@@ -62,6 +62,43 @@ cp "${session_invalid_body}" "${TMP_DIR}/last-body"
 assert_status "${session_invalid_status}" "401" "invalid partner JWT is rejected"
 
 if [[ -n "${PARTNER_UI_BASE_URL}" ]]; then
+  ui_health_body="${TMP_DIR}/partner-ui-health.json"
+  ui_health_status="$(request GET "${PARTNER_UI_BASE_URL%/}/health" "${ui_health_body}")"
+  cp "${ui_health_body}" "${TMP_DIR}/last-body"
+  assert_status "${ui_health_status}" "200" "partner UI health reachable"
+
+  ui_runtime_body="${TMP_DIR}/partner-ui-runtime-config.js"
+  ui_runtime_status="$(request GET "${PARTNER_UI_BASE_URL%/}/runtime-config.js" "${ui_runtime_body}")"
+  cp "${ui_runtime_body}" "${TMP_DIR}/last-body"
+  assert_status "${ui_runtime_status}" "200" "partner UI runtime config reachable"
+python3 - <<'PY' "${ui_runtime_body}" "${BASE_URL}"
+import json
+import pathlib
+import re
+import sys
+
+body = pathlib.Path(sys.argv[1]).read_text(errors="replace")
+expected_platform_base = sys.argv[2].rstrip("/")
+try:
+    match = re.search(r"Object\.freeze\((\{.*\})\)", body, re.DOTALL)
+    if not match:
+        raise AssertionError("runtime config did not expose Object.freeze({...})")
+    config = json.loads(match.group(1))
+    platform_base = str(config.get("platformApiBaseUrl") or "").rstrip("/")
+    supabase_url = str(config.get("supabaseUrl") or "")
+    supabase_anon_key = str(config.get("supabaseAnonKey") or "")
+    if platform_base != expected_platform_base:
+        raise AssertionError("runtime platform API base URL is missing or points at the wrong backend")
+    if not supabase_url.startswith("https://"):
+        raise AssertionError("runtime Supabase URL is missing")
+    if not supabase_anon_key:
+        raise AssertionError("runtime Supabase anon key is missing")
+except Exception as exc:
+    print(f"FAIL: partner UI runtime config is not deploy-ready: {exc}", file=sys.stderr)
+    sys.exit(1)
+print("PASS: partner UI runtime config is populated")
+PY
+
   ui_body="${TMP_DIR}/partner-ui.html"
   ui_status="$(request GET "${PARTNER_UI_BASE_URL%/}/" "${ui_body}")"
   cp "${ui_body}" "${TMP_DIR}/last-body"
