@@ -521,6 +521,105 @@ Live verification blockers:
 
 ---
 
+## Next-Session Unblock Pack
+
+Use this section to finish the pending live proof without rediscovering the blocker.
+
+### Required Secret Inputs
+
+Do not paste these values into chat, docs, commits, screenshots, or logs.
+
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY`
+  - Must equal the deployed Shopify Bridge `SHOPIFY_BRIDGE_SHARED_SECRET`.
+  - Source it from the Railway service secret or the private handoff.
+  - Verification header defaults to `X-BRIDGE-API-KEY`.
+- `SHOPIFY_CLI_PARTNERS_TOKEN`
+  - Must be a valid Partner Dashboard CLI token for the Shopify app owner context.
+  - Required for non-interactive `shopify app deploy` from an LLM/CI session.
+- Optional browser/session inputs:
+  - `SHOPIFY_MERCHANT_AUTHORIZATION`
+  - `SHOPIFY_EMBEDDED_HOST`
+  - current storefront password or merchant browser session, if the test store is protected
+
+### Bridge Admin Endpoint Unblock
+
+First prove that the provided bridge admin key matches production:
+
+```bash
+curl -fsS \
+  -H "X-BRIDGE-API-KEY: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}" \
+  "${SHOPIFY_BRIDGE_BASE_URL}/api/admin/overview" \
+  >/tmp/shopify-bridge-admin-overview.json
+```
+
+Expected:
+
+- HTTP `200`
+- response contains the bridge service overview
+
+Failure interpretation:
+
+- HTTP `401`: supplied `SHOPIFY_BRIDGE_ADMIN_API_KEY` does not match deployed `SHOPIFY_BRIDGE_SHARED_SECRET`
+- HTTP `503`: deployed bridge has no admin key configured
+- missing local key: skip admin checks, but do not mark full live verification complete
+
+Then rerun Shopify verification with admin coverage enabled:
+
+```bash
+scripts/verify-shopify-companion.sh
+```
+
+Record only pass/fail and endpoint class in `CODEX_WORKING_CONTEXT.md`; never record the key.
+
+### Shopify Theme Extension Publish Unblock
+
+From repo root, verify the non-interactive Shopify CLI credential is present:
+
+```bash
+test -n "${SHOPIFY_CLI_PARTNERS_TOKEN:-}"
+npm --prefix product-services/shopify-bridge-service run shopify:preflight
+npm --prefix product-services/shopify-bridge-service run shopify:app:info
+```
+
+Expected:
+
+- commands complete without a device-code login prompt
+- app owner/context resolves to the real Loom Companion Shopify app
+
+Then publish the app/theme extension version:
+
+```bash
+npm --prefix product-services/shopify-bridge-service run shopify:app:deploy
+```
+
+Stop conditions:
+
+- If Shopify CLI asks for interactive login, the token/session is missing or invalid for this app owner context.
+- If app context is wrong, stop before deploy and fix the Partner token/app config.
+- If deploy succeeds but storefront does not change, confirm the merchant store has enabled the app embed and is using the deployed app version.
+
+### Final Browser Proof To Capture
+
+After deploy, use Playwright or a real browser session:
+
+- Open `https://shopping-companion-test.myshopify.com`.
+- If storefront password is enabled, unlock with the current private handoff value.
+- Open a product page or page where a Companion app block is placed.
+- Verify an embedded Companion surface renders from the Shopify-hosted theme extension.
+- Click the embedded surface action that opens Max Mode.
+- Confirm Max Mode opens from the embedded surface and receives the page/surface context or attachment handoff.
+- Repeat desktop and mobile viewport smoke.
+- Save screenshots locally under `/tmp/shopify-verify/`.
+
+Completion condition:
+
+- Admin live checks pass with the matching bridge shared secret.
+- Shopify app/theme extension deploy completes non-interactively.
+- Browser proof shows Shopify-hosted embedded surface opening Max Mode.
+- `CODEX_WORKING_CONTEXT.md` records the completed live proof, commands, screenshots path, and any remaining blockers.
+
+---
+
 ## Handoff Template
 
 Append a compact note to `CODEX_WORKING_CONTEXT.md` using this shape:

@@ -534,3 +534,9 @@ What I do not need anymore:
 - I do not need another app-creation step for the current app
 - I do not need an interactive Shopify CLI login if `SHOPIFY_CLI_PARTNERS_TOKEN` is available
 - I do not need the Dev Dashboard fallback path for the real deployment
+
+Current LLM unblock checklist:
+
+- Bridge admin verification needs `SHOPIFY_BRIDGE_ADMIN_API_KEY` set to the deployed bridge `SHOPIFY_BRIDGE_SHARED_SECRET`; HTTP `401` from `/api/admin/overview` means the supplied value is not the deployed value.
+- Shopify-hosted theme extension proof needs a valid `SHOPIFY_CLI_PARTNERS_TOKEN`; if `npm --prefix product-services/shopify-bridge-service run shopify:app:deploy` prompts for device-code login, stop and provide/fix the non-interactive Partner token.
+- After deploy, verify the merchant theme has the app embed/block enabled, then browser-check that a Shopify-hosted embedded surface opens Max Mode.

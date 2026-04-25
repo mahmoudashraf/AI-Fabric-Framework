@@ -430,6 +430,13 @@ Safety rules:
 - use workflow/script mode `verify` first
 - use `rollout` only when intentionally advancing store state
 - use `uninstall_verify` only with an explicitly disposable shop and explicit destructive confirmation
+- full Shopify live proof is not complete when bridge admin checks are skipped or when the Shopify-hosted theme extension has not been deployed/browser-verified
+
+Current known unblock path:
+
+- If bridge admin checks return HTTP `401`, replace the local/CI `SHOPIFY_BRIDGE_ADMIN_API_KEY` with the deployed Shopify Bridge `SHOPIFY_BRIDGE_SHARED_SECRET`; do not rotate either value unless intentionally changing both sides.
+- If `shopify:app:deploy` reaches a device-code login prompt, provide a valid `SHOPIFY_CLI_PARTNERS_TOKEN` for the real app owner context and rerun non-interactively.
+- After authenticated deploy, verify the merchant theme app embed/block is enabled and browser-check the Shopify-hosted embedded surface opening Max Mode on desktop and mobile.
 
 Current read-only checks in `scripts/verify-shopify-companion.sh`:
 
