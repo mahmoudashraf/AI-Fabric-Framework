@@ -1,6 +1,6 @@
 # Partner Enablement Foundation
 
-Status: implementation handoff (2026-04-25)
+Status: comprehensive implementation handoff (revised 2026-04-25)
 
 Owner mode: technical LLM implementation session
 
@@ -39,7 +39,9 @@ This Phase 3 handoff starts Partner Enablement Foundation.
 
 The partner strategy is implementation support for developers, integrators, agencies, and consultants who help client stores or current apps add LoomAI intelligence pieces. This is not an affiliate program, referral dashboard, passive acquisition surface, public partner signup, commission workflow, or white-label program.
 
-The first implementation milestone is a founding partner enablement kit and repeatable verification flow, not a full partner portal. The goal is to make one serious implementation partner able to understand what can be deployed, set it up on a test/client store, verify it, and escalate with useful evidence without needing a live walkthrough every time.
+The implementation target is now a mature partner enablement operating layer, not only a founding-partner document kit. The platform already has one working Shopify store and verified intelligent embedded surfaces, so partner enablement should be designed as a complete product capability from the start, shipped in controlled increments.
+
+The first usable release can still start with founding partners, but the architecture and handoff must cover the complete path: partner access, client-store portfolio, intelligence catalog, client store workspace, setup and verification packs, support escalation, evidence exports, templates, auditing, and operator override. The goal is to make a serious implementation partner able to deploy and support multiple client stores without full operator access or live explanation every time.
 
 Canonical partner offer:
 
@@ -54,6 +56,7 @@ Why this goes next:
 - Partner enablement gives the solo developer leverage without promising public partner scale.
 - The intelligence catalog, setup checklist, verification pack, and escalation template will also strengthen design-partner and launch workflows.
 - Building partner materials now prevents future partner sessions from inventing product claims, tier rules, or support promises.
+- A mature platform needs the partner operating layer before broad market activity, otherwise every implementation becomes bespoke support from the founder.
 
 ---
 
@@ -122,27 +125,31 @@ Use this compact template:
 
 Task:
 
-- implement the first Partner Enablement Foundation slice for founding implementation partners
+- implement the complete Partner Enablement Foundation for implementation partners
 
 Primary outcome:
 
-- one founding implementation partner can understand the Shopify Companion Starter package, deploy the verified intelligence surfaces to a client/test store, verify each surface, and escalate issues with evidence without live platform-operator explanation
+- implementation partners can understand the Shopify Companion Starter package, deploy verified LoomAI intelligence surfaces to assigned client/test stores, verify each surface, monitor health, support normal setup issues, and escalate with evidence without full operator access or live platform-operator explanation
 
-This handoff should first produce a partner enablement kit. It may be documentation-only or a lightweight UI/export pass if the existing platform/Shopify admin surfaces make that cheap. Do not start a large partner portal or identity model unless the implementation session finds a small existing seam that can be safely reused.
+This handoff should be treated as a mature platform implementation plan, delivered incrementally. Do not stop at a documentation kit if code-level partner capabilities are feasible. Also do not start with public partner scale. Build the private implementation-partner operating system first.
 
-Required kit contents:
+Complete product capabilities:
 
-- partner positioning and boundaries
-- demo/sandbox store brief
+- partner identity and scoped access
+- partner-member roles
+- partner-store assignment and revocation
+- partner home and client-store portfolio
+- client store workspace
 - intelligence-piece catalog
-- per-surface setup requirements
-- per-surface verification checks
-- deployment checklist
-- launch verification pack
-- support escalation template
-- implementation playbooks for 2-3 merchant verticals
-- partner-safe launch/support packet reuse guidance
-- private founding-partner operating flow
+- sandbox/demo center
+- setup/deployment checklist
+- verification and launch center
+- evidence/export packet generation
+- support and escalation center
+- vertical templates and implementation playbooks
+- partner action audit trail
+- operator override and revocation
+- merchant-safe boundary
 
 Initial intelligence catalog:
 
@@ -179,11 +186,11 @@ Do not:
 - build partner directory
 - build certification
 - build white-label packaging
-- build partner API
+- build public partner API
 - build broad custom product assembly
 - expose secrets, tokens, provider credentials, deployment internals, raw vectorization controls, runtime controls, or queue/replay internals to partners
 - push partner/operator packet content back into the merchant Shopify admin as long inline text
-- start UI redesign as a prerequisite
+- start broad platform UI redesign as a prerequisite
 - start WooCommerce or second-product work
 - loosen Free/Starter/Elite tier truth
 - add order lookup to Free or Starter
@@ -192,121 +199,596 @@ Do not:
 
 ## Build Order
 
-### Step 0: Merchant Boundary Audit
+### Step 0: Product Boundary And Current-State Inventory
 
 Close:
 
+- inventory current Shopify Companion surfaces, merchant admin exports, platform product-service views, Shopify store views, verification scripts, and live evidence sources
 - confirm merchant admin remains focused on setup, surfaces, Knowledge Sync, billing, support handoff, usage/value, and blockers
 - confirm long partner/operator packet text is not rendered inline for merchants
 - confirm partner-only enablement language does not leak into shopper surfaces
+- decide what is partner-facing, operator-only, merchant-facing, or shopper-facing
+- record any old affiliate/referral/commission/public-signup language as deferred or retired
 
 Exit:
 
-- merchant admin remains merchant-safe while partner kit work proceeds
+- partner enablement has a clear product boundary and does not depend on later UI redesign
 
-### Step 1: Founding Partner Kit
+### Step 1: Partner Domain And Access Model
 
 Close:
 
-- partner positioning
-- non-goals and boundaries
-- partner operating flow
-- demo/sandbox store brief
-- partner agreement/scope notes as a practical checklist, not legal boilerplate
-- private partner communication channel recommendation
+- partner account model
+- partner member model
+- partner roles:
+  - partner admin
+  - partner implementer
+  - partner developer
+  - partner support
+- partner invitation/activation posture
+- partner session and access boundary
+- partner-store assignment model
+- merchant/operator revocation model
+- platform-operator override model
+- audit events for partner access and actions
+
+Recommended first implementation:
+
+- start with private/operator-created partners
+- no public signup
+- partner can be linked to assigned stores only
+- partner actions are read-mostly until explicit safe actions are defined
+- all write actions require scoped permission and audit
 
 Exit:
 
-- a founding partner understands the relationship, scope, and what they are allowed to promise
+- one implementation partner can be represented in the platform with assigned stores and without full operator access
 
-### Step 2: Intelligence Catalog
+### Step 2: Partner Workspace Shell
 
 Close:
 
-- catalog entry for each verified Shopify Companion surface
+- partner-specific navigation and information architecture
+- partner home page
+- client stores page
+- intelligence catalog page
+- verification packs page
+- support/escalations page
+- templates/playbooks page
+- documentation entry point
+- empty, loading, blocked, unauthorized, and revoked states
+- clear separation from operator control plane and merchant Shopify admin
+
+Recommended first UI:
+
+- use a separate partner route or workspace inside the Platform UI if fastest
+- keep labels partner-safe and implementation-focused
+- do not expose deployments, providers, secrets, Railway, raw vectorization controls, or runtime internals
+
+Exit:
+
+- partner has a dedicated workspace surface that does not look like a filtered operator admin panel
+
+### Step 3: Client Store Portfolio
+
+Close:
+
+- assigned store list
+- shop domain and merchant name
+- current plan
+- install status
+- enabled intelligence pieces
+- storefront readiness
+- Knowledge Sync status
+- webhook/live update health
+- top blocker
+- last activity
+- usage/value signal
+- escalation state
+- owner/contact
+- quick links to client workspace, verification pack, support packet
+
+Exit:
+
+- partner can prioritize assigned stores and see which stores need action without using operator tools
+
+### Step 4: Client Store Workspace
+
+Close:
+
+- setup checklist
+- source readiness
+- surface placement status
+- widget/settings summary
+- support handoff profile
+- bounded billing visibility
+- Knowledge Sync summary
+- verification run history
+- launch readiness summary
+- usage/value summary
+- blocked-state next action
+
+Partner-safe allowed actions, if implemented:
+
+- copy/download verification pack
+- copy/download support packet
+- mark manual verification step complete
+- add partner note
+- create escalation
+- request operator action
+
+Partner actions to defer until explicitly scoped:
+
+- raw sync/retry
+- billing changes
+- credential changes
+- install OAuth changes
+- provider/runtime/deployment changes
+- governed action configuration
+
+Exit:
+
+- partner can onboard or inspect a client store without seeing operator internals
+
+### Step 5: Intelligence Catalog
+
+Close:
+
+- durable catalog entries for every verified Shopify Companion surface
 - tier availability
-- required Shopify source data
+- required source data
 - required Shopify scopes or merchant actions
-- placement instructions
-- setup blockers
+- storefront placement
+- setup instructions
 - verification checks
+- healthy result
+- failure signs
 - known limitations
 - launch-safe claim text
+- escalation evidence to capture
+- demo/sandbox link or screenshot target
+
+Catalog entries required:
+
+- AI search
+- product insight block
+- product FAQ
+- comparison
+- policy strip
+- contextual pill
+- read-only chat/depth layer
+
+Later/gated catalog entries:
+
+- order lookup
+- governed add-to-cart
+- cart update
+- support handoff
+- advanced value reporting
 
 Exit:
 
-- a partner can choose a surface, know whether the client store is ready, and know how to verify it
+- partner can choose a surface, know whether a client store is ready, implement it, verify it, and explain it to a client
 
-### Step 3: Deployment And Verification Pack
+### Step 6: Sandbox And Demo Center
+
+Close:
+
+- demo store link and purpose
+- sample product-page surfaces
+- sample merchant admin flow
+- sample launch packet
+- sample verification pack
+- sample support escalation
+- before/after examples
+- screenshot/demo clip checklist
+- known demo limitations
+
+Exit:
+
+- partner can learn and sell the implementation workflow before touching a client store
+
+### Step 7: Verification And Launch Center
 
 Close:
 
 - install checklist
-- theme app embed/block placement checklist
+- theme app embed checklist
+- app block placement checklist
 - Knowledge Sync readiness checklist
 - billing/tier verification checklist
 - storefront surface verification checklist
 - Max Mode/depth-layer handoff verification
 - analytics/value proof checklist
-- App Store/App Review material reuse guidance where relevant
-- evidence capture template
+- Free AI-search-only gate
+- Starter no-order-lookup gate
+- Elite-only gated capability checks where relevant
+- evidence capture checklist
+- verification run status and history
+
+Implementation rule:
+
+- reuse existing live verifier outputs and Shopify Bridge/Platform readiness APIs where possible
+- partner view should show pass/fail/blocked/next action, not raw logs by default
 
 Exit:
 
-- partner can perform and document a repeatable setup without reconstructing steps from code or chat
+- partner can run or follow a repeatable verification pack and produce evidence for launch/support
 
-### Step 4: Support Escalation Template
+### Step 8: Evidence And Packet Generation
 
 Close:
 
-- escalation title
-- client/store identity
-- current plan
-- enabled surfaces
-- blocker category
-- reproduction steps
-- expected vs actual behavior
-- verification already run
-- screenshots/evidence links
+- shared packet generation boundary
+- partner launch packet
+- partner verification pack
+- support bundle
+- lifecycle/subscription packet
+- design-partner rollout packet
+- App Review support material where relevant
+- compact summary cards plus copy/download actions
+- no long packet walls inside merchant admin
+
+Exit:
+
+- partner and operator can retrieve consistent evidence without duplicating copy or drifting from live product truth
+
+### Step 9: Support And Escalation Center
+
+Close:
+
+- escalation creation
+- escalation list
+- escalation status
 - owner
-- status
 - next action
 - due date
+- reproduction steps
+- expected vs actual behavior
+- attached evidence links
+- verifier/manual checks already run
+- client/store impact
 - resolution notes
+- operator-only internal notes separated from partner-visible notes
 
 Exit:
 
-- support escalations arrive with enough context for the platform builder/operator to act
+- support escalations arrive with enough context for the platform builder/operator to act without reconstructing the issue from chat history
 
-### Step 5: Vertical Playbooks
+### Step 10: Templates And Vertical Playbooks
 
 Close:
 
-- 2-3 vertical playbooks using the verified Starter package
-- recommended surfaces by vertical
-- source readiness needs
-- screenshot/demo targets
-- client-facing value story
-- common blockers
-- support handoff posture
+- vertical presets
+- source presets
+- surface presets
+- support handoff templates
+- launch checklist templates
+- troubleshooting playbooks
+- partner agreement/scope checklist
+- private founding-partner operating flow
+
+Initial vertical playbooks:
+
+- fashion/apparel: sizing, reviews, product fit, policies
+- electronics: comparison-heavy buying, specs, compatibility
+- health/beauty: ingredient/use-case questions, policy clarity
+- home/furniture: dimensions, materials, delivery/return policy context
 
 Exit:
 
-- partner has repeatable starting points for the first client conversations
+- partner has repeatable starting points for first client conversations and deployments
 
-### Step 6: Optional Lightweight Surface
+### Step 11: Audit, Security, And Governance
 
-Only if low risk and aligned with existing code:
+Close:
 
-- add a partner-kit export/download section to an operator/admin support area
-- add a static partner enablement docs page
-- add compact copy/download buttons for partner catalog, verification pack, and escalation template
-
-Do not add a full partner portal in this handoff unless explicitly chosen after discovery.
+- partner action audit events
+- partner-store access audit
+- partner note/escalation audit
+- revoked access behavior
+- unauthorized access tests
+- secret redaction
+- operator-only data redaction
+- merchant-safe data redaction
+- least-privilege defaults
+- internal support evidence boundary
 
 Exit:
 
-- partner enablement artifacts are easy to retrieve without cluttering merchant admin
+- partner enablement is supportable without expanding trust to full operator access
+
+### Step 12: Release And Rollout Gates
+
+Close:
+
+- private founding partner readiness gate
+- internal operator readiness gate
+- documentation readiness gate
+- verification readiness gate
+- support readiness gate
+- rollback/revocation procedure
+- metrics dashboard or report
+
+Private founding partner gate:
+
+- one partner account exists
+- one or more stores assigned
+- catalog available
+- client store workspace usable
+- verification pack usable
+- escalation template usable
+- partner cannot access unassigned stores
+- partner cannot see secrets or operator internals
+
+Broad partner scale gate:
+
+- several stores have been deployed or supported through the partner workflow
+- repeated blockers are fixed or documented
+- support load is measurable
+- partner-store access is scoped and revocable
+- templates are repeatable
+- product reliability is strong enough for broader promises
+
+Exit:
+
+- platform can support founding implementation partners now and has clear gates before public scale
+
+---
+
+## Implementation Slices
+
+Use these as discrete LLM work packages. Do not collapse all of them into one risky session.
+
+### Slice A: Partner Enablement Data And Contracts
+
+Deliver:
+
+- partner account/member/role model
+- partner-store assignment model
+- access/revocation model
+- audit model
+- API summaries for partner home, portfolio, client workspace, catalog, verification, and escalations
+
+Exit:
+
+- contracts exist and can be tested without a polished UI
+
+### Slice B: Partner Workspace Shell
+
+Deliver:
+
+- partner route/workspace
+- partner navigation
+- partner home
+- client stores list
+- empty/unauthorized/revoked states
+
+Exit:
+
+- one private partner can log in or be simulated and see only assigned stores
+
+### Slice C: Intelligence Catalog And Demo Center
+
+Deliver:
+
+- catalog entries for verified Starter surfaces
+- sandbox/demo center
+- launch-safe claims
+- setup and verification instructions
+- limitations
+
+Exit:
+
+- catalog is usable by a partner without reading strategy docs
+
+### Slice D: Client Store Workspace And Verification Pack
+
+Deliver:
+
+- client store workspace
+- setup checklist
+- Knowledge Sync/source readiness
+- surface placement status
+- verification checklist
+- evidence capture
+
+Exit:
+
+- partner can verify a store from the workspace
+
+### Slice E: Support And Escalation Center
+
+Deliver:
+
+- support bundle/packet access
+- escalation creation
+- escalation status/owner/next action/due date
+- evidence attachment or links
+- operator/partner note boundary
+
+Exit:
+
+- escalations are structured and actionable
+
+### Slice F: Templates, Playbooks, And Rollout Gate
+
+Deliver:
+
+- vertical playbooks
+- implementation templates
+- private founding-partner operating flow
+- rollout checklist
+- metrics and acceptance proof
+
+Exit:
+
+- Partner Enablement Foundation is ready for a real founding implementation partner
+
+---
+
+## Data Model Targets
+
+Use existing platform/customer/store entities where they fit, but keep partner concepts explicit.
+
+Required concepts:
+
+- `PartnerAccount`
+- `PartnerMember`
+- `PartnerRole`
+- `PartnerStoreAssignment`
+- `PartnerStoreAccessStatus`
+- `PartnerActionAudit`
+- `IntelligenceCatalogEntry`
+- `PartnerVerificationPack`
+- `PartnerVerificationRun`
+- `PartnerVerificationStep`
+- `PartnerSupportEscalation`
+- `PartnerSupportNote`
+- `PartnerEvidenceBundle`
+- `PartnerTemplate`
+- `PartnerPlaybook`
+
+Relationship rules:
+
+- partner account has many members
+- partner account has many assigned stores
+- store can start with zero or one primary partner
+- assignment can be approved, active, suspended, or revoked
+- partner can only see assigned stores
+- operator can override or revoke
+- merchant approval can be added later if not already available
+- every partner action that changes state is audited
+
+---
+
+## API Surface Targets
+
+Prefer partner-safe APIs over exposing operator APIs directly.
+
+Required read APIs:
+
+- partner session summary
+- partner home summary
+- partner client-store portfolio
+- partner client-store workspace
+- intelligence catalog
+- sandbox/demo center summary
+- verification pack summary
+- verification run history
+- support escalation list/detail
+- templates/playbooks list/detail
+
+Required write APIs:
+
+- create/update partner note
+- create/update escalation
+- mark manual verification step
+- request operator action
+- download/copy evidence packet
+
+Operator-only APIs:
+
+- create partner
+- invite partner member
+- assign store
+- revoke store assignment
+- override partner access
+- resolve escalations
+- view internal evidence
+
+Do not expose:
+
+- raw secrets
+- provider credentials
+- Railway variables
+- runtime admin controls
+- raw vectorization/replay controls
+- arbitrary sync/retry until scoped and audited
+- unassigned store data
+
+---
+
+## UI Surface Targets
+
+Partner workspace pages:
+
+- Home
+- Client Stores
+- Client Store Workspace
+- Intelligence Catalog
+- Sandbox/Demo Center
+- Verification Packs
+- Support Center
+- Escalations
+- Templates And Playbooks
+- Documentation
+
+Partner UI should feel operational and efficient:
+
+- dense but readable tables
+- status filters
+- clear blockers
+- next actions
+- copy/download actions
+- verification state
+- compact evidence summaries
+- no decorative marketing hero pages
+
+Status language:
+
+- Ready
+- Needs setup
+- Blocked
+- Verification failed
+- Waiting on merchant
+- Waiting on operator
+- Revoked
+- Escalated
+
+Partner-safe language:
+
+- `Knowledge Sync`
+- `source readiness`
+- `surface placement`
+- `verification pack`
+- `support handoff`
+- `evidence bundle`
+
+Operator-only language:
+
+- vectorization internals
+- runtime provider
+- Railway deployment
+- raw credentials
+- replay queue
+- debug logs
+- infrastructure diagnostics
+
+---
+
+## Mature Platform Acceptance Criteria
+
+This handoff is complete when:
+
+- partner enablement is represented as a real private partner workspace or equivalent mature platform surface
+- partner identity, roles, store assignment, revocation, and audit are implemented or explicitly stubbed with a safe migration path
+- partner can see only assigned stores
+- partner can inspect client-store readiness without operator internals
+- intelligence catalog covers verified Shopify Companion Starter surfaces
+- partner can run or follow a verification pack for each surface
+- Free AI-search-only and Starter no-order-lookup gates are included in partner verification
+- support escalation captures owner, status, next action, evidence, and resolution notes
+- evidence packets reuse live product truth and do not drift from merchant/App Review/support exports
+- vertical playbooks exist for at least 3 merchant types
+- merchant admin remains merchant-safe and not cluttered with partner/operator long-form content
+- operator can create/revoke partner access
+- partner cannot access secrets, provider credentials, Railway/runtime internals, raw vectorization controls, or unassigned stores
+- no public partner signup, commissions, referral tracking, white-label, public partner API, directory, or certification is introduced
+- rollout gates are documented for founding partner, broad partner scale, white-label, and public APIs
+- `CODEX_WORKING_CONTEXT.md` has compact completion status
+
+Do not accept a docs-only outcome unless the implementation session proves code changes are blocked or intentionally deferred. The desired direction is mature platform capability, not only planning collateral.
 
 ---
 
@@ -342,9 +824,11 @@ rg -n "partner|Partner|implementation partner|affiliate|referral|commission|inte
 - Platform/Shopify bridge remains the source for live readiness, billing, support, usage, and verification evidence.
 - Generated packets should come from shared logic where possible, not duplicated static copy that can drift.
 
-### Likely Documentation Targets
+### Documentation Targets
 
-Prefer creating or updating docs before building new UI:
+Docs are still required because partners need durable operating material. They are not a substitute for the mature platform surface defined above.
+
+Create or update:
 
 - `Final_Documentation/User_Guides/SHOPIFY_COMPANION_IMPLEMENTATION_PARTNER_ENABLEMENT_GUIDE.md`
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_PARTNER_VERIFICATION_PACK_GUIDE.md`
@@ -362,7 +846,7 @@ If adding generated partner packet logic, start from the existing Shopify mercha
 - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/store/service/ShopifyBridgeSupportReadinessService.java`
 - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/analytics/service/ShopifyBridgeUsageService.java`
 
-If adding a lightweight platform/operator retrieval surface, inspect first:
+If adding partner workspace or platform/operator retrieval surfaces, inspect first:
 
 - `Platfrom/ui/src/App.tsx`
 - `Platfrom/ui/src/pages/ProductServicesPage.tsx`
@@ -372,7 +856,7 @@ If adding a lightweight platform/operator retrieval surface, inspect first:
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/web/ShopifyAdminController.java`
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/web/PlatformVerificationSuiteController.java`
 
-Do not introduce a new backend partner domain unless the implementation session deliberately scopes and tests it. For this handoff, docs plus reusable exports are preferred over schema/auth churn.
+Introduce a backend partner domain when implementing Slice A or later slices. Keep it private, scoped, audited, and testable. Avoid public partner signup, public partner APIs, and broad auth churn until founding implementation partners prove the workflow.
 
 ---
 
@@ -451,21 +935,23 @@ Must capture:
 
 ---
 
-## Acceptance Criteria
+## Minimum Slice Acceptance Criteria
 
-This handoff is complete when:
+Use this only for partial slice completion. The full handoff is complete only when the Mature Platform Acceptance Criteria above are met.
 
-- founding partner positioning is explicit and does not read like affiliate/referral copy
-- partner kit exists in durable docs and/or lightweight export surface
-- intelligence catalog covers the verified Shopify Companion Starter surfaces
+Minimum acceptable partial slice:
+
+- implementation partner positioning is explicit and does not read like affiliate/referral copy
+- partner domain and access assumptions are recorded
+- intelligence catalog covers verified Shopify Companion Starter surfaces
 - each catalog entry has tier, source, setup, verification, limitations, and claim-safe copy
 - deployment checklist is complete enough for a partner to follow without a live walkthrough
 - verification pack can prove Free AI-search-only and Starter no-order-lookup boundaries
 - escalation template captures owner, status, next action, and evidence
-- 2-3 vertical playbooks exist
+- at least 3 vertical playbooks exist
 - merchant admin remains merchant-safe and not cluttered with partner/operator long-form content
-- no public partner signup, commissions, white-label, partner API, or certification is introduced
-- `CODEX_WORKING_CONTEXT.md` has compact completion status
+- no public partner signup, commissions, white-label, public partner API, or certification is introduced
+- `CODEX_WORKING_CONTEXT.md` has compact slice status and next handoff
 
 ---
 
@@ -477,7 +963,7 @@ Always run:
 git diff --check
 ```
 
-If docs only:
+If a slice touches only docs:
 
 ```bash
 rg -n "affiliate|referral|commission|white-label|partner API|public partner signup|order lookup.*Starter|Starter.*order lookup|Growth|Pro" \
