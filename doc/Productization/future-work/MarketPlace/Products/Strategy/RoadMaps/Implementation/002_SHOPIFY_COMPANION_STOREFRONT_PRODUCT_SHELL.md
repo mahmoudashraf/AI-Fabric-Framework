@@ -461,7 +461,7 @@ This task is complete only when:
 
 ## Implementation And Verification Summary
 
-Implementation status: local implementation complete; production live proof is pending commit, push, deployment, and live verification.
+Implementation status: code implementation is complete and pushed in commit `a3fdab98`; bridge/runtime live proof passed. Full storefront-hosted visual proof remains blocked by Shopify CLI publish authentication, so the theme-extension-hosted "Max Mode opens from embedded surface" check still needs to be run after a human or CI-authenticated Shopify app deploy.
 
 Implemented:
 
@@ -493,9 +493,31 @@ Skipped:
 
 - `npm --prefix product-services/shopify-bridge-service/ui run build`, because no merchant UI files changed.
 
-Live verification:
+Live verification passed:
 
-- Pending until the implementation commit is pushed and deployed.
+- Pushed implementation commit: `a3fdab98`.
+- Ran `scripts/verify-shopify-companion.sh` against:
+  - Platform: `https://ai-fabric-framework-production-324f.up.railway.app`
+  - Shopify Bridge: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
+  - Shop: `shopping-companion-test.myshopify.com`
+- Non-admin live verification passed end-to-end for platform health, bridge health, platform product-service checks, store binding, billing posture, support readiness, webhook/vectorization/governed-action diagnostics, bridge shell, embedded app shell/assets, storefront bootstrap, storefront suggestions, storefront AI-search query, storefront event, and post-bootstrap store summary.
+- Storefront bootstrap live proof returned:
+  - `billingTier`: `FREE`
+  - `enabledSurfaces`: `ai-search`
+  - `defaultConversationMode`: `navigator`
+  - `effectiveConversationMode`: `navigator`
+  - `allowedConversationModes`: `navigator`
+  - `chatFallbackEnabled`: `false`
+  - `actionCapability.available`: `false`
+- Direct live entitlement bypass checks passed:
+  - nested `storefrontContext.shopifySurfaceEntry=comparison` returned HTTP `403`
+  - legacy top-level `shopifySurfaceEntry=comparison` returned HTTP `403`
+  - response message: `Companion surface 'comparison' is not available for this store's current plan.`
+
+Live verification blockers:
+
+- Bridge admin live checks could not pass with the locally available admin key material. A run with the configured local `SHOPIFY_BRIDGE_ADMIN_API_KEY` returned HTTP `401` from `/api/admin/overview`, which means the available value does not match deployed `SHOPIFY_BRIDGE_SHARED_SECRET`. A second run intentionally unset the admin key and passed all non-admin live checks. Do not record or expose the key in docs, chat, commits, or logs.
+- Shopify app/theme extension publish could not be completed from this session. `npm --prefix product-services/shopify-bridge-service run shopify:app:deploy` reached Shopify CLI authentication and stopped at the interactive device-code login prompt. No non-interactive Shopify CLI token/session was available in local env/config. Because of this, browser-level proof that the Shopify-hosted theme extension asset opens Max Mode from an embedded surface remains pending.
 
 ---
 
