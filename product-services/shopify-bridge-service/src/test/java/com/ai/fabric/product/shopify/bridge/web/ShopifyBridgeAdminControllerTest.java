@@ -266,6 +266,20 @@ class ShopifyBridgeAdminControllerTest {
                 3,
                 Instant.parse("2026-04-18T11:55:00Z")
             )),
+            List.of(new ShopifyBridgeUsageTopQuerySummary(
+                "launcher",
+                "Chat launcher",
+                "What is your return policy?",
+                3,
+                Instant.parse("2026-04-18T11:55:00Z")
+            )),
+            List.of(new ShopifyBridgeUsageTopQuerySummary(
+                "launcher",
+                "Chat launcher",
+                "What is your return policy?",
+                3,
+                Instant.parse("2026-04-18T11:55:00Z")
+            )),
             List.of(),
             new ShopifyBridgeUsageRoiSummary(
                 "PROVING_VALUE",
@@ -286,6 +300,8 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
             .andExpect(jsonPath("$.last7DaySurfaceUsage[0].surfaceId").value("launcher"))
             .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"))
+            .andExpect(jsonPath("$.unansweredQuestionsLast7Days[0].queryText").value("What is your return policy?"))
+            .andExpect(jsonPath("$.actionIntentQuestionsLast7Days[0].queryText").value("What is your return policy?"))
             .andExpect(jsonPath("$.last7DaySurfaceJourneys").isArray())
             .andExpect(jsonPath("$.roiSummary.status").value("PROVING_VALUE"))
             .andExpect(jsonPath("$.roiSummary.strongestSurfaceLabels[0]").value("Chat launcher"));

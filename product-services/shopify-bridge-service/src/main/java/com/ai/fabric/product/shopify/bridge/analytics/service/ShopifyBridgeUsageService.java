@@ -195,20 +195,9 @@ public class ShopifyBridgeUsageService {
             toSummaries(last7dBreakdown),
             toSurfaceSummaries(todaySurfaceUsage),
             toSurfaceSummaries(last7dSurfaceUsage),
-            topQueries.values().stream()
-                .sorted(Comparator
-                    .comparingLong((QueryAggregate value) -> value.count).reversed()
-                    .thenComparing((QueryAggregate value) -> value.lastAskedAt, Comparator.reverseOrder())
-                    .thenComparing(value -> value.queryText))
-                .limit(MAX_TOP_QUERIES)
-                .map(value -> new ShopifyBridgeUsageTopQuerySummary(
-                    value.surfaceId,
-                    value.label,
-                    value.queryText,
-                    value.count,
-                    value.lastAskedAt
-                ))
-                .toList(),
+            toTopQuerySummaries(topQueries.values()),
+            toTopQuerySummaries(topQueries.values().stream().filter(this::isUnansweredCandidate).toList()),
+            toTopQuerySummaries(topQueries.values().stream().filter(this::isActionIntentCandidate).toList()),
             roiJourneys.stream()
                 .map(value -> new ShopifyBridgeUsageSurfaceJourneySummary(
                     value.surfaceId,
@@ -291,6 +280,25 @@ public class ShopifyBridgeUsageService {
         return counts.entrySet().stream()
             .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey))
             .map(entry -> new ShopifyBridgeUsageSurfaceSummary(entry.getKey(), surfaceLabel(entry.getKey()), entry.getValue()))
+            .toList();
+    }
+
+    private List<ShopifyBridgeUsageTopQuerySummary> toTopQuerySummaries(Iterable<QueryAggregate> aggregates) {
+        List<QueryAggregate> values = new ArrayList<>();
+        aggregates.forEach(values::add);
+        return values.stream()
+            .sorted(Comparator
+                .comparingLong((QueryAggregate value) -> value.count).reversed()
+                .thenComparing((QueryAggregate value) -> value.lastAskedAt, Comparator.reverseOrder())
+                .thenComparing(value -> value.queryText))
+            .limit(MAX_TOP_QUERIES)
+            .map(value -> new ShopifyBridgeUsageTopQuerySummary(
+                value.surfaceId,
+                value.label,
+                value.queryText,
+                value.count,
+                value.lastAskedAt
+            ))
             .toList();
     }
 
@@ -440,6 +448,77 @@ public class ShopifyBridgeUsageService {
             case "launcher" -> "Chat launcher";
             default -> surfaceId == null ? "Unknown surface" : surfaceId.replace('-', ' ');
         };
+    }
+
+    private boolean isUnansweredCandidate(QueryAggregate aggregate) {
+        String query = normalizeQuestionText(aggregate.queryText);
+        if (!StringUtils.hasText(query)) {
+            return false;
+        }
+        return containsAny(query,
+            "do you have",
+            "do you sell",
+            "show me",
+            "can i",
+            "can you",
+            "where can",
+            "how do",
+            "how can",
+            "what is",
+            "what are",
+            "which",
+            "recommend",
+            "available",
+            "in stock",
+            "size",
+            "fit",
+            "compatible",
+            "material",
+            "care",
+            "warranty",
+            "shipping",
+            "delivery",
+            "return policy",
+            "compare");
+    }
+
+    private boolean isActionIntentCandidate(QueryAggregate aggregate) {
+        String query = normalizeQuestionText(aggregate.queryText);
+        if (!StringUtils.hasText(query)) {
+            return false;
+        }
+        return containsAny(query,
+            "order",
+            "track",
+            "tracking",
+            "refund",
+            "return",
+            "exchange",
+            "cancel",
+            "change address",
+            "edit order",
+            "discount",
+            "coupon",
+            "apply",
+            "checkout",
+            "payment",
+            "invoice",
+            "subscription");
+    }
+
+    private boolean containsAny(String value, String... needles) {
+        for (String needle : needles) {
+            if (value.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeQuestionText(String value) {
+        return value == null
+            ? ""
+            : value.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
     }
 
     private ShopifyBridgeUsageRoiSummary summarizeRoi(List<SurfaceJourneyAggregate> journeys) {

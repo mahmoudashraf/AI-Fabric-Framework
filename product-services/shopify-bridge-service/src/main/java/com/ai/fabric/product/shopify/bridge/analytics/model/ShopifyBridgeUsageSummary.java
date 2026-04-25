@@ -14,6 +14,8 @@ public record ShopifyBridgeUsageSummary(
     List<ShopifyBridgeUsageSurfaceSummary> todaySurfaceUsage,
     List<ShopifyBridgeUsageSurfaceSummary> last7DaySurfaceUsage,
     List<ShopifyBridgeUsageTopQuerySummary> topQuestionsLast7Days,
+    List<ShopifyBridgeUsageTopQuerySummary> unansweredQuestionsLast7Days,
+    List<ShopifyBridgeUsageTopQuerySummary> actionIntentQuestionsLast7Days,
     List<ShopifyBridgeUsageSurfaceJourneySummary> last7DaySurfaceJourneys,
     ShopifyBridgeUsageRoiSummary roiSummary
 ) {

@@ -264,6 +264,20 @@ export type ShopifyBridgeUsageSummary = {
     count: number
     lastAskedAt: string
   }>
+  unansweredQuestionsLast7Days: Array<{
+    surfaceId: string
+    label: string
+    queryText: string
+    count: number
+    lastAskedAt: string
+  }>
+  actionIntentQuestionsLast7Days: Array<{
+    surfaceId: string
+    label: string
+    queryText: string
+    count: number
+    lastAskedAt: string
+  }>
   last7DaySurfaceJourneys: Array<{
     surfaceId: string
     label: string

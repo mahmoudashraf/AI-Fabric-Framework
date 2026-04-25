@@ -63,10 +63,10 @@ public class ShopifyBridgeSupportReadinessService {
         String message;
         if (installRecoveryRequired) {
             status = "INSTALL_RECOVERY_REQUIRED";
-            message = "This shop must complete the Shopify install flow again before storefront and governed support features can be trusted.";
+            message = "This shop must complete the Shopify install flow again before storefront setup and support handoff can be trusted.";
         } else if ("PAYMENT_ISSUE".equalsIgnoreCase(billingState.status())) {
             status = "DEGRADED";
-            message = "Shopify billing needs merchant review before governed support posture can be trusted for this store.";
+            message = "Shopify billing needs merchant review before the paid Companion support posture can be trusted for this store.";
         } else if ("CHECK_FAILED".equalsIgnoreCase(billingState.status())) {
             status = "DEGRADED";
             message = "Shopify billing posture could not be verified for this store. Review lifecycle and subscription state before go-live.";
@@ -408,7 +408,7 @@ public class ShopifyBridgeSupportReadinessService {
                                           String billingStatus) {
         List<String> actions = new ArrayList<>();
         if (installRecoveryRequired) {
-            actions.add("Complete the Shopify install flow again for this store before relying on governed support features.");
+            actions.add("Complete the Shopify install flow again for this store before relying on storefront setup or support handoff.");
         }
         if (orderLookupTierAllowed && !orderLookupScopeGranted) {
             actions.add("Grant Shopify read_orders scope so customer-safe order lookup can verify recent orders.");

@@ -114,6 +114,12 @@ class ShopifyBridgeUsageServiceTest {
             .containsExactly("launcher", "ai-search");
         assertThat(summary.topQuestionsLast7Days()).hasSize(2);
         assertThat(summary.topQuestionsLast7Days().getFirst().queryText()).isEqualTo("What is your return policy?");
+        assertThat(summary.unansweredQuestionsLast7Days()).extracting("queryText")
+            .containsExactly("What is your return policy?", "Show me backpacks");
+        assertThat(summary.actionIntentQuestionsLast7Days()).singleElement().satisfies(signal -> {
+            assertThat(signal.queryText()).isEqualTo("What is your return policy?");
+            assertThat(signal.count()).isEqualTo(4);
+        });
         assertThat(summary.last7DaySurfaceJourneys()).extracting(ShopifyBridgeUsageSurfaceJourneySummary::surfaceId)
             .containsExactly("launcher", "comparison", "ai-search");
         assertThat(summary.last7DaySurfaceJourneys().getFirst()).satisfies(surface -> {

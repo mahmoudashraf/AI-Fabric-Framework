@@ -302,6 +302,20 @@ class ShopifyMerchantControllerTest {
                 4,
                 Instant.parse("2026-04-18T11:59:00Z")
             )),
+            List.of(new ShopifyBridgeUsageTopQuerySummary(
+                "launcher",
+                "Chat launcher",
+                "What is your return policy?",
+                4,
+                Instant.parse("2026-04-18T11:59:00Z")
+            )),
+            List.of(new ShopifyBridgeUsageTopQuerySummary(
+                "launcher",
+                "Chat launcher",
+                "What is your return policy?",
+                4,
+                Instant.parse("2026-04-18T11:59:00Z")
+            )),
             List.of(),
             new ShopifyBridgeUsageRoiSummary(
                 "ACTIONABLE",
@@ -324,6 +338,8 @@ class ShopifyMerchantControllerTest {
             .andExpect(jsonPath("$.last7DayBreakdown[0].eventType").value("STOREFRONT_QUERY"))
             .andExpect(jsonPath("$.last7DaySurfaceUsage[0].surfaceId").value("launcher"))
             .andExpect(jsonPath("$.topQuestionsLast7Days[0].queryText").value("What is your return policy?"))
+            .andExpect(jsonPath("$.unansweredQuestionsLast7Days[0].queryText").value("What is your return policy?"))
+            .andExpect(jsonPath("$.actionIntentQuestionsLast7Days[0].queryText").value("What is your return policy?"))
             .andExpect(jsonPath("$.last7DaySurfaceJourneys").isArray())
             .andExpect(jsonPath("$.roiSummary.status").value("ACTIONABLE"))
             .andExpect(jsonPath("$.roiSummary.activeSurfaceCount").value(3));

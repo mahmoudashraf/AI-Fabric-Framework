@@ -147,12 +147,21 @@ const DEFAULT_WIDGET_SURFACES = [
 
 const WIDGET_SURFACE_OPTIONS = [
   { label: 'AI search dock', value: 'ai-search' },
-  { label: 'Elite order lookup block', value: 'order-lookup' },
   { label: 'Contextual pill', value: 'contextual-pill' },
   { label: 'Product insight card', value: 'product-insight' },
   { label: 'Policy strip', value: 'policy-strip' },
   { label: 'FAQ prompts', value: 'product-faq' },
   { label: 'Comparison block', value: 'comparison' },
+  { label: 'Elite order lookup block', value: 'order-lookup' },
+]
+
+const STARTER_SURFACE_IDS = [
+  'ai-search',
+  'contextual-pill',
+  'product-insight',
+  'policy-strip',
+  'product-faq',
+  'comparison',
 ]
 
 const SHELL_MODE_PROFILE_OPTIONS = [
@@ -572,7 +581,7 @@ export default function App() {
         ...current,
         session: current.session ? { ...current.session, store } : current.session,
       }))
-      setActionMessage(`Synced enabled Shopify content into the platform runtime for ${store.shopDomain}.`)
+      setActionMessage(`Knowledge Sync refreshed enabled Shopify content for ${store.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to sync Shopify store content.')
     } finally {
@@ -591,7 +600,7 @@ export default function App() {
         session: current.session ? { ...current.session, store } : current.session,
       }))
       await refresh()
-      setActionMessage(`Updated source categories for ${store.shopDomain}. Deployment vectorization support has been reconciled for the current selection.`)
+      setActionMessage(`Updated source categories for ${store.shopDomain}. Knowledge Sync has been refreshed for the current selection.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to update source settings.')
     } finally {
@@ -606,9 +615,9 @@ export default function App() {
     try {
       const vectorizationSummary = await reconcileVectorization()
       applyVectorizationSummary(vectorizationSummary)
-      setActionMessage(`Reconciled deployment vectorization support for ${vectorizationSummary.shopDomain}.`)
+      setActionMessage(`Refreshed Knowledge Sync support for ${vectorizationSummary.shopDomain}.`)
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to reconcile deployment vectorization support.')
+      setActionError(error instanceof Error ? error.message : 'Failed to refresh Knowledge Sync support.')
     } finally {
       setBusyAction(null)
     }
@@ -621,9 +630,9 @@ export default function App() {
     try {
       const vectorizationSummary = await vectorizeNowStore()
       applyVectorizationSummary(vectorizationSummary)
-      setActionMessage(`Queued deployment vectorization for ${vectorizationSummary.shopDomain}.`)
+      setActionMessage(`Queued Knowledge Sync for ${vectorizationSummary.shopDomain}.`)
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to trigger Shopify vectorization.')
+      setActionError(error instanceof Error ? error.message : 'Failed to trigger Knowledge Sync.')
     } finally {
       setBusyAction(null)
     }
@@ -855,6 +864,8 @@ export default function App() {
   const vectorizationSummary = state.vectorizationSummary
   const shopperSurfaceUsage = usageSummary?.last7DaySurfaceUsage ?? []
   const topShopperQuestions = usageSummary?.topQuestionsLast7Days ?? []
+  const unansweredShopperQuestions = usageSummary?.unansweredQuestionsLast7Days ?? []
+  const actionIntentQuestions = usageSummary?.actionIntentQuestionsLast7Days ?? []
   const shopperSurfaceJourneys = usageSummary?.last7DaySurfaceJourneys ?? []
   const roiSummary = usageSummary?.roiSummary ?? null
   const sourceCoverageSignals = buildSourceCoverageSignals(store)
@@ -880,6 +891,7 @@ export default function App() {
     store,
     storefrontPreview,
     billingSummary,
+    usageSummary,
     store?.widgetDetail?.settings ?? null,
     supportReadiness,
   )
@@ -921,6 +933,7 @@ export default function App() {
     storefrontPreview,
     billingSummary,
     launchPacket,
+    usageSummary,
     supportReadiness,
   )
   const designPartnerRolloutText = buildDesignPartnerRolloutPacket(
@@ -2099,7 +2112,8 @@ export default function App() {
                       <List type="bullet">
                         <List.Item>Shopper assist signals: {roiSummary.shopperAssistSignals}</List.Item>
                         <List.Item>Decision-support signals: {roiSummary.decisionSupportSignals}</List.Item>
-                        <List.Item>Governed commerce completions: {roiSummary.governedActionCompletions}</List.Item>
+                        <List.Item>Elite governed commerce completions: {roiSummary.governedActionCompletions}</List.Item>
+                        <List.Item>Future Elite demand signals: {actionIntentQuestions.reduce((sum, question) => sum + question.count, 0)}</List.Item>
                         <List.Item>Active shopper surfaces: {roiSummary.activeSurfaceCount}</List.Item>
                         <List.Item>Strongest surfaces: {roiSummary.strongestSurfaceLabels.join(' · ') || 'None yet'}</List.Item>
                       </List>
@@ -2138,7 +2152,34 @@ export default function App() {
                       ))}
                     </BlockStack>
                   ) : null}
-                  {recentGovernedActions.length ? (
+                  {unansweredShopperQuestions.length ? (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Unanswered/source-gap candidates, last 7 days
+                      </Text>
+                      {unansweredShopperQuestions.map((question) => (
+                        <Text key={`gap-${question.surfaceId}-${question.queryText}`} as="p" variant="bodySm" tone="subdued">
+                          {question.label} · {question.queryText} · {question.count} · {formatTimestamp(question.lastAskedAt)}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                  ) : null}
+                  {actionIntentQuestions.length ? (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Action-intent questions, last 7 days
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Treat these as future Elite demand signals. Starter remains read-only and hands off order-specific or account-specific cases.
+                      </Text>
+                      {actionIntentQuestions.map((question) => (
+                        <Text key={`intent-${question.surfaceId}-${question.queryText}`} as="p" variant="bodySm" tone="subdued">
+                          {question.label} · {question.queryText} · {question.count} · {formatTimestamp(question.lastAskedAt)}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                  ) : null}
+                  {billingSummary?.actionCapable && recentGovernedActions.length ? (
                     <BlockStack gap="150">
                       <Text as="p" variant="bodySm" tone="subdued">
                         Recent governed commerce actions
@@ -2880,7 +2921,7 @@ export default function App() {
                     autoComplete="off"
                     value={supportProfileSettings.contactEmail}
                     onChange={(value) => setSupportProfileSettings((current) => ({ ...current, contactEmail: value }))}
-                    helpText="Used for merchant handoff when Companion cannot resolve the request inside the governed read-only boundary."
+                    helpText="Used for merchant handoff when Companion reaches the read-only support boundary."
                   />
                   <TextField
                     label="Contact URL"
@@ -2948,7 +2989,7 @@ export default function App() {
                     Merchant playground
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
-                    Test the live Companion behavior from the embedded app using the same bridge-backed runtime contract as the storefront widget.
+                    Test the live Companion behavior from the embedded app using the same store knowledge as the storefront widget.
                   </Text>
                   {!store?.readiness?.storefrontReady ? (
                     <Banner tone="warning">
@@ -3127,7 +3168,7 @@ export default function App() {
                 Next actions
               </Text>
               <Text as="p" variant="bodyMd" tone="subdued">
-                Connect the current shop first. Run source preflight before bootstrapping so the platform can gate apply-time sync on real Shopify source reachability. After bootstrap, use sync now to push enabled Shopify content into the bound deployment runtime. Go live only after the source readiness checks are clean.
+                Connect the current shop first. Check Shopify source reachability before bootstrapping. After bootstrap, use Knowledge Sync to refresh enabled Shopify content. Go live only after the source readiness checks are clean.
               </Text>
               {installRecoveryRequired ? (
                 <Banner tone="warning">
@@ -3149,7 +3190,7 @@ export default function App() {
                 <Banner tone="warning">
                   <BlockStack gap="200">
                     <Text as="p" variant="bodyMd">
-                      {supportReadiness?.message ?? 'Approve Shopify order-read scope before continuing launch or App Review work.'}
+                      {supportReadiness?.message ?? 'Approve Shopify order-read scope before enabling Elite order lookup.'}
                     </Text>
                     {scopeGrantUrl ? (
                       <InlineStack gap="200">
@@ -3451,6 +3492,14 @@ function formatSupportSubscriptions(supportReadiness: ShopifyBridgeMerchantSessi
     .join(' | ')
 }
 
+function surfaceLabelFor(surfaceId: string): string {
+  return WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId
+}
+
+function starterSurfaceLabels(): string[] {
+  return STARTER_SURFACE_IDS.map(surfaceLabelFor)
+}
+
 function buildSupportBundle(
   shell: ShopifyBridgeShellResponse | null,
   session: ShopifyBridgeMerchantSessionResponse | null,
@@ -3579,6 +3628,7 @@ function buildSupportBundle(
         store,
         storefrontPreview,
         billingSummary,
+        usageSummary,
         store?.widgetDetail?.settings ?? null,
         supportReadiness
       ),
@@ -3700,7 +3750,7 @@ function formatRoiSummary(summary: ShopifyBridgeUsageSummary['roiSummary']): str
   const parts = [
     `assist ${summary.shopperAssistSignals}`,
     `decision ${summary.decisionSupportSignals}`,
-    `completed ${summary.governedActionCompletions}`,
+    `Elite completions ${summary.governedActionCompletions}`,
     `surfaces ${summary.activeSurfaceCount}`,
   ]
   if (summary.strongestSurfaceLabels.length) {
@@ -3732,23 +3782,23 @@ function describeUsageEvent(eventType: string): string {
     case 'MERCHANT_CONNECT':
       return 'merchant connect'
     case 'MERCHANT_SOURCE_PREFLIGHT':
-      return 'merchant source preflight'
+      return 'source reachability checks'
     case 'MERCHANT_BOOTSTRAP':
       return 'merchant bootstrap'
     case 'MERCHANT_GO_LIVE':
       return 'merchant go-live'
     case 'MERCHANT_SYNC_NOW':
-      return 'merchant sync'
+      return 'Knowledge Sync runs'
     case 'MERCHANT_WIDGET_SETTINGS_UPDATED':
       return 'widget settings updates'
     case 'MERCHANT_SOURCE_SETTINGS_UPDATED':
       return 'source setting updates'
     case 'MERCHANT_VECTORIZATION_INDEX_ALL':
-      return 'index all requests'
+      return 'Knowledge Sync all-source requests'
     case 'MERCHANT_VECTORIZATION_REINDEX_ALL':
-      return 'reindex all requests'
+      return 'Knowledge Sync refresh-all requests'
     case 'MERCHANT_VECTORIZATION_REINDEX_SELECTED':
-      return 'reindex selected requests'
+      return 'Knowledge Sync selected-source requests'
     case 'MERCHANT_VECTORIZATION_POLICY_UPDATED':
       return 'live update policy saves'
     case 'MERCHANT_VECTORIZATION_EVENT_REPLAYED':
@@ -3835,7 +3885,7 @@ function buildStoreIntelligenceReadiness(
     issues.push(`Webhook subscriptions are ${webhookSubscriptions.status.toLowerCase()}.`)
   }
   if (vectorizationSummary && !vectorizationSummary.readyToRun) {
-    issues.push('Deployment vectorization still needs reconcile before bounded indexing can run cleanly.')
+    issues.push('Knowledge Sync still needs refresh before enabled Shopify content can stay current.')
   }
   if (vectorizationSummary?.automation && !vectorizationSummary.automation.autoIndexingHealthy) {
     issues.push('Live updates are degraded and need attention before relying on freshness.')
@@ -3907,7 +3957,10 @@ function buildLaunchReadiness(
   const productSurfaceReady = requiredProductSurfaces.every((surfaceId) => placementIds.has(surfaceId))
   const supportSurfaceReady = placementIds.has('order-lookup')
   const tierKeys = new Set((billingSummary?.availablePlans ?? []).map((plan) => plan.tierKey))
+  const starterPlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'STARTER') ?? null
   const elitePlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'ELITE') ?? null
+  const starterCommercialReady = Boolean(starterPlan?.commerciallyAvailable)
+  const tierLadderReady = tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && starterCommercialReady
   const eliteGovernanceReady = Boolean(
     elitePlan?.actionCapable &&
       elitePlan?.requiresExplicitConfirmation &&
@@ -3974,11 +4027,13 @@ function buildLaunchReadiness(
     },
     {
       label: 'Commercial tier ladder',
-      status: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'Ready' : 'Needs attention',
-      tone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'success' : 'attention',
-      detail: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady
-        ? `Free, Starter, and Elite are visible to merchants, and Elite is packaged as the governed action tier for ${elitePlan?.actionPackages?.join(' and ') ?? 'merchant-approved actions'}.`
-        : 'The merchant tier ladder is not fully legible yet or Elite governance packaging is still incomplete in the live billing contract.',
+      status: tierLadderReady ? 'Ready' : 'Needs attention',
+      tone: tierLadderReady ? 'success' : 'attention',
+      detail: tierLadderReady
+        ? eliteGovernanceReady
+          ? `Free, Starter, and Elite are visible to merchants, and Elite is packaged as the governed action tier for ${elitePlan?.actionPackages?.join(' and ') ?? 'merchant-approved actions'}.`
+          : 'Free, Starter, and Elite are visible to merchants. Starter is commercially available, while Elite action claims stay gated until the live contract is verified.'
+        : 'The merchant tier ladder is not fully legible yet or Starter is not commercially available in the live billing contract.',
     },
     {
       label: 'Launch gate',
@@ -4027,8 +4082,8 @@ function buildLaunchReadiness(
         : 'Companion now looks coherent enough to present as a real Shopify product, not just a technical integration.',
     productLabel: productSurfaceReady ? 'Product shape ready' : 'Product shape incomplete',
     productTone: productSurfaceReady ? 'success' : 'attention',
-    commercialLabel: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'Tier ladder ready' : 'Tier ladder incomplete',
-    commercialTone: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && eliteGovernanceReady ? 'success' : 'attention',
+    commercialLabel: tierLadderReady ? 'Tier ladder ready' : 'Tier ladder incomplete',
+    commercialTone: tierLadderReady ? 'success' : 'attention',
     items,
   }
 }
@@ -4037,6 +4092,7 @@ function buildLaunchPacket(
   store: ShopifyBridgeMerchantSessionResponse['store'] | null,
   storefrontPreview: ShopifyStorefrontPreviewResponse | null,
   billingSummary: ShopifyBridgeBillingSummary | null,
+  usageSummary: ShopifyBridgeUsageSummary | null,
   widgetSettings: WidgetSettingsSnapshot | null,
   supportReadiness: ShopifyBridgeMerchantSessionResponse['supportReadiness'] | null
 ): {
@@ -4051,15 +4107,20 @@ function buildLaunchPacket(
   const tierSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
   const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => tierSurfaces.includes(surfaceId))
   const activeSurfaceLabels = activeSurfaceIds
-    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+    .map(surfaceLabelFor)
   const reviewProviders = buildDetectedReviewProviders(store)
   const groundingSignals = storefrontPreview?.groundingSignals ?? []
+  const actionIntentCount = (usageSummary?.actionIntentQuestionsLast7Days ?? [])
+    .reduce((sum, question) => sum + question.count, 0)
+  const unansweredCount = (usageSummary?.unansweredQuestionsLast7Days ?? [])
+    .reduce((sum, question) => sum + question.count, 0)
   const hasEliteGovernance = Boolean(
     billingSummary?.actionCapable &&
       billingSummary.requiresExplicitConfirmation &&
       billingSummary.auditTrailAvailable &&
       billingSummary.actionPackages.length,
   )
+  const starterSurfaceReady = STARTER_SURFACE_IDS.every((surfaceId) => activeSurfaceIds.includes(surfaceId))
   const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
 
   const safeClaims: string[] = []
@@ -4088,6 +4149,9 @@ function buildLaunchPacket(
   }
   if (hasEliteGovernance) {
     safeClaims.push('Elite guided commerce is governed with shopper confirmation, signed bridge grants, and audit history.')
+  }
+  if (usageSummary && (actionIntentCount > 0 || unansweredCount > 0)) {
+    safeClaims.push(`Merchant analytics expose ${unansweredCount} source-gap candidate signals and ${actionIntentCount} action-intent signals without making Starter an action tier.`)
   }
   if (!safeClaims.length) {
     safeClaims.push('Core catalog and policy grounding are live, but the surface set still needs more packaging before broad launch claims.')
@@ -4119,7 +4183,7 @@ function buildLaunchPacket(
   ]
 
   const hasCritical = !storefrontPreview?.ready || Boolean(billingSummary?.launchBlocked)
-  const hasAttention = !hasCritical && (!hasEliteGovernance || activeSurfaceIds.length < 5)
+  const hasAttention = !hasCritical && !starterSurfaceReady
 
   return {
     status: hasCritical ? 'Blocked' : hasAttention ? 'Needs attention' : 'Ready',
@@ -4238,18 +4302,18 @@ function buildGoLiveChecklist(
         : 'Enable richer store sources so launch claims can go beyond core catalog-only answers.',
     },
     {
-      label: 'Vectorization and live updates',
+      label: 'Knowledge Sync and live updates',
       status: vectorizationReady && liveUpdatesHealthy && webhooksReady ? 'Ready' : 'Needs action',
       tone: vectorizationReady && liveUpdatesHealthy && webhooksReady ? 'success' : 'attention',
       detail: vectorizationReady && liveUpdatesHealthy && webhooksReady
-        ? 'Deployment vectorization, webhooks, and live updates are aligned for a clean launch story.'
+        ? 'Knowledge Sync, webhooks, and live updates are aligned for a clean launch story.'
         : !vectorizationReady
-          ? 'The deployment still needs reconcile before bounded indexing can run cleanly.'
+          ? 'Knowledge Sync still needs refresh before enabled Shopify content can stay current.'
           : !liveUpdatesHealthy
             ? 'Live updates are currently degraded and should be stabilized before launch.'
             : 'Webhook subscriptions still need attention before launch.',
       action: !vectorizationReady
-        ? { kind: 'run-reconcile', label: 'Reconcile vectorization' }
+        ? { kind: 'run-reconcile', label: 'Refresh Knowledge Sync' }
         : !store?.syncDetail || store.syncDetail.status !== 'SYNCED'
           ? { kind: 'run-sync', label: 'Run sync now' }
           : undefined,
@@ -4360,6 +4424,8 @@ function buildLaunchDossier(
     '## Merchant signal',
     `- Last 7 days total events: ${usageSummary?.totalLast7Days ?? 0}`,
     `- Top shopper questions: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 5).map((item) => `${item.label}: ${item.queryText}`).join(' | ') || 'None yet'}`,
+    `- Unanswered/source-gap candidates: ${(usageSummary?.unansweredQuestionsLast7Days ?? []).slice(0, 5).map((item) => `${item.label}: ${item.queryText}`).join(' | ') || 'None yet'}`,
+    `- Action-intent questions: ${(usageSummary?.actionIntentQuestionsLast7Days ?? []).slice(0, 5).map((item) => `${item.label}: ${item.queryText}`).join(' | ') || 'None yet'}${(usageSummary?.actionIntentQuestionsLast7Days ?? []).length ? ' (future Elite demand only; Starter remains read-only)' : ''}`,
     `- Surface journeys: ${(usageSummary?.last7DaySurfaceJourneys ?? []).slice(0, 5).map((item) => `${item.label}: ${formatSurfaceJourneySummary(item)}`).join(' | ') || 'None yet'}`,
     `- ROI posture: ${usageSummary?.roiSummary ? `${formatRoiStatus(usageSummary.roiSummary.status)} (${formatRoiSummary(usageSummary.roiSummary)})` : 'No ROI signal yet'}`,
     `- ROI recommendations: ${usageSummary?.roiSummary?.recommendations?.join(' | ') || 'None yet'}`,
@@ -4396,7 +4462,7 @@ function buildAppReviewGuide(
   const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
   const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => allowedSurfaces.includes(surfaceId))
   const activeSurfaceLabels = activeSurfaceIds
-    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+    .map(surfaceLabelFor)
   const reviewProviders = buildDetectedReviewProviders(store)
   const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
   const scopesText = session?.installRecord?.scopesText ?? 'Not captured in the current merchant session'
@@ -4477,7 +4543,7 @@ function buildReviewScreencastScript(
   const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
   const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => allowedSurfaces.includes(surfaceId))
   const activeSurfaceLabels = activeSurfaceIds
-    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+    .map(surfaceLabelFor)
   const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
 
   return [
@@ -4498,7 +4564,7 @@ function buildReviewScreencastScript(
     '',
     '## Segment 2 — Source readiness and lifecycle',
     '- Show source readiness, webhook posture, and live update health.',
-    '- State that the app binds one Shopify store to one governed product deployment path.',
+    '- State that the app binds one Shopify store to one Companion launch path.',
     '',
     '## Segment 3 — Storefront activation',
     `- Open storefront preview${storefrontPreview?.themeEditorActivationUrl ? ' and show the theme activation link.' : '.'}`,
@@ -4535,6 +4601,7 @@ function buildAppStoreListingPackage(
   storefrontPreview: ShopifyStorefrontPreviewResponse | null,
   billingSummary: ShopifyBridgeBillingSummary | null,
   launchPacket: ReturnType<typeof buildLaunchPacket>,
+  usageSummary: ShopifyBridgeUsageSummary | null,
   supportReadiness: ShopifyBridgeMerchantSessionResponse['supportReadiness'] | null,
 ): string {
   const configuredSurfaces = store?.widgetDetail?.settings?.enabledSurfaces?.length
@@ -4543,9 +4610,14 @@ function buildAppStoreListingPackage(
   const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
   const activeSurfaceIds = configuredSurfaces.filter((surfaceId) => allowedSurfaces.includes(surfaceId))
   const activeSurfaceLabels = activeSurfaceIds
-    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+    .map(surfaceLabelFor)
+  const starterLabels = starterSurfaceLabels()
   const reviewProviders = buildDetectedReviewProviders(store)
   const sourceCoverageSignals = buildSourceCoverageSignals(store)
+  const actionIntentCount = (usageSummary?.actionIntentQuestionsLast7Days ?? [])
+    .reduce((sum, question) => sum + question.count, 0)
+  const unansweredCount = (usageSummary?.unansweredQuestionsLast7Days ?? [])
+    .reduce((sum, question) => sum + question.count, 0)
   const hasEliteGovernance = Boolean(
     billingSummary?.actionCapable &&
       billingSummary.requiresExplicitConfirmation &&
@@ -4553,14 +4625,8 @@ function buildAppStoreListingPackage(
       billingSummary.actionPackages.length,
   )
   const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
-  const subtitle = activeSurfaceIds.includes('product-insight') && activeSurfaceIds.includes('policy-strip')
-    ? 'AI search, product insights, and policy answers for Shopify'
-    : 'Embedded AI shopping intelligence for Shopify'
-  const oneLineDescription = activeSurfaceIds.includes('comparison')
-    ? orderLookupClaimReady
-      ? 'Add AI search, product insights, FAQs, comparison help, grounded policy answers, and verified order lookup to your Shopify storefront.'
-      : 'Add AI search, product insights, FAQs, comparison help, and grounded policy answers to your Shopify storefront.'
-    : 'Help shoppers discover products and get grounded answers from your store’s real catalog, content, and policies.'
+  const subtitle = 'AI search, product insights, and policy answers for Shopify'
+  const oneLineDescription = 'Add AI search, product insights, FAQs, comparison help, and grounded policy answers to your Shopify storefront.'
   const fullDescription = [
     'Loom Companion brings embedded AI store intelligence to Shopify.',
     activeSurfaceLabels.length
@@ -4612,10 +4678,11 @@ function buildAppStoreListingPackage(
     '',
     '## Tier-safe product truth',
     `- Free: AI search for the storefront with ${billingSummary?.poweredByBadgeRequired ? 'a required powered-by posture.' : 'a launch-safe entry posture.'}`,
-    `- Starter: ${activeSurfaceLabels.length ? `${activeSurfaceLabels.join(', ')} and shopper analytics.` : 'Read-only store intelligence with embedded shopper guidance.'}`,
+    `- Starter: ${starterLabels.join(', ')}, read-only Companion chat depth, and shopper analytics. Starter does not include order lookup or governed actions.`,
     hasEliteGovernance
       ? `- Elite: Governed commerce actions for ${(billingSummary?.actionPackages ?? []).join(' and ')} with explicit confirmation and audit trail.`
       : '- Elite: Do not market governed actions until the commercial rollout is active for the target store.',
+    `- Value proof: ${usageSummary ? `${usageSummary.totalLast7Days} shopper/merchant signals, ${unansweredCount} source-gap candidates, and ${actionIntentCount} future Elite demand signals in the last 7 days.` : 'Use live usage, source-gap, and action-intent analytics after traffic starts.'}`,
     '',
     '## Source-depth proof points',
     `- Review providers: ${reviewProviders.join(' · ') || 'None detected yet'}`,
@@ -4667,7 +4734,7 @@ function buildDesignPartnerRolloutPacket(
   const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
   const activeSurfaceIds = configuredSurfaceIds.filter((surfaceId) => allowedSurfaces.includes(surfaceId))
   const activeSurfaceLabels = activeSurfaceIds
-    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+    .map(surfaceLabelFor)
   const reviewProviders = buildDetectedReviewProviders(store)
   const orderLookupClaimReady = Boolean(activeSurfaceIds.includes('order-lookup') && supportReadiness?.orderLookupSupported)
 
@@ -4711,6 +4778,8 @@ function buildDesignPartnerRolloutPacket(
     '## Merchant value prompts',
     `- Run at least one product discovery question, one policy question, and one comparison flow${billingSummary?.actionCapable ? ', then one governed commerce flow if Elite is active.' : '.'}`,
     `- Capture top shopper questions and surface usage after traffic: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'no traffic yet'}`,
+    `- Capture unanswered/source-gap candidates after traffic: ${(usageSummary?.unansweredQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'no source-gap signal yet'}`,
+    `- Capture action-intent questions as future Elite demand only: ${(usageSummary?.actionIntentQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'no action-intent signal yet'}`,
     `- Capture surface journey evidence after traffic: ${(usageSummary?.last7DaySurfaceJourneys ?? []).slice(0, 3).map((item) => `${item.label} (${formatSurfaceJourneySummary(item)})`).join(' | ') || 'no journey signal yet'}`,
     `- Capture ROI posture after traffic: ${usageSummary?.roiSummary ? `${formatRoiStatus(usageSummary.roiSummary.status)} (${formatRoiSummary(usageSummary.roiSummary)})` : 'no ROI signal yet'}`,
     `- Follow ROI recommendations: ${usageSummary?.roiSummary?.recommendations?.join(' | ') || 'none yet'}`,
@@ -4742,7 +4811,7 @@ function buildSupportRunbook(
   const allowedSurfaces = billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES
   const activeSurfaceLabels = configuredSurfaces
     .filter((surfaceId) => allowedSurfaces.includes(surfaceId))
-    .map((surfaceId) => WIDGET_SURFACE_OPTIONS.find((surface) => surface.value === surfaceId)?.label ?? surfaceId)
+    .map(surfaceLabelFor)
   const orderLookupClaimReady = Boolean(allowedSurfaces.includes('order-lookup') && supportReadiness?.orderLookupSupported)
   const reviewProviders = buildDetectedReviewProviders(store)
   const subscriptionWebhook = webhookSubscriptions?.topics.find((topic) => topic.topic === 'APP_SUBSCRIPTIONS_UPDATE') ?? null
@@ -4813,6 +4882,8 @@ function buildSupportRunbook(
     '## Merchant signal to review before escalation',
     `- ROI posture: ${usageSummary?.roiSummary ? `${formatRoiStatus(usageSummary.roiSummary.status)} (${formatRoiSummary(usageSummary.roiSummary)})` : 'No ROI signal yet'}`,
     `- Top shopper questions: ${(usageSummary?.topQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'None yet'}`,
+    `- Unanswered/source-gap candidates: ${(usageSummary?.unansweredQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'None yet'}`,
+    `- Action-intent questions: ${(usageSummary?.actionIntentQuestionsLast7Days ?? []).slice(0, 3).map((item) => item.queryText).join(' | ') || 'None yet'}${(usageSummary?.actionIntentQuestionsLast7Days ?? []).length ? ' (do not present Starter as an action tier)' : ''}`,
     `- Surface journeys: ${(usageSummary?.last7DaySurfaceJourneys ?? []).slice(0, 3).map((item) => `${item.label}: ${formatSurfaceJourneySummary(item)}`).join(' | ') || 'None yet'}`,
     '',
     '## Operator reminders',
