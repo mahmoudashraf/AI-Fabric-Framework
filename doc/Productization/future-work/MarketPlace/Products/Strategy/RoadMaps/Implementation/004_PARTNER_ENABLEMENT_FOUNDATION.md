@@ -2376,6 +2376,7 @@ The live mutation path intentionally used denial instead of approval so no activ
 - Platform suite execution now forces `PARTNER_LIVE_STRICT=true` for the Partner Enablement stage.
 - Added configurable Partner UI target `platform.verification.suites.partner-ui-base-url`, defaulting to the temporary Railway Partner UI service.
 - Added `PARTNER_SUPABASE_JWT` as a supported platform secret and required it for the Partner Enablement release-gate stage before script execution.
+- Fixed Platform script-runner secret propagation for Partner Enablement: the runner passes secrets as `*_FILE`, so `scripts/verify-partner-enablement-live.sh` now reads `PARTNER_SUPABASE_JWT_FILE`; `PlatformVerificationScriptRunnerService` also scrubs inherited `PARTNER_SUPABASE_JWT` and `PARTNER_SUPABASE_JWT_FILE` before injecting the managed secret file.
 
 ### Verification Proof
 
@@ -2383,11 +2384,20 @@ Executed local proof for this release-gate wiring:
 
 - `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
 - `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformVerificationSuiteScriptContextServiceTest,PlatformVerificationSuiteServiceTest,PlatformVerificationSuiteExecutionServiceTest,PlatformSecretServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformVerificationScriptRunnerServiceTest,PlatformVerificationSuiteScriptContextServiceTest test`
+- `bash -n scripts/verify-partner-enablement-live.sh`
+- `mvn -f Platfrom/backend/pom.xml -q test`
 - `git diff --check`
 
-Operational release proof after deployment:
+Executed live proof after deployment:
 
-- Store a valid, short-lived `PARTNER_SUPABASE_JWT` platform secret before dispatching the full release suite.
-- Dispatch `full-platform-release-readiness`.
-- Confirm the Partner Enablement stage runs `scripts/verify-partner-enablement-live.sh` in strict mode and passes.
-- Confirm `GET /api/verification-suites/release-gate` reports `READY` only after the full suite passes fresh.
+- `GET /api/verification-suites` returned the standalone `partner-enablement-verification` suite and the blocking Partner Enablement stage inside `full-platform-release-readiness` at stage index 6 / position 7 of 13.
+- Stored a fresh short-lived Supabase email/password test JWT as the live Platform secret `PARTNER_SUPABASE_JWT`; Platform reported `present=true`, `source=DATABASE`, `scopeType=GLOBAL_PLATFORM`, and `ownerType=PLATFORM`.
+- Local strict script proof passed against live Platform backend and Partner UI using `PARTNER_SUPABASE_JWT_FILE=/tmp/partner_supabase_jwt.secret`.
+- Platform-owned standalone live suite run `vsr-4d0607a7` passed with `suiteKey=partner-enablement-verification`, `stageStatus=PASSED`, and `stageTargetRef=partner-enablement-verification`.
+- The strict live run proved backend health, unauthenticated and invalid JWT rejection, Partner UI health/runtime config/route, valid Supabase JWT acceptance, partner session shape, and new-partner empty workspace state. Catalog/store checks were skipped because the current test partner is not a provisioned workspace.
+
+Remaining full-release-gate status:
+
+- `GET /api/verification-suites/release-gate` still reports `FAILED` from latest full run `vsr-17744b05`, which started on 2026-04-24 and failed before Partner Enablement on `Qdrant temporary cluster creation -> HTTP 429`.
+- To make the full release gate `READY`, clear the Qdrant provider-rate blocker, refresh/store a non-expired `PARTNER_SUPABASE_JWT`, dispatch `full-platform-release-readiness`, and confirm `/api/verification-suites/release-gate` reports `READY` after the full suite passes.
