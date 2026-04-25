@@ -70,6 +70,7 @@ Current P0 cleanup items:
 - Merchant-facing indexing language is `Knowledge Sync`; raw index/reindex/replay/vectorization controls belong in the merged partner/operator dashboard.
 - Run `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md` before treating Shopify Companion Starter as design-partner-ready or public-market-ready.
 - Treat query-to-answer quality as part of first-product readiness, using Shopify Companion as the first concrete instance of a future platform-level Product Generation Audit Framework.
+- Product readiness audit UI is a platform/operator console first, not Shopify merchant admin or partner-first UI; partners may later run scoped client-store audits after canonical thresholds exist.
 
 ## Strategic Decision Log
 
@@ -89,3 +90,4 @@ Current P0 cleanup items:
 - 2026-04-25: Partner signup decision superseded: self-service partner signup is allowed and should create an empty workspace by default; client-store access requires merchant approval, signed approval link/code, approved install/claim flow, or operator assignment. Keep commissions, referral tracking, white-label, public partner API, directories, and certification out of current scope.
 - 2026-04-25: Added First Product Readiness Audit gate after Starter Launch Package; Shopify Companion Starter is a technically ready candidate, but design-partner readiness and public-market readiness require a formal evidence audit before scaling outreach or partner activity.
 - 2026-04-25: Query-to-answer quality belongs inside `005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md`; implement it with reusable platform audit primitives from day one so future products and partner-run client-store audits can reuse the query pack shape, scoring rubric, evidence output, forbidden-claim checks, and pass/fail semantics.
+- 2026-04-25: Added Product Readiness Audit UI requirement to `005`: build an operator console for overview, checklist, query pack, answer results, evidence, and final decision; do not mark design-partner-ready from private scripts/chat history alone.

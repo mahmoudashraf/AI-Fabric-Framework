@@ -164,6 +164,7 @@ In scope:
 - live direct bridge admin endpoint coverage
 - support readiness
 - Shopify Companion query-to-answer quality
+- platform/operator readiness audit UI
 - reusable product generation audit shape for future products and partner-run client-store audits
 - secret-handling hygiene
 - design-partner readiness
@@ -178,6 +179,8 @@ Out of scope:
 - WooCommerce or second product work
 - Elite governed actions beyond verifying they are gated/deferred correctly
 - full cross-product Product Generation Audit Framework implementation beyond the reusable shape required by this audit
+- merchant Shopify admin readiness audit UI
+- partner-first readiness audit UI before the platform/operator console exists
 
 ---
 
@@ -201,6 +204,7 @@ Required packet contents:
 - `answer-quality-query-pack.json`: Shopify-specific query pack using the reusable audit shape
 - `answer-quality-results.json`: per-query raw result metadata, no secrets
 - `answer-quality-audit.md`: human-readable query-to-answer pass/fail summary
+- `audit-ui-proof.md`: platform/operator audit UI route, screenshots, visible states, and current limitations
 - `readiness-matrix.md`: checklist result by category
 
 Do not commit `/tmp` artifacts. Commit only roadmap/context/doc updates unless the audit creates durable docs intentionally.
@@ -407,7 +411,69 @@ Pass criteria:
 - failures are classified as source gap, prompt/grounding issue, entitlement issue, backend issue, or UI issue
 - `answer-quality-audit.md` clearly states whether answer readiness blocks `TECHNICAL_READY` or `DESIGN_PARTNER_READY`
 
-### 6. Live Verification
+### 6. Platform Readiness Audit UI
+
+This audit needs a first-class operator UI so readiness is not trapped in scripts, chat history, or `/tmp` artifacts. The UI is part of the platform maturity posture from day one.
+
+Owner and placement:
+
+- Build this as a platform/operator console first, using the current Platform UI stack and backend authorization model.
+- Do not put this in the Shopify merchant admin. Merchant admin should remain merchant-safe and focused on setup, Knowledge Sync, billing, support handoff, and usage/value.
+- Do not make this partner-first. Partners can later run scoped client-store audits and attach evidence, but platform operators own canonical thresholds and final decisions.
+- Keep the UI product-agnostic enough to support future Product Generation Audit Framework reuse, while shipping the Shopify Companion audit as the first concrete product.
+
+Minimum views:
+
+- `Overview`: product, target store/deployment, last run, readiness decision, blockers, next handoff.
+- `Checklist`: product truth, entitlements, storefront, merchant admin, answer quality, live verifier, support collateral, install/recovery, design-partner readiness.
+- `Query Pack`: query categories, tier profile, surface, expected behavior, required concepts, forbidden claims, grounding requirement.
+- `Answer Results`: request status, extracted answer, score by rubric, warnings/failures, raw response link or redacted preview.
+- `Evidence`: browser screenshots, verifier summaries, support collateral review, product-truth scan, command summary, artifact paths.
+- `Decision`: `TECHNICAL_READY`, `DESIGN_PARTNER_READY`, `PARTIAL`, or `NOT_READY`, with compact handoff notes and audit signer/actor.
+
+Minimum UI states:
+
+- empty state with no audit runs
+- run in progress
+- passed with warnings
+- failed with blockers
+- skipped checks with explicit reason
+- stale evidence warning when product version, extension version, query pack, or target store changed after the last run
+
+Minimum backend/data model expectation:
+
+- audit run record with product ref, target store/deployment, tier profile, actor, status, timestamps, version refs, and final decision
+- checklist item results with status, evidence link, blocker flag, and notes
+- query pack snapshot per run so later changes do not rewrite historical evidence
+- answer result records with redacted request/response metadata, extracted answer, rubric scores, forbidden-claim hits, and failure category
+- artifact references only; do not store raw secrets or private tokens
+- append-only decision history
+
+Access and visibility:
+
+- platform admins/operators can create runs, execute checks, upload/attach evidence, and set final decisions
+- implementation partners may later view/run scoped client-store audits only for assigned stores
+- merchants should not see operator audit internals inside Shopify admin
+- partner-visible exports must remove secrets, operator-only notes, raw internal diagnostics, and platform/provider language
+
+Acceptance criteria:
+
+- UI exposes the full readiness matrix and query-to-answer audit results without requiring chat history.
+- UI can show why a product is blocked, partial, technically ready, or design-partner ready.
+- UI links or summarizes evidence artifacts without leaking secrets.
+- UI distinguishes canonical platform thresholds from partner-added client-store questions.
+- UI is usable for Shopify Companion now and structurally reusable for future product generation audits.
+- If the audit UI is not implemented during the first technical audit run, the run may support `TECHNICAL_READY` only with an explicit temporary UI waiver; do not mark `DESIGN_PARTNER_READY` without the operator UI or a clear replacement review surface.
+
+Recommended proof:
+
+- desktop screenshot of the audit overview
+- screenshot of checklist failures/warnings
+- screenshot of answer-quality results
+- screenshot of final decision panel
+- `audit-ui-proof.md` with route, auth role, data source, current limitations, and evidence paths
+
+### 7. Live Verification
 
 Pass criteria:
 
@@ -440,7 +506,7 @@ Secret rule:
 - use env vars or secret files only
 - audit output must say only whether admin checks were enabled and passed
 
-### 7. Shopify App/Extension Deploy State
+### 8. Shopify App/Extension Deploy State
 
 Pass criteria:
 
@@ -457,7 +523,7 @@ npm --prefix product-services/shopify-bridge-service run shopify:app:info
 
 Deploy command should be run only if needed and authorized by current handoff conditions.
 
-### 8. App Store, App Review, And Support Collateral
+### 9. App Store, App Review, And Support Collateral
 
 Pass criteria:
 
@@ -474,7 +540,7 @@ Check docs:
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md`
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_LAUNCH_REVIEW_AND_SUPPORT_EXPORTS_GUIDE.md`
 
-### 9. Install/Uninstall And Recovery
+### 10. Install/Uninstall And Recovery
 
 Pass criteria:
 
@@ -491,7 +557,7 @@ bash -n scripts/verify-shopify-companion-uninstall.sh
 
 Run the uninstall verifier only if the target store is safe for destructive lifecycle testing.
 
-### 10. Supportability
+### 11. Supportability
 
 Pass criteria:
 
@@ -502,7 +568,7 @@ Pass criteria:
 - unanswered/source-gap questions are framed as merchant value evidence
 - action-intent questions are framed as future Elite demand only
 
-### 11. Design-Partner Readiness
+### 12. Design-Partner Readiness
 
 Pass criteria for `DESIGN_PARTNER_READY`:
 
@@ -533,6 +599,7 @@ Mark `TECHNICAL_READY` only if:
 - local builds/tests pass
 - entitlement gates pass
 - query-to-answer audit passes for P0 Shopify Companion query categories
+- platform/operator readiness audit UI is implemented or an explicit temporary UI waiver is recorded
 - live verifier passes
 - browser proof passes or has a justified no-change skip
 - active product/support/App Review copy matches shipped truth
@@ -545,6 +612,7 @@ Mark `DESIGN_PARTNER_READY` only if all `TECHNICAL_READY` criteria pass and:
 - design-partner checklist is ready
 - one verified demo/test store can be shown confidently
 - answer-quality evidence is clear enough for a non-founder reader to understand product behavior and known gaps
+- platform/operator readiness audit UI or equivalent review surface is available for non-founder review
 - known gaps are acceptable and documented
 
 Mark `PARTIAL` if:
@@ -560,6 +628,7 @@ Mark `NOT_READY` if:
 - live verifier fails without a known environmental blocker
 - storefront surfaces are broken
 - answer quality is generic, ungrounded, unsafe, internally leaky, or tier-inconsistent
+- readiness status depends on chat history or private scripts with no reviewable UI/evidence surface
 - merchant/admin copy leaks internals or misleads buyers
 - support evidence is insufficient for first real stores
 
@@ -575,6 +644,7 @@ Required completion fields:
 - readiness decision
 - evidence artifacts
 - query-to-answer audit result
+- platform readiness audit UI status
 - changed files
 - verification commands and results
 - live verification status
