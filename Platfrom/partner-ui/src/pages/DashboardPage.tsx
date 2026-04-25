@@ -22,14 +22,15 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listEscalations } from '../api/escalations'
+import { listClientImplementations } from '../api/implementations'
 import { completePartnerSignup } from '../api/session'
-import type { PartnerEscalation, PartnerSession, PartnerStore } from '../api/schemas'
+import type { PartnerClientImplementation, PartnerEscalation, PartnerSession, PartnerStore } from '../api/schemas'
 import { listPartnerStores } from '../api/stores'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { DataTable, type DataColumn } from '../components/DataTable'
 import { PageHeader } from '../components/PageHeader'
 import { StatusChip } from '../components/StatusChip'
-import { formatDate, firstName } from '../utils/format'
+import { formatDate, formatDateTime, firstName } from '../utils/format'
 
 export function DashboardPage({ session }: { session: PartnerSession }) {
   if (session.signupRequired) {
@@ -84,12 +85,22 @@ function ProvisionedDashboard({ session }: { session: PartnerSession }) {
   const { api } = useSupabaseAuth()
   const storesQuery = useQuery({ queryKey: ['stores'], queryFn: () => listPartnerStores(api) })
   const escalationQuery = useQuery({ queryKey: ['escalations'], queryFn: () => listEscalations(api) })
+  const implementationsQuery = useQuery({ queryKey: ['implementations'], queryFn: () => listClientImplementations(api) })
   const stores = storesQuery.data ?? []
   const escalations = escalationQuery.data ?? []
+  const implementations = implementationsQuery.data ?? []
   const openEscalations = escalations.filter((item) => !['RESOLVED', 'CLOSED'].includes(item.status))
+  const pendingApprovals = implementations.filter((item) => item.status === 'WAITING_ON_MERCHANT')
 
-  if (stores.length === 0) {
-    return <EmptyWorkspace session={session} />
+  if (!storesQuery.isLoading && stores.length === 0) {
+    return (
+      <EmptyWorkspace
+        session={session}
+        implementations={implementations}
+        implementationsLoading={implementationsQuery.isLoading}
+        implementationsError={implementationsQuery.isError}
+      />
+    )
   }
 
   const attentionRows = stores.filter((store) => store.status !== 'READY')
@@ -122,9 +133,18 @@ function ProvisionedDashboard({ session }: { session: PartnerSession }) {
         <KpiTile label="Stores assigned" value={String(stores.length)} />
         <KpiTile label="Open escalations" value={String(openEscalations.length)} />
         <KpiTile label="Configured surfaces" value={String(stores.reduce((count, store) => count + store.enabledSurfaces.length, 0))} />
-        <KpiTile label="Pending merchant approvals" value="0" />
+        <KpiTile label="Pending merchant approvals" value={String(pendingApprovals.length)} />
       </Box>
       <Stack spacing={3}>
+        <Box>
+          <Typography variant="h2" sx={{ mb: 1.5 }}>Implementation requests</Typography>
+          {implementationsQuery.isError ? <Alert severity="error" sx={{ mb: 1.5 }}>Implementation request history could not be loaded.</Alert> : null}
+          <ImplementationRequestsTable
+            rows={implementations}
+            loading={implementationsQuery.isLoading}
+            empty="No implementation requests yet."
+          />
+        </Box>
         <Box>
           <Typography variant="h2" sx={{ mb: 1.5 }}>Needs your attention</Typography>
           <DataTable columns={columns} rows={attentionRows} getRowKey={(row) => row.id} loading={storesQuery.isLoading} empty={<Typography color="text.secondary">Nothing needs action right now.</Typography>} />
@@ -149,8 +169,19 @@ function ProvisionedDashboard({ session }: { session: PartnerSession }) {
   )
 }
 
-function EmptyWorkspace({ session }: { session: PartnerSession }) {
+function EmptyWorkspace({
+  session,
+  implementations,
+  implementationsLoading,
+  implementationsError,
+}: {
+  session: PartnerSession
+  implementations: PartnerClientImplementation[]
+  implementationsLoading: boolean
+  implementationsError: boolean
+}) {
   const navigate = useNavigate()
+  const pendingApprovals = implementations.filter((item) => item.status === 'WAITING_ON_MERCHANT')
   return (
     <>
       <PageHeader
@@ -181,13 +212,58 @@ function EmptyWorkspace({ session }: { session: PartnerSession }) {
       </Box>
       <Accordion sx={{ mt: 3 }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography>Pending approvals (0)</Typography>
+          <Typography>Pending approvals ({pendingApprovals.length})</Typography>
         </AccordionSummary>
         <AccordionDetails>
-          <Typography color="text.secondary">Merchant approvals created from implementation requests will appear here after the backend exposes list history.</Typography>
+          {implementationsError ? <Alert severity="error" sx={{ mb: 1.5 }}>Implementation request history could not be loaded.</Alert> : null}
+          <ImplementationRequestsTable
+            rows={implementations}
+            loading={implementationsLoading}
+            empty="No implementation requests yet."
+          />
         </AccordionDetails>
       </Accordion>
     </>
+  )
+}
+
+function ImplementationRequestsTable({
+  rows,
+  loading,
+  empty,
+}: {
+  rows: PartnerClientImplementation[]
+  loading: boolean
+  empty: string
+}) {
+  const navigate = useNavigate()
+  const columns: DataColumn<PartnerClientImplementation>[] = [
+    {
+      key: 'client',
+      header: 'Client',
+      render: (row) => (
+        <Stack spacing={0.25}>
+          <Button onClick={() => navigate(`/implementations/${encodeURIComponent(row.id)}`)} sx={{ justifyContent: 'flex-start', p: 0, minWidth: 0 }}>
+            {row.clientName}
+          </Button>
+          <Typography variant="caption" color="text.secondary">{row.contactEmail ?? 'No contact email'}</Typography>
+        </Stack>
+      ),
+    },
+    { key: 'store', header: 'Store', render: (row) => <Typography>{row.shopDomain}</Typography> },
+    { key: 'status', header: 'Status', render: (row) => <StatusChip status={row.status} /> },
+    { key: 'created', header: 'Created', render: (row) => <Typography color="text.secondary">{formatDateTime(row.createdAt)}</Typography> },
+    { key: 'expires', header: 'Merchant review', render: (row) => <Typography color="text.secondary">{formatDateTime(row.approvalExpiresAt)}</Typography> },
+  ]
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={rows}
+      getRowKey={(row) => row.id}
+      loading={loading}
+      empty={<Typography color="text.secondary">{empty}</Typography>}
+    />
   )
 }
 

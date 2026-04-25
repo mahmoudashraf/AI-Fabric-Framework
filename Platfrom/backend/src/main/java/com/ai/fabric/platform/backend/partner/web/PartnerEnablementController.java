@@ -75,6 +75,12 @@ public class PartnerEnablementController {
         return service.createImplementation(request);
     }
 
+    @GetMapping("/client-implementations")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public List<PartnerClientImplementationSummary> listImplementations() {
+        return service.listImplementations();
+    }
+
     @GetMapping("/client-implementations/{requestId}")
     @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
     public PartnerClientImplementationSummary getImplementation(@PathVariable String requestId) {

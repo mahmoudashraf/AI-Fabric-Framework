@@ -222,6 +222,14 @@ class PartnerEnablementIntegrationTest {
             .andReturn();
 
         String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
+        mockMvc.perform(get("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].id", is(implementationId)))
+            .andExpect(jsonPath("$[0].status", is("WAITING_ON_MERCHANT")))
+            .andExpect(jsonPath("$[0].shopDomain", is("approved-client.myshopify.com")));
+
         var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
                 .header("X-PLATFORM-API-KEY", "operator-test-key")
                 .param("shopDomain", "approved-client.myshopify.com"))
@@ -251,6 +259,13 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.status", is("ACTIVE")))
             .andReturn();
         String assignmentId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.assignmentId");
+
+        mockMvc.perform(get("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].id", is(implementationId)))
+            .andExpect(jsonPath("$[0].status", is("APPROVED")));
 
         mockMvc.perform(get("/api/partners/stores")
                 .header("Authorization", "Bearer " + token))
@@ -343,6 +358,13 @@ class PartnerEnablementIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status", is("DENIED")));
+
+        mockMvc.perform(get("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].id", is(implementationId)))
+            .andExpect(jsonPath("$[0].status", is("DENIED")));
 
         mockMvc.perform(get("/api/partners/stores")
                 .header("Authorization", "Bearer " + token))

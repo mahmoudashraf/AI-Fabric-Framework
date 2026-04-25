@@ -259,6 +259,14 @@ public class PartnerEnablementService {
         return toImplementationSummary(requireImplementation(context.account().getId(), requestId));
     }
 
+    @Transactional(readOnly = true)
+    public List<PartnerClientImplementationSummary> listImplementations() {
+        PartnerContext context = requireProvisionedContext();
+        return implementationRequestRepository.findByPartnerAccountIdOrderByCreatedAtDesc(context.account().getId()).stream()
+            .map(this::toImplementationSummary)
+            .toList();
+    }
+
     @Transactional
     public PartnerStoreAccessLinkSummary createStoreAccessLink(String requestId) {
         PartnerContext context = requireProvisionedContext();

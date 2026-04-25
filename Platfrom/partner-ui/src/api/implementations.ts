@@ -18,6 +18,10 @@ export function createClientImplementation(api: PartnerApiClient, payload: Clien
   })
 }
 
+export function listClientImplementations(api: PartnerApiClient) {
+  return api.request('/api/partners/client-implementations', z.array(partnerClientImplementationSchema))
+}
+
 export function fetchEligibleStores(api: PartnerApiClient, query?: string) {
   const params = query?.trim() ? `?query=${encodeURIComponent(query.trim())}` : ''
   return api.request(`/api/partners/eligible-stores${params}`, z.array(partnerEligibleStoreSchema))

@@ -100,6 +100,7 @@ type LoadState = {
   usageSummary: ShopifyBridgeUsageSummary | null
   recentGovernedActions: ShopifyBridgeGovernedActionAuditSummary[]
   partnerAccessRequests: ShopifyBridgePartnerAccessRequestSummary[]
+  partnerAccessError: string | null
   billingSummary: ShopifyBridgeBillingSummary | null
   webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null
   vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null
@@ -286,6 +287,7 @@ export default function App() {
     usageSummary: null,
     recentGovernedActions: [],
     partnerAccessRequests: [],
+    partnerAccessError: null,
     billingSummary: null,
     webhookSubscriptions: null,
     vectorizationSummary: null,
@@ -377,7 +379,7 @@ export default function App() {
   }, [pendingBillingReturn, state.billingSummary, state.error, state.loading])
 
   async function refresh() {
-    setState((current) => ({ ...current, loading: true, error: null }))
+    setState((current) => ({ ...current, loading: true, error: null, partnerAccessError: null }))
     try {
       const shell = await fetchShell()
       let session: ShopifyBridgeMerchantSessionResponse | null = null
@@ -385,6 +387,7 @@ export default function App() {
       let usageSummary: ShopifyBridgeUsageSummary | null = null
       let recentGovernedActions: ShopifyBridgeGovernedActionAuditSummary[] = []
       let partnerAccessRequests: ShopifyBridgePartnerAccessRequestSummary[] = []
+      let partnerAccessError: string | null = null
       let billingSummary: ShopifyBridgeBillingSummary | null = null
       let webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null = null
       let vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null = null
@@ -403,6 +406,7 @@ export default function App() {
           usageSummary: null,
           recentGovernedActions: [],
           partnerAccessRequests: [],
+          partnerAccessError: null,
           billingSummary: null,
           webhookSubscriptions: null,
           vectorizationSummary: null,
@@ -413,8 +417,11 @@ export default function App() {
       }
       try {
         partnerAccessRequests = await fetchPartnerAccessRequests()
-      } catch {
+      } catch (partnerAccessLoadError) {
         partnerAccessRequests = []
+        partnerAccessError = partnerAccessLoadError instanceof Error
+          ? partnerAccessLoadError.message
+          : 'Partner access requests could not be loaded.'
       }
       try {
         webhookSubscriptions = await fetchWebhookSubscriptions()
@@ -435,6 +442,7 @@ export default function App() {
         usageSummary,
         recentGovernedActions,
         partnerAccessRequests,
+        partnerAccessError,
         billingSummary,
         webhookSubscriptions,
         vectorizationSummary,
@@ -469,6 +477,7 @@ export default function App() {
         usageSummary: null,
         recentGovernedActions: [],
         partnerAccessRequests: [],
+        partnerAccessError: null,
         billingSummary: null,
         webhookSubscriptions: null,
         vectorizationSummary: null,
@@ -907,6 +916,7 @@ export default function App() {
   const usageSummary = state.usageSummary
   const recentGovernedActions = state.recentGovernedActions
   const partnerAccessRequests = state.partnerAccessRequests
+  const partnerAccessError = state.partnerAccessError
   const billingSummary = state.billingSummary
   const billingApprovalRequired = Boolean(
     billingSummary?.availablePlans?.some(
@@ -2094,6 +2104,11 @@ export default function App() {
                   <Text as="p" variant="bodyMd" tone="subdued">
                     Review implementation support access for the installed Shopify store. Approval creates scoped partner visibility; denial keeps the store private.
                   </Text>
+                  {partnerAccessError ? (
+                    <Banner tone="critical">
+                      Partner access requests could not be loaded: {partnerAccessError}
+                    </Banner>
+                  ) : null}
                   {partnerAccessRequests.length ? (
                     <BlockStack gap="300">
                       {partnerAccessRequests.map((request) => {
@@ -2146,11 +2161,11 @@ export default function App() {
                         )
                       })}
                     </BlockStack>
-                  ) : (
+                  ) : !partnerAccessError ? (
                     <Text as="p" variant="bodyMd" tone="subdued">
                       No partner access requests are waiting for this store.
                     </Text>
-                  )}
+                  ) : null}
                 </BlockStack>
               </Card>
             </Box>

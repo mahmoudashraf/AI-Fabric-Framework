@@ -2433,5 +2433,31 @@ Executed after this correction:
 - `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=PlatformShopifyStoreClientTest,ShopifyMerchantControllerTest test`
 - `npm --prefix product-services/shopify-bridge-service/ui run build`
 - `mvn -f product-services/shopify-bridge-service/pom.xml -q test`
+
+## Partner Request Visibility Correction - 2026-04-25
+
+### Completed Changes
+
+- Added authenticated partner request history endpoint `GET /api/partners/client-implementations`.
+- Partner request history is scoped to the caller's provisioned partner workspace and ordered by newest first.
+- Partner UI dashboard now loads real implementation request history and shows merchant approval status, shop domain, created time, and review expiry.
+- Partner UI no longer hard-codes `Pending merchant approvals` to `0`.
+- Empty partner workspaces now still show pending implementation requests, so a partner can see `WAITING_ON_MERCHANT`, `APPROVED`, or `DENIED` even before any store assignment exists.
+- Shopify Bridge merchant admin no longer silently hides Platform/proxy failures as an empty partner request list. The `Partners` tab now shows a critical load error when request retrieval fails.
+- A scan of the changed code found no dummy implementation, stubbed request history, hard-coded partner approval count, or "history will appear later" placeholder.
+
+### Verification Proof
+
+Executed after this correction:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test`
+- `npm --prefix Platfrom/partner-ui run build`
+- `npm --prefix Platfrom/partner-ui run smoke`
+- `npm --prefix product-services/shopify-bridge-service/ui run build`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=ShopifyMerchantControllerTest,PlatformShopifyStoreClientTest test`
+- `mvn -f Platfrom/backend/pom.xml -q test`
+- `git diff --check`
+
+The backend integration test now proves the partner can list a created implementation request while it is `WAITING_ON_MERCHANT`, after merchant approval updates it to `APPROVED`, and after merchant denial updates it to `DENIED`.
 - `mvn -f Platfrom/backend/pom.xml -q test`
 - `git diff --check`
