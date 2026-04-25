@@ -247,6 +247,13 @@ Platform backend owns:
 - partner-store assignment
 - partner permissions
 - partner action audit
+- client implementation requests
+- merchant approval links/codes
+- verification run records
+- escalation records
+- escalation reply/thread records
+- partner-visible and operator-only support notes
+- evidence bundle metadata
 - escalation ownership
 - operator override/revocation
 - all authorization decisions
@@ -263,13 +270,68 @@ Partners own:
 
 - their authenticated user session
 - assigned client implementation workflow
-- setup, verification, evidence capture, support notes, and escalations inside their scope
+- setup, verification, evidence capture, support replies, and escalations inside their scope
 
 Rule:
 
 - Supabase identity proves who the partner user is.
 - Platform authorization decides what that partner user can see and do.
 - Shopify Bridge decides what is true for the Shopify store.
+
+### Data Ownership And Storage
+
+Supabase Auth stores only identity and session data:
+
+- user identity
+- provider identity
+- OAuth login state
+- verified email/profile basics
+- session/JWT lifecycle
+
+Do not store partner permissions, store assignments, support state, or business authorization as the source of truth in Supabase metadata.
+
+Platform backend database is the source of truth for partner enablement:
+
+- `PartnerAccount`
+- `PartnerMember`
+- partner roles and statuses
+- self-service signup state
+- client implementation requests
+- merchant approval links/codes
+- partner-store assignments
+- revocation/suspension status
+- partner action audit
+- verification run records
+- support escalations
+- escalation reply threads
+- operator-only support notes
+- evidence bundle metadata
+- template/playbook records
+
+Shopify Bridge or product-service storage owns Shopify-specific truth:
+
+- Shopify store records
+- install status
+- billing/tier state
+- Knowledge Sync readiness
+- storefront surface status
+- support readiness
+- usage/value signals
+- Shopify verification evidence
+- Shopify Admin API tokens and Shopify secrets
+
+Evidence storage rule:
+
+- store structured evidence metadata in the Platform backend database
+- reference Shopify Bridge live/readiness data by store and evidence snapshot identifiers where possible
+- store screenshots, videos, and large files only in approved object/file storage with redaction and scoped access
+- never store or expose Shopify tokens, provider tokens, secrets, Railway variables, raw runtime logs, or raw vectorization internals in partner-visible evidence
+
+Support storage rule:
+
+- escalation records and reply threads belong to the Platform backend database
+- partner-visible replies must be separated from operator-only internal notes
+- merchant-visible exports must be generated from safe escalation summary fields, not raw internal threads
 
 ### Login Providers
 
@@ -794,6 +856,7 @@ Close:
 - escalation list
 - escalation status
 - owner
+- severity
 - next action
 - due date
 - reproduction steps
@@ -801,8 +864,44 @@ Close:
 - attached evidence links
 - verifier/manual checks already run
 - client/store impact
+- governed escalation reply thread
+- partner-visible replies
+- operator-visible replies
+- operator-only internal notes
 - resolution notes
-- operator-only internal notes separated from partner-visible notes
+- explicit separation between partner-visible replies and operator-only internal notes
+
+Support flow:
+
+1. Partner finds a blocker in an approved client-store workspace.
+2. Partner runs or attaches the relevant verification pack.
+3. Platform captures structured evidence: store, plan, enabled surfaces, Knowledge Sync state, failed checks, timestamps, partner user, and attachment links if provided.
+4. Partner creates an escalation with severity, impact, expected behavior, actual behavior, next action, and due date.
+5. Operator sees the escalation in the operator surface with full internal context and partner evidence.
+6. Partner and operator use the escalation reply thread for partner-safe responses.
+7. Operator can add internal notes that are never visible to partners or merchants.
+8. Status changes are recorded as timeline events.
+9. Resolution summary is written as a clean partner-visible field.
+10. Merchant handoff/export uses only merchant-safe summary, resolution, and evidence fields.
+
+Escalation statuses:
+
+- `Open`
+- `Waiting on partner`
+- `Waiting on merchant`
+- `Waiting on operator`
+- `Resolved`
+- `Closed`
+
+Reply/thread rules:
+
+- escalation thread is not a general-purpose chat inbox
+- every reply belongs to one escalation
+- every reply has author, role, visibility, timestamp, and optional attachment references
+- visibility values must include `PARTNER_VISIBLE`, `OPERATOR_VISIBLE`, and `OPERATOR_INTERNAL`
+- operator-only notes may mention internal diagnostics but must not include raw secret values
+- partner-visible replies should use product/support language, not runtime/provider/secrets language
+- merchant-visible exports must not include raw partner/operator back-and-forth unless explicitly converted into a clean handoff summary
 
 Exit:
 
@@ -1008,11 +1107,17 @@ Deliver:
 - escalation creation
 - escalation status/owner/next action/due date
 - evidence attachment or links
-- operator/partner note boundary
+- structured escalation reply thread
+- partner-visible replies
+- operator-visible replies
+- operator-only internal notes
+- escalation timeline events
+- merchant-safe resolution/handoff summary
+- operator/partner/merchant visibility boundary
 
 Exit:
 
-- escalations are structured and actionable
+- escalations are structured, threaded, actionable, and safe to export in merchant-facing form
 
 ### Slice G: Templates, Playbooks, And Rollout Gate
 
@@ -1052,8 +1157,13 @@ Required concepts:
 - `PartnerVerificationRun`
 - `PartnerVerificationStep`
 - `PartnerSupportEscalation`
+- `PartnerSupportEscalationStatus`
+- `PartnerSupportEscalationThread`
+- `PartnerSupportReply`
 - `PartnerSupportNote`
+- `PartnerSupportNoteVisibility`
 - `PartnerEvidenceBundle`
+- `PartnerEvidenceAttachment`
 - `PartnerTemplate`
 - `PartnerPlaybook`
 
@@ -1088,6 +1198,11 @@ Relationship rules:
 - Supabase `sub` maps to at most one active partner member unless a deliberate multi-account switcher is built
 - invitation email must match a verified provider email unless operator manually links the Supabase identity
 - submitted shop domains and client details must not reveal store data before approved assignment
+- support escalation belongs to one partner account and optionally one approved/assigned store
+- support reply belongs to one escalation thread
+- support reply visibility controls whether partner, operator, or merchant-export views can include it
+- operator-only notes are never returned through partner APIs
+- merchant exports are generated from safe resolution and evidence summary fields, not raw internal support thread content
 
 ---
 
@@ -1107,6 +1222,8 @@ Required read APIs:
 - verification pack summary
 - verification run history
 - support escalation list/detail
+- support escalation reply thread
+- support escalation timeline
 - templates/playbooks list/detail
 
 Required write APIs:
@@ -1117,6 +1234,8 @@ Required write APIs:
 - create merchant store-access approval link/code or claim path
 - create/update partner note
 - create/update escalation
+- create partner-visible escalation reply
+- attach redacted evidence to escalation
 - mark manual verification step
 - request operator action
 - download/copy evidence packet
@@ -1136,6 +1255,9 @@ Operator-only APIs:
 - suspend partner account or member
 - override partner access
 - resolve escalations
+- add operator-visible escalation reply
+- add operator-only escalation note
+- redact or hide unsafe escalation evidence
 - view internal evidence
 
 Do not expose:
@@ -1163,6 +1285,8 @@ Auth/session API examples:
 - `POST /api/partners/stores/{storeId}/verification-steps/{stepId}/complete`
 - `GET /api/partners/stores/{storeId}/evidence-bundles`
 - `POST /api/partners/stores/{storeId}/escalations`
+- `GET /api/partners/escalations/{escalationId}/thread`
+- `POST /api/partners/escalations/{escalationId}/replies`
 - `PATCH /api/partners/escalations/{escalationId}`
 
 ---
@@ -1236,6 +1360,7 @@ This handoff is complete when:
 - Google, Apple, and LinkedIn OIDC login are configured or documented with local/staging/production redirect URLs
 - Platform backend validates Supabase JWTs and maps identities to partner members
 - partner enablement is represented as a real self-managed partner workspace or equivalent mature platform surface
+- data ownership is implemented or explicitly stubbed: Supabase Auth for identity/session, Platform backend database for partner/support state, Shopify Bridge/product services for Shopify truth and secrets
 - self-service partner signup creates an empty partner workspace without default store access
 - partner identity, roles, client implementation requests, store assignment, revocation, and audit are implemented or explicitly stubbed with a safe migration path
 - merchant-approved store access or operator assignment is implemented or explicitly stubbed with a safe migration path
@@ -1246,7 +1371,8 @@ This handoff is complete when:
 - intelligence catalog covers verified Shopify Companion Starter surfaces
 - partner can run or follow a verification pack for each surface
 - Free AI-search-only and Starter no-order-lookup gates are included in partner verification
-- support escalation captures owner, status, next action, evidence, and resolution notes
+- support escalation captures owner, status, severity, next action, evidence, reply thread, internal-note boundary, timeline, and resolution notes
+- support reply visibility prevents operator-only notes and raw internal evidence from leaking to partners or merchants
 - evidence packets reuse live product truth and do not drift from merchant/App Review/support exports
 - vertical playbooks exist for at least 3 merchant types
 - merchant admin remains merchant-safe and not cluttered with partner/operator long-form content
@@ -1414,6 +1540,7 @@ Use this only for partial slice completion. The full handoff is complete only wh
 Minimum acceptable partial slice:
 
 - Supabase auth boundary is explicit
+- data ownership boundary is explicit
 - partner UI project decision is explicit
 - deployment-level admin authority vs product implementation partner authority is explicit
 - self-service signup with zero default store access is explicit
@@ -1423,7 +1550,7 @@ Minimum acceptable partial slice:
 - each catalog entry has tier, source, setup, verification, limitations, and claim-safe copy
 - deployment checklist is complete enough for a partner to follow without a live walkthrough
 - verification pack can prove Free AI-search-only and Starter no-order-lookup boundaries
-- escalation template captures owner, status, next action, and evidence
+- escalation template captures owner, status, severity, next action, evidence, reply visibility, and resolution summary
 - at least 3 vertical playbooks exist
 - merchant admin remains merchant-safe and not cluttered with partner/operator long-form content
 - no commissions, white-label, public partner API, directory, or certification is introduced
@@ -1498,6 +1625,10 @@ If those tests do not exist yet, the implementing session should create equivale
 - revoked member denied
 - assigned store allowed
 - unassigned store denied
+- partner can create escalation only for approved/assigned store
+- partner can add partner-visible escalation reply
+- partner cannot read operator-only escalation note
+- merchant export excludes operator-only notes and unsafe internal evidence
 - operator auth still works
 
 If live deployment or verifier behavior changes:
