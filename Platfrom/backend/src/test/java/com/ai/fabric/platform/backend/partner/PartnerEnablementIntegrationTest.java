@@ -151,6 +151,17 @@ class PartnerEnablementIntegrationTest {
     }
 
     @Test
+    void partnerSessionAcceptsSupabaseEmailVerificationFromUserMetadata() throws Exception {
+        String token = partnerJwtWithUserMetadataEmailVerified("metadata-verified-user", "metadata-verified@example.com");
+
+        mockMvc.perform(get("/api/partners/session")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.authenticated", is(true)))
+            .andExpect(jsonPath("$.signupRequired", is(true)));
+    }
+
+    @Test
     void unassignedPartnerCannotAccessStoreDataOrCreateEscalation() throws Exception {
         String token = partnerJwt("unassigned-user", "unassigned-user@example.com");
         completeSignup(token, "Unassigned Partner Workspace");
@@ -346,8 +357,20 @@ class PartnerEnablementIntegrationTest {
     }
 
     private static String partnerJwt(String subject, String email, String issuer, boolean emailVerified) throws Exception {
+        return partnerJwt(subject, email, issuer, emailVerified, null);
+    }
+
+    private static String partnerJwtWithUserMetadataEmailVerified(String subject, String email) throws Exception {
+        return partnerJwt(subject, email, ISSUER, false, Map.of("email_verified", true));
+    }
+
+    private static String partnerJwt(String subject,
+                                     String email,
+                                     String issuer,
+                                     boolean emailVerified,
+                                     Map<String, Object> userMetadata) throws Exception {
         Instant now = Instant.now();
-        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+        JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
             .issuer(issuer)
             .subject(subject)
             .audience("authenticated")
@@ -356,14 +379,16 @@ class PartnerEnablementIntegrationTest {
             .claim("email", email)
             .claim("email_verified", emailVerified)
             .claim("name", "Test Partner")
-            .claim("app_metadata", Map.of("provider", "email"))
-            .build();
+            .claim("app_metadata", Map.of("provider", "email"));
+        if (userMetadata != null) {
+            claims.claim("user_metadata", userMetadata);
+        }
         SignedJWT signed = new SignedJWT(
             new JWSHeader.Builder(JWSAlgorithm.RS256)
                 .type(JOSEObjectType.JWT)
                 .keyID(RSA_KEY.getKeyID())
                 .build(),
-            claims
+            claims.build()
         );
         signed.sign(new RSASSASigner(RSA_KEY.toPrivateKey()));
         return signed.serialize();

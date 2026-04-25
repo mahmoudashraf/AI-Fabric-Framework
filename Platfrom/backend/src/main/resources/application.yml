@@ -54,19 +54,19 @@ platform:
     bootstrap-admin-password: ${PLATFORM_BOOTSTRAP_ADMIN_PASSWORD:}
     bootstrap-admin-display-name: ${PLATFORM_BOOTSTRAP_ADMIN_DISPLAY_NAME:Platform Admin}
     supabase:
-      enabled: ${PLATFORM_SUPABASE_AUTH_ENABLED:false}
-      issuer: ${PLATFORM_SUPABASE_ISSUER:}
-      jwks-uri: ${PLATFORM_SUPABASE_JWKS_URI:}
+      enabled: ${PLATFORM_SUPABASE_AUTH_ENABLED:true}
+      issuer: ${PLATFORM_SUPABASE_ISSUER:https://xazkenhomhtpejjjqtsy.supabase.co/auth/v1}
+      jwks-uri: ${PLATFORM_SUPABASE_JWKS_URI:https://xazkenhomhtpejjjqtsy.supabase.co/auth/v1/.well-known/jwks.json}
       audience: ${PLATFORM_SUPABASE_AUDIENCE:authenticated}
-      project-ref: ${PLATFORM_SUPABASE_PROJECT_REF:}
-      require-email-verified: ${PLATFORM_SUPABASE_REQUIRE_EMAIL_VERIFIED:true}
+      project-ref: ${PLATFORM_SUPABASE_PROJECT_REF:xazkenhomhtpejjjqtsy}
+      require-email-verified: ${PLATFORM_SUPABASE_REQUIRE_EMAIL_VERIFIED:false}
       allowed-provider-ids:
         - google
         - apple
         - linkedin_oidc
         - email
       merchant-approval-ttl: ${PLATFORM_PARTNER_MERCHANT_APPROVAL_TTL:7d}
-      partner-app-url: ${PLATFORM_PARTNER_APP_URL:http://localhost:5174}
+      partner-app-url: ${PLATFORM_PARTNER_APP_URL:https://ai-fabric-framework-production-158d.up.railway.app}
   public-api:
     enabled: ${PLATFORM_PUBLIC_API_ENABLED:false}
     client-id-header-name: ${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:X-PLATFORM-CLIENT-ID}
@@ -99,7 +99,7 @@ platform:
     deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
     deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
   cors:
-    allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,https://ai-fabric-framework-production-158d.up.railway.app}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
   poc:
     runtime-timeout: ${PLATFORM_POC_RUNTIME_TIMEOUT:60s}

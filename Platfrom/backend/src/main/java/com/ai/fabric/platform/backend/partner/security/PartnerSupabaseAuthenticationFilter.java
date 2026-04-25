@@ -73,7 +73,7 @@ public class PartnerSupabaseAuthenticationFilter extends OncePerRequestFilter {
         validateAudience(jwt);
         String supabaseUserId = requiredClaim(jwt, "sub");
         String email = normalizeEmail(jwt.getClaimAsString("email"));
-        boolean emailVerified = Boolean.TRUE.equals(jwt.getClaim("email_verified"));
+        boolean emailVerified = emailVerified(jwt);
         if (properties.requireEmailVerified() && !emailVerified) {
             throw new IllegalArgumentException("Supabase email is not verified.");
         }
@@ -138,6 +138,18 @@ public class PartnerSupabaseAuthenticationFilter extends OncePerRequestFilter {
         }
         String claim = jwt.getClaimAsString("provider");
         return StringUtils.hasText(claim) ? claim : "email";
+    }
+
+    private boolean emailVerified(Jwt jwt) {
+        if (Boolean.TRUE.equals(jwt.getClaim("email_verified"))) {
+            return true;
+        }
+        Object userMetadata = jwt.getClaims().get("user_metadata");
+        if (userMetadata instanceof Map<?, ?> map) {
+            Object value = map.get("email_verified");
+            return Boolean.TRUE.equals(value) || "true".equalsIgnoreCase(String.valueOf(value));
+        }
+        return false;
     }
 
     private String providerSubject(Jwt jwt, String fallback) {

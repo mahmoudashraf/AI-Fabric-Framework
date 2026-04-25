@@ -2021,3 +2021,22 @@ Remaining failure:
 - public merchant approval route probe returned HTTP `401`
 
 This keeps the remaining blocker on the Platform backend deployment/auth configuration, not on the temporary Railway Partner UI service.
+
+### 2026-04-25 Backend Partner Auth Fix
+
+Platform diagnostics confirmed the backend service is deployed from `Platform-V6`. A public merchant approval probe with a valid JSON request body returned HTTP `400` for a fake approval code, which proves the partner routes are deployed and no longer blocked by global auth.
+
+The remaining `GET /api/partners/session` HTTP `401` was isolated to Supabase partner JWT authentication defaults/configuration:
+
+- changed backend defaults to enable the launch Supabase issuer and JWKS URI
+- defaulted `PLATFORM_SUPABASE_REQUIRE_EMAIL_VERIFIED` to `false` for the current email-only verification path
+- defaulted `PLATFORM_PARTNER_APP_URL` to the temporary Railway Partner UI service URL
+- added the temporary Railway Partner UI service URL to default CORS origins
+- updated partner JWT parsing to accept Supabase email verification from `user_metadata.email_verified`, matching Supabase email-login token shape
+
+Verification passed:
+
+```bash
+mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test
+git diff --check
+```
