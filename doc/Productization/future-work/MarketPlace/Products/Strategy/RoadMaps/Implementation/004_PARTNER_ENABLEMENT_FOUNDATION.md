@@ -1,6 +1,6 @@
 # Partner Enablement Foundation
 
-Status: implemented; prior Railway slices live verified, latest real workflow persistence locally verified and pending deployment/live proof (revised 2026-04-25)
+Status: implemented and live verified on Railway (revised 2026-04-25)
 
 Owner mode: technical LLM implementation session
 
@@ -2540,14 +2540,35 @@ Executed on 2026-04-25 from `/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo
 
 The focused backend integration test now covers signup, installed-store implementation request creation, merchant/admin approval, active assignment visibility, verification-pack evaluation, persisted verification run fetch, manual verification step persistence, evidence bundle fetch/export/create, template application persistence, store note persistence, member listing, profile update, escalation evidence linking, partner-visible reply evidence linking, hidden internal replies, merchant revocation, operator revocation, implementation status transitions, revoked assignment behavior, and audit evidence.
 
-### Live Verification Status
+### Live Verification Proof
 
-This latest real-workflow persistence slice has not been live verified yet because these changes still need to be deployed to the Platform backend and Partner UI Railway services. After deployment, run the Partner Enablement live verification pack with a fresh `PARTNER_SUPABASE_JWT` and an approved installed test store, then prove:
+Executed after commit `298fdf7a` was pushed to `Platform-V6` and Railway deployed the Platform backend plus Partner UI asset `/assets/index-CTc3nXsH.js`:
 
-- `GET /api/partners/verification-packs` returns the canonical packs.
-- `POST /api/partners/stores/{storeId}/verification-runs` creates a persisted run and evidence bundle.
-- `GET /api/partners/verification-runs/{runId}` returns real step results.
-- `GET /api/partners/evidence-bundles/{bundleId}/export` returns a ZIP.
-- `POST /api/partners/templates/{templateId}/applications` persists an application.
-- `POST /api/partners/stores/{storeId}/notes` persists a note.
-- Partner UI routes `/verification`, `/verification/{runId}`, `/evidence`, `/evidence/{bundleId}`, `/templates`, `/members`, `/profile`, and store workspace tabs load against live Platform.
+- Created a fresh non-social Supabase email/password test partner account using the private local handoff secrets.
+- Completed partner signup against live Platform.
+- Ran `scripts/verify-partner-enablement-live.sh` in strict mode against live Platform and Partner UI with the fresh partner JWT.
+- Confirmed live backend health, unauthenticated partner rejection, invalid JWT rejection, Partner UI health, Partner UI runtime config, Partner UI route reachability, valid partner JWT acceptance, partner session shape, catalog reachability, Free AI-search/no Starter order-lookup boundary, and partner-safe store summaries.
+- Queried eligible installed stores for `shopping-companion-test.myshopify.com`.
+- Created a live partner implementation request and approved it through the merchant approval flow.
+- Confirmed the partner implementation transitioned to `APPROVED`.
+- Confirmed `GET /api/partners/verification-packs` returns `starter-launch-readiness`.
+- Created a live persisted verification run for the approved assignment and confirmed it returned step results and an evidence bundle ID.
+- Fetched the persisted verification run detail.
+- Fetched the generated evidence bundle detail.
+- Exported the evidence bundle ZIP and verified it contains `manifest.json`, `summary.json`, `attachments.json`, and `merchant-safe-summary.md`.
+- Created an additional live launch evidence bundle.
+- Persisted a live template application for `fashion-apparel-starter`.
+- Persisted and listed a live store note.
+- Listed partner workspace members.
+- Persisted a partner profile update.
+- Created a support escalation linked to the evidence bundle.
+- Created a support reply linked to the same evidence bundle.
+- Fetched the support thread and confirmed the partner-visible reply path.
+- Confirmed the deployed Partner UI asset contains the new real workflow surfaces: verification packs, evidence bundles, templates/playbooks, and evidence ZIP download.
+- Cleaned up the live test access by revoking the temporary active partner assignment through the Platform admin merchant-access revoke path.
+
+Live proof IDs retained for audit lookup:
+
+- assignment: `psa-7ab46513-4c4e-494f-bfcf-f70e8d5b370a`
+- verification run: `pvr-76bc1db1-d4b9-448b-bd44-66591657ae33`
+- evidence bundle: `peb-a828e8a5-6ca9-4e53-b6f1-4e355c8e9f4d`
