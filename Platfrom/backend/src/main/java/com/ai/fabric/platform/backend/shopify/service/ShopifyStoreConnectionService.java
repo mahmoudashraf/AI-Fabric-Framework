@@ -391,25 +391,33 @@ public class ShopifyStoreConnectionService {
         } catch (ResponseStatusException ex) {
             return base;
         }
+        boolean orderLookupTierAllowed = "ELITE".equalsIgnoreCase(supportReadiness.billingTier());
         boolean supportGateReady = "READY".equalsIgnoreCase(supportReadiness.status())
-            && supportReadiness.orderLookupSupported()
-            && supportReadiness.appScopesUpdateWebhookReady()
-            && supportReadiness.merchantHandoffConfigured();
+            && (!orderLookupTierAllowed
+                || (supportReadiness.orderLookupSupported()
+                    && supportReadiness.appScopesUpdateWebhookReady()
+                    && supportReadiness.merchantHandoffConfigured()));
         if (supportGateReady) {
             return base;
         }
 
         List<String> supportBlockers = new java.util.ArrayList<>();
-        if (!"READY".equalsIgnoreCase(supportReadiness.status()) || !supportReadiness.orderLookupSupported()) {
+        if (!"READY".equalsIgnoreCase(supportReadiness.status())) {
             supportBlockers.add(firstNonBlank(
                 supportReadiness.message(),
                 "Customer-safe order lookup and governed support posture are not ready for go-live yet."
             ));
         }
-        if (!supportReadiness.appScopesUpdateWebhookReady()) {
+        if (orderLookupTierAllowed && "READY".equalsIgnoreCase(supportReadiness.status()) && !supportReadiness.orderLookupSupported()) {
+            supportBlockers.add(firstNonBlank(
+                supportReadiness.message(),
+                "Customer-safe order lookup must be enabled before go-live."
+            ));
+        }
+        if (orderLookupTierAllowed && !supportReadiness.appScopesUpdateWebhookReady()) {
             supportBlockers.add("APP_SCOPES_UPDATE webhook readiness is required before launch so Shopify scope drift is detected.");
         }
-        if (!supportReadiness.merchantHandoffConfigured()) {
+        if (orderLookupTierAllowed && !supportReadiness.merchantHandoffConfigured()) {
             supportBlockers.add(firstNonBlank(
                 supportReadiness.merchantHandoffMessage(),
                 "Merchant support handoff must be configured before launch."

@@ -517,7 +517,7 @@ class ShopifyStoreGoLiveServiceTest {
             !orderLookupSupported,
             !orderLookupSupported ? "https://shopify-bridge.example.com/auth/shopify/install?shop=alpha.myshopify.com" : null,
             "INSTALLED",
-            "FREE",
+            orderLookupSupported || !"READY".equals(status) ? "ELITE" : "FREE",
             "ACTIVE",
             orderLookupSupported ? java.util.List.of("read_orders") : java.util.List.of(),
             orderLookupSupported ? java.util.List.of() : java.util.List.of("read_orders"),

@@ -125,6 +125,10 @@ public class ShopifyStoreGoLiveService {
                 : supportReadiness.message();
             throw new ResponseStatusException(CONFLICT, message);
         }
+        boolean orderLookupTierAllowed = "ELITE".equalsIgnoreCase(supportReadiness.billingTier());
+        if (!orderLookupTierAllowed) {
+            return;
+        }
         if (!supportReadiness.orderLookupSupported()) {
             throw new ResponseStatusException(CONFLICT,
                 "Customer-safe order lookup must be enabled before go-live.");

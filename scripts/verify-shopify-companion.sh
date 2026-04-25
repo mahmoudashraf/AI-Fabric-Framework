@@ -46,12 +46,13 @@ set -euo pipefail
 #   EXPECT_ACTION_REQUIRES_CONFIRMATION=false
 #   EXPECT_ACTION_AUDIT_AVAILABLE=false
 #   EXPECT_ORDER_LOOKUP_STATUS=READY
-#   EXPECT_ORDER_LOOKUP_SUPPORTED=true
-#   EXPECT_ORDER_LOOKUP_SCOPE_GRANTED=true
-#   EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY=true
+#   EXPECT_ORDER_LOOKUP_SUPPORTED=<optional; defaults from live billing allowedSurfaces>
+#   EXPECT_ORDER_LOOKUP_SCOPE_GRANTED=<optional expected live scope grant>
+#   EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY=<optional expected app scopes webhook posture>
 #   EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED=<optional expected merchant handoff posture>
 #   EXPECT_SUPPORT_LIFECYCLE_STAGE=<optional expected support lifecycle stage>
-#   EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED=false
+#   EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED=<optional expected broader order scope grant>
+#   EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE=<optional storefront bootstrap expectation>
 #   ORDER_LOOKUP_ORDER_NUMBER=<optional exact order name like #1001>
 #   ORDER_LOOKUP_EMAIL=<optional checkout email for the order above>
 #   SHOPIFY_ADMIN_ACCESS_TOKEN=<offline-access-token>
@@ -96,17 +97,13 @@ EXPECT_ACTION_CAPABILITY_AVAILABLE="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-}"
 EXPECT_ACTION_REQUIRES_CONFIRMATION="${EXPECT_ACTION_REQUIRES_CONFIRMATION:-}"
 EXPECT_ACTION_AUDIT_AVAILABLE="${EXPECT_ACTION_AUDIT_AVAILABLE:-}"
 EXPECT_ORDER_LOOKUP_STATUS="${EXPECT_ORDER_LOOKUP_STATUS:-READY}"
-EXPECT_ORDER_LOOKUP_SUPPORTED="${EXPECT_ORDER_LOOKUP_SUPPORTED:-true}"
-EXPECT_ORDER_LOOKUP_SCOPE_GRANTED="${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED:-true}"
-EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY="${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY:-true}"
+EXPECT_ORDER_LOOKUP_SUPPORTED="${EXPECT_ORDER_LOOKUP_SUPPORTED:-}"
+EXPECT_ORDER_LOOKUP_SCOPE_GRANTED="${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED:-}"
+EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY="${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY:-}"
 EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED="${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED:-}"
 EXPECT_SUPPORT_LIFECYCLE_STAGE="${EXPECT_SUPPORT_LIFECYCLE_STAGE:-}"
-EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-false}"
-if [[ "${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}" == "true" ]]; then
-  EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="false"
-else
-  EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="true"
-fi
+EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-}"
+EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE:-}"
 EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,check_availability,get_policy}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
@@ -341,6 +338,57 @@ missing = sorted(expected - actual)
 if missing:
     print(
         f"Assertion failed for {label}: missing values {missing}; actual={sorted(actual)}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+PY
+}
+
+assert_json_array_not_contains_csv() {
+  local payload="$1"
+  local path="$2"
+  local forbidden_csv="$3"
+  local label="$4"
+  JSON_PAYLOAD="${payload}" JSON_PATH="${path}" FORBIDDEN_CSV="${forbidden_csv}" ASSERT_LABEL="${label}" python3 - <<'PY'
+import json
+import os
+import sys
+
+payload = os.environ["JSON_PAYLOAD"]
+path = os.environ["JSON_PATH"]
+forbidden_csv = os.environ["FORBIDDEN_CSV"]
+label = os.environ["ASSERT_LABEL"]
+
+try:
+    value = json.loads(payload)
+except json.JSONDecodeError as exc:
+    print(f"Invalid JSON for {label}: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+current = value
+for part in [segment for segment in path.split(".") if segment]:
+    if isinstance(current, list):
+        try:
+            current = current[int(part)]
+        except Exception:
+            current = None
+            break
+    elif isinstance(current, dict):
+        current = current.get(part)
+    else:
+        current = None
+        break
+
+if not isinstance(current, list):
+    print(f"Assertion failed for {label}: expected JSON array at path '{path}'", file=sys.stderr)
+    raise SystemExit(1)
+
+actual = {str(item).strip() for item in current if str(item).strip()}
+forbidden = {item.strip() for item in forbidden_csv.split(",") if item.strip()}
+present = sorted(forbidden & actual)
+if present:
+    print(
+        f"Assertion failed for {label}: forbidden values present {present}; actual={sorted(actual)}",
         file=sys.stderr,
     )
     raise SystemExit(1)
@@ -872,10 +920,12 @@ billing_allowed_surfaces_csv="$(json_array_to_csv "${platform_store_billing_json
 assert_nonempty "${billing_allowed_surfaces_csv}" "platform store billing allowedSurfaces"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.0.tierKey")" "FREE" "platform store billing availablePlans.0 tierKey"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.0.chatFallbackEnabled")" "false" "platform store billing FREE chatFallbackEnabled"
-assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.0.allowedSurfaces" "ai-search,order-lookup" "platform store billing FREE allowedSurfaces"
+assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.0.allowedSurfaces" "ai-search" "platform store billing FREE allowedSurfaces"
+assert_json_array_not_contains_csv "${platform_store_billing_json}" "availablePlans.0.allowedSurfaces" "order-lookup" "platform store billing FREE allowedSurfaces"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.1.tierKey")" "STARTER" "platform store billing availablePlans.1 tierKey"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.1.chatFallbackEnabled")" "true" "platform store billing STARTER chatFallbackEnabled"
-assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.1.allowedSurfaces" "comparison,order-lookup" "platform store billing STARTER allowedSurfaces"
+assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.1.allowedSurfaces" "comparison" "platform store billing STARTER allowedSurfaces"
+assert_json_array_not_contains_csv "${platform_store_billing_json}" "availablePlans.1.allowedSurfaces" "order-lookup" "platform store billing STARTER allowedSurfaces"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.tierKey")" "ELITE" "platform store billing availablePlans.2 tierKey"
 assert_equals "$(json_get "${platform_store_billing_json}" "availablePlans.2.actionCapable")" "true" "platform store billing ELITE actionCapable"
 assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.2.allowedSurfaces" "comparison,order-lookup" "platform store billing ELITE allowedSurfaces"
@@ -885,8 +935,30 @@ if [[ "$(json_get "${platform_store_billing_json}" "availablePlans.2.commerciall
   assert_json_array_contains_csv "${platform_store_billing_json}" "availablePlans.2.actionPackages" "guided-commerce" "platform store billing ELITE actionPackages"
 fi
 effective_expected_surfaces="${EXPECT_ENABLED_SURFACES:-${billing_allowed_surfaces_csv}}"
+effective_expected_order_lookup_supported="${EXPECT_ORDER_LOOKUP_SUPPORTED}"
+if [[ -z "${effective_expected_order_lookup_supported}" ]]; then
+  if printf '%s' "${effective_expected_surfaces}" | tr ',' '\n' | grep -Fxq "order-lookup"; then
+    effective_expected_order_lookup_supported="true"
+  else
+    effective_expected_order_lookup_supported="false"
+  fi
+fi
+effective_expected_order_lookup_scope_granted="${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}"
+if [[ -z "${effective_expected_order_lookup_scope_granted}" && "${effective_expected_order_lookup_supported}" == "true" ]]; then
+  effective_expected_order_lookup_scope_granted="true"
+fi
+effective_expected_order_lookup_app_scopes_webhook_ready="${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}"
+effective_expected_historical_order_lookup_supported="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}"
+effective_expected_older_orders_require_broader_scope="${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE}"
+if [[ -z "${effective_expected_older_orders_require_broader_scope}" ]]; then
+  if [[ "${effective_expected_order_lookup_supported}" == "true" && "${effective_expected_historical_order_lookup_supported}" != "true" ]]; then
+    effective_expected_older_orders_require_broader_scope="true"
+  else
+    effective_expected_older_orders_require_broader_scope="false"
+  fi
+fi
 effective_bootstrap_expected_surfaces="${effective_expected_surfaces}"
-if [[ "${EXPECT_ORDER_LOOKUP_SUPPORTED}" != "true" ]]; then
+if [[ "${effective_expected_order_lookup_supported}" != "true" ]]; then
   effective_bootstrap_expected_surfaces="$(printf '%s' "${effective_bootstrap_expected_surfaces}" | tr ',' '\n' | awk 'NF && $0 != "order-lookup"' | paste -sd, -)"
 fi
 effective_expected_billing_tier="${EXPECT_BILLING_TIER:-$(json_get "${platform_store_billing_json}" "tierKey")}"
@@ -903,14 +975,20 @@ assert_equals "${HTTP_STATUS}" "200" "platform store support readiness status"
 platform_store_support_json="${HTTP_BODY}"
 assert_equals "$(json_get "${platform_store_support_json}" "shopDomain")" "${SHOP_DOMAIN}" "platform store support readiness shopDomain"
 assert_equals "$(json_get "${platform_store_support_json}" "status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "platform store support readiness posture"
-assert_equals "$(json_get "${platform_store_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "platform store order lookup supported"
-assert_equals "$(json_get "${platform_store_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "platform store order lookup scope granted"
-assert_equals "$(json_get "${platform_store_support_json}" "appScopesUpdateWebhookReady")" "${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}" "platform store scopes webhook ready"
+assert_equals "$(json_get "${platform_store_support_json}" "orderLookupSupported")" "${effective_expected_order_lookup_supported}" "platform store order lookup supported"
+assert_optional_equals "$(json_get "${platform_store_support_json}" "orderLookupScopeGranted")" "${effective_expected_order_lookup_scope_granted}" "platform store order lookup scope granted"
+assert_optional_equals "$(json_get "${platform_store_support_json}" "appScopesUpdateWebhookReady")" "${effective_expected_order_lookup_app_scopes_webhook_ready}" "platform store scopes webhook ready"
 assert_optional_equals "$(json_get "${platform_store_support_json}" "merchantHandoffConfigured")" "${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED}" "platform store merchant handoff configured"
 assert_optional_equals "$(json_get "${platform_store_support_json}" "lifecycleStage")" "${EXPECT_SUPPORT_LIFECYCLE_STAGE}" "platform store support lifecycle stage"
-assert_equals "$(json_get "${platform_store_support_json}" "allOrdersScopeGranted")" "${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED}" "platform store historical order lookup support"
-assert_json_array_contains_csv "${platform_store_support_json}" "verificationMethods" "ORDER_NUMBER_AND_EMAIL" "platform store support verification methods"
-assert_json_array_contains_csv "${platform_store_support_json}" "supportedCapabilities" "order-status,tracking-link" "platform store support capabilities"
+assert_optional_equals "$(json_get "${platform_store_support_json}" "allOrdersScopeGranted")" "${effective_expected_historical_order_lookup_supported}" "platform store historical order lookup support"
+if [[ "${effective_expected_order_lookup_supported}" == "true" ]]; then
+  assert_json_array_contains_csv "${platform_store_support_json}" "verificationMethods" "ORDER_NUMBER_AND_EMAIL" "platform store support verification methods"
+  assert_json_array_contains_csv "${platform_store_support_json}" "supportedCapabilities" "order-status,tracking-link" "platform store support capabilities"
+else
+  assert_json_array_contains_csv "${platform_store_support_json}" "verificationMethods" "MERCHANT_SUPPORT_HANDOFF" "platform store support verification methods"
+  assert_json_array_contains_csv "${platform_store_support_json}" "supportedCapabilities" "merchant-handoff" "platform store support capabilities"
+  assert_json_array_not_contains_csv "${platform_store_support_json}" "supportedCapabilities" "order-status,tracking-link" "platform store support capabilities"
+fi
 
 echo "== Platform store webhook diagnostics =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/webhook-subscriptions" "" "${platform_headers[@]-}"
@@ -1041,9 +1119,9 @@ if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
   assert_equals "${HTTP_STATUS}" "200" "bridge admin support readiness status"
   bridge_admin_support_json="${HTTP_BODY}"
   assert_equals "$(json_get "${bridge_admin_support_json}" "status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "bridge admin support readiness posture"
-  assert_equals "$(json_get "${bridge_admin_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "bridge admin order lookup supported"
-  assert_equals "$(json_get "${bridge_admin_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "bridge admin order lookup scope granted"
-  assert_equals "$(json_get "${bridge_admin_support_json}" "appScopesUpdateWebhookReady")" "${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}" "bridge admin scopes webhook ready"
+  assert_equals "$(json_get "${bridge_admin_support_json}" "orderLookupSupported")" "${effective_expected_order_lookup_supported}" "bridge admin order lookup supported"
+  assert_optional_equals "$(json_get "${bridge_admin_support_json}" "orderLookupScopeGranted")" "${effective_expected_order_lookup_scope_granted}" "bridge admin order lookup scope granted"
+  assert_optional_equals "$(json_get "${bridge_admin_support_json}" "appScopesUpdateWebhookReady")" "${effective_expected_order_lookup_app_scopes_webhook_ready}" "bridge admin scopes webhook ready"
   assert_optional_equals "$(json_get "${bridge_admin_support_json}" "merchantHandoffConfigured")" "${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED}" "bridge admin merchant handoff configured"
   assert_optional_equals "$(json_get "${bridge_admin_support_json}" "lifecycleStage")" "${EXPECT_SUPPORT_LIFECYCLE_STAGE}" "bridge admin support lifecycle stage"
 
@@ -1102,8 +1180,8 @@ assert_nonempty "$(json_get "${bootstrap_json}" "bridgeOrderLookupUrl")" "storef
 assert_nonempty "$(json_get "${bootstrap_json}" "defaultConversationMode")" "storefront defaultConversationMode"
 assert_nonempty "$(json_get "${bootstrap_json}" "effectiveConversationMode")" "storefront effectiveConversationMode"
 assert_nonempty "$(json_get "${bootstrap_json}" "allowedConversationModes.0")" "storefront allowedConversationModes.0"
-assert_equals "$(json_get "${bootstrap_json}" "orderLookupEnabled")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "storefront bootstrap orderLookupEnabled"
-assert_equals "$(json_get "${bootstrap_json}" "olderOrdersRequireBroaderScope")" "${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE}" "storefront bootstrap historical order access"
+assert_equals "$(json_get "${bootstrap_json}" "orderLookupEnabled")" "${effective_expected_order_lookup_supported}" "storefront bootstrap orderLookupEnabled"
+assert_equals "$(json_get "${bootstrap_json}" "olderOrdersRequireBroaderScope")" "${effective_expected_older_orders_require_broader_scope}" "storefront bootstrap historical order access"
 assert_nonempty "$(json_get "${bootstrap_json}" "orderLookupMessage")" "storefront bootstrap orderLookupMessage"
 assert_optional_equals "$(json_get "${bootstrap_json}" "billingTier")" "${effective_expected_billing_tier}" "storefront bootstrap billingTier"
 assert_optional_equals "$(json_get "${bootstrap_json}" "billingStatus")" "${EXPECT_BILLING_STATUS}" "storefront bootstrap billingStatus"
@@ -1278,8 +1356,8 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "$(json_get "${merchant_session_json}" "shopDomain")" "${SHOP_DOMAIN}" "merchant session shopDomain"
   assert_nonempty "$(json_get "${merchant_session_json}" "userId")" "merchant session userId"
   assert_equals "$(json_get "${merchant_session_json}" "supportReadiness.status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "merchant session support readiness posture"
-  assert_equals "$(json_get "${merchant_session_json}" "supportReadiness.orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "merchant session order lookup supported"
-  assert_equals "$(json_get "${merchant_session_json}" "supportReadiness.orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "merchant session order lookup scope granted"
+  assert_equals "$(json_get "${merchant_session_json}" "supportReadiness.orderLookupSupported")" "${effective_expected_order_lookup_supported}" "merchant session order lookup supported"
+  assert_optional_equals "$(json_get "${merchant_session_json}" "supportReadiness.orderLookupScopeGranted")" "${effective_expected_order_lookup_scope_granted}" "merchant session order lookup scope granted"
 
   echo "== Merchant billing summary =="
   http_request GET "${bridge_base}/api/app/store/billing-summary" "" "${merchant_headers[@]-}"
@@ -1294,10 +1372,12 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_optional_equals "$(json_get "${merchant_billing_json}" "chatFallbackEnabled")" "${effective_expected_chat_fallback_enabled}" "merchant billing chatFallbackEnabled"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.0.tierKey")" "FREE" "merchant billing availablePlans.0 tierKey"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.0.chatFallbackEnabled")" "false" "merchant billing FREE chatFallbackEnabled"
-  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.0.allowedSurfaces" "ai-search,order-lookup" "merchant billing FREE allowedSurfaces"
+  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.0.allowedSurfaces" "ai-search" "merchant billing FREE allowedSurfaces"
+  assert_json_array_not_contains_csv "${merchant_billing_json}" "availablePlans.0.allowedSurfaces" "order-lookup" "merchant billing FREE allowedSurfaces"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.1.tierKey")" "STARTER" "merchant billing availablePlans.1 tierKey"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.1.chatFallbackEnabled")" "true" "merchant billing STARTER chatFallbackEnabled"
-  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.1.allowedSurfaces" "comparison,order-lookup" "merchant billing STARTER allowedSurfaces"
+  assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.1.allowedSurfaces" "comparison" "merchant billing STARTER allowedSurfaces"
+  assert_json_array_not_contains_csv "${merchant_billing_json}" "availablePlans.1.allowedSurfaces" "order-lookup" "merchant billing STARTER allowedSurfaces"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.tierKey")" "ELITE" "merchant billing availablePlans.2 tierKey"
   assert_equals "$(json_get "${merchant_billing_json}" "availablePlans.2.actionCapable")" "true" "merchant billing ELITE actionCapable"
   assert_json_array_contains_csv "${merchant_billing_json}" "availablePlans.2.allowedSurfaces" "comparison,order-lookup" "merchant billing ELITE allowedSurfaces"
@@ -1323,7 +1403,7 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.5.blockHandle")" "companion-comparison" "merchant storefront preview comparison block handle"
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.5.requiredTierKey")" "STARTER" "merchant storefront preview comparison requiredTierKey"
   assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.6.blockHandle")" "companion-order-lookup" "merchant storefront preview order lookup block handle"
-  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.6.requiredTierKey")" "FREE" "merchant storefront preview order lookup requiredTierKey"
+  assert_equals "$(json_get "${merchant_preview_json}" "surfacePlacements.6.requiredTierKey")" "ELITE" "merchant storefront preview order lookup requiredTierKey"
   assert_nonempty "$(json_get "${merchant_preview_json}" "surfacePlacements.0.themeEditorUrl")" "merchant storefront preview AI search themeEditorUrl"
   assert_json_array_contains_csv "${merchant_preview_json}" "groundingSignals" "Catalog product grounding,Policy grounding" "merchant storefront preview groundingSignals"
   if [[ "$(json_get "${platform_store_json}" "productsEnabled")" == "true" ]]; then
@@ -1348,9 +1428,9 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "${HTTP_STATUS}" "200" "merchant support readiness status"
   merchant_support_json="${HTTP_BODY}"
   assert_equals "$(json_get "${merchant_support_json}" "status")" "${EXPECT_ORDER_LOOKUP_STATUS}" "merchant support readiness posture"
-  assert_equals "$(json_get "${merchant_support_json}" "orderLookupSupported")" "${EXPECT_ORDER_LOOKUP_SUPPORTED}" "merchant support order lookup supported"
-  assert_equals "$(json_get "${merchant_support_json}" "orderLookupScopeGranted")" "${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED}" "merchant support order lookup scope granted"
-  assert_equals "$(json_get "${merchant_support_json}" "appScopesUpdateWebhookReady")" "${EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY}" "merchant support scopes webhook ready"
+  assert_equals "$(json_get "${merchant_support_json}" "orderLookupSupported")" "${effective_expected_order_lookup_supported}" "merchant support order lookup supported"
+  assert_optional_equals "$(json_get "${merchant_support_json}" "orderLookupScopeGranted")" "${effective_expected_order_lookup_scope_granted}" "merchant support order lookup scope granted"
+  assert_optional_equals "$(json_get "${merchant_support_json}" "appScopesUpdateWebhookReady")" "${effective_expected_order_lookup_app_scopes_webhook_ready}" "merchant support scopes webhook ready"
   assert_optional_equals "$(json_get "${merchant_support_json}" "merchantHandoffConfigured")" "${EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED}" "merchant support merchant handoff configured"
   assert_optional_equals "$(json_get "${merchant_support_json}" "lifecycleStage")" "${EXPECT_SUPPORT_LIFECYCLE_STAGE}" "merchant support lifecycle stage"
 
@@ -1367,7 +1447,7 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   assert_equals "${HTTP_STATUS}" "200" "merchant governed actions status"
 fi
 
-if [[ "${EXPECT_ORDER_LOOKUP_SUPPORTED}" == "true" ]]; then
+if [[ "${effective_expected_order_lookup_supported}" == "true" ]]; then
   resolve_order_lookup_sample
   if [[ -n "${ORDER_LOOKUP_ORDER_NUMBER}" && -n "${ORDER_LOOKUP_EMAIL}" ]]; then
     echo "== Storefront order lookup =="
