@@ -131,6 +131,12 @@ Primary outcome:
 
 - implementation partners can understand the Shopify Companion Starter package, deploy verified LoomAI intelligence surfaces to approved/assigned client/test stores, verify each surface, monitor health, support normal setup issues, and escalate with evidence without full operator access or live platform-operator explanation
 
+Authority boundary:
+
+- admins/operators own the deployment level
+- partners/integrators own the product implementation level
+- merchants own their store-level configuration and approvals
+
 This handoff should be treated as a mature platform implementation plan, delivered incrementally. Do not stop at a documentation kit if code-level partner capabilities are feasible. Build the self-managed implementation-partner operating system first: partners can sign up and work from an empty workspace, while client-store access remains approved, scoped, revocable, and audited.
 
 Complete product capabilities:
@@ -209,6 +215,7 @@ Do not:
 - build public partner API
 - build broad custom product assembly
 - expose secrets, tokens, provider credentials, deployment internals, raw vectorization controls, runtime controls, or queue/replay internals to partners
+- give partners deployment-level controls
 - push partner/operator packet content back into the merchant Shopify admin as long inline text
 - start broad platform UI redesign as a prerequisite
 - start WooCommerce or second-product work
@@ -427,6 +434,7 @@ Login buttons:
 Partner UI must not:
 
 - include operator nav
+- expose deployment-level controls
 - expose API-key login
 - expose platform password login
 - expose secrets or raw diagnostics
@@ -464,6 +472,73 @@ Partner endpoints should accept Supabase bearer auth. Operator endpoints may con
 
 ---
 
+## Deployment Vs Product Implementation Boundary
+
+This implementation must keep admin/operator authority and partner/integrator authority separate.
+
+Admins/operators own deployment-level control:
+
+- platform deployments
+- product-service registration
+- environments
+- runtime health
+- provider configuration
+- secrets and credentials
+- billing integration internals
+- vectorization/indexing internals
+- queues, replay, retries, and diagnostics
+- global security policy
+- rollback and recovery
+- global audit and impersonation
+
+Partners/integrators own product implementation work:
+
+- create client implementation requests
+- request merchant-approved store access
+- choose product templates and vertical playbooks
+- apply Shopify Companion Starter-safe setup guidance
+- configure approved intelligence surfaces within tier rules
+- run verification packs
+- capture launch evidence
+- export handoff packets
+- open support escalations with evidence
+- monitor approved client-store readiness and blockers
+
+Merchant/store owners own store-level consent and configuration:
+
+- approve or revoke partner-store access
+- authorize Shopify app install/claim flows
+- approve billing changes through Shopify billing
+- configure own store-facing appearance, surfaces, Knowledge Sync, and support handoff
+
+Partners may trigger product-safe workflows that cause backend deployment or sync work behind the scenes, but partners must not see or control the deployment machinery directly.
+
+Partner verbs should be:
+
+- `Create client implementation`
+- `Request store access`
+- `Apply Starter template`
+- `Run verification pack`
+- `Export launch evidence`
+- `Escalate blocker`
+
+Partner verbs must not be:
+
+- `Deploy runtime`
+- `Change provider`
+- `Rotate secret`
+- `Replay vectorization queue`
+- `Edit environment variables`
+- `Change platform security policy`
+
+Exit:
+
+- a partner can implement and verify a product package without deployment-level authority
+- an operator can debug and recover deployments without using partner-facing workflows
+- a merchant can approve/revoke partner access without seeing operator internals
+
+---
+
 ## Build Order
 
 ### Step 0: Product Boundary And Current-State Inventory
@@ -476,6 +551,7 @@ Close:
 - confirm long partner/operator packet text is not rendered inline for merchants
 - confirm partner-only enablement language does not leak into shopper surfaces
 - decide what is partner-facing, operator-only, merchant-facing, or shopper-facing
+- decide which workflows are deployment-level admin workflows and which are product implementation workflows
 - record any old affiliate/referral/commission language as deferred or retired
 - record any old no-signup/private-only partner language as superseded by self-managed signup with zero default store access
 
@@ -1047,6 +1123,11 @@ Required write APIs:
 
 Operator-only APIs:
 
+- create/update/delete platform deployments
+- register or reconfigure product services
+- change providers, prompts, runtime profiles, environments, or security policy
+- rotate, view, or manage secrets
+- run raw vectorization/replay/retry/diagnostic controls
 - create partner
 - invite partner member
 - link Supabase identity manually when provider email cannot be matched safely
@@ -1160,6 +1241,8 @@ This handoff is complete when:
 - merchant-approved store access or operator assignment is implemented or explicitly stubbed with a safe migration path
 - partner can see only approved/assigned stores
 - partner can inspect client-store readiness without operator internals
+- deployment-level admin/operator controls are not exposed to partners
+- partner product implementation workflows are separated from operator deployment workflows
 - intelligence catalog covers verified Shopify Companion Starter surfaces
 - partner can run or follow a verification pack for each surface
 - Free AI-search-only and Starter no-order-lookup gates are included in partner verification
@@ -1205,9 +1288,11 @@ rg -n "partner|Partner|implementation partner|affiliate|referral|commission|inte
 - Shopify Companion remains the anchor/reference vertical.
 - Partner enablement mirrors the verified Starter truth.
 - Partner surfaces are implementation support surfaces, not merchant sales pages.
+- Admin/operator surfaces own deployment-level controls; partner/integrator surfaces own product implementation workflows.
 - Merchant admin must remain merchant-safe.
 - Operator surfaces may retain diagnostics and internal language.
 - Partner surfaces may show setup, verification, evidence, and bounded support context, but not raw platform internals.
+- Partner-triggered workflows may call backend deployment/sync services only through product-safe APIs with scoped authorization and audit.
 - Platform/Shopify bridge remains the source for live readiness, billing, support, usage, and verification evidence.
 - Generated packets should come from shared logic where possible, not duplicated static copy that can drift.
 
@@ -1330,6 +1415,7 @@ Minimum acceptable partial slice:
 
 - Supabase auth boundary is explicit
 - partner UI project decision is explicit
+- deployment-level admin authority vs product implementation partner authority is explicit
 - self-service signup with zero default store access is explicit
 - implementation partner positioning is explicit and does not read like affiliate/referral copy
 - partner domain and access assumptions are recorded
