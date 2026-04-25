@@ -461,7 +461,7 @@ This task is complete only when:
 
 ## Implementation And Verification Summary
 
-Implementation status: code implementation is complete and pushed in commit `a3fdab98`; bridge/runtime live proof passed. Full storefront-hosted visual proof remains blocked by Shopify CLI publish authentication, so the theme-extension-hosted "Max Mode opens from embedded surface" check still needs to be run after a human or CI-authenticated Shopify app deploy.
+Implementation status: code implementation is complete and pushed in commit `a3fdab98`; bridge/runtime live proof passed; Shopify-hosted theme extension deploy and browser proof passed. Only direct bridge admin live verification remains blocked until the deployed `SHOPIFY_BRIDGE_SHARED_SECRET` is available as `SHOPIFY_BRIDGE_ADMIN_API_KEY`.
 
 Implemented:
 
@@ -513,11 +513,26 @@ Live verification passed:
   - nested `storefrontContext.shopifySurfaceEntry=comparison` returned HTTP `403`
   - legacy top-level `shopifySurfaceEntry=comparison` returned HTTP `403`
   - response message: `Companion surface 'comparison' is not available for this store's current plan.`
+- Shopify CLI non-interactive deploy was unblocked with the private handoff CLI token and a temp deploy env that preserved the full checked-in scope set.
+- `npm --prefix product-services/shopify-bridge-service run shopify:app:info` passed without device-code login and resolved app owner context:
+  - App: `Loom Companion`
+  - Service account: `Loom AI Labs Ltd`
+  - Dev store: `https://shopping-companion-test.myshopify.com`
+  - Shopify CLI: `3.93.2`
+- `npm --prefix product-services/shopify-bridge-service run shopify:app:deploy` passed without device-code login and released Shopify app/theme extension version `loom-companion-22`.
+- Browser proof passed with screenshots under `/tmp/shopify-verify/`:
+  - product page: `https://shopping-companion-test.myshopify.com/products/selling-plans-ski-wax`
+  - Shopify CDN scripts loaded from `loom-companion-22`
+  - desktop rendered Companion root `ready` with two surface cards
+  - desktop AI-search embedded surface submitted a query and `Continue in assistant` opened Max Mode from the embedded surface
+  - mobile rendered two Companion surface cards and opened Max Mode from the launcher
+  - summary file: `/tmp/shopify-verify/verification-summary.json`
+- Post-deploy non-admin `scripts/verify-shopify-companion.sh` passed again for `shopping-companion-test.myshopify.com`.
 
 Live verification blockers:
 
 - Bridge admin live checks could not pass with the locally available admin key material. A run with the configured local `SHOPIFY_BRIDGE_ADMIN_API_KEY` returned HTTP `401` from `/api/admin/overview`, which means the available value does not match deployed `SHOPIFY_BRIDGE_SHARED_SECRET`. A second run intentionally unset the admin key and passed all non-admin live checks. Do not record or expose the key in docs, chat, commits, or logs.
-- Shopify app/theme extension publish could not be completed from this session. `npm --prefix product-services/shopify-bridge-service run shopify:app:deploy` reached Shopify CLI authentication and stopped at the interactive device-code login prompt. No non-interactive Shopify CLI token/session was available in local env/config. Because of this, browser-level proof that the Shopify-hosted theme extension asset opens Max Mode from an embedded surface remains pending.
+- Direct bridge admin live verification is still blocked because the deployed bridge shared secret was not available in local env or private handoff. Platform product-service proxy checks pass, but they do not expose the raw deployed secret required for direct `/api/admin/*` calls.
 
 ---
 
