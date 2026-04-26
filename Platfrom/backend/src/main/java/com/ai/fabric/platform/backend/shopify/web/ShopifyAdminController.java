@@ -1,11 +1,13 @@
 package com.ai.fabric.platform.backend.shopify.web;
 
 import com.ai.fabric.platform.backend.shopify.model.BootstrapShopifyStoreRequest;
+import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreBillingStateRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSourcePreflightRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSyncStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWebhookEventRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBillingStateSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreGovernedActionAuditSummary;
@@ -122,6 +124,19 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreBindingInspectionSummary inspectBinding(@PathVariable String shopDomain) {
         return shopifyStoreConnectionService.inspectBinding(shopDomain);
+    }
+
+    @GetMapping("/{shopDomain}/billing-state")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreBillingStateSummary getBillingState(@PathVariable String shopDomain) {
+        return shopifyStoreConnectionService.getBillingState(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/billing-state")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreBillingStateSummary recordBillingState(@PathVariable String shopDomain,
+                                                              @Valid @RequestBody RecordShopifyStoreBillingStateRequest request) {
+        return shopifyStoreConnectionService.recordBillingState(shopDomain, request);
     }
 
     @DeleteMapping("/{shopDomain}")

@@ -5,10 +5,12 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingAp
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingPlanSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
+import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordedBillingStateSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -80,15 +82,18 @@ public class ShopifyBridgeBillingService {
     private final ShopifyBridgeProperties bridgeProperties;
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final ShopifyInstallRecordService installRecordService;
+    private final PlatformShopifyStoreClient platformShopifyStoreClient;
 
     public ShopifyBridgeBillingService(ShopifyBridgeBillingProperties billingProperties,
                                        ShopifyBridgeProperties bridgeProperties,
                                        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
-                                       ShopifyInstallRecordService installRecordService) {
+                                       ShopifyInstallRecordService installRecordService,
+                                       PlatformShopifyStoreClient platformShopifyStoreClient) {
         this.billingProperties = billingProperties;
         this.bridgeProperties = bridgeProperties;
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.installRecordService = installRecordService;
+        this.platformShopifyStoreClient = platformShopifyStoreClient;
     }
 
     public ShopifyBridgeBillingSummary summarize() {
@@ -335,15 +340,48 @@ public class ShopifyBridgeBillingService {
     }
 
     private Optional<ShopifyBridgeBillingSummary> recordedBillingSummary(String shopDomain, BillingMode billingMode) {
-        if (!hasText(shopDomain) || installRecordService == null) {
+        if (!hasText(shopDomain)) {
             return Optional.empty();
         }
-        Optional<ShopifyInstallRecordSummary> installRecord = installRecordService.findByShopDomain(shopDomain);
-        if (installRecord == null || installRecord.isEmpty()) {
+        if (installRecordService != null) {
+            Optional<ShopifyInstallRecordSummary> installRecord = installRecordService.findByShopDomain(shopDomain);
+            if (installRecord != null && installRecord.isPresent()) {
+                String status = text(installRecord.get().billingStatus());
+                String tierKey = text(installRecord.get().billingTierKey());
+                Optional<ShopifyBridgeBillingSummary> summary = recordedBillingSummary(
+                    billingMode,
+                    tierKey,
+                    status,
+                    "recorded Shopify billing state"
+                );
+                if (summary.isPresent()) {
+                    return summary;
+                }
+            }
+        }
+        if (platformShopifyStoreClient == null) {
             return Optional.empty();
         }
-        String status = text(installRecord.get().billingStatus());
-        String tierKey = text(installRecord.get().billingTierKey());
+        try {
+            ShopifyBridgeRecordedBillingStateSummary platformBillingState = platformShopifyStoreClient.getBillingState(shopDomain);
+            if (platformBillingState == null) {
+                return Optional.empty();
+            }
+            return recordedBillingSummary(
+                billingMode,
+                platformBillingState.tierKey(),
+                platformBillingState.status(),
+                "Platform-recorded Shopify billing state"
+            );
+        } catch (RuntimeException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<ShopifyBridgeBillingSummary> recordedBillingSummary(BillingMode billingMode,
+                                                                         String tierKey,
+                                                                         String status,
+                                                                         String sourceLabel) {
         if (!hasText(status) && !hasText(tierKey)) {
             return Optional.empty();
         }
@@ -357,7 +395,7 @@ public class ShopifyBridgeBillingService {
                 false,
                 false,
                 availablePlans(freeTier.tier()),
-                "Recorded Shopify billing posture is " + (hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ACTIVE") + ". Free storefront entitlements remain active."
+                sourceLabel + " posture is " + (hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ACTIVE") + ". Free storefront entitlements remain active."
             ));
         }
         TierEntitlements currentTier = entitlementsFor(tier);
@@ -369,9 +407,9 @@ public class ShopifyBridgeBillingService {
             false,
             availablePlans(currentTier.tier()),
             currentTier.tier() == CompanionTier.ELITE
-                ? "Elite tier is active for this store from recorded Shopify billing state."
+                ? "Elite tier is active for this store from " + sourceLabel + "."
                 : currentTier.tier() == CompanionTier.STARTER
-                    ? "Starter tier is active for this store from recorded Shopify billing state."
+                    ? "Starter tier is active for this store from " + sourceLabel + "."
                     : "Free tier is active for this store."
         ));
     }

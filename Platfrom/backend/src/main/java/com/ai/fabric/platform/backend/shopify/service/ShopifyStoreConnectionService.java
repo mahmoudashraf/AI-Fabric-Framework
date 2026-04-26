@@ -22,6 +22,8 @@ import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCapabilitySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreBillingStateRequest;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBillingStateSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedConsumerSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedCustomerSummary;
@@ -46,6 +48,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -195,6 +198,41 @@ public class ShopifyStoreConnectionService {
 
     public ShopifyStoreConnectionSummary getConnection(String shopDomain) {
         return toSummary(requireConnection(shopDomain));
+    }
+
+    public ShopifyStoreBillingStateSummary getBillingState(String shopDomain) {
+        ShopifyStoreConnectionEntity entity = requireConnection(shopDomain);
+        return sourcePreflightSupport.summarizeBillingState(entity.getShopDomain(), entity.getDetailsJson());
+    }
+
+    @Transactional
+    public ShopifyStoreBillingStateSummary recordBillingState(String shopDomain,
+                                                              RecordShopifyStoreBillingStateRequest request) {
+        ShopifyStoreConnectionEntity entity = requireConnection(shopDomain);
+        String tierKey = normalizeBillingTier(request == null ? null : request.tierKey());
+        String status = normalizeBillingStatus(request == null ? null : request.status());
+        com.fasterxml.jackson.databind.node.ObjectNode details = sourcePreflightSupport.mutableDetails(entity.getDetailsJson());
+        com.fasterxml.jackson.databind.node.ObjectNode billingState = details.putObject("billingState");
+        billingState.put("tierKey", tierKey);
+        billingState.put("status", status);
+        billingState.put("recordedAt", Instant.now().toString());
+        putOptional(billingState, "subscriptionId", request == null ? null : request.subscriptionId());
+        putOptional(billingState, "subscriptionName", request == null ? null : request.subscriptionName());
+        putOptional(billingState, "reason", request == null ? null : request.reason());
+        entity.setDetailsJson(sourcePreflightSupport.writeJson(details));
+        entity.setUpdatedAt(Instant.now());
+        repository.save(entity);
+        platformAuditService.record(
+            "SHOPIFY_STORE_BILLING_STATE_RECORDED",
+            "SHOPIFY_STORE_CONNECTION",
+            entity.getShopDomain(),
+            java.util.Map.of(
+                "shopDomain", entity.getShopDomain(),
+                "tierKey", tierKey,
+                "status", status
+            )
+        );
+        return sourcePreflightSupport.summarizeBillingState(entity.getShopDomain(), entity.getDetailsJson());
     }
 
     public ShopifyStoreBindingInspectionSummary inspectBinding(String shopDomain) {
@@ -857,6 +895,31 @@ public class ShopifyStoreConnectionService {
 
     private String normalizeStatus(String value, String fallback) {
         return hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : fallback;
+    }
+
+    private String normalizeBillingTier(String value) {
+        String tierKey = hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : "FREE";
+        if (!List.of("FREE", "STARTER", "ELITE").contains(tierKey)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unsupported Shopify Companion billing tier: " + value);
+        }
+        return tierKey;
+    }
+
+    private String normalizeBillingStatus(String value) {
+        String status = hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : "ACTIVE";
+        if (!List.of("ACTIVE", "PAYMENT_ISSUE", "CHECK_FAILED").contains(status)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unsupported Shopify Companion billing status: " + value);
+        }
+        return status;
+    }
+
+    private void putOptional(com.fasterxml.jackson.databind.node.ObjectNode node, String field, String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            node.remove(field);
+        } else {
+            node.put(field, trimmed);
+        }
     }
 
     private boolean hasText(String value) {

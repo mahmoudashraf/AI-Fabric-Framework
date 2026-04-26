@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightCategorySummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBillingStateSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCredentialSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightSummary;
@@ -230,6 +231,30 @@ public class ShopifyStoreSourcePreflightSupport {
         }
     }
 
+    public ShopifyStoreBillingStateSummary summarizeBillingState(String shopDomain, String detailsJson) {
+        if (!hasText(detailsJson)) {
+            return defaultBillingState(shopDomain);
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode billingState = root.path("billingState");
+            if (!billingState.isObject()) {
+                return defaultBillingState(shopDomain);
+            }
+            return new ShopifyStoreBillingStateSummary(
+                shopDomain,
+                text(billingState, "tierKey") == null ? "FREE" : text(billingState, "tierKey"),
+                text(billingState, "status") == null ? "ACTIVE" : text(billingState, "status"),
+                text(billingState, "subscriptionId"),
+                text(billingState, "subscriptionName"),
+                parseInstant(text(billingState, "recordedAt")),
+                text(billingState, "reason")
+            );
+        } catch (Exception ex) {
+            return defaultBillingState(shopDomain);
+        }
+    }
+
     public ObjectNode mutableDetails(String detailsJson) {
         try {
             JsonNode parsed = hasText(detailsJson) ? objectMapper.readTree(detailsJson) : objectMapper.createObjectNode();
@@ -304,5 +329,9 @@ public class ShopifyStoreSourcePreflightSupport {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private ShopifyStoreBillingStateSummary defaultBillingState(String shopDomain) {
+        return new ShopifyStoreBillingStateSummary(shopDomain, "FREE", "ACTIVE", null, null, null, null);
     }
 }

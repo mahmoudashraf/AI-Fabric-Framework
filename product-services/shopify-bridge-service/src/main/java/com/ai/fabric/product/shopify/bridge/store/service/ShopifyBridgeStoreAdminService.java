@@ -94,6 +94,7 @@ public class ShopifyBridgeStoreAdminService {
             status,
             request
         );
+        platformShopifyStoreClient.recordBillingState(store.shopDomain(), request);
         installRecordService.recordBillingState(
             store.shopDomain(),
             tierKey,

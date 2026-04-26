@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductStoreSupportReadinessClientService;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreBillingStateRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
@@ -30,6 +31,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -262,6 +264,66 @@ class ShopifyStoreConnectionServiceTest {
         assertThatThrownBy(() -> connectionService.deleteConnection("demo.myshopify.com", false))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("active platform bindings");
+    }
+
+    @Test
+    void recordBillingStatePersistsDurableStoreBillingState() throws Exception {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("demo.myshopify.com");
+        entity.setDetailsJson("{}");
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(objectMapper),
+            new ShopifyStoreReadinessEvaluator()
+        );
+
+        var summary = connectionService.recordBillingState(
+            "demo.myshopify.com",
+            new RecordShopifyStoreBillingStateRequest(
+                "elite",
+                "active",
+                "sub-1",
+                "Loom Companion Elite",
+                "live verification"
+            )
+        );
+
+        assertThat(summary.shopDomain()).isEqualTo("demo.myshopify.com");
+        assertThat(summary.tierKey()).isEqualTo("ELITE");
+        assertThat(summary.status()).isEqualTo("ACTIVE");
+        assertThat(summary.subscriptionId()).isEqualTo("sub-1");
+        assertThat(summary.recordedAt()).isNotNull();
+        assertThat(objectMapper.readTree(entity.getDetailsJson()).path("billingState").path("tierKey").asText())
+            .isEqualTo("ELITE");
+        verify(repository).save(entity);
+        verify(platformAuditService).record(
+            org.mockito.ArgumentMatchers.eq("SHOPIFY_STORE_BILLING_STATE_RECORDED"),
+            org.mockito.ArgumentMatchers.eq("SHOPIFY_STORE_CONNECTION"),
+            org.mockito.ArgumentMatchers.eq("demo.myshopify.com"),
+            org.mockito.ArgumentMatchers.anyMap()
+        );
     }
 
     @Test

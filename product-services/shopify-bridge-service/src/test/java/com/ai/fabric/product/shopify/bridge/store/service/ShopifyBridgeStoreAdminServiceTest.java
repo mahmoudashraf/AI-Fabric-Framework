@@ -147,6 +147,10 @@ class ShopifyBridgeStoreAdminServiceTest {
         );
 
         assertThat(summary.tierKey()).isEqualTo("ELITE");
+        verify(platformShopifyStoreClient).recordBillingState(
+            "alpha.myshopify.com",
+            new ShopifyBridgeRecordBillingStateRequest("ELITE", "ACTIVE", null, null, "live test activation")
+        );
         verify(installRecordService).recordBillingState(
             "alpha.myshopify.com",
             "ELITE",
