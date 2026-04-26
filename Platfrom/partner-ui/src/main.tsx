@@ -17,7 +17,7 @@ const queryClient = new QueryClient({
 })
 
 function Root() {
-  const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('partner-ui-mode') === 'dark' ? 'dark' : 'light'))
+  const [mode, setMode] = useState<'light' | 'dark'>(() => (localStorage.getItem('partner-ui-mode') === 'light' ? 'light' : 'dark'))
   const theme = useMemo(() => createPartnerTheme(mode), [mode])
   const toggleMode = () => {
     setMode((current) => {
