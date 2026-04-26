@@ -545,16 +545,23 @@ Live verification blockers:
 Implementation and deployment status:
 
 - Commit `2b1cfa8f` added the live Elite activation/admin billing-state path and the Max widget live verifier.
+- Commit `c85e22d9` persisted the store billing state into the Platform Shopify store record so the Elite activation survives bridge restarts and local install-cache loss.
+- Commit `e1f94434` made storefront billing summaries prefer the Platform-recorded Shopify billing state before the bridge-local install cache.
+- Commit `ab178296` made support-readiness use the Platform-recorded Shopify billing state before stale local install billing, so support lifecycle and storefront bootstrap report the same tier after redeploy.
 - Shopify Bridge was restarted through the Platform managed product-service flow and Railway deployment `7ab474ff-08b5-418b-b770-9dc33391b908` reached `SUCCESS`.
+- Follow-up Railway deployment `b87f834f-a4ae-432e-8b66-23915a09c65e` reached `SUCCESS` after the support-readiness source-of-truth fix.
 - `shopping-companion-test.myshopify.com` was activated to `ELITE` through `POST /api/admin/stores/{shop}/billing-state` using the bridge admin key from private secrets.
 - Live activation response confirmed `tierKey=ELITE`, `status=ACTIVE`, `chatFallbackEnabled=true`, `actionCapable=true`, `requiresExplicitConfirmation=true`, `auditTrailAvailable=true`, and `actionPackages=["guided-commerce"]`.
+- Platform durable billing state for `shopping-companion-test.myshopify.com` remains `tierKey=ELITE`, `status=ACTIVE`, with recorded reason `Max widget live verification activation`.
 
 Verification proof:
 
 - `mvn -f product-services/shopify-bridge-service/pom.xml -q test` passed.
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=ShopifyBridgeSupportReadinessServiceTest,ShopifyBridgeBillingServiceTest,ShopifyBridgeStoreAdminServiceTest,ShopifyBridgeAdminControllerTest test` passed after the support-readiness fix.
 - `bash -n scripts/verify-shopify-companion.sh` passed.
 - `bash -n scripts/verify-shopify-companion-max-widget-live.sh` passed.
 - `scripts/verify-shopify-companion.sh` passed live against Platform, Shopify Bridge, and `shopping-companion-test.myshopify.com` with admin checks enabled.
+- Latest full live run passed with `EXPECT_STOREFRONT_READY=false`, `EXPECT_GO_LIVE_ELIGIBLE=false`, and `EXPECT_STOREFRONT_SHOPPER_TRAFFIC_READY=true`, because shopper bootstrap and Max Mode are live while Platform go-live correctly remains blocked on missing Shopify `read_orders`.
 - `scripts/verify-shopify-companion-max-widget-live.sh` passed live:
   - bridge storefront bootstrap returned `billingTier=ELITE` and `chatFallbackEnabled=true`
   - storefront Max Mode query returned HTTP `200`
@@ -562,10 +569,13 @@ Verification proof:
   - `PUBLIC_AUTHENTICATED` and `PUBLIC_ANONYMOUS` returned HTTP `400` and were skipped as not configured for this deployment
   - Playwright opened the real Shopify product page, loaded `companion-max-mode-shell.js`, loaded `max-mode-widget.iife.js`, observed the bridge bootstrap request, found `#max-mode-widget-shadow-host`, clicked the launcher, and confirmed the widget opened
   - screenshot: `/tmp/shopify-companion-max-widget-shopping-companion-test.myshopify.com-1777165037.png`
+  - latest screenshot: `/tmp/shopify-companion-max-widget-shopping-companion-test.myshopify.com-1777195849.png`
+- Live bridge admin support-readiness now returns `billingTier=ELITE`, `billingStatus=ACTIVE`, `status=PENDING_SCOPE_GRANT`, `lifecycleStage=SCOPE_APPROVAL`, `scopeGrantRequired=true`, and `missingScopes=["read_orders"]`.
 
 Current live store posture:
 
 - Max widget and Elite storefront chat fallback are live.
+- Elite billing state is stored in Platform and was verified after bridge redeploy without reactivating the store.
 - Platform go-live readiness remains `BLOCKED` only for order lookup because the store is missing Shopify `read_orders` scope.
 - The verifier now treats this correctly as `PENDING_SCOPE_GRANT`: shopper bootstrap and Max widget proof are required to pass, while order lookup stays disabled until the merchant grants the scope.
 
