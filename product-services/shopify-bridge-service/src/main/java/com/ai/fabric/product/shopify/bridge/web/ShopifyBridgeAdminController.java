@@ -6,6 +6,7 @@ import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverv
 import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
@@ -59,6 +60,12 @@ public class ShopifyBridgeAdminController {
     @GetMapping("/stores/{shopDomain}/billing-summary")
     public ShopifyBridgeBillingSummary billingSummary(@PathVariable String shopDomain) {
         return storeAdminService.billingSummary(shopDomain);
+    }
+
+    @PostMapping("/stores/{shopDomain}/billing-state")
+    public ShopifyBridgeBillingSummary recordBillingState(@PathVariable String shopDomain,
+                                                          @RequestBody ShopifyBridgeRecordBillingStateRequest request) {
+        return storeAdminService.recordBillingState(shopDomain, request);
     }
 
     @GetMapping("/stores/{shopDomain}/usage-summary")

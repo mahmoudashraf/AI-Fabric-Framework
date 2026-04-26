@@ -17,6 +17,7 @@ import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeStore
 import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
@@ -41,6 +42,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -245,6 +247,51 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.availablePlans[1].requiresExplicitConfirmation").value(true))
             .andExpect(jsonPath("$.availablePlans[1].auditTrailAvailable").value(true))
             .andExpect(jsonPath("$.availablePlans[1].actionPackages[0]").value("guided-commerce"));
+    }
+
+    @Test
+    void adminBillingStateRecordUsesStoreServiceWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.recordBillingState(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any(ShopifyBridgeRecordBillingStateRequest.class)
+        )).thenReturn(new ShopifyBridgeBillingSummary(
+            "FREE",
+            "ELITE",
+            "Loom Companion Elite",
+            "ACTIVE",
+            false,
+            false,
+            true,
+            true,
+            null,
+            "HOURLY",
+            false,
+            true,
+            true,
+            true,
+            List.of("guided-commerce"),
+            List.of("ai-search", "comparison", "order-lookup"),
+            List.of(),
+            "Elite tier is active for this store from recorded Shopify billing state."
+        ));
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/billing-state")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"tierKey":"ELITE","status":"ACTIVE","reason":"live test activation"}
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tierKey").value("ELITE"))
+            .andExpect(jsonPath("$.chatFallbackEnabled").value(true))
+            .andExpect(jsonPath("$.actionCapable").value(true));
+
+        verify(storeAdminService).recordBillingState(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any(ShopifyBridgeRecordBillingStateRequest.class)
+        );
     }
 
     @Test

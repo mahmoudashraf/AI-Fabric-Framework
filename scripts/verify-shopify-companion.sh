@@ -45,6 +45,7 @@ set -euo pipefail
 #   EXPECT_ACTION_CAPABILITY_AVAILABLE=false
 #   EXPECT_ACTION_REQUIRES_CONFIRMATION=false
 #   EXPECT_ACTION_AUDIT_AVAILABLE=false
+#   EXPECT_MAX_WIDGET_SURFACE=<optional; defaults true when chat fallback is expected>
 #   EXPECT_ORDER_LOOKUP_STATUS=READY
 #   EXPECT_ORDER_LOOKUP_SUPPORTED=<optional; defaults from live billing allowedSurfaces>
 #   EXPECT_ORDER_LOOKUP_SCOPE_GRANTED=<optional expected live scope grant>
@@ -96,6 +97,7 @@ EXPECT_CHAT_FALLBACK_ENABLED="${EXPECT_CHAT_FALLBACK_ENABLED:-}"
 EXPECT_ACTION_CAPABILITY_AVAILABLE="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-}"
 EXPECT_ACTION_REQUIRES_CONFIRMATION="${EXPECT_ACTION_REQUIRES_CONFIRMATION:-}"
 EXPECT_ACTION_AUDIT_AVAILABLE="${EXPECT_ACTION_AUDIT_AVAILABLE:-}"
+EXPECT_MAX_WIDGET_SURFACE="${EXPECT_MAX_WIDGET_SURFACE:-}"
 EXPECT_ORDER_LOOKUP_STATUS="${EXPECT_ORDER_LOOKUP_STATUS:-READY}"
 EXPECT_ORDER_LOOKUP_SUPPORTED="${EXPECT_ORDER_LOOKUP_SUPPORTED:-}"
 EXPECT_ORDER_LOOKUP_SCOPE_GRANTED="${EXPECT_ORDER_LOOKUP_SCOPE_GRANTED:-}"
@@ -968,6 +970,7 @@ effective_expected_chat_fallback_enabled="${EXPECT_CHAT_FALLBACK_ENABLED:-$(json
 effective_expected_action_capability_available="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-$(json_get "${platform_store_billing_json}" "actionCapable")}"
 effective_expected_action_requires_confirmation="${EXPECT_ACTION_REQUIRES_CONFIRMATION:-$(json_get "${platform_store_billing_json}" "requiresExplicitConfirmation")}"
 effective_expected_action_audit_available="${EXPECT_ACTION_AUDIT_AVAILABLE:-$(json_get "${platform_store_billing_json}" "auditTrailAvailable")}"
+effective_expected_max_widget_surface="${EXPECT_MAX_WIDGET_SURFACE:-${effective_expected_chat_fallback_enabled}}"
 
 echo "== Platform store support readiness =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/support-readiness" "" "${platform_headers[@]-}"
@@ -1239,6 +1242,39 @@ fi
 assert_nonempty "${storefront_query_summary}" "storefront query summary"
 if [[ "${effective_expected_chat_fallback_enabled}" == "false" && ",${effective_expected_surfaces}," == *",ai-search,"* ]]; then
   echo "PASS: storefront standalone AI search contract"
+fi
+
+if [[ "${effective_expected_max_widget_surface}" == "true" ]]; then
+  echo "== Storefront Max Mode query =="
+  max_widget_query_payload="$(python3 - <<'PY'
+import json
+print(json.dumps({
+    "query": "Open the storefront assistant and recommend one product from this store.",
+    "storefrontContext": {
+        "pageType": "product",
+        "shopifyShellModeProfile": "SHOPIFY_COMPANION",
+        "shopifySurfaceEntry": "max-mode",
+        "shopifyPageModeGroup": "product",
+        "shopifyEffectiveConversationMode": "navigator_deep",
+    },
+}))
+PY
+)"
+  retry_storefront_query "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${max_widget_query_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
+  assert_equals "${HTTP_STATUS}" "200" "storefront Max Mode query status"
+  max_widget_query_json="${HTTP_BODY}"
+  assert_nonempty "$(json_get "${max_widget_query_json}" "conversationId")" "storefront Max Mode query conversationId"
+  max_widget_query_summary="$(json_get "${max_widget_query_json}" "result.sanitizedPayload.safeSummary")"
+  if [[ -z "${max_widget_query_summary}" ]]; then
+    max_widget_query_summary="$(json_get "${max_widget_query_json}" "result.sanitizedPayload.message")"
+  fi
+  if [[ -z "${max_widget_query_summary}" ]]; then
+    max_widget_query_summary="$(json_get "${max_widget_query_json}" "result.message")"
+  fi
+  if [[ -z "${max_widget_query_summary}" ]]; then
+    max_widget_query_summary="$(json_get "${max_widget_query_json}" "message")"
+  fi
+  assert_nonempty "${max_widget_query_summary}" "storefront Max Mode query summary"
 fi
 
 if [[ ",${effective_expected_surfaces}," == *",comparison,"* ]]; then

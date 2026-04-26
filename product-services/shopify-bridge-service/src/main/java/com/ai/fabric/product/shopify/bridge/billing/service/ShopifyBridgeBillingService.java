@@ -7,6 +7,8 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSu
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -76,13 +79,16 @@ public class ShopifyBridgeBillingService {
     private final ShopifyBridgeBillingProperties billingProperties;
     private final ShopifyBridgeProperties bridgeProperties;
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
+    private final ShopifyInstallRecordService installRecordService;
 
     public ShopifyBridgeBillingService(ShopifyBridgeBillingProperties billingProperties,
                                        ShopifyBridgeProperties bridgeProperties,
-                                       ShopifyAdminGraphqlClient shopifyAdminGraphqlClient) {
+                                       ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
+                                       ShopifyInstallRecordService installRecordService) {
         this.billingProperties = billingProperties;
         this.bridgeProperties = bridgeProperties;
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
+        this.installRecordService = installRecordService;
     }
 
     public ShopifyBridgeBillingSummary summarize() {
@@ -105,18 +111,28 @@ public class ShopifyBridgeBillingService {
         BillingMode billingMode = billingMode();
         TierEntitlements fallbackTier = entitlementsFor(CompanionTier.FREE);
         List<ShopifyBridgeBillingPlanSummary> plans = availablePlans(fallbackTier.tier());
-        if (billingMode == BillingMode.FREE || !hasText(shopDomain) || !hasText(accessToken)) {
-            return buildSummary(
+        Optional<ShopifyBridgeBillingSummary> recordedBillingSummary = recordedBillingSummary(shopDomain, billingMode);
+        if (billingMode == BillingMode.FREE) {
+            return recordedBillingSummary.orElseGet(() -> buildSummary(
                 billingMode,
                 fallbackTier,
                 "ACTIVE",
                 false,
                 false,
                 plans,
-                billingMode == BillingMode.FREE
-                    ? "Free tier is active for this store."
-                    : "Free tier is active. Connect the store with persisted Shopify credentials before requesting a paid upgrade."
-            );
+                "Free tier is active for this store."
+            ));
+        }
+        if (!hasText(shopDomain) || !hasText(accessToken)) {
+            return recordedBillingSummary.orElseGet(() -> buildSummary(
+                billingMode,
+                fallbackTier,
+                "ACTIVE",
+                false,
+                false,
+                plans,
+                "Free tier is active. Connect the store with persisted Shopify credentials before requesting a paid upgrade."
+            ));
         }
         try {
             ShopifyBridgeStoreBillingState storeBilling = inspectStoreBillingState(shopDomain, accessToken);
@@ -318,6 +334,48 @@ public class ShopifyBridgeBillingService {
         );
     }
 
+    private Optional<ShopifyBridgeBillingSummary> recordedBillingSummary(String shopDomain, BillingMode billingMode) {
+        if (!hasText(shopDomain) || installRecordService == null) {
+            return Optional.empty();
+        }
+        Optional<ShopifyInstallRecordSummary> installRecord = installRecordService.findByShopDomain(shopDomain);
+        if (installRecord == null || installRecord.isEmpty()) {
+            return Optional.empty();
+        }
+        String status = text(installRecord.get().billingStatus());
+        String tierKey = text(installRecord.get().billingTierKey());
+        if (!hasText(status) && !hasText(tierKey)) {
+            return Optional.empty();
+        }
+        CompanionTier tier = companionTierOrFree(tierKey);
+        if (!"ACTIVE".equalsIgnoreCase(status)) {
+            TierEntitlements freeTier = entitlementsFor(CompanionTier.FREE);
+            return Optional.of(buildSummary(
+                billingMode,
+                freeTier,
+                hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ACTIVE",
+                false,
+                false,
+                availablePlans(freeTier.tier()),
+                "Recorded Shopify billing posture is " + (hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ACTIVE") + ". Free storefront entitlements remain active."
+            ));
+        }
+        TierEntitlements currentTier = entitlementsFor(tier);
+        return Optional.of(buildSummary(
+            billingMode,
+            currentTier,
+            "ACTIVE",
+            false,
+            false,
+            availablePlans(currentTier.tier()),
+            currentTier.tier() == CompanionTier.ELITE
+                ? "Elite tier is active for this store from recorded Shopify billing state."
+                : currentTier.tier() == CompanionTier.STARTER
+                    ? "Starter tier is active for this store from recorded Shopify billing state."
+                    : "Free tier is active for this store."
+        ));
+    }
+
     private List<ShopifyBridgeBillingPlanSummary> availablePlans(CompanionTier activeTier) {
         return List.of(
             planSummary(CompanionTier.FREE, activeTier),
@@ -376,6 +434,17 @@ public class ShopifyBridgeBillingService {
             case "STARTER" -> CompanionTier.STARTER;
             case "ELITE" -> CompanionTier.ELITE;
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported Shopify Companion tier: " + tierKey);
+        };
+    }
+
+    private CompanionTier companionTierOrFree(String tierKey) {
+        if (!hasText(tierKey)) {
+            return CompanionTier.FREE;
+        }
+        return switch (tierKey.trim().toUpperCase(Locale.ROOT)) {
+            case "STARTER" -> CompanionTier.STARTER;
+            case "ELITE" -> CompanionTier.ELITE;
+            default -> CompanionTier.FREE;
         };
     }
 

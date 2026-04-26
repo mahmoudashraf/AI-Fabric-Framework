@@ -1,17 +1,22 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +39,7 @@ class ShopifyBridgeStoreAdminServiceTest {
         ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
             platformShopifyStoreClient,
             installCredentialService,
+            mock(ShopifyInstallRecordService.class),
             billingService,
             sourcePreflightService,
             storeSyncService,
@@ -77,6 +83,7 @@ class ShopifyBridgeStoreAdminServiceTest {
         ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
             platformShopifyStoreClient,
             installCredentialService,
+            mock(ShopifyInstallRecordService.class),
             billingService,
             sourcePreflightService,
             storeSyncService,
@@ -91,6 +98,67 @@ class ShopifyBridgeStoreAdminServiceTest {
         assertThatThrownBy(() -> service.runSourcePreflight("alpha.myshopify.com"))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("persisted store credentials");
+    }
+
+    @Test
+    void recordBillingStateRequiresRegisteredInstalledStoreAndPersistsTier() {
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeStoreAdminService service = new ShopifyBridgeStoreAdminService(
+            platformShopifyStoreClient,
+            installCredentialService,
+            installRecordService,
+            billingService,
+            mock(ShopifyBridgeSourcePreflightService.class),
+            mock(ShopifyBridgeStoreSyncService.class),
+            mock(ShopifyBridgeVectorizationSourceService.class),
+            mock(ShopifyBridgeUsageService.class),
+            mock(ShopifyStorefrontGovernedActionService.class),
+            mock(ShopifyBridgeSupportReadinessService.class)
+        );
+        when(platformShopifyStoreClient.getStore("alpha.myshopify.com")).thenReturn(sampleStore());
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(new ShopifyBridgeBillingSummary(
+            "FREE",
+            "ELITE",
+            "Loom Companion Elite",
+            "ACTIVE",
+            false,
+            false,
+            true,
+            true,
+            null,
+            "HOURLY",
+            false,
+            true,
+            true,
+            true,
+            List.of("guided-commerce"),
+            List.of("ai-search", "comparison", "order-lookup"),
+            List.of(),
+            "Elite tier is active for this store from recorded Shopify billing state."
+        ));
+
+        ShopifyBridgeBillingSummary summary = service.recordBillingState(
+            "alpha.myshopify.com",
+            new ShopifyBridgeRecordBillingStateRequest("ELITE", "ACTIVE", null, null, "live test activation")
+        );
+
+        assertThat(summary.tierKey()).isEqualTo("ELITE");
+        verify(installRecordService).recordBillingState(
+            "alpha.myshopify.com",
+            "ELITE",
+            "ACTIVE",
+            List.of(new ShopifyBridgeSupportSubscriptionSummary(
+                "recorded-shopify-billing-elite",
+                "Loom Companion Elite",
+                "ACTIVE",
+                "ELITE",
+                true
+            ))
+        );
     }
 
     private ShopifyBridgeStoreSummary sampleStore() {

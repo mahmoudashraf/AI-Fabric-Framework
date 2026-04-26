@@ -3,15 +3,22 @@ package com.ai.fabric.product.shopify.bridge.billing.service;
 import com.ai.fabric.product.shopify.bridge.billing.config.ShopifyBridgeBillingProperties;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ShopifyBridgeBillingServiceTest {
@@ -21,7 +28,8 @@ class ShopifyBridgeBillingServiceTest {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
             billingProperties("FREE", "", "", "", 0, false, false),
             properties("https://bridge.example.com", "shopify-api-key"),
-            mock(ShopifyAdminGraphqlClient.class)
+            mock(ShopifyAdminGraphqlClient.class),
+            mock(ShopifyInstallRecordService.class)
         );
 
         var summary = service.summarize();
@@ -47,7 +55,8 @@ class ShopifyBridgeBillingServiceTest {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
             billingProperties("SHOPIFY_APP_SUBSCRIPTION", "", "", "", 0, false, false),
             properties("https://bridge.example.com", "shopify-api-key"),
-            mock(ShopifyAdminGraphqlClient.class)
+            mock(ShopifyAdminGraphqlClient.class),
+            mock(ShopifyInstallRecordService.class)
         );
 
         var summary = service.summarize();
@@ -78,7 +87,8 @@ class ShopifyBridgeBillingServiceTest {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
             billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 7, true, false),
             properties("https://bridge.example.com", "shopify-api-key"),
-            client
+            client,
+            mock(ShopifyInstallRecordService.class)
         );
 
         var summary = service.summarizeForShop("alpha.myshopify.com", "token");
@@ -116,7 +126,8 @@ class ShopifyBridgeBillingServiceTest {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
             billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 0, false, false),
             properties("https://bridge.example.com", "shopify-api-key"),
-            client
+            client,
+            mock(ShopifyInstallRecordService.class)
         );
 
         var summary = service.summarizeForShop("alpha.myshopify.com", "token");
@@ -152,13 +163,63 @@ class ShopifyBridgeBillingServiceTest {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
             billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 7, true, false),
             properties("https://bridge.example.com", "shopify-api-key"),
-            client
+            client,
+            mock(ShopifyInstallRecordService.class)
         );
 
         var response = service.createApproval("alpha.myshopify.com", "token", "STARTER");
 
         assertThat(response.status()).isEqualTo("READY_FOR_APPROVAL");
         assertThat(response.confirmationUrl()).isEqualTo("https://alpha.myshopify.com/admin/charges/confirm");
+    }
+
+    @Test
+    void freeModeUsesRecordedEliteBillingStateForStoreEntitlements() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(new ShopifyInstallRecordSummary(
+            "alpha.myshopify.com",
+            "INSTALLED",
+            "https://alpha.myshopify.com",
+            null,
+            null,
+            null,
+            null,
+            "read_products,read_orders",
+            null,
+            null,
+            true,
+            Instant.parse("2026-04-26T00:00:00Z"),
+            "ELITE",
+            "ACTIVE",
+            List.of(new ShopifyBridgeSupportSubscriptionSummary(
+                "recorded-shopify-billing-elite",
+                "Loom Companion Elite",
+                "ACTIVE",
+                "ELITE",
+                true
+            )),
+            Instant.parse("2026-04-26T00:00:00Z"),
+            Instant.parse("2026-04-26T00:00:00Z"),
+            Instant.parse("2026-04-26T00:00:00Z"),
+            null
+        )));
+        ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
+            billingProperties("FREE", "", "", "", 0, false, false),
+            properties("https://bridge.example.com", "shopify-api-key"),
+            client,
+            installRecordService
+        );
+
+        var summary = service.summarizeForShop("alpha.myshopify.com", null);
+
+        assertThat(summary.mode()).isEqualTo("FREE");
+        assertThat(summary.tierKey()).isEqualTo("ELITE");
+        assertThat(summary.chatFallbackEnabled()).isTrue();
+        assertThat(summary.actionCapable()).isTrue();
+        assertThat(summary.requiresExplicitConfirmation()).isTrue();
+        assertThat(summary.allowedSurfaces()).contains("comparison", "order-lookup");
+        verify(client, never()).execute(eq("alpha.myshopify.com"), eq("token"), eq(activeSubscriptionsQuery()));
     }
 
     private ShopifyBridgeBillingProperties billingProperties(String mode,
