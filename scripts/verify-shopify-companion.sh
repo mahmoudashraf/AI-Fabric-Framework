@@ -989,8 +989,8 @@ if [[ "${effective_expected_order_lookup_supported}" == "true" ]]; then
   assert_json_array_contains_csv "${platform_store_support_json}" "supportedCapabilities" "order-status,tracking-link" "platform store support capabilities"
 else
   assert_json_array_contains_csv "${platform_store_support_json}" "verificationMethods" "MERCHANT_SUPPORT_HANDOFF" "platform store support verification methods"
-  assert_json_array_contains_csv "${platform_store_support_json}" "supportedCapabilities" "merchant-handoff" "platform store support capabilities"
-  assert_json_array_not_contains_csv "${platform_store_support_json}" "supportedCapabilities" "order-status,tracking-link" "platform store support capabilities"
+  assert_json_array_contains_csv "${platform_store_support_json}" "missingScopes" "read_orders" "platform store support missing scopes"
+  assert_nonempty "$(json_get "${platform_store_support_json}" "nextActions.0")" "platform store support next action"
 fi
 
 echo "== Platform store webhook diagnostics =="

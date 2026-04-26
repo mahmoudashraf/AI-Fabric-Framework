@@ -540,11 +540,40 @@ Live verification blockers:
 
 - None known for this handoff.
 
+## Elite Max Widget Live Proof - 2026-04-26
+
+Implementation and deployment status:
+
+- Commit `2b1cfa8f` added the live Elite activation/admin billing-state path and the Max widget live verifier.
+- Shopify Bridge was restarted through the Platform managed product-service flow and Railway deployment `7ab474ff-08b5-418b-b770-9dc33391b908` reached `SUCCESS`.
+- `shopping-companion-test.myshopify.com` was activated to `ELITE` through `POST /api/admin/stores/{shop}/billing-state` using the bridge admin key from private secrets.
+- Live activation response confirmed `tierKey=ELITE`, `status=ACTIVE`, `chatFallbackEnabled=true`, `actionCapable=true`, `requiresExplicitConfirmation=true`, `auditTrailAvailable=true`, and `actionPackages=["guided-commerce"]`.
+
+Verification proof:
+
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q test` passed.
+- `bash -n scripts/verify-shopify-companion.sh` passed.
+- `bash -n scripts/verify-shopify-companion-max-widget-live.sh` passed.
+- `scripts/verify-shopify-companion.sh` passed live against Platform, Shopify Bridge, and `shopping-companion-test.myshopify.com` with admin checks enabled.
+- `scripts/verify-shopify-companion-max-widget-live.sh` passed live:
+  - bridge storefront bootstrap returned `billingTier=ELITE` and `chatFallbackEnabled=true`
+  - storefront Max Mode query returned HTTP `200`
+  - Platform POC auth path `PLATFORM_PRIVATE` passed
+  - `PUBLIC_AUTHENTICATED` and `PUBLIC_ANONYMOUS` returned HTTP `400` and were skipped as not configured for this deployment
+  - Playwright opened the real Shopify product page, loaded `companion-max-mode-shell.js`, loaded `max-mode-widget.iife.js`, observed the bridge bootstrap request, found `#max-mode-widget-shadow-host`, clicked the launcher, and confirmed the widget opened
+  - screenshot: `/tmp/shopify-companion-max-widget-shopping-companion-test.myshopify.com-1777165037.png`
+
+Current live store posture:
+
+- Max widget and Elite storefront chat fallback are live.
+- Platform go-live readiness remains `BLOCKED` only for order lookup because the store is missing Shopify `read_orders` scope.
+- The verifier now treats this correctly as `PENDING_SCOPE_GRANT`: shopper bootstrap and Max widget proof are required to pass, while order lookup stays disabled until the merchant grants the scope.
+
 ---
 
 ## Next-Session Unblock Pack
 
-Use this section to finish the pending live proof without rediscovering the blocker.
+Use this section when rerunning or extending live proof without rediscovering the required secrets and stop conditions.
 
 ### Required Secret Inputs
 
