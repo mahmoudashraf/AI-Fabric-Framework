@@ -2874,3 +2874,177 @@ Cleanup proof:
 - The corrected strict rerun revoked its temporary merchant access and confirmed revoked partner access is forbidden.
 
 Status: Partner Max Widget Live Test is implemented, release-gated, locally verified, deployed, live verified, and cleaned up.
+
+## Zero-Touch Enterprise Install Change Plan - 2026-04-26
+
+Status: planned. This section is a change plan only; do not mark zero-touch enterprise install complete until the implementation, deployment, and live verification proof below are added.
+
+### Current Code Reality
+
+- Shopify Bridge owns the merchant OAuth install endpoints in `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/web/ShopifyInstallController.java`.
+- `ShopifyInstallFlowService.completeInstall(...)` verifies Shopify state/HMAC, exchanges the code, creates or updates the Platform `ShopifyStoreConnection`, stores credentials through Platform, records the bridge-local install record, reconciles webhooks and billing, then redirects to the embedded app.
+- Platform already has the bootstrap implementation in `ShopifyStoreBootstrapService.bootstrap(...)`. It creates or reuses the customer, deployment, consumer, marketplace template/plugin bundle, connector defaults, runtime security defaults, and vectorization reconciliation.
+- Platform exposes manual bootstrap through `POST /api/shopify/stores/{shopDomain}/bootstrap`.
+- Shopify Bridge already has a `PlatformShopifyStoreClient.bootstrap(shopDomain)` client method, but the OAuth install completion path does not call it and does not enqueue an asynchronous provisioning workflow.
+- The embedded Shopify merchant app already exposes product-level billing/plan selection in the Billing and plan section. Merchants can activate available plans through Shopify billing approval via `/api/app/store/billing/approval`.
+- The existing merchant plan selector is a product/tier selector, not a raw deployment recipe selector. It exposes plan name, tier, allowed surfaces, price, sync cadence, governed-action posture, and Shopify approval status; it does not expose `templatePluginId`, deployment template IDs, or plugin bundle IDs.
+- The current rollout script still treats bootstrap, source readiness, verification, and go-live as operator-driven follow-up work.
+
+### Target Behavior
+
+New Shopify installs should become product-ready without an operator running rollout scripts:
+
+1. Merchant approves Shopify install.
+2. Shopify Bridge validates OAuth callback and persists the real store token through Platform.
+3. Bridge notifies Platform that install provisioning should begin.
+4. Platform creates or reuses all canonical product records through an idempotent provisioning job.
+5. Merchant can activate or change the product plan through the existing Shopify billing approval path.
+6. Platform maps the selected plan/package to governed internal recipe settings and runs release-safe readiness checks.
+7. Merchant admin shows the real provisioning state and next action, if Shopify requires one.
+8. Partner/operator views see the same canonical store readiness, assignment, verification, and evidence state.
+
+Zero-touch means no manual backend bootstrap. It does not mean bypassing Shopify-required merchant actions such as approving scopes, accepting billing, or enabling a theme app embed when Shopify requires explicit merchant control.
+
+The existing merchant plan selector remains valid in zero-touch. The missing piece is that plan selection and install completion must enqueue/reconcile Platform provisioning automatically instead of leaving merchants or operators to press `Bootstrap deployment`.
+
+### Source-of-Truth Rules
+
+- `ShopifyStoreConnection` remains the canonical Platform store record for install status, customer/deployment/consumer binding, source toggles, widget status, sync/readiness state, billing state, support profile, product-service binding, and release summary.
+- Partner UI, operator UI, Shopify admin UI, and live verifiers must read/write the same Platform records through role-appropriate APIs. No partner-only or bridge-only duplicate buckets are allowed for product configuration.
+- Shopify Bridge may keep its local `ShopifyInstallRecord` only as an install/session cache and Shopify-facing diagnostic mirror. It must not become the source of truth for product provisioning, partner access, billing readiness, or product controls.
+- Marketplace template/plugin installation remains owned by Platform bootstrap. Shopify Bridge should never construct deployment internals directly.
+- Store-specific tokens, Platform admin keys, bridge shared secrets, runtime private assertions, and deployment/provider internals must never be returned to merchant or partner browsers.
+
+### Functional Changes
+
+1. Add a Platform provisioning job model.
+   - Add a durable `shopify_store_provisioning_jobs` table or equivalent fields with `shopDomain`, `status`, `phase`, `attemptCount`, `leaseOwner`, `leaseExpiresAt`, `requestedTemplatePluginId`, `requestedTemplatePluginVersion`, `requestedPluginIds`, `installIntentId`, `lastErrorCode`, `lastErrorMessage`, `bootstrapDeploymentId`, `verificationRunId`, `readyAt`, `failedAt`, and timestamps.
+   - Enforce one active provisioning job per shop with a database uniqueness rule.
+   - Store only product-safe metadata and references; never store raw Shopify tokens in the job.
+
+2. Add an install provisioning API in Platform.
+   - Add an internal/admin endpoint such as `POST /api/shopify/stores/{shopDomain}/provisioning-jobs`.
+   - The endpoint should require the same product-service scoped Platform auth used by Shopify Bridge for store updates.
+   - It should create or reuse a pending job and return the current provisioning state.
+   - It must be idempotent for duplicate OAuth callback retries and app reinstalls.
+
+3. Trigger provisioning from Shopify OAuth completion.
+   - After `completeInstall(...)` successfully persists credentials and records install state, Shopify Bridge should call the new Platform provisioning API.
+   - The OAuth callback must not synchronously perform long-running provisioning. It should enqueue and redirect quickly to the embedded app.
+   - If Platform enqueue fails, Bridge should still record install success but surface `PROVISIONING_ENQUEUE_FAILED` in the merchant admin status and diagnostics. The install must be recoverable without reinstalling.
+
+4. Implement the Platform provisioning worker.
+   - Lease pending jobs with short leases and retry limits.
+   - Run `ShopifyStoreBootstrapService.bootstrap(shopDomain, request)` as the authoritative provisioning step.
+   - Reuse existing customer, deployment, consumer, marketplace installs, connector defaults, and vectorization records on retries.
+   - Reconcile Shopify source/vectorization state after bootstrap.
+   - Record phase transitions such as `QUEUED`, `BOOTSTRAPPING`, `BUNDLE_SYNC`, `CONNECTOR_CONFIG`, `SOURCE_PREFLIGHT`, `VERIFICATION`, `READY`, `NEEDS_MERCHANT_ACTION`, and `FAILED`.
+   - Record structured failure codes so operator repair can distinguish configuration errors, Platform auth failures, Shopify token failures, template failures, vector provisioning failures, and verification failures.
+
+5. Make template selection deterministic.
+   - Default install uses the existing Shopify Companion template plugin `mkp-template-shopify-companion` and deployment template `dev-openai-qdrant`.
+   - Existing merchant plan choices such as Free, Starter, and Elite must be treated as product packages/tier entitlements, not raw deployment recipe fields.
+   - If a merchant selects a package before provisioning is complete, the provisioning job should resolve the package into the governed recipe and continue.
+   - If a merchant changes package after provisioning, Platform should enqueue a package reconciliation job that updates entitlement/readiness, allowed surfaces, and any package-specific bundle requirements idempotently.
+   - If a signed install intent exists, it may override template plugin/version, product package, partner assignment intent, and default source/surface preferences.
+   - Install intent overrides must be signed, expire, and be consumed idempotently by shop domain.
+   - If no intent exists, use the safe default Shopify Companion product package.
+   - Vertical-specific templates are allowed only through explicit signed intent or merchant/operator configuration, not browser-provided unsigned params.
+
+6. Preserve partner and merchant authority.
+   - Partner access is not required in the middle of install provisioning.
+   - If the install came from a partner-assisted signed install link, Platform may create a pending or active partner assignment according to the signed intent policy, but merchant revocation must remain available from Shopify admin.
+   - If no partner intent exists, the store is provisioned for the merchant only and does not appear in partner workspaces until assignment/approval/operator action exists.
+   - Merchant chooses or confirms paid tier/billing where Shopify requires merchant approval. The provisioning job may read billing state and block paid-only readiness, but must not silently upgrade tier.
+
+7. Add merchant/admin provisioning visibility.
+   - Shopify admin app should show product provisioning states from Platform: installing, provisioning, ready, needs merchant action, failed, and retrying.
+   - Display exact next actions: approve billing, enable app embed, refresh scopes, retry provisioning, contact support, or wait for verification.
+   - Operator UI should expose retry, cancel, force requeue, and inspect job actions with required reason/audit for destructive overrides.
+   - Partner UI should show assigned-store provisioning/readiness status only after active assignment. It must not expose operator internals.
+
+8. Add automatic readiness and release proof.
+   - After bootstrap, run or enqueue the Shopify Companion readiness checks currently covered by rollout and live verification scripts.
+   - Persist verification run ID and step-level evidence against the store.
+   - Mark the product `READY` only when install, Platform binding, template/plugin bundle, connector defaults, source readiness, release verification, widget/app embed status, billing posture, and support readiness pass for the selected package.
+   - If a Shopify-controlled action is missing, mark `NEEDS_MERCHANT_ACTION` with precise action text, not `FAILED`.
+
+9. Add failure recovery and uninstall/reinstall behavior.
+   - Reinstall should reuse the existing customer/deployment/consumer unless the previous deployment is archived or invalid, then bootstrap should repair by creating a fresh deployment and rebinding.
+   - Uninstall should stop active provisioning jobs, clear credentials, disable or mark storefront readiness false, revoke runtime access where appropriate, and preserve historical evidence/audit records.
+   - Retry should be safe after transient Railway, Platform, Shopify, vector provider, or verification failures.
+
+### Required Backend Touchpoints
+
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/install/service/ShopifyInstallFlowService.java`
+  - enqueue Platform provisioning after credential persistence
+  - record enqueue failures without leaking secrets
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/client/platform/PlatformShopifyStoreClient.java`
+  - add a provisioning-job client call instead of directly doing long-running bootstrap from OAuth
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/service/ShopifyStoreBootstrapService.java`
+  - keep as the core idempotent provisioning primitive
+  - harden any remaining duplicate creation edge cases found by reinstall tests
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/web/ShopifyAdminController.java`
+  - add internal provisioning-job endpoints and operator repair endpoints
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/service/`
+  - add provisioning job service, worker/lease service, status projection, and audit events
+- `Platfrom/backend/src/main/resources/db/migration/`
+  - add durable provisioning job schema and indexes
+- `product-services/shopify-bridge-service/ui/src/`
+  - show merchant-safe provisioning status and next action in the embedded Shopify admin app
+- `Platfrom/ui/src/pages/ShopifyStoresPage.tsx`
+  - expose operator job status and repair actions
+- `Platfrom/partner-ui/src/`
+  - show assigned-store provisioning/readiness status without runtime or secret internals
+
+### Security And Audit Requirements
+
+- All provisioning enqueue calls from Shopify Bridge to Platform must use the existing product-service scoped Platform auth, not general operator credentials in the browser.
+- OAuth callback remains HMAC/state verified before any Platform provisioning request is sent.
+- Provisioning jobs must redact raw tokens, API keys, shared secrets, runtime assertions, Shopify access tokens, and provider credentials from logs, audit details, UI, and verifier output.
+- Every state-changing step must produce a Platform audit event with shop domain, job ID, actor/system source, phase, result, and safe failure code.
+- Operator repair actions must require Platform admin/operator authorization and a reason.
+- Merchant revocation and uninstall must override partner access and active product controls.
+
+### Local Verification Requirements
+
+- Backend tests:
+  - OAuth callback enqueues provisioning after credential persistence.
+  - duplicate callback creates one active job.
+  - missing/invalid Platform enqueue is recoverable and does not lose install record.
+  - provisioning worker runs bootstrap once and is safe on retry.
+  - reinstall reuses or repairs existing bindings without duplicate customer/deployment/consumer records.
+  - failed template/vector/provider/auth path records structured failure.
+  - uninstall cancels active provisioning and clears readiness safely.
+- Bridge tests:
+  - install flow still validates state/HMAC and exchanges token.
+  - enqueue uses product-service scoped Platform auth.
+  - merchant UI renders installing/provisioning/ready/needs-action/failed states from real API responses.
+- Platform UI and Partner UI builds/smoke must pass.
+- `git diff --check` must pass.
+
+### Live Verification Requirements
+
+Do not mark this change complete until a live Railway/Shopify proof is recorded here with concrete IDs.
+
+Required live proof:
+
+- Deploy Platform backend and Shopify Bridge to Railway.
+- Install or reinstall the Shopify app on a disposable or approved test store.
+- Confirm OAuth callback persists credentials and creates exactly one Platform provisioning job.
+- Confirm job reaches `READY` or `NEEDS_MERCHANT_ACTION` with accurate next action.
+- Confirm `ShopifyStoreConnection` has canonical `customerId`, `deploymentId`, `consumerId`, `installStatus=INSTALLED`, bootstrap status, release summary, source readiness, billing state, and widget status.
+- Confirm merchant Shopify admin shows provisioning status without operator credentials.
+- Confirm Partner UI sees the store only when an active assignment exists.
+- Confirm release-gate or focused zero-touch verifier proves install, bootstrap, release/readiness evidence, source/vectorization reconciliation, merchant admin projection, partner projection, and cleanup/reinstall behavior.
+- Confirm logs and API responses contain no secrets.
+
+### Definition Of Done
+
+- Shopify OAuth install completion automatically starts Platform provisioning.
+- No manual rollout/bootstrap script is required for the happy path.
+- Provisioning is asynchronous, idempotent, retryable, audited, and visible to merchant/operator roles.
+- Default install uses the Shopify Companion template package; signed intents can safely select different packages.
+- Merchant-required actions are surfaced as `NEEDS_MERCHANT_ACTION`, not hidden as generic failures.
+- Partner visibility remains assignment-gated and source-of-truth aligned with Platform store records.
+- Local tests, builds, smoke checks, deployment, live Shopify install proof, and cleanup proof are recorded in this document.
