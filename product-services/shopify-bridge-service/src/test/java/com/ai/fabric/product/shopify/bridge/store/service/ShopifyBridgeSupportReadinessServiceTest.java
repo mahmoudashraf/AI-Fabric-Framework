@@ -8,6 +8,7 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordedBillingStateSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
@@ -109,6 +110,57 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.missingScopes()).containsExactly("read_orders");
         assertThat(summary.message()).contains("order-read scope approval");
         assertThat(summary.nextActions()).anyMatch(action -> action.contains("read_orders"));
+    }
+
+    @Test
+    void usesPlatformBillingStateBeforeStaleLocalInstallBilling() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyWebhookSubscriptionService webhookSubscriptionService = mock(ShopifyWebhookSubscriptionService.class);
+
+        when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
+            "support@alpha.test",
+            "https://alpha.test/contact",
+            null,
+            null,
+            null,
+            true
+        ));
+        when(platformClient.getBillingState("alpha.myshopify.com")).thenReturn(new ShopifyBridgeRecordedBillingStateSummary(
+            "alpha.myshopify.com",
+            "ELITE",
+            "ACTIVE",
+            null,
+            "Loom Companion Elite",
+            Instant.parse("2026-04-23T12:00:00Z"),
+            "Live verification activation"
+        ));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord(
+            "read_products,read_content,read_legal_policies",
+            true,
+            "FREE",
+            "ACTIVE",
+            List.of()
+        )));
+
+        ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
+            platformClient,
+            installRecordService,
+            billingService,
+            webhookSubscriptionService,
+            properties()
+        );
+
+        var summary = service.summarizeForShop("alpha.myshopify.com");
+
+        assertThat(summary.billingTier()).isEqualTo("ELITE");
+        assertThat(summary.billingStatus()).isEqualTo("ACTIVE");
+        assertThat(summary.status()).isEqualTo("PENDING_SCOPE_GRANT");
+        assertThat(summary.lifecycleStage()).isEqualTo("SCOPE_APPROVAL");
+        assertThat(summary.scopeGrantRequired()).isTrue();
+        assertThat(summary.orderLookupSupported()).isFalse();
+        assertThat(summary.missingScopes()).containsExactly("read_orders");
     }
 
     @Test

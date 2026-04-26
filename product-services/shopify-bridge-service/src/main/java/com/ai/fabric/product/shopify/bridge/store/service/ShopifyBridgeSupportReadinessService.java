@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordedBillingStateSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
@@ -47,7 +48,7 @@ public class ShopifyBridgeSupportReadinessService {
     public ShopifyBridgeSupportReadinessSummary summarizeForShop(String shopDomain) {
         ShopifyInstallRecordSummary installRecord = installRecordService.findByShopDomain(shopDomain).orElse(null);
         SupportState supportState = resolveSupportState(shopDomain, installRecord);
-        SupportBillingState billingState = resolveSupportBillingState(supportState);
+        SupportBillingState billingState = resolveSupportBillingState(shopDomain, supportState);
         ShopifyBridgeSupportProfileSummary supportProfile = getSupportProfile(shopDomain);
         boolean installRecoveryRequired = installRecoveryRequired(installRecord);
         boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(supportState.grantedScopes(), "read_orders");
@@ -251,7 +252,11 @@ public class ShopifyBridgeSupportReadinessService {
         }
     }
 
-    private SupportBillingState resolveSupportBillingState(SupportState supportState) {
+    private SupportBillingState resolveSupportBillingState(String shopDomain, SupportState supportState) {
+        SupportBillingState platformBillingState = resolvePlatformBillingState(shopDomain);
+        if (platformBillingState != null) {
+            return platformBillingState;
+        }
         if (optionalText(supportState.billingTierKey()) != null || optionalText(supportState.billingStatus()) != null) {
             return new SupportBillingState(
                 optionalText(supportState.billingTierKey()) == null ? "FREE" : supportState.billingTierKey(),
@@ -282,6 +287,24 @@ public class ShopifyBridgeSupportReadinessService {
             }
         }
         return new SupportBillingState(tierKey, status);
+    }
+
+    private SupportBillingState resolvePlatformBillingState(String shopDomain) {
+        try {
+            ShopifyBridgeRecordedBillingStateSummary platformBillingState =
+                platformShopifyStoreClient.getBillingState(shopDomain);
+            if (platformBillingState == null
+                || (optionalText(platformBillingState.tierKey()) == null
+                    && optionalText(platformBillingState.status()) == null)) {
+                return null;
+            }
+            return new SupportBillingState(
+                optionalText(platformBillingState.tierKey()) == null ? "FREE" : platformBillingState.tierKey(),
+                optionalText(platformBillingState.status()) == null ? "ACTIVE" : platformBillingState.status()
+            );
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private SupportState toSupportState(ShopifyInstallRecordSummary installRecord) {
