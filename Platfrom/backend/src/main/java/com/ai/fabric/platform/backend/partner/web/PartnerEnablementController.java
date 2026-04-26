@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.partner.web;
 
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
 import com.ai.fabric.platform.backend.partner.model.PartnerCatalogEntrySummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerActivityEventSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationRequest;
@@ -33,12 +34,14 @@ import com.ai.fabric.platform.backend.partner.service.PartnerEnablementService;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -110,6 +113,60 @@ public class PartnerEnablementController {
     public PartnerProductControlSummary updateProductSupportProfile(@PathVariable String storeId,
                                                                     @RequestBody UpdateShopifyStoreSupportProfileRequest request) {
         return service.updateProductSupportProfile(storeId, request);
+    }
+
+    @PostMapping("/stores/{storeId}/max-widget/chat/me/query")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public JsonNode queryPartnerMaxWidget(@PathVariable String storeId,
+                                          @RequestBody(required = false) JsonNode request,
+                                          @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return service.queryPartnerMaxWidget(storeId, request, authPath);
+    }
+
+    @PostMapping("/stores/{storeId}/max-widget/chat/me/suggestions")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public JsonNode suggestPartnerMaxWidget(@PathVariable String storeId,
+                                            @RequestBody(required = false) JsonNode request,
+                                            @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return service.suggestPartnerMaxWidget(storeId, request, authPath);
+    }
+
+    @GetMapping("/stores/{storeId}/max-widget/chat/me/auth-context")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public JsonNode getPartnerMaxWidgetRuntimeAuthContext(@PathVariable String storeId,
+                                                          @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return service.getPartnerMaxWidgetRuntimeAuthContext(storeId, authPath);
+    }
+
+    @GetMapping("/stores/{storeId}/max-widget/chat/me/shell-config")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public JsonNode getPartnerMaxWidgetShellConfig(@PathVariable String storeId,
+                                                   @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return service.getPartnerMaxWidgetShellConfig(storeId, authPath);
+    }
+
+    @GetMapping("/stores/{storeId}/max-widget/chat/me/conversations")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public JsonNode listPartnerMaxWidgetConversations(@PathVariable String storeId,
+                                                      @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return service.listPartnerMaxWidgetConversations(storeId, authPath);
+    }
+
+    @GetMapping("/stores/{storeId}/max-widget/chat/me/conversations/{conversationId}")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public JsonNode getPartnerMaxWidgetConversation(@PathVariable String storeId,
+                                                    @PathVariable String conversationId,
+                                                    @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return service.getPartnerMaxWidgetConversation(storeId, conversationId, authPath);
+    }
+
+    @DeleteMapping("/stores/{storeId}/max-widget/chat/me/conversations/{conversationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public void deletePartnerMaxWidgetConversation(@PathVariable String storeId,
+                                                   @PathVariable String conversationId,
+                                                   @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        service.deletePartnerMaxWidgetConversation(storeId, conversationId, authPath);
     }
 
     @GetMapping("/activity")

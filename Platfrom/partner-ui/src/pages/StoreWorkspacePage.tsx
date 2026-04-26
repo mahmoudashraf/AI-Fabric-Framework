@@ -51,6 +51,7 @@ import { completeVerificationStep, getStoreVerificationPack, listStoreVerificati
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { DataTable, type DataColumn } from '../components/DataTable'
 import { PageHeader } from '../components/PageHeader'
+import { PartnerMaxWidgetLiveTest } from '../components/PartnerMaxWidgetLiveTest'
 import { StatusChip } from '../components/StatusChip'
 import { formatDateTime, titleize } from '../utils/format'
 
@@ -528,6 +529,8 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
         </Box>
         <ChipRow values={controls.capabilities} empty="No product control capabilities are active." />
       </Paper>
+
+      <PartnerMaxWidgetLiveTest controls={controls} />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1.2fr 0.8fr' }, gap: 2 }}>
         <Paper sx={{ p: 2 }}>

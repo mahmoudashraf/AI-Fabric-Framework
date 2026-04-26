@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.partner.service;
 
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
 import com.ai.fabric.platform.backend.partner.config.PartnerSupabaseAuthProperties;
 import com.ai.fabric.platform.backend.partner.entity.PartnerAccountEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerActionAuditEntity;
@@ -88,10 +90,12 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSupportProfile
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetSettingsService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -108,6 +112,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
+import static org.springframework.http.HttpStatus.CONFLICT;
 
 @Service
 public class PartnerEnablementService {
@@ -185,6 +191,7 @@ public class PartnerEnablementService {
     private final ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService;
     private final ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService;
     private final ShopifyStoreSupportProfileService shopifyStoreSupportProfileService;
+    private final DeploymentPocChatService deploymentPocChatService;
     private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -210,6 +217,7 @@ public class PartnerEnablementService {
                                     ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService,
                                     ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService,
                                     ShopifyStoreSupportProfileService shopifyStoreSupportProfileService,
+                                    DeploymentPocChatService deploymentPocChatService,
                                     ObjectMapper objectMapper) {
         this.authProperties = authProperties;
         this.accountRepository = accountRepository;
@@ -233,6 +241,7 @@ public class PartnerEnablementService {
         this.shopifyStoreWidgetSettingsService = shopifyStoreWidgetSettingsService;
         this.shopifyStoreSourceSettingsService = shopifyStoreSourceSettingsService;
         this.shopifyStoreSupportProfileService = shopifyStoreSupportProfileService;
+        this.deploymentPocChatService = deploymentPocChatService;
         this.objectMapper = objectMapper;
     }
 
@@ -392,6 +401,59 @@ public class PartnerEnablementService {
             "helpCenterUrlConfigured", supportProfile.helpCenterUrl() != null && !supportProfile.helpCenterUrl().isBlank()
         )));
         return toProductControlSummary(assignment, summary, supportProfile);
+    }
+
+    @Transactional(readOnly = true)
+    public JsonNode getPartnerMaxWidgetRuntimeAuthContext(String storeId, DeploymentPocAuthPath authPath) {
+        PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
+        return deploymentPocChatService.widgetRuntimeAuthContextForTrustedPartner(context.deploymentId(), authPath);
+    }
+
+    @Transactional(readOnly = true)
+    public JsonNode getPartnerMaxWidgetShellConfig(String storeId, DeploymentPocAuthPath authPath) {
+        PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
+        return deploymentPocChatService.widgetShellConfigForTrustedPartner(context.deploymentId(), authPath);
+    }
+
+    @Transactional(readOnly = true)
+    public JsonNode listPartnerMaxWidgetConversations(String storeId, DeploymentPocAuthPath authPath) {
+        PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
+        return deploymentPocChatService.listConversationsForTrustedPartner(context.deploymentId(), authPath);
+    }
+
+    @Transactional(readOnly = true)
+    public JsonNode getPartnerMaxWidgetConversation(String storeId, String conversationId, DeploymentPocAuthPath authPath) {
+        PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
+        return deploymentPocChatService.widgetConversationForTrustedPartner(context.deploymentId(), conversationId, authPath);
+    }
+
+    @Transactional
+    public JsonNode queryPartnerMaxWidget(String storeId, JsonNode request, DeploymentPocAuthPath authPath) {
+        PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
+        JsonNode response = deploymentPocChatService.widgetQueryForTrustedPartner(context.deploymentId(), request, authPath);
+        audit(context.partner(), "PARTNER_MAX_WIDGET_QUERY_RAN", "STORE_ASSIGNMENT", context.assignment().getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", context.assignment().getShopDomain(),
+            "deploymentId", context.deploymentId(),
+            "authPath", DeploymentPocAuthPath.defaultValue(authPath).name()
+        )));
+        return response;
+    }
+
+    @Transactional
+    public JsonNode suggestPartnerMaxWidget(String storeId, JsonNode request, DeploymentPocAuthPath authPath) {
+        PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
+        return deploymentPocChatService.widgetSuggestionsForTrustedPartner(context.deploymentId(), request, authPath);
+    }
+
+    @Transactional
+    public void deletePartnerMaxWidgetConversation(String storeId, String conversationId, DeploymentPocAuthPath authPath) {
+        PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
+        deploymentPocChatService.deleteConversationForTrustedPartner(context.deploymentId(), conversationId, authPath);
+        audit(context.partner(), "PARTNER_MAX_WIDGET_CONVERSATION_RESET", "STORE_ASSIGNMENT", context.assignment().getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", context.assignment().getShopDomain(),
+            "deploymentId", context.deploymentId(),
+            "authPath", DeploymentPocAuthPath.defaultValue(authPath).name()
+        )));
     }
 
     @Transactional(readOnly = true)
@@ -1799,6 +1861,20 @@ public class PartnerEnablementService {
         }
     }
 
+    private PartnerMaxWidgetContext requirePartnerMaxWidgetContext(String storeId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        requireAssignmentCapability(assignment, "PRODUCT_CONFIG_READ");
+        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        if (!"INSTALLED".equalsIgnoreCase(store.installStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Shopify Companion must be installed before live Max widget testing.");
+        }
+        if (!StringUtils.hasText(store.deploymentId())) {
+            throw new ResponseStatusException(CONFLICT, "Assigned store is not linked to a Platform deployment.");
+        }
+        return new PartnerMaxWidgetContext(context, assignment, store.deploymentId().trim());
+    }
+
     private PartnerSupportEscalationEntity requireEscalation(String accountId, String escalationId) {
         return escalationRepository.findByIdAndPartnerAccountId(escalationId, accountId)
             .orElseThrow(() -> new PartnerForbiddenException("Escalation is not available to this partner."));
@@ -1937,7 +2013,8 @@ public class PartnerEnablementService {
             || action.startsWith("STORE_NOTE_")
             || action.startsWith("SUPPORT_")
             || action.startsWith("PRODUCT_")
-            || action.startsWith("KNOWLEDGE_");
+            || action.startsWith("KNOWLEDGE_")
+            || action.startsWith("PARTNER_MAX_WIDGET_");
     }
 
     private PartnerActivityEventSummary toActivitySummary(PartnerActionAuditEntity entity) {
@@ -2293,6 +2370,11 @@ public class PartnerEnablementService {
     }
 
     private record PartnerContext(PartnerAccountEntity account, PartnerMemberEntity member) {
+    }
+
+    private record PartnerMaxWidgetContext(PartnerContext partner,
+                                           PartnerStoreAssignmentEntity assignment,
+                                           String deploymentId) {
     }
 
     private record VerificationPack(

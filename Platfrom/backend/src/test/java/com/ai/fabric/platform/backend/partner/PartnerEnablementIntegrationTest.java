@@ -1,13 +1,21 @@
 package com.ai.fabric.platform.backend.partner;
 
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.partner.entity.PartnerSupportReplyEntity;
 import com.ai.fabric.platform.backend.partner.repository.PartnerActionAuditRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerSupportReplyRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity;
+import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformTenantEntity;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformTenantRepository;
 import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -18,6 +26,7 @@ import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -82,7 +91,19 @@ class PartnerEnablementIntegrationTest {
     private PlatformManagedProductServiceRepository productServiceRepository;
 
     @Autowired
+    private DeploymentRepository deploymentRepository;
+
+    @Autowired
+    private PlatformCustomerRepository customerRepository;
+
+    @Autowired
+    private PlatformTenantRepository tenantRepository;
+
+    @Autowired
     private PlatformSecretService platformSecretService;
+
+    @Autowired
+    private PlatformSecretRepository platformSecretRepository;
 
     @Autowired
     private PartnerSupportReplyRepository replyRepository;
@@ -208,12 +229,27 @@ class PartnerEnablementIntegrationTest {
                     }
                     """))
             .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/partners/stores/psa-missing/max-widget/chat/me/auth-context")
+                .header("Authorization", "Bearer " + token)
+                .param("authPath", "PLATFORM_PRIVATE"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/partners/stores/psa-missing/max-widget/chat/me/query")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"query\":\"This must not reach the runtime.\"}"))
+            .andExpect(status().isForbidden());
     }
 
     @Test
     void merchantApprovalCreatesScopedAssignmentAndEscalationThreadHidesInternalReplies() throws Exception {
         String token = partnerJwt("approved-user", "approved-user@example.com");
         completeSignup(token, "Approved Partner Workspace");
+        HttpServer runtimeServer = startPartnerWidgetRuntime();
+        try {
+        String deploymentId = "deployment-shopify-store-approved";
+        createRuntimeDeployment(deploymentId, "http://localhost:" + runtimeServer.getAddress().getPort());
         createShopifyStore("shopify-store-approved", "approved-client.myshopify.com", "Approved Client");
 
         mockMvc.perform(get("/api/partners/eligible-stores")
@@ -390,6 +426,24 @@ class PartnerEnablementIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.supportProfile.contactEmail", is("support@approved-client.test")))
             .andExpect(jsonPath("$.supportProfile.merchantHandoffConfigured", is(true)));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/max-widget/chat/me/auth-context", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .param("authPath", "PLATFORM_PRIVATE"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.authMode", is("PLATFORM_PROXY_SESSION")))
+            .andExpect(jsonPath("$.callerType", is("PLATFORM_PROXY")))
+            .andExpect(jsonPath("$.deploymentId", is(deploymentId)));
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/max-widget/chat/me/query", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .param("authPath", "PLATFORM_PRIVATE")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"query\":\"Run the partner Max widget live smoke test.\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success", is(true)))
+            .andExpect(jsonPath("$.conversationId", is("conv-partner-max")))
+            .andExpect(jsonPath("$.result.answer", is("Partner Max widget live smoke ok")));
 
         mockMvc.perform(get("/api/shopify/stores/{shopDomain}", "approved-client.myshopify.com")
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))
@@ -595,6 +649,7 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$[*].action", hasItem("PRODUCT_WIDGET_SETTINGS_UPDATED")))
             .andExpect(jsonPath("$[*].action", hasItem("PRODUCT_SOURCE_SETTINGS_UPDATED")))
             .andExpect(jsonPath("$[*].action", hasItem("PRODUCT_SUPPORT_PROFILE_UPDATED")))
+            .andExpect(jsonPath("$[*].action", hasItem("PARTNER_MAX_WIDGET_QUERY_RAN")))
             .andExpect(jsonPath("$[*].action", hasItem("VERIFICATION_RUN_CREATED")))
             .andExpect(jsonPath("$[*].action", hasItem("TEMPLATE_APPLICATION_REUSED")))
             .andExpect(jsonPath("$[*].action", hasItem("SUPPORT_REPLY_CREATED")));
@@ -646,6 +701,7 @@ class PartnerEnablementIntegrationTest {
                 "PRODUCT_WIDGET_SETTINGS_UPDATED",
                 "PRODUCT_SOURCE_SETTINGS_UPDATED",
                 "PRODUCT_SUPPORT_PROFILE_UPDATED",
+                "PARTNER_MAX_WIDGET_QUERY_RAN",
                 "VERIFICATION_RUN_CREATED",
                 "EVIDENCE_BUNDLE_CREATED",
                 "TEMPLATE_APPLIED",
@@ -654,6 +710,9 @@ class PartnerEnablementIntegrationTest {
                 "SUPPORT_ESCALATION_CREATED",
                 "STORE_ACCESS_REVOKED"
             );
+        } finally {
+            runtimeServer.stop(0);
+        }
     }
 
     @Test
@@ -803,6 +862,58 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.signupRequired", is(false)));
     }
 
+    private void createRuntimeDeployment(String deploymentId, String runtimeBaseUrl) {
+        Instant now = Instant.now();
+        PlatformCustomerEntity customer = new PlatformCustomerEntity();
+        customer.setId("customer-shopify-store-approved");
+        customer.setName("Approved Client");
+        customer.setSlug("approved-client");
+        customer.setDescription("Partner Max widget integration test customer.");
+        customer.setStatus("ACTIVE");
+        customer.setPlatformManaged(true);
+        customer.setCreatedAt(now);
+        customer.setUpdatedAt(now);
+        customerRepository.save(customer);
+
+        PlatformTenantEntity tenant = new PlatformTenantEntity();
+        tenant.setId("tenant-shopify-store-approved");
+        tenant.setCustomerId(customer.getId());
+        tenant.setName("Approved Client Storefront");
+        tenant.setSlug("approved-client-storefront");
+        tenant.setDescription("Partner Max widget integration test tenant.");
+        tenant.setStatus("ACTIVE");
+        tenant.setPlatformManaged(true);
+        tenant.setCreatedAt(now);
+        tenant.setUpdatedAt(now);
+        tenantRepository.save(tenant);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId(deploymentId);
+        deployment.setName("Partner Max Widget Runtime");
+        deployment.setEnvironmentName("test");
+        deployment.setTemplateId("shopify-companion");
+        deployment.setStatus("RUNNING");
+        deployment.setCustomerId("customer-shopify-store-approved");
+        deployment.setTenantId("tenant-shopify-store-approved");
+        deployment.setRuntimeBaseUrl(runtimeBaseUrl);
+        deployment.setApprovalRequiredForApply(false);
+        deployment.setApprovalRequiredForDelete(true);
+        deployment.setCreatedAt(now);
+        deployment.setUpdatedAt(now);
+        deploymentRepository.save(deployment);
+        storeRuntimeSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY", "runtime-test-key");
+        storeRuntimeSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY", "runtime-private-test-signing-key");
+    }
+
+    private void storeRuntimeSecret(String name, String value) {
+        PlatformSecretEntity secret = platformSecretRepository.findById(name).orElseGet(PlatformSecretEntity::new);
+        secret.setName(name);
+        secret.setSecretValue(value);
+        secret.setUpdatedAt(Instant.now());
+        secret.setManagedByPlatform(false);
+        platformSecretRepository.save(secret);
+    }
+
     private void createShopifyStore(String id, String shopDomain, String displayName) {
         Instant now = Instant.now();
         PlatformManagedProductServiceEntity service = productServiceRepository.findById("shopify-companion").orElseGet(() -> {
@@ -869,6 +980,60 @@ class PartnerEnablementIntegrationTest {
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         storeConnectionRepository.save(entity);
+    }
+
+    private HttpServer startPartnerWidgetRuntime() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/chat/me/auth-context", exchange -> {
+            if (!runtimeRequestAuthorized(exchange)) {
+                writeJson(exchange, 401, "{\"success\":false,\"message\":\"Unauthorized\"}");
+                return;
+            }
+            writeJson(exchange, 200, """
+                {
+                  "subjectType": "SYSTEM_PROCESS",
+                  "authMode": "PLATFORM_PROXY_SESSION",
+                  "callerType": "PLATFORM_PROXY",
+                  "deploymentId": "deployment-shopify-store-approved",
+                  "customerId": "customer-shopify-store-approved",
+                  "tenantId": "tenant-shopify-store-approved",
+                  "grantedScopes": [],
+                  "warnings": []
+                }
+                """);
+        });
+        server.createContext("/api/chat/me/query", exchange -> {
+            if (!runtimeRequestAuthorized(exchange)) {
+                writeJson(exchange, 401, "{\"success\":false,\"message\":\"Unauthorized\"}");
+                return;
+            }
+            writeJson(exchange, 200, """
+                {
+                  "success": true,
+                  "message": "Partner Max widget live smoke ok",
+                  "conversationId": "conv-partner-max",
+                  "sessionId": "session-partner-max",
+                  "result": {
+                    "answer": "Partner Max widget live smoke ok"
+                  }
+                }
+                """);
+        });
+        server.start();
+        return server;
+    }
+
+    private boolean runtimeRequestAuthorized(HttpExchange exchange) {
+        return "runtime-test-key".equals(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"))
+            && exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION") != null;
+    }
+
+    private void writeJson(HttpExchange exchange, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(status, bytes.length);
+        exchange.getResponseBody().write(bytes);
+        exchange.close();
     }
 
     private void saveReply(String escalationId, String visibility, String body) {

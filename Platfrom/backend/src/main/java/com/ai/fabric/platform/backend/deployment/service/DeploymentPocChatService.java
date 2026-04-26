@@ -181,6 +181,19 @@ public class DeploymentPocChatService {
                                 JsonNode request,
                                 DeploymentPocAuthPath authPath) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        return widgetQuery(deployment, request, authPath);
+    }
+
+    public JsonNode widgetQueryForTrustedPartner(String deploymentId,
+                                                 JsonNode request,
+                                                 DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeploymentForTrustedPartner(deploymentId);
+        return widgetQuery(deployment, request, authPath);
+    }
+
+    private JsonNode widgetQuery(DeploymentEntity deployment,
+                                 JsonNode request,
+                                 DeploymentPocAuthPath authPath) {
         ObjectNode body = request != null && request.isObject()
             ? (ObjectNode) request.deepCopy()
             : objectMapper.createObjectNode();
@@ -231,6 +244,19 @@ public class DeploymentPocChatService {
                                       JsonNode request,
                                       DeploymentPocAuthPath authPath) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        return widgetSuggestions(deployment, request, authPath);
+    }
+
+    public JsonNode widgetSuggestionsForTrustedPartner(String deploymentId,
+                                                       JsonNode request,
+                                                       DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeploymentForTrustedPartner(deploymentId);
+        return widgetSuggestions(deployment, request, authPath);
+    }
+
+    private JsonNode widgetSuggestions(DeploymentEntity deployment,
+                                       JsonNode request,
+                                       DeploymentPocAuthPath authPath) {
         JsonNode body = request != null && request.isObject()
             ? request.deepCopy()
             : objectMapper.createObjectNode();
@@ -247,6 +273,17 @@ public class DeploymentPocChatService {
     public JsonNode listConversations(String deploymentId,
                                       DeploymentPocAuthPath authPath) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        return listConversations(deployment, authPath);
+    }
+
+    public JsonNode listConversationsForTrustedPartner(String deploymentId,
+                                                       DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeploymentForTrustedPartner(deploymentId);
+        return listConversations(deployment, authPath);
+    }
+
+    private JsonNode listConversations(DeploymentEntity deployment,
+                                       DeploymentPocAuthPath authPath) {
         return sendJson(
             deployment,
             "GET",
@@ -261,6 +298,19 @@ public class DeploymentPocChatService {
                                        String conversationId,
                                        DeploymentPocAuthPath authPath) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        return widgetConversation(deployment, conversationId, authPath);
+    }
+
+    public JsonNode widgetConversationForTrustedPartner(String deploymentId,
+                                                        String conversationId,
+                                                        DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeploymentForTrustedPartner(deploymentId);
+        return widgetConversation(deployment, conversationId, authPath);
+    }
+
+    private JsonNode widgetConversation(DeploymentEntity deployment,
+                                        String conversationId,
+                                        DeploymentPocAuthPath authPath) {
         if (!StringUtils.hasText(conversationId)) {
             throw new ResponseStatusException(BAD_REQUEST, "conversationId is required.");
         }
@@ -280,9 +330,26 @@ public class DeploymentPocChatService {
         return sendAuthContextRequest(deployment, DeploymentPocAuthPath.defaultValue(authPath));
     }
 
+    public JsonNode widgetRuntimeAuthContextForTrustedPartner(String deploymentId,
+                                                              DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeploymentForTrustedPartner(deploymentId);
+        return sendAuthContextRequest(deployment, DeploymentPocAuthPath.defaultValue(authPath));
+    }
+
     public JsonNode widgetShellConfig(String deploymentId,
                                       DeploymentPocAuthPath authPath) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        return widgetShellConfig(deployment, authPath);
+    }
+
+    public JsonNode widgetShellConfigForTrustedPartner(String deploymentId,
+                                                       DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeploymentForTrustedPartner(deploymentId);
+        return widgetShellConfig(deployment, authPath);
+    }
+
+    private JsonNode widgetShellConfig(DeploymentEntity deployment,
+                                       DeploymentPocAuthPath authPath) {
         return sendJson(
             deployment,
             "GET",
@@ -316,6 +383,19 @@ public class DeploymentPocChatService {
                                    String conversationId,
                                    DeploymentPocAuthPath authPath) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        deleteConversation(deployment, conversationId, authPath);
+    }
+
+    public void deleteConversationForTrustedPartner(String deploymentId,
+                                                    String conversationId,
+                                                    DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeploymentForTrustedPartner(deploymentId);
+        deleteConversation(deployment, conversationId, authPath);
+    }
+
+    private void deleteConversation(DeploymentEntity deployment,
+                                    String conversationId,
+                                    DeploymentPocAuthPath authPath) {
         if (!StringUtils.hasText(conversationId)) {
             throw new ResponseStatusException(BAD_REQUEST, "conversationId is required.");
         }
@@ -368,6 +448,18 @@ public class DeploymentPocChatService {
             throw new ResponseStatusException(
                 BAD_REQUEST,
                 "Deployment runtime URL is not available. Apply the deployment before using the POC chat console."
+            );
+        }
+        return deployment;
+    }
+
+    private DeploymentEntity getDeploymentForTrustedPartner(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Deployment runtime URL is not available. Apply the deployment before using the live Max widget test."
             );
         }
         return deployment;
