@@ -235,7 +235,27 @@ class ShopifyBridgeBillingServiceTest {
         ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
-        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(new ShopifyInstallRecordSummary(
+            "alpha.myshopify.com",
+            "INSTALLED",
+            "https://alpha.myshopify.com",
+            null,
+            null,
+            null,
+            null,
+            "read_products",
+            null,
+            null,
+            true,
+            Instant.parse("2026-04-26T00:00:00Z"),
+            "FREE",
+            "ACTIVE",
+            List.of(),
+            Instant.parse("2026-04-26T00:00:00Z"),
+            Instant.parse("2026-04-26T00:00:00Z"),
+            Instant.parse("2026-04-26T00:00:00Z"),
+            null
+        )));
         when(platformShopifyStoreClient.getBillingState("alpha.myshopify.com"))
             .thenReturn(new ShopifyBridgeRecordedBillingStateSummary(
                 "alpha.myshopify.com",

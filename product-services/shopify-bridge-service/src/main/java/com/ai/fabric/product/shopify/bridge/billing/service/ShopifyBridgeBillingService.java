@@ -343,6 +343,24 @@ public class ShopifyBridgeBillingService {
         if (!hasText(shopDomain)) {
             return Optional.empty();
         }
+        if (platformShopifyStoreClient != null) {
+            try {
+                ShopifyBridgeRecordedBillingStateSummary platformBillingState = platformShopifyStoreClient.getBillingState(shopDomain);
+                if (platformBillingState != null) {
+                    Optional<ShopifyBridgeBillingSummary> summary = recordedBillingSummary(
+                        billingMode,
+                        platformBillingState.tierKey(),
+                        platformBillingState.status(),
+                        "Platform-recorded Shopify billing state"
+                    );
+                    if (summary.isPresent()) {
+                        return summary;
+                    }
+                }
+            } catch (RuntimeException ex) {
+                // Platform is the durable source of truth; local install state remains a fallback cache.
+            }
+        }
         if (installRecordService != null) {
             Optional<ShopifyInstallRecordSummary> installRecord = installRecordService.findByShopDomain(shopDomain);
             if (installRecord != null && installRecord.isPresent()) {
@@ -359,23 +377,7 @@ public class ShopifyBridgeBillingService {
                 }
             }
         }
-        if (platformShopifyStoreClient == null) {
-            return Optional.empty();
-        }
-        try {
-            ShopifyBridgeRecordedBillingStateSummary platformBillingState = platformShopifyStoreClient.getBillingState(shopDomain);
-            if (platformBillingState == null) {
-                return Optional.empty();
-            }
-            return recordedBillingSummary(
-                billingMode,
-                platformBillingState.tierKey(),
-                platformBillingState.status(),
-                "Platform-recorded Shopify billing state"
-            );
-        } catch (RuntimeException ex) {
-            return Optional.empty();
-        }
+        return Optional.empty();
     }
 
     private Optional<ShopifyBridgeBillingSummary> recordedBillingSummary(BillingMode billingMode,
