@@ -2814,3 +2814,63 @@ Executed live on Railway on 2026-04-26:
 - Cleanup proof: the temporary merchant access was revoked and revoked partner store/product-control reads returned `403`.
 
 Status: Product-Scoped Partner Control addendum is implemented, locally verified, deployed, live verified, and cleaned up.
+
+## Partner Max Widget Live Test Implementation - 2026-04-26
+
+### Completed Changes
+
+- Added partner-scoped Max widget proxy endpoints under `POST/GET/DELETE /api/partners/stores/{storeId}/max-widget/...`.
+- Partner Max widget routes require a provisioned partner session, an active assigned store, `PRODUCT_CONFIG_READ`, installed Shopify Companion state, and a linked Platform deployment before any runtime call is attempted.
+- The partner route delegates to the existing Platform Max widget POC transport without exposing operator credentials, runtime base URLs, private assertions, or Shopify/Admin tokens to the browser.
+- Added a real Partner UI **Live Max widget test** panel in the store workspace Product controls tab.
+- The panel loads the real `max-mode-widget.iife.js` bundle from the Partner UI deployment, opens/closes the actual Max widget, runs a real smoke query, resets the current conversation, and shows partner-safe session proof.
+- The UI supports three selectable access paths: partner-secured, authenticated shopper, and anonymous shopper. Public path failures surface as real backend/runtime errors; no mock path or placeholder response was added.
+- Partner activity now includes `PARTNER_MAX_WIDGET_QUERY_RAN` and `PARTNER_MAX_WIDGET_CONVERSATION_RESET`.
+- Extended `scripts/verify-partner-enablement-live.sh` so the release gate verifies deployed Partner UI Max widget assets, the copied widget bundle, partner Max auth-context, partner Max smoke query, and partner-visible Max audit activity.
+
+### Verification Proof
+
+Executed locally on 2026-04-26:
+
+- `mvn -q -f Platfrom/backend/pom.xml -Dtest=PartnerEnablementIntegrationTest test` passed.
+- `npm --prefix Platfrom/partner-ui run build` passed.
+- `npm --prefix Platfrom/partner-ui run smoke` passed.
+- `bash -n scripts/verify-partner-enablement-live.sh` passed.
+- `git diff --check` passed.
+
+Implementation commit pushed to `Platform-V6`:
+
+- `0b8043cc` - `Add partner Max widget live test`
+
+Executed live on Railway on 2026-04-26 against:
+
+- Platform backend: `https://ai-fabric-framework-production-324f.up.railway.app`
+- Partner UI: `https://ai-fabric-framework-production-158d.up.railway.app`
+- Shopify store: `shopping-companion-test.myshopify.com`
+
+Live proof passed:
+
+- Deployed Partner UI `/health`, `/runtime-config.js`, and route shell returned `200`.
+- Deployed Partner UI asset contains `Live Max widget test`, `Partner-secured routes`, and `Run smoke query`.
+- Deployed Partner UI `/max-mode-widget.iife.js` returned `200` and exposes `MaxMode`.
+- Strict partner live gate accepted a fresh confirmed non-social Supabase partner JWT.
+- Merchant approval created an active assignment for `shopping-companion-test.myshopify.com`.
+- `GET /api/partners/stores/{storeId}/max-widget/chat/me/auth-context?authPath=PLATFORM_PRIVATE` returned `200`, `authMode=PLATFORM_PROXY_SESSION`, and `callerType=PLATFORM_PROXY`.
+- `POST /api/partners/stores/{storeId}/max-widget/chat/me/query?authPath=PLATFORM_PRIVATE` returned `200` with a live Max answer.
+- Partner activity contained `PARTNER_MAX_WIDGET_QUERY_RAN` without secret material.
+- Full strict live gate then completed verification/evidence/template/notes/profile/support/revoke workflows and confirmed revoked store/product-control reads return `403`.
+
+Live proof IDs:
+
+- client implementation: `pci-757efbc4-a12d-42ca-8293-a080f92c049e`
+- merchant access request: `psar-f9d451ac-94a5-4c23-b5ec-ee68b2185d64`
+- temporary active assignment: `psa-d3289609-7346-4181-af1e-fc55b570d893`
+- verification run: `pvr-1964b8cd-90dc-4ab7-ba2a-6124429ca5da`
+- launch evidence bundle: `peb-9cabd4e0-92b0-4abe-bd1b-f578c0cd78a2`
+
+Cleanup proof:
+
+- A first live run proved the Max auth-context/query routes but failed only because the verifier parser did not read `result.message`; temporary access request `psar-cca1826d-d939-4c66-b13e-f9496d5356f7` was manually revoked.
+- The corrected strict rerun revoked its temporary merchant access and confirmed revoked partner access is forbidden.
+
+Status: Partner Max Widget Live Test is implemented, release-gated, locally verified, deployed, live verified, and cleaned up.

@@ -294,6 +294,9 @@ required = [
     "/api/partners/templates",
     "/api/partners/template-applications",
     "/api/partners/stores/",
+    "/max-widget",
+    "Live Max widget test",
+    "Partner-secured routes",
     "/notes",
     "/escalations",
 ]
@@ -302,6 +305,21 @@ if missing:
     print(f"FAIL: partner UI deployed assets are missing workflow routes: {missing}", file=sys.stderr)
     raise SystemExit(1)
 print("PASS: partner UI deployed assets include workflow surfaces")
+PY
+
+  ui_widget_bundle_body="${TMP_DIR}/partner-ui-max-widget-bundle.js"
+  ui_widget_bundle_status="$(request GET "${PARTNER_UI_BASE_URL}/max-mode-widget.iife.js" "${ui_widget_bundle_body}")"
+  cp "${ui_widget_bundle_body}" "${TMP_DIR}/last-body"
+  assert_status "${ui_widget_bundle_status}" "200" "partner UI Max widget bundle reachable"
+  python3 - <<'PY' "${ui_widget_bundle_body}"
+import pathlib
+import sys
+
+body = pathlib.Path(sys.argv[1]).read_text(errors="replace")
+if "MaxMode" not in body:
+    print("FAIL: deployed Max widget bundle does not expose MaxMode", file=sys.stderr)
+    raise SystemExit(1)
+print("PASS: partner UI Max widget bundle exposes MaxMode")
 PY
 else
   echo "BLOCKED: PARTNER_UI_BASE_URL is not set; deployed partner UI route was not checked."
@@ -663,6 +681,60 @@ update_path.write_text(json.dumps(update), encoding="utf-8")
 print("PASS: partner product controls are scoped and secret-safe")
 PY
 
+  max_widget_auth_body="${TMP_DIR}/max-widget-auth-context.json"
+  max_widget_auth_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/max-widget/chat/me/auth-context?authPath=PLATFORM_PRIVATE" "${max_widget_auth_body}")"
+  cp "${max_widget_auth_body}" "${TMP_DIR}/last-body"
+  assert_status "${max_widget_auth_status}" "200" "partner Max widget auth context reachable"
+  python3 - <<'PY' "${max_widget_auth_body}"
+import json
+import pathlib
+import sys
+
+context = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert context.get("authMode") == "PLATFORM_PROXY_SESSION", context
+assert context.get("callerType") == "PLATFORM_PROXY", context
+assert context.get("deploymentId"), context
+raw = json.dumps(context).lower()
+for forbidden in ("secret", "token", "password", "credential"):
+    assert forbidden not in raw, context
+print("PASS: partner Max widget auth context is live and secret-safe")
+PY
+
+  max_widget_query_body="${TMP_DIR}/max-widget-query.json"
+  max_widget_query_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/max-widget/chat/me/query?authPath=PLATFORM_PRIVATE" "${max_widget_query_body}" \
+    -H "Content-Type: application/json" \
+    -d "{\"query\":\"Run a release-gate live Max widget smoke test for ${workflow_shop_domain}. Confirm product discovery and storefront-safe boundaries.\"}")"
+  cp "${max_widget_query_body}" "${TMP_DIR}/last-body"
+  assert_status "${max_widget_query_status}" "200" "partner Max widget smoke query reachable"
+  python3 - <<'PY' "${max_widget_query_body}"
+import json
+import pathlib
+import sys
+
+response = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert response.get("success", True) is not False, response
+message = response.get("message")
+result = response.get("result") if isinstance(response.get("result"), dict) else {}
+sanitized = result.get("sanitizedPayload") if isinstance(result.get("sanitizedPayload"), dict) else {}
+answer = (
+    result.get("answer")
+    or result.get("response")
+    or result.get("text")
+    or result.get("content")
+    or result.get("message")
+    or sanitized.get("safeSummary")
+    or sanitized.get("message")
+    or message
+)
+if not isinstance(answer, str) or not answer.strip():
+    print(f"FAIL: Max widget smoke query returned no displayable answer: {response}", file=sys.stderr)
+    raise SystemExit(1)
+raw = json.dumps(response).lower()
+for forbidden in ("secret", "token", "password", "credential"):
+    assert forbidden not in raw, response
+print("PASS: partner Max widget smoke query returned a live answer")
+PY
+
   product_support_update_body="${TMP_DIR}/product-support-update-response.json"
   product_support_update_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/product-controls/support-profile" "${product_support_update_body}" \
     -H "Content-Type: application/json" \
@@ -719,10 +791,11 @@ import sys
 activity = json.loads(pathlib.Path(sys.argv[1]).read_text())
 actions = {item.get("action") for item in activity}
 assert "PRODUCT_SUPPORT_PROFILE_UPDATED" in actions, activity
+assert "PARTNER_MAX_WIDGET_QUERY_RAN" in actions, activity
 raw = json.dumps(activity).lower()
 for forbidden in ("secret", "token", "password", "credential"):
     assert forbidden not in raw, activity
-print("PASS: product-control audit action is partner-visible and secret-safe")
+print("PASS: product-control and Max widget audit actions are partner-visible and secret-safe")
 PY
 
   implementations_body="${TMP_DIR}/implementations.json"
