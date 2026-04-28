@@ -1,11 +1,15 @@
 package com.ai.fabric.platform.backend.partner.gateway;
 
+import com.ai.fabric.platform.backend.partner.model.PartnerProductPackageSummary;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightSupport;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -26,11 +30,14 @@ public class ShopifyPartnerStoreAccessGateway implements PartnerStoreAccessGatew
 
     private final ShopifyStoreConnectionRepository storeConnectionRepository;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
+    private final ObjectMapper objectMapper;
 
     public ShopifyPartnerStoreAccessGateway(ShopifyStoreConnectionRepository storeConnectionRepository,
-                                            ShopifyStoreSourcePreflightSupport sourcePreflightSupport) {
+                                            ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                            ObjectMapper objectMapper) {
         this.storeConnectionRepository = storeConnectionRepository;
         this.sourcePreflightSupport = sourcePreflightSupport;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -92,7 +99,8 @@ public class ShopifyPartnerStoreAccessGateway implements PartnerStoreAccessGatew
             entity.getLastSyncAt(),
             entity.getLastWebhookAt(),
             categories,
-            enabledSurfaces(entity)
+            enabledSurfaces(entity),
+            packageProfile(entity.getDetailsJson())
         );
     }
 
@@ -105,6 +113,56 @@ public class ShopifyPartnerStoreAccessGateway implements PartnerStoreAccessGatew
             return widget.settings().enabledSurfaces();
         }
         return DEFAULT_STORE_ENABLED_SURFACES;
+    }
+
+    private PartnerProductPackageSummary packageProfile(String detailsJson) {
+        if (!StringUtils.hasText(detailsJson)) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode state = root.path("packageState");
+            if (!state.isObject()) {
+                return null;
+            }
+            return new PartnerProductPackageSummary(
+                text(state, "profileKey"),
+                text(state, "packageKey"),
+                text(state, "tierKey"),
+                text(state, "runtimeProfileKey"),
+                text(state, "vectorProfileKey"),
+                text(state, "displayName"),
+                text(state, "costPosture"),
+                text(state, "vectorStrategy"),
+                text(state, "vectorProvisioningMode"),
+                text(state, "vectorStoragePosture"),
+                text(state, "verificationPackId"),
+                text(state, "lastProvisioningJobId"),
+                state.path("vectorReindexRequired").asBoolean(false),
+                parseInstant(text(state, "lastReconciledAt"))
+            );
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private Instant parseInstant(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Instant.parse(value.trim());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String text(JsonNode node, String field) {
+        if (node == null || !node.path(field).isValueNode()) {
+            return null;
+        }
+        String value = node.path(field).asText("");
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private boolean containsIgnoreCase(String value, String query) {

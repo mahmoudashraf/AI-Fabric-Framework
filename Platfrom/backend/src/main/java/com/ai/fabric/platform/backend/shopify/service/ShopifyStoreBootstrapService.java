@@ -326,7 +326,9 @@ public class ShopifyStoreBootstrapService {
             desiredPluginIds.addAll(ShopifyCompanionPluginSelection.desiredManagedPluginIds(properties, store));
         }
 
-        LinkedHashSet<String> installed = deploymentMarketplaceInstallService.listInstalls(deploymentId).stream()
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseGet(() -> deploymentReference(deploymentId));
+        LinkedHashSet<String> installed = deploymentMarketplaceInstallService.listInstallsForTrustedCaller(deployment).stream()
             .map(DeploymentMarketplaceInstallSummary::pluginId)
             .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
@@ -337,8 +339,8 @@ public class ShopifyStoreBootstrapService {
                 continue;
             }
             String version = marketplaceCatalogService.resolveLatestPublishedVersionLabel(pluginId);
-            deploymentMarketplaceInstallService.createInstall(
-                deploymentId,
+            deploymentMarketplaceInstallService.createInstallForTrustedCaller(
+                deployment,
                 new CreateDeploymentMarketplaceInstallRequest(
                     pluginId,
                     version,
@@ -352,6 +354,12 @@ public class ShopifyStoreBootstrapService {
             ensured.add(0, properties.templatePluginId());
         }
         return ensured;
+    }
+
+    private DeploymentEntity deploymentReference(String deploymentId) {
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId(deploymentId);
+        return deployment;
     }
 
     private String resolveBootstrapTemplateId() {

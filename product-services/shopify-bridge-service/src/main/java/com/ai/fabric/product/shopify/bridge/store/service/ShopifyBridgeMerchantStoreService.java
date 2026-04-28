@@ -14,10 +14,12 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentia
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
@@ -183,6 +185,14 @@ public class ShopifyBridgeMerchantStoreService {
             acquisition.tokenExchangeMaterial().accessToken(),
             request == null ? null : request.tierKey()
         );
+        if ("ACTIVE".equalsIgnoreCase(response.status())) {
+            enqueueProvisioningSafely(
+                merchantSession.shopDomain(),
+                "PACKAGE_CHANGE",
+                request == null ? null : request.tierKey(),
+                "Shopify billing tier is already active; reconciling product package."
+            );
+        }
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_BILLING_APPROVAL_REQUESTED");
         return response;
     }
@@ -216,6 +226,10 @@ public class ShopifyBridgeMerchantStoreService {
 
     public ShopifyBridgeStoreVectorizationSummary vectorization(ShopifyMerchantSession merchantSession) {
         return platformShopifyStoreClient.getVectorization(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgeProvisioningStatusSummary provisioningStatus(ShopifyMerchantSession merchantSession) {
+        return platformShopifyStoreClient.getProvisioningStatus(merchantSession.shopDomain());
     }
 
     public ShopifyBridgeStoreVectorizationSummary reconcileVectorization(ShopifyMerchantSession merchantSession) {
@@ -370,9 +384,12 @@ public class ShopifyBridgeMerchantStoreService {
             articlesEnabled,
             metaobjectsEnabled
         ));
-        if (hasPlatformBindings(store)) {
-            platformShopifyStoreClient.reconcileVectorization(store.shopDomain());
-        }
+        enqueueProvisioningSafely(
+            store.shopDomain(),
+            "SOURCE_SETTINGS_CHANGE",
+            null,
+            "Merchant changed Shopify Companion knowledge source settings."
+        );
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SOURCE_SETTINGS_UPDATED");
         return store;
     }
@@ -442,6 +459,29 @@ public class ShopifyBridgeMerchantStoreService {
         return store.customerId() != null && !store.customerId().isBlank()
             && store.deploymentId() != null && !store.deploymentId().isBlank()
             && store.consumerId() != null && !store.consumerId().isBlank();
+    }
+
+    private void enqueueProvisioningSafely(String shopDomain, String jobType, String tierKey, String reason) {
+        try {
+            platformShopifyStoreClient.enqueueProvisioning(
+                shopDomain,
+                new ShopifyBridgeCreateProvisioningJobRequest(
+                    jobType,
+                    null,
+                    tierKey,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    reason,
+                    false
+                )
+            );
+        } catch (RuntimeException ignored) {
+            // The merchant path remains usable; Platform exposes retry/status for provisioning recovery.
+        }
     }
 
     private boolean installRecoveryRequired(ShopifyInstallRecordSummary installRecord,

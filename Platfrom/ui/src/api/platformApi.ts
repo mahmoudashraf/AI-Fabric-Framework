@@ -786,6 +786,82 @@ export type ShopifyStoreConnectionSummary = {
   updatedAt: string
 }
 
+export type ShopifyCompanionPackageProfileSummary = {
+  profileKey: string
+  packageKey: string
+  tierKey: string
+  runtimeProfileKey: string
+  vectorProfileKey: string
+  displayName: string
+  description: string | null
+  costPosture: string | null
+  vectorStrategy: string | null
+  vectorProvisioningMode: string | null
+  vectorStoragePosture: string | null
+  verificationPackId: string | null
+  status: string
+}
+
+export type ShopifyStoreProvisioningJobSummary = {
+  id: string
+  shopDomain: string
+  storeConnectionId: string | null
+  jobType: string
+  status: string
+  phase: string
+  requestedPackageKey: string | null
+  requestedTierKey: string | null
+  requestedRuntimeProfileKey: string | null
+  requestedVectorProfileKey: string | null
+  previousPackageKey: string | null
+  previousRuntimeProfileKey: string | null
+  previousVectorProfileKey: string | null
+  requestedTemplatePluginId: string | null
+  requestedTemplatePluginVersion: string | null
+  requestedPluginIds: string[]
+  profileChangeStrategy: string | null
+  vectorReindexRequired: boolean
+  installIntentId: string | null
+  attemptCount: number
+  maxAttempts: number
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  bootstrapDeploymentId: string | null
+  verificationRunId: string | null
+  nextAction: string | null
+  summaryMessage: string | null
+  readyAt: string | null
+  failedAt: string | null
+  cancelledAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ShopifyStoreProvisioningStatusSummary = {
+  shopDomain: string
+  status: string
+  phase: string
+  nextAction: string | null
+  summaryMessage: string | null
+  effectiveProfile: ShopifyCompanionPackageProfileSummary | null
+  latestJob: ShopifyStoreProvisioningJobSummary | null
+  recentJobs: ShopifyStoreProvisioningJobSummary[]
+}
+
+export type CreateShopifyStoreProvisioningJobRequest = {
+  jobType?: string | null
+  requestedPackageKey?: string | null
+  requestedTierKey?: string | null
+  requestedRuntimeProfileKey?: string | null
+  requestedVectorProfileKey?: string | null
+  requestedTemplatePluginId?: string | null
+  requestedTemplatePluginVersion?: string | null
+  requestedPluginIds?: string[] | null
+  installIntentId?: string | null
+  reason?: string | null
+  processImmediately?: boolean | null
+}
+
 export type MerchantPartnerAccessRequestSummary = {
   requestId: string
   implementationRequestId: string
@@ -3464,6 +3540,17 @@ export function upsertShopifyStore(payload: UpsertShopifyStoreConnectionRequest)
 
 export function bootstrapShopifyStore(shopDomain: string, payload: BootstrapShopifyStoreRequest = {}) {
   return request<ShopifyStoreBootstrapSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/bootstrap`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchShopifyStoreProvisioning(shopDomain: string) {
+  return request<ShopifyStoreProvisioningStatusSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/provisioning`)
+}
+
+export function enqueueShopifyStoreProvisioning(shopDomain: string, payload: CreateShopifyStoreProvisioningJobRequest = {}) {
+  return request<ShopifyStoreProvisioningJobSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/provisioning-jobs`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

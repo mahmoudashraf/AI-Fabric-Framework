@@ -11,6 +11,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSes
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
@@ -92,6 +93,11 @@ public class ShopifyMerchantController {
     @GetMapping("/store/vectorization")
     public ShopifyBridgeStoreVectorizationSummary vectorization(Authentication authentication) {
         return merchantStoreService.vectorization(requireMerchant(authentication));
+    }
+
+    @GetMapping("/store/provisioning")
+    public ShopifyBridgeProvisioningStatusSummary provisioning(Authentication authentication) {
+        return merchantStoreService.provisioningStatus(requireMerchant(authentication));
     }
 
     @PostMapping("/store/vectorization/reconcile")

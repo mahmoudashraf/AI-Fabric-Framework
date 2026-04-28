@@ -46,6 +46,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -543,7 +544,6 @@ class ShopifyBridgeMerchantStoreServiceTest {
         );
         when(client.getStore("alpha.myshopify.com")).thenReturn(store("alpha.myshopify.com"));
         when(client.upsertStore(any())).thenReturn(store("alpha.myshopify.com"));
-        when(client.reconcileVectorization("alpha.myshopify.com")).thenReturn(vectorization("alpha.myshopify.com"));
 
         ShopifyBridgeStoreSummary response = service.updateSourceSettings(
             session(),
@@ -570,7 +570,7 @@ class ShopifyBridgeMerchantStoreServiceTest {
             false,
             false
         ));
-        verify(client).reconcileVectorization("alpha.myshopify.com");
+        verify(client).enqueueProvisioning(eq("alpha.myshopify.com"), any());
     }
 
     @Test

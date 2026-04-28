@@ -27,6 +27,7 @@ public record PartnerStoreSummary(
     Instant lastSyncAt,
     Instant lastWebhookAt,
     List<String> enabledSourceCategories,
-    List<String> permissions
+    List<String> permissions,
+    PartnerProductPackageSummary packageProfile
 ) {
 }

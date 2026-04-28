@@ -4,6 +4,8 @@ import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStore
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -117,6 +119,13 @@ public class ShopifyInstallFlowService {
             store.credentials() == null ? null : store.credentials().refreshTokenExpiresAt()
         );
         reconcileSubscriptionsSafely(normalizedShop, accessToken);
+        enqueueProvisioningSafely(
+            normalizedShop,
+            "INSTALL",
+            null,
+            null,
+            "Shopify OAuth install completed and credentials were persisted."
+        );
 
         return embeddedAppUrl(normalizedShop, host);
     }
@@ -129,6 +138,16 @@ public class ShopifyInstallFlowService {
             );
             installRecordService.recordAppScopesUpdateWebhookReady(shopDomain, appScopesWebhookReady);
             ShopifyBridgeStoreBillingState billingState = billingService.inspectStoreBillingState(shopDomain, accessToken);
+            platformShopifyStoreClient.recordBillingState(
+                shopDomain,
+                new ShopifyBridgeRecordBillingStateRequest(
+                    billingState.tierKey(),
+                    billingState.status(),
+                    null,
+                    null,
+                    "Shopify install reconciliation refreshed billing state."
+                )
+            );
             installRecordService.recordBillingState(
                 shopDomain,
                 billingState.tierKey(),
@@ -137,6 +156,33 @@ public class ShopifyInstallFlowService {
             );
         } catch (RuntimeException ex) {
             log.warn("Shopify webhook subscription reconciliation failed for shop={}", shopDomain, ex);
+        }
+    }
+
+    private void enqueueProvisioningSafely(String shopDomain,
+                                           String jobType,
+                                           String requestedTierKey,
+                                           String installIntentId,
+                                           String reason) {
+        try {
+            platformShopifyStoreClient.enqueueProvisioning(
+                shopDomain,
+                new ShopifyBridgeCreateProvisioningJobRequest(
+                    jobType,
+                    null,
+                    requestedTierKey,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    installIntentId,
+                    reason,
+                    false
+                )
+            );
+        } catch (RuntimeException ex) {
+            log.warn("Shopify zero-touch provisioning enqueue failed for shop={} jobType={}", shopDomain, jobType, ex);
         }
     }
 

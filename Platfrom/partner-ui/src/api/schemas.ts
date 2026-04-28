@@ -29,6 +29,23 @@ export const partnerSessionSchema = z.object({
   permissions: z.array(z.string()),
 })
 
+export const partnerProductPackageSchema = z.object({
+  profileKey: nullableString,
+  packageKey: nullableString,
+  tierKey: nullableString,
+  runtimeProfileKey: nullableString,
+  vectorProfileKey: nullableString,
+  displayName: nullableString,
+  costPosture: nullableString,
+  vectorStrategy: nullableString,
+  vectorProvisioningMode: nullableString,
+  vectorStoragePosture: nullableString,
+  verificationPackId: nullableString,
+  lastProvisioningJobId: nullableString,
+  vectorReindexRequired: z.boolean(),
+  lastReconciledAt: nullableDateString,
+})
+
 export const partnerStoreSchema = z.object({
   id: z.string(),
   storeConnectionId: nullableString,
@@ -54,6 +71,7 @@ export const partnerStoreSchema = z.object({
   lastWebhookAt: nullableDateString,
   enabledSourceCategories: z.array(z.string()),
   permissions: z.array(z.string()),
+  packageProfile: partnerProductPackageSchema.nullable().optional(),
 })
 
 export const partnerProductWidgetSettingsSchema = z.object({
@@ -299,6 +317,7 @@ export type PartnerSession = z.infer<typeof partnerSessionSchema>
 export type PartnerMember = z.infer<typeof partnerMemberSchema>
 export type PartnerStore = z.infer<typeof partnerStoreSchema>
 export type PartnerProductControl = z.infer<typeof partnerProductControlSchema>
+export type PartnerProductPackage = z.infer<typeof partnerProductPackageSchema>
 export type PartnerProductWidgetSettings = z.infer<typeof partnerProductWidgetSettingsSchema>
 export type PartnerProductSupportProfile = z.infer<typeof partnerProductSupportProfileSchema>
 export type PartnerProductSourceSettings = z.infer<typeof partnerProductSourceSettingsSchema>

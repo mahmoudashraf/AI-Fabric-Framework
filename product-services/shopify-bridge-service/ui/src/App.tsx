@@ -26,6 +26,7 @@ import {
   denyPartnerAccessRequest,
   fetchBillingSummary,
   fetchPartnerAccessRequests,
+  fetchProvisioningStatus,
   fetchRecentGovernedActions,
   fetchSession,
   fetchShell,
@@ -56,6 +57,7 @@ import {
   type ShopifyBridgeGovernedActionAuditSummary,
   type ShopifyBridgeMerchantSessionResponse,
   type ShopifyBridgePartnerAccessRequestSummary,
+  type ShopifyBridgeProvisioningStatusSummary,
   type ShopifyBridgeShellResponse,
   type ShopifyBridgeStoreBootstrapResponse,
   type ShopifyBridgeStoreSummary,
@@ -84,6 +86,8 @@ function badgeTone(status: string): 'success' | 'attention' | 'critical' {
     case 'NOT_RUN':
     case 'NOT_ENABLED':
     case 'WAITING_ON_MERCHANT':
+    case 'QUEUED':
+    case 'RUNNING':
       return 'attention'
     default:
       return 'critical'
@@ -104,6 +108,7 @@ type LoadState = {
   partnerAccessError: string | null
   billingSummary: ShopifyBridgeBillingSummary | null
   webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null
+  provisioningStatus: ShopifyBridgeProvisioningStatusSummary | null
   vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null
   loading: boolean
   error: string | null
@@ -291,6 +296,7 @@ export default function App() {
     partnerAccessError: null,
     billingSummary: null,
     webhookSubscriptions: null,
+    provisioningStatus: null,
     vectorizationSummary: null,
     loading: true,
     error: null,
@@ -356,14 +362,15 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!isReleaseInProgress(state.session?.store?.latestRelease?.status)) {
+    const provisioningActive = ['QUEUED', 'RUNNING'].includes((state.provisioningStatus?.status ?? '').toUpperCase())
+    if (!isReleaseInProgress(state.session?.store?.latestRelease?.status) && !provisioningActive) {
       return undefined
     }
     const timer = window.setTimeout(() => {
       void refresh()
     }, 5000)
     return () => window.clearTimeout(timer)
-  }, [state.session?.store?.latestRelease?.status])
+  }, [state.provisioningStatus?.status, state.session?.store?.latestRelease?.status])
 
   useEffect(() => {
     if (!pendingBillingReturn || state.loading) {
@@ -392,6 +399,7 @@ export default function App() {
       let partnerAccessError: string | null = null
       let billingSummary: ShopifyBridgeBillingSummary | null = null
       let webhookSubscriptions: ShopifyWebhookSubscriptionStatusSummary | null = null
+      let provisioningStatus: ShopifyBridgeProvisioningStatusSummary | null = null
       let vectorizationSummary: ShopifyBridgeStoreVectorizationSummary | null = null
       try {
         session = await fetchSession()
@@ -411,6 +419,7 @@ export default function App() {
           partnerAccessError: null,
           billingSummary: null,
           webhookSubscriptions: null,
+          provisioningStatus: null,
           vectorizationSummary: null,
           loading: false,
           error: sessionError instanceof Error ? sessionError.message : 'Failed to resolve merchant session.',
@@ -431,6 +440,13 @@ export default function App() {
         webhookSubscriptions = null
       }
       try {
+        if (session?.store) {
+          provisioningStatus = await fetchProvisioningStatus()
+        }
+      } catch {
+        provisioningStatus = null
+      }
+      try {
         if (session?.store?.deploymentId) {
           vectorizationSummary = await fetchVectorizationSummary()
         }
@@ -447,6 +463,7 @@ export default function App() {
         partnerAccessError,
         billingSummary,
         webhookSubscriptions,
+        provisioningStatus,
         vectorizationSummary,
         loading: false,
         error: null,
@@ -482,6 +499,7 @@ export default function App() {
         partnerAccessError: null,
         billingSummary: null,
         webhookSubscriptions: null,
+        provisioningStatus: null,
         vectorizationSummary: null,
         loading: false,
         error: error instanceof Error ? error.message : 'Unknown bridge shell failure.',
@@ -951,6 +969,7 @@ export default function App() {
     billingSummary?.availablePlans?.filter((plan) => plan.tierKey !== 'FREE' && !plan.active) ?? []
   const webhookSubscriptions = state.webhookSubscriptions
   const supportReadiness = session?.supportReadiness ?? null
+  const provisioningStatus = state.provisioningStatus
   const vectorizationSummary = state.vectorizationSummary
   const shopperSurfaceUsage = usageSummary?.last7DaySurfaceUsage ?? []
   const topShopperQuestions = usageSummary?.topQuestionsLast7Days ?? []
@@ -1555,6 +1574,52 @@ export default function App() {
                       This merchant has not connected the current store to the platform yet.
                     </Text>
                   )}
+                </BlockStack>
+              </Card>
+            </Box>
+            ) : null}
+
+            {selectedSection === 'home' ? (
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Product package
+                    </Text>
+                    <InlineStack gap="150">
+                      <Badge tone={badgeTone(provisioningStatus?.status ?? 'NOT_STARTED')}>
+                        {provisioningStatus?.status ?? 'Not started'}
+                      </Badge>
+                      <Badge tone={badgeTone(provisioningStatus?.phase ?? 'NOT_STARTED')}>
+                        {provisioningStatus?.phase ?? 'No phase'}
+                      </Badge>
+                    </InlineStack>
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    {provisioningStatus?.summaryMessage ?? 'Provisioning begins after app install or plan/source changes.'}
+                  </Text>
+                  {provisioningStatus?.effectiveProfile ? (
+                    <List type="bullet">
+                      <List.Item>Package: {provisioningStatus.effectiveProfile.packageKey} · tier {provisioningStatus.effectiveProfile.tierKey}</List.Item>
+                      <List.Item>Runtime profile: {provisioningStatus.effectiveProfile.runtimeProfileKey}</List.Item>
+                      <List.Item>Vector profile: {provisioningStatus.effectiveProfile.vectorProfileKey}</List.Item>
+                      <List.Item>Verification pack: {provisioningStatus.effectiveProfile.verificationPackId ?? 'platform default'}</List.Item>
+                    </List>
+                  ) : null}
+                  {provisioningStatus?.latestJob ? (
+                    <Text as="p" variant="bodySm" tone={provisioningStatus.latestJob.lastErrorMessage ? 'critical' : 'subdued'}>
+                      Latest job {provisioningStatus.latestJob.jobType} · {provisioningStatus.latestJob.status}/{provisioningStatus.latestJob.phase} · updated{' '}
+                      {formatTimestamp(provisioningStatus.latestJob.updatedAt)}
+                      {provisioningStatus.latestJob.vectorReindexRequired ? ' · sync required' : ''}
+                      {provisioningStatus.latestJob.lastErrorMessage ? ` · ${provisioningStatus.latestJob.lastErrorMessage}` : ''}
+                    </Text>
+                  ) : null}
+                  {provisioningStatus?.nextAction ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {provisioningStatus.nextAction}
+                    </Text>
+                  ) : null}
                 </BlockStack>
               </Card>
             </Box>

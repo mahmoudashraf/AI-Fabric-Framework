@@ -211,6 +211,8 @@ class ShopifyWebhookServiceTest {
             eq(false)
         );
         verify(platformShopifyStoreClient).resolveCredentialMaterial("alpha.myshopify.com");
+        verify(platformShopifyStoreClient).recordBillingState(eq("alpha.myshopify.com"), any());
+        verify(platformShopifyStoreClient).enqueueProvisioning(eq("alpha.myshopify.com"), any());
         verify(installRecordService).recordBillingState(eq("alpha.myshopify.com"), eq("STARTER"), eq("ACTIVE"), any());
         verifyNoInteractions(installCredentialService);
         verifyNoInteractions(storeSyncService);

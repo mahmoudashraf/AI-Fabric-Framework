@@ -135,6 +135,8 @@ class ShopifyInstallFlowServiceTest {
         assertThat(redirect.toString()).isEqualTo("https://bridge.example.com?shop=alpha.myshopify.com&host=admin.shopify.com/store/alpha");
         verify(platformShopifyStoreClient).upsertStore(any());
         verify(platformShopifyStoreClient).upsertCredentials(eq("alpha.myshopify.com"), any());
+        verify(platformShopifyStoreClient).recordBillingState(eq("alpha.myshopify.com"), any());
+        verify(platformShopifyStoreClient).enqueueProvisioning(eq("alpha.myshopify.com"), any());
         verify(webhookSubscriptionService).reconcileContentSubscriptions("alpha.myshopify.com", "shopify-offline-token");
         verify(installRecordService).recordAppScopesUpdateWebhookReady("alpha.myshopify.com", true);
         verify(installRecordService).recordBillingState(

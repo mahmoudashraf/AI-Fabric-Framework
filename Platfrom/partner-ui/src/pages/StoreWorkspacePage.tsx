@@ -309,6 +309,21 @@ function StoreCommandCenter({
             {store.permissions.map((permission) => <Chip key={permission} size="small" label={titleize(permission)} icon={<KeyOutlinedIcon />} />)}
             {store.permissions.length === 0 ? <Typography color="text.secondary">No partner permissions are currently exposed.</Typography> : null}
           </Stack>
+          <Divider />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+            <InfoTile label="Package" value={store.packageProfile?.packageKey ? titleize(store.packageProfile.packageKey) : store.plan} />
+            <InfoTile label="Runtime" value={store.packageProfile?.runtimeProfileKey ? titleize(store.packageProfile.runtimeProfileKey) : 'Merchant configured'} />
+            <InfoTile label="Vector" value={store.packageProfile?.vectorProfileKey ? titleize(store.packageProfile.vectorProfileKey) : 'Platform default'} />
+            <InfoTile label="Provisioned" value={formatDateTime(store.packageProfile?.lastReconciledAt)} />
+          </Box>
+          {store.packageProfile ? (
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Chip size="small" variant="outlined" label={`Tier ${titleize(store.packageProfile.tierKey ?? 'merchant selected')}`} />
+              <Chip size="small" variant="outlined" label={`Storage ${titleize(store.packageProfile.vectorStoragePosture ?? 'shared')}`} />
+              <Chip size="small" variant="outlined" label={`Pack ${store.packageProfile.verificationPackId ?? 'default'}`} />
+              {store.packageProfile.vectorReindexRequired ? <Chip size="small" color="warning" label="Sync required" /> : null}
+            </Stack>
+          ) : null}
           <Typography variant="caption" color="text.secondary">
             Partner workspace is scoped to merchant-approved setup, verification, evidence, and support data. Operator diagnostics, provider credentials, billing internals, and deployment secrets are not exposed here.
           </Typography>

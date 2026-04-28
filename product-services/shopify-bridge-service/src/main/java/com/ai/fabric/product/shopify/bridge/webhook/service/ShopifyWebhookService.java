@@ -6,6 +6,8 @@ import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStore
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreSyncService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeStoreLifecycleService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -174,14 +176,48 @@ public class ShopifyWebhookService {
                 return;
             }
             ShopifyBridgeStoreBillingState billingState = billingService.inspectStoreBillingState(shopDomain, accessToken);
+            platformShopifyStoreClient.recordBillingState(
+                shopDomain,
+                new ShopifyBridgeRecordBillingStateRequest(
+                    billingState.tierKey(),
+                    billingState.status(),
+                    null,
+                    null,
+                    "Shopify app subscription webhook refreshed billing state."
+                )
+            );
             installRecordService.recordBillingState(
                 shopDomain,
                 billingState.tierKey(),
                 billingState.status(),
                 billingState.activeSubscriptions()
             );
+            enqueueProvisioningSafely(shopDomain, billingState.tierKey(), "Shopify app subscription webhook refreshed billing state.");
         } catch (RuntimeException ignored) {
             // Preserve the webhook ack path; billing posture can be recovered later from install refresh or operator checks.
+        }
+    }
+
+    private void enqueueProvisioningSafely(String shopDomain, String tierKey, String reason) {
+        try {
+            platformShopifyStoreClient.enqueueProvisioning(
+                shopDomain,
+                new ShopifyBridgeCreateProvisioningJobRequest(
+                    "PACKAGE_CHANGE",
+                    null,
+                    tierKey,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    reason,
+                    false
+                )
+            );
+        } catch (RuntimeException ignored) {
+            // Provisioning is recovered by the Platform scheduler/admin retry paths; webhook delivery must remain ack-safe.
         }
     }
 

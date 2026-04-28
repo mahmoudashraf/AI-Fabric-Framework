@@ -202,6 +202,68 @@ export type ShopifyBridgeStoreBootstrapResponse = {
   store: ShopifyBridgeStoreSummary
 }
 
+export type ShopifyBridgePackageProfileSummary = {
+  profileKey: string
+  packageKey: string
+  tierKey: string
+  runtimeProfileKey: string
+  vectorProfileKey: string
+  displayName: string
+  description: string | null
+  costPosture: string | null
+  vectorStrategy: string | null
+  vectorProvisioningMode: string | null
+  vectorStoragePosture: string | null
+  verificationPackId: string | null
+  status: string
+}
+
+export type ShopifyBridgeProvisioningJobSummary = {
+  id: string
+  shopDomain: string
+  storeConnectionId: string | null
+  jobType: string
+  status: string
+  phase: string
+  requestedPackageKey: string | null
+  requestedTierKey: string | null
+  requestedRuntimeProfileKey: string | null
+  requestedVectorProfileKey: string | null
+  previousPackageKey: string | null
+  previousRuntimeProfileKey: string | null
+  previousVectorProfileKey: string | null
+  requestedTemplatePluginId: string | null
+  requestedTemplatePluginVersion: string | null
+  requestedPluginIds: string[]
+  profileChangeStrategy: string | null
+  vectorReindexRequired: boolean
+  installIntentId: string | null
+  attemptCount: number
+  maxAttempts: number
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  bootstrapDeploymentId: string | null
+  verificationRunId: string | null
+  nextAction: string | null
+  summaryMessage: string | null
+  readyAt: string | null
+  failedAt: string | null
+  cancelledAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ShopifyBridgeProvisioningStatusSummary = {
+  shopDomain: string
+  status: string
+  phase: string
+  nextAction: string | null
+  summaryMessage: string | null
+  effectiveProfile: ShopifyBridgePackageProfileSummary | null
+  latestJob: ShopifyBridgeProvisioningJobSummary | null
+  recentJobs: ShopifyBridgeProvisioningJobSummary[]
+}
+
 export type ShopifyStorefrontPreviewResponse = {
   ready: boolean
   shopDomain: string
@@ -605,6 +667,10 @@ export async function fetchRecentGovernedActions(limit = 10): Promise<ShopifyBri
 
 export async function fetchVectorizationSummary(): Promise<ShopifyBridgeStoreVectorizationSummary> {
   return authenticatedFetchJson('/api/app/store/vectorization', { method: 'GET' })
+}
+
+export async function fetchProvisioningStatus(): Promise<ShopifyBridgeProvisioningStatusSummary> {
+  return authenticatedFetchJson('/api/app/store/provisioning', { method: 'GET' })
 }
 
 export async function reconcileVectorization(): Promise<ShopifyBridgeStoreVectorizationSummary> {

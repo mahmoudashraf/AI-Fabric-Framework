@@ -2888,6 +2888,13 @@ Status: planned. This section is a change plan only; do not mark zero-touch ente
 - Shopify Bridge already has a `PlatformShopifyStoreClient.bootstrap(shopDomain)` client method, but the OAuth install completion path does not call it and does not enqueue an asynchronous provisioning workflow.
 - The embedded Shopify merchant app already exposes product-level billing/plan selection in the Billing and plan section. Merchants can activate available plans through Shopify billing approval via `/api/app/store/billing/approval`.
 - The existing merchant plan selector is a product/tier selector, not a raw deployment recipe selector. It exposes plan name, tier, allowed surfaces, price, sync cadence, governed-action posture, and Shopify approval status; it does not expose `templatePluginId`, deployment template IDs, or plugin bundle IDs.
+- The current bootstrap request accepts `templatePluginId`, `templatePluginVersion`, and raw `pluginIds`; it does not accept `packageKey`, `runtimeProfileKey`, cost profile, or vector profile as first-class governed product fields.
+- Shopify Companion bootstrap defaults are environment/property driven: template plugin `mkp-template-shopify-companion`, deployment template `dev-openai-qdrant`, shared Qdrant defaults, and default managed plugin IDs including `mkp-inference-shared-embeddings`.
+- The bootstrap bundle selection canonicalizes the legacy `mkp-inference-shopify-companion-default` profile to `mkp-inference-shared-embeddings`.
+- Platform marketplace compilation already supports `INFERENCE_PROFILE` plugins and enforces one active inference-profile plugin per deployment. Profile selection must reuse that path instead of writing provider config directly.
+- Existing Free, Starter, and Elite plans do not yet map to different internal inference/vector/orchestration profiles. They currently gate storefront surfaces, catalog caps, sync cadence, and governed-action posture.
+- Billing changes currently update Shopify subscription state, recorded billing state, and runtime/storefront entitlement gating, but they do not enqueue a dedicated Platform package reconciliation job.
+- No durable provisioning or package reconciliation state machine currently exists for `INSTALL`, `REINSTALL_REPAIR`, `PACKAGE_CHANGE`, or `MANUAL_REPAIR` causes.
 - The current rollout script still treats bootstrap, source readiness, verification, and go-live as operator-driven follow-up work.
 
 ### Target Behavior
@@ -2907,6 +2914,22 @@ Zero-touch means no manual backend bootstrap. It does not mean bypassing Shopify
 
 The existing merchant plan selector remains valid in zero-touch. The missing piece is that plan selection and install completion must enqueue/reconcile Platform provisioning automatically instead of leaving merchants or operators to press `Bootstrap deployment`.
 
+### Trigger Matrix
+
+- New install:
+  create an `INSTALL` provisioning job. Bootstrap the Platform binding, resolve the effective package, reconcile package requirements, then run readiness/verification.
+- Reinstall:
+  create a `REINSTALL_REPAIR` job. Refresh credentials first, then reuse the existing binding if valid or run repair bootstrap only when the binding is missing, archived, or inconsistent.
+- Merchant plan or package change:
+  create a `PACKAGE_CHANGE` reconciliation job. Do not recreate customer/deployment/consumer unless the core binding is invalid.
+- Operator repair:
+  create a `MANUAL_REPAIR` job with an explicit reason. This may invoke repair bootstrap, package reconciliation, or verification rerun depending on the diagnosed failure.
+
+The important boundary is:
+
+- Install or broken binding: bootstrap path.
+- Package or entitlement change on a healthy binding: reconciliation path.
+
 ### Source-of-Truth Rules
 
 - `ShopifyStoreConnection` remains the canonical Platform store record for install status, customer/deployment/consumer binding, source toggles, widget status, sync/readiness state, billing state, support profile, product-service binding, and release summary.
@@ -2915,10 +2938,40 @@ The existing merchant plan selector remains valid in zero-touch. The missing pie
 - Marketplace template/plugin installation remains owned by Platform bootstrap. Shopify Bridge should never construct deployment internals directly.
 - Store-specific tokens, Platform admin keys, bridge shared secrets, runtime private assertions, and deployment/provider internals must never be returned to merchant or partner browsers.
 
+### AI Runtime Profile Selection Considerations
+
+Profile selection must be product-owned, not raw infrastructure selection.
+
+- Merchant-facing selection may expose governed options such as `Low cost`, `Balanced`, `High quality`, or `Enterprise dedicated`, but must not expose raw model IDs, provider API keys, vector database hosts, deployment template IDs, marketplace plugin IDs, endpoint refs, or secret names.
+- Platform should define a Shopify Companion package/profile catalog that maps plan/package and optional profile choice to:
+  - template plugin/version and deployment template
+  - exactly one marketplace inference-profile plugin
+  - vector strategy, vector provisioning mode, vector storage posture, and reindex policy
+  - allowed surfaces, source caps, sync cadence, action package posture, support posture, and verification pack
+  - managed inference service references, endpoint profile references, model limits, timeout budgets, and cost budget metadata
+- `ShopifyStoreConnection` should store the effective product package/profile state as canonical product metadata, for example `packageKey`, `tierKey`, `runtimeProfileKey`, `vectorProfileKey`, `selectedBy`, `selectedAt`, `effectiveAt`, and `lastReconciledAt`.
+- The provisioning job should store requested profile keys and previous profile keys, never provider secrets. The job should record whether profile changes require marketplace install replacement, vector reindex, support posture reconciliation, or billing approval.
+- New installs should resolve profile from a signed install intent when present; otherwise use the safe default Shopify Companion package/profile. Unsigned browser query params must never select template, inference, or vector profile.
+- Healthy store profile changes are `PACKAGE_CHANGE` reconciliation jobs. They should not recreate the customer, deployment, or consumer binding unless the deployment is invalid.
+- Inference profile changes should use marketplace install APIs to disable/replace the existing inference-profile install and recompile the deployment draft. The current compiler only allows one enabled inference profile, so reconciliation must explicitly disable the old profile before enabling the new one.
+- Vector profile changes are higher risk than model/timeout changes. If the vector strategy, storage posture, dimensions, or embedding model changes, reconciliation must mark the store `NEEDS_REINDEX`, run dataset/vectorization reconciliation, and keep old readiness false until evidence proves the new index is current.
+- Paid or high-cost profiles must be gated by Shopify billing state and operator policy. The merchant may choose the target paid package/profile, but activation should remain pending until Shopify billing approval is active and Platform reconciliation succeeds.
+- Partner UI may show profile display name, cost posture, readiness, and what was checked. It must not show raw provider endpoints, API key refs, runtime assertions, or deployment/provider internals.
+- Release gating must prove the selected profile, marketplace inference install, vector posture, source readiness, widget behavior, and cost/billing posture match the canonical store package/profile state.
+
+Realistic variation rule:
+
+- Do not create a new deployment template for every model, cost, temperature, timeout, embedding worker, or orchestration quality variation.
+- Express normal AI runtime variations through the Platform-owned package/profile catalog and marketplace `INFERENCE_PROFILE` plugins.
+- Start with realistic merchant-safe profile keys such as `LOW_COST`, `BALANCED`, `HIGH_QUALITY`, and `ENTERPRISE_DEDICATED`; each profile maps internally to one inference-profile plugin, model limits, managed service refs, endpoint refs, budget posture, and verification expectations.
+- Keep deployment template variation for real infrastructure topology differences only, such as shared Qdrant versus dedicated Qdrant, Qdrant versus Pinecone/Milvus, dev versus production runtime posture, dedicated enterprise runtime, or materially different security/runtime boundaries.
+- Replace the production-facing dependency on the generic `dev-openai-qdrant` naming with Shopify Companion internal aliases over time, for example `shopify-companion-qdrant-shared`, `shopify-companion-qdrant-dedicated`, and `shopify-companion-enterprise-dedicated`.
+- Merchant, partner, and Shopify admin surfaces should display product labels and profile posture, not internal template IDs such as `dev-openai-qdrant` or marketplace plugin IDs.
+
 ### Functional Changes
 
 1. Add a Platform provisioning job model.
-   - Add a durable `shopify_store_provisioning_jobs` table or equivalent fields with `shopDomain`, `status`, `phase`, `attemptCount`, `leaseOwner`, `leaseExpiresAt`, `requestedTemplatePluginId`, `requestedTemplatePluginVersion`, `requestedPluginIds`, `installIntentId`, `lastErrorCode`, `lastErrorMessage`, `bootstrapDeploymentId`, `verificationRunId`, `readyAt`, `failedAt`, and timestamps.
+   - Add a durable `shopify_store_provisioning_jobs` table or equivalent fields with `shopDomain`, `jobType`, `status`, `phase`, `attemptCount`, `leaseOwner`, `leaseExpiresAt`, `requestedPackageKey`, `requestedTierKey`, `requestedRuntimeProfileKey`, `requestedVectorProfileKey`, `previousPackageKey`, `previousRuntimeProfileKey`, `previousVectorProfileKey`, `requestedTemplatePluginId`, `requestedTemplatePluginVersion`, `requestedPluginIds`, `profileChangeStrategy`, `vectorReindexRequired`, `installIntentId`, `lastErrorCode`, `lastErrorMessage`, `bootstrapDeploymentId`, `verificationRunId`, `readyAt`, `failedAt`, and timestamps.
    - Enforce one active provisioning job per shop with a database uniqueness rule.
    - Store only product-safe metadata and references; never store raw Shopify tokens in the job.
 
@@ -2935,8 +2988,11 @@ The existing merchant plan selector remains valid in zero-touch. The missing pie
 
 4. Implement the Platform provisioning worker.
    - Lease pending jobs with short leases and retry limits.
-   - Run `ShopifyStoreBootstrapService.bootstrap(shopDomain, request)` as the authoritative provisioning step.
+   - Support at least `INSTALL`, `REINSTALL_REPAIR`, `PACKAGE_CHANGE`, and `MANUAL_REPAIR` job types.
+   - Run `ShopifyStoreBootstrapService.bootstrap(shopDomain, request)` as the authoritative provisioning step for install and binding-repair paths.
+   - Add a package reconciliation path for healthy bindings so plan/package changes do not recreate customer, deployment, or consumer by default.
    - Reuse existing customer, deployment, consumer, marketplace installs, connector defaults, and vectorization records on retries.
+   - Reconcile package-specific marketplace installs, surface boundaries, support posture, and downgrade removals or disablement idempotently.
    - Reconcile Shopify source/vectorization state after bootstrap.
    - Record phase transitions such as `QUEUED`, `BOOTSTRAPPING`, `BUNDLE_SYNC`, `CONNECTOR_CONFIG`, `SOURCE_PREFLIGHT`, `VERIFICATION`, `READY`, `NEEDS_MERCHANT_ACTION`, and `FAILED`.
    - Record structured failure codes so operator repair can distinguish configuration errors, Platform auth failures, Shopify token failures, template failures, vector provisioning failures, and verification failures.
@@ -2944,8 +3000,11 @@ The existing merchant plan selector remains valid in zero-touch. The missing pie
 5. Make template selection deterministic.
    - Default install uses the existing Shopify Companion template plugin `mkp-template-shopify-companion` and deployment template `dev-openai-qdrant`.
    - Existing merchant plan choices such as Free, Starter, and Elite must be treated as product packages/tier entitlements, not raw deployment recipe fields.
+   - Add a Platform-owned Shopify Companion package/profile catalog. Start with the current default profile mapped to `mkp-inference-shared-embeddings`, shared Qdrant, and the existing source/surface boundaries, then add higher-cost profiles through explicit catalog entries.
+   - Resolve profile selection to marketplace install operations and provider/vector draft settings server-side. Shopify Bridge and browser UIs must submit only package/profile keys, not raw deployment recipe values.
    - If a merchant selects a package before provisioning is complete, the provisioning job should resolve the package into the governed recipe and continue.
-   - If a merchant changes package after provisioning, Platform should enqueue a package reconciliation job that updates entitlement/readiness, allowed surfaces, and any package-specific bundle requirements idempotently.
+   - If a merchant changes package or profile after provisioning, Platform should enqueue a package reconciliation job that updates entitlement/readiness, allowed surfaces, inference profile install, vector posture, and any package-specific bundle requirements idempotently.
+   - If profile reconciliation changes embedding dimensions, embedding provider, vector strategy, or vector storage posture, mark vectorization stale and require reindex proof before readiness returns to `READY`.
    - If a signed install intent exists, it may override template plugin/version, product package, partner assignment intent, and default source/surface preferences.
    - Install intent overrides must be signed, expire, and be consumed idempotently by shop domain.
    - If no intent exists, use the safe default Shopify Companion product package.
@@ -2959,6 +3018,7 @@ The existing merchant plan selector remains valid in zero-touch. The missing pie
 
 7. Add merchant/admin provisioning visibility.
    - Shopify admin app should show product provisioning states from Platform: installing, provisioning, ready, needs merchant action, failed, and retrying.
+   - The UI should show the current job cause when useful, for example `install provisioning`, `package upgrade`, `package downgrade`, or `repair`.
    - Display exact next actions: approve billing, enable app embed, refresh scopes, retry provisioning, contact support, or wait for verification.
    - Operator UI should expose retry, cancel, force requeue, and inspect job actions with required reason/audit for destructive overrides.
    - Partner UI should show assigned-store provisioning/readiness status only after active assignment. It must not expose operator internals.
@@ -2979,17 +3039,26 @@ The existing merchant plan selector remains valid in zero-touch. The missing pie
 - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/install/service/ShopifyInstallFlowService.java`
   - enqueue Platform provisioning after credential persistence
   - record enqueue failures without leaking secrets
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/store/service/ShopifyBridgeMerchantStoreService.java`
+  - enqueue package reconciliation after merchant billing return or explicit plan/package change when the effective package changes
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/billing/service/ShopifyBridgeBillingService.java`
+  - continue to own Shopify subscription approval and entitlement inspection, but stop short of being the package reconciler
 - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/client/platform/PlatformShopifyStoreClient.java`
-  - add a provisioning-job client call instead of directly doing long-running bootstrap from OAuth
+  - add provisioning-job and package-reconciliation client calls instead of directly doing long-running bootstrap from OAuth or merchant-plan flows
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/service/ShopifyStoreBootstrapService.java`
   - keep as the core idempotent provisioning primitive
   - harden any remaining duplicate creation edge cases found by reinstall tests
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/web/ShopifyAdminController.java`
   - add internal provisioning-job endpoints and operator repair endpoints
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/shopify/service/`
-  - add provisioning job service, worker/lease service, status projection, and audit events
+  - add provisioning job service, package reconciliation service, worker/lease service, status projection, and audit events
+  - add Shopify Companion package/profile catalog service and profile resolver
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/marketplace/service/DeploymentMarketplaceInstallService.java`
+  - reuse marketplace install create/update/delete semantics for inference-profile replacement; do not write provider config around marketplace compilation
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/marketplace/service/DeploymentMarketplaceDraftCompilerService.java`
+  - keep one active inference-profile compiler behavior and add tests that Shopify profile reconciliation disables the old profile before enabling a new one
 - `Platfrom/backend/src/main/resources/db/migration/`
-  - add durable provisioning job schema and indexes
+  - add durable provisioning job schema, package/profile catalog seed data, canonical store package/profile state, and indexes
 - `product-services/shopify-bridge-service/ui/src/`
   - show merchant-safe provisioning status and next action in the embedded Shopify admin app
 - `Platfrom/ui/src/pages/ShopifyStoresPage.tsx`
@@ -3014,11 +3083,17 @@ The existing merchant plan selector remains valid in zero-touch. The missing pie
   - missing/invalid Platform enqueue is recoverable and does not lose install record.
   - provisioning worker runs bootstrap once and is safe on retry.
   - reinstall reuses or repairs existing bindings without duplicate customer/deployment/consumer records.
+  - `Free -> Starter`, `Starter -> Elite`, and `Elite -> Starter` each enqueue the correct reconciliation job type.
+  - plan/package/profile changes reconcile the effective bundle, inference-profile install, vector posture, and allowed surfaces without recreating the core binding on healthy stores.
+  - downgrade paths remove or disable out-of-tier surfaces and governed capabilities without losing audit history.
+  - inference-profile replacement leaves exactly one enabled inference-profile install and compiles provider config through marketplace provenance.
+  - vector-affecting profile changes mark vectorization stale and require reindex proof before readiness returns to `READY`.
   - failed template/vector/provider/auth path records structured failure.
   - uninstall cancels active provisioning and clears readiness safely.
 - Bridge tests:
   - install flow still validates state/HMAC and exchanges token.
   - enqueue uses product-service scoped Platform auth.
+  - merchant billing return and plan/package change paths enqueue reconciliation only when the effective package changed.
   - merchant UI renders installing/provisioning/ready/needs-action/failed states from real API responses.
 - Platform UI and Partner UI builds/smoke must pass.
 - `git diff --check` must pass.
@@ -3034,6 +3109,9 @@ Required live proof:
 - Confirm OAuth callback persists credentials and creates exactly one Platform provisioning job.
 - Confirm job reaches `READY` or `NEEDS_MERCHANT_ACTION` with accurate next action.
 - Confirm `ShopifyStoreConnection` has canonical `customerId`, `deploymentId`, `consumerId`, `installStatus=INSTALLED`, bootstrap status, release summary, source readiness, billing state, and widget status.
+- Change the store plan/package at least once and confirm a `PACKAGE_CHANGE` job runs without recreating a healthy customer/deployment/consumer binding.
+- Change the runtime profile where the test plan permits it and confirm the marketplace inference profile, vector posture, and readiness evidence match the canonical package/profile state.
+- Confirm an upgrade applies the correct package boundaries and a downgrade removes or disables out-of-tier capabilities.
 - Confirm merchant Shopify admin shows provisioning status without operator credentials.
 - Confirm Partner UI sees the store only when an active assignment exists.
 - Confirm release-gate or focused zero-touch verifier proves install, bootstrap, release/readiness evidence, source/vectorization reconciliation, merchant admin projection, partner projection, and cleanup/reinstall behavior.
@@ -3045,6 +3123,8 @@ Required live proof:
 - No manual rollout/bootstrap script is required for the happy path.
 - Provisioning is asynchronous, idempotent, retryable, audited, and visible to merchant/operator roles.
 - Default install uses the Shopify Companion template package; signed intents can safely select different packages.
+- Merchant plan/package changes trigger reconciliation jobs automatically and do not require manual bootstrap.
+- Full bootstrap runs only for initial install, broken binding repair, or reinstall recovery; healthy plan/package changes use reconciliation instead.
 - Merchant-required actions are surfaced as `NEEDS_MERCHANT_ACTION`, not hidden as generic failures.
 - Partner visibility remains assignment-gated and source-of-truth aligned with Platform store records.
 - Local tests, builds, smoke checks, deployment, live Shopify install proof, and cleanup proof are recorded in this document.

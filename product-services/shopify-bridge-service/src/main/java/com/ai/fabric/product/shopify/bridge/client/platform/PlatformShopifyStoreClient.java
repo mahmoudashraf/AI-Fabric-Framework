@@ -6,6 +6,9 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootst
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningJobSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
@@ -192,6 +195,24 @@ public class PlatformShopifyStoreClient {
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .retrieve()
             .body(ShopifyBridgeStoreBootstrapResponse.class);
+    }
+
+    public ShopifyBridgeProvisioningStatusSummary getProvisioningStatus(String shopDomain) {
+        return restClient.get()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/provisioning")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeProvisioningStatusSummary.class);
+    }
+
+    public ShopifyBridgeProvisioningJobSummary enqueueProvisioning(String shopDomain,
+                                                                   ShopifyBridgeCreateProvisioningJobRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/provisioning-jobs")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request)
+            .retrieve()
+            .body(ShopifyBridgeProvisioningJobSummary.class);
     }
 
     public ShopifyBridgeStoreSummary goLive(String shopDomain) {

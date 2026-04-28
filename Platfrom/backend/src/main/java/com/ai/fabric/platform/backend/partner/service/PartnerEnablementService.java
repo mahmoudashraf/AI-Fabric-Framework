@@ -1676,7 +1676,8 @@ public class PartnerEnablementService {
                 assignment.getUpdatedAt(),
                 assignment.getUpdatedAt(),
                 List.of(),
-                List.of()
+                List.of(),
+                null
             ));
     }
 
@@ -1910,7 +1911,8 @@ public class PartnerEnablementService {
             store.map(PartnerShopifyStoreReadModel::lastSyncAt).orElse(null),
             store.map(PartnerShopifyStoreReadModel::lastWebhookAt).orElse(null),
             store.map(PartnerShopifyStoreReadModel::enabledSourceCategories).orElse(List.of()),
-            readList(assignment.getPermissionsJson())
+            readList(assignment.getPermissionsJson()),
+            store.map(PartnerShopifyStoreReadModel::packageProfile).orElse(null)
         );
     }
 

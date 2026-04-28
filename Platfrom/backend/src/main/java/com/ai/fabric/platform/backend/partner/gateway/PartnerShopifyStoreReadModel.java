@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.partner.gateway;
 
+import com.ai.fabric.platform.backend.partner.model.PartnerProductPackageSummary;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -14,6 +16,7 @@ public record PartnerShopifyStoreReadModel(
     Instant lastSyncAt,
     Instant lastWebhookAt,
     List<String> enabledSourceCategories,
-    List<String> enabledSurfaces
+    List<String> enabledSurfaces,
+    PartnerProductPackageSummary packageProfile
 ) {
 }

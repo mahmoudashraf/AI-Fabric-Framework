@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordedBillingStateSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
@@ -477,6 +478,16 @@ public class ShopifyBridgeSupportReadinessService {
     private ShopifyBridgeStoreBillingState inspectBillingStateSafely(String shopDomain, String accessToken) {
         try {
             ShopifyBridgeStoreBillingState billingState = billingService.inspectStoreBillingState(shopDomain, accessToken);
+            platformShopifyStoreClient.recordBillingState(
+                shopDomain,
+                new ShopifyBridgeRecordBillingStateRequest(
+                    billingState.tierKey(),
+                    billingState.status(),
+                    null,
+                    null,
+                    "Support readiness verification refreshed billing state."
+                )
+            );
             installRecordService.recordBillingState(
                 shopDomain,
                 billingState.tierKey(),

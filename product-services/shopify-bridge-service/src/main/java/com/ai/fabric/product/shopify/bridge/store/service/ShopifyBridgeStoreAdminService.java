@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStoref
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
@@ -16,6 +17,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
@@ -94,12 +96,27 @@ public class ShopifyBridgeStoreAdminService {
             status,
             request
         );
-        platformShopifyStoreClient.recordBillingState(store.shopDomain(), request);
+        platformShopifyStoreClient.recordBillingState(
+            store.shopDomain(),
+            new ShopifyBridgeRecordBillingStateRequest(
+                tierKey,
+                status,
+                request == null ? null : request.subscriptionId(),
+                request == null ? null : request.subscriptionName(),
+                request == null ? "Operator recorded Shopify Companion billing state." : request.reason()
+            )
+        );
         installRecordService.recordBillingState(
             store.shopDomain(),
             tierKey,
             status,
             subscriptions
+        );
+        enqueueProvisioningSafely(
+            store.shopDomain(),
+            "PACKAGE_CHANGE",
+            tierKey,
+            request == null ? "Operator recorded Shopify Companion billing state." : request.reason()
         );
         return billingSummary(store.shopDomain());
     }
@@ -122,6 +139,33 @@ public class ShopifyBridgeStoreAdminService {
 
     public ShopifyBridgeStoreBootstrapResponse bootstrap(String shopDomain) {
         return platformShopifyStoreClient.bootstrap(shopDomain);
+    }
+
+    public ShopifyBridgeProvisioningStatusSummary provisioningStatus(String shopDomain) {
+        return platformShopifyStoreClient.getProvisioningStatus(shopDomain);
+    }
+
+    public ShopifyBridgeProvisioningStatusSummary enqueueProvisioning(String shopDomain,
+                                                                      ShopifyBridgeCreateProvisioningJobRequest request) {
+        platformShopifyStoreClient.enqueueProvisioning(
+            shopDomain,
+            request == null
+                ? new ShopifyBridgeCreateProvisioningJobRequest(
+                    "ADMIN_RETRY",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Operator requested zero-touch provisioning reconciliation.",
+                    true
+                )
+                : request
+        );
+        return platformShopifyStoreClient.getProvisioningStatus(shopDomain);
     }
 
     public ShopifyBridgeStoreSummary runSourcePreflight(String shopDomain) {
@@ -172,10 +216,35 @@ public class ShopifyBridgeStoreAdminService {
 
     private String normalizeTierKey(String value) {
         String tierKey = value == null || value.isBlank() ? "FREE" : value.trim().toUpperCase(Locale.ROOT);
-        if (!List.of("FREE", "STARTER", "ELITE").contains(tierKey)) {
+        if (!List.of("FREE", "STARTER", "ELITE", "ENTERPRISE").contains(tierKey)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unsupported Shopify Companion billing tier: " + value);
         }
         return tierKey;
+    }
+
+    private void enqueueProvisioningSafely(String shopDomain, String jobType, String tierKey, String reason) {
+        try {
+            platformShopifyStoreClient.enqueueProvisioning(
+                shopDomain,
+                new ShopifyBridgeCreateProvisioningJobRequest(
+                    jobType,
+                    null,
+                    tierKey,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    reason == null || reason.isBlank()
+                        ? "Shopify Companion billing state changed."
+                        : reason,
+                    false
+                )
+            );
+        } catch (RuntimeException ex) {
+            throw new ResponseStatusException(CONFLICT, "Billing state was recorded, but zero-touch provisioning could not be queued.", ex);
+        }
     }
 
     private String normalizeBillingStatus(String value) {

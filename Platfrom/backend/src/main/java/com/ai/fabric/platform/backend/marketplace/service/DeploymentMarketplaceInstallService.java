@@ -121,6 +121,17 @@ public class DeploymentMarketplaceInstallService {
     public DeploymentMarketplaceInstallSummary createInstall(String deploymentId,
                                                              CreateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return createInstallForDeployment(deployment, request);
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary createInstallForTrustedCaller(DeploymentEntity deployment,
+                                                                            CreateDeploymentMarketplaceInstallRequest request) {
+        return createInstallForDeployment(deployment, request);
+    }
+
+    private DeploymentMarketplaceInstallSummary createInstallForDeployment(DeploymentEntity deployment,
+                                                                          CreateDeploymentMarketplaceInstallRequest request) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(request.pluginId());
         MarketplacePluginVersionEntity version = marketplaceCatalogService.requirePluginVersionEntity(
             plugin.getId(),
@@ -185,6 +196,19 @@ public class DeploymentMarketplaceInstallService {
                                                              String installId,
                                                              UpdateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return updateInstallForDeployment(deployment, installId, request);
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary updateInstallForTrustedCaller(DeploymentEntity deployment,
+                                                                            String installId,
+                                                                            UpdateDeploymentMarketplaceInstallRequest request) {
+        return updateInstallForDeployment(deployment, installId, request);
+    }
+
+    private DeploymentMarketplaceInstallSummary updateInstallForDeployment(DeploymentEntity deployment,
+                                                                          String installId,
+                                                                          UpdateDeploymentMarketplaceInstallRequest request) {
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = resolveUpdatedVersion(plugin, install, request.pluginVersion());

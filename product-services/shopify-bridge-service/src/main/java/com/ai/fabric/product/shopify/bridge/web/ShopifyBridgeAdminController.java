@@ -5,6 +5,8 @@ import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSu
 import com.ai.fabric.product.shopify.bridge.diagnostics.model.ShopifyBridgeOverviewResponse;
 import com.ai.fabric.product.shopify.bridge.diagnostics.service.ShopifyBridgeDiagnosticsService;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
@@ -114,6 +116,17 @@ public class ShopifyBridgeAdminController {
     @PostMapping("/stores/{shopDomain}/bootstrap")
     public ShopifyBridgeStoreBootstrapResponse bootstrap(@PathVariable String shopDomain) {
         return storeAdminService.bootstrap(shopDomain);
+    }
+
+    @GetMapping("/stores/{shopDomain}/provisioning")
+    public ShopifyBridgeProvisioningStatusSummary provisioning(@PathVariable String shopDomain) {
+        return storeAdminService.provisioningStatus(shopDomain);
+    }
+
+    @PostMapping("/stores/{shopDomain}/provisioning")
+    public ShopifyBridgeProvisioningStatusSummary enqueueProvisioning(@PathVariable String shopDomain,
+                                                                      @RequestBody(required = false) ShopifyBridgeCreateProvisioningJobRequest request) {
+        return storeAdminService.enqueueProvisioning(shopDomain, request);
     }
 
     @PostMapping("/stores/{shopDomain}/run-source-preflight")

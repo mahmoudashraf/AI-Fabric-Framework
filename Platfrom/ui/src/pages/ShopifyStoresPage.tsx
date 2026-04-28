@@ -30,10 +30,12 @@ import { useSearchParams } from 'react-router-dom'
 import {
   bootstrapShopifyStore,
   deleteShopifyStore,
+  enqueueShopifyStoreProvisioning,
   fetchMerchantPartnerAccessRequests,
   fetchProductServiceStoreBillingSummary,
   fetchProductServices,
   runProductServiceStoreSourcePreflight,
+  fetchShopifyStoreProvisioning,
   fetchShopifyStoreVectorization,
   fetchShopifyStoreGovernedActions,
   fetchShopifyStoreBinding,
@@ -49,6 +51,7 @@ import {
   revokeMerchantPartnerAccessRequest,
   retryLastFailedShopifyStoreVectorizationAutoRun,
   type MerchantPartnerAccessRequestSummary,
+  type CreateShopifyStoreProvisioningJobRequest,
   type RecordShopifyStoreSourcePreflightRequest,
   type PlatformManagedProductServiceStoreBillingSummary,
   type ShopifyStoreBootstrapSummary,
@@ -62,6 +65,7 @@ import {
   updateShopifyStoreVectorizationPolicy,
   upsertShopifyStore,
   type ShopifyStoreConnectionSummary,
+  type ShopifyStoreProvisioningStatusSummary,
   type UpsertShopifyStoreConnectionRequest,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
@@ -94,6 +98,8 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'PLATFORM_BOOTSTRAPPED':
     case 'GO_LIVE_REQUESTED':
     case 'WAITING_ON_MERCHANT':
+    case 'QUEUED':
+    case 'RUNNING':
       return 'warning'
     default:
       return 'default'
@@ -458,6 +464,18 @@ export function ShopifyStoresPage() {
 
   const selectedVectorization = selectedVectorizationQuery.data
 
+  const selectedProvisioningQuery = useQuery({
+    queryKey: ['shopify-stores', selectedShopDomain, 'provisioning'],
+    queryFn: () => fetchShopifyStoreProvisioning(selectedShopDomain),
+    enabled: selectedShopDomain.length > 0,
+    refetchInterval: (query) => {
+      const provisioning = query.state.data as ShopifyStoreProvisioningStatusSummary | undefined
+      return ['QUEUED', 'RUNNING'].includes((provisioning?.status ?? '').toUpperCase()) ? 5000 : false
+    },
+  })
+
+  const selectedProvisioning = selectedProvisioningQuery.data ?? null
+
   const selectedGovernedActionsQuery = useQuery({
     queryKey: ['shopify-stores', selectedShopDomain, 'governed-actions'],
     queryFn: () => fetchShopifyStoreGovernedActions(selectedShopDomain, 10),
@@ -553,6 +571,24 @@ export function ShopifyStoresPage() {
     },
     onError: (error) => {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to bootstrap Shopify store.' })
+    },
+  })
+
+  const provisioningMutation = useMutation({
+    mutationFn: ({ shopDomain, payload }: { shopDomain: string; payload: CreateShopifyStoreProvisioningJobRequest }) =>
+      enqueueShopifyStoreProvisioning(shopDomain, payload),
+    onSuccess: async (job) => {
+      setMessage({ type: 'success', text: `Queued provisioning ${job.jobType} for ${job.shopDomain}.` })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', job.shopDomain] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', job.shopDomain, 'provisioning'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', job.shopDomain, 'vectorization'] }),
+        queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+      ])
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to queue Shopify Companion provisioning.' })
     },
   })
 
@@ -850,6 +886,22 @@ export function ShopifyStoresPage() {
               </Button>
               <Button
                 variant="outlined"
+                onClick={() =>
+                  provisioningMutation.mutate({
+                    shopDomain: selectedStore.shopDomain,
+                    payload: {
+                      jobType: 'MANUAL_REPAIR',
+                      reason: 'Operator requested zero-touch Shopify Companion provisioning reconciliation.',
+                      processImmediately: true,
+                    },
+                  })
+                }
+                disabled={provisioningMutation.isPending || ['QUEUED', 'RUNNING'].includes((selectedProvisioning?.status ?? '').toUpperCase())}
+              >
+                Reconcile package
+              </Button>
+              <Button
+                variant="outlined"
                 onClick={() => goLiveMutation.mutate(selectedStore.shopDomain)}
                 disabled={goLiveMutation.isPending || !selectedStore.readiness?.goLiveEligible || isReleaseInProgress(selectedStore.latestRelease?.status)}
               >
@@ -970,6 +1022,96 @@ export function ShopifyStoresPage() {
                       </Grid>
                     ))}
                   </Grid>
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Zero-touch provisioning</Typography>
+                            <Chip size="small" label={selectedProvisioning?.status ?? 'NOT_STARTED'} color={chipColor(selectedProvisioning?.status)} />
+                            <Chip size="small" variant="outlined" label={selectedProvisioning?.phase ?? 'NOT_STARTED'} color={chipColor(selectedProvisioning?.phase)} />
+                          </Stack>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() =>
+                              provisioningMutation.mutate({
+                                shopDomain: selectedStore.shopDomain,
+                                payload: {
+                                  jobType: 'MANUAL_REPAIR',
+                                  reason: 'Operator requested zero-touch Shopify Companion provisioning reconciliation.',
+                                  processImmediately: true,
+                                },
+                              })
+                            }
+                            disabled={provisioningMutation.isPending || ['QUEUED', 'RUNNING'].includes((selectedProvisioning?.status ?? '').toUpperCase())}
+                          >
+                            Run reconciliation
+                          </Button>
+                        </Stack>
+                        {selectedProvisioningQuery.isError ? (
+                          <Alert severity="error">
+                            {selectedProvisioningQuery.error instanceof Error
+                              ? selectedProvisioningQuery.error.message
+                              : 'Failed to load Shopify Companion provisioning state.'}
+                          </Alert>
+                        ) : selectedProvisioningQuery.isLoading ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Loading provisioning state...
+                          </Typography>
+                        ) : (
+                          <>
+                            <Typography variant="body2" color="text.secondary">
+                              {selectedProvisioning?.summaryMessage ?? 'No provisioning job has been recorded for this store.'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Next action {selectedProvisioning?.nextAction ?? 'Install or reconnect the Shopify app to start provisioning.'}
+                            </Typography>
+                            {selectedProvisioning?.effectiveProfile ? (
+                              <Grid container spacing={1.5}>
+                                {[
+                                  ['Package', selectedProvisioning.effectiveProfile.packageKey],
+                                  ['Tier', selectedProvisioning.effectiveProfile.tierKey],
+                                  ['Runtime profile', selectedProvisioning.effectiveProfile.runtimeProfileKey],
+                                  ['Vector profile', selectedProvisioning.effectiveProfile.vectorProfileKey],
+                                  ['Cost posture', selectedProvisioning.effectiveProfile.costPosture],
+                                  ['Vector storage', selectedProvisioning.effectiveProfile.vectorStoragePosture],
+                                  ['Verification pack', selectedProvisioning.effectiveProfile.verificationPackId],
+                                  ['Profile', selectedProvisioning.effectiveProfile.displayName],
+                                ].map(([label, value]) => (
+                                  <Grid item xs={12} md={3} key={label}>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {label}
+                                    </Typography>
+                                    <Typography variant="body2">{value ?? '—'}</Typography>
+                                  </Grid>
+                                ))}
+                              </Grid>
+                            ) : null}
+                            {selectedProvisioning?.latestJob ? (
+                              <Alert severity={selectedProvisioning.latestJob.lastErrorMessage ? 'warning' : 'info'}>
+                                Latest job {selectedProvisioning.latestJob.id} · {selectedProvisioning.latestJob.jobType} · attempt{' '}
+                                {selectedProvisioning.latestJob.attemptCount}/{selectedProvisioning.latestJob.maxAttempts} · updated{' '}
+                                {formatTimestamp(selectedProvisioning.latestJob.updatedAt)}
+                                {selectedProvisioning.latestJob.vectorReindexRequired ? ' · vector reindex required' : ''}
+                                {selectedProvisioning.latestJob.lastErrorMessage ? ` · ${selectedProvisioning.latestJob.lastErrorMessage}` : ''}
+                              </Alert>
+                            ) : null}
+                            {selectedProvisioning?.recentJobs.length ? (
+                              <Stack spacing={0.5}>
+                                {selectedProvisioning.recentJobs.slice(0, 3).map((job) => (
+                                  <Typography key={job.id} variant="caption" color="text.secondary">
+                                    {job.id} · {job.jobType} · {job.status}/{job.phase} · {formatTimestamp(job.createdAt)}
+                                  </Typography>
+                                ))}
+                              </Stack>
+                            ) : null}
+                          </>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
 
                   <Card variant="outlined">
                     <CardContent>
