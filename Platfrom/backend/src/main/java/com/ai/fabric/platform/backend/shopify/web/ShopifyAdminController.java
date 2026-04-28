@@ -216,6 +216,13 @@ public class ShopifyAdminController {
         return shopifyStoreProvisioningService.processJobNow(shopDomain, jobId);
     }
 
+    @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/run")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    public ShopifyStoreProvisioningJobSummary runProvisioningJob(@PathVariable String shopDomain,
+                                                                 @PathVariable String jobId) {
+        return shopifyStoreProvisioningService.processJobNow(shopDomain, jobId);
+    }
+
     @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/retry")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public ShopifyStoreProvisioningJobSummary retryProvisioningJob(@PathVariable String shopDomain,

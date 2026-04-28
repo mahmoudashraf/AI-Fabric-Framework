@@ -106,6 +106,15 @@ public class ShopifyStoreVectorizationService {
 
     @Transactional
     public ShopifyStoreVectorizationSummary reconcile(String shopDomain) {
+        return reconcile(shopDomain, false);
+    }
+
+    @Transactional
+    public ShopifyStoreVectorizationSummary reconcileForTrustedCaller(String shopDomain) {
+        return reconcile(shopDomain, true);
+    }
+
+    private ShopifyStoreVectorizationSummary reconcile(String shopDomain, boolean trustedCaller) {
         ShopifyStoreConnectionEntity store = requireStore(shopDomain);
         DeploymentEntity deployment = requireDeployment(store);
         LinkedHashSet<String> desiredPluginIds = ShopifyCompanionPluginSelection.desiredManagedPluginIds(properties, store);
@@ -116,25 +125,29 @@ public class ShopifyStoreVectorizationService {
             DeploymentMarketplaceInstallSummary current = installsByPluginId.get(normalizePluginId(pluginId));
             String latestVersion = marketplaceCatalogService.resolveLatestPublishedVersionLabel(pluginId);
             if (current == null) {
-                deploymentMarketplaceInstallService.createInstall(
-                    deployment.getId(),
-                    new CreateDeploymentMarketplaceInstallRequest(pluginId, latestVersion, JSON.objectNode(), JSON.objectNode())
-                );
+                CreateDeploymentMarketplaceInstallRequest request =
+                    new CreateDeploymentMarketplaceInstallRequest(pluginId, latestVersion, JSON.objectNode(), JSON.objectNode());
+                if (trustedCaller) {
+                    deploymentMarketplaceInstallService.createInstallForTrustedCaller(deployment, request);
+                } else {
+                    deploymentMarketplaceInstallService.createInstall(deployment.getId(), request);
+                }
                 continue;
             }
             boolean versionDrift = latestVersion != null && !latestVersion.isBlank() && !latestVersion.equals(current.pluginVersion());
             boolean disabled = !"ENABLED".equalsIgnoreCase(current.status());
             if (versionDrift || disabled) {
-                deploymentMarketplaceInstallService.updateInstall(
-                    deployment.getId(),
-                    current.id(),
-                    new UpdateDeploymentMarketplaceInstallRequest(
-                        versionDrift ? latestVersion : null,
-                        "ENABLED",
-                        current.config(),
-                        current.secretRefs()
-                    )
+                UpdateDeploymentMarketplaceInstallRequest request = new UpdateDeploymentMarketplaceInstallRequest(
+                    versionDrift ? latestVersion : null,
+                    "ENABLED",
+                    current.config(),
+                    current.secretRefs()
                 );
+                if (trustedCaller) {
+                    deploymentMarketplaceInstallService.updateInstallForTrustedCaller(deployment, current.id(), request);
+                } else {
+                    deploymentMarketplaceInstallService.updateInstall(deployment.getId(), current.id(), request);
+                }
             }
         }
 
@@ -146,7 +159,11 @@ public class ShopifyStoreVectorizationService {
             if (desiredPluginIds.contains(pluginId)) {
                 continue;
             }
-            deploymentMarketplaceInstallService.deleteInstall(deployment.getId(), install.id());
+            if (trustedCaller) {
+                deploymentMarketplaceInstallService.deleteInstallForTrustedCaller(deployment, install.id());
+            } else {
+                deploymentMarketplaceInstallService.deleteInstall(deployment.getId(), install.id());
+            }
         }
 
         VectorizationOverviewSummary overview = reconcileVectorizationOverview(store, deployment);

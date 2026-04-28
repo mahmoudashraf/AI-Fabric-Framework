@@ -336,7 +336,7 @@ public class ShopifyStoreProvisioningService {
             }
             job.setVectorReindexRequired(true);
         }
-        draftCompilerService.syncDeploymentDraft(deployment.getId());
+        draftCompilerService.syncDeploymentDraftForTrustedCaller(deployment.getId());
     }
 
     private void persistEffectiveProfile(ShopifyStoreConnectionEntity store,
@@ -399,7 +399,7 @@ public class ShopifyStoreProvisioningService {
 
     private void reconcileVectorizationSafely(ShopifyStoreConnectionEntity store, ShopifyStoreProvisioningJobEntity job) {
         try {
-            vectorizationService.reconcile(store.getShopDomain());
+            vectorizationService.reconcileForTrustedCaller(store.getShopDomain());
         } catch (RuntimeException ex) {
             job.setNextAction("Review vectorization readiness and retry provisioning after the vectorization issue is resolved.");
             throw ex;

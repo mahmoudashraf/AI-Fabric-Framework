@@ -859,6 +859,10 @@ public class DeploymentService {
         return getActiveDraftForDeploymentInternal(deploymentId, false);
     }
 
+    public DeploymentDraftResponse getActiveDraftForDeploymentForTrustedCaller(String deploymentId) {
+        return getActiveDraftForDeploymentInternal(deploymentId, true);
+    }
+
     DeploymentDraftResponse getActiveDraftForDeploymentInternal(String deploymentId) {
         return getActiveDraftForDeploymentInternal(deploymentId, true);
     }
@@ -978,6 +982,10 @@ public class DeploymentService {
     @Transactional
     public DeploymentDraftResponse updateDraft(String draftId, UpdateDeploymentDraftRequest request) {
         return updateDraftInternal(draftId, request, false);
+    }
+
+    public DeploymentDraftResponse updateDraftForTrustedCaller(String draftId, UpdateDeploymentDraftRequest request) {
+        return updateDraftInternal(draftId, request, true);
     }
 
     @Transactional
