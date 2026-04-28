@@ -117,7 +117,7 @@ public class ShopifyStoreVectorizationService {
     private ShopifyStoreVectorizationSummary reconcile(String shopDomain, boolean trustedCaller) {
         ShopifyStoreConnectionEntity store = requireStore(shopDomain);
         DeploymentEntity deployment = requireDeployment(store);
-        LinkedHashSet<String> desiredPluginIds = ShopifyCompanionPluginSelection.desiredManagedPluginIds(properties, store);
+        LinkedHashSet<String> desiredPluginIds = ShopifyCompanionPluginSelection.desiredVectorizationPluginIds(properties, store);
         Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId = installsByPluginId(deployment);
 
         LinkedHashSet<String> managedDataPluginIds = ShopifyCompanionPluginSelection.managedDataPluginIds();
@@ -459,7 +459,7 @@ public class ShopifyStoreVectorizationService {
 
         List<String> selectedCategories = ShopifyCompanionPluginSelection.selectedCategories(store);
         List<String> selectedEntityTypes = ShopifyCompanionPluginSelection.selectedEntityTypes(store);
-        List<String> requiredPluginIds = List.copyOf(ShopifyCompanionPluginSelection.desiredManagedPluginIds(properties, store));
+        List<String> requiredPluginIds = List.copyOf(ShopifyCompanionPluginSelection.desiredVectorizationPluginIds(properties, store));
         List<String> installedPluginIds = installsByPluginId.values().stream()
             .filter(install -> "ENABLED".equalsIgnoreCase(install.status()))
             .map(DeploymentMarketplaceInstallSummary::pluginId)

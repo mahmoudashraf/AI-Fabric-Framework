@@ -93,6 +93,17 @@ final class ShopifyCompanionPluginSelection {
         return desiredPluginIds;
     }
 
+    static LinkedHashSet<String> desiredVectorizationPluginIds(ShopifyCompanionBootstrapProperties properties,
+                                                               ShopifyStoreConnectionEntity store) {
+        LinkedHashSet<String> desiredPluginIds = desiredManagedPluginIds(properties, store);
+        desiredPluginIds.removeIf(ShopifyCompanionPluginSelection::isInferencePluginId);
+        return desiredPluginIds;
+    }
+
+    static boolean isInferencePluginId(String pluginId) {
+        return pluginId != null && pluginId.trim().toLowerCase(java.util.Locale.ROOT).startsWith("mkp-inference-");
+    }
+
     static LinkedHashSet<String> managedDataPluginIds() {
         LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
         pluginIds.add(DATA_CATALOG_PLUGIN_ID);
