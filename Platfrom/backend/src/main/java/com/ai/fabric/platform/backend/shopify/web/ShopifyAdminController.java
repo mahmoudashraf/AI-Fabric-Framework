@@ -227,8 +227,13 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public ShopifyStoreProvisioningJobSummary retryProvisioningJob(@PathVariable String shopDomain,
                                                                    @PathVariable String jobId,
-                                                                   @RequestBody(required = false) java.util.Map<String, String> request) {
-        return shopifyStoreProvisioningService.retry(shopDomain, jobId, request == null ? null : request.get("reason"));
+                                                                   @RequestBody(required = false) java.util.Map<String, Object> request) {
+        ShopifyStoreProvisioningJobSummary retried =
+            shopifyStoreProvisioningService.retry(shopDomain, jobId, text(request, "reason"));
+        if (flag(request, "processImmediately") || flag(request, "processNow")) {
+            return shopifyStoreProvisioningService.processJobNow(shopDomain, jobId);
+        }
+        return retried;
     }
 
     @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/cancel")
@@ -382,5 +387,24 @@ public class ShopifyAdminController {
     public ShopifyStoreSupportProfileSummary updateSupportProfile(@PathVariable String shopDomain,
                                                                   @RequestBody UpdateShopifyStoreSupportProfileRequest request) {
         return shopifyStoreSupportProfileService.update(shopDomain, request);
+    }
+
+    private String text(java.util.Map<String, Object> request, String key) {
+        if (request == null || request.get(key) == null) {
+            return null;
+        }
+        String value = String.valueOf(request.get(key)).trim();
+        return value.isBlank() ? null : value;
+    }
+
+    private boolean flag(java.util.Map<String, Object> request, String key) {
+        if (request == null || request.get(key) == null) {
+            return false;
+        }
+        Object value = request.get(key);
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        return Boolean.parseBoolean(String.valueOf(value));
     }
 }
