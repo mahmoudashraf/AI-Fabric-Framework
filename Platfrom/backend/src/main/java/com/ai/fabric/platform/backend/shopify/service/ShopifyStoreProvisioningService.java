@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -58,6 +59,7 @@ public class ShopifyStoreProvisioningService {
     private final DeploymentMarketplaceDraftCompilerService draftCompilerService;
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final PlatformAuditService platformAuditService;
+    private final TransactionTemplate transactionTemplate;
 
     public ShopifyStoreProvisioningService(ShopifyStoreProvisioningJobRepository jobRepository,
                                            ShopifyStoreConnectionRepository storeRepository,
@@ -69,7 +71,8 @@ public class ShopifyStoreProvisioningService {
                                            DeploymentMarketplaceInstallService marketplaceInstallService,
                                            DeploymentMarketplaceDraftCompilerService draftCompilerService,
                                            MarketplaceCatalogService marketplaceCatalogService,
-                                           PlatformAuditService platformAuditService) {
+                                           PlatformAuditService platformAuditService,
+                                           TransactionTemplate transactionTemplate) {
         this.jobRepository = jobRepository;
         this.storeRepository = storeRepository;
         this.deploymentRepository = deploymentRepository;
@@ -81,53 +84,56 @@ public class ShopifyStoreProvisioningService {
         this.draftCompilerService = draftCompilerService;
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.platformAuditService = platformAuditService;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional
     public ShopifyStoreProvisioningJobSummary enqueue(String shopDomain,
                                                       CreateShopifyStoreProvisioningJobRequest request) {
         String normalizedShop = normalizeShopDomain(shopDomain);
-        ShopifyStoreConnectionEntity store = storeRepository.findByShopDomainIgnoreCase(normalizedShop).orElse(null);
-        String jobType = normalizeJobType(request == null ? null : request.jobType(), store);
-        ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile = resolveRequestedProfile(store, request);
-        ShopifyStorePackageState previousState = readPackageState(store);
+        ShopifyStoreProvisioningJobSummary queued = transactionTemplate.execute(status -> {
+            ShopifyStoreConnectionEntity store = storeRepository.findByShopDomainIgnoreCase(normalizedShop).orElse(null);
+            String jobType = normalizeJobType(request == null ? null : request.jobType(), store);
+            ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile = resolveRequestedProfile(store, request);
+            ShopifyStorePackageState previousState = readPackageState(store);
 
-        ShopifyStoreProvisioningJobEntity job = jobRepository
-            .findFirstByShopDomainIgnoreCaseAndStatusInOrderByCreatedAtDesc(normalizedShop, ACTIVE_STATUSES)
-            .orElseGet(() -> newJob(normalizedShop, store, jobType));
+            ShopifyStoreProvisioningJobEntity job = jobRepository
+                .findFirstByShopDomainIgnoreCaseAndStatusInOrderByCreatedAtDesc(normalizedShop, ACTIVE_STATUSES)
+                .orElseGet(() -> newJob(normalizedShop, store, jobType));
 
-        job.setStoreConnectionId(store == null ? null : store.getId());
-        job.setJobType(jobType);
-        job.setStatus("QUEUED");
-        job.setPhase("QUEUED");
-        job.setRequestedPackageKey(profile.packageKey());
-        job.setRequestedTierKey(profile.tierKey());
-        job.setRequestedRuntimeProfileKey(profile.runtimeProfileKey());
-        job.setRequestedVectorProfileKey(profile.vectorProfileKey());
-        job.setPreviousPackageKey(previousState.packageKey());
-        job.setPreviousRuntimeProfileKey(previousState.runtimeProfileKey());
-        job.setPreviousVectorProfileKey(previousState.vectorProfileKey());
-        job.setRequestedTemplatePluginId(firstText(request == null ? null : request.requestedTemplatePluginId(), profile.templatePluginId()));
-        job.setRequestedTemplatePluginVersion(firstText(request == null ? null : request.requestedTemplatePluginVersion(), profile.templatePluginVersion()));
-        job.setRequestedPluginIdsJson(writePluginIds(resolveRequestedPluginIds(request, profile)));
-        job.setInstallIntentId(blankToNull(request == null ? null : request.installIntentId()));
-        job.setProfileChangeStrategy(resolveProfileChangeStrategy(previousState, profile));
-        job.setVectorReindexRequired(vectorReindexRequired(previousState, profile));
-        job.setLastErrorCode(null);
-        job.setLastErrorMessage(null);
-        job.setFailedAt(null);
-        job.setCancelledAt(null);
-        job.setNextAction("Wait for Platform provisioning to complete.");
-        job.setSummaryMessage(summaryForQueuedJob(jobType, profile));
-        job.setLeaseOwner(null);
-        job.setLeaseExpiresAt(null);
-        job.setUpdatedAt(Instant.now());
-        jobRepository.save(job);
-        audit("SHOPIFY_STORE_PROVISIONING_ENQUEUED", job, Map.of("jobType", jobType));
+            job.setStoreConnectionId(store == null ? null : store.getId());
+            job.setJobType(jobType);
+            job.setStatus("QUEUED");
+            job.setPhase("QUEUED");
+            job.setRequestedPackageKey(profile.packageKey());
+            job.setRequestedTierKey(profile.tierKey());
+            job.setRequestedRuntimeProfileKey(profile.runtimeProfileKey());
+            job.setRequestedVectorProfileKey(profile.vectorProfileKey());
+            job.setPreviousPackageKey(previousState.packageKey());
+            job.setPreviousRuntimeProfileKey(previousState.runtimeProfileKey());
+            job.setPreviousVectorProfileKey(previousState.vectorProfileKey());
+            job.setRequestedTemplatePluginId(firstText(request == null ? null : request.requestedTemplatePluginId(), profile.templatePluginId()));
+            job.setRequestedTemplatePluginVersion(firstText(request == null ? null : request.requestedTemplatePluginVersion(), profile.templatePluginVersion()));
+            job.setRequestedPluginIdsJson(writePluginIds(resolveRequestedPluginIds(request, profile)));
+            job.setInstallIntentId(blankToNull(request == null ? null : request.installIntentId()));
+            job.setProfileChangeStrategy(resolveProfileChangeStrategy(previousState, profile));
+            job.setVectorReindexRequired(vectorReindexRequired(previousState, profile));
+            job.setLastErrorCode(null);
+            job.setLastErrorMessage(null);
+            job.setFailedAt(null);
+            job.setCancelledAt(null);
+            job.setNextAction("Wait for Platform provisioning to complete.");
+            job.setSummaryMessage(summaryForQueuedJob(jobType, profile));
+            job.setLeaseOwner(null);
+            job.setLeaseExpiresAt(null);
+            job.setUpdatedAt(Instant.now());
+            jobRepository.save(job);
+            audit("SHOPIFY_STORE_PROVISIONING_ENQUEUED", job, Map.of("jobType", jobType));
+            return toSummary(job);
+        });
         if (request != null && Boolean.TRUE.equals(request.processImmediately())) {
-            return processJobNow(normalizedShop, job.getId());
+            return processJobNow(normalizedShop, queued.id());
         }
-        return toSummary(job);
+        return queued;
     }
 
     public ShopifyStoreProvisioningStatusSummary getStatus(String shopDomain) {
@@ -198,39 +204,46 @@ public class ShopifyStoreProvisioningService {
         return toSummary(job);
     }
 
-    @Transactional
     public ShopifyStoreProvisioningJobSummary processNextDueJob() {
-        Instant now = Instant.now();
-        List<ShopifyStoreProvisioningJobEntity> candidates =
-            jobRepository.findAvailableForLease(LEASEABLE_STATUSES, now, PageRequest.of(0, 1));
-        if (candidates.isEmpty()) {
+        String jobId = transactionTemplate.execute(status -> {
+            Instant now = Instant.now();
+            List<ShopifyStoreProvisioningJobEntity> candidates =
+                jobRepository.findAvailableForLease(LEASEABLE_STATUSES, now, PageRequest.of(0, 1));
+            if (candidates.isEmpty()) {
+                return null;
+            }
+            ShopifyStoreProvisioningJobEntity job = candidates.getFirst();
+            job.setStatus("RUNNING");
+            job.setPhase("LEASED");
+            job.setLeaseOwner("shopify-provisioning-" + UUID.randomUUID());
+            job.setLeaseExpiresAt(now.plus(DEFAULT_LEASE_DURATION));
+            job.setAttemptCount(job.getAttemptCount() + 1);
+            job.setUpdatedAt(now);
+            jobRepository.save(job);
+            return job.getId();
+        });
+        if (!hasText(jobId)) {
             return null;
         }
-        ShopifyStoreProvisioningJobEntity job = candidates.getFirst();
-        job.setStatus("RUNNING");
-        job.setPhase("LEASED");
-        job.setLeaseOwner("shopify-provisioning-" + UUID.randomUUID());
-        job.setLeaseExpiresAt(now.plus(DEFAULT_LEASE_DURATION));
-        job.setAttemptCount(job.getAttemptCount() + 1);
-        job.setUpdatedAt(now);
-        jobRepository.save(job);
-        return processLeasedJob(job.getId());
+        return processLeasedJob(jobId);
     }
 
-    @Transactional
     public ShopifyStoreProvisioningJobSummary processJobNow(String shopDomain, String jobId) {
-        ShopifyStoreProvisioningJobEntity job = requireJob(shopDomain, jobId);
-        if (!"QUEUED".equalsIgnoreCase(job.getStatus()) && !"FAILED".equalsIgnoreCase(job.getStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Only queued or failed provisioning jobs can be processed manually.");
-        }
-        job.setStatus("RUNNING");
-        job.setPhase("LEASED");
-        job.setLeaseOwner("shopify-provisioning-manual-" + UUID.randomUUID());
-        job.setLeaseExpiresAt(Instant.now().plus(DEFAULT_LEASE_DURATION));
-        job.setAttemptCount(job.getAttemptCount() + 1);
-        job.setUpdatedAt(Instant.now());
-        jobRepository.save(job);
-        return processLeasedJob(job.getId());
+        String leasedJobId = transactionTemplate.execute(status -> {
+            ShopifyStoreProvisioningJobEntity job = requireJob(shopDomain, jobId);
+            if (!"QUEUED".equalsIgnoreCase(job.getStatus()) && !"FAILED".equalsIgnoreCase(job.getStatus())) {
+                throw new ResponseStatusException(CONFLICT, "Only queued or failed provisioning jobs can be processed manually.");
+            }
+            job.setStatus("RUNNING");
+            job.setPhase("LEASED");
+            job.setLeaseOwner("shopify-provisioning-manual-" + UUID.randomUUID());
+            job.setLeaseExpiresAt(Instant.now().plus(DEFAULT_LEASE_DURATION));
+            job.setAttemptCount(job.getAttemptCount() + 1);
+            job.setUpdatedAt(Instant.now());
+            jobRepository.save(job);
+            return job.getId();
+        });
+        return processLeasedJob(leasedJobId);
     }
 
     @Transactional

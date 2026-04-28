@@ -16,6 +16,9 @@ import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreProvisionin
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -46,6 +49,8 @@ class ShopifyStoreProvisioningServiceTest {
         DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
 
         ShopifyStoreConnectionEntity store = store();
         DeploymentEntity deployment = new DeploymentEntity();
@@ -75,7 +80,8 @@ class ShopifyStoreProvisioningServiceTest {
             marketplaceInstallService,
             draftCompilerService,
             marketplaceCatalogService,
-            auditService
+            auditService,
+            new TransactionTemplate(transactionManager)
         );
 
         ShopifyStoreProvisioningJobSummary summary = service.processJobNow("alpha.myshopify.com", "spj-123");
