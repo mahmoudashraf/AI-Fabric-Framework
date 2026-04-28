@@ -233,6 +233,20 @@ public class ShopifyStoreProvisioningService {
         return processLeasedJob(job.getId());
     }
 
+    @Transactional
+    public ShopifyStoreProvisioningJobSummary recordProcessingFailure(String shopDomain,
+                                                                      String jobId,
+                                                                      RuntimeException ex) {
+        ShopifyStoreProvisioningJobEntity job = requireJob(shopDomain, jobId);
+        if (!"RUNNING".equalsIgnoreCase(job.getStatus())) {
+            job.setStatus("RUNNING");
+            job.setPhase("FAILED");
+            job.setAttemptCount(job.getAttemptCount() + 1);
+        }
+        failJob(job, ex);
+        return toSummary(job);
+    }
+
     private ShopifyStoreProvisioningJobSummary processLeasedJob(String jobId) {
         ShopifyStoreProvisioningJobEntity job = jobRepository.findById(jobId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Provisioning job not found: " + jobId));

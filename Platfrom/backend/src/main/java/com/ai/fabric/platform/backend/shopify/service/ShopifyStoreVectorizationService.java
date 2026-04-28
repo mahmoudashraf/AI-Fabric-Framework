@@ -167,7 +167,7 @@ public class ShopifyStoreVectorizationService {
         }
 
         VectorizationOverviewSummary overview = reconcileVectorizationOverview(store, deployment);
-        ensureDeploymentRunnerSupport(deployment, overview);
+        ensureDeploymentRunnerSupport(deployment, overview, trustedCaller);
         platformAuditService.record(
             "SHOPIFY_STORE_VECTORIZATION_RECONCILED",
             "SHOPIFY_STORE_CONNECTION",
@@ -685,7 +685,9 @@ public class ShopifyStoreVectorizationService {
         return installs;
     }
 
-    private void ensureDeploymentRunnerSupport(DeploymentEntity deployment, VectorizationOverviewSummary overview) {
+    private void ensureDeploymentRunnerSupport(DeploymentEntity deployment,
+                                               VectorizationOverviewSummary overview,
+                                               boolean trustedCaller) {
         if (deployment == null || overview == null || !requiresPlatformManagedRunner(overview)) {
             return;
         }
@@ -699,7 +701,11 @@ public class ShopifyStoreVectorizationService {
         if (latestRelease != null && isReleaseInProgress(latestRelease)) {
             return;
         }
-        deploymentService.applyVersion(deployment.getId(), deployment.getActiveVersionId());
+        if (trustedCaller) {
+            deploymentService.applyVersionForTrustedCaller(deployment.getId(), deployment.getActiveVersionId());
+        } else {
+            deploymentService.applyVersion(deployment.getId(), deployment.getActiveVersionId());
+        }
     }
 
     private boolean requiresPlatformManagedRunner(VectorizationOverviewSummary overview) {

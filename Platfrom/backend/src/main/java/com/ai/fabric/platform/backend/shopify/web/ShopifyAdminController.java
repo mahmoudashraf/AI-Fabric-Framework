@@ -213,14 +213,14 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public ShopifyStoreProvisioningJobSummary processProvisioningJob(@PathVariable String shopDomain,
                                                                      @PathVariable String jobId) {
-        return shopifyStoreProvisioningService.processJobNow(shopDomain, jobId);
+        return processProvisioningJobSafely(shopDomain, jobId);
     }
 
     @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/run")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public ShopifyStoreProvisioningJobSummary runProvisioningJob(@PathVariable String shopDomain,
                                                                  @PathVariable String jobId) {
-        return shopifyStoreProvisioningService.processJobNow(shopDomain, jobId);
+        return processProvisioningJobSafely(shopDomain, jobId);
     }
 
     @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/retry")
@@ -231,7 +231,7 @@ public class ShopifyAdminController {
         ShopifyStoreProvisioningJobSummary retried =
             shopifyStoreProvisioningService.retry(shopDomain, jobId, text(request, "reason"));
         if (flag(request, "processImmediately") || flag(request, "processNow")) {
-            return shopifyStoreProvisioningService.processJobNow(shopDomain, jobId);
+            return processProvisioningJobSafely(shopDomain, jobId);
         }
         return retried;
     }
@@ -406,5 +406,19 @@ public class ShopifyAdminController {
             return booleanValue;
         }
         return Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    private ShopifyStoreProvisioningJobSummary processProvisioningJobSafely(String shopDomain, String jobId) {
+        try {
+            return shopifyStoreProvisioningService.processJobNow(shopDomain, jobId);
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+            int statusCode = ex.getStatusCode().value();
+            if (statusCode == 404 || statusCode == 409) {
+                throw ex;
+            }
+            return shopifyStoreProvisioningService.recordProcessingFailure(shopDomain, jobId, ex);
+        } catch (RuntimeException ex) {
+            return shopifyStoreProvisioningService.recordProcessingFailure(shopDomain, jobId, ex);
+        }
     }
 }

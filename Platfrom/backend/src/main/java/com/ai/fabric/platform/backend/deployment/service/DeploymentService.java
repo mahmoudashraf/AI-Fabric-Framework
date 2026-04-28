@@ -1326,6 +1326,11 @@ public class DeploymentService {
     }
 
     @Transactional
+    public DeploymentReleaseSummary applyVersionForTrustedCaller(String deploymentId, String versionId) {
+        return applyVersionInternal(deploymentId, versionId, null, true);
+    }
+
+    @Transactional
     DeploymentReleaseSummary applyVersionForPublicApi(String deploymentId, String versionId) {
         return applyVersionInternal(deploymentId, versionId, null, true);
     }
