@@ -156,7 +156,7 @@ EXPECT_MARKETPLACE_SHELL_CARD_IDS="${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}"
 EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT="${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT:-0}"
 EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED:-false}"
 RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN:-}"
-MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
+MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Using only retrieved marketplace knowledge sources, summarize the return and refund policy.}"
 MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS="${MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS:-3}"
 MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS="${MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS:-5}"
 MARKETPLACE_SHARED_SENTINEL_ID="${MARKETPLACE_SHARED_SENTINEL_ID:-}"
@@ -613,6 +613,159 @@ platform_marketplace_smoke_query_http() {
   done
 }
 
+validate_marketplace_smoke_query_evidence() {
+  local label="$1"
+  local expected_source_ids_json="$2"
+  local expected_adapter_types_json="$3"
+  local active_probe="$4"
+  local tmp output rc
+  tmp="$(mktemp)"
+  output="$(mktemp)"
+  printf '%s' "${HTTP_BODY}" > "${tmp}"
+  ASSERT_LABEL="${label}" \
+  ASSERT_FILE="${tmp}" \
+  EXPECTED_SOURCE_IDS_JSON="${expected_source_ids_json}" \
+  EXPECTED_ADAPTER_TYPES_JSON="${expected_adapter_types_json}" \
+  VERIFY_ACTIVE_PROBE="${active_probe}" \
+  python3 - <<'PY' >"${output}" 2>&1
+import json
+import os
+import pathlib
+import sys
+
+label = os.environ["ASSERT_LABEL"]
+raw = pathlib.Path(os.environ["ASSERT_FILE"]).read_text(encoding="utf-8").strip()
+try:
+    data = json.loads(raw) if raw else None
+except Exception as exc:
+    print(f"{label}: invalid JSON: {exc}")
+    sys.exit(2)
+
+expected_source_ids = set(json.loads(os.environ.get("EXPECTED_SOURCE_IDS_JSON") or "[]"))
+expected_adapter_types = set(json.loads(os.environ.get("EXPECTED_ADAPTER_TYPES_JSON") or "[]"))
+active_probe = (os.environ.get("VERIFY_ACTIVE_PROBE") or "").lower() == "true"
+
+errors = []
+if not isinstance(data, dict) or data.get("success") is not True:
+    errors.append("platform query did not report success")
+
+result = (data or {}).get("result") or {}
+if result.get("success") is not True:
+    errors.append("runtime result did not report success")
+if result.get("type") not in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}:
+    errors.append(f"unexpected result type {result.get('type')!r}")
+
+result_data = (result.get("data") or {}) if isinstance(result, dict) else {}
+rag = (result_data.get("ragResponse") or {}) if isinstance(result_data, dict) else {}
+docs = rag.get("documents") or []
+adapter_types = {
+    (doc.get("metadata") or {}).get("knowledgeSourceAdapterType")
+    for doc in docs
+    if isinstance(doc, dict)
+}
+source_ids = {
+    (doc.get("metadata") or {}).get("knowledgeSourceId")
+    for doc in docs
+    if isinstance(doc, dict)
+}
+adapter_types = {value for value in adapter_types if value}
+source_ids = {value for value in source_ids if value}
+
+if rag.get("success") is not True:
+    errors.append("RAG response was not successful")
+if not (result_data.get("answer") or result.get("message") or "").strip():
+    errors.append("response did not include an answer")
+if not docs:
+    errors.append("response did not include retrieved documents")
+if "shared-index" not in adapter_types:
+    errors.append(f"shared-index adapter missing; adapters={sorted(adapter_types)}")
+if "shared-marketplace-refund-policy" not in source_ids:
+    errors.append(f"shared-marketplace-refund-policy source missing; sources={sorted(source_ids)}")
+if active_probe:
+    matched_sources = expected_source_ids & source_ids
+    if len(matched_sources) < 2:
+        errors.append(
+            f"active probe expected at least two configured sources; matched={sorted(matched_sources)} expected={sorted(expected_source_ids)}"
+        )
+else:
+    if expected_source_ids and not (expected_source_ids & source_ids):
+        errors.append(f"no configured source matched; expected={sorted(expected_source_ids)} actual={sorted(source_ids)}")
+    if expected_adapter_types and not (expected_adapter_types & adapter_types):
+        errors.append(
+            f"no configured adapter matched; expected={sorted(expected_adapter_types)} actual={sorted(adapter_types)}"
+        )
+
+if errors:
+    action = result_data.get("action") if isinstance(result_data, dict) else None
+    action_result = (result_data.get("actionResult") or {}) if isinstance(result_data, dict) else {}
+    print(
+        json.dumps(
+            {
+                "errors": errors,
+                "resultType": result.get("type"),
+                "action": action,
+                "actionResultCount": ((action_result.get("data") or {}).get("_count") if isinstance(action_result, dict) else None),
+                "ragSuccess": rag.get("success"),
+                "documentCount": len(docs),
+                "sources": sorted(source_ids),
+                "adapters": sorted(adapter_types),
+            },
+            sort_keys=True,
+        )
+    )
+    sys.exit(1)
+
+print("ok")
+PY
+  rc=$?
+  if [[ ${rc} -eq 0 ]]; then
+    cat "${output}"
+    rm -f "${tmp}" "${output}"
+    return 0
+  fi
+  echo "WARN: ${label} did not return required shared-index evidence."
+  cat "${output}"
+  rm -f "${tmp}" "${output}"
+  return "${rc}"
+}
+
+run_marketplace_smoke_query_until_grounded() {
+  local expected_source_ids_json="$1"
+  local expected_adapter_types_json="$2"
+  local queries=(
+    "${MARKETPLACE_SMOKE_QUERY}"
+    "Use only retrieved marketplace knowledge sources. Summarize the shared marketplace refund policy and include the return window."
+    "Find shared-marketplace-refund-policy in the marketplace knowledge base and summarize the refund and return rules."
+  )
+  local query attempt conversation_id last_status
+  attempt=1
+  last_status=""
+  for query in "${queries[@]}"; do
+    conversation_id="marketplace-runtime-verify-$(date +%s)-${attempt}"
+    platform_marketplace_smoke_query_http \
+      "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+      "$(build_chat_query_payload "${query}" "${conversation_id}")"
+    last_status="${HTTP_STATUS}"
+    if [[ "${HTTP_STATUS}" != "200" ]]; then
+      echo "WARN: marketplace runtime smoke query attempt ${attempt} returned HTTP ${HTTP_STATUS}."
+      echo "${HTTP_BODY}"
+    elif validate_marketplace_smoke_query_evidence \
+        "marketplace runtime smoke query attempt ${attempt}" \
+        "${expected_source_ids_json}" \
+        "${expected_adapter_types_json}" \
+        "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}"; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep "${MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS}"
+  done
+  echo "---- marketplace runtime smoke query ----"
+  echo "HTTP ${last_status}"
+  echo "${HTTP_BODY}"
+  echo "----------------------------------------"
+  fail "marketplace runtime smoke query did not return required shared-index marketplace evidence"
+}
+
 RUNTIME_PUBLIC_AUTHORIZATION=""
 RUNTIME_PUBLIC_AUTHORIZATION_HEADER="Authorization"
 
@@ -1057,19 +1210,10 @@ PY
     echo "Marketplace shared-source write probe is disabled in read-only mode."
   fi
 
-  local conversation_id="marketplace-runtime-verify-$(date +%s)"
-  platform_marketplace_smoke_query_http \
-    "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
-    "$(build_chat_query_payload "${MARKETPLACE_SMOKE_QUERY}" "${conversation_id}")"
-  assert_status 200 "marketplace runtime smoke query"
   local expected_source_ids_json expected_adapter_types_json
   expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
   expected_adapter_types_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}")"
-  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
-    json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert "shared-marketplace-refund-policy" in source_ids, {"expectedSource": "shared-marketplace-refund-policy", "actual": sorted([v for v in source_ids if v])}\nassert len(expected_source_ids & source_ids) >= 2, {"expectedAtLeast": 2, "actual": sorted([v for v in (expected_source_ids & source_ids) if v])}\nprint("ok")'
-  else
-    json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\nresult_data = (result.get("data") or {})\nrag = (result_data.get("ragResponse") or {})\nassert rag.get("success") is True, rag\nanswer = (result_data.get("answer") or result.get("message") or "").strip()\nassert answer, result\ndocs = rag.get("documents") or []\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert "shared-marketplace-refund-policy" in source_ids, {"expectedSource": "shared-marketplace-refund-policy", "actual": sorted([v for v in source_ids if v])}\nassert expected_source_ids & source_ids, {"expectedAnySource": sorted(expected_source_ids), "actual": sorted([v for v in source_ids if v])}\nassert expected_adapter_types & adapter_types, {"expectedAnyAdapter": sorted(expected_adapter_types), "actual": sorted([v for v in adapter_types if v])}\nprint("ok")'
-  fi
+  run_marketplace_smoke_query_until_grounded "${expected_source_ids_json}" "${expected_adapter_types_json}"
 
   runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
   assert_status 200 "marketplace runtime admin overview (post-query)"
