@@ -3128,3 +3128,103 @@ Required live proof:
 - Merchant-required actions are surfaced as `NEEDS_MERCHANT_ACTION`, not hidden as generic failures.
 - Partner visibility remains assignment-gated and source-of-truth aligned with Platform store records.
 - Local tests, builds, smoke checks, deployment, live Shopify install proof, and cleanup proof are recorded in this document.
+
+## Zero-Touch Enterprise Install Implementation Proof - 2026-04-29
+
+Status: implemented, deployed to Railway, live verified against `shopping-companion-test.myshopify.com`, and pushed to `Platform-V6`.
+
+Implementation commits:
+
+- `a80082bc` - Implement Shopify zero-touch provisioning.
+- `1dfd52d4` - Fix trusted Shopify zero-touch provisioning.
+- `0f03213f` - Add safe provisioning retry execution path.
+- `b9e7f2cd` - Record Shopify provisioning process failures.
+- `831ab5a6` - Split Shopify provisioning transaction boundary.
+- `a1580fe6` - Keep vectorization from owning inference profile.
+
+Implemented behavior:
+
+- Platform now owns durable Shopify Companion provisioning jobs, package/profile catalog state, retry/cancel/manual processing, and operator status projection.
+- Shopify Bridge enqueues Platform provisioning from install and store package changes through the product-service scoped Platform client instead of requiring manual bootstrap for the happy path.
+- Provisioning reconciles the Shopify Companion package profile, template/plugin bundle, marketplace inference profile, vectorization posture, source readiness, and canonical store package state.
+- Package profiles support realistic internal inference variations, including the live `ELITE` / `HIGH_QUALITY` / `QDRANT_SHARED` profile backed by `mkp-inference-premium-hybrid`.
+- Vectorization reconciliation no longer owns inference-profile activation. Bootstrap still installs the default inference profile for standalone bootstraps, while package/profile reconciliation owns inference replacement for zero-touch installs and package changes.
+- Provisioning processing now leases jobs in short transactions and runs downstream reconciliation outside the lease transaction so real dependency failures are recorded instead of being hidden by rollback-only wrappers.
+- Operator retry with `processImmediately` is safe: transient dependency errors are persisted on the job, and successful retry clears the failure fields.
+- Shopify admin and Bridge admin can read merchant-safe provisioning state from the Platform source of truth.
+- The Shopify Companion live verifier now distinguishes "order lookup surface disabled" from "missing `read_orders` scope"; stores with the scope granted and the surface disabled correctly have empty `missingScopes`.
+
+Local verification proof:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyStoreProvisioningServiceTest,ShopifyStoreVectorizationServiceTest test` passed.
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyStoreProvisioningServiceTest,ShopifyStoreVectorizationServiceTest,ShopifyStoreBootstrapServiceTest test` passed.
+- `mvn -f Platfrom/backend/pom.xml -q test` passed after the transaction-boundary change.
+- `mvn -f Platfrom/backend/pom.xml -q test` passed after the vectorization/inference ownership split.
+- Earlier zero-touch implementation build gates passed before the first implementation commit: Platform backend tests, Shopify Bridge tests, Platform UI build, Partner UI build, Bridge UI build, and `git diff --check`.
+
+Live deployment proof:
+
+- Railway Platform backend deployment `7b13fe20-63eb-4097-8c38-6d094f28e5e1` reached `SUCCESS` for commit `a1580fe6`.
+- Live Platform admin login returned an authenticated `PLATFORM_ADMIN` session.
+- Live store binding:
+  - shop: `shopping-companion-test.myshopify.com`
+  - store connection: `shp-1c3385f1`
+  - customer: `cus-8ac907b8`
+  - deployment: `dep-11b1884f`
+  - consumer: `shopify-shopping-companion-test`
+  - product service: `psv-48d286fa`
+- Live provisioning job `spj-f6da9a0b` was retried through `POST /api/shopify/stores/{shop}/provisioning-jobs/{jobId}/retry` with `processImmediately=true` and returned:
+  - status: `READY`
+  - phase: `READY`
+  - package: `ELITE`
+  - runtime profile: `HIGH_QUALITY`
+  - vector profile: `QDRANT_SHARED`
+  - last error: cleared
+  - ready timestamp: `2026-04-28T23:59:33Z`
+- Live Platform provisioning status returned `READY` with effective profile:
+  - profile key: `HIGH_QUALITY`
+  - package/tier: `ELITE`
+  - vector strategy: `qdrant`
+  - vector provisioning mode: `EXTERNAL_EXISTING`
+  - vector storage posture: `SHARED`
+  - verification pack: `shopify-companion-elite-readiness`
+- Live marketplace install state for `dep-11b1884f` showed exactly one enabled inference profile:
+  - enabled: `mkp-inference-premium-hybrid`
+  - disabled: `mkp-inference-shared-embeddings`
+  - enabled data/action plugins: `mkp-data-shopify-policies`, `mkp-data-shopify-catalog`, `mkp-action-shopify-companion-read`
+  - bootstrapped template: `mkp-template-shopify-companion`
+- Live vectorization status returned:
+  - `readyToRun=true`
+  - `reconciliationRequired=false`
+  - missing plugins: `[]`
+  - disabled required plugins: `[]`
+  - runner configured: `true`
+  - plan configured: `true`
+  - blocking reasons: `[]`
+- Live Bridge admin `GET /api/admin/stores/shopping-companion-test.myshopify.com/provisioning` returned `READY` with the same `HIGH_QUALITY` / `ELITE` effective profile.
+
+Live verifier proof:
+
+Command shape used file-based secrets only:
+
+```bash
+PLATFORM_BASE_URL='https://ai-fabric-framework-production-324f.up.railway.app' \
+SHOPIFY_BRIDGE_BASE_URL='https://shopify-bridge-shopify-bridge-pr-production.up.railway.app' \
+SHOP_DOMAIN='shopping-companion-test.myshopify.com' \
+PLATFORM_LOGIN_EMAIL_FILE='/tmp/platform_login_email.secret' \
+PLATFORM_LOGIN_PASSWORD_FILE='/tmp/platform_login_password.secret' \
+SHOPIFY_BRIDGE_ADMIN_API_KEY_FILE='/tmp/shopify_bridge_admin_api_key_from_railway.secret' \
+EXPECT_ORDER_LOOKUP_SUPPORTED='false' \
+EXPECT_ORDER_LOOKUP_SCOPE_GRANTED='true' \
+EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY='true' \
+EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED='true' \
+EXPECT_SUPPORT_LIFECYCLE_STAGE='MERCHANT_HANDOFF' \
+EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED='false' \
+bash scripts/verify-shopify-companion.sh
+```
+
+Result:
+
+- `Shopify Companion verification passed for shopping-companion-test.myshopify.com`.
+- Covered Platform health, Shopify Bridge health, product service summary/health/overview/Railway logs, store summary, source coverage, binding inspection, consumer runtime credentials, billing posture, support readiness, webhook diagnostics, vectorization overview, governed actions, vectorization events, Bridge shell, embedded app shell and asset, Bridge admin overview, Bridge admin vectorization source page, Shopify webhook subscriptions, storefront bootstrap, storefront suggestions, storefront query, storefront event, and store summary after bootstrap.
+- No raw secrets were printed in the verification command or proof.
