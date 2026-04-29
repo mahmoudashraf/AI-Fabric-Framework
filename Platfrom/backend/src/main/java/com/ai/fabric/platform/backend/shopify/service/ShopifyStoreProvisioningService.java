@@ -290,12 +290,15 @@ public class ShopifyStoreProvisioningService {
                     .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Shopify store connection not found after bootstrap: " + job.getShopDomain()));
             }
 
-            if (hasText(store.getDeploymentId())) {
+            boolean skipNoOpPackageReconciliation = isNoOpPackageChange(job);
+            if (hasText(store.getDeploymentId()) && !skipNoOpPackageReconciliation) {
                 markPhase(job, "BUNDLE_SYNC", "Reconciling marketplace inference profile and product package metadata.");
                 reconcileMarketplaceInferenceProfile(store, profile, job);
             }
-            markPhase(job, "SOURCE_PREFLIGHT", "Reconciling Shopify Companion vectorization state.");
-            reconcileVectorizationSafely(store, job);
+            if (!skipNoOpPackageReconciliation) {
+                markPhase(job, "SOURCE_PREFLIGHT", "Reconciling Shopify Companion vectorization state.");
+                reconcileVectorizationSafely(store, job);
+            }
             persistEffectiveProfile(store, profile, job);
 
             job.setStatus("READY");
@@ -425,6 +428,13 @@ public class ShopifyStoreProvisioningService {
             case "PACKAGE_CHANGE" -> false;
             default -> false;
         };
+    }
+
+    private boolean isNoOpPackageChange(ShopifyStoreProvisioningJobEntity job) {
+        return job != null
+            && "PACKAGE_CHANGE".equalsIgnoreCase(job.getJobType())
+            && "NO_PROFILE_CHANGE".equalsIgnoreCase(blankToEmpty(job.getProfileChangeStrategy()))
+            && !job.isVectorReindexRequired();
     }
 
     private boolean hasActiveDeployment(String deploymentId) {

@@ -173,6 +173,64 @@ class ShopifyStoreProvisioningServiceTest {
         verify(vectorizationService).reconcileForTrustedCaller("alpha.myshopify.com");
     }
 
+    @Test
+    void processNoOpPackageChangePersistsProfileWithoutDeploymentReconciliation() {
+        ShopifyStoreProvisioningJobRepository jobRepository = mock(ShopifyStoreProvisioningJobRepository.class);
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        ShopifyStoreBootstrapService bootstrapService = mock(ShopifyStoreBootstrapService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
+        ShopifyStoreSourcePreflightSupport detailsSupport =
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper().findAndRegisterModules());
+        ShopifyCompanionPackageProfileCatalogService profileCatalogService = mock(ShopifyCompanionPackageProfileCatalogService.class);
+        DeploymentMarketplaceInstallService marketplaceInstallService = mock(DeploymentMarketplaceInstallService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+
+        ShopifyStoreConnectionEntity store = store();
+        ShopifyStoreProvisioningJobEntity job = job();
+        job.setJobType("PACKAGE_CHANGE");
+        job.setProfileChangeStrategy("NO_PROFILE_CHANGE");
+        job.setVectorReindexRequired(false);
+        ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile = profile();
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+
+        when(jobRepository.findById("spj-123")).thenReturn(Optional.of(job));
+        when(jobRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(storeRepository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
+        when(storeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(profileCatalogService.resolve("ELITE", "ELITE", "HIGH_QUALITY", "QDRANT_SHARED")).thenReturn(profile);
+
+        ShopifyStoreProvisioningService service = new ShopifyStoreProvisioningService(
+            jobRepository,
+            storeRepository,
+            deploymentRepository,
+            bootstrapService,
+            vectorizationService,
+            detailsSupport,
+            profileCatalogService,
+            marketplaceInstallService,
+            draftCompilerService,
+            marketplaceCatalogService,
+            auditService,
+            new TransactionTemplate(transactionManager)
+        );
+
+        ShopifyStoreProvisioningJobSummary summary = service.processJobNow("alpha.myshopify.com", "spj-123");
+
+        assertThat(summary.status()).isEqualTo("READY");
+        assertThat(store.getDetailsJson()).contains("\"profileKey\":\"HIGH_QUALITY\"");
+        verify(bootstrapService, never()).bootstrap(any(), any());
+        verify(marketplaceInstallService, never()).listInstallsForTrustedCaller(any());
+        verify(draftCompilerService, never()).syncDeploymentDraftForTrustedCaller(any());
+        verify(vectorizationService, never()).reconcileForTrustedCaller(any());
+    }
+
     private ShopifyStoreConnectionEntity store() {
         ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
         entity.setId("shp-123");
