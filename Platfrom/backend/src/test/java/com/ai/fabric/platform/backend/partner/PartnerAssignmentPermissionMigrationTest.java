@@ -107,6 +107,72 @@ class PartnerAssignmentPermissionMigrationTest {
         }
     }
 
+    @Test
+    void v71ReBackfillsActiveAssignmentsWhenV68AlreadyRanBeforeProductControlExpansion() throws Exception {
+        String url = "jdbc:h2:mem:partner_assignment_permissions_v71;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1";
+        Flyway.configure()
+            .dataSource(url, "sa", "")
+            .locations("classpath:db/migration")
+            .target(MigrationVersion.fromVersion("70"))
+            .load()
+            .migrate();
+
+        try (Connection connection = DriverManager.getConnection(url, "sa", "")) {
+            connection.prepareStatement("""
+                insert into partner_accounts (
+                    id,
+                    name,
+                    status,
+                    created_at,
+                    updated_at
+                ) values (
+                    'pa-permission-rebackfill',
+                    'Permission Rebackfill Partner',
+                    'ACTIVE',
+                    current_timestamp,
+                    current_timestamp
+                )
+                """).executeUpdate();
+
+            connection.prepareStatement("""
+                insert into partner_store_assignments (
+                    id,
+                    partner_account_id,
+                    shop_domain,
+                    status,
+                    assignment_source,
+                    permissions_json,
+                    created_at,
+                    updated_at
+                ) values (
+                    'psa-active-rebackfill',
+                    'pa-permission-rebackfill',
+                    'active-rebackfill.myshopify.com',
+                    'ACTIVE',
+                    'SHOPIFY_ADMIN_APPROVAL',
+                    '["STORE_READ","CATALOG_READ","VERIFICATION_READ","SUPPORT_MANAGE"]',
+                    current_timestamp,
+                    current_timestamp
+                )
+                """).executeUpdate();
+        }
+
+        Flyway.configure()
+            .dataSource(url, "sa", "")
+            .locations("classpath:db/migration")
+            .load()
+            .migrate();
+
+        try (Connection connection = DriverManager.getConnection(url, "sa", "")) {
+            String activePermissions = permissionsJson(connection, "psa-active-rebackfill");
+            assertTrue(activePermissions.contains("\"PRODUCT_CONFIG_READ\""));
+            assertTrue(activePermissions.contains("\"PRODUCT_CONFIG_WRITE\""));
+            assertTrue(activePermissions.contains("\"KNOWLEDGE_SOURCE_CONTROL\""));
+            assertTrue(activePermissions.contains("\"SUPPORT_MANAGE\""));
+            assertTrue(activePermissions.contains("\"PRODUCT_PAUSE_RESUME\""));
+        }
+    }
+
     private String permissionsJson(Connection connection, String assignmentId) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement("""
             select permissions_json
