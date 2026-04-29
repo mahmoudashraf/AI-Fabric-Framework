@@ -130,34 +130,41 @@ public class ShopifyBridgeActionExecutionService {
 
     private ShopifyBridgeActionResult getProductDetails(ShopifyBridgeCredentialAcquisition acquisition,
                                                         ShopifyBridgeActionExecuteRequest request) {
-        String sku = normalize(textParam(request, "sku"));
-        if (sku == null) {
-            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.sku is required.");
+        String lookupValue = productLookupValue(request);
+        if (lookupValue == null) {
+            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.sku, params.handle, or params.query is required.");
         }
-        Map<String, Object> product = findProductBySku(acquisition, sku);
-        if (product == null) {
-            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No product was found for SKU " + sku + ".");
+        ProductLookup lookup = findProduct(acquisition, lookupValue);
+        if (lookup == null) {
+            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No product was found for " + lookupValue + ".");
         }
-        return ShopifyBridgeActionResult.ok("Product details", Map.of("product", product, "sku", sku));
+        return ShopifyBridgeActionResult.ok(
+            "Product details",
+            Map.of("product", lookup.product(), "lookup", lookupValue, "lookupMethod", lookup.lookupMethod())
+        );
     }
 
     private ShopifyBridgeActionResult checkAvailability(ShopifyBridgeCredentialAcquisition acquisition,
                                                         ShopifyBridgeActionExecuteRequest request) {
-        String sku = normalize(textParam(request, "sku"));
-        if (sku == null) {
-            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.sku is required.");
+        String lookupValue = productLookupValue(request);
+        if (lookupValue == null) {
+            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.sku, params.handle, or params.query is required.");
         }
-        Map<String, Object> product = findProductBySku(acquisition, sku);
-        if (product == null) {
-            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No product was found for SKU " + sku + ".");
+        ProductLookup lookup = findProduct(acquisition, lookupValue);
+        if (lookup == null) {
+            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No product was found for " + lookupValue + ".");
         }
-        Map<String, Object> variant = firstMatchingVariant(product, sku);
+        Map<String, Object> product = lookup.product();
+        Map<String, Object> variant = lookup.variant() == null ? primaryAvailabilityVariant(product) : lookup.variant();
         if (variant == null) {
-            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No variant was found for SKU " + sku + ".");
+            return ShopifyBridgeActionResult.failure("NOT_FOUND", "No sellable variant was found for " + lookupValue + ".");
         }
         LinkedHashMap<String, Object> availability = new LinkedHashMap<>();
-        availability.put("sku", sku);
+        availability.put("lookup", lookupValue);
+        availability.put("lookupMethod", lookup.lookupMethod());
+        availability.put("sku", text(variant, "sku"));
         availability.put("productTitle", product.get("title"));
+        availability.put("productHandle", product.get("handle"));
         availability.put("variantTitle", variant.get("title"));
         availability.put("available", Boolean.TRUE.equals(variant.get("availableForSale")));
         availability.put("inventoryQuantity", variant.get("inventoryQuantity"));
@@ -243,12 +250,44 @@ public class ShopifyBridgeActionExecutionService {
         return items;
     }
 
-    private Map<String, Object> findProductBySku(ShopifyBridgeCredentialAcquisition acquisition, String sku) {
+    private ProductLookup findProduct(ShopifyBridgeCredentialAcquisition acquisition, String lookupValue) {
+        ProductLookup skuLookup = findProductBySku(acquisition, lookupValue);
+        if (skuLookup != null) {
+            return skuLookup;
+        }
+        return findProductByText(acquisition, lookupValue);
+    }
+
+    private ProductLookup findProductBySku(ShopifyBridgeCredentialAcquisition acquisition, String sku) {
         String query = "sku:" + sku;
         return fetchProducts(acquisition, query).stream()
-            .filter(item -> firstMatchingVariant(item, sku) != null)
+            .map(item -> {
+                Map<String, Object> variant = firstMatchingVariant(item, sku);
+                return variant == null ? null : new ProductLookup(item, variant, "SKU");
+            })
+            .filter(java.util.Objects::nonNull)
             .findFirst()
             .orElse(null);
+    }
+
+    private ProductLookup findProductByText(ShopifyBridgeCredentialAcquisition acquisition, String lookupValue) {
+        List<Map<String, Object>> matches = fetchProducts(acquisition, lookupValue);
+        if (matches.isEmpty()) {
+            return null;
+        }
+        String normalizedLookup = normalizeComparable(lookupValue);
+        Map<String, Object> exact = matches.stream()
+            .filter(item -> normalizedLookup.equals(normalizeComparable(text(item, "title")))
+                || normalizedLookup.equals(normalizeComparable(text(item, "handle"))))
+            .findFirst()
+            .orElse(null);
+        Map<String, Object> product = exact != null
+            ? exact
+            : matches.size() == 1 ? matches.getFirst() : null;
+        if (product == null) {
+            return null;
+        }
+        return new ProductLookup(product, primaryAvailabilityVariant(product), "TITLE_OR_HANDLE");
     }
 
     @SuppressWarnings("unchecked")
@@ -264,6 +303,28 @@ public class ShopifyBridgeActionExecutionService {
             .filter(variant -> normalizedSku.equals(text(variant, "sku").toLowerCase(Locale.ROOT)))
             .findFirst()
             .orElse(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> primaryAvailabilityVariant(Map<String, Object> product) {
+        Object rawVariants = product.get("variants");
+        if (!(rawVariants instanceof List<?> variants)) {
+            return null;
+        }
+        Map<String, Object> first = null;
+        for (Object rawVariant : variants) {
+            if (!(rawVariant instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Map<String, Object> variant = (Map<String, Object>) map;
+            if (first == null) {
+                first = variant;
+            }
+            if (Boolean.TRUE.equals(variant.get("availableForSale"))) {
+                return variant;
+            }
+        }
+        return first;
     }
 
     private Map<String, Object> toProductItem(String shopDomain, Map<String, Object> node) {
@@ -393,9 +454,39 @@ public class ShopifyBridgeActionExecutionService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private String firstNonBlank(String primary, String secondary) {
-        String normalizedPrimary = normalize(primary);
-        return normalizedPrimary != null ? normalizedPrimary : normalize(secondary);
+    private String productLookupValue(ShopifyBridgeActionExecuteRequest request) {
+        return normalize(firstNonBlank(
+            textParam(request, "sku"),
+            textParam(request, "handle"),
+            textParam(request, "productHandle"),
+            textParam(request, "title"),
+            textParam(request, "productTitle"),
+            textParam(request, "query")
+        ));
+    }
+
+    private String normalizeComparable(String value) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            return "";
+        }
+        return normalized
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9]+", "-")
+            .replaceAll("(^-+|-+$)", "");
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            String normalized = normalize(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
     }
 
     private boolean policyMatches(Map<String, Object> policy, String query) {
@@ -417,6 +508,9 @@ public class ShopifyBridgeActionExecutionService {
         }
         String value = text(policy, field);
         return !value.isBlank() && value.toLowerCase(Locale.ROOT).contains(needle);
+    }
+
+    private record ProductLookup(Map<String, Object> product, Map<String, Object> variant, String lookupMethod) {
     }
 
 }

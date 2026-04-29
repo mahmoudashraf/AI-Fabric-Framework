@@ -113,6 +113,58 @@ class ShopifyBridgeActionExecutionServiceTest {
     }
 
     @Test
+    void checkAvailabilityFallsBackToTitleLookupWhenPlannerSuppliesTitleAsSku() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any()))
+            .thenReturn(emptyProductsPayload())
+            .thenReturn(Map.of(
+                "data", Map.of(
+                    "products", Map.of(
+                        "edges", List.of(
+                            productEdge(
+                                "gid://shopify/Product/99",
+                                "The Minimal Snowboard",
+                                "the-minimal-snowboard",
+                                "",
+                                "Hydrogen Vendor",
+                                "",
+                                "2026-04-19T00:00:00Z",
+                                "gid://shopify/ProductVariant/99",
+                                "Default Title",
+                                "",
+                                true,
+                                4,
+                                "885.95"
+                            )
+                        )
+                    )
+                )
+            ));
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "check_availability",
+                Map.of("sku", "The Minimal Snowboard"),
+                null,
+                Map.of()
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("Availability");
+        assertThat(result.data()).containsEntry("lookupMethod", "TITLE_OR_HANDLE");
+        assertThat(result.data()).containsEntry("productTitle", "The Minimal Snowboard");
+        assertThat(result.data()).containsEntry("productHandle", "the-minimal-snowboard");
+        assertThat(result.data()).containsEntry("available", true);
+        assertThat(result.data()).containsEntry("inventoryQuantity", 4);
+    }
+
+    @Test
     void unsupportedActionReturnsFailure() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
@@ -333,6 +385,16 @@ class ShopifyBridgeActionExecutionServiceTest {
             "data", Map.of(
                 "products", Map.of(
                     "edges", edges
+                )
+            )
+        );
+    }
+
+    private Map<String, Object> emptyProductsPayload() {
+        return Map.of(
+            "data", Map.of(
+                "products", Map.of(
+                    "edges", List.of()
                 )
             )
         );

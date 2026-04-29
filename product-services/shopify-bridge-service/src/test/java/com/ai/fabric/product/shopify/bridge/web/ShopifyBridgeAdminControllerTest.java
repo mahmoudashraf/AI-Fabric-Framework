@@ -513,6 +513,27 @@ class ShopifyBridgeAdminControllerTest {
     }
 
     @Test
+    void adminActionExecutionReturnsFailureHttpStatusForActionFailures() throws Exception {
+        when(actionExecutionService.execute(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            org.mockito.ArgumentMatchers.any()
+        )).thenReturn(ShopifyBridgeActionResult.failure("NOT_FOUND", "No product was found."));
+
+        mockMvc.perform(
+                post("/api/admin/stores/alpha.myshopify.com/actions/execute")
+                    .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .contentType("application/json")
+                    .content("""
+                        {"actionId":"check_availability","params":{"sku":"missing"},"trace":{}}
+                        """)
+            )
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").value("No product was found."))
+            .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+    }
+
+    @Test
     void adminBootstrapUsesStoreServiceWhenApiKeyMatches() throws Exception {
         when(storeAdminService.bootstrap("alpha.myshopify.com")).thenReturn(new ShopifyBridgeStoreBootstrapResponse(
             "alpha.myshopify.com",
