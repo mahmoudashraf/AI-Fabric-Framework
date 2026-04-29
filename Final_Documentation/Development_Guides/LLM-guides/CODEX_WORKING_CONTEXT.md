@@ -141,6 +141,13 @@ Rules:
 - Gate: blueprint work is allowed now, but implementation should wait for `005` readiness or explicit user direction for parallel research; Shopify Free/Starter remain read-only and governed resolving stays higher-tier/Elite-only until proven.
 - Corrected 006 platform foundation: bounded multi-read-action planning before final generation already exists via `ReadActionResolutionService`, `resolver_assistant` single-pass mode, `thinker` iterative mode, eligible read-action allowlists, action-evidence diagnostics, and RAG cooperation. 006 should focus new work on productizing issue resolution and governed write-capable Resolver behavior.
 
+## 2026-04-29 Thinker Resolver 006.x Roadmap Restructure
+
+- Updated Thinker/Resolver docs into one product-line roadmap: parent blueprint `006_THINKER_RESOLVER_GOVERNED_ISSUE_RESOLUTION_BLUEPRINT.md`, `006.1` read-only Thinker diagnosis, `006.2` Resolver dry-run, `006.3` governed low-risk writes, and `006.4` productized readiness/rollout.
+- Renamed former `007_THINKER_PHASE_1_READ_ONLY_ISSUE_RESOLUTION_PRODUCTIZATION.md` to `006_1_THINKER_PHASE_1_READ_ONLY_ISSUE_RESOLUTION_PRODUCTIZATION.md`; future `007` should be reserved for a different product line.
+- Current code status recorded in `006.1`: `ReadActionResolutionService` and commerce `thinker` mode exist; dedicated IssueSession, Thinker EvidenceBundle, ResolutionPlan, Thinker UI, partner view, readiness pack, and kill switch are not implemented yet.
+- Decision: Shopify Companion Elite is the first reference vertical for `006.1`; Thinker/Resolver remains a reusable platform product line, not a separate Shopify-only app.
+
 ## 2026-04-25 Partner Enablement Supabase And Deployment Unblock
 
 - Used ignored private handoff section `7.5 Subabse Partner UI` as the Supabase credential source; extracted runtime/admin values into `/tmp/partner_supabase.env` without committing secrets.

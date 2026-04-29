@@ -1,12 +1,12 @@
-# Thinker Phase 1 Read-Only Issue Resolution Productization
+# 006.1 Thinker Phase 1 Read-Only Issue Resolution Productization
 
-Status: implementation handoff (2026-04-25)
+Status: implementation handoff, not yet implemented (renamed from `007` and revised 2026-04-29)
 
 Owner mode: technical LLM implementation session
 
-Roadmap phase: Thinker/Resolver Phase 1 — Thinker-only read-only issue resolution
+Roadmap phase: `006.1` — Thinker-only read-only issue resolution
 
-Priority: P1 (do not start before `005` reaches `DESIGN_PARTNER_READY` for Shopify Companion)
+Priority: P1. `005` has reached `DESIGN_PARTNER_READY`; this is now the next implementation entry point for the Thinker/Resolver product line.
 
 Depends on:
 
@@ -22,15 +22,31 @@ Related foundation:
 - [PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md](../../../../../../../../Final_Documentation/System_Archtecture_Guides/PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md)
 - [PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md](../../../../../../../../Final_Documentation/System_Archtecture_Guides/PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md)
 
+Next phases in the same product line:
+
+- [006_2_RESOLVER_DRY_RUN_AND_POLICY_SIMULATION.md](006_2_RESOLVER_DRY_RUN_AND_POLICY_SIMULATION.md)
+- [006_3_GOVERNED_LOW_RISK_WRITE_EXECUTION.md](006_3_GOVERNED_LOW_RISK_WRITE_EXECUTION.md)
+- [006_4_PRODUCTIZED_RESOLUTION_ASSISTANT_READINESS_AND_ROLLOUT.md](006_4_PRODUCTIZED_RESOLUTION_ASSISTANT_READINESS_AND_ROLLOUT.md)
+
 ---
 
 ## Strategic Handover
 
 The `006` blueprint defined Thinker/Resolver as the next product archetype. This handoff implements Phase 1: productize the existing read-action resolution loop for issue diagnosis. No write actions in this phase. No Resolver in this phase.
 
+Roadmap identity:
+
+- This file is `006.1`, not a separate `007` product.
+- It is the first implementation slice of the same Thinker/Resolver product line described by `006`.
+- Later `006.x` files extend this same product line; they should not duplicate its issue session, evidence, plan, policy, or audit primitives.
+- Shopify Companion Elite is the first reference vertical, not the only long-term domain.
+
 Accepted state from prior phases:
 
 - Shopify Companion is the anchor reference vertical.
+- `005` is implemented, live verified, and `DESIGN_PARTNER_READY`.
+- The full release gate passed as `vsr-df616f36`.
+- The live operator readiness endpoint reports `DESIGN_PARTNER_READY`, fresh evidence, 0 blockers, 10/10 checklist passed, and 10/10 answer results passed.
 - Free / Starter / Elite tier truth is enforced.
 - Free is AI search only.
 - Starter is read-only embedded intelligence with no order lookup.
@@ -51,6 +67,14 @@ Strategic posture:
 - Keep Thinker output inspectable: every resolution must show evidence and source, not just a final answer.
 - Keep prompt-injection defense visible from the start, not bolted on later.
 - Frame the Phase 1 surface as a diagnosis and explanation feature, not an "AI agent."
+
+Activation model:
+
+- Thinker Phase 1 is activated by orchestration mode, using the existing `thinker` mode where possible.
+- Mode selection is not enough by itself. The platform must also enforce tier, deployment, store readiness, action allowlist, and policy gates.
+- For Shopify Companion, Phase 1 is Elite-only. Free and Starter must never trigger Thinker deep diagnosis.
+- Eligible surfaces are Max/depth-layer or explicitly configured deep-diagnosis surfaces, not default AI search.
+- A per-deployment kill switch must disable Thinker without redeploying.
 
 Why this goes next after `005`:
 
@@ -88,6 +112,14 @@ Code anchors to read before changing:
 - `ai-infrastructure-module/curated/ai-curated-commerce/src/main/resources/ai-curated/packs/commerce.yml`
 - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/web/ShopifyMerchantController.java`
 - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/web/ShopifyBridgeAdminController.java`
+
+Current code status confirmed 2026-04-29:
+
+- `ReadActionResolutionService` exists and is fail-closed to allowlisted `READ` actions that are `readActionResolutionEligible`.
+- `commerce.yml` already defines `resolver_assistant` and `thinker` modes with read-action resolution configuration.
+- `thinker` mode is configured for iterative read-action resolution with bounded iterations/actions.
+- Platform Partner Enablement already has partner evidence bundles and support escalations, but those are not Thinker issue sessions and must not be treated as a complete substitute.
+- Dedicated `IssueSession`, Thinker `EvidenceBundle`, `ResolutionPlan`, Thinker operator UI, partner Thinker view, end-user source-cited depth-layer flow, Thinker readiness pack, and per-deployment Thinker kill switch are not implemented yet.
 
 ---
 

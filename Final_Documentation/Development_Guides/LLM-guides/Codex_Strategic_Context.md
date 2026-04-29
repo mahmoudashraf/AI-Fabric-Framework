@@ -22,7 +22,7 @@ Rules:
 - Elite should stay gated until governed action surfaces, audit, confirmation, support behavior, and plan rollout are coherent.
 - The platform is a credible product foundry, not yet a high-throughput product factory.
 - Do not start WooCommerce, Docs, Comply, Slack, Smart Brain, or broad white-label work before Shopify Companion has real product and commercial signal.
-- Thinker/Resolver is the next new product archetype candidate after the first-product readiness gate: governed issue resolution with evidence, policy, confirmation, audited read/write actions, and escalation. Blueprint work is allowed; implementation must not bypass `005`.
+- Thinker/Resolver is the next product line after the first-product readiness gate: governed issue resolution with evidence, policy, confirmation, audited read/write actions, and escalation. It now follows the `006.x` sequence after `005` reached `DESIGN_PARTNER_READY`.
 - Platform already supports the Thinker-side primitive: bounded LLM read-action resolution with eligible read actions, iterative `thinker` mode, evidence collection, optional RAG cooperation, and final generation. 006 should build on this instead of re-planning it from scratch.
 - Partner support is an early platform capability for developers, integrators, and agencies using LoomAI as an AI enablement layer.
 - Partner enablement means self-service signup, empty partner workspace by default, sandbox/demo access, intelligence-piece catalog, deployment templates, verification packs, merchant-approved scoped store access, support escalation, and implementation playbooks.
@@ -55,7 +55,7 @@ Active sequence:
 2. **Storefront Product Shell**: make embedded intelligence visibly real; converge on Max Mode and retire legacy chat as a long-term shell.
 3. **Starter Launch Package**: make full read-only store intelligence sellable and App Store-ready.
 4. **First Product Readiness Audit**: run the final technical/product/commercial-readiness gate for Shopify Companion Starter before design-partner, partner-scale, or public-market activity.
-5. **Thinker/Resolver Product Blueprint**: define the governed issue-resolution product archetype for read/write actions; blueprint only until `005` is complete and action-governance gates are explicit.
+5. **Thinker/Resolver `006.x` Product Line**: implement governed issue resolution in order: `006.1` read-only Thinker diagnosis, `006.2` Resolver dry-run, `006.3` governed low-risk writes, then `006.4` productized readiness and rollout.
 6. **Partner Enablement Foundation**: support self-managed implementation partners with Supabase signup, empty workspace, sandbox, intelligence catalog, templates, verification packs, merchant-approved scoped access, and escalation.
 7. **Design-Partner Proof**: test with 5-10 real stores before scaling public outreach or broad partner recruitment.
 8. **Public Launch Push**: earn the first install/review loop; target 40-50 installs or clear rejection signal.
@@ -74,7 +74,7 @@ Current P0 cleanup items:
 - Run `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/005_SHOPIFY_COMPANION_FIRST_PRODUCT_READINESS_AUDIT.md` before treating Shopify Companion Starter as design-partner-ready or public-market-ready.
 - Treat query-to-answer quality as part of first-product readiness, using Shopify Companion as the first concrete instance of a future platform-level Product Generation Audit Framework.
 - Product readiness audit UI is a platform/operator console first, not Shopify merchant admin or partner-first UI; partners may later run scoped client-store audits after canonical thresholds exist.
-- Keep `006_THINKER_RESOLVER_GOVERNED_ISSUE_RESOLUTION_BLUEPRINT.md` as blueprint-only until `005` readiness and governed action safety gates are satisfied.
+- Treat `006_THINKER_RESOLVER_GOVERNED_ISSUE_RESOLUTION_BLUEPRINT.md` as the parent blueprint; implementation starts at `006.1` and must not skip to dry-run or writes.
 - For 006, the new product risk is governed write-capable Resolver behavior; multi-read-action Thinker planning is an existing platform capability.
 
 ## Strategic Decision Log
@@ -98,3 +98,4 @@ Current P0 cleanup items:
 - 2026-04-25: Added Product Readiness Audit UI requirement to `005`: build an operator console for overview, checklist, query pack, answer results, evidence, and final decision; do not mark design-partner-ready from private scripts/chat history alone.
 - 2026-04-25: Created `006_THINKER_RESOLVER_GOVERNED_ISSUE_RESOLUTION_BLUEPRINT.md` as the next product archetype candidate: Thinker diagnoses with evidence/read actions; Resolver executes approved registered write actions only through policy, confirmation, dry-run where possible, audit, recovery, and escalation. This is blueprint-only until `005` is complete.
 - 2026-04-25: Corrected 006 foundation: read-action resolution is already implemented through `ReadActionResolutionService` with single-pass `resolver_assistant`, iterative `thinker`, eligible read-action allowlists, bounded action counts, RAG cooperation, diagnostics, and final generation from action evidence. Do not treat multi-read-action Thinker planning as missing.
+- 2026-04-29: Promoted Thinker/Resolver into one `006.x` product line after `005` reached `DESIGN_PARTNER_READY`: `006` remains the parent blueprint; former `007` is now `006.1` Thinker read-only issue diagnosis; `006.2` is Resolver dry-run, `006.3` is governed low-risk writes, and `006.4` is productized readiness/rollout. Shopify Companion Elite is the first reference vertical, not a separate product.

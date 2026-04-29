@@ -1,6 +1,6 @@
 # Thinker Resolver Governed Issue Resolution Blueprint
 
-Status: product blueprint (2026-04-25)
+Status: parent product blueprint for the `006.x` Thinker/Resolver roadmap family (revised 2026-04-29)
 
 Owner mode: strategic/product architecture LLM session
 
@@ -18,11 +18,25 @@ Related foundation:
 - [PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md](../../../../../../../../Final_Documentation/System_Archtecture_Guides/PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md)
 - [004_PARTNER_ENABLEMENT_FOUNDATION.md](004_PARTNER_ENABLEMENT_FOUNDATION.md)
 
+Implementation roadmap family:
+
+- [006_1_THINKER_PHASE_1_READ_ONLY_ISSUE_RESOLUTION_PRODUCTIZATION.md](006_1_THINKER_PHASE_1_READ_ONLY_ISSUE_RESOLUTION_PRODUCTIZATION.md)
+- [006_2_RESOLVER_DRY_RUN_AND_POLICY_SIMULATION.md](006_2_RESOLVER_DRY_RUN_AND_POLICY_SIMULATION.md)
+- [006_3_GOVERNED_LOW_RISK_WRITE_EXECUTION.md](006_3_GOVERNED_LOW_RISK_WRITE_EXECUTION.md)
+- [006_4_PRODUCTIZED_RESOLUTION_ASSISTANT_READINESS_AND_ROLLOUT.md](006_4_PRODUCTIZED_RESOLUTION_ASSISTANT_READINESS_AND_ROLLOUT.md)
+
 ---
 
 ## Strategic Handover
 
-Thinker/Resolver is the next major product archetype to consider after Shopify Companion proves first-product readiness.
+Thinker/Resolver is the next major product archetype after Shopify Companion first-product readiness.
+
+Current gate status:
+
+- `005` reached `DESIGN_PARTNER_READY` on 2026-04-29.
+- The full release gate passed as `vsr-df616f36`.
+- The Platform readiness UI now reads the `shopify-first-product-readiness-audit` stage from full release-gate evidence.
+- Implementation may start at `006.1`; later `006.x` phases remain blocked until their predecessor phase passes its readiness gate.
 
 Product goal:
 
@@ -36,7 +50,7 @@ This is higher leverage than launching another search/chat product because it mo
 
 Strategic posture:
 
-- Do not start implementation before `005` establishes Shopify Companion readiness.
+- Do not skip `006.1`; the product must prove read-only issue diagnosis before dry-run or write execution.
 - Do not market this as autonomous write access.
 - Position it as governed resolution, not "AI can do anything".
 - Treat write actions as a platform risk boundary, not a UI feature.
@@ -93,6 +107,100 @@ Product implication:
 - Phase 1 should productize and prove the existing read-action loop for issue resolution.
 - Phase 2 and beyond should add Resolver dry-run and governed write execution.
 - The main new product risk is no longer "can the LLM use multiple read actions before generation"; it is "can we govern write-capable resolution safely."
+
+Roadmap identity:
+
+- `006` is the parent product line, not an implementation slice.
+- `006.1` is the first implementation phase and was previously drafted as `007`.
+- `006.2`, `006.3`, and `006.4` extend the same product line; they are not separate products.
+- A future `007` should be reserved for a different product line after Thinker/Resolver, not for Phase 1 of this one.
+
+## Build Sequence Implementation Plan
+
+Build the product line in this order. Do not skip a phase because later phases depend on earlier data models, audit semantics, UI evidence, and safety proofs.
+
+### `006.1` Thinker Read-Only Issue Resolution
+
+Current code foundation:
+
+- `ReadActionResolutionService` exists and already enforces allowlisted `READ` actions.
+- The curated commerce pack already includes `resolver_assistant` and iterative `thinker` modes.
+
+New product work:
+
+- issue sessions
+- evidence bundles
+- resolution plans
+- Elite-only Thinker activation gates
+- source-cited end-user depth-layer answer
+- operator session inspection
+- partner-safe session summaries
+- readiness scenarios for read-only diagnosis, prompt injection, stale evidence, cross-tenant attempts, and write-required escalation
+
+Exit:
+
+- a sandbox Elite deployment can run read-only issue diagnosis end to end with no write path available.
+
+### `006.2` Resolver Dry-Run And Policy Simulation
+
+Current prerequisite:
+
+- `006.1` issue sessions, evidence, and plans exist.
+
+New product work:
+
+- write intent proposal model
+- policy decision model
+- dry-run/simulation result
+- confirmation preview only
+- denied/simulated action audit
+- operator/partner preview surfaces
+
+Exit:
+
+- the system can show what it would do, why policy allows or denies it, and what confirmation would be required, with zero real mutation.
+
+### `006.3` Governed Low-Risk Write Execution
+
+Current prerequisite:
+
+- `006.2` dry-run and policy simulation are proven.
+
+New product work:
+
+- one low-risk action family
+- explicit confirmation
+- execution gateway
+- idempotency
+- product-boundary execution
+- post-action verification
+- audit before and after execution
+- emergency kill switch
+
+Exit:
+
+- one reversible or low-risk write executes safely in sandbox after policy, dry-run when required, confirmation, idempotency, and audit.
+
+### `006.4` Productized Resolution Assistant Readiness And Rollout
+
+Current prerequisite:
+
+- `006.3` proves at least one governed low-risk write.
+
+New product work:
+
+- product packaging
+- operator readiness UI
+- partner rollout workflow
+- merchant-safe health surfaces
+- support runbook and export packet
+- pricing/tier posture
+- design-partner rollout packet
+- Thinker/Resolver readiness suite
+
+Exit:
+
+- non-founder operators can configure, verify, audit, support, and roll out the product without reading chat history.
 
 ---
 
@@ -543,7 +651,7 @@ Exit criteria:
 - low-risk write use cases are identified
 - action governance contract is reviewed
 
-### Phase 1: Thinker-Only Read Resolution
+### Phase 1: Thinker-Only Read Resolution (`006.1`)
 
 Goal:
 
@@ -569,7 +677,7 @@ Exit criteria:
 - source gaps are handled honestly
 - operator can inspect evidence and plan
 
-### Phase 2: Resolver Dry-Run
+### Phase 2: Resolver Dry-Run (`006.2`)
 
 Goal:
 
@@ -592,7 +700,7 @@ Exit criteria:
 - audit trail exists before real writes
 - no real state mutation happens
 
-### Phase 3: Governed Low-Risk Writes
+### Phase 3: Governed Low-Risk Writes (`006.3`)
 
 Goal:
 
@@ -615,7 +723,7 @@ Exit criteria:
 - action duplication is prevented
 - audit evidence is sufficient for support review
 
-### Phase 4: Productized Resolution Assistant
+### Phase 4: Productized Resolution Assistant (`006.4`)
 
 Goal:
 
@@ -743,7 +851,7 @@ Do not use Shopify as the first broad write-action playground. Use Shopify only 
 
 ## Open Decisions
 
-- First reference domain: Shopify Elite rehearsal, SaaS support, internal admin support, or partner demo app.
+- First reference domain: resolved by `006.1` as Shopify Companion Elite read-only deep diagnosis.
 - Whether the first write action should be app-owned or product-service-owned.
 - Which policy engine abstraction should be platform-level versus product-service-level.
 - How much of the audit UI belongs in Platform UI versus a product-specific operator surface.
@@ -781,16 +889,14 @@ This blueprint is complete when:
 
 ## Next Handoff
 
-Do not create an implementation handoff until one of these is true:
+Implementation now proceeds through the `006.x` family:
 
-- `005` reaches `DESIGN_PARTNER_READY`; or
-- the user explicitly decides Thinker/Resolver should be researched in parallel as a future product track without implementation.
+1. Implement `006.1` fully and live-verify it against a sandbox Elite deployment.
+2. Start `006.2` only after `006.1` passes its readiness pack.
+3. Start `006.3` only after `006.2` proves dry-run, policy, confirmation preview, and audit without real writes.
+4. Start `006.4` only after a governed low-risk write is proven safe enough for product packaging.
 
-Recommended next artifact after `005`:
-
-- `006A_THINKER_RESOLVER_REFERENCE_DOMAIN_SELECTION.md`
-
-That next artifact should select one bounded reference domain, one low-risk write action family, the first readiness scenario pack, and the minimum operator UI.
+Do not begin secondary domains or partner-defined action packs until `006.4` has a non-founder-operable product package.
 
 ---
 
