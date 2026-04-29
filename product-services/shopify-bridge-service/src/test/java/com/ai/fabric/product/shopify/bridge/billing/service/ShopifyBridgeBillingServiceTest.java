@@ -284,6 +284,39 @@ class ShopifyBridgeBillingServiceTest {
         verify(client, never()).execute(eq("alpha.myshopify.com"), eq("token"), eq(activeSubscriptionsQuery()));
     }
 
+    @Test
+    void paidModeUsesPlatformRecordedBillingStateBeforeLiveShopifyInspection() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        when(platformShopifyStoreClient.getBillingState("alpha.myshopify.com"))
+            .thenReturn(new ShopifyBridgeRecordedBillingStateSummary(
+                "alpha.myshopify.com",
+                "STARTER",
+                "ACTIVE",
+                "sub-1",
+                "Loom Companion Starter",
+                Instant.parse("2026-04-26T00:00:00Z"),
+                "merchant-approved billing state"
+            ));
+        ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
+            billingProperties("SHOPIFY_APP_SUBSCRIPTION", "29.00", "USD", "EVERY_30_DAYS", 7, true, false),
+            properties("https://bridge.example.com", "shopify-api-key"),
+            client,
+            installRecordService,
+            platformShopifyStoreClient
+        );
+
+        var summary = service.summarizeForShop("alpha.myshopify.com", "token");
+
+        assertThat(summary.mode()).isEqualTo("SHOPIFY_APP_SUBSCRIPTION");
+        assertThat(summary.tierKey()).isEqualTo("STARTER");
+        assertThat(summary.allowedSurfaces()).contains("product-insight", "policy-strip", "product-faq", "comparison");
+        assertThat(summary.chatFallbackEnabled()).isTrue();
+        assertThat(summary.message()).contains("Platform-recorded Shopify billing state");
+        verify(client, never()).execute(eq("alpha.myshopify.com"), eq("token"), eq(activeSubscriptionsQuery()));
+    }
+
     private ShopifyBridgeBillingProperties billingProperties(String mode,
                                                              String amount,
                                                              String currencyCode,

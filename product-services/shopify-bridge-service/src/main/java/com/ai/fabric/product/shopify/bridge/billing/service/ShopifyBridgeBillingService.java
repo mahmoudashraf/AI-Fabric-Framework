@@ -128,8 +128,11 @@ public class ShopifyBridgeBillingService {
                 "Free tier is active for this store."
             ));
         }
+        if (recordedBillingSummary.isPresent()) {
+            return recordedBillingSummary.get();
+        }
         if (!hasText(shopDomain) || !hasText(accessToken)) {
-            return recordedBillingSummary.orElseGet(() -> buildSummary(
+            return buildSummary(
                 billingMode,
                 fallbackTier,
                 "ACTIVE",
@@ -137,7 +140,7 @@ public class ShopifyBridgeBillingService {
                 false,
                 plans,
                 "Free tier is active. Connect the store with persisted Shopify credentials before requesting a paid upgrade."
-            ));
+            );
         }
         try {
             ShopifyBridgeStoreBillingState storeBilling = inspectStoreBillingState(shopDomain, accessToken);
