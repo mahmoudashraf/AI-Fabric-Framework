@@ -100,6 +100,7 @@ class PlatformVerificationSuiteScriptContextServiceTest {
         assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
         assertThat(context.environment()).containsEntry("PLATFORM_UI_BASE_URL", "https://platform-ui.example.test");
         assertThat(context.environment()).containsEntry("ADMIN_TARGET_DEPLOYMENT_ID", "dep-ecommerce");
+        assertThat(context.environment()).containsEntry("INFERENCE_SERVICE_REF", "openai-cloud-orchestration");
         assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
     }
 

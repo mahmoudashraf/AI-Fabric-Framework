@@ -103,6 +103,7 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("ADMIN_TARGET_DEPLOYMENT_ID", adminTargetDeploymentId);
         environment.put("VERIFY_CANONICAL_ROLLOUT_MUTATION", "false");
         environment.put("VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION", "false");
+        environment.put("INFERENCE_SERVICE_REF", PlatformVerificationSuiteCatalog.SHARED_INFERENCE_SERVICE_REF);
 
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-platform-admin-regression.sh",

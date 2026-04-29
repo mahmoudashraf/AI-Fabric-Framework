@@ -50,7 +50,7 @@ VERIFY_CONSUMER_RESOLUTION_SMOKE="${VERIFY_CONSUMER_RESOLUTION_SMOKE:-true}"
 VERIFY_INFERENCE_SERVICE_UI="${VERIFY_INFERENCE_SERVICE_UI:-true}"
 VERIFY_INFERENCE_SERVICE_ADMIN_READONLY="${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY:-true}"
 VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION:-false}"
-INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF:-shared-ollama-orchestration}"
+INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF:-openai-cloud-orchestration}"
 INFERENCE_SERVICE_ROTATE_SECRET_VALUE="${INFERENCE_SERVICE_ROTATE_SECRET_VALUE:-}"
 INFERENCE_SERVICE_SCALE_TARGET="${INFERENCE_SERVICE_SCALE_TARGET:-}"
 
@@ -916,7 +916,7 @@ if [[ "${VERIFY_CANONICAL_ROLLOUT_READONLY}" == "true" ]]; then
   echo "== Canonical Rollout Inventory =="
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/verification-rollouts"
   assert_status 200 "canonical rollout inventory"
-  json_assert "canonical rollout inventory" $'items = (data or {}).get("items") or []\nkeys = {item.get("key") for item in items}\nfor required in {"ecommerce", "qdrant", "pinecone", "milvus", "weaviate"}:\n  assert required in keys, {"required": required, "actual": sorted(keys)}\nassert bool((data or {}).get("summaryMessage"))\nprint("ok")'
+  json_assert "canonical rollout inventory" $'items = (data or {}).get("items") or []\nkeys = {item.get("key") for item in items}\nfor required in {"marketplace", "ecommerce", "qdrant"}:\n  assert required in keys, {"required": required, "actual": sorted(keys)}\nassert bool((data or {}).get("summaryMessage"))\nprint("ok")'
   pass "platform GET /api/deployments/verification-rollouts"
 fi
 
