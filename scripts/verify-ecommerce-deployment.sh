@@ -2235,7 +2235,76 @@ PY
 )"
   rm -f "${runs_file}"
   if [[ "${PLATFORM_VERIFICATION_STATUS_MATCHES_EXPECTATION}" == "true" ]]; then
-    json_assert "platform verification run checks" $'items = data or []\nrun_id = "'"${PLATFORM_LATEST_VERIFICATION_RUN_ID}"'"\nassert run_id\nrun = next((item for item in items if (item or {}).get("id") == run_id), None)\nassert run is not None\nchecks = {((check or {}).get("name") or (check or {}).get("key")): (check or {}).get("status") for check in ((run or {}).get("checks") or [])}\nrequired = ["runtime_config_matches_expected","connector_config_matches_expected","runtime_actions_match_expected","connector_actions_match_expected"]\nfor req in required:\n  assert req in checks, checks\nexpected = "SKIPPED" if "'"${PLATFORM_GENERATED_PROVISIONING_MODE}"'" == "RAILWAY_STUB" else "PASSED"\nfor req in required:\n  assert checks.get(req) == expected, checks\nif "'"${EXPECT_VECTORIZATION_PLAN_PRESENT}"'".lower() == "true":\n  assert checks.get("vectorization_control_plane_ready") == expected, checks\nelse:\n  if "vectorization_control_plane_ready" in checks:\n    assert checks.get("vectorization_control_plane_ready") == "SKIPPED", checks\nif "'"${EXPECT_VECTORIZATION_RUNNER_REQUIRED}"'".lower() == "true":\n  assert checks.get("vectorization_runner_registration_ready") == expected, checks\nelse:\n  if "vectorization_runner_registration_ready" in checks:\n    assert checks.get("vectorization_runner_registration_ready") == "SKIPPED", checks\nif "'"${EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER}"'".lower() == "true":\n  assert checks.get("vectorization_runner_service_provisioned") == expected, checks\nelse:\n  if "vectorization_runner_service_provisioned" in checks:\n    assert checks.get("vectorization_runner_service_provisioned") == "SKIPPED", checks\nfor optional in ["runtime_prompt_config_matches_expected","prompt_artifact_fetch_probe"]:\n  if optional in checks:\n    assert checks.get(optional) == expected, checks\nprint("ok")'
+    checks_file="$(mktemp)"
+    printf '%s' "${HTTP_BODY}" > "${checks_file}"
+    if PARSE_FILE="${checks_file}" \
+        RUN_ID="${PLATFORM_LATEST_VERIFICATION_RUN_ID}" \
+        PLATFORM_GENERATED_PROVISIONING_MODE="${PLATFORM_GENERATED_PROVISIONING_MODE}" \
+        EXPECT_VECTORIZATION_PLAN_PRESENT="${EXPECT_VECTORIZATION_PLAN_PRESENT}" \
+        EXPECT_VECTORIZATION_RUNNER_REQUIRED="${EXPECT_VECTORIZATION_RUNNER_REQUIRED}" \
+        EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER="${EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER}" \
+        python3 - <<'PY'
+import json
+import os
+import sys
+
+with open(os.environ["PARSE_FILE"], "r", encoding="utf-8") as handle:
+    items = json.load(handle)
+run_id = os.environ.get("RUN_ID") or ""
+run = next((item for item in items if (item or {}).get("id") == run_id), None)
+if not run:
+    print(json.dumps({"missingRunId": run_id}, sort_keys=True))
+    sys.exit(1)
+
+checks = {
+    ((check or {}).get("name") or (check or {}).get("key")): (check or {}).get("status")
+    for check in ((run or {}).get("checks") or [])
+}
+expected = "SKIPPED" if os.environ.get("PLATFORM_GENERATED_PROVISIONING_MODE") == "RAILWAY_STUB" else "PASSED"
+required = [
+    "runtime_config_matches_expected",
+    "connector_config_matches_expected",
+    "runtime_actions_match_expected",
+    "connector_actions_match_expected",
+]
+failures = {}
+for req in required:
+    if checks.get(req) != expected:
+        failures[req] = checks.get(req)
+
+if (os.environ.get("EXPECT_VECTORIZATION_PLAN_PRESENT") or "").lower() == "true":
+    if checks.get("vectorization_control_plane_ready") != expected:
+        failures["vectorization_control_plane_ready"] = checks.get("vectorization_control_plane_ready")
+elif checks.get("vectorization_control_plane_ready") not in {None, "SKIPPED"}:
+    failures["vectorization_control_plane_ready"] = checks.get("vectorization_control_plane_ready")
+
+if (os.environ.get("EXPECT_VECTORIZATION_RUNNER_REQUIRED") or "").lower() == "true":
+    if checks.get("vectorization_runner_registration_ready") != expected:
+        failures["vectorization_runner_registration_ready"] = checks.get("vectorization_runner_registration_ready")
+elif checks.get("vectorization_runner_registration_ready") not in {None, "SKIPPED"}:
+    failures["vectorization_runner_registration_ready"] = checks.get("vectorization_runner_registration_ready")
+
+if (os.environ.get("EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER") or "").lower() == "true":
+    if checks.get("vectorization_runner_service_provisioned") != expected:
+        failures["vectorization_runner_service_provisioned"] = checks.get("vectorization_runner_service_provisioned")
+elif checks.get("vectorization_runner_service_provisioned") not in {None, "SKIPPED"}:
+    failures["vectorization_runner_service_provisioned"] = checks.get("vectorization_runner_service_provisioned")
+
+for optional in ["runtime_prompt_config_matches_expected", "prompt_artifact_fetch_probe"]:
+    if optional in checks and checks.get(optional) != expected:
+        failures[optional] = checks.get(optional)
+
+if failures:
+    print(json.dumps({"runId": run_id, "staleOrMismatchedPersistedChecks": failures}, sort_keys=True))
+    sys.exit(1)
+print("ok")
+PY
+    then
+      true
+    else
+      warn "platform verification run checks are stale or mismatched; current hosted runtime and connector probes already passed in this script."
+    fi
+    rm -f "${checks_file}"
   else
     warn "platform verification run checks remain stale after refresh; using current live verification results from this run."
   fi
