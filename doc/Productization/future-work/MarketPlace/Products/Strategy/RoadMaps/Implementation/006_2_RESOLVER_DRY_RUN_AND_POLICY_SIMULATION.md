@@ -1,6 +1,6 @@
 # 006.2 Resolver Dry-Run And Policy Simulation
 
-Status: implemented locally as the Resolver preview portion of the full 006 slice; live deployment verification pending post-push (created 2026-04-29)
+Status: implemented, deployed, and live verified as the Resolver preview portion of the full 006 slice (created 2026-04-29)
 
 Owner mode: technical LLM implementation session
 

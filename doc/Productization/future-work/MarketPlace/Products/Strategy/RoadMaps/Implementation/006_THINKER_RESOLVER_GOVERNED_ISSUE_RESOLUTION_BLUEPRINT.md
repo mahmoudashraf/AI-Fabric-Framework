@@ -1,12 +1,12 @@
 # Thinker Resolver Governed Issue Resolution Blueprint
 
-Status: implemented full-stack for the first governed product slice; live deployment verification pending post-push (revised 2026-04-29)
+Status: implemented, deployed, and live verified for the first governed product slice (revised 2026-04-29)
 
 Owner mode: strategic/product architecture LLM session
 
 Roadmap phase: Next Product Archetype Candidate
 
-Priority: P0 blueprint, not implementation before the first-product readiness gate
+Priority: P0 product line; first Shopify Companion Elite slice completed after the first-product readiness gate
 
 Depends on:
 
@@ -37,6 +37,7 @@ Current gate status:
 - The full release gate passed as `vsr-df616f36`.
 - The Platform readiness UI now reads the `shopify-first-product-readiness-audit` stage from full release-gate evidence.
 - Implementation has started and the initial full-stack governed slice now spans `006.1` through `006.4`: Thinker issue sessions, Resolver dry-run, one low-risk governed execution family, operator/partner/merchant UI, guides, and release-gate wiring.
+- Live verification passed on 2026-04-29 against the deployed Platform backend, Partner UI, and `shopping-companion-test.myshopify.com`.
 
 Product goal:
 
@@ -876,14 +877,14 @@ Do not use Shopify as the first broad write-action playground. Use Shopify only 
 
 ---
 
-## Open Decisions
+## Resolved Decisions For First Slice
 
-- First reference domain: resolved by `006.1` as Shopify Companion Elite read-only deep diagnosis.
-- Whether the first write action should be app-owned or product-service-owned.
-- Which policy engine abstraction should be platform-level versus product-service-level.
-- How much of the audit UI belongs in Platform UI versus a product-specific operator surface.
-- Whether approval should support user-only, operator-only, or dual approval in phase 3.
-- Whether every write action requires dry-run support, or whether low-risk idempotent actions can launch without dry-run.
+- First reference domain: Shopify Companion Elite deep issue diagnosis.
+- First write action family: product-owned Partner Support escalation and Partner Evidence Bundle creation.
+- Policy boundary: Platform owns policy decisions, kill switches, audit ledgers, and execution records; product services expose health and product-context surfaces.
+- Operator surface: Platform UI owns investigation, policy, dry-run, and execution ledgers; Partner UI owns assigned-store redacted views.
+- Approval posture: first slice supports operator-governed low-risk execution only; merchant/partner assignment gates still apply before partner visibility.
+- Dry-run posture: every Resolver execution path in the first slice has a dry-run preview before governed execution.
 
 ---
 
@@ -916,14 +917,12 @@ This blueprint is complete when:
 
 ## Next Handoff
 
-Implementation now proceeds through the `006.x` family:
+The `006.x` family is implemented for the first Shopify Companion Elite governed slice. Next work should expand from this product line in controlled increments:
 
-1. Implement `006.1` fully and live-verify it against a sandbox Elite deployment.
-2. Start `006.2` only after `006.1` passes its readiness pack.
-3. Start `006.3` only after `006.2` proves dry-run, policy, confirmation preview, and audit without real writes.
-4. Start `006.4` only after a governed low-risk write is proven safe enough for product packaging.
-
-Do not begin secondary domains or partner-defined action packs until `006.4` has a non-founder-operable product package.
+1. Add a second low-risk action family only after it has dry-run, policy, execution ledger, recovery guidance, and live verifier coverage.
+2. Add merchant-facing approval prompts only when the UI can show clear before/after state and policy outcome.
+3. Add partner-authored diagnostics only after operator-owned policy prevents partner bypass.
+4. Start secondary domains only after Shopify Companion Elite has design-partner usage evidence.
 
 ---
 
@@ -941,3 +940,13 @@ Required fields:
 - next handoff
 
 Do not paste long logs, secrets, or raw diffs.
+
+### 2026-04-29 Completion Notes
+
+- Decision summary: implemented Thinker/Resolver as one product line with Shopify Companion Elite as the first reference vertical and support escalation as the first governed low-risk action family.
+- Changed files: Platform backend Thinker package, Partner Enablement permission backfill, Shopify Bridge Thinker health projection, Platform UI, Partner UI, Shopify Bridge UI, release-gate catalog/script wiring, verification scripts, and operator/partner/developer guides.
+- Validation performed: local backend tests, full Platform backend test suite, full Shopify Bridge test suite, Platform UI build, Partner UI build, Bridge UI build, shell syntax checks, `git diff --check`, changed-code no-stub scan, and live `scripts/verify-thinker-resolver-readiness.sh`.
+- Live proof: verifier passed on 2026-04-29 against Platform backend `https://ai-fabric-framework-production-324f.up.railway.app`, Partner UI `https://ai-fabric-framework-production-158d.up.railway.app`, and store `shopping-companion-test.myshopify.com` with `THINKER_REQUIRE_PARTNER_PROOF=true` and `THINKER_EXECUTE_LOW_RISK=true`.
+- Deployment proof: implementation commits `7931a918` and `809696dc` were pushed to `Platform-V6`; deploy-branch commits `0b1ca07d` and `8bfc30e3` were pushed to `Platform_V1`.
+- Blockers: none for the first governed slice.
+- Next handoff: expand governed action families only with real dry-run, policy, audit, execution, recovery, partner-scope, release-gate, and live verification coverage.
