@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogServ
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreProvisioningJobEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyCompanionPackageProfileSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreProvisioningJobSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreProvisioningJobRepository;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -94,6 +96,81 @@ class ShopifyStoreProvisioningServiceTest {
         verify(vectorizationService).reconcileForTrustedCaller("alpha.myshopify.com");
         verify(vectorizationService, never()).reconcile("alpha.myshopify.com");
         verify(bootstrapService, never()).bootstrap(any(), any());
+    }
+
+    @Test
+    void processPackageChangeBootstrapsWhenStoredDeploymentIsMissing() {
+        ShopifyStoreProvisioningJobRepository jobRepository = mock(ShopifyStoreProvisioningJobRepository.class);
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        ShopifyStoreBootstrapService bootstrapService = mock(ShopifyStoreBootstrapService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
+        ShopifyStoreSourcePreflightSupport detailsSupport =
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper().findAndRegisterModules());
+        ShopifyCompanionPackageProfileCatalogService profileCatalogService = mock(ShopifyCompanionPackageProfileCatalogService.class);
+        DeploymentMarketplaceInstallService marketplaceInstallService = mock(DeploymentMarketplaceInstallService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+
+        ShopifyStoreConnectionEntity staleStore = store();
+        staleStore.setDeploymentId("dep-missing");
+        ShopifyStoreConnectionEntity repairedStore = store();
+        repairedStore.setDeploymentId("dep-456");
+        DeploymentEntity repairedDeployment = new DeploymentEntity();
+        repairedDeployment.setId("dep-456");
+        ShopifyStoreProvisioningJobEntity job = job();
+        job.setJobType("PACKAGE_CHANGE");
+        ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile = profile();
+
+        when(jobRepository.findById("spj-123")).thenReturn(Optional.of(job));
+        when(jobRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(storeRepository.findByShopDomainIgnoreCase("alpha.myshopify.com"))
+            .thenReturn(Optional.of(staleStore), Optional.of(repairedStore));
+        when(storeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.findById("dep-missing")).thenReturn(Optional.empty());
+        when(deploymentRepository.findById("dep-456")).thenReturn(Optional.of(repairedDeployment));
+        when(profileCatalogService.resolve("ELITE", "ELITE", "HIGH_QUALITY", "QDRANT_SHARED")).thenReturn(profile);
+        when(bootstrapService.bootstrap(eq("alpha.myshopify.com"), any())).thenReturn(new ShopifyStoreBootstrapSummary(
+            "alpha.myshopify.com",
+            "cus-123",
+            "dep-456",
+            "con-123",
+            false,
+            true,
+            false,
+            List.of(),
+            null
+        ));
+        when(marketplaceInstallService.listInstallsForTrustedCaller(repairedDeployment)).thenReturn(List.of(
+            install("mpi-inference", profile.inferencePluginId(), "ENABLED", "INFERENCE_PROFILE")
+        ));
+
+        ShopifyStoreProvisioningService service = new ShopifyStoreProvisioningService(
+            jobRepository,
+            storeRepository,
+            deploymentRepository,
+            bootstrapService,
+            vectorizationService,
+            detailsSupport,
+            profileCatalogService,
+            marketplaceInstallService,
+            draftCompilerService,
+            marketplaceCatalogService,
+            auditService,
+            new TransactionTemplate(transactionManager)
+        );
+
+        ShopifyStoreProvisioningJobSummary summary = service.processJobNow("alpha.myshopify.com", "spj-123");
+
+        assertThat(summary.status()).isEqualTo("READY");
+        assertThat(summary.bootstrapDeploymentId()).isEqualTo("dep-456");
+        assertThat(repairedStore.getDetailsJson()).contains("\"profileKey\":\"HIGH_QUALITY\"");
+        verify(bootstrapService).bootstrap(eq("alpha.myshopify.com"), any());
+        verify(draftCompilerService).syncDeploymentDraftForTrustedCaller("dep-456");
+        verify(vectorizationService).reconcileForTrustedCaller("alpha.myshopify.com");
     }
 
     private ShopifyStoreConnectionEntity store() {
