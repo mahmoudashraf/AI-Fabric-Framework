@@ -750,3 +750,41 @@ Pending handoff:
 
 - Begin controlled design-partner proof across 5-10 real stores.
 - Do not claim `MARKET_PROVEN` until real merchant/design-partner outcomes are collected.
+
+### Release Gate Completion Proof - 2026-04-29
+
+Audit summary:
+
+- Full `full-platform-release-readiness` live gate passed end to end as run `vsr-df616f36`.
+- The suite ran with real control-plane repair enabled for cold vectorization state; ecommerce vectorization was repaired by live run `vrn-4d013427` with `322` processed, `322` succeeded, and `0` failed.
+- Mandatory hosted deployments passed: Marketplace `hvr-17b253e8` (`42` passes, `1` warning), Ecommerce `hvr-b0ac9f64` (`43` passes), and Qdrant `hvr-88a44675` (`43` passes).
+- Shopify first-product readiness passed in-suite and standalone against `shopping-companion-test.myshopify.com`; answer quality remained `PASS (10/10)`.
+- Partner Enablement strict live gate passed in-suite after refreshing the short-lived non-social Supabase partner JWT.
+
+Implementation fixes completed during final hardening:
+
+- Marketplace hosted smoke query now requires real `shared-index` evidence and retries with grounded marketplace prompts instead of accepting action-catalog routing ambiguity.
+- First-product readiness audit now prepares the release-gate test store billing posture through the real Shopify Bridge admin billing-state endpoint and requires the Platform secret registry to support `SHOPIFY_BRIDGE_ADMIN_API_KEY`.
+- Managed Qdrant release-gate verification no longer creates throwaway database API keys every run; it verifies management/account/cluster and data-plane collection access with configured live keys to avoid provider 429 churn.
+- Hosted ecommerce verification treats current live runtime/connector probes as authoritative when persisted Platform verification-run evidence is stale after repair.
+
+Verification commands and results:
+
+- `bash -n scripts/verify-ecommerce-deployment.sh` passed.
+- `bash -n scripts/verify-shopify-first-product-readiness-audit.sh` passed.
+- `bash -n scripts/verify-managed-vector-providers.sh` passed.
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformVerificationSuiteScriptContextServiceTest,PlatformVerificationSuiteServiceTest,PlatformVerificationSuiteExecutionServiceTest test` passed.
+- Qdrant-only managed provider verification passed with no ephemeral DB key creation.
+- Standalone Partner Enablement live verifier passed against Platform, Partner UI, and `shopping-companion-test.myshopify.com`.
+- `git diff --check` passed.
+
+Pushed commits:
+
+- `07d972aa` - Stabilize marketplace hosted verification smoke query.
+- `ca40b559` - Require Shopify readiness billing posture in release gate.
+- `4ebb4996` - Avoid ephemeral Qdrant keys in release gate.
+- `905b0dd7` - Treat live hosted probes as authoritative evidence.
+
+Blockers:
+
+- None for release-gated Shopify Companion first-product readiness or Partner Enablement foundation.

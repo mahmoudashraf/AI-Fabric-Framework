@@ -217,3 +217,15 @@ Rules:
 - Readiness decision: `DESIGN_PARTNER_READY`, not `MARKET_PROVEN`.
 - Blockers: none for first design-partner rollout.
 - Next handoff: start controlled design-partner proof across 5-10 real stores and collect real merchant outcome evidence before claiming market proof.
+
+## 2026-04-29 Full Release Gate Final Proof
+
+- Final full release gate passed: `full-platform-release-readiness` run `vsr-df616f36`, status `PASSED`, completed `2026-04-29T13:54:20Z`.
+- All 11 blocking stages passed: shared inference health, platform admin live regression, canonical rollout inventory, managed vector provider verification, marketplace install flow, Shopify Companion verification, Shopify first-product readiness audit, Partner Enablement verification, Marketplace hosted verification, Ecommerce hosted verification, and Qdrant hosted verification.
+- Hosted proof IDs: Marketplace `hvr-17b253e8` (`42` passes, `1` warning), Ecommerce `hvr-b0ac9f64` (`43` passes), Qdrant `hvr-88a44675` (`43` passes).
+- Vectorization proof: ecommerce repair run `vrn-4d013427` completed `BOOTSTRAP` with `322` processed, `322` succeeded, `0` failed; Marketplace and Qdrant were `IN_SYNC` at hosted verification time.
+- Final hardening commits pushed to `Platform-V6`: `07d972aa` marketplace grounded smoke query, `ca40b559` Shopify readiness billing posture and Bridge admin secret registry support, `4ebb4996` no ephemeral Qdrant DB key creation in release gate, `905b0dd7` live hosted probes authoritative over stale persisted evidence.
+- Deployed Platform Backend proof: Railway deployments `cf7881b3-6760-457a-aeb5-979b8ec6399c`, `d1a2ac8b-39e6-476a-9800-17ea5842d76d`, `84b33547-7c1b-4136-815f-4f8e10de71af`, and final `255020a3-50d2-4638-9bea-35b7551f482c` reached `SUCCESS`.
+- Live verification prerequisites refreshed without logging secrets: Qdrant data-plane key verified, Shopify Bridge admin key stored as Platform secret `SHOPIFY_BRIDGE_ADMIN_API_KEY`, and a fresh non-social Supabase partner JWT stored as `PARTNER_SUPABASE_JWT` before the final run.
+- Local verification during final hardening passed: shell syntax checks for changed scripts, targeted Platform verification-suite tests, Qdrant-only managed provider verification with `QDRANT_CREATE_EPHEMERAL_DB_KEY=false`, standalone Shopify first-product readiness audit, standalone Partner Enablement strict live verifier, and `git diff --check`.
+- Blockers: none. Unrelated local dirty files remain `.DS_Store` and `Platfrom/ui/tsconfig.app.tsbuildinfo`; do not stage them unless explicitly requested.
