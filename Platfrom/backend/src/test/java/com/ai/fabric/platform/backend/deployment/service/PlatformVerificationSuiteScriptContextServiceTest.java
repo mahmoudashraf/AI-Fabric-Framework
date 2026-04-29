@@ -162,6 +162,7 @@ class PlatformVerificationSuiteScriptContextServiceTest {
             .containsEntry("RUN_ZILLIZ", "false")
             .containsEntry("RUN_WEAVIATE", "false")
             .containsEntry("QDRANT_EXISTING_CLUSTER_NAME", "cluster")
+            .containsEntry("QDRANT_CREATE_EPHEMERAL_DB_KEY", "false")
             .containsEntry("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false");
         assertThat(context.environment()).doesNotContainKey("WEAVIATE_HOST");
         assertThat(context.secretEnvironment())

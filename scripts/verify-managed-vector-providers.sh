@@ -503,6 +503,8 @@ verify_qdrant() {
       echo "FAIL: Qdrant temporary database API key creation returned no id"
       return 1
     }
+  else
+    echo "Qdrant temporary database API key creation skipped by QDRANT_CREATE_EPHEMERAL_DB_KEY=false."
   fi
 }
 

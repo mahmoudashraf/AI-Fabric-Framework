@@ -119,6 +119,7 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("RUN_ZILLIZ", "false");
         environment.put("RUN_WEAVIATE", "false");
         environment.put("QDRANT_EXISTING_CLUSTER_NAME", "cluster");
+        environment.put("QDRANT_CREATE_EPHEMERAL_DB_KEY", "false");
         environment.put("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>();
