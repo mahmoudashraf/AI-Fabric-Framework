@@ -120,7 +120,6 @@ class ShopifyBridgeActionExecutionServiceTest {
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any()))
-            .thenReturn(emptyProductsPayload())
             .thenReturn(Map.of(
                 "data", Map.of(
                     "products", Map.of(

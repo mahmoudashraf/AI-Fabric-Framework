@@ -251,6 +251,9 @@ public class ShopifyBridgeActionExecutionService {
     }
 
     private ProductLookup findProduct(ShopifyBridgeCredentialAcquisition acquisition, String lookupValue) {
+        if (!looksLikeSku(lookupValue)) {
+            return findProductByText(acquisition, lookupValue);
+        }
         ProductLookup skuLookup = findProductBySku(acquisition, lookupValue);
         if (skuLookup != null) {
             return skuLookup;
@@ -474,6 +477,11 @@ public class ShopifyBridgeActionExecutionService {
             .toLowerCase(Locale.ROOT)
             .replaceAll("[^a-z0-9]+", "-")
             .replaceAll("(^-+|-+$)", "");
+    }
+
+    private boolean looksLikeSku(String value) {
+        String normalized = normalize(value);
+        return normalized != null && !normalized.matches(".*\\s+.*");
     }
 
     private String firstNonBlank(String... values) {
