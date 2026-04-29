@@ -39,15 +39,18 @@ public class ShopifyCompanionPackageProfileCatalogService {
     private final ShopifyCompanionBootstrapProperties bootstrapProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
+    private final ShopifyCompanionPackageProfileOptionsService optionsService;
 
     public ShopifyCompanionPackageProfileCatalogService(ShopifyCompanionPackageProfileRepository repository,
                                                        ShopifyCompanionBootstrapProperties bootstrapProperties,
                                                        PlatformAuditService platformAuditService,
-                                                       ObjectMapper objectMapper) {
+                                                       ObjectMapper objectMapper,
+                                                       ShopifyCompanionPackageProfileOptionsService optionsService) {
         this.repository = repository;
         this.bootstrapProperties = bootstrapProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
+        this.optionsService = optionsService;
     }
 
     @Transactional(readOnly = true)
@@ -103,6 +106,7 @@ public class ShopifyCompanionPackageProfileCatalogService {
         String status = optionalEnumUpper(request.status(), "status", PROFILE_STATUSES, "DRAFT");
         String detailsJson = normalizeDetailsJson(request.detailsJson());
 
+        optionsService.validateUpsert(normalizedProfileKey, request);
         if ("ACTIVE".equals(status)) {
             enforceSingleActivePackageTier(packageKey, tierKey, normalizedProfileKey);
         }

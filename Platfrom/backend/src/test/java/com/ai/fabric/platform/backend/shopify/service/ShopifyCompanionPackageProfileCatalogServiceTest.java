@@ -237,7 +237,13 @@ class ShopifyCompanionPackageProfileCatalogServiceTest {
 
     private ShopifyCompanionPackageProfileCatalogService service(ShopifyCompanionPackageProfileRepository repository,
                                                                  PlatformAuditService auditService) {
-        return new ShopifyCompanionPackageProfileCatalogService(repository, bootstrapProperties(), auditService, new ObjectMapper());
+        return new ShopifyCompanionPackageProfileCatalogService(
+            repository,
+            bootstrapProperties(),
+            auditService,
+            new ObjectMapper(),
+            mock(ShopifyCompanionPackageProfileOptionsService.class)
+        );
     }
 
     private ShopifyCompanionBootstrapProperties bootstrapProperties() {

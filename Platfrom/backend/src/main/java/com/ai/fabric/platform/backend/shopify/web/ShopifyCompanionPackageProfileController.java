@@ -1,9 +1,11 @@
 package com.ai.fabric.platform.backend.shopify.web;
 
+import com.ai.fabric.platform.backend.shopify.model.ShopifyCompanionPackageProfileOptionsSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyCompanionPackageProfileSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyCompanionPackageProfileStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyCompanionPackageProfileRequest;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyCompanionPackageProfileCatalogService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyCompanionPackageProfileOptionsService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,9 +23,12 @@ import java.util.List;
 public class ShopifyCompanionPackageProfileController {
 
     private final ShopifyCompanionPackageProfileCatalogService profileCatalogService;
+    private final ShopifyCompanionPackageProfileOptionsService profileOptionsService;
 
-    public ShopifyCompanionPackageProfileController(ShopifyCompanionPackageProfileCatalogService profileCatalogService) {
+    public ShopifyCompanionPackageProfileController(ShopifyCompanionPackageProfileCatalogService profileCatalogService,
+                                                    ShopifyCompanionPackageProfileOptionsService profileOptionsService) {
         this.profileCatalogService = profileCatalogService;
+        this.profileOptionsService = profileOptionsService;
     }
 
     @GetMapping
@@ -32,6 +37,12 @@ public class ShopifyCompanionPackageProfileController {
         @RequestParam(name = "activeOnly", defaultValue = "false") boolean activeOnly
     ) {
         return profileCatalogService.listProfiles(activeOnly);
+    }
+
+    @GetMapping("/options")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    public ShopifyCompanionPackageProfileOptionsSummary options() {
+        return profileOptionsService.options();
     }
 
     @GetMapping("/{profileKey}")

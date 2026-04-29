@@ -193,3 +193,13 @@ Rules:
 - Verification passed: targeted Shopify Bridge Maven tests, `git diff --check`, verifier shell syntax checks, full `scripts/verify-shopify-companion.sh` with admin checks and correct go-live blocker expectations, and `scripts/verify-shopify-companion-max-widget-live.sh` with browser proof.
 - Browser proof: real Shopify product page loaded Max assets, observed bridge bootstrap, found the Max widget host, clicked launcher, and opened the widget. Screenshot: `/tmp/shopify-companion-max-widget-shopping-companion-test.myshopify.com-1777195849.png`.
 - Current blocker is intentional and merchant-controlled: Platform go-live remains blocked until Shopify `read_orders` is granted; shopper bootstrap and Max widget are live.
+
+## 2026-04-29 Shopify Package Profile Approved Choices
+
+- Shopify Companion package profile approved-choice status: locally implemented; deploy/live smoke pending.
+- Changed files: Platform backend package profile options models/service/controller/tests, Platform UI package profile editor/API types, 004 handoff, and this working context.
+- Decisions: backend owns package profile choices and compatibility rules; Platform UI only consumes backend options; backend validation is authoritative for package/tier/runtime/vector/inference/template/verification compatibility; no dummy records were created.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyCompanionPackageProfileCatalogServiceTest,ShopifyCompanionPackageProfileOptionsServiceTest test`; `npm --prefix Platfrom/ui run build`; full `mvn -f Platfrom/backend/pom.xml -q test`; `git diff --check`.
+- Live verification: pending after push/deployment. Required proof: `/api/shopify/package-profiles/options` returns the `ELITE` / `HIGH_QUALITY` / `QDRANT_SHARED` rule and the live Platform UI `New profile` flow no longer snaps back to `BALANCED`.
+- Blockers: none locally.
+- Next handoff: commit/push, wait for Railway deploy, then run endpoint and browser smoke.

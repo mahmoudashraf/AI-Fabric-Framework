@@ -809,6 +809,87 @@ export type ShopifyCompanionPackageProfileSummary = {
   updatedAt: string | null
 }
 
+export type ShopifyCompanionPackageProfileChoiceSummary = {
+  value: string
+  label: string
+  description: string | null
+  source: string
+  status: string | null
+  recommended: boolean
+  packageKeys: string[]
+  tierKeys: string[]
+  runtimeProfileKeys: string[]
+  vectorProfileKeys: string[]
+  vectorStrategies: string[]
+  vectorProvisioningModes: string[]
+  vectorStoragePostures: string[]
+}
+
+export type ShopifyCompanionPackageProfileBlueprintSummary = {
+  key: string
+  label: string
+  description: string
+  profileKey: string
+  packageKey: string
+  tierKey: string
+  runtimeProfileKey: string
+  vectorProfileKey: string
+  displayName: string
+  costPosture: string
+  templatePluginId: string
+  templatePluginVersion: string | null
+  deploymentTemplateId: string
+  inferencePluginId: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  vectorStoragePosture: string
+  verificationPackId: string
+}
+
+export type ShopifyCompanionPackageProfileCompatibilityRuleSummary = {
+  packageKey: string
+  tierKey: string
+  costPosture: string
+  defaultProfileKey: string
+  defaultRuntimeProfileKey: string
+  defaultVectorProfileKey: string
+  defaultInferencePluginId: string
+  defaultVectorStrategy: string
+  defaultVectorProvisioningMode: string
+  defaultVectorStoragePosture: string
+  defaultDeploymentTemplateId: string
+  defaultVerificationPackId: string
+  allowedRuntimeProfileKeys: string[]
+  allowedVectorProfileKeys: string[]
+  allowedInferencePluginIds: string[]
+  allowedVectorStrategies: string[]
+  allowedVectorProvisioningModes: string[]
+  allowedVectorStoragePostures: string[]
+  allowedDeploymentTemplateIds: string[]
+  allowedVerificationPackIds: string[]
+}
+
+export type ShopifyCompanionPackageProfileOptionsSummary = {
+  profileKeys: ShopifyCompanionPackageProfileChoiceSummary[]
+  packages: ShopifyCompanionPackageProfileChoiceSummary[]
+  tiers: ShopifyCompanionPackageProfileChoiceSummary[]
+  statuses: ShopifyCompanionPackageProfileChoiceSummary[]
+  costPostures: ShopifyCompanionPackageProfileChoiceSummary[]
+  runtimeProfiles: ShopifyCompanionPackageProfileChoiceSummary[]
+  vectorProfiles: ShopifyCompanionPackageProfileChoiceSummary[]
+  templatePlugins: ShopifyCompanionPackageProfileChoiceSummary[]
+  templateVersions: ShopifyCompanionPackageProfileChoiceSummary[]
+  deploymentTemplates: ShopifyCompanionPackageProfileChoiceSummary[]
+  inferencePlugins: ShopifyCompanionPackageProfileChoiceSummary[]
+  vectorStrategies: ShopifyCompanionPackageProfileChoiceSummary[]
+  vectorProvisioningModes: ShopifyCompanionPackageProfileChoiceSummary[]
+  vectorStoragePostures: ShopifyCompanionPackageProfileChoiceSummary[]
+  verificationPacks: ShopifyCompanionPackageProfileChoiceSummary[]
+  profileBlueprints: ShopifyCompanionPackageProfileBlueprintSummary[]
+  compatibilityRules: ShopifyCompanionPackageProfileCompatibilityRuleSummary[]
+  generatedAt: string
+}
+
 export type UpsertShopifyCompanionPackageProfileRequest = {
   packageKey: string
   tierKey: string
@@ -3584,6 +3665,10 @@ export function fetchShopifyStoreProvisioning(shopDomain: string) {
 
 export function fetchShopifyPackageProfiles(activeOnly = false) {
   return request<ShopifyCompanionPackageProfileSummary[]>(`/api/shopify/package-profiles?activeOnly=${activeOnly}`)
+}
+
+export function fetchShopifyPackageProfileOptions() {
+  return request<ShopifyCompanionPackageProfileOptionsSummary>('/api/shopify/package-profiles/options')
 }
 
 export function fetchShopifyPackageProfile(profileKey: string) {

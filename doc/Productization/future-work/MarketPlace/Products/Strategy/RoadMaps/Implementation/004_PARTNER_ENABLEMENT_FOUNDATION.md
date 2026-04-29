@@ -3297,3 +3297,96 @@ This is not a partner-side or merchant-side configuration surface. It is a Platf
   - Active catalog includes the live `HIGH_QUALITY` / `ELITE` / `QDRANT_SHARED` profile.
   - Existing live store provisioning status still resolves to the same effective profile after the catalog API is deployed.
   - No live write smoke creates disposable/dummy package profiles in production.
+
+## Shopify Companion Package Profile Approved Choices Change Plan - 2026-04-29
+
+Status: implementation in progress.
+
+### Problem
+
+The first Platform UI slice removed many free-text fields, but approved choices were still assembled partly in the frontend from deployment templates, marketplace plugins, verification packs, and hard-coded fallbacks. That is not enterprise-safe because the browser can drift from backend provisioning rules and because a future UI change could accidentally create unsupported package/profile combinations.
+
+The package profile editor must be selection-driven, but the approved selections and compatibility rules must be owned by the Platform backend.
+
+### Source-Of-Truth Rule
+
+- Platform backend owns Shopify Companion package profile options.
+- Platform UI must fetch approved choices from the backend and must not maintain its own package, tier, runtime, vector, inference, template, or verification constants.
+- `shopify_companion_package_profiles` remains the canonical persisted catalog.
+- Backend package-profile options are composed from:
+  - governed package definitions for Free, Starter, Elite, and Enterprise
+  - existing package profile rows
+  - active deployment templates
+  - active published marketplace plugins
+  - registered Shopify Companion verification suites
+  - bootstrap defaults for template plugin, template version, and deployment template
+- Backend write validation must use the same options and compatibility rules exposed to the UI.
+- Frontend filtering is only a UX convenience. Backend validation is the authority.
+
+### Required Implementation
+
+1. Add a Platform-admin options endpoint.
+   - Route: `GET /api/shopify/package-profiles/options`.
+   - Read authority: Platform admin/operator.
+   - Response must include grouped choices for profile keys, packages, tiers, statuses, cost postures, runtime profiles, vector profiles, template plugins, template versions, deployment templates, inference plugins, vector strategies, vector provisioning modes, vector storage postures, and verification packs.
+   - Response must include profile blueprints for the canonical package variants.
+   - Response must include package/tier compatibility rules with defaults and allowed values.
+
+2. Add backend validation for package profile writes.
+   - `PUT /api/shopify/package-profiles/{profileKey}` must reject unapproved package/tier combinations.
+   - Runtime profile, vector profile, inference plugin, vector strategy, vector provisioning mode, vector storage posture, deployment template, and verification pack must be allowed by the selected package/tier rule.
+   - Template plugin and template version must come from approved backend choices when supplied.
+   - Existing required-field, JSON, status, audit, and duplicate active package/tier guards remain in place.
+
+3. Convert Platform UI to backend-owned choices.
+   - Remove frontend-owned constants for governed profile fields.
+   - Load the options endpoint alongside the profile list.
+   - Disable new-profile creation until backend options are loaded.
+   - Use backend profile blueprints for `New profile` and blueprint selection.
+   - Use package/tier compatibility rules to filter runtime, vector, inference, deployment, and verification selectors.
+   - Keep only legitimate free-text fields: display name, description, audit reason, and details JSON.
+   - Show an explicit warning and block save for package/tier combinations without an approved backend rule.
+
+4. Verification and release proof.
+   - Add backend tests for options generation and compatibility validation.
+   - Keep existing package profile catalog tests passing.
+   - Platform UI build must pass.
+   - Full backend tests must pass before commit.
+   - Live smoke after deployment must prove `/api/shopify/package-profiles/options` is reachable, includes the `ELITE/HIGH_QUALITY/QDRANT_SHARED` rule, and the live UI can open the package profile page and create a new draft without snapping back to the Balanced profile.
+
+### Enterprise Guardrails
+
+- No dummy profile, plugin, verification, vector, or deployment records may be created for proof.
+- Missing optional source catalogs may reduce enrichment choices but must not bypass package/tier compatibility validation.
+- Secrets, provider credentials, Shopify tokens, admin keys, runtime API keys, and private operator values must not appear in options responses.
+- Package/profile compatibility is a backend contract, not a UI convention.
+- Partner UI and Shopify merchant admin app may show effective store package/profile state, but they must not define or mutate global package profile mappings.
+
+## Shopify Companion Package Profile Approved Choices Implementation Proof - 2026-04-29
+
+Status: locally implemented and awaiting deployed live smoke.
+
+Implemented:
+
+- Added backend-owned Shopify Companion package profile options models and `ShopifyCompanionPackageProfileOptionsService`.
+- Added `GET /api/shopify/package-profiles/options` for Platform admin/operator reads.
+- Added backend write validation so package profile upserts must match approved package/tier compatibility rules.
+- Converted the Platform `Shopify Profiles` editor to consume backend choices and profile blueprints instead of frontend-maintained constants.
+- Added package/tier compatibility filtering for runtime, vector, inference, deployment, verification, provisioning, and storage selectors.
+- Blocked save when the selected package/tier combination has no backend-approved rule.
+- Added backend tests for options generation, invalid compatibility rejection, and the live `ELITE` / `HIGH_QUALITY` / `QDRANT_SHARED` mapping.
+
+Local verification passed:
+
+```bash
+mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyCompanionPackageProfileCatalogServiceTest,ShopifyCompanionPackageProfileOptionsServiceTest test
+npm --prefix Platfrom/ui run build
+mvn -f Platfrom/backend/pom.xml -q test
+git diff --check
+```
+
+Live verification to complete after deployment:
+
+- Platform admin can read `/api/shopify/package-profiles/options`.
+- Options include the approved `ELITE` / `ELITE` rule with `defaultRuntimeProfileKey=HIGH_QUALITY`, `defaultVectorProfileKey=QDRANT_SHARED`, and `defaultInferencePluginId=mkp-inference-premium-hybrid`.
+- Platform UI can load `Shopify Profiles`, click `New profile`, and keep the selected generated draft instead of snapping back to `BALANCED`.
