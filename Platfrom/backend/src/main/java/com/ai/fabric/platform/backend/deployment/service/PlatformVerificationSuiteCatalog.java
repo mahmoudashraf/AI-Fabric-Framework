@@ -20,7 +20,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String SHOPIFY_COMPANION_VERIFICATION_SUITE_KEY = "shopify-companion-verification";
     public static final String SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY = "shopify-first-product-readiness-audit";
     public static final String PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY = "partner-enablement-verification";
-    public static final String SHARED_INFERENCE_SERVICE_REF = "shared-ollama-orchestration";
+    public static final String SHARED_INFERENCE_SERVICE_REF = "openai-cloud-orchestration";
     public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
         "marketplace",

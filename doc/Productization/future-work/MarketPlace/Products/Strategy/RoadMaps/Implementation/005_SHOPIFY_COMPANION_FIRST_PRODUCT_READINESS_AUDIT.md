@@ -1,6 +1,6 @@
 # Shopify Companion First Product Readiness Audit
 
-Status: implemented pending final live proof append (revised 2026-04-29)
+Status: implemented, live verified, and design-partner ready (revised 2026-04-29)
 
 Owner mode: technical LLM implementation/audit session
 
@@ -677,4 +677,76 @@ Local verification completed before live deployment:
 - `npm --prefix product-services/shopify-bridge-service/ui run build`
 - `git diff --check`
 
-Final live proof, artifact paths, readiness decision, blockers, and pushed commit refs must be appended after Railway deploy/live verification completes.
+### Final Live Proof - 2026-04-29
+
+Audit summary:
+
+- Shopify Companion first-product readiness audit is implemented as a repeatable Platform verification gate with live bridge/runtime/storefront evidence.
+- The live Railway runtime deployment recovered from an initial transient artifact fetch failure, loaded `ai-knowledge-source-config.json`, started successfully, and served health checks.
+- Storefront answer hardening prevents generic runtime/internal execution language from leaking to shoppers.
+- Bridge billing summary now uses Platform-recorded Shopify billing state before live Shopify billing inspection, so the test store resolves to the intended Starter audit posture.
+- Managed deployment profile/provider defaults now keep provider fallback disabled unless explicitly enabled, preventing the ONNX fallback/OOM path from being the default managed runtime behavior.
+
+Readiness decision:
+
+- `DESIGN_PARTNER_READY`
+
+Evidence artifacts:
+
+- Full audit packet: `/tmp/shopify-first-product-readiness-audit-20260429-104550`
+- Standalone answer-quality packet: `/tmp/shopify-answer-quality-post-fix-20260429-104422`
+- Live runtime deployment: `runtime-dep-8c3e7259` deployment `6f81ecb7-b9af-4d12-9ddc-88b472094588`, status `SUCCESS`
+
+Query-to-answer audit result:
+
+- Standalone live answer-quality audit passed: `10/10`
+- Full first-product readiness audit answer-quality stage passed: `10/10`
+- Forbidden internal/generic action language checks passed.
+- Starter order-lookup/governed-action guardrail checks passed.
+
+Platform readiness audit UI status:
+
+- Platform operator readiness audit UI exists at `/shopify-readiness-audit`.
+- Platform readiness endpoints exist at `GET /api/shopify/readiness-audit/latest` and `GET /api/shopify/readiness-audit/definition`.
+- Full release gate includes the Shopify first-product readiness audit before Partner Enablement.
+
+Changed implementation commits:
+
+- `5b691ac7` - Add Shopify first product readiness audit.
+- `7948769e` - Harden Railway cleanup and service limits.
+- `75096188` - Harden Shopify storefront and runtime config loading.
+- `26d9316a` - Use recorded Shopify billing state for storefront entitlements.
+- `3c630600` - Make ONNX fallback explicit opt-in.
+- `66e89ef3` - Default managed provider fallback off.
+
+Verification commands and results:
+
+- `bash -n scripts/verify-shopify-first-product-readiness-audit.sh` passed.
+- `python3 -m py_compile scripts/evaluate-shopify-companion-answers.py` passed.
+- Platform backend readiness/release-gate tests passed.
+- Shopify Bridge targeted and full Maven suites passed.
+- Runtime config-loader tests passed.
+- ONNX provider auto-configuration tests passed.
+- Platform UI and Partner UI builds passed.
+- Shopify Bridge UI build passed.
+- `git diff --check` passed.
+- Standalone live answer-quality verifier passed against the live bridge/runtime/store: `Answer quality decision: PASS (10/10 passed)`.
+- Full live readiness audit passed against `shopping-companion-test.myshopify.com`: `Readiness decision: DESIGN_PARTNER_READY`.
+
+Live verification status:
+
+- Platform health: `UP` at `https://ai-fabric-framework-production-324f.up.railway.app/actuator/health`.
+- Shopify Bridge health: `UP` at `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app/actuator/health`.
+- Runtime health: `UP` at `https://runtime-dep-8c3e7259-dev.up.railway.app/actuator/health`.
+- Bridge admin overview authenticated successfully with the private Railway bridge admin key.
+- Bridge billing summary for `shopping-companion-test.myshopify.com` returned `STARTER` with message `Starter tier is active for this store from Platform-recorded Shopify billing state.`
+- Railway cleanup endpoint returned `READY` with no cleanup candidates after preserving mandatory Platform/product/bridge projects.
+
+Blockers:
+
+- None for Shopify Companion first-product design-partner readiness.
+
+Pending handoff:
+
+- Begin controlled design-partner proof across 5-10 real stores.
+- Do not claim `MARKET_PROVEN` until real merchant/design-partner outcomes are collected.

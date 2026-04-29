@@ -178,6 +178,7 @@ Rules:
 ## 2026-04-26 Product-Scoped Partner Control Addendum
 
 - Implemented the 004 Product-Scoped Partner Control addendum against the source-of-truth rule: partners now control assigned-store product surfaces through Platform partner endpoints, and all writes delegate to canonical Shopify store services rather than creating partner-owned duplicate config.
+
 - Backend changes: added canonical Shopify source-settings update service/admin endpoint; added partner product-control summaries and partner endpoints for widget settings, source settings, and support profile; enforced provisioned partner context, active assignment, explicit assignment capabilities, installed-store status for writes, and partner-safe response projection with no secrets/runtime/deployment internals.
 - Partner UI changes: added a real Product controls tab in the store workspace with authenticated controls for storefront surfaces, conversation modes, page mappings, knowledge source toggles, and merchant handoff/support profile.
 - Verification script changes: strict live verifier now reaches product controls, performs and restores a real partner-authenticated support-profile write, proves canonical Platform/admin visibility, checks partner-visible product audit activity, and confirms revoked assignments lose product-control access.
@@ -204,3 +205,15 @@ Rules:
 - Browser proof: local Platform UI pointed at live Railway backend loaded `Shopify Profiles`, received HTTP `200` from `/api/shopify/package-profiles/options` and `/api/shopify/package-profiles?activeOnly=false`, clicked `New profile`, and produced draft key `SHOPIFY_PROFILE_MOJFYUB5` instead of `BALANCED`. Screenshot: `/tmp/shopify-package-profiles-approved-options-smoke.png`.
 - Blockers: none locally.
 - Next handoff: no pending approved-choice work; no separate deployed Platform UI URL is defined in the private handoff, so browser proof used local UI against live backend.
+
+## 2026-04-29 Shopify First Product Readiness Live Completion
+
+- First Product Readiness Audit status: passed.
+- Evidence: full packet `/tmp/shopify-first-product-readiness-audit-20260429-104550`; standalone answer-quality packet `/tmp/shopify-answer-quality-post-fix-20260429-104422`.
+- Verification: live Platform/Bridge/Runtime health all `UP`; runtime deployment `6f81ecb7-b9af-4d12-9ddc-88b472094588` reached `SUCCESS`; full audit reported `Readiness decision: DESIGN_PARTNER_READY`; answer-quality reported `PASS (10/10 passed)`.
+- Live fixes pushed before final proof: `75096188` runtime signed URL loading + storefront answer guardrail, `26d9316a` Platform-recorded billing state source of truth, `3c630600` ONNX fallback explicit opt-in, `66e89ef3` managed provider fallback default off.
+- Railway cleanup/status: cleanup endpoint returned `READY` with no cleanup candidates; mandatory Platform/product/bridge services are preserved; Railway service limits are capped at 1 vCPU / 1 GB by provisioning code.
+- Live verification: passed for `shopping-companion-test.myshopify.com`; bridge billing summary returned `STARTER` from Platform-recorded Shopify billing state.
+- Readiness decision: `DESIGN_PARTNER_READY`, not `MARKET_PROVEN`.
+- Blockers: none for first design-partner rollout.
+- Next handoff: start controlled design-partner proof across 5-10 real stores and collect real merchant outcome evidence before claiming market proof.
