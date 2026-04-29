@@ -352,7 +352,7 @@ public class ShopifyStorefrontChatService {
     private JsonNode shapeStorefrontResponse(ObjectNode normalizedRequest, JsonNode response) {
         String answer = extractAnswer(response);
         if (!requiresStorefrontFallback(answer)) {
-            return response;
+            return ensureWidgetSanitizedPayload(response, answer);
         }
         String fallback = storefrontFallbackMessage(normalizedRequest);
         ObjectNode shaped = response != null && response.isObject()
@@ -362,9 +362,44 @@ public class ShopifyStorefrontChatService {
         ObjectNode result = objectChild(shaped, "result");
         result.put("message", fallback);
         ObjectNode sanitizedPayload = objectChild(result, "sanitizedPayload");
+        sanitizedPayload.put("type", trimToNull(textOrNull(result, "type")) == null ? "INFORMATION_PROVIDED" : textOrNull(result, "type"));
+        sanitizedPayload.put("success", true);
         sanitizedPayload.put("safeSummary", fallback);
         sanitizedPayload.put("message", fallback);
         sanitizedPayload.put("answer", fallback);
+        return shaped;
+    }
+
+    private JsonNode ensureWidgetSanitizedPayload(JsonNode response, String answer) {
+        if (response == null || !response.isObject()) {
+            return response;
+        }
+        ObjectNode shaped = (ObjectNode) response.deepCopy();
+        ObjectNode result = objectChild(shaped, "result");
+        ObjectNode sanitizedPayload = objectChild(result, "sanitizedPayload");
+        String resultType = trimToNull(textOrNull(result, "type"));
+        if (trimToNull(textOrNull(sanitizedPayload, "type")) == null) {
+            sanitizedPayload.put("type", resultType == null ? "INFORMATION_PROVIDED" : resultType);
+        }
+        if (!sanitizedPayload.has("success")) {
+            boolean success = result.has("success")
+                ? result.path("success").asBoolean(true)
+                : shaped.path("success").asBoolean(true);
+            sanitizedPayload.put("success", success);
+        }
+        if (trimToNull(textOrNull(sanitizedPayload, "message")) == null) {
+            sanitizedPayload.put("message", answer);
+        }
+        if (trimToNull(textOrNull(sanitizedPayload, "safeSummary")) == null) {
+            sanitizedPayload.put("safeSummary", answer);
+        }
+        if (trimToNull(textOrNull(sanitizedPayload, "answer")) == null) {
+            sanitizedPayload.put("answer", answer);
+        }
+        JsonNode resultData = result.get("data");
+        if (!sanitizedPayload.has("data") && resultData != null && !resultData.isNull()) {
+            sanitizedPayload.set("data", resultData.deepCopy());
+        }
         return shaped;
     }
 

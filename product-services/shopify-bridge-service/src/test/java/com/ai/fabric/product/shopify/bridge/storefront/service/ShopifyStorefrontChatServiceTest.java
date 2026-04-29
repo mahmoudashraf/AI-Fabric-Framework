@@ -322,6 +322,57 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryMirrorsThinkerAnswerIntoWidgetSanitizedPayload() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "thinkerSession":{"sessionId":"tis-1","status":"RESOLVED"},
+              "result":{
+                "type":"INFORMATION_PROVIDED",
+                "success":true,
+                "message":"The Minimal Snowboard is available from store evidence.",
+                "data":{
+                  "answer":"The Minimal Snowboard is available from store evidence.",
+                  "readActionResolution":{"executedActionsCount":1}
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"What do you know about The Minimal Snowboard?",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"launcher",
+                    "shopifyEffectiveConversationMode":"navigator",
+                    "product":{"handle":"the-minimal-snowboard","title":"The Minimal Snowboard"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        JsonNode sanitizedPayload = response.path("result").path("sanitizedPayload");
+        assertThat(sanitizedPayload.path("type").asText()).isEqualTo("INFORMATION_PROVIDED");
+        assertThat(sanitizedPayload.path("success").asBoolean()).isTrue();
+        assertThat(sanitizedPayload.path("message").asText()).isEqualTo("The Minimal Snowboard is available from store evidence.");
+        assertThat(sanitizedPayload.path("safeSummary").asText()).isEqualTo("The Minimal Snowboard is available from store evidence.");
+        assertThat(sanitizedPayload.path("data").path("answer").asText()).isEqualTo("The Minimal Snowboard is available from store evidence.");
+        assertThat(response.path("thinkerSession").path("sessionId").asText()).isEqualTo("tis-1");
+    }
+
+    @Test
     void queryPreservesExplicitActionModeForStorefrontLauncherChat() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
