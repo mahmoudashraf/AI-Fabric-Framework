@@ -396,6 +396,30 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "SHOPIFY_BRIDGE_ADMIN_API_KEY",
+            new SecretDefinition(
+                "Shopify Bridge Admin API Key",
+                "Private operator key used by platform verification jobs to call shared Shopify Bridge admin endpoints for live store readiness checks.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_ADMIN_ACCESS_TOKEN",
+            new SecretDefinition(
+                "Shopify Test Store Admin API Token",
+                "Optional Shopify Admin API token used only by live verification jobs that inspect or manage the configured Shopify test store.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_MERCHANT_AUTHORIZATION",
+            new SecretDefinition(
+                "Shopify Merchant Verification Authorization",
+                "Optional merchant-session authorization value used by live Shopify verification jobs when a merchant-authenticated path is required.",
+                false
+            )
+        );
+        secrets.put(
             "PARTNER_SUPABASE_JWT",
             new SecretDefinition(
                 "Partner Verification Supabase JWT",
