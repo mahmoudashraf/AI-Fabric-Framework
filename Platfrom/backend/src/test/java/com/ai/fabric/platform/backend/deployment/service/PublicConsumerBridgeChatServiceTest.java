@@ -14,10 +14,13 @@ import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningSer
 import com.ai.fabric.platform.backend.security.RuntimePublicTokenSigningService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
+import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerIssueSessionSummary;
+import com.ai.fabric.platform.backend.thinker.service.ThinkerResolverService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -28,11 +31,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PublicConsumerBridgeChatServiceTest {
@@ -222,6 +229,103 @@ class PublicConsumerBridgeChatServiceTest {
             assertThat(token).containsEntry("aud", "storefront-chat");
             assertThat(token.get("sessionId")).isEqualTo("shopper-session-beta");
             assertThat(token.get("scopes")).isEqualTo(List.of("chat:suggestions"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void thinkerQueryUsesRuntimeResolverModeAndCapturesOriginalThinkerRequest() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                writeJson(exchange, 200, """
+                    {"success":true,"conversationId":"conv-thinker","result":{"message":"Resolved with read evidence","metadata":{"readActionResolution":{"attempted":true}}}}
+                    """);
+            });
+            server.start();
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("trusted-backend-key");
+            when(platformSecretService.resolveSecret(RuntimePrivateAssertionSigningService.SECRET_NAME)).thenReturn("private-signing-key");
+            when(platformSecretService.resolveSecret(RuntimePublicTokenSigningService.SECRET_NAME)).thenReturn("public-signing-key");
+
+            ThinkerResolverService thinkerResolverService = mock(ThinkerResolverService.class);
+            when(thinkerResolverService.isThinkerModeRequest(any(JsonNode.class))).thenAnswer(invocation -> {
+                JsonNode request = invocation.getArgument(0);
+                String mode = request == null ? null : request.path("mode").asText(null);
+                return "THINKER_DEEP".equalsIgnoreCase(mode) || "thinker".equalsIgnoreCase(mode);
+            });
+            when(thinkerResolverService.isThinkerEnabledForDeployment("dep-1")).thenReturn(true);
+            when(thinkerResolverService.captureRuntimeResponse(
+                any(DeploymentEntity.class),
+                eq("consumer-alpha"),
+                any(JsonNode.class),
+                any(JsonNode.class),
+                eq("shopper-session-thinker")
+            )).thenReturn(Optional.of(new ThinkerIssueSessionSummary(
+                "tis-live",
+                "dep-1",
+                "ten-1",
+                "cust-1",
+                null,
+                "shopping-companion-test.myshopify.com",
+                "consumer-alpha",
+                "shopper",
+                "STOREFRONT_DEPTH_LAYER",
+                "THINKER_DEEP",
+                "RESOLVED",
+                "PRODUCT_COMPARISON",
+                "READ_ONLY",
+                "Compare products",
+                "Resolved with read evidence",
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                1,
+                "ANSWER_WITH_EVIDENCE"
+            )));
+
+            PublicConsumerBridgeChatService service = new PublicConsumerBridgeChatService(
+                consumerService(server),
+                credentialsService(privateAccess(server)),
+                platformSecretService,
+                new RuntimePrivateAssertionSigningService(platformSecretService, objectMapper),
+                new RuntimePublicTokenSigningService(platformSecretService, objectMapper),
+                thinkerResolverService,
+                objectMapper
+            );
+
+            JsonNode response = service.query(
+                "consumer-alpha",
+                objectMapper.readTree("""
+                    {
+                      "query":"Compare products",
+                      "mode":"THINKER_DEEP"
+                    }
+                    """),
+                "shopper-session-thinker"
+            );
+
+            JsonNode runtimeBody = objectMapper.readTree(capturedBody.get());
+            assertThat(runtimeBody.path("mode").asText()).isEqualTo("resolver_assistant");
+            assertThat(response.path("thinkerSession").path("sessionId").asText()).isEqualTo("tis-live");
+            assertThat(response.path("thinkerSession").path("status").asText()).isEqualTo("RESOLVED");
+            assertThat(response.path("thinkerSession").path("recommendation").asText()).isEqualTo("ANSWER_WITH_EVIDENCE");
+
+            ArgumentCaptor<JsonNode> requestCaptor = ArgumentCaptor.forClass(JsonNode.class);
+            verify(thinkerResolverService).captureRuntimeResponse(
+                any(DeploymentEntity.class),
+                eq("consumer-alpha"),
+                requestCaptor.capture(),
+                any(JsonNode.class),
+                eq("shopper-session-thinker")
+            );
+            assertThat(requestCaptor.getValue().path("mode").asText()).isEqualTo("THINKER_DEEP");
         } finally {
             server.stop(0);
         }
