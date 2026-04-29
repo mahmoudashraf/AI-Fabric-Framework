@@ -233,6 +233,8 @@ Rules:
 - Patched `ShopifyCompanionReadinessAuditService` so the readiness state uses the newest standalone readiness run or newest `full-platform-release-readiness` run that contains the Shopify first-product readiness stage.
 - Added regression coverage for deriving readiness UI state from a full release-gate stage when no standalone readiness run exists.
 - Verification passed: targeted Platform backend tests, readiness script syntax check, answer evaluator pycompile, Platform UI build, and `git diff --check`.
+- Commit `83a877eb` pushed to `Platform-V6`; Railway Platform Backend deployment `1672f03e-b6f8-4721-9c95-a1f6b3220857` reached `SUCCESS`.
+- Live proof passed: Platform health returned `UP`; `GET /api/shopify/readiness-audit/latest` returned `DESIGN_PARTNER_READY`, `FRESH`, `0` blockers, `10/10` checklist passed, `10/10` answers passed, latest run `vsr-df616f36`, latest stage `shopify-first-product-readiness-audit` `PASSED`.
 - Live verification prerequisites refreshed without logging secrets: Qdrant data-plane key verified, Shopify Bridge admin key stored as Platform secret `SHOPIFY_BRIDGE_ADMIN_API_KEY`, and a fresh non-social Supabase partner JWT stored as `PARTNER_SUPABASE_JWT` before the final run.
 - Local verification during final hardening passed: shell syntax checks for changed scripts, targeted Platform verification-suite tests, Qdrant-only managed provider verification with `QDRANT_CREATE_EPHEMERAL_DB_KEY=false`, standalone Shopify first-product readiness audit, standalone Partner Enablement strict live verifier, and `git diff --check`.
 - Blockers: none. Unrelated local dirty files remain `.DS_Store` and `Platfrom/ui/tsconfig.app.tsbuildinfo`; do not stage them unless explicitly requested.

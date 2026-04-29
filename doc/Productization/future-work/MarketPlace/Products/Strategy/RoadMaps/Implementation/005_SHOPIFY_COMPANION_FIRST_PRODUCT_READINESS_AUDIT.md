@@ -806,6 +806,9 @@ Verification:
 - `npm --prefix Platfrom/ui run build` passed.
 - `git diff --check` passed.
 
-Expected live proof after backend deploy:
+Live proof after backend deploy:
 
-- `GET /api/shopify/readiness-audit/latest` should report `DESIGN_PARTNER_READY`, fresh evidence, no blockers, 10 checklist items, and answer results sourced from the latest full release-gate readiness stage when a standalone readiness run is absent.
+- Platform Backend Railway deployment `1672f03e-b6f8-4721-9c95-a1f6b3220857` reached `SUCCESS`.
+- Platform health returned `UP`.
+- `GET /api/shopify/readiness-audit/latest` reported `DESIGN_PARTNER_READY`, `FRESH` evidence, `0` blockers, `10/10` checklist items passed, and `10/10` answer results passed.
+- The live endpoint sourced evidence from full release gate run `vsr-df616f36` and stage `shopify-first-product-readiness-audit`, both `PASSED`.
