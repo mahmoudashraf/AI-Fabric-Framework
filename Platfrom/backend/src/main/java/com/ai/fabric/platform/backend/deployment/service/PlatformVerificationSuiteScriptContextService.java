@@ -30,12 +30,9 @@ public class PlatformVerificationSuiteScriptContextService {
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
     private static final String PARTNER_SUPABASE_JWT_SECRET_NAME = "PARTNER_SUPABASE_JWT";
-    private static final List<String> PROVIDER_SECRET_NAMES = List.of(
-        "PINECONE_API_KEY",
+    private static final List<String> RELEASE_BLOCKING_PROVIDER_SECRET_NAMES = List.of(
         "QDRANT_CLOUD_MANAGEMENT_API_KEY",
-        "QDRANT_API_KEY",
-        "ZILLIZ_CLOUD_API_KEY",
-        "WEAVIATE_API_KEY"
+        "QDRANT_API_KEY"
     );
     private static final List<String> SHOPIFY_OPTIONAL_SECRET_NAMES = List.of(
         "SHOPIFY_BRIDGE_ADMIN_API_KEY",
@@ -115,16 +112,16 @@ public class PlatformVerificationSuiteScriptContextService {
     }
 
     private PlatformVerificationScriptContextSummary buildManagedProviderVerification() {
-        String weaviateHost = requireValue(
-            suiteProperties.weaviateHost(),
-            "platform.verification.suites.weaviate-host must be configured for managed provider verification."
-        );
-
         Map<String, String> environment = new LinkedHashMap<>();
-        environment.put("WEAVIATE_HOST", weaviateHost);
+        environment.put("RUN_PINECONE", "false");
+        environment.put("RUN_QDRANT", "true");
+        environment.put("RUN_ZILLIZ", "false");
+        environment.put("RUN_WEAVIATE", "false");
+        environment.put("QDRANT_EXISTING_CLUSTER_NAME", "cluster");
+        environment.put("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>();
-        for (String secretName : PROVIDER_SECRET_NAMES) {
+        for (String secretName : RELEASE_BLOCKING_PROVIDER_SECRET_NAMES) {
             String value = platformSecretService.resolveSecret(secretName);
             if (value == null || value.isBlank()) {
                 throw new ResponseStatusException(BAD_REQUEST, "Missing required platform secret for provider verification: " + secretName);

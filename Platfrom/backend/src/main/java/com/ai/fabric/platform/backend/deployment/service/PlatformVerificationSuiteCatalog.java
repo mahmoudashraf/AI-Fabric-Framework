@@ -25,10 +25,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
         "marketplace",
         "ecommerce",
-        "qdrant",
-        "pinecone",
-        "milvus",
-        "weaviate"
+        "qdrant"
     );
 
     public List<PlatformVerificationSuiteDefinitionSummary> listDefinitions() {
@@ -97,30 +94,6 @@ public class PlatformVerificationSuiteCatalog {
                     "qdrant",
                     true,
                     "Run the vector hosted verification against the canonical qdrant deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "pinecone-hosted-verification",
-                    "Pinecone hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "pinecone",
-                    true,
-                    "Run the vector hosted verification against the canonical pinecone deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "milvus-hosted-verification",
-                    "Milvus hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "milvus",
-                    true,
-                    "Run the vector hosted verification against the canonical milvus deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "weaviate-hosted-verification",
-                    "Weaviate hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "weaviate",
-                    true,
-                    "Run the vector hosted verification against the canonical weaviate deployment."
                 )
             )
         );
@@ -163,7 +136,7 @@ public class PlatformVerificationSuiteCatalog {
                     "SCRIPT_VERIFICATION",
                     PlatformVerificationSuiteScriptContextService.SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION,
                     true,
-                    "Run direct provider verification for Pinecone, Qdrant Cloud, Zilliz Cloud, and Weaviate."
+                    "Run direct provider verification for the release-blocking Qdrant Cloud provider."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "marketplace-install-flow",
@@ -220,30 +193,6 @@ public class PlatformVerificationSuiteCatalog {
                     "qdrant",
                     true,
                     "Run the vector hosted verification against the canonical qdrant deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "pinecone-hosted-verification",
-                    "Pinecone hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "pinecone",
-                    true,
-                    "Run the vector hosted verification against the canonical pinecone deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "milvus-hosted-verification",
-                    "Milvus hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "milvus",
-                    true,
-                    "Run the vector hosted verification against the canonical milvus deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "weaviate-hosted-verification",
-                    "Weaviate hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "weaviate",
-                    true,
-                    "Run the vector hosted verification against the canonical weaviate deployment."
                 )
             )
         );
