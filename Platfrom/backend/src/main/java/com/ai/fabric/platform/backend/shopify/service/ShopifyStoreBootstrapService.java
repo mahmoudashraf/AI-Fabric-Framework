@@ -398,6 +398,7 @@ public class ShopifyStoreBootstrapService {
             changed |= putText(providerConfig, "vectorStoragePosture", properties.defaultVectorStoragePosture());
             changed |= putBoolean(providerConfig, "qdrantManagedCollectionsEnabled", properties.defaultQdrantManagedCollectionsEnabled());
             changed |= putText(providerConfig, "qdrantHost", sharedQdrantRoot.host());
+            changed |= putBoolean(providerConfig, "qdrantPreferGrpc", false);
             if (hasText(sharedQdrantRoot.runtimeApiKeySecretName())) {
                 changed |= putText(providerConfig, "qdrantRuntimeApiKeySecretName", sharedQdrantRoot.runtimeApiKeySecretName());
             } else {

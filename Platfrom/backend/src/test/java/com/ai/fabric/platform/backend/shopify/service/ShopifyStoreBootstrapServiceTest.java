@@ -644,6 +644,7 @@ class ShopifyStoreBootstrapServiceTest {
             && provider.path("qdrantManagedCollectionsEnabled").asBoolean(false)
             && !provider.path("qdrantHost").asText("").isBlank()
             && !provider.path("qdrantRuntimeApiKeySecretName").asText("").isBlank()
+            && !provider.path("qdrantPreferGrpc").asBoolean(true)
             && provider.path("qdrantCloudProviderId").asText("").isBlank()
             && provider.path("qdrantCloudRegionId").asText("").isBlank();
     }

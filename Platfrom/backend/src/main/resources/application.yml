@@ -169,10 +169,14 @@ shopify:
     bootstrap:
       default-environment: ${SHOPIFY_COMPANION_DEFAULT_ENVIRONMENT:dev}
       default-template-id: ${SHOPIFY_COMPANION_DEFAULT_TEMPLATE_ID:dev-openai-qdrant}
-      default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:}
-      default-qdrant-host: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_HOST:}
+      default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:EXTERNAL_EXISTING}
+      default-vector-storage-posture: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_STORAGE_POSTURE:SHARED}
+      default-qdrant-host: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_HOST:https://8ad5ab4f-a514-49ec-b599-742922b34a3a.eu-west-1-0.aws.cloud.qdrant.io}
       default-qdrant-source-deployment-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_SOURCE_DEPLOYMENT_ID:}
-      default-qdrant-runtime-api-key-secret-name: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_RUNTIME_API_KEY_SECRET_NAME:}
+      default-qdrant-runtime-api-key-secret-name: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_RUNTIME_API_KEY_SECRET_NAME:QDRANT_API_KEY}
+      default-qdrant-cloud-provider-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_CLOUD_PROVIDER_ID:aws}
+      default-qdrant-cloud-region-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_CLOUD_REGION_ID:eu-west-1}
+      default-qdrant-managed-collections-enabled: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_MANAGED_COLLECTIONS_ENABLED:false}
       template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
       template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
       default-plugin-ids:
