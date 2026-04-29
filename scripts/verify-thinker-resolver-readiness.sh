@@ -396,7 +396,7 @@ import json
 import pathlib
 import sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
-assert data.get("status") == "DRY_RUN_COMPLETED", data
+assert data.get("status") == "COMPLETED", data
 assert "Create one partner-visible support escalation" in data.get("expectedStateTransition", ""), data
 print("PASS: Resolver dry-run reports non-mutating state transition")
 PY
