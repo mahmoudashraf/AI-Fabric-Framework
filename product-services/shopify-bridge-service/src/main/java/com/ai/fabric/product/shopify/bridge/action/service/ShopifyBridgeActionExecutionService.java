@@ -170,13 +170,22 @@ public class ShopifyBridgeActionExecutionService {
 
     private ShopifyBridgeActionResult getPolicy(ShopifyBridgeCredentialAcquisition acquisition,
                                                 ShopifyBridgeActionExecuteRequest request) {
-        String query = normalize(textParam(request, "query"));
+        String query = firstNonBlank(textParam(request, "query"), textParam(request, "policyType"));
         int limit = integerParam(request, "limit", 5, 1, 10);
         List<Map<String, Object>> policies = fetchPolicies(acquisition);
-        List<Map<String, Object>> result = policies.stream().limit(limit).toList();
+        List<Map<String, Object>> result = policies.stream()
+            .filter(policy -> policyMatches(policy, query))
+            .limit(limit)
+            .toList();
+        LinkedHashMap<String, Object> data = new LinkedHashMap<>();
+        data.put("items", result);
+        data.put("count", result.size());
+        if (query != null) {
+            data.put("query", query);
+        }
         return ShopifyBridgeActionResult.ok(
             result.isEmpty() ? "No policies found." : "Policies",
-            Map.of("items", result, "count", result.size(), "query", query)
+            data
         );
     }
 
@@ -382,6 +391,32 @@ public class ShopifyBridgeActionExecutionService {
 
     private String normalize(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String firstNonBlank(String primary, String secondary) {
+        String normalizedPrimary = normalize(primary);
+        return normalizedPrimary != null ? normalizedPrimary : normalize(secondary);
+    }
+
+    private boolean policyMatches(Map<String, Object> policy, String query) {
+        String normalizedQuery = normalize(query);
+        if (normalizedQuery == null) {
+            return true;
+        }
+        String needle = normalizedQuery.toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        String compactNeedle = needle.replace("_policy", "");
+        return policyFieldMatches(policy, "type", needle)
+            || policyFieldMatches(policy, "type", compactNeedle)
+            || policyFieldMatches(policy, "title", normalizedQuery.toLowerCase(Locale.ROOT))
+            || policyFieldMatches(policy, "body", normalizedQuery.toLowerCase(Locale.ROOT));
+    }
+
+    private boolean policyFieldMatches(Map<String, Object> policy, String field, String needle) {
+        if (needle == null || needle.isBlank()) {
+            return false;
+        }
+        String value = text(policy, field);
+        return !value.isBlank() && value.toLowerCase(Locale.ROOT).contains(needle);
     }
 
 }
