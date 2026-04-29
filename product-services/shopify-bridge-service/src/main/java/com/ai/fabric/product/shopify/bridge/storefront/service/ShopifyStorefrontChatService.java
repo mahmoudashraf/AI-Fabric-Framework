@@ -244,13 +244,26 @@ public class ShopifyStorefrontChatService {
             return;
         }
 
+        String requestedMode = requestedConversationMode(request, context);
         String storefrontAccessToken = storefrontAccessToken(store.shopDomain());
         ShopifyBridgeBillingSummary billingSummary = billingService.summarizeForShop(store.shopDomain(), storefrontAccessToken);
         if (DEPTH_SURFACE_ENTRIES.contains(surfaceEntry)) {
-            if (billingSummary.chatFallbackEnabled()) {
+            if (requiresDepthConversationEntitlement(requestedMode)) {
+                if (billingSummary.chatFallbackEnabled()) {
+                    return;
+                }
+                throw forbidden("Companion chat depth is not available for this store's current plan.");
+            }
+            if ("cart_assistant".equals(requestedMode) || "executor".equals(requestedMode)) {
+                if (billingSummary.actionCapable()) {
+                    return;
+                }
+                throw forbidden("Companion governed actions are not available for this store's current plan.");
+            }
+            if (baseNavigatorSurfaceAllowed(billingSummary, store)) {
                 return;
             }
-            throw forbidden("Companion chat depth is not available for this store's current plan.");
+            throw forbidden("Companion surface 'ai-search' is not available for this store's current plan.");
         }
 
         List<String> allowedSurfaces = effectiveAllowedSurfaces(
@@ -260,6 +273,26 @@ public class ShopifyStorefrontChatService {
         if (!allowedSurfaces.contains(surfaceEntry)) {
             throw forbidden("Companion surface '" + surfaceEntry + "' is not available for this store's current plan.");
         }
+    }
+
+    private String requestedConversationMode(ObjectNode request, ObjectNode context) {
+        String requestedMode = normalizeConversationMode(textOrNull(request, "mode"));
+        if (requestedMode != null) {
+            return requestedMode;
+        }
+        return normalizeConversationMode(textOrNull(context, "shopifyEffectiveConversationMode"));
+    }
+
+    private boolean requiresDepthConversationEntitlement(String mode) {
+        return mode == null || "navigator_deep".equals(mode) || "thinker_deep".equals(mode);
+    }
+
+    private boolean baseNavigatorSurfaceAllowed(ShopifyBridgeBillingSummary billingSummary, ShopifyBridgeStoreSummary store) {
+        List<String> allowedSurfaces = effectiveAllowedSurfaces(
+            billingSummary.allowedSurfaces(),
+            configuredEnabledSurfaces(store)
+        );
+        return allowedSurfaces.contains("ai-search");
     }
 
     private void applyStorefrontDepthChatMode(ObjectNode request) {

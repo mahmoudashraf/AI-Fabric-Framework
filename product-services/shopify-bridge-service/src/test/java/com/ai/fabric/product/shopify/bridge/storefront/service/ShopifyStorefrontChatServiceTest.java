@@ -220,6 +220,93 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryAllowsFreeStoreMaxWidgetWhenNavigatorModeIsSelected() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(freeTierSummary());
+        when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {
+              "query":"Compare this product with similar items",
+              "mode":"navigator",
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Shopify surface: max-mode. Shopify page group: product. Shopify mode: navigator. Product: Travel Pack. Product handle: travel-pack",
+                  "metadata":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"max-mode",
+                    "shopifyPageModeGroup":"product",
+                    "shopifyEffectiveConversationMode":"navigator",
+                    "productHandle":"travel-pack",
+                    "productTitle":"Travel Pack"
+                  }
+                }
+              ]
+            }
+            """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Navigator answer."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Compare this product with similar items",
+                  "mode":"navigator",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"max-mode",
+                    "shopifyPageModeGroup":"product",
+                    "shopifyEffectiveConversationMode":"navigator",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+    }
+
+    @Test
+    void queryRejectsFreeStoreMaxWidgetWhenDepthModeIsSelected() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(freeTierSummary());
+
+        assertThatThrownBy(() -> service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Compare this product with similar items",
+                  "mode":"navigator_deep",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"max-mode",
+                    "shopifyPageModeGroup":"product",
+                    "shopifyEffectiveConversationMode":"navigator_deep",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN))
+            .hasMessageContaining("Companion chat depth is not available");
+
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
+    @Test
     void queryNormalizesTopLevelShopifyContextIntoHiddenAttachment() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
