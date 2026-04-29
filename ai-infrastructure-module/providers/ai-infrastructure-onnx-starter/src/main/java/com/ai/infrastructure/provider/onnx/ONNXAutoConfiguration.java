@@ -39,7 +39,7 @@ public class ONNXAutoConfiguration {
     }
 
     @Bean(name = "onnxFallbackEmbeddingProvider")
-    @ConditionalOnProperty(name = "ai.providers.enable-fallback", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ai.providers.enable-fallback", havingValue = "true")
     @ConditionalOnMissingBean(name = "onnxEmbeddingProvider")
     public EmbeddingProvider onnxFallbackEmbeddingProvider(AIProviderConfig config) {
         log.info("Creating ONNX fallback Embedding Provider");
