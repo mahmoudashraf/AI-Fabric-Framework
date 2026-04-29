@@ -417,11 +417,23 @@ public class ShopifyStoreProvisioningService {
         if (bindingMissing) {
             return true;
         }
+        if (!hasActiveDeployment(store.getDeploymentId())) {
+            return true;
+        }
         return switch (job.getJobType()) {
             case "INSTALL", "REINSTALL_REPAIR", "MANUAL_REPAIR" -> false;
             case "PACKAGE_CHANGE" -> false;
             default -> false;
         };
+    }
+
+    private boolean hasActiveDeployment(String deploymentId) {
+        if (!hasText(deploymentId)) {
+            return false;
+        }
+        return deploymentRepository.findById(deploymentId.trim())
+            .filter(deployment -> deployment.getArchivedAt() == null)
+            .isPresent();
     }
 
     private void reconcileVectorizationSafely(ShopifyStoreConnectionEntity store, ShopifyStoreProvisioningJobEntity job) {

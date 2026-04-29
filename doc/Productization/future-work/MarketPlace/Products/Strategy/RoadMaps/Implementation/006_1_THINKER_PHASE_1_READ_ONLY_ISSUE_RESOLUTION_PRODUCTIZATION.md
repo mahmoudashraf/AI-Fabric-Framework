@@ -1,6 +1,6 @@
 # 006.1 Thinker Phase 1 Read-Only Issue Resolution Productization
 
-Status: implemented locally as part of full 006 Thinker/Resolver slice; live deployment verification pending post-push (renamed from `007` and revised 2026-04-29)
+Status: implemented, deployed, and live verified as part of the full 006 Thinker/Resolver slice (renamed from `007` and revised 2026-04-29)
 
 Owner mode: technical LLM implementation session
 
