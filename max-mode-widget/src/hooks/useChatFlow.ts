@@ -5,7 +5,7 @@ import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import { emitEvent } from "@/config";
 import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
-import { normalizeMessageContent, withRequestContext } from "@/utils";
+import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 
 export function useChatFlow({
   chatQuery,
@@ -187,17 +187,18 @@ export function useChatFlow({
           };
         });
 
-        const explicitMode = mode !== "navigator" ? mode : undefined;
-
         const mergedRequestContext = {
           ...(requestContext || {}),
           ...(extraRequestContext || {}),
         };
+        if (hasShopifyRequestContext(mergedRequestContext)) {
+          mergedRequestContext.shopifyEffectiveConversationMode = mode;
+        }
         const requestPayload = withRequestContext({
           query: apiQuery,
           conversationId: currentConversationId || undefined,
           position,
-          mode: explicitMode,
+          mode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
         }, mergedRequestContext);
 

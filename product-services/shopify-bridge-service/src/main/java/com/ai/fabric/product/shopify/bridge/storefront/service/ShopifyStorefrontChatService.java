@@ -44,11 +44,13 @@ public class ShopifyStorefrontChatService {
         "depth"
     );
     private static final String THINKER_MODE = "THINKER_DEEP";
-    private static final Set<String> THINKER_COMPATIBLE_MODES = Set.of(
+    private static final Set<String> CANONICAL_CONVERSATION_MODES = Set.of(
         "navigator",
         "navigator_deep",
         "thinker",
-        "thinker_deep"
+        "thinker_deep",
+        "cart_assistant",
+        "executor"
     );
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
@@ -68,7 +70,7 @@ public class ShopifyStorefrontChatService {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
         ObjectNode normalizedRequest = normalizeRequest(request);
         enforceSurfaceEntitlement(store, normalizedRequest);
-        applyThinkerModeForStorefrontDepthChat(normalizedRequest);
+        applyStorefrontDepthChatMode(normalizedRequest);
         JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
         return shapeStorefrontResponse(normalizedRequest, response);
     }
@@ -260,16 +262,39 @@ public class ShopifyStorefrontChatService {
         }
     }
 
-    private void applyThinkerModeForStorefrontDepthChat(ObjectNode request) {
+    private void applyStorefrontDepthChatMode(ObjectNode request) {
         ObjectNode context = storefrontContextFromAttachments(request);
         String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
         if (surfaceEntry == null || !DEPTH_SURFACE_ENTRIES.contains(surfaceEntry)) {
             return;
         }
-        String requestedMode = trimToNull(textOrNull(request, "mode"));
-        if (requestedMode == null || THINKER_COMPATIBLE_MODES.contains(requestedMode.toLowerCase(Locale.ROOT))) {
-            request.put("mode", THINKER_MODE);
+        String requestedMode = normalizeConversationMode(textOrNull(request, "mode"));
+        if (requestedMode != null) {
+            request.put("mode", platformConversationMode(requestedMode));
+            return;
         }
+        String contextMode = normalizeConversationMode(textOrNull(context, "shopifyEffectiveConversationMode"));
+        if (contextMode != null) {
+            request.put("mode", platformConversationMode(contextMode));
+            return;
+        }
+        request.put("mode", THINKER_MODE);
+    }
+
+    private String normalizeConversationMode(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        normalized = normalized.toLowerCase(Locale.ROOT);
+        if (!CANONICAL_CONVERSATION_MODES.contains(normalized)) {
+            return null;
+        }
+        return "thinker".equals(normalized) ? "thinker_deep" : normalized;
+    }
+
+    private String platformConversationMode(String normalizedMode) {
+        return "thinker_deep".equals(normalizedMode) ? THINKER_MODE : normalizedMode;
     }
 
     private ObjectNode storefrontContextFromAttachments(ObjectNode request) {
