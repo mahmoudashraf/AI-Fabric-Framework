@@ -53,6 +53,7 @@ public class ActionCatalogAdminController {
         body.put("count", actions.size());
         body.put("actions", actions);
         body.put("groundingEligibleCount", actions.stream().filter(AIActionMetaData::isGroundingEligible).count());
+        body.put("readActionResolutionEligibleCount", actions.stream().filter(AIActionMetaData::isReadActionResolutionEligible).count());
         body.put("withPresentationHintsCount", actions.stream()
             .filter(action -> action.getResultPresentationHint() != null
                 && action.getResultPresentationHint() != com.ai.infrastructure.intent.action.ActionResultPresentationHint.DEFAULT)

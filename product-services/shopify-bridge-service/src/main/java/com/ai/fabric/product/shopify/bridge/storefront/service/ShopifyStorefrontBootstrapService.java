@@ -1,15 +1,30 @@
 package com.ai.fabric.product.shopify.bridge.storefront.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublicConsumerDeploymentCredentialsResponse;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCapability;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
+import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidgetStatusRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class ShopifyStorefrontBootstrapService {
@@ -17,20 +32,59 @@ public class ShopifyStorefrontBootstrapService {
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
+    private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final String DEFAULT_CONVERSATION_MODE = "navigator";
+    private static final List<String> DEFAULT_ENABLED_SURFACES = List.of("ai-search");
+    private static final List<String> DEFAULT_ALLOWED_CONVERSATION_MODES = List.of(DEFAULT_CONVERSATION_MODE);
+    private static final Map<String, String> DEFAULT_PAGE_MODE_MAPPINGS = Map.of();
+    private static final Set<String> CANONICAL_CONVERSATION_MODES = Set.of(
+        "navigator",
+        "navigator_deep",
+        "cart_assistant",
+        "executor"
+    );
+    private static final Set<String> ACTION_CONVERSATION_MODES = Set.of(
+        "cart_assistant",
+        "executor"
+    );
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeInstallCredentialService installCredentialService;
+    private final ShopifyInstallRecordService installRecordService;
+    private final ShopifyBridgeBillingService billingService;
+    private final ShopifyStorefrontGovernedActionService governedActionService;
     private final ShopifyBridgeProperties properties;
 
     public ShopifyStorefrontBootstrapService(PlatformShopifyStoreClient platformShopifyStoreClient,
+                                             ShopifyBridgeInstallCredentialService installCredentialService,
+                                             ShopifyInstallRecordService installRecordService,
+                                             ShopifyBridgeBillingService billingService,
+                                             ShopifyStorefrontGovernedActionService governedActionService,
                                              ShopifyBridgeProperties properties) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.installCredentialService = installCredentialService;
+        this.installRecordService = installRecordService;
+        this.billingService = billingService;
+        this.governedActionService = governedActionService;
         this.properties = properties;
     }
 
-    public ShopifyStorefrontBootstrapResponse bootstrap(String shopDomain) {
+    public ShopifyStorefrontBootstrapResponse bootstrap(String shopDomain, String pageType) {
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(shopDomain);
-        if (store.readiness() == null || !store.readiness().storefrontReady()) {
-            return unavailable(store, firstStorefrontBlockingReason(store));
+        String bridgeQueryUrl = storefrontUrl(store.shopDomain(), "/chat/query");
+        String bridgeSuggestionsUrl = storefrontUrl(store.shopDomain(), "/chat/suggestions");
+        String bridgeOrderLookupUrl = storefrontUrl(store.shopDomain(), "/support/order-lookup");
+        String bridgeEventUrl = storefrontUrl(store.shopDomain(), "/events");
+        if (!ShopifyStorefrontInteractionReadinessSupport.isReady(store)) {
+            return unavailable(
+                store,
+                firstStorefrontBlockingReason(store),
+                pageType,
+                bridgeQueryUrl,
+                bridgeSuggestionsUrl,
+                bridgeOrderLookupUrl,
+                bridgeEventUrl
+            );
         }
 
         PlatformPublicConsumerDeploymentCredentialsResponse credentials =
@@ -44,14 +98,19 @@ public class ShopifyStorefrontBootstrapService {
             )
         );
 
-        String bridgeQueryUrl = storefrontUrl(updated.shopDomain(), "/chat/query");
-        String bridgeSuggestionsUrl = storefrontUrl(updated.shopDomain(), "/chat/suggestions");
-        String bridgeEventUrl = storefrontUrl(updated.shopDomain(), "/events");
+        String actionGrantUrl = storefrontUrl(updated.shopDomain(), "/actions/grant");
+        String actionCompleteUrl = storefrontUrl(updated.shopDomain(), "/actions/complete");
         String preferredIntegrationMode = credentials.integration() == null ? null : credentials.integration().preferredIntegrationMode();
         String runtimeAuthMode = credentials.integration() == null || credentials.integration().posture() == null
             ? null
             : credentials.integration().posture().runtimeAuthMode();
         String guidance = credentials.integration() == null ? null : credentials.integration().guidance();
+        ShopifyBridgeCredentialAcquisition credentialAcquisition =
+            installCredentialService.resolvePersistedMaterial(updated.shopDomain()).orElse(null);
+        String storefrontAccessToken = credentialAcquisition == null
+            ? null
+            : credentialAcquisition.tokenExchangeMaterial().accessToken();
+        ShopifyBridgeBillingSummary billingSummary = billingService.summarizeForShop(updated.shopDomain(), storefrontAccessToken);
         String launcherLabel = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().launcherLabel() != null && !updated.widgetDetail().settings().launcherLabel().isBlank()
             ? updated.widgetDetail().settings().launcherLabel().trim()
@@ -60,6 +119,70 @@ public class ShopifyStorefrontBootstrapService {
             && updated.widgetDetail().settings().welcomeMessage() != null && !updated.widgetDetail().settings().welcomeMessage().isBlank()
             ? updated.widgetDetail().settings().welcomeMessage().trim()
             : DEFAULT_WELCOME_MESSAGE;
+        String shellModeProfile = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().shellModeProfile() != null && !updated.widgetDetail().settings().shellModeProfile().isBlank()
+            ? updated.widgetDetail().settings().shellModeProfile().trim()
+            : DEFAULT_SHELL_MODE_PROFILE;
+        String configuredDefaultConversationMode = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().defaultConversationMode() != null
+            && !updated.widgetDetail().settings().defaultConversationMode().isBlank()
+            ? updated.widgetDetail().settings().defaultConversationMode().trim()
+            : defaultConversationModeForShellProfile(shellModeProfile);
+        String defaultConversationMode = resolveDefaultConversationMode(
+            configuredDefaultConversationMode,
+            shellModeProfile,
+            billingSummary
+        );
+        List<String> allowedConversationModes = normalizeAllowedConversationModes(
+            updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+                ? updated.widgetDetail().settings().allowedConversationModes()
+                : null,
+            defaultConversationMode,
+            billingSummary
+        );
+        Map<String, String> pageModeMappings = normalizePageModeMappings(
+            updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+                ? updated.widgetDetail().settings().pageModeMappings()
+                : null,
+            allowedConversationModes
+        );
+        String effectiveConversationMode = resolveEffectiveConversationMode(
+            pageType,
+            defaultConversationMode,
+            allowedConversationModes,
+            pageModeMappings
+        );
+        List<String> enabledSurfaces = updated.widgetDetail() != null
+            && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().enabledSurfaces() != null
+            && !updated.widgetDetail().settings().enabledSurfaces().isEmpty()
+            ? List.copyOf(updated.widgetDetail().settings().enabledSurfaces())
+            : billingSummary.allowedSurfaces();
+        enabledSurfaces = billingService.effectiveAllowedSurfaces(updated.shopDomain(), storefrontAccessToken, enabledSurfaces);
+        String scopesText = installRecordService.findByShopDomain(updated.shopDomain())
+            .map(summary -> summary.scopesText() == null ? null : summary.scopesText())
+            .orElseGet(() -> credentialAcquisition == null ? null : credentialAcquisition.tokenExchangeMaterial().scopesText());
+        List<String> billingAllowedSurfaces = billingSummary.allowedSurfaces() == null
+            ? List.of()
+            : billingSummary.allowedSurfaces();
+        boolean orderLookupInTier = billingAllowedSurfaces.contains("order-lookup");
+        boolean orderLookupConfigured = enabledSurfaces.contains("order-lookup");
+        boolean orderLookupScopeGranted = ShopifyScopeSupport.hasScope(scopesText, "read_orders");
+        boolean orderLookupEnabled = orderLookupInTier && orderLookupConfigured && orderLookupScopeGranted;
+        boolean olderOrdersRequireBroaderScope = orderLookupEnabled && !ShopifyScopeSupport.hasScope(scopesText, "read_all_orders");
+        String orderLookupMessage = orderLookupEnabled
+            ? (olderOrdersRequireBroaderScope
+                ? "Order lookup is available with the exact order number and checkout email. Orders older than Shopify's default window still require broader order access."
+                : "Order lookup is available with the exact order number and checkout email.")
+            : !orderLookupInTier
+                ? "Order lookup is available only on Elite stores with verified support access."
+                : !orderLookupConfigured
+                    ? "Order lookup is disabled in the storefront surface configuration."
+                    : "Order lookup is waiting for Shopify order-read scope approval on this store.";
+        List<String> groundingSignals = groundingSignals(updated);
+        List<String> supportedReviewProviders = supportedReviewProviders(updated);
+        ShopifyStorefrontGovernedActionCapability actionCapability =
+            governedActionService.capability(updated.shopDomain(), actionGrantUrl, actionCompleteUrl);
 
         return new ShopifyStorefrontBootstrapResponse(
             true,
@@ -68,19 +191,44 @@ public class ShopifyStorefrontBootstrapService {
             updated.deploymentId(),
             updated.widgetStatus(),
             updated.sourceReadinessStatus(),
+            billingSummary.tierKey(),
+            billingSummary.status(),
+            billingSummary.catalogProductCap(),
+            billingSummary.poweredByBadgeRequired(),
+            billingSummary.chatFallbackEnabled(),
             launcherLabel,
             welcomeMessage,
+            shellModeProfile,
+            defaultConversationMode,
+            effectiveConversationMode,
+            allowedConversationModes,
+            pageModeMappings,
+            enabledSurfaces,
+            groundingSignals,
+            supportedReviewProviders,
             preferredIntegrationMode,
             runtimeAuthMode,
             bridgeQueryUrl,
             bridgeSuggestionsUrl,
+            bridgeOrderLookupUrl,
             bridgeEventUrl,
+            orderLookupEnabled,
+            olderOrdersRequireBroaderScope,
+            orderLookupMessage,
+            actionCapability,
             guidance,
             "Storefront bootstrap resolved. Theme app extension can now call the bridge-backed shopper endpoints."
         );
     }
 
-    private ShopifyStorefrontBootstrapResponse unavailable(ShopifyBridgeStoreSummary store, String message) {
+    private ShopifyStorefrontBootstrapResponse unavailable(ShopifyBridgeStoreSummary store,
+                                                           String message,
+                                                           String pageType,
+                                                           String bridgeQueryUrl,
+                                                           String bridgeSuggestionsUrl,
+                                                           String bridgeOrderLookupUrl,
+                                                           String bridgeEventUrl) {
+        String defaultConversationMode = defaultConversationModeForShellProfile(DEFAULT_SHELL_MODE_PROFILE);
         return new ShopifyStorefrontBootstrapResponse(
             false,
             store.shopDomain(),
@@ -88,23 +236,96 @@ public class ShopifyStorefrontBootstrapService {
             store.deploymentId(),
             store.widgetStatus(),
             store.sourceReadinessStatus(),
+            "FREE",
+            "ACTIVE",
+            50,
+            true,
+            false,
             DEFAULT_LAUNCHER_LABEL,
             DEFAULT_WELCOME_MESSAGE,
+            DEFAULT_SHELL_MODE_PROFILE,
+            defaultConversationMode,
+            resolveEffectiveConversationMode(
+                pageType,
+                defaultConversationMode,
+                DEFAULT_ALLOWED_CONVERSATION_MODES,
+                DEFAULT_PAGE_MODE_MAPPINGS
+            ),
+            DEFAULT_ALLOWED_CONVERSATION_MODES,
+            DEFAULT_PAGE_MODE_MAPPINGS,
+            DEFAULT_ENABLED_SURFACES,
+            groundingSignals(store),
+            supportedReviewProviders(store),
             null,
             null,
-            null,
-            null,
-            null,
+            bridgeQueryUrl,
+            bridgeSuggestionsUrl,
+            bridgeOrderLookupUrl,
+            bridgeEventUrl,
+            false,
+            true,
+            "Order lookup is unavailable until the store is storefront-ready.",
+            new ShopifyStorefrontGovernedActionCapability(
+                false,
+                false,
+                false,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                "Guided commerce actions are unavailable until the store is storefront-ready."
+            ),
             null,
             message
         );
     }
 
-    private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {
-        if (store.readiness() != null && !store.readiness().storefrontBlockingReasons().isEmpty()) {
-            return store.readiness().storefrontBlockingReasons().get(0);
+    private List<String> groundingSignals(ShopifyBridgeStoreSummary store) {
+        List<String> signals = new ArrayList<>();
+        if (store.productsEnabled()) {
+            signals.add("Catalog product grounding");
+            signals.add("Review-aware product grounding");
         }
-        return "Storefront bootstrap is not available for this store yet.";
+        if (store.collectionsEnabled()) {
+            signals.add("Collection grounding");
+        }
+        if (store.pagesEnabled()) {
+            signals.add("Store page grounding");
+        }
+        if (store.policiesEnabled()) {
+            signals.add("Policy grounding");
+        }
+        if (store.articlesEnabled()) {
+            signals.add("Published article grounding");
+        }
+        if (store.metaobjectsEnabled()) {
+            signals.add("Metaobject grounding");
+        }
+        return List.copyOf(signals);
+    }
+
+    private List<String> supportedReviewProviders(ShopifyBridgeStoreSummary store) {
+        if (!store.productsEnabled()) {
+            return List.of();
+        }
+        if (store.sourcePreflight() != null && store.sourcePreflight().categories() != null) {
+            List<String> detected = store.sourcePreflight().categories().stream()
+                .filter(category -> "products".equalsIgnoreCase(category.category()))
+                .flatMap(category -> category.signals() == null ? java.util.stream.Stream.empty() : category.signals().stream())
+                .filter(signal -> signal != null && !signal.isBlank())
+                .toList();
+            if (!detected.isEmpty()) {
+                return List.copyOf(detected);
+            }
+        }
+        return ShopifyProductReviewSignals.supportedProviderLabels();
+    }
+
+    private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {
+        return ShopifyStorefrontInteractionReadinessSupport.firstBlockingReason(
+            store,
+            "Storefront bootstrap is not available for this store yet."
+        );
     }
 
     private String encodePathSegment(String value) {
@@ -120,5 +341,107 @@ public class ShopifyStorefrontBootstrapService {
             ? properties.publicBaseUrl().substring(0, properties.publicBaseUrl().length() - 1)
             : properties.publicBaseUrl();
         return base + path;
+    }
+
+    private String resolveDefaultConversationMode(String configuredDefaultConversationMode,
+                                                  String shellModeProfile,
+                                                  ShopifyBridgeBillingSummary billingSummary) {
+        return normalizeConversationMode(configuredDefaultConversationMode, billingSummary)
+            .or(() -> normalizeConversationMode(defaultConversationModeForShellProfile(shellModeProfile), billingSummary))
+            .orElse(DEFAULT_CONVERSATION_MODE);
+    }
+
+    private Optional<String> normalizeConversationMode(String value, ShopifyBridgeBillingSummary billingSummary) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (!CANONICAL_CONVERSATION_MODES.contains(normalized)) {
+            return Optional.empty();
+        }
+        if (!conversationModeEntitled(normalized, billingSummary)) {
+            return Optional.empty();
+        }
+        return Optional.of(normalized);
+    }
+
+    private boolean conversationModeEntitled(String mode, ShopifyBridgeBillingSummary billingSummary) {
+        if (DEFAULT_CONVERSATION_MODE.equals(mode)) {
+            return true;
+        }
+        if ("navigator_deep".equals(mode)) {
+            return billingSummary != null && billingSummary.chatFallbackEnabled();
+        }
+        if (ACTION_CONVERSATION_MODES.contains(mode)) {
+            return billingSummary != null && billingSummary.actionCapable();
+        }
+        return false;
+    }
+
+    private List<String> normalizeAllowedConversationModes(List<String> configured,
+                                                           String defaultConversationMode,
+                                                           ShopifyBridgeBillingSummary billingSummary) {
+        if (configured == null || configured.isEmpty()) {
+            return List.of(defaultConversationMode);
+        }
+        java.util.LinkedHashSet<String> normalized = new java.util.LinkedHashSet<>();
+        configured.forEach(mode -> {
+            normalizeConversationMode(mode, billingSummary).ifPresent(normalized::add);
+        });
+        normalized.add(defaultConversationMode.trim().toLowerCase(Locale.ROOT));
+        return List.copyOf(normalized);
+    }
+
+    private Map<String, String> normalizePageModeMappings(Map<String, String> configured, List<String> allowedConversationModes) {
+        if (configured == null || configured.isEmpty()) {
+            return DEFAULT_PAGE_MODE_MAPPINGS;
+        }
+        java.util.LinkedHashMap<String, String> normalized = new java.util.LinkedHashMap<>();
+        configured.forEach((key, value) -> {
+            if (key == null || key.isBlank() || value == null || value.isBlank()) {
+                return;
+            }
+            String normalizedMode = value.trim().toLowerCase(Locale.ROOT);
+            if (!allowedConversationModes.contains(normalizedMode)) {
+                return;
+            }
+            normalized.put(key.trim().toLowerCase(Locale.ROOT), normalizedMode);
+        });
+        return normalized.isEmpty() ? DEFAULT_PAGE_MODE_MAPPINGS : Map.copyOf(normalized);
+    }
+
+    private String resolveEffectiveConversationMode(String rawPageType,
+                                                    String defaultConversationMode,
+                                                    List<String> allowedConversationModes,
+                                                    Map<String, String> pageModeMappings) {
+        String pageModeKey = pageModeKey(rawPageType);
+        String candidate = pageModeMappings.get(pageModeKey);
+        if (candidate != null && allowedConversationModes.contains(candidate)) {
+            return candidate;
+        }
+        return allowedConversationModes.contains(defaultConversationMode)
+            ? defaultConversationMode
+            : allowedConversationModes.getFirst();
+    }
+
+    private String defaultConversationModeForShellProfile(String shellModeProfile) {
+        if ("GUIDED_SUPPORT".equalsIgnoreCase(shellModeProfile)) {
+            return "navigator_deep";
+        }
+        return DEFAULT_CONVERSATION_MODE;
+    }
+
+    private String pageModeKey(String rawPageType) {
+        String normalized = rawPageType == null ? "" : rawPageType.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "product" -> "product";
+            case "collection", "list-collections" -> "collection";
+            case "search" -> "search";
+            case "cart" -> "cart";
+            case "article", "blog", "page" -> "content";
+            case "customers/account", "customers/login", "customers/register", "customers/order", "account", "orders" -> "account";
+            case "index", "home", "landing" -> "landing";
+            default -> "landing";
+        };
     }
 }

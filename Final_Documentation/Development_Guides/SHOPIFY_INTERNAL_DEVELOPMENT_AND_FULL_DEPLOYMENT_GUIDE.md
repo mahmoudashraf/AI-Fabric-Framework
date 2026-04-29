@@ -12,6 +12,8 @@ Purpose:
 This guide should be read with:
 
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md`
+- `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_LAUNCH_REVIEW_AND_SUPPORT_EXPORTS_GUIDE.md`
+- `Final_Documentation/User_Guides/SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md`
 - `doc/Productization/future-work/Auth/SHOPIFY_APP_ARCHITECTURE_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
 - `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
@@ -120,6 +122,7 @@ Current validated execution path:
 
 - `SHOPIFY_CLI_PARTNERS_TOKEN=<partner-cli-token> shopify app deploy --allow-updates`
 - this works for the current Loom Companion app workspace without interactive login
+- the deployed app manifest must include `read_orders` now that customer-safe order lookup is a shipped surface; after a scope change deploy, re-open the shop install URL so the merchant approves the updated scope set
 
 ### 2.2 Catalog or Dev Dashboard API key/token
 
@@ -517,6 +520,7 @@ What it does:
 - bootstraps customer/deployment/consumer bindings when missing
 - prints the exact live install URL
 - stops cleanly if Shopify install approval is still missing
+- stops cleanly if governed support is still pending Shopify order-read scope approval or app-scopes webhook repair, and prints the exact recovery URL when available
 - after install, it can continue into live source preflight and go-live from the platform side
 
 What I still need from administration side:
@@ -530,3 +534,9 @@ What I do not need anymore:
 - I do not need another app-creation step for the current app
 - I do not need an interactive Shopify CLI login if `SHOPIFY_CLI_PARTNERS_TOKEN` is available
 - I do not need the Dev Dashboard fallback path for the real deployment
+
+Current LLM unblock checklist:
+
+- Bridge admin verification needs `SHOPIFY_BRIDGE_ADMIN_API_KEY` set to the deployed bridge `SHOPIFY_BRIDGE_SHARED_SECRET`; HTTP `401` from `/api/admin/overview` means the supplied value is not the deployed value.
+- Shopify-hosted theme extension proof needs a valid `SHOPIFY_CLI_PARTNERS_TOKEN`; if `npm --prefix product-services/shopify-bridge-service run shopify:app:deploy` prompts for device-code login, stop and provide/fix the non-interactive Partner token.
+- After deploy, verify the merchant theme has the app embed/block enabled, then browser-check that a Shopify-hosted embedded surface opens Max Mode.

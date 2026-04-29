@@ -5,6 +5,8 @@ import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationEventService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationLedgerService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunEntity;
@@ -56,6 +58,8 @@ class VectorizationRunnerServiceTest {
     private final VectorizationFailureBucketRepository failureBucketRepository = mock(VectorizationFailureBucketRepository.class);
     private final PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
     private final VectorizationService vectorizationService = mock(VectorizationService.class);
+    private final ShopifyStoreVectorizationLedgerService shopifyStoreVectorizationLedgerService = mock(ShopifyStoreVectorizationLedgerService.class);
+    private final ShopifyStoreVectorizationEventService shopifyStoreVectorizationEventService = mock(ShopifyStoreVectorizationEventService.class);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final VectorizationJsonSupport jsonSupport = new VectorizationJsonSupport(objectMapper);
@@ -244,6 +248,36 @@ class VectorizationRunnerServiceTest {
             "vrn-1".equals(saved.getLastSuccessfulRunId())
                 && "active-hash".equals(saved.getLastSuccessfulIndexedOutputHash())
         ));
+        verify(shopifyStoreVectorizationLedgerService).refreshForCompletedRun(argThat(run -> "vrn-1".equals(run.getId())), argThat(scope -> scope.equals(List.of("product"))));
+        verify(shopifyStoreVectorizationEventService).markRunCompletion("vrn-1", true, "Shopify vectorization run completed successfully.", null);
+    }
+
+    @Test
+    void completeRunMarksShopifyEventFailureWhenLedgerRefreshFails() {
+        when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
+            .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
+        when(runRepository.findById("vrn-1")).thenReturn(Optional.of(run("PLATFORM_MANAGED_AUTO")));
+        when(planRepository.findById("vpl-1")).thenReturn(Optional.of(plan("active-hash")));
+        when(revisionRepository.findById("vpr-1")).thenReturn(Optional.of(revision("vcn-1")));
+        org.mockito.Mockito.doThrow(new IllegalStateException("ledger refresh exploded"))
+            .when(shopifyStoreVectorizationLedgerService)
+            .refreshForCompletedRun(any(), any());
+
+        service().completeRun(new VectorizationRunnerCompletionRequest(
+            "session-token",
+            "vrn-1",
+            "COMPLETED",
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createArrayNode()
+        ));
+
+        verify(shopifyStoreVectorizationEventService).markRunCompletion(
+            "vrn-1",
+            false,
+            "ledger refresh exploded",
+            "LEDGER_REFRESH_FAILED"
+        );
     }
 
     @Test
@@ -298,7 +332,9 @@ class VectorizationRunnerServiceTest {
             jsonSupport,
             tokenService,
             vectorizationService,
-            platformSecretService
+            platformSecretService,
+            shopifyStoreVectorizationLedgerService,
+            shopifyStoreVectorizationEventService
         );
     }
 

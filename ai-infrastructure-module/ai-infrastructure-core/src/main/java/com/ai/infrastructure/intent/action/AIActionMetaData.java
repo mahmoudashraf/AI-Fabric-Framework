@@ -54,6 +54,11 @@ public class AIActionMetaData {
     private boolean groundingEligible;
 
     /**
+     * Whether this READ action may be selected by the read-action resolution planner.
+     */
+    private boolean readActionResolutionEligible;
+
+    /**
      * Stable side-effect posture for shell and governance surfaces.
      */
     private ActionSideEffectLevel sideEffectLevel;

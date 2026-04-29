@@ -41,6 +41,7 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
+import com.ai.infrastructure.intent.orchestration.information.ReadActionResolutionService;
 import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -59,7 +60,6 @@ import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -104,7 +104,6 @@ import java.time.Instant;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class IntentHandlingStep implements PipelineStep {
     private static final String ACTION_RELATIONSHIP_QUERY = "relationship_query";
     
@@ -246,6 +245,44 @@ public class IntentHandlingStep implements PipelineStep {
     private ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
     @Autowired(required = false)
     private ObjectProvider<ActionPostPolicyEngine> actionPostPolicyEngineProvider;
+    @Autowired(required = false)
+    private ObjectProvider<ReadActionResolutionService> readActionResolutionServiceProvider;
+
+    public IntentHandlingStep(AIActionRegistry actionHandlerRegistry,
+                              ObjectProvider<RAGProvider> ragProvider,
+                              AICoreService aiCoreService,
+                              AIServiceConfig aiServiceConfig,
+                              ObjectProvider<AdvancedRAGProvider> advancedRagProvider,
+                              VectorSpaceRoutingProperties vectorSpaceRoutingProperties,
+                              RankBasedMerger rankBasedMerger,
+                              RelationshipQueryPostActionGenerationProperties relationshipQueryPostActionGenerationProperties,
+                              PostActionGenerationProperties postActionGenerationProperties,
+                              ObjectProvider<ObjectMapper> objectMapperProvider,
+                              OrchestrationProperties orchestrationProperties,
+                              ObjectProvider<KnowledgeBaseOverviewService> knowledgeBaseOverviewServiceProvider,
+                              AIEntityConfigurationLoader entityConfigurationLoader,
+                              PendingActionStore pendingActionStore,
+                              ActionDraftStore actionDraftStore,
+                              PromptTemplateResolver promptTemplateResolver,
+                              PromptRenderer promptRenderer) {
+        this.actionHandlerRegistry = actionHandlerRegistry;
+        this.ragProvider = ragProvider;
+        this.aiCoreService = aiCoreService;
+        this.aiServiceConfig = aiServiceConfig;
+        this.advancedRagProvider = advancedRagProvider;
+        this.vectorSpaceRoutingProperties = vectorSpaceRoutingProperties;
+        this.rankBasedMerger = rankBasedMerger;
+        this.relationshipQueryPostActionGenerationProperties = relationshipQueryPostActionGenerationProperties;
+        this.postActionGenerationProperties = postActionGenerationProperties;
+        this.objectMapperProvider = objectMapperProvider;
+        this.orchestrationProperties = orchestrationProperties;
+        this.knowledgeBaseOverviewServiceProvider = knowledgeBaseOverviewServiceProvider;
+        this.entityConfigurationLoader = entityConfigurationLoader;
+        this.pendingActionStore = pendingActionStore;
+        this.actionDraftStore = actionDraftStore;
+        this.promptTemplateResolver = promptTemplateResolver;
+        this.promptRenderer = promptRenderer;
+    }
     
     // =========================================================================
     // PipelineStep Implementation
@@ -321,10 +358,12 @@ public class IntentHandlingStep implements PipelineStep {
             return OrchestrationResult.error(ERROR_MSG_MISSING_ACTION_NAME);
         }
 
+        AIActionMetaData meta = getMetadataForAction(actionName);
         OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
         if (policy != null
             && policy.capabilities() != null
-            && !policy.capabilities().actionsEnabled()) {
+            && !policy.capabilities().actionsEnabled()
+            && !isReadActionExecutionAllowedByReadResolutionPolicy(actionName, meta, policy)) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("reason", "ACTIONS_DISABLED_BY_POLICY");
             return OrchestrationResult.builder()
@@ -335,8 +374,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
-        
-        AIActionMetaData meta = getMetadataForAction(actionName);
+
         if (context.isAnonymous() && (meta == null || !meta.isAnonymousAllowed())) {
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.ACTION_DENIED)
@@ -577,6 +615,35 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
+    }
+
+    private boolean isReadActionExecutionAllowedByReadResolutionPolicy(String actionName,
+                                                                       AIActionMetaData metadata,
+                                                                       OrchestrationPolicy policy) {
+        if (!StringUtils.hasText(actionName) || metadata == null || policy == null) {
+            return false;
+        }
+        if (metadata.getAccessMode() != ActionAccessMode.READ || !metadata.isReadActionResolutionEligible()) {
+            return false;
+        }
+        OrchestrationPolicy.ReadActionResolutionPolicy readPolicy = policy.readActionResolutionPolicy();
+        if (readPolicy == null || !readPolicy.enabled()) {
+            return false;
+        }
+        if (readPolicy.requireGroundingEligible() && !metadata.isGroundingEligible()) {
+            return false;
+        }
+        if (!readPolicy.requireAllowlist()) {
+            return true;
+        }
+        if (!readPolicy.hasAllowedReadActions()) {
+            return false;
+        }
+        String normalizedActionName = actionName.trim().toLowerCase(Locale.ROOT);
+        return readPolicy.allowedReadActions().stream()
+            .filter(StringUtils::hasText)
+            .map(value -> value.trim().toLowerCase(Locale.ROOT))
+            .anyMatch(normalizedActionName::equals);
     }
 
     private void enqueuePostPolicies(String actionName,
@@ -2218,7 +2285,33 @@ public class IntentHandlingStep implements PipelineStep {
                 }
                 return handleInformationDirectAnswer(intent, context, pipelineContext);
             }
-            return handleInformationGenerationOnly(intent, context, pipelineContext, generationQuery, metadata);
+        }
+
+        ReadActionResolutionService.ResolutionOutcome readActionResolution = maybeResolveReadActionResolution(
+            intent,
+            context,
+            pipelineContext,
+            metadata
+        );
+        if (readActionResolution.canAnswerFromActionEvidenceOnly()) {
+            return handleInformationFromReadActionEvidence(
+                intent,
+                context,
+                pipelineContext,
+                generationQuery,
+                metadata,
+                readActionResolution
+            );
+        }
+        if (readActionResolution.attempted() && readActionResolution.useRag() && !requiresRetrieval) {
+            requiresRetrieval = true;
+            metadata.put("readActionResolutionForcedRetrieval", true);
+            metadata.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
+            metadata.put("requiresRetrieval", true);
+        }
+        if (!requiresRetrieval) {
+            OrchestrationResult result = handleInformationGenerationOnly(intent, context, pipelineContext, generationQuery, metadata);
+            return attachReadActionResolutionDiagnostics(result, readActionResolution);
         }
 
         List<String> vectorSpacesRaw = parseVectorSpaces(intent != null ? intent.getVectorSpace() : null);
@@ -2231,6 +2324,17 @@ public class IntentHandlingStep implements PipelineStep {
         String vectorSpacesSelectionSource = !vectorSpaces.isEmpty()
             ? ((validation != null && validation.normalizedOrFiltered()) ? "LLM_VALIDATED" : "LLM")
             : null;
+
+        if (vectorSpaces.isEmpty()
+            && readActionResolution.attempted()
+            && readActionResolution.preferredVectorSpaces() != null
+            && !readActionResolution.preferredVectorSpaces().isEmpty()) {
+            vectorSpaces = readActionResolution.preferredVectorSpaces();
+            vectorSpacesSelectionSource = "READ_ACTION_PLANNER";
+            if (intent != null) {
+                intent.setVectorSpace(String.join(",", vectorSpaces));
+            }
+        }
 
         // Keep intent.vectorSpace consistent with what we'll actually search.
         if (intent != null) {
@@ -2374,7 +2478,20 @@ public class IntentHandlingStep implements PipelineStep {
 	        }
 
         if (vectorSpaces.size() > 1) {
-            return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, generationQuery, retrievalQuery, metadata, vectorSpaces, ragBudgets);
+            OrchestrationResult result = handleInformationFanOut(
+                intent,
+                context,
+                pipelineContext,
+                deterministic,
+                needsGeneration,
+                generationQuery,
+                retrievalQuery,
+                metadata,
+                vectorSpaces,
+                ragBudgets,
+                readActionResolution
+            );
+            return attachReadActionResolutionDiagnostics(result, readActionResolution);
         }
 
         String advancedDecisionQuery = StringUtils.hasText(optimizedQuery)
@@ -2387,7 +2504,16 @@ public class IntentHandlingStep implements PipelineStep {
 	            String advancedQuery = embedding != null && StringUtils.hasText(embedding.embeddingQuery())
 	                ? embedding.embeddingQuery()
 	                : retrievalQuery;
-	            OrchestrationResult advanced = handleInformationAdvanced(intent, context, pipelineContext, needsGeneration, generationQuery, advancedQuery, metadata);
+	            OrchestrationResult advanced = handleInformationAdvanced(
+                    intent,
+                    context,
+                    pipelineContext,
+                    needsGeneration,
+                    generationQuery,
+                    advancedQuery,
+                    metadata,
+                    readActionResolution
+                );
 	            if (advanced != null) {
 	                if (deepRetrievalEnabled
 	                    && fanoutAllowed
@@ -2407,14 +2533,37 @@ public class IntentHandlingStep implements PipelineStep {
 	                        metadata.put("vectorSpacesSelected", vectorSpaces);
 	                        metadata.put("vectorSpacesSelectionSource", "ADVANCED_FALLBACK_FAN_OUT");
 
-	                        return handleInformationFanOut(intent, context, pipelineContext, deterministic, needsGeneration, generationQuery, retrievalQuery, metadata, vectorSpaces, ragBudgets);
+                        return handleInformationFanOut(
+                            intent,
+                            context,
+                            pipelineContext,
+                            deterministic,
+                            needsGeneration,
+                            generationQuery,
+                            retrievalQuery,
+                            metadata,
+                            vectorSpaces,
+                            ragBudgets,
+                            readActionResolution
+                        );
 	                    }
 	                }
-	                return advanced;
-	            }
+                return attachReadActionResolutionDiagnostics(advanced, readActionResolution);
+            }
 	        }
 
-        return handleInformationBasic(intent, context, pipelineContext, needsGeneration, generationQuery, retrievalQuery, metadata, ragBudgets);
+        OrchestrationResult result = handleInformationBasic(
+            intent,
+            context,
+            pipelineContext,
+            needsGeneration,
+            generationQuery,
+            retrievalQuery,
+            metadata,
+            ragBudgets,
+            readActionResolution
+        );
+        return attachReadActionResolutionDiagnostics(result, readActionResolution);
     }
 
     // Retrieval queries must always be derived from the user's actual query (PII-processed if enabled),
@@ -2529,6 +2678,123 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
 
+    private ReadActionResolutionService.ResolutionOutcome maybeResolveReadActionResolution(Intent intent,
+                                                                                          OrchestrationContext context,
+                                                                                          PipelineContext pipelineContext,
+                                                                                          Map<String, Object> metadata) {
+        ReadActionResolutionService service = readActionResolutionServiceProvider != null
+            ? readActionResolutionServiceProvider.getIfAvailable()
+            : null;
+        if (service == null) {
+            return ReadActionResolutionService.ResolutionOutcome.skipped("SERVICE_UNAVAILABLE");
+        }
+        try {
+            ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(intent, context, pipelineContext);
+            if (metadata != null && outcome != null && outcome.diagnostics() != null && !outcome.diagnostics().isEmpty()) {
+                metadata.put("readActionResolution", outcome.diagnostics());
+            }
+            return outcome != null
+                ? outcome
+                : ReadActionResolutionService.ResolutionOutcome.skipped("NO_RESULT");
+        } catch (Exception ex) {
+            log.warn("Read-action resolution failed for request {}: {}",
+                pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+                ex.getMessage(),
+                ex);
+            Map<String, Object> diagnostics = new LinkedHashMap<>();
+            diagnostics.put("attempted", false);
+            diagnostics.put("skipReason", "ERROR");
+            diagnostics.put("message", ex.getMessage());
+            if (metadata != null) {
+                metadata.put("readActionResolution", Collections.unmodifiableMap(diagnostics));
+            }
+            return ReadActionResolutionService.ResolutionOutcome.skipped("ERROR");
+        }
+    }
+
+    private OrchestrationResult handleInformationFromReadActionEvidence(Intent intent,
+                                                                        OrchestrationContext context,
+                                                                        PipelineContext pipelineContext,
+                                                                        String generationQuery,
+                                                                        Map<String, Object> metadata,
+                                                                        ReadActionResolutionService.ResolutionOutcome resolutionOutcome) {
+        String evidenceContext = mergeReadActionEvidenceIntoGenerationContext(null, pipelineContext, resolutionOutcome);
+        ResponseGenerationTrace generationTrace = null;
+        String answer = null;
+        try {
+            generationTrace = generateRagAnswer(intent, generationQuery, evidenceContext, pipelineContext);
+            answer = generationTrace != null ? generationTrace.content() : null;
+        } catch (Exception ex) {
+            log.error("Read-action evidence generation failed for request {}: {}",
+                pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
+                ex.getMessage(),
+                ex);
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put(DATA_KEY_ANSWER, answer);
+        data.put(DATA_KEY_DOCUMENTS, List.of());
+        data.put(DATA_KEY_RAG_RESPONSE, null);
+        data.put(DATA_KEY_REQUIRES_GENERATION, true);
+        data.put("requiresRetrieval", false);
+        data.put("readActionResolution", resolutionOutcome != null ? resolutionOutcome.diagnostics() : Map.of());
+        if (metadata != null && !metadata.isEmpty()) {
+            data.put(DATA_KEY_METADATA, Collections.unmodifiableMap(new LinkedHashMap<>(metadata)));
+        }
+
+        String message = StringUtils.hasText(answer)
+            ? answer
+            : (StringUtils.hasText(resolutionOutcome != null ? resolutionOutcome.evidenceContext() : null)
+                ? resolutionOutcome.evidenceContext()
+                : RAG_NO_CONTEXT_MESSAGE);
+
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(StringUtils.hasText(answer) || StringUtils.hasText(evidenceContext))
+            .message(message)
+            .data(Collections.unmodifiableMap(data))
+            .metadata(responseGenerationMetadata(generationTrace))
+            .nextSteps(extractNextSteps(intent))
+            .build();
+        return attachReadActionResolutionDiagnostics(result, resolutionOutcome);
+    }
+
+    private OrchestrationResult attachReadActionResolutionDiagnostics(OrchestrationResult result,
+                                                                     ReadActionResolutionService.ResolutionOutcome resolutionOutcome) {
+        if (result == null || resolutionOutcome == null || resolutionOutcome.diagnostics() == null || resolutionOutcome.diagnostics().isEmpty()) {
+            return result;
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (result.getMetadata() != null && !result.getMetadata().isEmpty()) {
+            metadata.putAll(result.getMetadata());
+        }
+        metadata.put("readActionResolution", Collections.unmodifiableMap(new LinkedHashMap<>(resolutionOutcome.diagnostics())));
+        result.setMetadata(Collections.unmodifiableMap(metadata));
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        if (result.getData() != null && !result.getData().isEmpty()) {
+            data.putAll(result.getData());
+        }
+        data.put("readActionResolution", Collections.unmodifiableMap(new LinkedHashMap<>(resolutionOutcome.diagnostics())));
+        result.setData(Collections.unmodifiableMap(data));
+        return result;
+    }
+
+    private String mergeReadActionEvidenceIntoGenerationContext(String retrievedContext,
+                                                                PipelineContext pipelineContext,
+                                                                ReadActionResolutionService.ResolutionOutcome resolutionOutcome) {
+        String combinedContext = retrievedContext;
+        if (resolutionOutcome != null && StringUtils.hasText(resolutionOutcome.evidenceContext())) {
+            if (!StringUtils.hasText(combinedContext) || RAG_NO_CONTEXT_MESSAGE.equals(combinedContext)) {
+                combinedContext = resolutionOutcome.evidenceContext();
+            } else {
+                combinedContext = resolutionOutcome.evidenceContext() + "\n\n" + combinedContext;
+            }
+        }
+        return prependPinnedTargetsContext(combinedContext, pipelineContext);
+    }
+
     private OrchestrationResult handleInformationBasic(Intent intent,
                                                        OrchestrationContext context,
                                                        PipelineContext pipelineContext,
@@ -2536,7 +2802,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                        String generationQuery,
                                                        String retrievalQuery,
                                                        Map<String, Object> metadata,
-                                                       OrchestrationPolicy.RagBudgets ragBudgets) {
+                                                       OrchestrationPolicy.RagBudgets ragBudgets,
+                                                       ReadActionResolutionService.ResolutionOutcome readActionResolution) {
         RAGProvider provider = ragProvider.getIfAvailable();
         if (provider == null) {
             Map<String, Object> data = new LinkedHashMap<>();
@@ -2588,8 +2855,11 @@ public class IntentHandlingStep implements PipelineStep {
 	                if (!hasRetrievedEvidence) {
 	                    hasRetrievedEvidence = StringUtils.hasText(baseContext) && !RAG_NO_CONTEXT_MESSAGE.equals(baseContext);
 	                }
+                    if (!hasRetrievedEvidence && readActionResolution != null && StringUtils.hasText(readActionResolution.evidenceContext())) {
+                        hasRetrievedEvidence = true;
+                    }
 	                String generationContext = hasRetrievedEvidence
-	                    ? prependPinnedTargetsContext(baseContext, pipelineContext)
+	                    ? mergeReadActionEvidenceIntoGenerationContext(baseContext, pipelineContext, readActionResolution)
 	                    : baseContext;
 	                generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
 	                answer = generationTrace != null ? generationTrace.content() : null;
@@ -2645,7 +2915,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                         String retrievalQuery,
                                                         Map<String, Object> metadata,
                                                         List<String> vectorSpaces,
-                                                        OrchestrationPolicy.RagBudgets ragBudgets) {
+                                                        OrchestrationPolicy.RagBudgets ragBudgets,
+                                                        ReadActionResolutionService.ResolutionOutcome readActionResolution) {
         RAGProvider provider = ragProvider.getIfAvailable();
         if (provider == null) {
             Map<String, Object> data = new LinkedHashMap<>();
@@ -2718,8 +2989,13 @@ public class IntentHandlingStep implements PipelineStep {
         double threshold = vectorSpaceRoutingProperties != null
             ? vectorSpaceRoutingProperties.getClarificationThreshold()
             : 0.4d;
+        boolean hasReadActionEvidence = readActionResolution != null
+            && readActionResolution.hasGroundingEvidence()
+            && StringUtils.hasText(readActionResolution.evidenceContext());
 
-        if (!deterministic && (merged.isEmpty() || (bestScore != null && bestScore < threshold))) {
+        if (!deterministic
+            && (merged.isEmpty() || (bestScore != null && bestScore < threshold))
+            && !hasReadActionEvidence) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, vectorSpaces);
             data.put(DATA_KEY_ROUTING_STRATEGY, "FAN_OUT");
@@ -2735,6 +3011,12 @@ public class IntentHandlingStep implements PipelineStep {
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
+        }
+        if (!deterministic && hasReadActionEvidence && (merged.isEmpty() || (bestScore != null && bestScore < threshold))) {
+            metadata.put("fanoutClarificationSuppressedByReadActionEvidence", true);
+            if (bestScore != null) {
+                metadata.put("fanoutSuppressedBestScore", bestScore);
+            }
         }
 
         int docsForContext = Math.min(resolveGenerationContextDocumentLimit(ragBudgets), merged.size());
@@ -2759,8 +3041,11 @@ public class IntentHandlingStep implements PipelineStep {
 	                if (!hasRetrievedEvidence) {
 	                    hasRetrievedEvidence = StringUtils.hasText(mergedContext) && !RAG_NO_CONTEXT_MESSAGE.equals(mergedContext);
 	                }
+                    if (!hasRetrievedEvidence && readActionResolution != null && StringUtils.hasText(readActionResolution.evidenceContext())) {
+                        hasRetrievedEvidence = true;
+                    }
 	                String generationContext = hasRetrievedEvidence
-	                    ? prependPinnedTargetsContext(mergedContext, pipelineContext)
+	                    ? mergeReadActionEvidenceIntoGenerationContext(mergedContext, pipelineContext, readActionResolution)
 	                    : mergedContext;
 	                generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
 	                answer = generationTrace != null ? generationTrace.content() : null;
@@ -2925,7 +3210,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                           boolean needsGeneration,
                                                           String generationQuery,
                                                           String retrievalQuery,
-                                                          Map<String, Object> metadata) {
+                                                          Map<String, Object> metadata,
+                                                          ReadActionResolutionService.ResolutionOutcome readActionResolution) {
         AdvancedRAGProvider provider = advancedRagProvider.getIfAvailable();
         if (provider == null) {
             return null;
@@ -2960,6 +3246,9 @@ public class IntentHandlingStep implements PipelineStep {
 	            if (!hasRetrievedEvidence) {
 	                hasRetrievedEvidence = StringUtils.hasText(retrievedContext) && !RAG_NO_CONTEXT_MESSAGE.equals(retrievedContext);
 	            }
+                if (!hasRetrievedEvidence && readActionResolution != null && StringUtils.hasText(readActionResolution.evidenceContext())) {
+                    hasRetrievedEvidence = true;
+                }
 	            boolean lowConfidence = advancedResponse.getConfidenceScore() == null || advancedResponse.getConfidenceScore() <= 0.0d;
 	            boolean noEvidence = !hasRetrievedEvidence && lowConfidence;
 
@@ -2971,7 +3260,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                } else {
 	                    try {
 	                        String generationContext = hasRetrievedEvidence
-	                            ? prependPinnedTargetsContext(retrievedContext, pipelineContext)
+	                            ? mergeReadActionEvidenceIntoGenerationContext(retrievedContext, pipelineContext, readActionResolution)
 	                            : retrievedContext;
 	                        generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
 	                        answer = generationTrace != null ? generationTrace.content() : null;

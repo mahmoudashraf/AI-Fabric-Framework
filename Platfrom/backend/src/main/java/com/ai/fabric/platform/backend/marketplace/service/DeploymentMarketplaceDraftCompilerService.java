@@ -88,7 +88,18 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     @Transactional
     public DeploymentDraftResponse syncDeploymentDraft(String deploymentId) {
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        return syncDeploymentDraft(deploymentId, false);
+    }
+
+    @Transactional
+    public DeploymentDraftResponse syncDeploymentDraftForTrustedCaller(String deploymentId) {
+        return syncDeploymentDraft(deploymentId, true);
+    }
+
+    private DeploymentDraftResponse syncDeploymentDraft(String deploymentId, boolean trustedCaller) {
+        DeploymentDraftResponse draft = trustedCaller
+            ? deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId)
+            : deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode actionsRoot = ensureObject(draft.actionsConfig());
         ObjectNode entityRoot = normalizeEntityRoot(draft.entityConfig());
         ObjectNode knowledgeSourceRoot = normalizeKnowledgeSourceRoot(draft.knowledgeSourceConfig());
@@ -167,20 +178,20 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
 
-        DeploymentDraftResponse updated = deploymentService.updateDraft(
-            draft.id(),
-            new UpdateDeploymentDraftRequest(
-                actionsRoot,
-                entityRoot,
-                null,
-                providerRoot,
-                null,
-                null,
-                knowledgeSourceRoot,
-                shellRoot,
-                marketplaceDatasetRoot
-            )
+        UpdateDeploymentDraftRequest updateRequest = new UpdateDeploymentDraftRequest(
+            actionsRoot,
+            entityRoot,
+            null,
+            providerRoot,
+            null,
+            null,
+            knowledgeSourceRoot,
+            shellRoot,
+            marketplaceDatasetRoot
         );
+        DeploymentDraftResponse updated = trustedCaller
+            ? deploymentService.updateDraftForTrustedCaller(draft.id(), updateRequest)
+            : deploymentService.updateDraft(draft.id(), updateRequest);
         DraftValidationResponse validation = deploymentDraftValidationService.validate(asDraftEntity(updated));
         if (!validation.publishReady()) {
             throw new ResponseStatusException(
@@ -560,6 +571,15 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
             if (actionEntry.path("anonymousAllowed").isBoolean()) {
                 compiled.put("anonymousAllowed", actionEntry.path("anonymousAllowed").asBoolean());
+            }
+            if (actionEntry.path("groundingEligible").isBoolean()) {
+                compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
+            }
+            if (actionEntry.path("readActionResolutionEligible").isBoolean()) {
+                compiled.put(
+                    "readActionResolutionEligible",
+                    actionEntry.path("readActionResolutionEligible").asBoolean()
+                );
             }
             if (actionEntry.path("confirmationMessage").isTextual()) {
                 compiled.put("confirmationMessage", actionEntry.path("confirmationMessage").asText("").trim());

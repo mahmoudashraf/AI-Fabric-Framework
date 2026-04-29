@@ -30,11 +30,12 @@ public class ShopifyWebhookController {
     public void receive(@RequestHeader(name = "X-Shopify-Hmac-Sha256", required = false) String hmac,
                         @RequestHeader(name = "X-Shopify-Topic", required = false) String topic,
                         @RequestHeader(name = "X-Shopify-Shop-Domain", required = false) String shopDomain,
+                        @RequestHeader(name = "X-Shopify-Webhook-Id", required = false) String webhookId,
                         @RequestBody(required = false) String rawBody,
                         HttpServletRequest request) {
         if (!verificationService.verify(rawBody, hmac)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Shopify webhook HMAC.");
         }
-        webhookService.handle(topic, shopDomain, rawBody);
+        webhookService.handle(topic, shopDomain, webhookId, rawBody);
     }
 }

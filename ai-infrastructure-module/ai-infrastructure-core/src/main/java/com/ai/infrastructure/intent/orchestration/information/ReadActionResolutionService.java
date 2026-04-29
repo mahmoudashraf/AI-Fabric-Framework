@@ -1,0 +1,955 @@
+package com.ai.infrastructure.intent.orchestration.information;
+
+import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.Intent;
+import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
+import com.ai.infrastructure.intent.action.AIActionHandler;
+import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionContext;
+import com.ai.infrastructure.intent.action.ActionPayload;
+import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.prompt.PromptRenderer;
+import com.ai.infrastructure.prompt.PromptTemplateResolver;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Bounded planner for live informational resolution using allowlisted read-only actions.
+ *
+ * <p>This is intentionally fail-closed: only READ actions that are explicitly marked as planner-eligible
+ * and allowed by the resolved orchestration policy may be executed.</p>
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ReadActionResolutionService {
+    private static final Pattern SKU_TOKEN_PATTERN = Pattern.compile("\\bSKU-[A-Z0-9-]+\\b", Pattern.CASE_INSENSITIVE);
+
+    private static final String TEMPLATE_FAMILY = "orchestration/read-action-resolution";
+    private static final String TEMPLATE_SYSTEM = "system";
+    private static final String TEMPLATE_USER = "user";
+
+    private static final String PLACEHOLDER_MODE = "mode";
+    private static final String PLACEHOLDER_QUERY = "query";
+    private static final String PLACEHOLDER_INTENT_JSON = "intent_json";
+    private static final String PLACEHOLDER_ELIGIBLE_ACTIONS_JSON = "eligible_actions_json";
+    private static final String PLACEHOLDER_PRIOR_EVIDENCE_JSON = "prior_evidence_json";
+    private static final String PLACEHOLDER_MAX_ACTIONS_PER_ITERATION = "max_actions_per_iteration";
+    private static final String PLACEHOLDER_MAX_TOTAL_ACTIONS = "max_total_actions";
+    private static final String PLACEHOLDER_RAG_COOPERATION_MODE = "rag_cooperation_mode";
+    private static final String PLACEHOLDER_ITERATION = "iteration";
+    private static final String PLACEHOLDER_MAX_ITERATIONS = "max_iterations";
+
+    private final AICoreService aiCoreService;
+    private final AIActionRegistry actionRegistry;
+    private final IntentExtractionJsonSupport jsonSupport;
+    private final PromptTemplateResolver promptTemplateResolver;
+    private final PromptRenderer promptRenderer;
+
+    public ResolutionOutcome resolve(Intent intent,
+                                     OrchestrationContext orchestrationContext,
+                                     PipelineContext pipelineContext) {
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        OrchestrationPolicy.ReadActionResolutionPolicy readPolicy = policy != null
+            ? policy.readActionResolutionPolicy()
+            : OrchestrationPolicy.ReadActionResolutionPolicy.defaults();
+
+        if (!readPolicy.enabled()) {
+            return ResolutionOutcome.skipped("DISABLED_BY_POLICY");
+        }
+        if (intent == null) {
+            return ResolutionOutcome.skipped("NO_INTENT");
+        }
+        if (intent.getType() != com.ai.infrastructure.dto.IntentType.INFORMATION) {
+            return ResolutionOutcome.skipped("NON_INFORMATION_INTENT");
+        }
+
+        List<EligibleReadAction> eligibleActions = resolveEligibleReadActions(orchestrationContext, readPolicy);
+        if (eligibleActions.isEmpty()) {
+            return ResolutionOutcome.skipped("NO_ELIGIBLE_READ_ACTIONS");
+        }
+
+        String query = resolvePlannerQuery(intent, pipelineContext);
+        if (!StringUtils.hasText(query)) {
+            return ResolutionOutcome.skipped("NO_QUERY");
+        }
+
+        int maxIterations = readPolicy.planningMode() == com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE
+            ? readPolicy.maxIterations()
+            : 1;
+
+        List<ExecutedReadAction> executedActions = new ArrayList<>();
+        List<Map<String, Object>> plannerIterations = new ArrayList<>();
+        Set<String> executionKeys = new LinkedHashSet<>();
+        PlannerDecision lastDecision = null;
+
+        for (int iteration = 1; iteration <= maxIterations; iteration++) {
+            PlannerDecision decision = planActions(
+                query,
+                intent,
+                orchestrationContext,
+                readPolicy,
+                eligibleActions,
+                executedActions,
+                iteration,
+                maxIterations
+            );
+            if (decision == null) {
+                plannerIterations.add(Map.of(
+                    "iteration", iteration,
+                    "status", "FAILED",
+                    "reason", "PLANNER_RETURNED_NO_DECISION"
+                ));
+                break;
+            }
+            decision = applyHighConfidenceActionOverrides(query, decision, eligibleActions);
+            lastDecision = decision;
+            plannerIterations.add(decision.diagnostics());
+
+            List<PlannerActionProposal> approved = approveActionProposals(
+                decision,
+                eligibleActions,
+                executedActions.size(),
+                readPolicy,
+                executionKeys
+            );
+            if (approved.isEmpty()) {
+                if (readPolicy.planningMode() != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE
+                    || !Boolean.TRUE.equals(decision.needsMoreSteps)) {
+                    break;
+                }
+                continue;
+            }
+
+            for (PlannerActionProposal proposal : approved) {
+                executedActions.add(executeAction(proposal, orchestrationContext, pipelineContext, readPolicy));
+            }
+
+            if (readPolicy.planningMode() != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE
+                || !Boolean.TRUE.equals(decision.needsMoreSteps)) {
+                break;
+            }
+        }
+
+        boolean hasSuccessfulActionEvidence = executedActions.stream().anyMatch(ExecutedReadAction::groundingUsable);
+        boolean useRag = shouldUseRag(lastDecision, hasSuccessfulActionEvidence, readPolicy);
+        String evidenceContext = buildEvidenceContext(executedActions, readPolicy.maxPlannerContextChars());
+        List<String> preferredVectorSpaces = lastDecision != null
+            ? normalizeVectorSpaces(lastDecision.suggestedVectorSpaces)
+            : List.of();
+
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("enabled", true);
+        diagnostics.put("planningMode", readPolicy.planningMode().name());
+        diagnostics.put("ragCooperationMode", readPolicy.ragCooperationMode().name());
+        diagnostics.put("attempted", true);
+        diagnostics.put("eligibleReadActionsCount", eligibleActions.size());
+        diagnostics.put("eligibleReadActionNames", eligibleActions.stream().map(EligibleReadAction::name).toList());
+        diagnostics.put("iterations", Collections.unmodifiableList(plannerIterations));
+        diagnostics.put("executedActions", executedActions.stream().map(ExecutedReadAction::toDiagnosticMap).toList());
+        diagnostics.put("executedActionsCount", executedActions.size());
+        diagnostics.put("groundingUsableActionCount", executedActions.stream().filter(ExecutedReadAction::groundingUsable).count());
+        diagnostics.put("useRag", useRag);
+        if (lastDecision != null) {
+            diagnostics.put("finalDecision", lastDecision.decision != null ? lastDecision.decision.name() : null);
+            if (StringUtils.hasText(lastDecision.missingEvidenceReason)) {
+                diagnostics.put("missingEvidenceReason", lastDecision.missingEvidenceReason);
+            }
+        }
+        if (!preferredVectorSpaces.isEmpty()) {
+            diagnostics.put("preferredVectorSpaces", preferredVectorSpaces);
+        }
+
+        return new ResolutionOutcome(
+            true,
+            null,
+            lastDecision != null ? lastDecision.decision : PlannerDecisionType.USE_RAG_ONLY,
+            useRag,
+            hasSuccessfulActionEvidence,
+            evidenceContext,
+            preferredVectorSpaces,
+            Collections.unmodifiableList(executedActions),
+            Collections.unmodifiableMap(diagnostics)
+        );
+    }
+
+    private List<EligibleReadAction> resolveEligibleReadActions(OrchestrationContext context,
+                                                                OrchestrationPolicy.ReadActionResolutionPolicy readPolicy) {
+        List<AIActionMetaData> actions = actionRegistry.getAllMetadata();
+        if (actions == null || actions.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, EligibleReadAction> eligible = new LinkedHashMap<>();
+        for (AIActionMetaData metadata : actions) {
+            if (metadata == null || !StringUtils.hasText(metadata.getName())) {
+                continue;
+            }
+            if (metadata.getAccessMode() != ActionAccessMode.READ) {
+                continue;
+            }
+            if (!metadata.isReadActionResolutionEligible()) {
+                continue;
+            }
+            if (readPolicy.requireGroundingEligible() && !metadata.isGroundingEligible()) {
+                continue;
+            }
+            String normalizedName = metadata.getName().trim().toLowerCase(Locale.ROOT);
+            if (readPolicy.requireAllowlist() && !readPolicy.allowedReadActions().contains(normalizedName)) {
+                continue;
+            }
+            if (!readPolicy.requireAllowlist()
+                && readPolicy.hasAllowedReadActions()
+                && !readPolicy.allowedReadActions().contains(normalizedName)) {
+                continue;
+            }
+            Optional<AIActionHandler> handler = actionRegistry.findHandler(metadata.getName());
+            if (handler.isEmpty()) {
+                continue;
+            }
+            if (context != null && context.isAnonymous() && !metadata.isAnonymousAllowed()) {
+                continue;
+            }
+            eligible.put(
+                normalizedName,
+                new EligibleReadAction(
+                    metadata.getName(),
+                    metadata,
+                    handler.get()
+                )
+            );
+        }
+        return eligible.isEmpty() ? List.of() : List.copyOf(eligible.values());
+    }
+
+    private PlannerDecision planActions(String query,
+                                        Intent intent,
+                                        OrchestrationContext orchestrationContext,
+                                        OrchestrationPolicy.ReadActionResolutionPolicy readPolicy,
+                                        List<EligibleReadAction> eligibleActions,
+                                        List<ExecutedReadAction> executedActions,
+                                        int iteration,
+                                        int maxIterations) {
+        try {
+            String systemPrompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM).template(),
+                Map.of()
+            );
+            String userPrompt = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_USER).template(),
+                Map.of(
+                    PLACEHOLDER_MODE, orchestrationContext != null && StringUtils.hasText(orchestrationContext.getMode())
+                        ? orchestrationContext.getMode()
+                        : "",
+                    PLACEHOLDER_QUERY, query,
+                    PLACEHOLDER_INTENT_JSON, writeJson(buildIntentPromptModel(intent)),
+                    PLACEHOLDER_ELIGIBLE_ACTIONS_JSON, writeJson(buildEligibleActionsPromptModel(eligibleActions)),
+                    PLACEHOLDER_PRIOR_EVIDENCE_JSON, writeJson(buildPriorEvidencePromptModel(executedActions)),
+                    PLACEHOLDER_MAX_ACTIONS_PER_ITERATION, String.valueOf(readPolicy.maxActionsPerIteration()),
+                    PLACEHOLDER_MAX_TOTAL_ACTIONS, String.valueOf(readPolicy.maxTotalActions()),
+                    PLACEHOLDER_RAG_COOPERATION_MODE, readPolicy.ragCooperationMode().name(),
+                    PLACEHOLDER_ITERATION, String.valueOf(iteration),
+                    PLACEHOLDER_MAX_ITERATIONS, String.valueOf(maxIterations)
+                )
+            );
+
+            AIGenerationResponse response = aiCoreService.generateContent(
+                AIGenerationRequest.builder()
+                    .entityId("read-action-resolution-" + UUID.randomUUID())
+                    .entityType("read_action_resolution")
+                    .generationType("read_action_resolution")
+                    .systemPrompt(systemPrompt)
+                    .prompt(userPrompt)
+                    .parameters(jsonSupport.jsonOnlyResponseParameters())
+                    .authContext(OrchestrationAuthContextResolver.from(orchestrationContext))
+                    .build(),
+                LlmPurpose.ORCHESTRATION
+            );
+
+            String content = response != null ? response.getContent() : null;
+            if (!StringUtils.hasText(content)) {
+                return null;
+            }
+            PlannerPayload payload = jsonSupport.objectMapper()
+                .readValue(jsonSupport.stripCodeFences(content), PlannerPayload.class);
+            PlannerDecisionType decisionType = PlannerDecisionType.from(payload.decision);
+            if (decisionType == null) {
+                return null;
+            }
+            List<PlannerActionProposal> proposals = new ArrayList<>();
+            if (payload.actions != null) {
+                for (PlannerActionPayload action : payload.actions) {
+                    if (action == null || !StringUtils.hasText(action.name)) {
+                        continue;
+                    }
+                    proposals.add(new PlannerActionProposal(
+                        action.name.trim(),
+                        action.params != null ? Map.copyOf(action.params) : Map.of(),
+                        action.priority != null ? action.priority : proposals.size() + 1
+                    ));
+                }
+            }
+            proposals.sort(java.util.Comparator.comparingInt(PlannerActionProposal::priority));
+            Map<String, Object> diagnostics = new LinkedHashMap<>();
+            diagnostics.put("iteration", iteration);
+            diagnostics.put("status", "PLANNED");
+            diagnostics.put("decision", decisionType.name());
+            diagnostics.put("proposedActions", proposals.stream().map(PlannerActionProposal::toDiagnosticMap).toList());
+            diagnostics.put("needsMoreSteps", payload.needsMoreSteps);
+            if (payload.suggestedVectorSpaces != null && !payload.suggestedVectorSpaces.isEmpty()) {
+                diagnostics.put("suggestedVectorSpaces", normalizeVectorSpaces(payload.suggestedVectorSpaces));
+            }
+            return new PlannerDecision(
+                decisionType,
+                List.copyOf(proposals),
+                payload.needsMoreSteps,
+                payload.missingEvidenceReason,
+                payload.suggestedVectorSpaces != null ? List.copyOf(payload.suggestedVectorSpaces) : List.of(),
+                Collections.unmodifiableMap(diagnostics)
+            );
+        } catch (Exception ex) {
+            log.warn("Read-action planner failed: {}", ex.getMessage(), ex);
+            return null;
+        }
+    }
+
+    private List<PlannerActionProposal> approveActionProposals(PlannerDecision decision,
+                                                               List<EligibleReadAction> eligibleActions,
+                                                               int executedCount,
+                                                               OrchestrationPolicy.ReadActionResolutionPolicy readPolicy,
+                                                               Set<String> executionKeys) {
+        if (decision == null || decision.actions == null || decision.actions.isEmpty()) {
+            return List.of();
+        }
+        Map<String, EligibleReadAction> eligibleByName = new LinkedHashMap<>();
+        for (EligibleReadAction action : eligibleActions) {
+            eligibleByName.put(action.name().trim().toLowerCase(Locale.ROOT), action);
+        }
+
+        int remainingBudget = Math.max(0, readPolicy.maxTotalActions() - executedCount);
+        if (remainingBudget == 0) {
+            return List.of();
+        }
+
+        List<PlannerActionProposal> approved = new ArrayList<>();
+        for (PlannerActionProposal proposal : decision.actions) {
+            if (approved.size() >= readPolicy.maxActionsPerIteration() || approved.size() >= remainingBudget) {
+                break;
+            }
+            if (proposal == null || !StringUtils.hasText(proposal.name())) {
+                continue;
+            }
+            EligibleReadAction eligible = eligibleByName.get(proposal.name().trim().toLowerCase(Locale.ROOT));
+            if (eligible == null) {
+                continue;
+            }
+            if (!hasRequiredParams(eligible.metadata(), proposal.params())) {
+                continue;
+            }
+            String executionKey = buildExecutionKey(eligible.name(), proposal.params());
+            if (!executionKeys.add(executionKey)) {
+                continue;
+            }
+            approved.add(new PlannerActionProposal(eligible.name(), proposal.params(), proposal.priority()));
+        }
+        return approved.isEmpty() ? List.of() : List.copyOf(approved);
+    }
+
+    private PlannerDecision applyHighConfidenceActionOverrides(String query,
+                                                               PlannerDecision decision,
+                                                               List<EligibleReadAction> eligibleActions) {
+        if (!StringUtils.hasText(query) || decision == null || eligibleActions == null || eligibleActions.isEmpty()) {
+            return decision;
+        }
+
+        Map<String, EligibleReadAction> eligibleByName = new LinkedHashMap<>();
+        for (EligibleReadAction action : eligibleActions) {
+            if (action == null || !StringUtils.hasText(action.name())) {
+                continue;
+            }
+            eligibleByName.put(action.name().trim().toLowerCase(Locale.ROOT), action);
+        }
+
+        PlannerDecision override = maybeBuildAvailabilityOverride(query, decision, eligibleByName);
+        return override != null ? override : decision;
+    }
+
+    private PlannerDecision maybeBuildAvailabilityOverride(String query,
+                                                           PlannerDecision decision,
+                                                           Map<String, EligibleReadAction> eligibleByName) {
+        if (!containsAvailabilityIntent(query)) {
+            return null;
+        }
+        if (plannerAlreadyTargets(decision, "check_availability")) {
+            return null;
+        }
+        EligibleReadAction availability = eligibleByName.get("check_availability");
+        if (availability == null) {
+            return null;
+        }
+        List<String> skus = extractSkuTokens(query, 1);
+        if (skus.isEmpty()) {
+            return null;
+        }
+        Map<String, Object> params = Map.of("sku", skus.get(0));
+        if (!hasRequiredParams(availability.metadata(), params)) {
+            return null;
+        }
+        return overrideDecision(decision, "check_availability", params, "HIGH_CONFIDENCE_AVAILABILITY_MATCH");
+    }
+
+    private PlannerDecision overrideDecision(PlannerDecision decision,
+                                             String actionName,
+                                             Map<String, Object> params,
+                                             String reason) {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        if (decision.diagnostics() != null) {
+            diagnostics.putAll(decision.diagnostics());
+        }
+        diagnostics.put("status", "PLANNED_WITH_SPECIALIZATION_OVERRIDE");
+        diagnostics.put("specializationOverride", actionName);
+        diagnostics.put("specializationOverrideReason", reason);
+        diagnostics.put("proposedActions", List.of(
+            new PlannerActionProposal(actionName, params, 1).toDiagnosticMap()
+        ));
+        diagnostics.put("needsMoreSteps", Boolean.FALSE);
+        return new PlannerDecision(
+            PlannerDecisionType.EXECUTE_READ_ACTIONS,
+            List.of(new PlannerActionProposal(actionName, params, 1)),
+            false,
+            reason,
+            decision.suggestedVectorSpaces(),
+            Collections.unmodifiableMap(diagnostics)
+        );
+    }
+
+    private boolean plannerAlreadyTargets(PlannerDecision decision, String actionName) {
+        if (decision == null || decision.actions() == null || !StringUtils.hasText(actionName)) {
+            return false;
+        }
+        return decision.actions().stream()
+            .filter(Objects::nonNull)
+            .anyMatch(action -> actionName.equalsIgnoreCase(action.name()));
+    }
+
+    private List<String> extractSkuTokens(String query, int limit) {
+        if (!StringUtils.hasText(query) || limit <= 0) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        Matcher matcher = SKU_TOKEN_PATTERN.matcher(query);
+        while (matcher.find() && values.size() < limit) {
+            String sku = matcher.group();
+            if (!StringUtils.hasText(sku)) {
+                continue;
+            }
+            String normalized = sku.toUpperCase(Locale.ROOT);
+            if (!values.contains(normalized)) {
+                values.add(normalized);
+            }
+        }
+        return values.isEmpty() ? List.of() : List.copyOf(values);
+    }
+
+    private boolean containsAvailabilityIntent(String query) {
+        String normalized = normalizePlannerText(query);
+        return normalized.contains(" availability ")
+            || normalized.contains(" available ")
+            || normalized.contains(" in stock ")
+            || normalized.contains(" stock ");
+    }
+
+    private String normalizePlannerText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return " ";
+        }
+        return " " + value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ") + " ";
+    }
+
+    private ExecutedReadAction executeAction(PlannerActionProposal proposal,
+                                             OrchestrationContext orchestrationContext,
+                                             PipelineContext pipelineContext,
+                                             OrchestrationPolicy.ReadActionResolutionPolicy readPolicy) {
+        Optional<AIActionHandler> handlerOpt = actionRegistry.findHandler(proposal.name());
+        Optional<AIActionMetaData> metadataOpt = actionRegistry.findMetadata(proposal.name());
+        if (handlerOpt.isEmpty() || metadataOpt.isEmpty()) {
+            return ExecutedReadAction.failure(proposal.name(), proposal.params(), "ACTION_NOT_AVAILABLE", null, null);
+        }
+
+        AIActionHandler handler = handlerOpt.get();
+        AIActionMetaData metadata = metadataOpt.get();
+        ActionContext actionContext = new ActionContext(orchestrationContext, pipelineContext);
+
+        if (orchestrationContext != null && orchestrationContext.isAnonymous() && !metadata.isAnonymousAllowed()) {
+            return ExecutedReadAction.failure(proposal.name(), proposal.params(), "ANONYMOUS_NOT_ALLOWED", metadata, null);
+        }
+        if (!handler.validateActionAllowed(actionContext)) {
+            return ExecutedReadAction.failure(proposal.name(), proposal.params(), "ACTION_NOT_ALLOWED", metadata, null);
+        }
+
+        try {
+            ActionResult result = handler.executeAction(proposal.params(), actionContext);
+            String evidence = buildEvidenceSnippet(handler, result, actionContext, readPolicy.maxActionEvidenceCharsPerAction());
+            return new ExecutedReadAction(
+                proposal.name(),
+                Collections.unmodifiableMap(new LinkedHashMap<>(proposal.params())),
+                metadata,
+                result,
+                result != null && result.isSuccess() && StringUtils.hasText(evidence),
+                evidence,
+                null
+            );
+        } catch (Exception ex) {
+            log.warn("Read-action resolution action '{}' failed: {}", proposal.name(), ex.getMessage(), ex);
+            ActionResult errorResult = handler.handleError(ex, actionContext);
+            String evidence = buildEvidenceSnippet(handler, errorResult, actionContext, readPolicy.maxActionEvidenceCharsPerAction());
+            return new ExecutedReadAction(
+                proposal.name(),
+                Collections.unmodifiableMap(new LinkedHashMap<>(proposal.params())),
+                metadata,
+                errorResult,
+                false,
+                evidence,
+                ex.getMessage()
+            );
+        }
+    }
+
+    private boolean hasRequiredParams(AIActionMetaData metadata, Map<String, Object> params) {
+        if (metadata == null || metadata.getRequiredParameters() == null || metadata.getRequiredParameters().isEmpty()) {
+            return true;
+        }
+        for (String required : metadata.getRequiredParameters()) {
+            if (!StringUtils.hasText(required)) {
+                continue;
+            }
+            Object value = params != null ? params.get(required) : null;
+            if (value == null) {
+                return false;
+            }
+            if (value instanceof String text && !StringUtils.hasText(text)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean shouldUseRag(PlannerDecision decision,
+                                 boolean hasSuccessfulActionEvidence,
+                                 OrchestrationPolicy.ReadActionResolutionPolicy readPolicy) {
+        if (decision == null) {
+            return readPolicy.ragCooperationMode() != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE;
+        }
+        return switch (decision.decision) {
+            case ANSWER_FROM_CONTEXT -> false;
+            case EXECUTE_READ_ACTIONS -> !hasSuccessfulActionEvidence
+                && readPolicy.ragCooperationMode() != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE;
+            case EXECUTE_READ_ACTIONS_AND_RAG, USE_RAG_ONLY -> readPolicy.ragCooperationMode()
+                != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE;
+        };
+    }
+
+    private String buildEvidenceSnippet(AIActionHandler handler,
+                                        ActionResult result,
+                                        ActionContext actionContext,
+                                        int maxChars) {
+        if (result == null) {
+            return null;
+        }
+        try {
+            Optional<Map<String, Object>> llmFacts = handler.buildPostActionLlmFacts(result, actionContext);
+            if (llmFacts.isPresent() && llmFacts.get() != null && !llmFacts.get().isEmpty()) {
+                return truncate(writeJson(sanitizeValue(llmFacts.get(), 0)), maxChars);
+            }
+        } catch (Exception ex) {
+            log.debug("Read-action resolution facts builder failed: {}", ex.getMessage());
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("success", result.isSuccess());
+        if (StringUtils.hasText(result.getMessage())) {
+            payload.put("message", result.getMessage());
+        }
+        if (StringUtils.hasText(result.getErrorCode())) {
+            payload.put("errorCode", result.getErrorCode());
+        }
+        if (result.getData() != null) {
+            payload.put("data", sanitizePayload(result.getData()));
+        }
+        if (result.getPinnedTargets() != null && !result.getPinnedTargets().isEmpty()) {
+            payload.put("pinnedTargets", result.getPinnedTargets());
+        }
+        return truncate(writeJson(payload), maxChars);
+    }
+
+    private Object sanitizePayload(ActionPayload payload) {
+        if (payload == null) {
+            return null;
+        }
+        return sanitizeValue(payload.toMap(), 0);
+    }
+
+    private Object sanitizeValue(Object value, int depth) {
+        if (value == null) {
+            return null;
+        }
+        if (depth > 3) {
+            return truncate(String.valueOf(value), 240);
+        }
+        if (value instanceof String text) {
+            return truncate(text, 240);
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> sanitized = new LinkedHashMap<>();
+            int count = 0;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry == null || entry.getKey() == null) {
+                    continue;
+                }
+                if (++count > 10) {
+                    sanitized.put("_truncated", true);
+                    break;
+                }
+                sanitized.put(String.valueOf(entry.getKey()), sanitizeValue(entry.getValue(), depth + 1));
+            }
+            return sanitized;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> sanitized = new ArrayList<>();
+            int limit = Math.min(list.size(), 5);
+            for (int i = 0; i < limit; i++) {
+                sanitized.add(sanitizeValue(list.get(i), depth + 1));
+            }
+            if (list.size() > limit) {
+                sanitized.add(Map.of("_truncatedItems", list.size() - limit));
+            }
+            return sanitized;
+        }
+        return truncate(String.valueOf(value), 240);
+    }
+
+    private String buildEvidenceContext(List<ExecutedReadAction> executedActions, int maxChars) {
+        if (executedActions == null || executedActions.isEmpty()) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder(Math.min(maxChars, 4096));
+        out.append("READ ACTION EVIDENCE\n");
+        for (ExecutedReadAction executedAction : executedActions) {
+            if (executedAction == null || !StringUtils.hasText(executedAction.evidenceSummary)) {
+                continue;
+            }
+            out.append("- action: ").append(executedAction.actionName).append('\n');
+            out.append("  success: ").append(executedAction.actionResult != null && executedAction.actionResult.isSuccess()).append('\n');
+            if (executedAction.actionResult != null && StringUtils.hasText(executedAction.actionResult.getMessage())) {
+                out.append("  message: ").append(truncate(executedAction.actionResult.getMessage(), 200)).append('\n');
+            }
+            out.append("  evidence: ").append(executedAction.evidenceSummary).append('\n');
+            if (out.length() >= maxChars) {
+                break;
+            }
+        }
+        return truncate(out.toString(), maxChars);
+    }
+
+    private String resolvePlannerQuery(Intent intent, PipelineContext pipelineContext) {
+        if (intent != null && StringUtils.hasText(intent.getOptimizedQuery())) {
+            return intent.getOptimizedQuery().trim();
+        }
+        if (pipelineContext != null && StringUtils.hasText(pipelineContext.getEffectiveQuery())) {
+            return pipelineContext.getEffectiveQuery().trim();
+        }
+        return intent != null ? intent.getIntentOrAction() : null;
+    }
+
+    private Map<String, Object> buildIntentPromptModel(Intent intent) {
+        if (intent == null) {
+            return Map.of();
+        }
+        Map<String, Object> model = new LinkedHashMap<>();
+        model.put("type", intent.getType() != null ? intent.getType().name() : null);
+        model.put("intent", intent.getIntent());
+        model.put("vectorSpace", intent.getVectorSpace());
+        model.put("requiresRetrieval", intent.getRequiresRetrieval());
+        model.put("requiresGeneration", intent.getRequiresGeneration());
+        model.put("optimizedQuery", intent.getOptimizedQuery());
+        model.put("directAnswer", intent.getDirectAnswer());
+        return model;
+    }
+
+    private List<Map<String, Object>> buildEligibleActionsPromptModel(List<EligibleReadAction> eligibleActions) {
+        if (eligibleActions == null || eligibleActions.isEmpty()) {
+            return List.of();
+        }
+        return eligibleActions.stream()
+            .map(action -> {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("name", action.name());
+                item.put("description", action.metadata().getDescription());
+                item.put("category", action.metadata().getCategory());
+                item.put("requiredParameters", action.metadata().getRequiredParameters());
+                item.put("parameterSchemas", action.metadata().getParameterSchemas());
+                item.put("groundingEligible", action.metadata().isGroundingEligible());
+                return Collections.unmodifiableMap(item);
+            })
+            .toList();
+    }
+
+    private List<Map<String, Object>> buildPriorEvidencePromptModel(List<ExecutedReadAction> executedActions) {
+        if (executedActions == null || executedActions.isEmpty()) {
+            return List.of();
+        }
+        return executedActions.stream()
+            .map(ExecutedReadAction::toDiagnosticMap)
+            .toList();
+    }
+
+    private List<String> normalizeVectorSpaces(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        List<String> normalized = new ArrayList<>();
+        for (String value : values) {
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            String trimmed = value.trim().toLowerCase(Locale.ROOT);
+            if (trimmed.isEmpty() || normalized.contains(trimmed)) {
+                continue;
+            }
+            normalized.add(trimmed);
+        }
+        return normalized.isEmpty() ? List.of() : List.copyOf(normalized);
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return jsonSupport.objectMapper().writeValueAsString(value);
+        } catch (Exception ex) {
+            log.debug("Failed to serialize read-action resolution payload: {}", ex.getMessage());
+            return "{}";
+        }
+    }
+
+    private String truncate(String value, int maxChars) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        if (maxChars <= 0 || value.length() <= maxChars) {
+            return value;
+        }
+        return value.substring(0, Math.max(0, maxChars - 3)) + "...";
+    }
+
+    private String buildExecutionKey(String actionName, Map<String, Object> params) {
+        return actionName.trim().toLowerCase(Locale.ROOT) + "::" + writeJson(params != null ? params : Map.of());
+    }
+
+    private enum PlannerDecisionType {
+        ANSWER_FROM_CONTEXT,
+        EXECUTE_READ_ACTIONS,
+        EXECUTE_READ_ACTIONS_AND_RAG,
+        USE_RAG_ONLY;
+
+        static PlannerDecisionType from(String raw) {
+            if (!StringUtils.hasText(raw)) {
+                return null;
+            }
+            try {
+                return valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }
+    }
+
+    private record EligibleReadAction(
+        String name,
+        AIActionMetaData metadata,
+        AIActionHandler handler
+    ) {
+    }
+
+    private record PlannerActionProposal(
+        String name,
+        Map<String, Object> params,
+        int priority
+    ) {
+        private Map<String, Object> toDiagnosticMap() {
+            return Map.of(
+                "name", name,
+                "priority", priority,
+                "params", params != null ? params : Map.of()
+            );
+        }
+    }
+
+    private record PlannerDecision(
+        PlannerDecisionType decision,
+        List<PlannerActionProposal> actions,
+        Boolean needsMoreSteps,
+        String missingEvidenceReason,
+        List<String> suggestedVectorSpaces,
+        Map<String, Object> diagnostics
+    ) {
+    }
+
+    public record ResolutionOutcome(
+        boolean attempted,
+        String skipReason,
+        PlannerDecisionType decision,
+        boolean useRag,
+        boolean hasGroundingEvidence,
+        String evidenceContext,
+        List<String> preferredVectorSpaces,
+        List<ExecutedReadAction> executedActions,
+        Map<String, Object> diagnostics
+    ) {
+        public static ResolutionOutcome skipped(String reason) {
+            return new ResolutionOutcome(
+                false,
+                reason,
+                PlannerDecisionType.USE_RAG_ONLY,
+                true,
+                false,
+                null,
+                List.of(),
+                List.of(),
+                Map.of("attempted", false, "skipReason", reason)
+            );
+        }
+
+        public static ResolutionOutcome answerFromActionsOnly(String evidenceContext,
+                                                              List<String> preferredVectorSpaces,
+                                                              List<ExecutedReadAction> executedActions,
+                                                              Map<String, Object> diagnostics) {
+            return new ResolutionOutcome(
+                true,
+                null,
+                PlannerDecisionType.EXECUTE_READ_ACTIONS,
+                false,
+                true,
+                evidenceContext,
+                preferredVectorSpaces != null ? List.copyOf(preferredVectorSpaces) : List.of(),
+                executedActions != null ? List.copyOf(executedActions) : List.of(),
+                diagnostics != null ? Collections.unmodifiableMap(new LinkedHashMap<>(diagnostics)) : Map.of("attempted", true)
+            );
+        }
+
+        public static ResolutionOutcome continueWithRag(String evidenceContext,
+                                                        List<String> preferredVectorSpaces,
+                                                        List<ExecutedReadAction> executedActions,
+                                                        Map<String, Object> diagnostics) {
+            boolean hasEvidence = StringUtils.hasText(evidenceContext);
+            return new ResolutionOutcome(
+                true,
+                null,
+                hasEvidence ? PlannerDecisionType.EXECUTE_READ_ACTIONS_AND_RAG : PlannerDecisionType.USE_RAG_ONLY,
+                true,
+                hasEvidence,
+                evidenceContext,
+                preferredVectorSpaces != null ? List.copyOf(preferredVectorSpaces) : List.of(),
+                executedActions != null ? List.copyOf(executedActions) : List.of(),
+                diagnostics != null ? Collections.unmodifiableMap(new LinkedHashMap<>(diagnostics)) : Map.of("attempted", true)
+            );
+        }
+
+        public boolean canAnswerFromActionEvidenceOnly() {
+            return attempted && hasGroundingEvidence && !useRag && StringUtils.hasText(evidenceContext);
+        }
+    }
+
+    public record ExecutedReadAction(
+        String actionName,
+        Map<String, Object> params,
+        AIActionMetaData metadata,
+        ActionResult actionResult,
+        boolean groundingUsable,
+        String evidenceSummary,
+        String errorMessage
+    ) {
+        public static ExecutedReadAction failure(String actionName,
+                                                 Map<String, Object> params,
+                                                 String errorMessage,
+                                                 AIActionMetaData metadata,
+                                                 ActionResult actionResult) {
+            return new ExecutedReadAction(
+                actionName,
+                params != null ? Map.copyOf(params) : Map.of(),
+                metadata,
+                actionResult,
+                false,
+                null,
+                errorMessage
+            );
+        }
+
+        public Map<String, Object> toDiagnosticMap() {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("action", actionName);
+            item.put("params", params != null ? params : Map.of());
+            item.put("groundingUsable", groundingUsable);
+            if (metadata != null && StringUtils.hasText(metadata.getCategory())) {
+                item.put("category", metadata.getCategory());
+            }
+            if (actionResult != null) {
+                item.put("success", actionResult.isSuccess());
+                item.put("message", actionResult.getMessage());
+                if (StringUtils.hasText(actionResult.getErrorCode())) {
+                    item.put("errorCode", actionResult.getErrorCode());
+                }
+            }
+            if (StringUtils.hasText(evidenceSummary)) {
+                item.put("evidenceSummary", evidenceSummary);
+            }
+            if (StringUtils.hasText(errorMessage)) {
+                item.put("failureReason", errorMessage);
+            }
+            return Collections.unmodifiableMap(item);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static final class PlannerPayload {
+        public String decision;
+        public List<PlannerActionPayload> actions = List.of();
+        public Boolean needsMoreSteps;
+        public String missingEvidenceReason;
+        public List<String> suggestedVectorSpaces = List.of();
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static final class PlannerActionPayload {
+        public String name;
+        public Map<String, Object> params = Map.of();
+        public Integer priority;
+    }
+}

@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
+import org.springframework.util.ResourceUtils;
 import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
@@ -64,7 +65,8 @@ public class RuntimeDeploymentKnowledgeSourceConfigService {
         }
 
         Resource resource = RuntimeDeploymentResolvedConfigSupport.resolveResource(resourceLoader, location);
-        if (resource == null || !resource.exists()) {
+        boolean urlResource = ResourceUtils.isUrl(location.trim());
+        if (resource == null || (!urlResource && !resource.exists())) {
             throw new IllegalStateException("Deployment knowledge source config not found: " + location);
         }
 

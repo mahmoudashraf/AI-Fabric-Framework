@@ -10,6 +10,13 @@ public record ShopifyBridgeUsageSummary(
     long totalToday,
     long totalLast7Days,
     List<ShopifyBridgeUsageEventCountSummary> todayBreakdown,
-    List<ShopifyBridgeUsageEventCountSummary> last7DayBreakdown
+    List<ShopifyBridgeUsageEventCountSummary> last7DayBreakdown,
+    List<ShopifyBridgeUsageSurfaceSummary> todaySurfaceUsage,
+    List<ShopifyBridgeUsageSurfaceSummary> last7DaySurfaceUsage,
+    List<ShopifyBridgeUsageTopQuerySummary> topQuestionsLast7Days,
+    List<ShopifyBridgeUsageTopQuerySummary> unansweredQuestionsLast7Days,
+    List<ShopifyBridgeUsageTopQuerySummary> actionIntentQuestionsLast7Days,
+    List<ShopifyBridgeUsageSurfaceJourneySummary> last7DaySurfaceJourneys,
+    ShopifyBridgeUsageRoiSummary roiSummary
 ) {
 }

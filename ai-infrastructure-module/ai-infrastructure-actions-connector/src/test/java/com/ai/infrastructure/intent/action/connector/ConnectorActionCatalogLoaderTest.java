@@ -153,4 +153,22 @@ class ConnectorActionCatalogLoaderTest {
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("unknown webhook target");
     }
+
+    @Test
+    void loadActions_shouldReadReadActionResolutionEligibility() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/valid-read-actions.yml");
+
+        List<ConnectorActionDefinition> actions = loader.loadActions(List.of(source));
+        assertThat(actions).hasSize(1);
+
+        ConnectorActionDefinition action = actions.getFirst();
+        assertThat(action.name()).isEqualTo("get_policy");
+        assertThat(action.accessMode()).isEqualTo(ActionAccessMode.READ);
+        assertThat(action.groundingEligible()).isTrue();
+        assertThat(action.readActionResolutionEligible()).isTrue();
+    }
 }

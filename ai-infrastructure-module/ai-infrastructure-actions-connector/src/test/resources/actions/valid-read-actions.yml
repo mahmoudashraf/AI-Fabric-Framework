@@ -1,0 +1,15 @@
+actions:
+  - name: get_policy
+    displayName: "Get Policy"
+    description: "Lookup policy text"
+    category: "test"
+    accessMode: READ
+    requiresConfirmation: false
+    anonymousAllowed: true
+    groundingEligible: true
+    readActionResolutionEligible: true
+    params:
+      - name: query
+        type: STRING
+        description: "Policy query"
+        required: true

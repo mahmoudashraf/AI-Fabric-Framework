@@ -35,7 +35,7 @@ final class ShopifyCompanionPluginSelection {
     }
 
     static boolean requiresPoliciesData(ShopifyStoreConnectionEntity store) {
-        return store != null && (store.isPagesEnabled() || store.isPoliciesEnabled());
+        return store != null && (store.isPagesEnabled() || store.isPoliciesEnabled() || store.isArticlesEnabled() || store.isMetaobjectsEnabled());
     }
 
     static List<String> selectedCategories(ShopifyStoreConnectionEntity store) {
@@ -54,6 +54,12 @@ final class ShopifyCompanionPluginSelection {
         }
         if (store.isPoliciesEnabled()) {
             categories.add("policies");
+        }
+        if (store.isArticlesEnabled()) {
+            categories.add("articles");
+        }
+        if (store.isMetaobjectsEnabled()) {
+            categories.add("metaobjects");
         }
         return List.copyOf(categories);
     }
@@ -85,6 +91,17 @@ final class ShopifyCompanionPluginSelection {
             desiredPluginIds.add(DATA_POLICIES_PLUGIN_ID);
         }
         return desiredPluginIds;
+    }
+
+    static LinkedHashSet<String> desiredVectorizationPluginIds(ShopifyCompanionBootstrapProperties properties,
+                                                               ShopifyStoreConnectionEntity store) {
+        LinkedHashSet<String> desiredPluginIds = desiredManagedPluginIds(properties, store);
+        desiredPluginIds.removeIf(ShopifyCompanionPluginSelection::isInferencePluginId);
+        return desiredPluginIds;
+    }
+
+    static boolean isInferencePluginId(String pluginId) {
+        return pluginId != null && pluginId.trim().toLowerCase(java.util.Locale.ROOT).startsWith("mkp-inference-");
     }
 
     static LinkedHashSet<String> managedDataPluginIds() {

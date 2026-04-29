@@ -59,6 +59,12 @@ public class ShopifyStoreConnectionEntity {
     @Column(nullable = false)
     private boolean policiesEnabled;
 
+    @Column(nullable = false)
+    private boolean articlesEnabled;
+
+    @Column(nullable = false)
+    private boolean metaobjectsEnabled;
+
     @Column
     private Instant lastSourcePreflightAt;
 
@@ -203,6 +209,22 @@ public class ShopifyStoreConnectionEntity {
 
     public void setPoliciesEnabled(boolean policiesEnabled) {
         this.policiesEnabled = policiesEnabled;
+    }
+
+    public boolean isArticlesEnabled() {
+        return articlesEnabled;
+    }
+
+    public void setArticlesEnabled(boolean articlesEnabled) {
+        this.articlesEnabled = articlesEnabled;
+    }
+
+    public boolean isMetaobjectsEnabled() {
+        return metaobjectsEnabled;
+    }
+
+    public void setMetaobjectsEnabled(boolean metaobjectsEnabled) {
+        this.metaobjectsEnabled = metaobjectsEnabled;
     }
 
     public Instant getLastSourcePreflightAt() {

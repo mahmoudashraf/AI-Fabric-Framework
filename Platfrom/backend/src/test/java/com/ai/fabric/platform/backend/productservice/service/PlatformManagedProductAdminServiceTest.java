@@ -350,16 +350,38 @@ class PlatformManagedProductAdminServiceTest {
     void getStoreBindingReturnsShopifyBindingInspectionForMappedStore() {
         PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
         ShopifyStoreConnectionEntity connection = storeConnection(service.getId(), "demo.myshopify.com");
-        ShopifyStoreBindingInspectionSummary inspection = new ShopifyStoreBindingInspectionSummary(
-            "demo.myshopify.com",
-            "shopify-bridge-prod",
-            null,
-            null,
-            null,
-            versionSummary(),
-            releaseSummary(),
-            List.of("warning")
-        );
+        PlatformCustomerEntity customer = new PlatformCustomerEntity();
+        customer.setId("cus-123");
+        customer.setName("Demo Customer");
+        customer.setSlug("demo-customer");
+        customer.setStatus("ACTIVE");
+        customer.setPlatformManaged(true);
+        customer.setCreatedAt(Instant.now());
+        customer.setUpdatedAt(Instant.now());
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setName("Demo Deployment");
+        deployment.setEnvironmentName("prod");
+        deployment.setTemplateId("tpl-123");
+        deployment.setStatus("ACTIVE");
+        deployment.setCustomerId("cus-123");
+        deployment.setTenantId("tenant-123");
+        deployment.setActiveVersionId("ver-123");
+        deployment.setRuntimeBaseUrl("https://runtime.example.com");
+        deployment.setConnectorBaseUrl("https://connector.example.com");
+        deployment.setApprovalRequiredForApply(false);
+        deployment.setApprovalRequiredForDelete(false);
+        deployment.setCreatedAt(Instant.now());
+        deployment.setUpdatedAt(Instant.now());
+        PlatformConsumerEntity consumer = new PlatformConsumerEntity();
+        consumer.setConsumerId("demo-storefront");
+        consumer.setCustomerId("cus-123");
+        consumer.setDisplayName("Demo Storefront");
+        consumer.setStatus("ACTIVE");
+        consumer.setBoundDeploymentId("dep-123");
+        consumer.setLastBoundAt(Instant.now());
+        consumer.setCreatedAt(Instant.now());
+        consumer.setUpdatedAt(Instant.now());
 
         PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
         PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
@@ -373,12 +395,15 @@ class PlatformManagedProductAdminServiceTest {
         PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
-        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
 
         when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
         when(shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), "demo.myshopify.com"))
             .thenReturn(java.util.Optional.of(connection));
-        when(shopifyStoreConnectionService.inspectBinding("demo.myshopify.com")).thenReturn(inspection);
+        when(customerRepository.findById("cus-123")).thenReturn(java.util.Optional.of(customer));
+        when(deploymentRepository.findById("dep-123")).thenReturn(java.util.Optional.of(deployment));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123")).thenReturn(List.of(version()));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(java.util.Optional.of(release()));
+        when(consumerRepository.findByConsumerIdIgnoreCase("demo-storefront")).thenReturn(java.util.Optional.of(consumer));
 
         PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
             serviceService,
@@ -393,7 +418,6 @@ class PlatformManagedProductAdminServiceTest {
             provisioningService,
             platformAuditService,
             railwayGraphqlClient,
-            shopifyStoreConnectionService,
             new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
             new ShopifyStoreReadinessEvaluator(),
             new ObjectMapper()
@@ -405,7 +429,10 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(summary.productServiceRef()).isEqualTo("shopify-bridge-prod");
         assertThat(summary.latestVersion()).isNotNull();
         assertThat(summary.latestRelease()).isNotNull();
-        assertThat(summary.warnings()).containsExactly("warning");
+        assertThat(summary.customer()).isNotNull();
+        assertThat(summary.deployment()).isNotNull();
+        assertThat(summary.consumer()).isNotNull();
+        assertThat(summary.warnings()).isEmpty();
     }
 
     @Test
@@ -786,6 +813,148 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(summary.status()).isEqualTo("READY_FOR_APPROVAL");
         assertThat(summary.merchantApprovalRequired()).isTrue();
         assertThat(summary.launchBlocked()).isTrue();
+        assertThat(summary.availablePlans()).hasSize(2);
+        assertThat(summary.requiresExplicitConfirmation()).isTrue();
+        assertThat(summary.auditTrailAvailable()).isTrue();
+        assertThat(summary.actionPackages()).containsExactly("guided-commerce");
+        assertThat(summary.availablePlans().get(0).tierKey()).isEqualTo("FREE");
+        assertThat(summary.availablePlans().get(0).chatFallbackEnabled()).isFalse();
+        assertThat(summary.availablePlans().get(1).tierKey()).isEqualTo("STARTER");
+        assertThat(summary.availablePlans().get(1).allowedSurfaces()).contains("comparison");
+        assertThat(summary.availablePlans().get(1).requiresExplicitConfirmation()).isTrue();
+        assertThat(summary.availablePlans().get(1).auditTrailAvailable()).isTrue();
+        assertThat(summary.availablePlans().get(1).actionPackages()).containsExactly("guided-commerce");
+    }
+
+    @Test
+    void storeUsageSummaryIsFetchedThroughBridgeAdminApi() throws Exception {
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/api/admin/stores/demo.myshopify.com/usage-summary", this::handleUsageSummaryRequest);
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setBaseUrl(baseUrl);
+        service.setSecretName("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY");
+
+        ShopifyStoreConnectionEntity connection = storeConnection(service.getId(), "demo.myshopify.com");
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), "demo.myshopify.com"))
+            .thenReturn(java.util.Optional.of(connection));
+        when(platformSecretService.resolveSecret("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY")).thenReturn("bridge-admin-key");
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            shopifyStoreConnectionService,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        var summary = adminService.getStoreUsageSummary("shopify-bridge-prod", "demo.myshopify.com");
+
+        assertThat(summary.shopDomain()).isEqualTo("demo.myshopify.com");
+        assertThat(summary.totalToday()).isEqualTo(4);
+        assertThat(summary.todaySurfaceUsage()).hasSize(1);
+        assertThat(summary.todaySurfaceUsage().get(0).surfaceId()).isEqualTo("ai-search");
+        assertThat(summary.topQuestionsLast7Days()).hasSize(1);
+        assertThat(summary.topQuestionsLast7Days().get(0).queryText()).isEqualTo("where is my order");
+        assertThat(summary.roiSummary()).isNotNull();
+        assertThat(summary.roiSummary().status()).isEqualTo("READY");
+        assertThat(summary.roiSummary().strongestSurfaceLabels()).containsExactly("AI Search", "Order Lookup");
+    }
+
+    @Test
+    void storeVectorizationSummaryIsFetchedThroughBridgeAdminApi() throws Exception {
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/api/admin/stores/demo.myshopify.com/vectorization", this::handleVectorizationSummaryRequest);
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setBaseUrl(baseUrl);
+        service.setSecretName("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY");
+
+        ShopifyStoreConnectionEntity connection = storeConnection(service.getId(), "demo.myshopify.com");
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), "demo.myshopify.com"))
+            .thenReturn(java.util.Optional.of(connection));
+        when(platformSecretService.resolveSecret("MANAGED_SHOPIFY_BRIDGE_ADMIN_KEY")).thenReturn("bridge-admin-key");
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            shopifyStoreConnectionService,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        var summary = adminService.getStoreVectorizationSummary("shopify-bridge-prod", "demo.myshopify.com");
+
+        assertThat(summary.shopDomain()).isEqualTo("demo.myshopify.com");
+        assertThat(summary.readyToRun()).isTrue();
+        assertThat(summary.selectedCategories()).containsExactly("products", "metaobjects");
+        assertThat(summary.selectedEntityTypes()).containsExactly("product", "support-policy");
+        assertThat(summary.policy()).isNotNull();
+        assertThat(summary.policy().policyVersion()).isEqualTo(3L);
+        assertThat(summary.effectiveIndexedFields()).hasSize(1);
+        assertThat(summary.effectiveIndexedFields().get(0).fieldKey()).isEqualTo("products.title");
+        assertThat(summary.automation()).isNotNull();
+        assertThat(summary.automation().autoIndexingHealthy()).isTrue();
+        assertThat(summary.recentEvents()).hasSize(1);
+        assertThat(summary.recentEvents().get(0).sourceCategory()).isEqualTo("products");
     }
 
     @Test
@@ -929,6 +1098,8 @@ class PlatformManagedProductAdminServiceTest {
             entity.isCollectionsEnabled(),
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
+            entity.isArticlesEnabled(),
+            entity.isMetaobjectsEnabled(),
             null,
             null,
             null,
@@ -1141,11 +1312,239 @@ class PlatformManagedProductAdminServiceTest {
         byte[] payload = """
             {
               "mode": "PAID",
+              "tierKey": "FREE",
               "planName": "Companion Growth",
               "status": "READY_FOR_APPROVAL",
               "merchantApprovalRequired": true,
               "launchBlocked": true,
+              "requiresExplicitConfirmation": true,
+              "auditTrailAvailable": true,
+              "actionPackages": ["guided-commerce"],
+              "chatFallbackEnabled": false,
+              "allowedSurfaces": ["ai-search"],
+              "availablePlans": [
+                {
+                  "tierKey": "FREE",
+                  "planName": "Loom Companion Free",
+                  "active": true,
+                  "commerciallyAvailable": true,
+                  "merchantApprovalSupported": false,
+                  "actionCapable": false,
+                  "catalogProductCap": 50,
+                  "syncCadence": "DAILY",
+                  "poweredByBadgeRequired": true,
+                  "chatFallbackEnabled": false,
+                  "allowedSurfaces": ["ai-search"],
+                  "message": "Free tier is active."
+                },
+                {
+                  "tierKey": "STARTER",
+                  "planName": "Loom Companion Starter",
+                  "amount": "29.00",
+                  "currencyCode": "USD",
+                  "interval": "EVERY_30_DAYS",
+                  "active": false,
+                  "commerciallyAvailable": true,
+                  "merchantApprovalSupported": true,
+                  "actionCapable": false,
+                  "catalogProductCap": null,
+                  "syncCadence": "EVERY_2_HOURS",
+                  "poweredByBadgeRequired": false,
+                  "chatFallbackEnabled": true,
+                  "requiresExplicitConfirmation": true,
+                  "auditTrailAvailable": true,
+                  "actionPackages": ["guided-commerce"],
+                  "allowedSurfaces": ["ai-search", "comparison"],
+                  "message": "Starter expands the embedded intelligence surface set."
+                }
+              ],
               "message": "Merchant approval is required before go-live."
+            }
+            """.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, payload.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(payload);
+        }
+    }
+
+    private void handleUsageSummaryRequest(HttpExchange exchange) throws IOException {
+        String apiKey = exchange.getRequestHeaders().getFirst("X-BRIDGE-API-KEY");
+        if (!"bridge-admin-key".equals(apiKey)) {
+            exchange.sendResponseHeaders(401, -1);
+            return;
+        }
+        byte[] payload = """
+            {
+              "shopDomain": "demo.myshopify.com",
+              "generatedAt": "2026-04-18T10:20:00Z",
+              "lastActivityAt": "2026-04-18T10:18:00Z",
+              "totalToday": 4,
+              "totalLast7Days": 9,
+              "todayBreakdown": [
+                {"eventType": "STOREFRONT_SHOPPER_QUERY", "count": 3}
+              ],
+              "last7DayBreakdown": [
+                {"eventType": "STOREFRONT_ORDER_LOOKUP", "count": 5}
+              ],
+              "todaySurfaceUsage": [
+                {"surfaceId": "ai-search", "label": "AI Search", "count": 3}
+              ],
+              "last7DaySurfaceUsage": [
+                {"surfaceId": "order-lookup", "label": "Order Lookup", "count": 5}
+              ],
+              "topQuestionsLast7Days": [
+                {
+                  "surfaceId": "ai-search",
+                  "label": "AI Search",
+                  "queryText": "where is my order",
+                  "count": 2,
+                  "lastAskedAt": "2026-04-18T10:18:00Z"
+                }
+              ],
+              "last7DaySurfaceJourneys": [
+                {
+                  "surfaceId": "order-lookup",
+                  "label": "Order Lookup",
+                  "shopperQuestions": 3,
+                  "shopperInteractions": 3,
+                  "readActions": 2,
+                  "governedActionGrants": 0,
+                  "governedActionCompletions": 0,
+                  "governedActionFailures": 0
+                }
+              ],
+              "roiSummary": {
+                "status": "READY",
+                "message": "Healthy bounded ROI signals are available.",
+                "shopperAssistSignals": 7,
+                "decisionSupportSignals": 2,
+                "governedActionGrants": 1,
+                "governedActionCompletions": 1,
+                "governedActionFailures": 0,
+                "activeSurfaceCount": 2,
+                "strongestSurfaceLabels": ["AI Search", "Order Lookup"],
+                "recommendations": ["Keep indexing products"]
+              }
+            }
+            """.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, payload.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(payload);
+        }
+    }
+
+    private void handleVectorizationSummaryRequest(HttpExchange exchange) throws IOException {
+        String apiKey = exchange.getRequestHeaders().getFirst("X-BRIDGE-API-KEY");
+        if (!"bridge-admin-key".equals(apiKey)) {
+            exchange.sendResponseHeaders(401, -1);
+            return;
+        }
+        byte[] payload = """
+            {
+              "shopDomain": "demo.myshopify.com",
+              "deploymentId": "dep-123",
+              "bootstrapped": true,
+              "selectedCategories": ["products", "metaobjects"],
+              "selectedEntityTypes": ["product", "support-policy"],
+              "requiredPluginIds": ["plugin-a"],
+              "installedPluginIds": ["plugin-a"],
+              "missingPluginIds": [],
+              "disabledPluginIds": [],
+              "reconciliationRequired": false,
+              "connectionConfigured": true,
+              "sourceConnectionId": "src-123",
+              "sourceConnectionStatus": "READY",
+              "sourceAdapterType": "SHOPIFY",
+              "planConfigured": true,
+              "planId": "plan-123",
+              "planStatus": "ACTIVE",
+              "runnerConfigured": true,
+              "runnerRegistrationId": "runner-123",
+              "runnerRegistrationStatus": "REGISTERED",
+              "deploymentApplyInProgress": false,
+              "deploymentApplyStatus": "SUCCEEDED",
+              "runnerMode": "AUTO",
+              "syncState": "SYNCED",
+              "readyToRun": true,
+              "blockingReasons": [],
+              "lastRun": {
+                "id": "run-1",
+                "reason": "MANUAL",
+                "status": "SUCCEEDED",
+                "requestedStatus": "SUCCEEDED",
+                "entityScope": ["product"],
+                "createdAt": "2026-04-18T10:00:00Z",
+                "startedAt": "2026-04-18T10:01:00Z",
+                "completedAt": "2026-04-18T10:03:00Z",
+                "updatedAt": "2026-04-18T10:03:00Z"
+              },
+              "policy": {
+                "policyVersion": 3,
+                "autoIndexingDefault": true,
+                "sourcePolicies": [
+                  {
+                    "sourceCategory": "products",
+                    "enabled": true,
+                    "manualIndexAllowed": true,
+                    "manualReindexAllowed": true,
+                    "autoIndexingEnabled": true,
+                    "createTriggerEnabled": true,
+                    "deleteTriggerEnabled": true,
+                    "updateTriggerMode": "DELTA",
+                    "selectedIndexedFields": ["products.title"],
+                    "debounceWindowSeconds": 30,
+                    "minimumRunIntervalSeconds": 60
+                  }
+                ],
+                "updatedBy": "platform-admin",
+                "updatedAt": "2026-04-18T10:05:00Z"
+              },
+              "effectiveIndexedFields": [
+                {
+                  "fieldKey": "products.title",
+                  "sourceCategory": "products",
+                  "entityType": "product",
+                  "sourceField": "title",
+                  "label": "Product title",
+                  "selectableForTriggerPolicy": true
+                }
+              ],
+              "automation": {
+                "autoIndexingHealthy": true,
+                "queuedEvents": 0,
+                "leasedEvents": 0,
+                "dispatchedEvents": 1,
+                "skippedEvents": 0,
+                "failedEvents": 0,
+                "deadLetteredEvents": 0,
+                "lastAutoEventAt": "2026-04-18T10:04:00Z",
+                "lastSuccessfulAutoIndexAt": "2026-04-18T10:04:30Z",
+                "lastFailedAutoIndexAt": null,
+                "lastAutoRunId": "run-1",
+                "degradedReasons": []
+              },
+              "recentEvents": [
+                {
+                  "id": "evt-1",
+                  "sourceCategory": "products",
+                  "entityType": "product",
+                  "sourceObjectId": "gid://shopify/Product/1",
+                  "shopifyTopic": "PRODUCTS_UPDATE",
+                  "operation": "UPSERT",
+                  "status": "SUCCEEDED",
+                  "triggerReason": "WEBHOOK",
+                  "failureCode": null,
+                  "coalescedRunId": "run-1",
+                  "shopifyWebhookId": "wh-1",
+                  "occurredAt": "2026-04-18T10:04:00Z",
+                  "queuedAt": "2026-04-18T10:04:01Z",
+                  "lastAttemptAt": "2026-04-18T10:04:10Z",
+                  "completedAt": "2026-04-18T10:04:30Z",
+                  "notes": "Indexed successfully."
+                }
+              ]
             }
             """.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");

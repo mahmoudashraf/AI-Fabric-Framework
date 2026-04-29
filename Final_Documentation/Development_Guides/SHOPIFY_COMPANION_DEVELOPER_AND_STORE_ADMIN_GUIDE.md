@@ -1,6 +1,6 @@
 # Shopify Companion Developer And Store Admin Guide
 
-Status: developer and merchant-admin operating guide (2026-04-19)
+Status: developer and merchant-admin operating guide (2026-04-23)
 
 Purpose:
 
@@ -12,10 +12,16 @@ Purpose:
 This guide should be read with:
 
 - `Final_Documentation/Development_Guides/SHOPIFY_INTERNAL_DEVELOPMENT_AND_FULL_DEPLOYMENT_GUIDE.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_VECTORIZATION_TRIGGER_PLAN.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
+- `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_READINESS_AUDIT_DEVELOPER_GUIDE.md`
+- `Final_Documentation/User_Guides/SHOPIFY_COMPANION_READINESS_AUDIT_OPERATOR_GUIDE.md`
+- `Final_Documentation/User_Guides/THINKER_RESOLVER_OPERATOR_GUIDE.md`
+- `Final_Documentation/Development_Guides/THINKER_RESOLVER_DEVELOPER_GUIDE.md`
+- `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_LAUNCH_REVIEW_AND_SUPPORT_EXPORTS_GUIDE.md`
+- `Final_Documentation/User_Guides/SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_VECTORIZATION_TRIGGER_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
+- `Final_Documentation/User_Guides/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
 
 ## 1) Executive Summary
 
@@ -69,10 +75,15 @@ Shopify admin app:
 - merchant-facing bounded control plane
 - source selection
 - preflight, indexing, live updates, storefront activation, playground, support bundle
+- store intelligence health
+- launch and App Review readiness
+- tier ladder and billing posture
+- launch, review, support, and lifecycle export packets
 
 Theme app embed:
 
 - storefront launcher and shopper assistant UI
+- merchant-placeable AI search, contextual pill, product insight, policy strip, product FAQ, and comparison blocks
 
 ### 2.2 Current vectorization shape
 
@@ -91,6 +102,8 @@ This is deliberate. The vectorization runner should not contain Shopify-specific
 - `collections` -> contributes to `product`
 - `pages` -> contributes to `support-policy`
 - `policies` -> contributes to `support-policy`
+- `articles` -> contributes to `support-policy`
+- `metaobjects` -> contributes to `support-policy`
 
 ### 2.4 Current required deployment plugins
 
@@ -155,6 +168,8 @@ The source toggles are the only merchant-facing data-scope controls:
 - Collections
 - Pages
 - Policies
+- Articles
+- Metaobjects
 
 When those change:
 
@@ -200,6 +215,10 @@ Expected healthy live signals:
 - plan status: `ACTIVE`
 - runner registration status: `ACTIVE`
 - latest run status: `COMPLETED`
+- policy version is present and source-family policy blocks are visible
+- effective indexed fields are visible for the enabled Shopify scope
+- live-update automation summary is healthy or explicitly explains the backlog
+- recent Shopify live-update events are visible for operator recovery
 
 ### 3.6 Live verification commands
 
@@ -218,6 +237,15 @@ Recommended workflow modes:
 - `verify`: non-destructive live verification for the configured shop
 - `rollout`: platform-side bootstrap / source preflight / go-live progression
 - `uninstall_verify`: destructive uninstall verification for a disposable shop mapping only
+
+Current non-destructive verification coverage:
+
+- platform store vectorization summary
+- bounded source-family trigger policy visibility
+- effective indexed field visibility
+- automation queue/dead-letter health visibility
+- recent live-update event visibility
+- bridge admin vectorization source-page reachability when the bridge admin key is configured
 
 Recommended repository variables for the workflow:
 
@@ -245,11 +273,25 @@ Required repository secrets for the workflow:
 Optional repository secrets that enable deeper verification coverage:
 
 - `SHOPIFY_BRIDGE_ADMIN_API_KEY`
-  default: empty
+  default: empty; set to the same secret value configured on the deployed bridge as `SHOPIFY_BRIDGE_SHARED_SECRET`
 - `SHOPIFY_ADMIN_ACCESS_TOKEN`
   default: empty
 - `SHOPIFY_MERCHANT_AUTHORIZATION`
   default: empty
+
+Bridge admin key rule:
+
+- `SHOPIFY_BRIDGE_ADMIN_API_KEY` is only for Shopify Bridge operator/admin verification endpoints under `/api/admin/*`.
+- The verification script sends it using `SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER`; the default header is `X-BRIDGE-API-KEY`.
+- It is not the Shopify store Admin API token. Use `SHOPIFY_ADMIN_ACCESS_TOKEN` for Shopify Admin API coverage.
+- If the value is missing, optional bridge admin checks are skipped. If it is wrong, `/api/admin/*` returns `401`. If the deployed bridge has no admin key configured, `/api/admin/*` returns `503`.
+- Keep this value only in GitHub/Railway/local secrets or the private handoff; do not paste it in chat or logs.
+
+Governed support scope rule:
+
+- the Shopify app manifest now needs `read_orders` for customer-safe order lookup
+- after deploying a scope change, re-open the install URL for the shop so Shopify records the new grant on the live install
+- `scripts/run-shopify-companion-rollout.sh` now stops on `PENDING_SCOPE_GRANT` and prints the exact scope-grant URL instead of letting launch work continue under a false green posture
 
 Secret placement rule:
 
@@ -348,11 +390,15 @@ Source scope:
   - Collections
   - Pages
   - Policies
+  - Articles
+  - Metaobjects
 - save source settings
 
 Readiness and launch:
 
 - run source preflight
+- review launch and App Review readiness
+- review store intelligence health
 - request go-live
 
 Indexing:
@@ -376,9 +422,11 @@ Storefront:
 Diagnostics:
 
 - view billing posture
+- review the tier ladder and governed-action posture
 - view webhook subscription health
 - use merchant playground
 - copy or download support bundle
+- copy or download launch dossier, App Store package, App Review guide, review screencast script, support runbook, design-partner rollout packet, and lifecycle/subscription packet
 
 ### 4.3 What the store admin should not be allowed to do
 
@@ -455,7 +503,7 @@ If the merchant enables:
 - `Products` or `Collections`
   - the platform prepares vectorization for `product`
 
-- `Pages` or `Policies`
+- `Pages`, `Policies`, `Articles`, or `Metaobjects`
   - the platform prepares vectorization for `support-policy`
 
 This mapping is fixed product behavior, not merchant-authored schema design.
@@ -485,6 +533,14 @@ Webhook subscriptions:
 Billing:
 
 - indicates whether billing blocks launch for the current store plan posture
+
+Lifecycle and subscription packet:
+
+- summarizes install, billing, webhook, sync, and release posture in one bounded merchant-visible export
+
+Store intelligence health:
+
+- summarizes shopper signal, surface usage, journey evidence, and ROI posture without exposing raw infrastructure internals
 
 ### 4.8 Merchant troubleshooting
 
@@ -534,6 +590,7 @@ Keep the Shopify admin app focused on:
 - storefront activation
 - testing
 - support
+- launch, review, and lifecycle packaging
 
 Keep the platform responsible for:
 

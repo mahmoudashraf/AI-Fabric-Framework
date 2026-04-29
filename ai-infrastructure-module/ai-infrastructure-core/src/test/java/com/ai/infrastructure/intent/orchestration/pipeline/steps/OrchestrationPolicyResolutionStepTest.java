@@ -231,6 +231,50 @@ class OrchestrationPolicyResolutionStepTest {
         }
 
         @Test
+        @DisplayName("Should resolve read action resolution mode overrides into policy metadata")
+        void shouldResolveReadActionResolutionModeOverridesIntoPolicyMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_CHAT);
+
+            OrchestrationProperties.ModeOverrides resolver = new OrchestrationProperties.ModeOverrides();
+            OrchestrationProperties.ReadActionResolutionModeOverrides readActionResolution =
+                new OrchestrationProperties.ReadActionResolutionModeOverrides();
+            readActionResolution.setEnabled(true);
+            readActionResolution.setPlanningMode(OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS);
+            readActionResolution.setRequireAllowlist(true);
+            readActionResolution.setAllowedReadActions(java.util.List.of("get_policy", "check_availability"));
+            readActionResolution.setMaxActionsPerIteration(2);
+            readActionResolution.setMaxTotalActions(3);
+            readActionResolution.setRagCooperationMode(
+                OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT
+            );
+            resolver.setReadActionResolution(readActionResolution);
+            orchestrationProperties.getModes().put("resolver_assistant", resolver);
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .mode("resolver_assistant")
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("refund policy", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().readActionResolutionPolicy().enabled()).isTrue();
+            assertThat(output.getOrchestrationPolicy().readActionResolutionPolicy().planningMode())
+                .isEqualTo(OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS);
+            assertThat(output.getOrchestrationPolicy().readActionResolutionPolicy().allowedReadActions())
+                .containsExactly("get_policy", "check_availability");
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("readActionResolutionEnabled", true);
+            assertThat(policyMeta).containsEntry("readActionResolutionPlanningMode", "SINGLE_PASS");
+            assertThat(policyMeta).containsEntry("readActionResolutionRequireAllowlist", true);
+            assertThat(policyMeta).containsEntry("readActionResolutionAllowedReadActions", java.util.List.of("get_policy", "check_availability"));
+        }
+
+        @Test
         @DisplayName("Should apply explicit overrides over profile and mode defaults")
         void shouldApplyExplicitOverridesOverProfileAndModeDefaults() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();

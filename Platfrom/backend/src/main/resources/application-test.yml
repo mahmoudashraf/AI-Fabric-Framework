@@ -8,6 +8,14 @@ spring:
 platform:
   bootstrap:
     sample-enabled: false
+  marketplace:
+    dataset-sync:
+      enabled: false
+  shopify:
+    provisioning:
+      enabled: false
+    vectorization:
+      enabled: false
   auth:
     enabled: false
     bootstrap-admin-enabled: true

@@ -46,6 +46,7 @@ set -euo pipefail
 
 STORE_BASE_URL="${STORE_BASE_URL:-${ECOMMERCE_STORE_BASE_URL:-}}"
 RUNTIME_BASE_URL="${RUNTIME_BASE_URL:-}"
+VERIFICATION_PROFILE="${VERIFICATION_PROFILE:-ecommerce}"
 
 API_KEY_HEADER="${API_KEY_HEADER:-X-AIFABRIC-API-KEY}"
 API_KEY="${API_KEY:-}"
@@ -118,6 +119,18 @@ EXPECT_CONFIRMATION_INTERCEPTOR_RULES="${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-
 VERIFY_CONFIRMATION_RETENTION_FLOW="${VERIFY_CONFIRMATION_RETENTION_FLOW:-false}"
 VERIFY_MARKETPLACE_RUNTIME="${VERIFY_MARKETPLACE_RUNTIME:-false}"
 VERIFY_MARKETPLACE_RUNTIME_ACTIVE="${VERIFY_MARKETPLACE_RUNTIME_ACTIVE:-}"
+VERIFY_READ_ACTION_RESOLUTION="${VERIFY_READ_ACTION_RESOLUTION:-true}"
+EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="${EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN:-}"
+ECOMMERCE_RESOLVER_MODE="${ECOMMERCE_RESOLVER_MODE:-resolver_assistant}"
+ECOMMERCE_RESOLVER_SMOKE_QUERY="${ECOMMERCE_RESOLVER_SMOKE_QUERY:-Check live availability for SKU-0001.}"
+VERIFY_COMPARE_READ_ACTION_RESOLUTION="${VERIFY_COMPARE_READ_ACTION_RESOLUTION:-true}"
+ECOMMERCE_COMPARE_SMOKE_QUERY="${ECOMMERCE_COMPARE_SMOKE_QUERY:-Compare SKU-0001 with SKU-0002 and summarize the main differences.}"
+VERIFY_THINKER_READ_ACTION_RESOLUTION="${VERIFY_THINKER_READ_ACTION_RESOLUTION:-true}"
+ECOMMERCE_THINKER_MODE="${ECOMMERCE_THINKER_MODE:-thinker}"
+ECOMMERCE_THINKER_SMOKE_QUERY="${ECOMMERCE_THINKER_SMOKE_QUERY:-Check live availability for SKU-0001 and summarize the refund policy.}"
+ECOMMERCE_SAMPLE_PRIMARY_SKU="${ECOMMERCE_SAMPLE_PRIMARY_SKU:-}"
+ECOMMERCE_SAMPLE_SECONDARY_SKU="${ECOMMERCE_SAMPLE_SECONDARY_SKU:-}"
+ECOMMERCE_SAMPLE_PRODUCTS_LIMIT="${ECOMMERCE_SAMPLE_PRODUCTS_LIMIT:-10}"
 EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION:-MARKETPLACE_RUNTIME_SUPPORT_V2}"
 EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION="${EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION:-SEARCH_SOURCE_DIAGNOSTICS_V1}"
 EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS="${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}"
@@ -143,7 +156,7 @@ EXPECT_MARKETPLACE_SHELL_CARD_IDS="${EXPECT_MARKETPLACE_SHELL_CARD_IDS:-}"
 EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT="${EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT:-0}"
 EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED="${EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED:-false}"
 RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN="${RUNTIME_PUBLIC_BOOTSTRAP_ORIGIN:-}"
-MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Summarize return policy}"
+MARKETPLACE_SMOKE_QUERY="${MARKETPLACE_SMOKE_QUERY:-Using only retrieved marketplace knowledge sources, summarize the return and refund policy.}"
 MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS="${MARKETPLACE_SMOKE_QUERY_RETRY_ATTEMPTS:-3}"
 MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS="${MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS:-5}"
 MARKETPLACE_SHARED_SENTINEL_ID="${MARKETPLACE_SHARED_SENTINEL_ID:-}"
@@ -172,6 +185,17 @@ if [[ -z "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" ]]; then
   else
     VERIFY_MARKETPLACE_RUNTIME_ACTIVE="false"
   fi
+fi
+
+if [[ -z "${EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN}" ]]; then
+  case "${VERIFICATION_PROFILE}" in
+    marketplace-runtime)
+      EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="0"
+      ;;
+    *)
+      EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="6"
+      ;;
+  esac
 fi
 
 resolve_secret_value() {
@@ -587,6 +611,159 @@ platform_marketplace_smoke_query_http() {
     fi
     break
   done
+}
+
+validate_marketplace_smoke_query_evidence() {
+  local label="$1"
+  local expected_source_ids_json="$2"
+  local expected_adapter_types_json="$3"
+  local active_probe="$4"
+  local tmp output rc
+  tmp="$(mktemp)"
+  output="$(mktemp)"
+  printf '%s' "${HTTP_BODY}" > "${tmp}"
+  ASSERT_LABEL="${label}" \
+  ASSERT_FILE="${tmp}" \
+  EXPECTED_SOURCE_IDS_JSON="${expected_source_ids_json}" \
+  EXPECTED_ADAPTER_TYPES_JSON="${expected_adapter_types_json}" \
+  VERIFY_ACTIVE_PROBE="${active_probe}" \
+  python3 - <<'PY' >"${output}" 2>&1
+import json
+import os
+import pathlib
+import sys
+
+label = os.environ["ASSERT_LABEL"]
+raw = pathlib.Path(os.environ["ASSERT_FILE"]).read_text(encoding="utf-8").strip()
+try:
+    data = json.loads(raw) if raw else None
+except Exception as exc:
+    print(f"{label}: invalid JSON: {exc}")
+    sys.exit(2)
+
+expected_source_ids = set(json.loads(os.environ.get("EXPECTED_SOURCE_IDS_JSON") or "[]"))
+expected_adapter_types = set(json.loads(os.environ.get("EXPECTED_ADAPTER_TYPES_JSON") or "[]"))
+active_probe = (os.environ.get("VERIFY_ACTIVE_PROBE") or "").lower() == "true"
+
+errors = []
+if not isinstance(data, dict) or data.get("success") is not True:
+    errors.append("platform query did not report success")
+
+result = (data or {}).get("result") or {}
+if result.get("success") is not True:
+    errors.append("runtime result did not report success")
+if result.get("type") not in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}:
+    errors.append(f"unexpected result type {result.get('type')!r}")
+
+result_data = (result.get("data") or {}) if isinstance(result, dict) else {}
+rag = (result_data.get("ragResponse") or {}) if isinstance(result_data, dict) else {}
+docs = rag.get("documents") or []
+adapter_types = {
+    (doc.get("metadata") or {}).get("knowledgeSourceAdapterType")
+    for doc in docs
+    if isinstance(doc, dict)
+}
+source_ids = {
+    (doc.get("metadata") or {}).get("knowledgeSourceId")
+    for doc in docs
+    if isinstance(doc, dict)
+}
+adapter_types = {value for value in adapter_types if value}
+source_ids = {value for value in source_ids if value}
+
+if rag.get("success") is not True:
+    errors.append("RAG response was not successful")
+if not (result_data.get("answer") or result.get("message") or "").strip():
+    errors.append("response did not include an answer")
+if not docs:
+    errors.append("response did not include retrieved documents")
+if "shared-index" not in adapter_types:
+    errors.append(f"shared-index adapter missing; adapters={sorted(adapter_types)}")
+if "shared-marketplace-refund-policy" not in source_ids:
+    errors.append(f"shared-marketplace-refund-policy source missing; sources={sorted(source_ids)}")
+if active_probe:
+    matched_sources = expected_source_ids & source_ids
+    if len(matched_sources) < 2:
+        errors.append(
+            f"active probe expected at least two configured sources; matched={sorted(matched_sources)} expected={sorted(expected_source_ids)}"
+        )
+else:
+    if expected_source_ids and not (expected_source_ids & source_ids):
+        errors.append(f"no configured source matched; expected={sorted(expected_source_ids)} actual={sorted(source_ids)}")
+    if expected_adapter_types and not (expected_adapter_types & adapter_types):
+        errors.append(
+            f"no configured adapter matched; expected={sorted(expected_adapter_types)} actual={sorted(adapter_types)}"
+        )
+
+if errors:
+    action = result_data.get("action") if isinstance(result_data, dict) else None
+    action_result = (result_data.get("actionResult") or {}) if isinstance(result_data, dict) else {}
+    print(
+        json.dumps(
+            {
+                "errors": errors,
+                "resultType": result.get("type"),
+                "action": action,
+                "actionResultCount": ((action_result.get("data") or {}).get("_count") if isinstance(action_result, dict) else None),
+                "ragSuccess": rag.get("success"),
+                "documentCount": len(docs),
+                "sources": sorted(source_ids),
+                "adapters": sorted(adapter_types),
+            },
+            sort_keys=True,
+        )
+    )
+    sys.exit(1)
+
+print("ok")
+PY
+  rc=$?
+  if [[ ${rc} -eq 0 ]]; then
+    cat "${output}"
+    rm -f "${tmp}" "${output}"
+    return 0
+  fi
+  echo "WARN: ${label} did not return required shared-index evidence."
+  cat "${output}"
+  rm -f "${tmp}" "${output}"
+  return "${rc}"
+}
+
+run_marketplace_smoke_query_until_grounded() {
+  local expected_source_ids_json="$1"
+  local expected_adapter_types_json="$2"
+  local queries=(
+    "${MARKETPLACE_SMOKE_QUERY}"
+    "Use only retrieved marketplace knowledge sources. Summarize the shared marketplace refund policy and include the return window."
+    "Find shared-marketplace-refund-policy in the marketplace knowledge base and summarize the refund and return rules."
+  )
+  local query attempt conversation_id last_status
+  attempt=1
+  last_status=""
+  for query in "${queries[@]}"; do
+    conversation_id="marketplace-runtime-verify-$(date +%s)-${attempt}"
+    platform_marketplace_smoke_query_http \
+      "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+      "$(build_chat_query_payload "${query}" "${conversation_id}")"
+    last_status="${HTTP_STATUS}"
+    if [[ "${HTTP_STATUS}" != "200" ]]; then
+      echo "WARN: marketplace runtime smoke query attempt ${attempt} returned HTTP ${HTTP_STATUS}."
+      echo "${HTTP_BODY}"
+    elif validate_marketplace_smoke_query_evidence \
+        "marketplace runtime smoke query attempt ${attempt}" \
+        "${expected_source_ids_json}" \
+        "${expected_adapter_types_json}" \
+        "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}"; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep "${MARKETPLACE_SMOKE_QUERY_RETRY_SLEEP_SECONDS}"
+  done
+  echo "---- marketplace runtime smoke query ----"
+  echo "HTTP ${last_status}"
+  echo "${HTTP_BODY}"
+  echo "----------------------------------------"
+  fail "marketplace runtime smoke query did not return required shared-index marketplace evidence"
 }
 
 RUNTIME_PUBLIC_AUTHORIZATION=""
@@ -1033,19 +1210,10 @@ PY
     echo "Marketplace shared-source write probe is disabled in read-only mode."
   fi
 
-  local conversation_id="marketplace-runtime-verify-$(date +%s)"
-  platform_marketplace_smoke_query_http \
-    "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
-    "$(build_chat_query_payload "${MARKETPLACE_SMOKE_QUERY}" "${conversation_id}")"
-  assert_status 200 "marketplace runtime smoke query"
   local expected_source_ids_json expected_adapter_types_json
   expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
   expected_adapter_types_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}")"
-  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
-    json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\ndocs = (((result.get("data") or {}).get("ragResponse") or {}).get("documents") or [])\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert "shared-marketplace-refund-policy" in source_ids, {"expectedSource": "shared-marketplace-refund-policy", "actual": sorted([v for v in source_ids if v])}\nassert len(expected_source_ids & source_ids) >= 2, {"expectedAtLeast": 2, "actual": sorted([v for v in (expected_source_ids & source_ids) if v])}\nprint("ok")'
-  else
-    json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\nresult_data = (result.get("data") or {})\nrag = (result_data.get("ragResponse") or {})\nassert rag.get("success") is True, rag\nanswer = (result_data.get("answer") or result.get("message") or "").strip()\nassert answer, result\ndocs = rag.get("documents") or []\nassert docs, result\nadapter_types = {((doc.get("metadata") or {}).get("knowledgeSourceAdapterType")) for doc in docs if isinstance(doc, dict)}\nsource_ids = {((doc.get("metadata") or {}).get("knowledgeSourceId")) for doc in docs if isinstance(doc, dict)}\nassert "shared-index" in adapter_types, {"expectedAdapter": "shared-index", "actual": sorted([v for v in adapter_types if v])}\nassert "shared-marketplace-refund-policy" in source_ids, {"expectedSource": "shared-marketplace-refund-policy", "actual": sorted([v for v in source_ids if v])}\nassert expected_source_ids & source_ids, {"expectedAnySource": sorted(expected_source_ids), "actual": sorted([v for v in source_ids if v])}\nassert expected_adapter_types & adapter_types, {"expectedAnyAdapter": sorted(expected_adapter_types), "actual": sorted([v for v in adapter_types if v])}\nprint("ok")'
-  fi
+  run_marketplace_smoke_query_until_grounded "${expected_source_ids_json}" "${expected_adapter_types_json}"
 
   runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
   assert_status 200 "marketplace runtime admin overview (post-query)"
@@ -1144,6 +1312,25 @@ payload = {"query": os.environ["CHAT_QUERY"]}
 conversation_id = os.environ.get("CHAT_CONVERSATION_ID", "").strip()
 if conversation_id:
     payload["conversationId"] = conversation_id
+print(json.dumps(payload))
+PY
+}
+
+build_chat_query_payload_with_mode() {
+  local query="$1"
+  local conversation_id="$2"
+  local mode="$3"
+  CHAT_QUERY="${query}" CHAT_CONVERSATION_ID="${conversation_id}" CHAT_MODE="${mode}" python3 - <<'PY'
+import json
+import os
+
+payload = {"query": os.environ["CHAT_QUERY"]}
+conversation_id = os.environ.get("CHAT_CONVERSATION_ID", "").strip()
+mode = os.environ.get("CHAT_MODE", "").strip()
+if conversation_id:
+    payload["conversationId"] = conversation_id
+if mode:
+    payload["mode"] = mode
 print(json.dumps(payload))
 PY
 }
@@ -1323,6 +1510,69 @@ PY
   local rc=$?
   rm -f "${tmp}"
   return "${rc}"
+}
+
+resolve_ecommerce_sample_skus() {
+  if [[ -z "${STORE_BASE_URL}" ]]; then
+    return
+  fi
+
+  if [[ -n "${ECOMMERCE_SAMPLE_PRIMARY_SKU}" && -n "${ECOMMERCE_SAMPLE_SECONDARY_SKU}" ]]; then
+    return
+  fi
+
+  http GET "${STORE_BASE_URL}/api/products?limit=${ECOMMERCE_SAMPLE_PRODUCTS_LIMIT}"
+  assert_status 200 "store sample products lookup"
+
+  local resolved_skus
+  resolved_skus="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+
+raw = os.environ.get("PARSE_BODY") or "[]"
+data = json.loads(raw)
+if not isinstance(data, list):
+    raise SystemExit("Expected /api/products to return a list.")
+
+skus = []
+for item in data:
+    if not isinstance(item, dict):
+        continue
+    sku = item.get("sku")
+    if isinstance(sku, str) and sku and sku not in skus:
+        skus.append(sku)
+    if len(skus) >= 2:
+        break
+
+if len(skus) < 2:
+    raise SystemExit("Expected at least two products with distinct SKUs for comparison verification.")
+
+print("\n".join(skus[:2]))
+PY
+)"
+
+  local resolved_primary_sku
+  local resolved_secondary_sku
+  resolved_primary_sku="$(printf '%s\n' "${resolved_skus}" | sed -n '1p')"
+  resolved_secondary_sku="$(printf '%s\n' "${resolved_skus}" | sed -n '2p')"
+
+  if [[ -z "${ECOMMERCE_SAMPLE_PRIMARY_SKU}" ]]; then
+    ECOMMERCE_SAMPLE_PRIMARY_SKU="${resolved_primary_sku}"
+  fi
+  if [[ -z "${ECOMMERCE_SAMPLE_SECONDARY_SKU}" ]]; then
+    ECOMMERCE_SAMPLE_SECONDARY_SKU="${resolved_secondary_sku}"
+  fi
+
+  ECOMMERCE_RESOLVER_SMOKE_QUERY="${ECOMMERCE_RESOLVER_SMOKE_QUERY//SKU-0001/${ECOMMERCE_SAMPLE_PRIMARY_SKU}}"
+  ECOMMERCE_RESOLVER_SMOKE_QUERY="${ECOMMERCE_RESOLVER_SMOKE_QUERY//SKU-0002/${ECOMMERCE_SAMPLE_SECONDARY_SKU}}"
+  ECOMMERCE_COMPARE_SMOKE_QUERY="${ECOMMERCE_COMPARE_SMOKE_QUERY//SKU-0001/${ECOMMERCE_SAMPLE_PRIMARY_SKU}}"
+  ECOMMERCE_COMPARE_SMOKE_QUERY="${ECOMMERCE_COMPARE_SMOKE_QUERY//SKU-0002/${ECOMMERCE_SAMPLE_SECONDARY_SKU}}"
+  ECOMMERCE_THINKER_SMOKE_QUERY="${ECOMMERCE_THINKER_SMOKE_QUERY//SKU-0001/${ECOMMERCE_SAMPLE_PRIMARY_SKU}}"
+  ECOMMERCE_THINKER_SMOKE_QUERY="${ECOMMERCE_THINKER_SMOKE_QUERY//SKU-0002/${ECOMMERCE_SAMPLE_SECONDARY_SKU}}"
+
+  if [[ "${RETENTION_TEST_SKU}" == "SKU-0001" ]]; then
+    RETENTION_TEST_SKU="${ECOMMERCE_SAMPLE_PRIMARY_SKU}"
+  fi
 }
 
 poll_until() {
@@ -1564,6 +1814,33 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
       assert_status 400 "store clear (confirm required)"
       pass "store POST /api/admin/demo/clear exists (confirm required)"
     fi
+
+    resolve_ecommerce_sample_skus
+
+    echo ""
+    echo "== Store Comparison APIs =="
+    http GET "${STORE_BASE_URL}/api/products/similar?sku=${ECOMMERCE_SAMPLE_PRIMARY_SKU}&limit=3"
+    assert_status 200 "store similar products"
+    json_assert "store similar products" "$(cat <<PY
+assert (data or {}).get("referenceProduct", {}).get("sku") == "${ECOMMERCE_SAMPLE_PRIMARY_SKU}", data
+assert int((data or {}).get("count") or 0) >= 1, data
+assert ((data or {}).get("items") or [])[0].get("product", {}).get("sku"), data
+print("ok")
+PY
+)"
+    pass "store GET /api/products/similar"
+
+    http GET "${STORE_BASE_URL}/api/products/compare?referenceSku=${ECOMMERCE_SAMPLE_PRIMARY_SKU}&comparisonSku=${ECOMMERCE_SAMPLE_SECONDARY_SKU}"
+    assert_status 200 "store compare products"
+    json_assert "store compare products" "$(cat <<PY
+assert (data or {}).get("referenceProduct", {}).get("sku") == "${ECOMMERCE_SAMPLE_PRIMARY_SKU}", data
+assert (data or {}).get("comparisonProduct", {}).get("sku") == "${ECOMMERCE_SAMPLE_SECONDARY_SKU}", data
+assert "highlights" in (data or {}), data
+assert isinstance((data or {}).get("keyDifferences"), list), data
+print("ok")
+PY
+)"
+    pass "store GET /api/products/compare"
   fi
 
   echo ""
@@ -1602,7 +1879,8 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     echo "== Runtime Admin Overview =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
     assert_status 200 "runtime admin overview"
-    json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nprint("ok")'
+    EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN="${EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN}" \
+    json_assert "runtime admin overview" $'import os\nassert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nexpected_min = int(os.environ.get("EXPECT_READ_ACTION_RESOLUTION_ELIGIBLE_ACTIONS_MIN") or 0)\nif expected_min > 0:\n  assert int((data or {}).get("readActionResolutionEligibleActionsCount") or 0) >= expected_min, data\nprint("ok")'
     RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
     assert_marketplace_runtime_overview "runtime admin marketplace alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
     assert_marketplace_inference_profile "runtime admin marketplace inference alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
@@ -1626,9 +1904,43 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     echo "== Runtime Action Catalog =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/actions/overview"
     assert_status 200 "runtime actions overview"
-    json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
+    json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nassert int((data or {}).get("readActionResolutionEligibleCount") or 0) >= 6, data\nactions = (data or {}).get("actions") or []\nresolver_names = {item.get("name") for item in actions if isinstance(item, dict) and item.get("readActionResolutionEligible") is True}\nfor req in ["list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart"]:\n  assert req in resolver_names, {"required": req, "actual": sorted([v for v in resolver_names if v])}\nfor removed in ["find_similar_products", "compare_products"]:\n  assert removed not in resolver_names, {"removed": removed, "actual": sorted([v for v in resolver_names if v])}\nprint("ok")'
     assert_expected_confirmation_interceptors "runtime actions confirmation interceptor alignment" "${HTTP_BODY}"
     pass "runtime GET /api/admin/actions/overview"
+
+    if [[ "${VERIFY_READ_ACTION_RESOLUTION}" == "true" || "${VERIFY_COMPARE_READ_ACTION_RESOLUTION}" == "true" || "${VERIFY_THINKER_READ_ACTION_RESOLUTION}" == "true" || "${VERIFY_CONFIRMATION_RETENTION_FLOW}" == "true" ]]; then
+      resolve_ecommerce_sample_skus
+    fi
+
+    if [[ "${VERIFY_READ_ACTION_RESOLUTION}" == "true" && "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
+      resolver_conversation_id="ecommerce-resolver-verify-$(date +%s)"
+      platform_marketplace_smoke_query_http \
+        "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+        "$(build_chat_query_payload_with_mode "${ECOMMERCE_RESOLVER_SMOKE_QUERY}" "${resolver_conversation_id}" "${ECOMMERCE_RESOLVER_MODE}")"
+      assert_status 200 "ecommerce resolver assistant smoke query"
+      json_assert "ecommerce resolver assistant smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresult_data = (result.get("data") or {})\nresult_data_metadata = (result_data.get("metadata") or {}) if isinstance(result_data, dict) else {}\nresolution = metadata.get("readActionResolution") or result_data.get("readActionResolution") or result_data_metadata.get("readActionResolution") or {}\nassert resolution.get("attempted") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nassert not (actions & {"find_similar_products", "compare_products"}), {"executedActions": executed}\nprint("ok")'
+      pass "platform ecommerce resolver assistant smoke query"
+    fi
+
+    if [[ "${VERIFY_COMPARE_READ_ACTION_RESOLUTION}" == "true" && "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
+      compare_conversation_id="ecommerce-compare-verify-$(date +%s)"
+      platform_marketplace_smoke_query_http \
+        "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+        "$(build_chat_query_payload_with_mode "${ECOMMERCE_COMPARE_SMOKE_QUERY}" "${compare_conversation_id}" "${ECOMMERCE_RESOLVER_MODE}")"
+      assert_status 200 "ecommerce compare smoke query"
+      json_assert "ecommerce compare smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresult_data = (result.get("data") or {})\nresult_data_metadata = (result_data.get("metadata") or {}) if isinstance(result_data, dict) else {}\nresolution = metadata.get("readActionResolution") or result_data.get("readActionResolution") or result_data_metadata.get("readActionResolution") or {}\nassert resolution.get("attempted") is True, resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nassert "compare_products" not in actions, {"executedActions": executed}\nprint("ok")'
+      pass "platform ecommerce compare smoke query"
+    fi
+
+    if [[ "${VERIFY_THINKER_READ_ACTION_RESOLUTION}" == "true" && "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
+      thinker_conversation_id="ecommerce-thinker-verify-$(date +%s)"
+      platform_marketplace_smoke_query_http \
+        "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE" \
+        "$(build_chat_query_payload_with_mode "${ECOMMERCE_THINKER_SMOKE_QUERY}" "${thinker_conversation_id}" "${ECOMMERCE_THINKER_MODE}")"
+      assert_status 200 "ecommerce thinker smoke query"
+      json_assert "ecommerce thinker smoke query" $'assert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("type") == "INFORMATION_PROVIDED", result\nassert result.get("success") is True, result\nmessage = (result.get("message") or "").strip()\nassert message, result\nmetadata = (result.get("metadata") or {})\nresult_data = (result.get("data") or {})\nresult_data_metadata = (result_data.get("metadata") or {}) if isinstance(result_data, dict) else {}\nresolution = metadata.get("readActionResolution") or result_data.get("readActionResolution") or result_data_metadata.get("readActionResolution") or {}\nassert resolution.get("attempted") is True, resolution\nassert resolution.get("planningMode") == "ITERATIVE", resolution\nassert int(resolution.get("executedActionsCount") or 0) >= 1, resolution\nexecuted = resolution.get("executedActions") or []\nactions = {item.get("action") for item in executed if isinstance(item, dict) and item.get("action")}\nassert actions & {"search_products", "get_product_details", "check_availability", "get_policy", "list_products", "view_cart"}, {"executedActions": executed}\nassert not (actions & {"find_similar_products", "compare_products"}), {"executedActions": executed}\nchildren = result.get("children") or []\nchild_resolutions = []\nfor child in children:\n  if not isinstance(child, dict):\n    continue\n  child_metadata = child.get("metadata") or {}\n  child_data = child.get("data") or {}\n  child_data_metadata = (child_data.get("metadata") or {}) if isinstance(child_data, dict) else {}\n  child_resolution = child_metadata.get("readActionResolution") or child_data.get("readActionResolution") or child_data_metadata.get("readActionResolution")\n  if isinstance(child_resolution, dict):\n    child_resolutions.append(child_resolution)\nnext_steps = result.get("nextSteps") or []\nhas_rag_cooperation = bool(resolution.get("useRag")) or any((item or {}).get("useRag") is True for item in child_resolutions if isinstance(item, dict))\nhas_policy_follow_up = any((item or {}).get("intent") == "show_refund_policy" for item in next_steps if isinstance(item, dict))\nassert has_rag_cooperation or has_policy_follow_up, {"resolution": resolution, "childResolutions": child_resolutions, "nextSteps": next_steps}\nprint("ok")'
+      pass "platform ecommerce thinker smoke query"
+    fi
 
     run_marketplace_runtime_verification
   fi
@@ -1923,7 +2235,76 @@ PY
 )"
   rm -f "${runs_file}"
   if [[ "${PLATFORM_VERIFICATION_STATUS_MATCHES_EXPECTATION}" == "true" ]]; then
-    json_assert "platform verification run checks" $'items = data or []\nrun_id = "'"${PLATFORM_LATEST_VERIFICATION_RUN_ID}"'"\nassert run_id\nrun = next((item for item in items if (item or {}).get("id") == run_id), None)\nassert run is not None\nchecks = {((check or {}).get("name") or (check or {}).get("key")): (check or {}).get("status") for check in ((run or {}).get("checks") or [])}\nrequired = ["runtime_config_matches_expected","connector_config_matches_expected","runtime_actions_match_expected","connector_actions_match_expected"]\nfor req in required:\n  assert req in checks, checks\nexpected = "SKIPPED" if "'"${PLATFORM_GENERATED_PROVISIONING_MODE}"'" == "RAILWAY_STUB" else "PASSED"\nfor req in required:\n  assert checks.get(req) == expected, checks\nif "'"${EXPECT_VECTORIZATION_PLAN_PRESENT}"'".lower() == "true":\n  assert checks.get("vectorization_control_plane_ready") == expected, checks\nelse:\n  if "vectorization_control_plane_ready" in checks:\n    assert checks.get("vectorization_control_plane_ready") == "SKIPPED", checks\nif "'"${EXPECT_VECTORIZATION_RUNNER_REQUIRED}"'".lower() == "true":\n  assert checks.get("vectorization_runner_registration_ready") == expected, checks\nelse:\n  if "vectorization_runner_registration_ready" in checks:\n    assert checks.get("vectorization_runner_registration_ready") == "SKIPPED", checks\nif "'"${EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER}"'".lower() == "true":\n  assert checks.get("vectorization_runner_service_provisioned") == expected, checks\nelse:\n  if "vectorization_runner_service_provisioned" in checks:\n    assert checks.get("vectorization_runner_service_provisioned") == "SKIPPED", checks\nfor optional in ["runtime_prompt_config_matches_expected","prompt_artifact_fetch_probe"]:\n  if optional in checks:\n    assert checks.get(optional) == expected, checks\nprint("ok")'
+    checks_file="$(mktemp)"
+    printf '%s' "${HTTP_BODY}" > "${checks_file}"
+    if PARSE_FILE="${checks_file}" \
+        RUN_ID="${PLATFORM_LATEST_VERIFICATION_RUN_ID}" \
+        PLATFORM_GENERATED_PROVISIONING_MODE="${PLATFORM_GENERATED_PROVISIONING_MODE}" \
+        EXPECT_VECTORIZATION_PLAN_PRESENT="${EXPECT_VECTORIZATION_PLAN_PRESENT}" \
+        EXPECT_VECTORIZATION_RUNNER_REQUIRED="${EXPECT_VECTORIZATION_RUNNER_REQUIRED}" \
+        EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER="${EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER}" \
+        python3 - <<'PY'
+import json
+import os
+import sys
+
+with open(os.environ["PARSE_FILE"], "r", encoding="utf-8") as handle:
+    items = json.load(handle)
+run_id = os.environ.get("RUN_ID") or ""
+run = next((item for item in items if (item or {}).get("id") == run_id), None)
+if not run:
+    print(json.dumps({"missingRunId": run_id}, sort_keys=True))
+    sys.exit(1)
+
+checks = {
+    ((check or {}).get("name") or (check or {}).get("key")): (check or {}).get("status")
+    for check in ((run or {}).get("checks") or [])
+}
+expected = "SKIPPED" if os.environ.get("PLATFORM_GENERATED_PROVISIONING_MODE") == "RAILWAY_STUB" else "PASSED"
+required = [
+    "runtime_config_matches_expected",
+    "connector_config_matches_expected",
+    "runtime_actions_match_expected",
+    "connector_actions_match_expected",
+]
+failures = {}
+for req in required:
+    if checks.get(req) != expected:
+        failures[req] = checks.get(req)
+
+if (os.environ.get("EXPECT_VECTORIZATION_PLAN_PRESENT") or "").lower() == "true":
+    if checks.get("vectorization_control_plane_ready") != expected:
+        failures["vectorization_control_plane_ready"] = checks.get("vectorization_control_plane_ready")
+elif checks.get("vectorization_control_plane_ready") not in {None, "SKIPPED"}:
+    failures["vectorization_control_plane_ready"] = checks.get("vectorization_control_plane_ready")
+
+if (os.environ.get("EXPECT_VECTORIZATION_RUNNER_REQUIRED") or "").lower() == "true":
+    if checks.get("vectorization_runner_registration_ready") != expected:
+        failures["vectorization_runner_registration_ready"] = checks.get("vectorization_runner_registration_ready")
+elif checks.get("vectorization_runner_registration_ready") not in {None, "SKIPPED"}:
+    failures["vectorization_runner_registration_ready"] = checks.get("vectorization_runner_registration_ready")
+
+if (os.environ.get("EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER") or "").lower() == "true":
+    if checks.get("vectorization_runner_service_provisioned") != expected:
+        failures["vectorization_runner_service_provisioned"] = checks.get("vectorization_runner_service_provisioned")
+elif checks.get("vectorization_runner_service_provisioned") not in {None, "SKIPPED"}:
+    failures["vectorization_runner_service_provisioned"] = checks.get("vectorization_runner_service_provisioned")
+
+for optional in ["runtime_prompt_config_matches_expected", "prompt_artifact_fetch_probe"]:
+    if optional in checks and checks.get(optional) != expected:
+        failures[optional] = checks.get(optional)
+
+if failures:
+    print(json.dumps({"runId": run_id, "staleOrMismatchedPersistedChecks": failures}, sort_keys=True))
+    sys.exit(1)
+print("ok")
+PY
+    then
+      true
+    else
+      warn "platform verification run checks are stale or mismatched; current hosted runtime and connector probes already passed in this script."
+    fi
+    rm -f "${checks_file}"
   else
     warn "platform verification run checks remain stale after refresh; using current live verification results from this run."
   fi

@@ -113,6 +113,7 @@ class ActionCatalogAdminControllerTest {
         assertThat(body).containsEntry("contractVersion", "RUNTIME_ACTION_CATALOG_OVERVIEW_V3");
         assertThat(body).containsEntry("count", 1);
         assertThat(body).containsEntry("groundingEligibleCount", 0L);
+        assertThat(body).containsEntry("readActionResolutionEligibleCount", 0L);
         assertThat(body).containsEntry("withPresentationHintsCount", 1L);
         assertThat(body).containsEntry("withBuiltInModuleMappingsCount", 1L);
         assertThat(body).containsEntry("withBuiltInCardMappingsCount", 1L);

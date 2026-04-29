@@ -1,7 +1,9 @@
 package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightCategorySummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBillingStateSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCredentialSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSourcePreflightSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSyncSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWebhookSummary;
@@ -13,10 +15,28 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class ShopifyStoreSourcePreflightSupport {
+
+    private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
+    private static final String DEFAULT_WELCOME_MESSAGE =
+        "Store assistant is ready. Ask about products, policies, or collections.";
+    private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final String DEFAULT_CONVERSATION_MODE = "navigator";
+    private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison"
+    );
+    private static final List<String> DEFAULT_ALLOWED_CONVERSATION_MODES = List.of(DEFAULT_CONVERSATION_MODE);
+    private static final Map<String, String> DEFAULT_PAGE_MODE_MAPPINGS = Map.of();
 
     private final ObjectMapper objectMapper;
 
@@ -41,7 +61,8 @@ public class ShopifyStoreSourcePreflightSupport {
                         node.path("enabled").asBoolean(false),
                         node.path("status").asText("UNKNOWN"),
                         node.path("itemCount").asInt(0),
-                        text(node, "message")
+                        text(node, "message"),
+                        readStringArray(node.get("signals"))
                     ))
                     .toList()
                 : List.of();
@@ -88,6 +109,12 @@ public class ShopifyStoreSourcePreflightSupport {
                 return null;
             }
             JsonNode settings = widget.path("settings");
+            List<String> enabledSurfaces = settings.isObject()
+                ? readStringArray(settings.get("enabledSurfaces"))
+                : List.of();
+            List<String> allowedConversationModes = settings.isObject()
+                ? readStringArray(settings.get("allowedConversationModes"))
+                : List.of();
             return new ShopifyStoreWidgetSummary(
                 widget.path("status").asText("UNKNOWN"),
                 parseInstant(text(widget, "checkedAt")),
@@ -95,10 +122,31 @@ public class ShopifyStoreSourcePreflightSupport {
                 text(widget, "message"),
                 settings.isObject()
                     ? new ShopifyStoreWidgetSettingsSummary(
-                        text(settings, "launcherLabel"),
-                        text(settings, "welcomeMessage")
+                        text(settings, "launcherLabel") == null ? DEFAULT_LAUNCHER_LABEL : text(settings, "launcherLabel"),
+                        text(settings, "welcomeMessage") == null ? DEFAULT_WELCOME_MESSAGE : text(settings, "welcomeMessage"),
+                        text(settings, "shellModeProfile") == null ? DEFAULT_SHELL_MODE_PROFILE : text(settings, "shellModeProfile"),
+                        enabledSurfaces.isEmpty()
+                            ? DEFAULT_ENABLED_SURFACES
+                            : enabledSurfaces,
+                        text(settings, "defaultConversationMode") == null
+                            ? DEFAULT_CONVERSATION_MODE
+                            : text(settings, "defaultConversationMode"),
+                        allowedConversationModes.isEmpty()
+                            ? DEFAULT_ALLOWED_CONVERSATION_MODES
+                            : allowedConversationModes,
+                        readStringMap(settings.get("pageModeMappings")).isEmpty()
+                            ? DEFAULT_PAGE_MODE_MAPPINGS
+                            : readStringMap(settings.get("pageModeMappings"))
                     )
-                    : null
+                    : new ShopifyStoreWidgetSettingsSummary(
+                        DEFAULT_LAUNCHER_LABEL,
+                        DEFAULT_WELCOME_MESSAGE,
+                        DEFAULT_SHELL_MODE_PROFILE,
+                        DEFAULT_ENABLED_SURFACES,
+                        DEFAULT_CONVERSATION_MODE,
+                        DEFAULT_ALLOWED_CONVERSATION_MODES,
+                        DEFAULT_PAGE_MODE_MAPPINGS
+                    )
             );
         } catch (Exception ex) {
             return null;
@@ -155,6 +203,58 @@ public class ShopifyStoreSourcePreflightSupport {
         }
     }
 
+    public ShopifyStoreSupportProfileSummary summarizeSupportProfile(String detailsJson) {
+        if (!hasText(detailsJson)) {
+            return new ShopifyStoreSupportProfileSummary(null, null, null, null, null, false);
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode supportProfile = root.path("supportProfile");
+            if (!supportProfile.isObject()) {
+                return new ShopifyStoreSupportProfileSummary(null, null, null, null, null, false);
+            }
+            String contactEmail = text(supportProfile, "contactEmail");
+            String contactUrl = text(supportProfile, "contactUrl");
+            String helpCenterUrl = text(supportProfile, "helpCenterUrl");
+            String orderLookupPageUrl = text(supportProfile, "orderLookupPageUrl");
+            String supportPolicyNote = text(supportProfile, "supportPolicyNote");
+            return new ShopifyStoreSupportProfileSummary(
+                contactEmail,
+                contactUrl,
+                helpCenterUrl,
+                orderLookupPageUrl,
+                supportPolicyNote,
+                hasText(contactEmail) || hasText(contactUrl) || hasText(helpCenterUrl)
+            );
+        } catch (Exception ex) {
+            return new ShopifyStoreSupportProfileSummary(null, null, null, null, null, false);
+        }
+    }
+
+    public ShopifyStoreBillingStateSummary summarizeBillingState(String shopDomain, String detailsJson) {
+        if (!hasText(detailsJson)) {
+            return defaultBillingState(shopDomain);
+        }
+        try {
+            JsonNode root = objectMapper.readTree(detailsJson);
+            JsonNode billingState = root.path("billingState");
+            if (!billingState.isObject()) {
+                return defaultBillingState(shopDomain);
+            }
+            return new ShopifyStoreBillingStateSummary(
+                shopDomain,
+                text(billingState, "tierKey") == null ? "FREE" : text(billingState, "tierKey"),
+                text(billingState, "status") == null ? "ACTIVE" : text(billingState, "status"),
+                text(billingState, "subscriptionId"),
+                text(billingState, "subscriptionName"),
+                parseInstant(text(billingState, "recordedAt")),
+                text(billingState, "reason")
+            );
+        } catch (Exception ex) {
+            return defaultBillingState(shopDomain);
+        }
+    }
+
     public ObjectNode mutableDetails(String detailsJson) {
         try {
             JsonNode parsed = hasText(detailsJson) ? objectMapper.readTree(detailsJson) : objectMapper.createObjectNode();
@@ -195,7 +295,43 @@ public class ShopifyStoreSourcePreflightSupport {
         return node.path(field).isMissingNode() ? null : (node.path(field).asText("").isBlank() ? null : node.path(field).asText("").trim());
     }
 
+    private List<String> readStringArray(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        node.forEach(item -> {
+            if (item != null && item.isValueNode()) {
+                String value = item.asText("");
+                if (!value.isBlank()) {
+                    values.add(value.trim());
+                }
+            }
+        });
+        return List.copyOf(values);
+    }
+
+    private Map<String, String> readStringMap(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return Map.of();
+        }
+        java.util.LinkedHashMap<String, String> values = new java.util.LinkedHashMap<>();
+        node.fields().forEachRemaining(entry -> {
+            if (entry.getValue() != null && entry.getValue().isValueNode()) {
+                String value = entry.getValue().asText("");
+                if (!entry.getKey().isBlank() && !value.isBlank()) {
+                    values.put(entry.getKey().trim(), value.trim());
+                }
+            }
+        });
+        return Map.copyOf(values);
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private ShopifyStoreBillingStateSummary defaultBillingState(String shopDomain) {
+        return new ShopifyStoreBillingStateSummary(shopDomain, "FREE", "ACTIVE", null, null, null, null);
     }
 }

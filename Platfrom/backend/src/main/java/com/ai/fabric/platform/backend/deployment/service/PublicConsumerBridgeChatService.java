@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.security.RuntimePublicTokenSigningService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
+import com.ai.fabric.platform.backend.thinker.service.ThinkerResolverService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -52,6 +53,7 @@ public class PublicConsumerBridgeChatService {
     private final PlatformSecretService platformSecretService;
     private final RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService;
     private final RuntimePublicTokenSigningService runtimePublicTokenSigningService;
+    private final ThinkerResolverService thinkerResolverService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -60,12 +62,14 @@ public class PublicConsumerBridgeChatService {
                                            PlatformSecretService platformSecretService,
                                            RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService,
                                            RuntimePublicTokenSigningService runtimePublicTokenSigningService,
+                                           ThinkerResolverService thinkerResolverService,
                                            ObjectMapper objectMapper) {
         this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.publicProvisioningApiService = publicProvisioningApiService;
         this.platformSecretService = platformSecretService;
         this.runtimePrivateAssertionSigningService = runtimePrivateAssertionSigningService;
         this.runtimePublicTokenSigningService = runtimePublicTokenSigningService;
+        this.thinkerResolverService = thinkerResolverService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
@@ -80,7 +84,11 @@ public class PublicConsumerBridgeChatService {
             throw new ResponseStatusException(BAD_REQUEST, "query is required.");
         }
         body.put("query", query);
-        return sendJson(
+        if (thinkerResolverService != null && thinkerResolverService.isThinkerModeRequest(body)
+            && !thinkerResolverService.isThinkerEnabledForDeployment(resolved.deployment().getId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Thinker is disabled for this deployment.");
+        }
+        JsonNode response = sendJson(
             resolved,
             "POST",
             "/api/chat/me/query",
@@ -88,6 +96,11 @@ public class PublicConsumerBridgeChatService {
             shopperSessionId,
             List.of(SCOPE_CHAT_QUERY)
         );
+        if (thinkerResolverService != null && thinkerResolverService.isThinkerModeRequest(body)) {
+            thinkerResolverService.captureRuntimeResponse(resolved.deployment(), resolved.consumerId(), body, response, shopperSessionId)
+                .ifPresent(summary -> attachThinkerSession(response, summary.id(), summary.status(), summary.recommendation()));
+        }
+        return response;
     }
 
     public JsonNode suggestions(String consumerId, JsonNode request, String shopperSessionId) {
@@ -183,6 +196,19 @@ public class PublicConsumerBridgeChatService {
                 ));
         }
         return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private void attachThinkerSession(JsonNode response, String sessionId, String status, String recommendation) {
+        if (!(response instanceof ObjectNode objectNode)) {
+            return;
+        }
+        ObjectNode thinker = objectMapper.createObjectNode();
+        thinker.put("sessionId", sessionId);
+        thinker.put("status", status);
+        if (StringUtils.hasText(recommendation)) {
+            thinker.put("recommendation", recommendation);
+        }
+        objectNode.set("thinkerSession", thinker);
     }
 
     private Map<String, String> runtimeAuthHeaders(ResolvedConsumerRuntime resolved,

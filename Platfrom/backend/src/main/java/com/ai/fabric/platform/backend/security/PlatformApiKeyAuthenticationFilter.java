@@ -112,7 +112,9 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return false;
         }
         return requestPath.startsWith("/api/shopify/")
-            || requestPath.startsWith("/api/public/consumers/");
+            || requestPath.startsWith("/api/public/consumers/")
+            || requestPath.equals("/api/merchant/partner-access/requests")
+            || requestPath.startsWith("/api/merchant/partner-access/requests/");
     }
 
     private boolean authAttemptAllowed(String requestPath) {

@@ -109,11 +109,11 @@ class RailwayGraphqlClientTest {
 
         assertThatThrownBy(() -> client.getProject("proj-1"))
             .isInstanceOf(RailwayProvisioningException.class)
-            .hasMessageContaining("Railway API request failed after 3/3 attempt(s).")
+            .hasMessageContaining("Railway API request failed after 5/5 attempt(s).")
             .hasMessageContaining("ConnectException: Connection refused");
 
-        assertThat(retryCount).hasValue(2);
-        verify(httpClient, times(3)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        assertThat(retryCount).hasValue(4);
+        verify(httpClient, times(5)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
 
     @Test
@@ -153,6 +153,44 @@ class RailwayGraphqlClientTest {
         assertThat(project.id()).isEqualTo("proj-1");
         assertThat(retryCount).hasValue(1);
         verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
+    void getProjectUsesLongerRailwayRequestTimeoutFloor() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        AtomicReference<HttpRequest> capturedRequest = new AtomicReference<>();
+        RailwayGraphqlClient client = new RailwayGraphqlClient(
+            objectMapper,
+            provisioningProperties(),
+            httpClient,
+            duration -> {
+            }
+        );
+
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+            {
+              "data": {
+                "project": {
+                  "id": "proj-1",
+                  "name": "cleanup-dev",
+                  "services": { "edges": [] },
+                  "environments": { "edges": [] }
+                }
+              }
+            }
+            """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenAnswer(invocation -> {
+                capturedRequest.set(invocation.getArgument(0));
+                return response;
+            });
+
+        client.getProject("proj-1");
+
+        assertThat(capturedRequest.get()).isNotNull();
+        assertThat(capturedRequest.get().timeout()).contains(Duration.ofSeconds(45));
     }
 
     @Test
@@ -268,6 +306,58 @@ class RailwayGraphqlClientTest {
         assertThat(requestBodies.get(0)).contains("message");
         assertThat(requestBodies.get(1)).contains("timestamp");
         assertThat(requestBodies.get(1)).doesNotContain("message");
+        verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
+    void updateServiceInstanceAlsoAppliesDefaultCpuAndMemoryLimits() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> updateResponse = mock(HttpResponse.class);
+        HttpResponse<String> limitsResponse = mock(HttpResponse.class);
+        List<String> requestBodies = new ArrayList<>();
+        RailwayGraphqlClient client = new RailwayGraphqlClient(
+            objectMapper,
+            provisioningProperties(),
+            httpClient,
+            duration -> {
+            }
+        );
+
+        when(updateResponse.statusCode()).thenReturn(200);
+        when(updateResponse.body()).thenReturn("""
+            {
+              "data": {
+                "serviceInstanceUpdate": true
+              }
+            }
+            """);
+        when(limitsResponse.statusCode()).thenReturn(200);
+        when(limitsResponse.body()).thenReturn("""
+            {
+              "data": {
+                "serviceInstanceLimitsUpdate": true
+              }
+            }
+            """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenAnswer(invocation -> {
+                requestBodies.add(requestBody(invocation.getArgument(0)));
+                return requestBodies.size() == 1 ? updateResponse : limitsResponse;
+            });
+
+        client.updateServiceInstance(
+            "svc-123",
+            "env-123",
+            "runtime-root",
+            "runtime/Dockerfile",
+            "/actuator/health"
+        );
+
+        assertThat(requestBodies).hasSize(2);
+        assertThat(requestBodies.get(0)).contains("serviceInstanceUpdate");
+        assertThat(requestBodies.get(1)).contains("serviceInstanceLimitsUpdate");
+        assertThat(requestBodies.get(1)).contains("\"vCPUs\":1.0");
+        assertThat(requestBodies.get(1)).contains("\"memoryGB\":1.0");
         verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
 

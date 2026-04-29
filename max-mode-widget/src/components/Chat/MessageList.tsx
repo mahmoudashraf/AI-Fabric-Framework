@@ -18,6 +18,7 @@ export function MessageList({
   attachedItems,
   confirmationStatus,
   expandedActions,
+  debugEnabled,
   onOpenDebug,
   onResendAction,
   onReattachItem,
@@ -40,6 +41,7 @@ export function MessageList({
   attachedItems: Array<{ type: string; data: any }>;
   confirmationStatus: Record<string, "confirmed" | "rejected" | undefined>;
   expandedActions: Record<string, number | undefined>;
+  debugEnabled: boolean;
   onOpenDebug: (message: ChatMessage) => void;
   onResendAction: (fullMessage: string) => void;
   onReattachItem: (item: { type: string; data: any }, isAlreadyAttached: boolean) => void;
@@ -71,6 +73,7 @@ export function MessageList({
                 attachedItems={attachedItems}
                 confirmationStatus={confirmationStatus}
                 expandedCount={expandedActions[message.id] || 4}
+                debugEnabled={debugEnabled}
                 onOpenDebug={onOpenDebug}
                 onResendAction={onResendAction}
                 onReattachItem={onReattachItem}
@@ -94,4 +97,3 @@ export function MessageList({
     </div>
   );
 }
-

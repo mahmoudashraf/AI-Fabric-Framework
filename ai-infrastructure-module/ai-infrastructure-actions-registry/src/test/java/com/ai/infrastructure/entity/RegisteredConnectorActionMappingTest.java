@@ -52,6 +52,7 @@ class RegisteredConnectorActionMappingTest {
             ),
             true,
             false,
+            false,
             ActionResultPresentationHint.STATUS,
             "orders-module",
             "order-status-card",

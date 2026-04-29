@@ -23,6 +23,7 @@ public record ConnectorActionDefinition(
     List<ConnectorActionParamDefinition> params,
     boolean anonymousAllowed,
     boolean groundingEligible,
+    boolean readActionResolutionEligible,
     ActionResultPresentationHint resultPresentationHint,
     String builtInModuleId,
     String builtInCardId,

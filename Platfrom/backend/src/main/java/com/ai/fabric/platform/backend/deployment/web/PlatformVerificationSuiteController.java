@@ -44,6 +44,11 @@ public class PlatformVerificationSuiteController {
         return platformVerificationSuiteService.getRun(runId);
     }
 
+    @PostMapping("/runs/{runId}/cancel")
+    public PlatformVerificationSuiteRunSummary cancelRun(@PathVariable String runId) {
+        return platformVerificationSuiteService.cancelRun(runId);
+    }
+
     @GetMapping("/release-gate")
     public PlatformVerificationReleaseGateSummary releaseGate() {
         return platformVerificationSuiteService.getReleaseGate();

@@ -531,14 +531,22 @@ apply_published_version() {
 }
 
 wait_for_release_verification() {
-  local attempts="${1:-120}"
+  local attempts="${1:-240}"
   local sleep_seconds="${2:-10}"
+  local max_total_seconds="${RELEASE_WAIT_MAX_TOTAL_SECONDS:-3600}"
+  local max_idle_seconds="${RELEASE_WAIT_MAX_IDLE_SECONDS:-600}"
   local status=""
   local verification_status=""
   local current_step=""
   local error_message=""
   local failure_streak=0
   local release_recheck_attempted="false"
+  local last_state_signature=""
+  local start_epoch
+  local last_progress_epoch
+  local now_epoch
+  start_epoch="$(date +%s)"
+  last_progress_epoch="${start_epoch}"
 
   for _ in $(seq 1 "${attempts}"); do
     platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/releases"
@@ -547,6 +555,14 @@ wait_for_release_verification() {
     verification_status="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("verificationStatus") or "")')"
     current_step="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("currentStepKey") or "")')"
     error_message="$(RELEASE_ID_TARGET="${RELEASE_ID}" extract_json_value $'import os\nitems = data or []\nrelease_id = os.environ["RELEASE_ID_TARGET"]\nrelease = next((item for item in items if (item or {}).get("id") == release_id), None)\nresult = "" if release is None else (release.get("errorMessage") or "")')"
+    now_epoch="$(date +%s)"
+
+    local state_signature
+    state_signature="${status}|${verification_status}|${current_step}|${error_message}"
+    if [[ "${state_signature}" != "${last_state_signature}" ]]; then
+      last_state_signature="${state_signature}"
+      last_progress_epoch="${now_epoch}"
+    fi
 
     if [[ "${status}" == "APPLIED_VERIFIED" && "${verification_status}" == "PASSED" ]]; then
       pass "release ${RELEASE_ID} reached APPLIED_VERIFIED"
@@ -574,10 +590,16 @@ wait_for_release_verification() {
     fi
 
     failure_streak=0
+    if (( now_epoch - start_epoch >= max_total_seconds )); then
+      fail "Timed out waiting for release ${RELEASE_ID}; exceeded total wait budget of ${max_total_seconds}s. Last state was ${status}/${verification_status} at step ${current_step}: ${error_message}"
+    fi
+    if (( now_epoch - last_progress_epoch >= max_idle_seconds )); then
+      fail "Timed out waiting for release ${RELEASE_ID}; no release progress was observed for ${max_idle_seconds}s. Last state was ${status}/${verification_status} at step ${current_step}: ${error_message}"
+    fi
     sleep "${sleep_seconds}"
   done
 
-  fail "Timed out waiting for release ${RELEASE_ID}; last state was ${status}/${verification_status} at step ${current_step}: ${error_message}"
+  fail "Timed out waiting for release ${RELEASE_ID}; exceeded poll budget of ${attempts} attempts. Last state was ${status}/${verification_status} at step ${current_step}: ${error_message}"
 }
 
 request_release_verification_recheck_for_recovered_runtime_health() {

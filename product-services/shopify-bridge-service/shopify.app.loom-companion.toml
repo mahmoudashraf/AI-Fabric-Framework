@@ -1,0 +1,36 @@
+client_id = "939df746e3bbbb0a8ab2f31cf94bd11b"
+name = "Loom Companion"
+handle = "loom-companion"
+application_url = "https://shopify-bridge-shopify-bridge-pr-production.up.railway.app"
+embedded = true
+extension_directories = ["extensions/*"]
+web_directories = [".", "ui"]
+
+[access_scopes]
+scopes = "read_products,read_content,read_legal_policies,read_metaobjects,read_metaobject_definitions,read_orders"
+
+[auth]
+redirect_urls = [
+  "https://shopify-bridge-shopify-bridge-pr-production.up.railway.app/auth/shopify/callback"
+]
+
+[build]
+automatically_update_urls_on_dev = false
+dev_store_url = "https://shopping-companion-test.myshopify.com"
+
+[webhooks]
+api_version = "2026-04"
+
+[[webhooks.subscriptions]]
+name = "loom-companion-compliance"
+compliance_topics = [
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact"
+]
+uri = "/api/webhooks/shopify"
+
+[app_proxy]
+url = "https://shopify-bridge-shopify-bridge-pr-production.up.railway.app"
+subpath = "loom-companion"
+prefix = "apps"

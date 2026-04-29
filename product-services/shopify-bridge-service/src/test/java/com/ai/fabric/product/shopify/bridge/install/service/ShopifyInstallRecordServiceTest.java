@@ -8,6 +8,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -139,6 +140,69 @@ class ShopifyInstallRecordServiceTest {
         assertThat(summary.appBridgeHost()).isEqualTo("embedded-host-token");
         assertThat(summary.accessTokenSecretRef()).isEqualTo("MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA");
         assertThat(summary.installedAt()).isNotNull();
+        assertThat(summary.appScopesUpdateWebhookReady()).isFalse();
+        assertThat(summary.appScopesUpdateWebhookCheckedAt()).isNull();
+        assertThat(summary.billingTierKey()).isNull();
+        assertThat(summary.billingStatus()).isNull();
+        assertThat(summary.activeSubscriptions()).isEmpty();
+        assertThat(summary.billingCheckedAt()).isNull();
+    }
+
+    @Test
+    void recordAppScopesWebhookReadyPersistsAndClearsGovernedSupportState() {
+        service.recordInstall(
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "embedded-host-token",
+            "read_products,read_orders",
+            "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+            null,
+            null,
+            null
+        );
+
+        ShopifyInstallRecordSummary ready = service.recordAppScopesUpdateWebhookReady(
+            "alpha.myshopify.com",
+            true
+        ).orElseThrow();
+        ShopifyInstallRecordSummary cleared = service.clearCredentials("alpha.myshopify.com").orElseThrow();
+
+        assertThat(ready.appScopesUpdateWebhookReady()).isTrue();
+        assertThat(ready.appScopesUpdateWebhookCheckedAt()).isNotNull();
+        assertThat(cleared.appScopesUpdateWebhookReady()).isFalse();
+        assertThat(cleared.appScopesUpdateWebhookCheckedAt()).isNull();
+    }
+
+    @Test
+    void recordBillingStatePersistsSubscriptionPosture() {
+        service.recordInstall(
+            "alpha.myshopify.com",
+            "https://alpha.myshopify.com",
+            "embedded-host-token",
+            "read_products,read_orders",
+            "MANAGED_SHOPIFY_ACCESS_TOKEN_ALPHA_AAAAAA",
+            null,
+            null,
+            null
+        );
+
+        ShopifyInstallRecordSummary summary = service.recordBillingState(
+            "alpha.myshopify.com",
+            "STARTER",
+            "ACTIVE",
+            List.of(new com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary(
+                "gid://shopify/AppSubscription/1",
+                "Loom Companion Starter",
+                "ACTIVE",
+                "STARTER",
+                true
+            ))
+        ).orElseThrow();
+
+        assertThat(summary.billingTierKey()).isEqualTo("STARTER");
+        assertThat(summary.billingStatus()).isEqualTo("ACTIVE");
+        assertThat(summary.activeSubscriptions()).hasSize(1);
+        assertThat(summary.billingCheckedAt()).isNotNull();
     }
 
     @Test

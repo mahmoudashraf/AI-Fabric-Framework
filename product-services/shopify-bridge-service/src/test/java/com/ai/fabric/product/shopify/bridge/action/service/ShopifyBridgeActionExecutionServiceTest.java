@@ -10,7 +10,9 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -41,6 +43,22 @@ class ShopifyBridgeActionExecutionServiceTest {
                                 "descriptionHtml", "<p>Carry on bag</p>",
                                 "vendor", "Loom",
                                 "productType", "Bags",
+                                "metafields", Map.of(
+                                    "edges", List.of(
+                                        Map.of("node", Map.of(
+                                            "namespace", "judgeme",
+                                            "key", "rating",
+                                            "type", "number_decimal",
+                                            "value", "4.9"
+                                        )),
+                                        Map.of("node", Map.of(
+                                            "namespace", "judgeme",
+                                            "key", "review_count",
+                                            "type", "number_integer",
+                                            "value", "215"
+                                        ))
+                                    )
+                                ),
                                 "updatedAt", "2026-04-19T00:00:00Z",
                                 "variants", Map.of(
                                     "nodes", List.of(
@@ -69,6 +87,11 @@ class ShopifyBridgeActionExecutionServiceTest {
         assertThat(result.message()).isEqualTo("Products");
         assertThat(result.data()).containsEntry("count", 1);
         assertThat(((List<?>) result.data().get("items"))).hasSize(1);
+        Map<?, ?> firstItem = (Map<?, ?>) ((List<?>) result.data().get("items")).getFirst();
+        assertThat(firstItem.get("reviewSignalsPresent")).isEqualTo(true);
+        assertThat(firstItem.get("reviewProvider")).isEqualTo("Judge.me");
+        assertThat(firstItem.get("reviewAverage")).isEqualTo("4.9");
+        assertThat(firstItem.get("reviewCount")).isEqualTo(215);
     }
 
     @Test
@@ -106,6 +129,54 @@ class ShopifyBridgeActionExecutionServiceTest {
         assertThat(result.errorCode()).isEqualTo("ACTION_NOT_SUPPORTED");
     }
 
+    @Test
+    void getPolicyReturnsFetchedPoliciesWithoutHeuristicFiltering() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any())).thenReturn(Map.of(
+            "data", Map.of(
+                "shop", Map.of(
+                    "shopPolicies", List.of(
+                        Map.of(
+                            "id", "gid://shopify/ShopPolicy/1",
+                            "title", "Refund Policy",
+                            "type", "REFUND_POLICY",
+                            "body", "<p>Refunds within 30 days</p>",
+                            "url", "https://alpha.myshopify.com/policies/refund-policy",
+                            "updatedAt", "2026-04-19T00:00:00Z"
+                        ),
+                        Map.of(
+                            "id", "gid://shopify/ShopPolicy/2",
+                            "title", "Shipping Policy",
+                            "type", "SHIPPING_POLICY",
+                            "body", "<p>Ships in 2-3 days</p>",
+                            "url", "https://alpha.myshopify.com/policies/shipping-policy",
+                            "updatedAt", "2026-04-19T00:00:00Z"
+                        )
+                    )
+                )
+            )
+        ));
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest("get_policy", Map.of("query", "refund", "limit", 1), null, Map.of())
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("Policies");
+        assertThat(result.data()).containsEntry("count", 1);
+        assertThat(result.data()).containsEntry("query", "refund");
+        List<?> items = (List<?>) result.data().get("items");
+        assertThat(items).hasSize(1);
+        Map<?, ?> first = (Map<?, ?>) items.getFirst();
+        assertThat(first.get("title")).isEqualTo("Refund Policy");
+        assertThat(first.get("body")).isEqualTo("Refunds within 30 days");
+    }
+
     private ShopifyBridgeCredentialAcquisition acquisition(String shopDomain) {
         return new ShopifyBridgeCredentialAcquisition(
             new ShopifyBridgeStoreSummary(
@@ -130,6 +201,8 @@ class ShopifyBridgeActionExecutionServiceTest {
                 true,
                 true,
                 true,
+                false,
+                false,
                 null,
                 null,
                 null,
@@ -154,5 +227,118 @@ class ShopifyBridgeActionExecutionServiceTest {
                 false
             )
         );
+    }
+
+    private Map<String, Object> productsPayload() {
+        List<Map<String, Object>> edges = new ArrayList<>();
+        edges.add(productEdge(
+            "gid://shopify/Product/1",
+            "Travel Bag",
+            "travel-bag",
+            "Carry on bag",
+            "Loom",
+            "Bags",
+            "2026-04-19T00:00:00Z",
+            "gid://shopify/ProductVariant/11",
+            "Black",
+            "SKU-1",
+            true,
+            5,
+            "99.00"
+        ));
+        edges.add(productEdge(
+            "gid://shopify/Product/2",
+            "Commuter Bag",
+            "commuter-bag",
+            "Everyday commuter bag",
+            "Loom",
+            "Bags",
+            "2026-04-19T00:00:00Z",
+            "gid://shopify/ProductVariant/22",
+            "Grey",
+            "SKU-2",
+            true,
+            9,
+            "109.00"
+        ));
+        edges.add(productEdge(
+            "gid://shopify/Product/3",
+            "Desk Lamp",
+            "desk-lamp",
+            "Office lamp",
+            "Loom Home",
+            "Lighting",
+            "2026-04-19T00:00:00Z",
+            "gid://shopify/ProductVariant/33",
+            "White",
+            "SKU-3",
+            true,
+            3,
+            "89.00"
+        ));
+        return Map.of(
+            "data", Map.of(
+                "products", Map.of(
+                    "edges", edges
+                )
+            )
+        );
+    }
+
+    private Map<String, Object> productEdge(String id,
+                                            String title,
+                                            String handle,
+                                            String descriptionHtml,
+                                            String vendor,
+                                            String productType,
+                                            String updatedAt,
+                                            String variantId,
+                                            String variantTitle,
+                                            String sku,
+                                            boolean availableForSale,
+                                            int inventoryQuantity,
+                                            String price) {
+        Map<String, Object> variant = new LinkedHashMap<>();
+        variant.put("id", variantId);
+        variant.put("title", variantTitle);
+        variant.put("sku", sku);
+        variant.put("availableForSale", availableForSale);
+        variant.put("inventoryQuantity", inventoryQuantity);
+        variant.put("price", price);
+
+        Map<String, Object> variants = new LinkedHashMap<>();
+        variants.put("nodes", List.of(variant));
+
+        Map<String, Object> node = new LinkedHashMap<>();
+        node.put("id", id);
+        node.put("title", title);
+        node.put("handle", handle);
+        node.put("descriptionHtml", "<p>" + descriptionHtml + "</p>");
+        node.put("vendor", vendor);
+        node.put("productType", productType);
+        if ("SKU-1".equals(sku)) {
+            node.put("metafields", Map.of(
+                "edges", List.of(
+                    Map.of("node", Map.of(
+                        "namespace", "judgeme",
+                        "key", "rating",
+                        "type", "number_decimal",
+                        "value", "4.8"
+                    )),
+                    Map.of("node", Map.of(
+                        "namespace", "judgeme",
+                        "key", "review_count",
+                        "type", "number_integer",
+                        "value", "128"
+                    ))
+                )
+            ));
+        } else {
+            node.put("metafields", Map.of("edges", List.of()));
+        }
+        node.put("updatedAt", updatedAt);
+        node.put("variants", variants);
+
+        return Map.of("node", node);
     }
 }

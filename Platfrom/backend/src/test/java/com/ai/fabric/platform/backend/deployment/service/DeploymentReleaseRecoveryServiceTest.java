@@ -257,6 +257,49 @@ class DeploymentReleaseRecoveryServiceTest {
     }
 
     @Test
+    void reconcileLatestInProgressReleaseFailsStalePreApplyVerificationStep() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-preapply");
+        release.setDeploymentId(deployment.getId());
+        release.setDeploymentVersionId("ver-preapply");
+        release.setStatus("PRE_APPLY_VERIFYING");
+        release.setProvisioningTarget("RAILWAY_API");
+        release.setCurrentStepKey("preflight_verification");
+        release.setCurrentStepDescription("Running pre-apply verification gate.");
+        release.setUpdatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        verify(deploymentReleaseExecutionService).markFailed(
+            eq(release.getId()),
+            eq(deployment.getId()),
+            argThat(ex -> ex instanceof IllegalStateException
+                && ex.getMessage() != null
+                && ex.getMessage().contains("preflight_verification"))
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
     void reconcileLatestInProgressReleaseFailsStalePreActivationProvisioningStep() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);

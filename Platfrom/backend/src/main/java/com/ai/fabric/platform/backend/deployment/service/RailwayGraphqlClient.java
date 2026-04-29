@@ -26,8 +26,12 @@ import java.util.Map;
 public class RailwayGraphqlClient {
 
     private static final Logger log = LoggerFactory.getLogger(RailwayGraphqlClient.class);
-    private static final int MAX_REQUEST_ATTEMPTS = 3;
+    private static final int MAX_REQUEST_ATTEMPTS = 5;
     private static final Duration INITIAL_RETRY_BACKOFF = Duration.ofMillis(250);
+    private static final Duration MIN_REQUEST_TIMEOUT = Duration.ofSeconds(45);
+    private static final Duration MAX_REQUEST_TIMEOUT = Duration.ofSeconds(90);
+    private static final double DEFAULT_SERVICE_INSTANCE_VCPUS = 1.0d;
+    private static final double DEFAULT_SERVICE_INSTANCE_MEMORY_GB = 1.0d;
 
     private static final String PROJECTS_QUERY = """
         query workspaceProjects($workspaceId: String!) {
@@ -185,6 +189,12 @@ public class RailwayGraphqlClient {
         }
         """;
 
+    private static final String SERVICE_INSTANCE_LIMITS_UPDATE_MUTATION = """
+        mutation serviceInstanceLimitsUpdate($input: ServiceInstanceLimitsUpdateInput!) {
+          serviceInstanceLimitsUpdate(input: $input)
+        }
+        """;
+
     private static final String VARIABLE_COLLECTION_UPSERT_MUTATION = """
         mutation variableCollectionUpsert($input: VariableCollectionUpsertInput!) {
           variableCollectionUpsert(input: $input)
@@ -322,9 +332,7 @@ public class RailwayGraphqlClient {
                                 PlatformProvisioningProperties provisioningProperties) {
         this.objectMapper = objectMapper;
         this.provisioningProperties = provisioningProperties;
-        this.requestTimeout = provisioningProperties.deploymentPollInterval().compareTo(Duration.ofSeconds(30)) > 0
-            ? Duration.ofSeconds(30)
-            : provisioningProperties.deploymentPollInterval().plusSeconds(10);
+        this.requestTimeout = resolveRequestTimeout(provisioningProperties);
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(this.requestTimeout)
             .build();
@@ -337,11 +345,20 @@ public class RailwayGraphqlClient {
                          RetrySleeper retrySleeper) {
         this.objectMapper = objectMapper;
         this.provisioningProperties = provisioningProperties;
-        this.requestTimeout = provisioningProperties.deploymentPollInterval().compareTo(Duration.ofSeconds(30)) > 0
-            ? Duration.ofSeconds(30)
-            : provisioningProperties.deploymentPollInterval().plusSeconds(10);
+        this.requestTimeout = resolveRequestTimeout(provisioningProperties);
         this.httpClient = httpClient;
         this.retrySleeper = retrySleeper;
+    }
+
+    private Duration resolveRequestTimeout(PlatformProvisioningProperties provisioningProperties) {
+        Duration candidate = provisioningProperties.deploymentPollInterval().plusSeconds(15);
+        if (candidate.compareTo(MIN_REQUEST_TIMEOUT) < 0) {
+            return MIN_REQUEST_TIMEOUT;
+        }
+        if (candidate.compareTo(MAX_REQUEST_TIMEOUT) > 0) {
+            return MAX_REQUEST_TIMEOUT;
+        }
+        return candidate;
     }
 
     public RailwayProjectSnapshot findProjectByName(String workspaceId, String projectName) {
@@ -578,6 +595,12 @@ public class RailwayGraphqlClient {
                 "input", input
             )
         );
+        updateServiceInstanceLimits(
+            serviceId,
+            environmentId,
+            DEFAULT_SERVICE_INSTANCE_VCPUS,
+            DEFAULT_SERVICE_INSTANCE_MEMORY_GB
+        );
         log.info(
             "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}, dockerfilePath={}, numReplicas={}",
             serviceId,
@@ -585,6 +608,29 @@ public class RailwayGraphqlClient {
             rootDirectory,
             dockerfilePath,
             numReplicas
+        );
+    }
+
+    public void updateServiceInstanceLimits(String serviceId,
+                                            String environmentId,
+                                            double vCpus,
+                                            double memoryGb) {
+        if (vCpus <= 0.0d || memoryGb <= 0.0d) {
+            throw new IllegalArgumentException("Railway service instance limits must be positive.");
+        }
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("serviceId", serviceId);
+        input.put("environmentId", environmentId);
+        input.put("vCPUs", vCpus);
+        input.put("memoryGB", memoryGb);
+
+        execute(SERVICE_INSTANCE_LIMITS_UPDATE_MUTATION, Map.of("input", input));
+        log.info(
+            "Railway service instance limits updated: serviceId={}, environmentId={}, vCPUs={}, memoryGB={}",
+            serviceId,
+            environmentId,
+            vCpus,
+            memoryGb
         );
     }
 

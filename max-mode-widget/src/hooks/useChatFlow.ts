@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import { emitEvent } from "@/config";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
-import { normalizeMessageContent } from "@/utils";
+import { normalizeMessageContent, withRequestContext } from "@/utils";
 
 export function useChatFlow({
   chatQuery,
@@ -46,7 +46,12 @@ export function useChatFlow({
   requestContext?: Record<string, any>;
 }) {
   const handleChatQuery = useCallback(
-    async (presetQuery?: string, actionPosition?: "landing" | "catalog" | "search" | "cart", actionMode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => {
+    async (
+      presetQuery?: string,
+      actionPosition?: "landing" | "catalog" | "search" | "cart",
+      actionMode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor",
+      extraRequestContext?: Record<string, any>,
+    ) => {
       const query = presetQuery ?? chatQuery;
       if (!query.trim()) return;
 
@@ -181,17 +186,19 @@ export function useChatFlow({
           };
         });
 
-        // Only send mode explicitly for navigator_deep and cart_assistant
-        const explicitMode = (mode === "navigator_deep" || mode === "cart_assistant") ? mode : undefined;
+        const explicitMode = mode !== "navigator" ? mode : undefined;
 
-        const requestPayload = {
+        const mergedRequestContext = {
+          ...(requestContext || {}),
+          ...(extraRequestContext || {}),
+        };
+        const requestPayload = withRequestContext({
           query: apiQuery,
           conversationId: currentConversationId || undefined,
           position,
           mode: explicitMode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
-          ...(requestContext || {}),
-        };
+        }, mergedRequestContext);
 
         setLastRequestData({
           endpoint: resolvedChatQueryUrl(),
@@ -358,6 +365,7 @@ export function useChatFlow({
       currentConversationId,
       currentMode,
       currentPosition,
+      requestContext,
       searchCategory,
       setChatMessages,
       setChatQuery,

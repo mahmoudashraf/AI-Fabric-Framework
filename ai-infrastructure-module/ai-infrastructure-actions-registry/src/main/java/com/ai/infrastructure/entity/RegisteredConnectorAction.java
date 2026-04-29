@@ -120,6 +120,7 @@ public class RegisteredConnectorAction {
             paramDefs,
             anonymousAllowed,
             accessMode == ActionAccessMode.READ || accessMode == ActionAccessMode.READ_WRITE,
+            false,
             accessMode == ActionAccessMode.WRITE_ONLY
                 ? ActionResultPresentationHint.STATUS
                 : ActionResultPresentationHint.DEFAULT,

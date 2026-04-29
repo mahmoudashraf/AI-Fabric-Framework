@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.webhook.service;
 
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,6 +35,23 @@ public class ShopifyWebhookSubscriptionDiagnosticsService {
                 ? "Shopify webhook subscription diagnostics failed."
                 : ex.getMessage();
             return failed(shopDomain, message);
+        }
+    }
+
+    public ShopifyWebhookSubscriptionTopicStatusSummary topicForShop(String shopDomain, String topic) {
+        try {
+            return installCredentialService.resolvePersistedMaterial(shopDomain)
+                .map(acquisition -> webhookSubscriptionService.inspectTopicStatus(
+                    shopDomain,
+                    acquisition.tokenExchangeMaterial().accessToken(),
+                    topic
+                ))
+                .orElseGet(() -> unavailableTopic(shopDomain, topic, "Persisted Shopify access credentials are not available yet."));
+        } catch (RestClientResponseException | ResponseStatusException ex) {
+            String message = ex.getMessage() == null || ex.getMessage().isBlank()
+                ? "Shopify webhook topic diagnostics failed."
+                : ex.getMessage();
+            return failedTopic(shopDomain, topic, message);
         }
     }
 
@@ -82,9 +100,34 @@ public class ShopifyWebhookSubscriptionDiagnosticsService {
         );
     }
 
+    private ShopifyWebhookSubscriptionTopicStatusSummary unavailableTopic(String shopDomain, String topic, String message) {
+        return new ShopifyWebhookSubscriptionTopicStatusSummary(
+            normalizeTopic(topic),
+            expectedName(topic),
+            "MISSING",
+            null,
+            null,
+            resolveWebhookUri(),
+            message
+        );
+    }
+
+    private ShopifyWebhookSubscriptionTopicStatusSummary failedTopic(String shopDomain, String topic, String message) {
+        return new ShopifyWebhookSubscriptionTopicStatusSummary(
+            normalizeTopic(topic),
+            expectedName(topic),
+            "FAILED",
+            null,
+            null,
+            resolveWebhookUri(),
+            message
+        );
+    }
+
     private String expectedName(String topic) {
         return switch (topic) {
             case "APP_UNINSTALLED" -> "loom-app-uninstalled";
+            case "APP_SCOPES_UPDATE" -> "loom-app-scopes-update";
             case "APP_SUBSCRIPTIONS_UPDATE" -> "loom-app-subscriptions-update";
             case "PRODUCTS_CREATE" -> "loom-products-create";
             case "PRODUCTS_UPDATE" -> "loom-products-update";
@@ -92,6 +135,9 @@ public class ShopifyWebhookSubscriptionDiagnosticsService {
             case "COLLECTIONS_CREATE" -> "loom-collections-create";
             case "COLLECTIONS_UPDATE" -> "loom-collections-update";
             case "COLLECTIONS_DELETE" -> "loom-collections-delete";
+            case "METAOBJECTS_CREATE" -> "loom-metaobjects-create";
+            case "METAOBJECTS_UPDATE" -> "loom-metaobjects-update";
+            case "METAOBJECTS_DELETE" -> "loom-metaobjects-delete";
             case "SHOP_UPDATE" -> "loom-shop-update";
             default -> topic == null ? null : topic.trim().toLowerCase();
         };
@@ -107,5 +153,9 @@ public class ShopifyWebhookSubscriptionDiagnosticsService {
 
     private String normalizeShopDomain(String shopDomain) {
         return shopDomain == null ? "" : shopDomain.trim().toLowerCase();
+    }
+
+    private String normalizeTopic(String topic) {
+        return topic == null ? "" : topic.trim().toUpperCase();
     }
 }

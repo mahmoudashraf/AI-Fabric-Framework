@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,13 +41,25 @@ class ShopifyStoreWidgetSettingsServiceTest {
             "demo.myshopify.com",
             new UpdateShopifyStoreWidgetSettingsRequest(
                 "Need help?",
-                "Ask me about products and policies."
+                "Ask me about products and policies.",
+                "GUIDED_COMMERCE",
+                List.of("ai-search", "comparison"),
+                "executor",
+                List.of("navigator", "executor"),
+                Map.of("account", "executor", "landing", "navigator")
             )
         );
 
         assertThat(result.shopDomain()).isEqualTo("demo.myshopify.com");
         assertThat(store.getDetailsJson()).contains("\"launcherLabel\":\"Need help?\"");
         assertThat(store.getDetailsJson()).contains("\"welcomeMessage\":\"Ask me about products and policies.\"");
+        assertThat(store.getDetailsJson()).contains("\"shellModeProfile\":\"GUIDED_COMMERCE\"");
+        assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\"]");
+        assertThat(store.getDetailsJson()).contains("\"defaultConversationMode\":\"executor\"");
+        assertThat(store.getDetailsJson()).contains("\"allowedConversationModes\":[\"navigator\",\"executor\"]");
+        assertThat(store.getDetailsJson()).contains("\"pageModeMappings\":");
+        assertThat(store.getDetailsJson()).contains("\"account\":\"executor\"");
+        assertThat(store.getDetailsJson()).contains("\"landing\":\"navigator\"");
     }
 
     private ShopifyStoreConnectionEntity store() {
@@ -92,6 +106,8 @@ class ShopifyStoreWidgetSettingsServiceTest {
             true,
             true,
             true,
+            false,
+            false,
             null,
             null,
             null,

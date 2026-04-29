@@ -9,6 +9,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedSto
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,6 +24,8 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 public class ShopifyBridgeInstallCredentialService {
 
     private static final Duration ACCESS_TOKEN_REFRESH_SKEW = Duration.ofMinutes(5);
+    private static final String APP_SCOPES_UPDATE_TOPIC = "APP_SCOPES_UPDATE";
+    private static final Logger log = LoggerFactory.getLogger(ShopifyBridgeInstallCredentialService.class);
 
     private final ShopifyTokenExchangeService tokenExchangeService;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
@@ -68,6 +72,7 @@ public class ShopifyBridgeInstallCredentialService {
             );
         }
         webhookSubscriptionService.reconcileContentSubscriptions(merchantSession.shopDomain(), exchanged.accessToken());
+        refreshAppScopesWebhookReadySafely(merchantSession.shopDomain(), exchanged.accessToken());
         return new ShopifyBridgeCredentialAcquisition(store, exchanged);
     }
 
@@ -159,6 +164,24 @@ public class ShopifyBridgeInstallCredentialService {
                 updatedStore.credentials().scopesText()
             );
         }
+        refreshAppScopesWebhookReadySafely(shopDomain, refreshed.accessToken());
         return refreshed;
+    }
+
+    private void refreshAppScopesWebhookReadySafely(String shopDomain, String accessToken) {
+        try {
+            installRecordService.recordAppScopesUpdateWebhookReady(
+                shopDomain,
+                "READY".equalsIgnoreCase(
+                    webhookSubscriptionService.inspectTopicStatus(
+                        shopDomain,
+                        accessToken,
+                        APP_SCOPES_UPDATE_TOPIC
+                    ).status()
+                )
+            );
+        } catch (RuntimeException ex) {
+            log.warn("Shopify APP_SCOPES_UPDATE readiness refresh failed for shop={}", shopDomain, ex);
+        }
     }
 }

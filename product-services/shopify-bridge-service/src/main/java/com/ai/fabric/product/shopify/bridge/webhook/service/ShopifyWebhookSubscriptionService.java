@@ -64,6 +64,7 @@ public class ShopifyWebhookSubscriptionService {
 
     private static final List<DesiredWebhookSubscription> DESIRED_SUBSCRIPTIONS = List.of(
         new DesiredWebhookSubscription("APP_UNINSTALLED", "loom-app-uninstalled"),
+        new DesiredWebhookSubscription("APP_SCOPES_UPDATE", "loom-app-scopes-update"),
         new DesiredWebhookSubscription("APP_SUBSCRIPTIONS_UPDATE", "loom-app-subscriptions-update"),
         new DesiredWebhookSubscription("PRODUCTS_CREATE", "loom-products-create"),
         new DesiredWebhookSubscription("PRODUCTS_UPDATE", "loom-products-update"),
@@ -71,6 +72,9 @@ public class ShopifyWebhookSubscriptionService {
         new DesiredWebhookSubscription("COLLECTIONS_CREATE", "loom-collections-create"),
         new DesiredWebhookSubscription("COLLECTIONS_UPDATE", "loom-collections-update"),
         new DesiredWebhookSubscription("COLLECTIONS_DELETE", "loom-collections-delete"),
+        new DesiredWebhookSubscription("METAOBJECTS_CREATE", "loom-metaobjects-create"),
+        new DesiredWebhookSubscription("METAOBJECTS_UPDATE", "loom-metaobjects-update"),
+        new DesiredWebhookSubscription("METAOBJECTS_DELETE", "loom-metaobjects-delete"),
         new DesiredWebhookSubscription("SHOP_UPDATE", "loom-shop-update")
     );
 
@@ -98,10 +102,11 @@ public class ShopifyWebhookSubscriptionService {
         int readyCount = (int) topics.stream().filter(topic -> "READY".equalsIgnoreCase(topic.status())).count();
         int missingCount = (int) topics.stream().filter(topic -> "MISSING".equalsIgnoreCase(topic.status())).count();
         int driftedCount = (int) topics.stream().filter(topic -> "DRIFTED".equalsIgnoreCase(topic.status())).count();
-        String status = driftedCount > 0 || missingCount > 0 ? "DEGRADED" : "READY";
+        int blockedCount = (int) topics.stream().filter(topic -> "BLOCKED".equalsIgnoreCase(topic.status())).count();
+        String status = driftedCount > 0 || missingCount > 0 || blockedCount > 0 ? "DEGRADED" : "READY";
         String message = "READY".equals(status)
             ? "All required Shopify webhook subscriptions are present."
-            : "Some required Shopify webhook subscriptions are missing or drifted.";
+            : "Some required Shopify webhook subscriptions are missing, drifted, or blocked by scope access.";
         return new ShopifyWebhookSubscriptionStatusSummary(
             normalizeShopDomain(shopDomain),
             status,
@@ -114,6 +119,19 @@ public class ShopifyWebhookSubscriptionService {
             Instant.now(),
             topics
         );
+    }
+
+    public ShopifyWebhookSubscriptionTopicStatusSummary inspectTopicStatus(String shopDomain,
+                                                                           String accessToken,
+                                                                           String topic) {
+        DesiredWebhookSubscription desired = DESIRED_SUBSCRIPTIONS.stream()
+            .filter(current -> current.topic().equalsIgnoreCase(topic))
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(
+                BAD_GATEWAY,
+                "Unsupported Shopify webhook topic: " + topic
+            ));
+        return inspectTopic(shopDomain, accessToken, desired, webhookUri());
     }
 
     public int expectedSubscriptionCount() {
@@ -132,7 +150,15 @@ public class ShopifyWebhookSubscriptionService {
                                 String accessToken,
                                 DesiredWebhookSubscription desired,
                                 String webhookUri) {
-        List<ExistingWebhookSubscription> existing = listSubscriptions(shopDomain, accessToken, desired.topic());
+        List<ExistingWebhookSubscription> existing;
+        try {
+            existing = listSubscriptions(shopDomain, accessToken, desired.topic());
+        } catch (ResponseStatusException ex) {
+            if (isInaccessibleTopicFailure(ex)) {
+                return;
+            }
+            throw ex;
+        }
         boolean satisfied = existing.stream().anyMatch(subscription ->
             same(subscription.name(), desired.name()) && same(subscription.uri(), webhookUri)
         );
@@ -160,7 +186,23 @@ public class ShopifyWebhookSubscriptionService {
                                                                       String accessToken,
                                                                       DesiredWebhookSubscription desired,
                                                                       String webhookUri) {
-        List<ExistingWebhookSubscription> existing = listSubscriptions(shopDomain, accessToken, desired.topic());
+        List<ExistingWebhookSubscription> existing;
+        try {
+            existing = listSubscriptions(shopDomain, accessToken, desired.topic());
+        } catch (ResponseStatusException ex) {
+            if (isInaccessibleTopicFailure(ex)) {
+                return new ShopifyWebhookSubscriptionTopicStatusSummary(
+                    desired.topic(),
+                    desired.name(),
+                    "BLOCKED",
+                    null,
+                    null,
+                    null,
+                    "Webhook topic is not accessible with the current Shopify scopes."
+                );
+            }
+            throw ex;
+        }
         ExistingWebhookSubscription exactMatch = existing.stream()
             .filter(subscription -> same(subscription.name(), desired.name()) && same(subscription.uri(), webhookUri))
             .findFirst()
@@ -387,6 +429,15 @@ public class ShopifyWebhookSubscriptionService {
             return false;
         }
         return normalizedLeft.toLowerCase(Locale.ROOT).equals(normalizedRight.toLowerCase(Locale.ROOT));
+    }
+
+    private boolean isInaccessibleTopicFailure(ResponseStatusException ex) {
+        String message = optionalText(ex.getReason());
+        if (message == null) {
+            message = optionalText(ex.getMessage());
+        }
+        return message != null
+            && message.toLowerCase(Locale.ROOT).contains("do not have access");
     }
 
     private String normalizeShopDomain(String shopDomain) {

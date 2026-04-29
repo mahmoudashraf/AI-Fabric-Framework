@@ -1,67 +1,68 @@
 (function () {
   var LOOM_COMPANION_SHELLS_KEY = '__loomCompanionShells'
+  var LOOM_COMPANION_SURFACES_KEY = '__loomCompanionEmbeddedSurfaces'
+  var bootstrapPayloadPromises = {}
   var shellLoadPromises = {}
+  var surfaceLoadPromises = {}
+  var stylesheetLoadPromises = {}
 
   function bootstrap() {
-    var root = document.getElementById('loom-companion-embed-root')
-    if (!root) {
+    var roots = document.querySelectorAll('[data-loom-companion-bootstrap="true"]')
+    if (!roots.length) {
       return
     }
+    Array.prototype.forEach.call(roots, function (root) {
+      var bridgeBaseUrl = trimValue(root.dataset.bridgeBaseUrl)
+      var shopDomain = trimValue(root.dataset.shopDomain)
+      var maxModeShellScriptUrl = trimValue(root.dataset.maxModeShellScriptUrl)
+      var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
+      var embeddedSurfacesScriptUrl = trimValue(root.dataset.embeddedSurfacesScriptUrl)
+      var embeddedSurfacesStylesheetUrl = trimValue(root.dataset.embeddedSurfacesStylesheetUrl)
+      var widgetShell = 'max-mode'
+      if (!bridgeBaseUrl || !shopDomain) {
+        root.dataset.status = 'configuration-required'
+        return
+      }
+      root.dataset.widgetShell = widgetShell
 
-    var bridgeBaseUrl = trimValue(root.dataset.bridgeBaseUrl)
-    var shopDomain = trimValue(root.dataset.shopDomain)
-    var requestedWidgetShell = normalizeWidgetShell(root.dataset.widgetShell)
-    var maxModeShellScriptUrl = trimValue(root.dataset.maxModeShellScriptUrl)
-    var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
-    var effectiveWidgetShell = resolveEffectiveWidgetShell(
-      requestedWidgetShell,
-      maxModeShellScriptUrl,
-      maxModeScriptUrl
-    )
-    if (!bridgeBaseUrl || !shopDomain) {
-      root.dataset.status = 'configuration-required'
-      return
-    }
-    root.dataset.requestedWidgetShell = requestedWidgetShell
-    root.dataset.widgetShell = effectiveWidgetShell
-
-    resolveBootstrap(root, {
-      bridgeBaseUrl: bridgeBaseUrl,
-      shopDomain: shopDomain,
-      launcherLabel: trimValue(root.dataset.launcherLabel) || 'Ask the store assistant',
-      widgetShell: effectiveWidgetShell,
-      requestedWidgetShell: requestedWidgetShell,
-      legacyShellScriptUrl: trimValue(root.dataset.legacyShellScriptUrl),
-      maxModeShellScriptUrl: maxModeShellScriptUrl,
-      maxModeScriptUrl: maxModeScriptUrl,
-      storefrontContext: extractStorefrontContext(root),
+      resolveBootstrap(root, {
+        bridgeBaseUrl: bridgeBaseUrl,
+        shopDomain: shopDomain,
+        launcherLabel: trimValue(root.dataset.launcherLabel) || 'Ask the store assistant',
+        widgetShell: widgetShell,
+        maxModeShellScriptUrl: maxModeShellScriptUrl,
+        maxModeScriptUrl: maxModeScriptUrl,
+        embeddedSurfacesScriptUrl: embeddedSurfacesScriptUrl,
+        embeddedSurfacesStylesheetUrl: embeddedSurfacesStylesheetUrl,
+        storefrontContext: extractStorefrontContext(root),
+        shellEnabled: root.dataset.shellEnabled !== 'false',
+        surfaceMount: trimValue(root.dataset.surfaceMount) || 'floating',
+        surfaceScope: trimValue(root.dataset.surfaceScope) || 'all',
+      })
     })
   }
 
   function resolveBootstrap(root, config) {
     root.dataset.status = 'loading'
     root.textContent = ''
-    fetch(joinUrl(config.bridgeBaseUrl, '/api/storefront/shops/' + encodeURIComponent(config.shopDomain) + '/bootstrap'), {
-      headers: {
-        Accept: 'application/json',
-      },
-    })
-      .then(function (response) {
-        if (!response.ok) {
-          return response.text().then(function (message) {
-            throw new Error(message || 'Widget bootstrap failed with HTTP ' + response.status)
-          })
-        }
-        return response.json()
-      })
+    loadBootstrapPayload(config)
       .then(function (payload) {
         if (!payload || !payload.available) {
           root.dataset.status = 'unavailable'
           root.textContent = payload && payload.message ? payload.message : 'Store assistant is not ready yet.'
           return
         }
+        // Embedded surfaces can still render without the shell, but the app embed must
+        // keep mounting Max Mode even when storefront chat fallback is disabled.
+        if (!config.shellEnabled) {
+          teardownActiveShell(root)
+          teardownEmbeddedSurfaces(root)
+          root.dataset.status = 'ready'
+          return renderEmbeddedSurfaces(root, config, payload)
+        }
         return loadShellRenderer(config.widgetShell, config).then(function (renderer) {
           teardownActiveShell(root)
+          teardownEmbeddedSurfaces(root)
           return Promise.resolve(
             renderer.render({
               root: root,
@@ -74,28 +75,7 @@
           )
             .then(function () {
               root.dataset.activeShell = config.widgetShell
-            })
-            .catch(function (error) {
-              if (config.widgetShell !== 'max-mode') {
-                throw error
-              }
-              return loadShellRenderer('legacy', config).then(function (legacyRenderer) {
-                teardownActiveShell(root)
-                return Promise.resolve(
-                  legacyRenderer.render({
-                    root: root,
-                    bridgeBaseUrl: config.bridgeBaseUrl,
-                    launcherLabel: config.launcherLabel,
-                    maxModeScriptUrl: config.maxModeScriptUrl,
-                    payload: payload,
-                    storefrontContext: config.storefrontContext,
-                  })
-                ).then(function () {
-                  root.dataset.activeShell = 'legacy'
-                  root.dataset.widgetShell = 'max-mode'
-                  root.dataset.fallbackShell = 'legacy'
-                })
-              })
+              return renderEmbeddedSurfaces(root, config, payload)
             })
         })
       })
@@ -105,15 +85,41 @@
       })
   }
 
+  function loadBootstrapPayload(config) {
+    var key = [config.bridgeBaseUrl, config.shopDomain, config.storefrontContext.pageType || 'unknown'].join('|')
+    if (!bootstrapPayloadPromises[key]) {
+      var bootstrapUrl = joinUrl(
+        config.bridgeBaseUrl,
+        '/api/storefront/shops/' + encodeURIComponent(config.shopDomain) + '/bootstrap?pageType=' + encodeURIComponent(config.storefrontContext.pageType || 'unknown')
+      )
+      bootstrapPayloadPromises[key] = fetch(
+        bootstrapUrl,
+        {
+          headers: {
+            Accept: 'application/json',
+          },
+        }
+      ).then(function (response) {
+        if (!response.ok) {
+          return response.text().then(function (message) {
+            throw new Error(message || 'Widget bootstrap failed with HTTP ' + response.status)
+          })
+        }
+        return response.json()
+      })
+    }
+    return bootstrapPayloadPromises[key]
+  }
+
   function loadShellRenderer(widgetShell, config) {
     var registry = getShellRegistry()
     if (registry[widgetShell] && typeof registry[widgetShell].render === 'function') {
       return Promise.resolve(registry[widgetShell])
     }
 
-    var shellUrl = widgetShell === 'max-mode' ? config.maxModeShellScriptUrl : config.legacyShellScriptUrl
+    var shellUrl = config.maxModeShellScriptUrl
     if (!shellUrl) {
-      return Promise.reject(new Error('Theme app embed is missing the ' + widgetShell + ' shell asset URL.'))
+      return Promise.reject(new Error('Theme app embed is missing the Max Mode shell asset URL.'))
     }
 
     if (!shellLoadPromises[shellUrl]) {
@@ -156,6 +162,90 @@
     })
   }
 
+  function renderEmbeddedSurfaces(root, config, payload) {
+    if (!config.embeddedSurfacesScriptUrl) {
+      return Promise.resolve()
+    }
+    return ensureStylesheet(config.embeddedSurfacesStylesheetUrl)
+      .then(function () {
+        return renderEmbeddedSurfacesLoaded(root, config, payload)
+      })
+  }
+
+  function renderEmbeddedSurfacesLoaded(root, config, payload) {
+    var registry = getSurfaceRegistry()
+    if (registry.render && typeof registry.render === 'function') {
+      return Promise.resolve(
+        registry.render({
+          root: root,
+          bridgeBaseUrl: config.bridgeBaseUrl,
+          payload: payload,
+          storefrontContext: config.storefrontContext,
+          mountMode: config.surfaceMount,
+          surfaceScope: config.surfaceScope,
+        })
+      )
+    }
+    if (!surfaceLoadPromises[config.embeddedSurfacesScriptUrl]) {
+      surfaceLoadPromises[config.embeddedSurfacesScriptUrl] = loadScript(config.embeddedSurfacesScriptUrl).then(function () {
+        var loadedRegistry = getSurfaceRegistry()
+        if (!loadedRegistry.render || typeof loadedRegistry.render !== 'function') {
+          throw new Error('Theme app embed did not register embedded companion surfaces.')
+        }
+        return loadedRegistry
+      })
+    }
+    return surfaceLoadPromises[config.embeddedSurfacesScriptUrl].then(function (loadedRegistry) {
+      return loadedRegistry.render({
+        root: root,
+        bridgeBaseUrl: config.bridgeBaseUrl,
+        payload: payload,
+        storefrontContext: config.storefrontContext,
+        mountMode: config.surfaceMount,
+        surfaceScope: config.surfaceScope,
+      })
+    })
+  }
+
+  function ensureStylesheet(url) {
+    if (!url) {
+      return Promise.resolve()
+    }
+    if (document.querySelector('link[data-loom-companion-surfaces="' + url + '"]')) {
+      return Promise.resolve()
+    }
+    if (!stylesheetLoadPromises[url]) {
+      stylesheetLoadPromises[url] = new Promise(function (resolve, reject) {
+        var link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        link.dataset.loomCompanionSurfaces = url
+        link.onload = function () {
+          resolve()
+        }
+        link.onerror = function () {
+          reject(new Error('Failed to load companion surfaces stylesheet.'))
+        }
+        document.head.appendChild(link)
+      })
+    }
+    return stylesheetLoadPromises[url]
+  }
+
+  function teardownEmbeddedSurfaces(root) {
+    var registry = getSurfaceRegistry()
+    if (registry && typeof registry.teardown === 'function') {
+      registry.teardown(root)
+    }
+  }
+
+  function getSurfaceRegistry() {
+    if (!window[LOOM_COMPANION_SURFACES_KEY]) {
+      window[LOOM_COMPANION_SURFACES_KEY] = {}
+    }
+    return window[LOOM_COMPANION_SURFACES_KEY]
+  }
+
   function getShellRegistry() {
     if (!window[LOOM_COMPANION_SHELLS_KEY]) {
       window[LOOM_COMPANION_SHELLS_KEY] = {}
@@ -183,6 +273,8 @@
         title: productTitle || pageTitle || 'this product',
         vendor: trimValue(root.dataset.productVendor),
         type: trimValue(root.dataset.productType),
+        variantId: trimValue(root.dataset.productVariantId),
+        sku: trimValue(root.dataset.productSku),
         priceCents: trimValue(root.dataset.productPriceCents),
       }
     }
@@ -198,18 +290,20 @@
       }
     }
 
-    return context
-  }
-
-  function normalizeWidgetShell(value) {
-    return value === 'max-mode' ? 'max-mode' : 'legacy'
-  }
-
-  function resolveEffectiveWidgetShell(requestedWidgetShell, maxModeShellScriptUrl, maxModeScriptUrl) {
-    if (maxModeShellScriptUrl && maxModeScriptUrl) {
-      return 'max-mode'
+    var documentTitle = trimValue(root.dataset.documentTitle)
+    var documentHandle = trimValue(root.dataset.documentHandle)
+    var documentId = trimValue(root.dataset.documentId)
+    if (documentTitle || documentHandle || documentId) {
+      context.document = {
+        id: documentId,
+        handle: documentHandle,
+        title: documentTitle || pageTitle || 'this page',
+        type: trimValue(root.dataset.documentType) || pageType,
+        url: trimValue(root.dataset.documentUrl),
+      }
     }
-    return requestedWidgetShell
+
+    return context
   }
 
   function trimValue(value) {

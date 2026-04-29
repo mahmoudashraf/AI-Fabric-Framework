@@ -4,6 +4,8 @@
 
 This guide complements:
 - `Final_Documentation/System_Archtecture_Guides/PLAN_DETERMINISTIC_RAG_ALWAYS_GENERATE.md`
+- `Final_Documentation/System_Archtecture_Guides/PLAN_READ_ONLY_ACTION_RESOLVER_AND_THINKER_MODES.md`
+- `Final_Documentation/System_Archtecture_Guides/PLAN_SHOPIFY_CONTROL_AND_EXECUTION_PLANE_SEPARATION.md`
 - `Final_Documentation/Development_Guides/CURATED_MODES_PACKS_GUIDE.md`
 - `Final_Documentation/System_Archtecture_Guides/NORMALIZATION_AND_ORCHESTRATION_GUIDE.md`
 

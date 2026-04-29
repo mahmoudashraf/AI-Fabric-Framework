@@ -46,6 +46,8 @@ export type ShopifyBridgeStoreSummary = {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  articlesEnabled: boolean
+  metaobjectsEnabled: boolean
   credentials: {
     status: string
     accessTokenPresent: boolean
@@ -67,6 +69,7 @@ export type ShopifyBridgeStoreSummary = {
       status: string
       itemCount: number
       message: string | null
+      signals: string[]
     }>
   } | null
   capabilities: {
@@ -110,10 +113,57 @@ export type ShopifyBridgeStoreSummary = {
     settings: {
       launcherLabel: string | null
       welcomeMessage: string | null
+      shellModeProfile: string | null
+      defaultConversationMode: string | null
+      allowedConversationModes: string[]
+      pageModeMappings: Record<string, string>
+      enabledSurfaces: string[]
     } | null
   } | null
   createdAt: string
   updatedAt: string
+}
+
+export type ShopifyBridgeSupportReadinessSummary = {
+  shopDomain: string
+  status: string
+  message: string
+  lifecycleStage: string
+  orderLookupSupported: boolean
+  orderLookupScopeGranted: boolean
+  allOrdersScopeGranted: boolean
+  appScopesUpdateWebhookReady: boolean
+  installRecoveryRequired: boolean
+  installRecoveryUrl: string | null
+  scopeGrantRequired: boolean
+  scopeGrantUrl: string | null
+  installStatus: string
+  billingTier: string
+  billingStatus: string
+  grantedScopes: string[]
+  missingScopes: string[]
+  activeSubscriptionNames: string[]
+  activeSubscriptions: Array<{
+    subscriptionId: string | null
+    name: string | null
+    status: string
+    tierKey: string
+    active: boolean
+  }>
+  supportProfile: {
+    contactEmail: string | null
+    contactUrl: string | null
+    helpCenterUrl: string | null
+    orderLookupPageUrl: string | null
+    supportPolicyNote: string | null
+    merchantHandoffConfigured: boolean
+  } | null
+  merchantHandoffConfigured: boolean
+  merchantHandoffMessage: string | null
+  nextActions: string[]
+  verificationMethods: string[]
+  supportedCapabilities: string[]
+  blockedCapabilities: string[]
 }
 
 export type ShopifyBridgeMerchantSessionResponse = {
@@ -124,6 +174,17 @@ export type ShopifyBridgeMerchantSessionResponse = {
   installRecoveryRequired: boolean
   installRecoveryMessage: string | null
   installRecoveryUrl: string | null
+  supportReadiness: ShopifyBridgeSupportReadinessSummary | null
+  thinkerHealth: {
+    shopDomain: string
+    deploymentId: string | null
+    enabled: boolean
+    status: string
+    recentSessionCount: number
+    blockedSessionCount: number
+    message: string
+    nextActions: string[]
+  } | null
   installRecord: {
     status: string
     accessTokenSecretRef: string | null
@@ -151,6 +212,68 @@ export type ShopifyBridgeStoreBootstrapResponse = {
   store: ShopifyBridgeStoreSummary
 }
 
+export type ShopifyBridgePackageProfileSummary = {
+  profileKey: string
+  packageKey: string
+  tierKey: string
+  runtimeProfileKey: string
+  vectorProfileKey: string
+  displayName: string
+  description: string | null
+  costPosture: string | null
+  vectorStrategy: string | null
+  vectorProvisioningMode: string | null
+  vectorStoragePosture: string | null
+  verificationPackId: string | null
+  status: string
+}
+
+export type ShopifyBridgeProvisioningJobSummary = {
+  id: string
+  shopDomain: string
+  storeConnectionId: string | null
+  jobType: string
+  status: string
+  phase: string
+  requestedPackageKey: string | null
+  requestedTierKey: string | null
+  requestedRuntimeProfileKey: string | null
+  requestedVectorProfileKey: string | null
+  previousPackageKey: string | null
+  previousRuntimeProfileKey: string | null
+  previousVectorProfileKey: string | null
+  requestedTemplatePluginId: string | null
+  requestedTemplatePluginVersion: string | null
+  requestedPluginIds: string[]
+  profileChangeStrategy: string | null
+  vectorReindexRequired: boolean
+  installIntentId: string | null
+  attemptCount: number
+  maxAttempts: number
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  bootstrapDeploymentId: string | null
+  verificationRunId: string | null
+  nextAction: string | null
+  summaryMessage: string | null
+  readyAt: string | null
+  failedAt: string | null
+  cancelledAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ShopifyBridgeProvisioningStatusSummary = {
+  shopDomain: string
+  status: string
+  phase: string
+  nextAction: string | null
+  summaryMessage: string | null
+  effectiveProfile: ShopifyBridgePackageProfileSummary | null
+  latestJob: ShopifyBridgeProvisioningJobSummary | null
+  recentJobs: ShopifyBridgeProvisioningJobSummary[]
+}
+
 export type ShopifyStorefrontPreviewResponse = {
   ready: boolean
   shopDomain: string
@@ -164,6 +287,19 @@ export type ShopifyStorefrontPreviewResponse = {
   launcherLabelDefault: string
   welcomeMessageDefault: string
   themeEditorActivationUrl: string | null
+  groundingSignals: string[]
+  supportedReviewProviders: string[]
+  surfacePlacements: Array<{
+    surfaceId: string
+    label: string
+    placementType: string
+    blockHandle: string
+    template: string
+    target: string
+    themeEditorUrl: string | null
+    requiredTierKey: string
+    guidance: string
+  }>
   activationSteps: string[]
   blockingReasons: string[]
   message: string
@@ -183,14 +319,120 @@ export type ShopifyBridgeUsageSummary = {
     eventType: string
     count: number
   }>
+  todaySurfaceUsage: Array<{
+    surfaceId: string
+    label: string
+    count: number
+  }>
+  last7DaySurfaceUsage: Array<{
+    surfaceId: string
+    label: string
+    count: number
+  }>
+  topQuestionsLast7Days: Array<{
+    surfaceId: string
+    label: string
+    queryText: string
+    count: number
+    lastAskedAt: string
+  }>
+  unansweredQuestionsLast7Days: Array<{
+    surfaceId: string
+    label: string
+    queryText: string
+    count: number
+    lastAskedAt: string
+  }>
+  actionIntentQuestionsLast7Days: Array<{
+    surfaceId: string
+    label: string
+    queryText: string
+    count: number
+    lastAskedAt: string
+  }>
+  last7DaySurfaceJourneys: Array<{
+    surfaceId: string
+    label: string
+    shopperQuestions: number
+    shopperInteractions: number
+    readActions: number
+    governedActionGrants: number
+    governedActionCompletions: number
+    governedActionFailures: number
+  }>
+  roiSummary: {
+    status: string
+    message: string
+    shopperAssistSignals: number
+    decisionSupportSignals: number
+    governedActionGrants: number
+    governedActionCompletions: number
+    governedActionFailures: number
+    activeSurfaceCount: number
+    strongestSurfaceLabels: string[]
+    recommendations: string[]
+  }
+}
+
+export type ShopifyBridgeGovernedActionAuditSummary = {
+  id: string
+  actionType: string
+  actionPackage: string
+  surfaceId: string
+  pageType: string
+  productHandle: string | null
+  productTitle: string | null
+  variantId: string | null
+  requestedQuantity: number | null
+  targetQuantity: number | null
+  resultingQuantity: number | null
+  confirmationRequired: boolean
+  confirmationAccepted: boolean
+  shopperSessionRef: string | null
+  status: string
+  message: string | null
+  createdAt: string
+  expiresAt: string | null
+  completedAt: string | null
 }
 
 export type ShopifyBridgeBillingSummary = {
   mode: string
+  tierKey: string
   planName: string
   status: string
   merchantApprovalRequired: boolean
   launchBlocked: boolean
+  paidTier: boolean
+  actionCapable: boolean
+  catalogProductCap: number | null
+  syncCadence: string | null
+  poweredByBadgeRequired: boolean
+  chatFallbackEnabled: boolean
+  requiresExplicitConfirmation: boolean
+  auditTrailAvailable: boolean
+  actionPackages: string[]
+  allowedSurfaces: string[]
+  availablePlans: Array<{
+    tierKey: string
+    planName: string
+    amount: string | null
+    currencyCode: string | null
+    interval: string | null
+    active: boolean
+    commerciallyAvailable: boolean
+    merchantApprovalSupported: boolean
+    actionCapable: boolean
+    catalogProductCap: number | null
+    syncCadence: string | null
+    poweredByBadgeRequired: boolean
+    chatFallbackEnabled: boolean
+    requiresExplicitConfirmation: boolean
+    auditTrailAvailable: boolean
+    actionPackages: string[]
+    allowedSurfaces: string[]
+    message: string
+  }>
   message: string
 }
 
@@ -198,6 +440,44 @@ export type ShopifyBridgeBillingApprovalResponse = {
   status: string
   confirmationUrl: string | null
   message: string
+}
+
+export type ShopifyBridgePartnerAccessRequestSummary = {
+  requestId: string
+  implementationRequestId: string
+  partnerAccountId: string
+  partnerName: string
+  clientName: string
+  contactEmail: string | null
+  storeConnectionId: string | null
+  assignmentId: string | null
+  shopDomain: string
+  requestedTier: string | null
+  requestedSurfaces: string[]
+  knownIntegrations: string[]
+  notes: string | null
+  requestedScope: string
+  status: string
+  createdAt: string
+  expiresAt: string
+  approvedAt: string | null
+  revokedAt: string | null
+  updatedAt: string
+}
+
+export type ShopifyBridgePartnerAccessDecisionRequest = {
+  approverName?: string
+  approverEmail?: string
+  approvedScope?: string
+  decisionReason?: string
+}
+
+export type ShopifyBridgePartnerAccessDecisionSummary = {
+  requestId: string
+  assignmentId: string | null
+  shopDomain: string
+  status: string
+  decidedAt: string
 }
 
 export type ShopifyBridgeStoreVectorizationRunSummary = {
@@ -210,6 +490,71 @@ export type ShopifyBridgeStoreVectorizationRunSummary = {
   startedAt: string | null
   completedAt: string | null
   updatedAt: string
+}
+
+export type ShopifyBridgeStoreVectorizationSourcePolicySummary = {
+  sourceCategory: string
+  enabled: boolean
+  manualIndexAllowed: boolean
+  manualReindexAllowed: boolean
+  autoIndexingEnabled: boolean
+  createTriggerEnabled: boolean
+  deleteTriggerEnabled: boolean
+  updateTriggerMode: string
+  selectedIndexedFields: string[]
+  debounceWindowSeconds: number
+  minimumRunIntervalSeconds: number
+}
+
+export type ShopifyBridgeStoreVectorizationPolicySummary = {
+  policyVersion: number
+  autoIndexingDefault: boolean
+  sourcePolicies: ShopifyBridgeStoreVectorizationSourcePolicySummary[]
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyBridgeStoreVectorizationIndexedFieldSummary = {
+  fieldKey: string
+  sourceCategory: string
+  entityType: string
+  sourceField: string
+  label: string
+  selectableForTriggerPolicy: boolean
+}
+
+export type ShopifyBridgeStoreVectorizationAutomationSummary = {
+  autoIndexingHealthy: boolean
+  queuedEvents: number
+  leasedEvents: number
+  dispatchedEvents: number
+  skippedEvents: number
+  failedEvents: number
+  deadLetteredEvents: number
+  lastAutoEventAt: string | null
+  lastSuccessfulAutoIndexAt: string | null
+  lastFailedAutoIndexAt: string | null
+  lastAutoRunId: string | null
+  degradedReasons: string[]
+}
+
+export type ShopifyBridgeStoreVectorizationEventSummary = {
+  id: string
+  sourceCategory: string
+  entityType: string
+  sourceObjectId: string | null
+  shopifyTopic: string | null
+  operation: string | null
+  status: string
+  triggerReason: string | null
+  failureCode: string | null
+  coalescedRunId: string | null
+  shopifyWebhookId: string | null
+  occurredAt: string | null
+  queuedAt: string | null
+  lastAttemptAt: string | null
+  completedAt: string | null
+  notes: string | null
 }
 
 export type ShopifyBridgeStoreVectorizationSummary = {
@@ -240,6 +585,30 @@ export type ShopifyBridgeStoreVectorizationSummary = {
   readyToRun: boolean
   blockingReasons: string[]
   lastRun: ShopifyBridgeStoreVectorizationRunSummary | null
+  policy: ShopifyBridgeStoreVectorizationPolicySummary | null
+  effectiveIndexedFields: ShopifyBridgeStoreVectorizationIndexedFieldSummary[]
+  automation: ShopifyBridgeStoreVectorizationAutomationSummary | null
+  recentEvents: ShopifyBridgeStoreVectorizationEventSummary[]
+}
+
+export type ShopifyBridgeStoreVectorizationSourcePolicyInput = {
+  sourceCategory: string
+  autoIndexingEnabled?: boolean | null
+  createTriggerEnabled?: boolean | null
+  deleteTriggerEnabled?: boolean | null
+  updateTriggerMode?: string | null
+  selectedIndexedFields?: string[]
+  debounceWindowSeconds?: number | null
+  minimumRunIntervalSeconds?: number | null
+}
+
+export type ShopifyBridgeUpdateStoreVectorizationPolicyRequest = {
+  policyVersion: number | null
+  sourcePolicies: ShopifyBridgeStoreVectorizationSourcePolicyInput[]
+}
+
+export type ShopifyBridgeStoreVectorizationSelectedEntitiesRequest = {
+  entityTypes: string[]
 }
 
 export type ShopifyWebhookSubscriptionStatusSummary = {
@@ -302,8 +671,16 @@ export async function fetchUsageSummary(): Promise<ShopifyBridgeUsageSummary> {
   return authenticatedFetchJson('/api/app/store/usage-summary', { method: 'GET' })
 }
 
+export async function fetchRecentGovernedActions(limit = 10): Promise<ShopifyBridgeGovernedActionAuditSummary[]> {
+  return authenticatedFetchJson(`/api/app/store/actions/recent?limit=${limit}`, { method: 'GET' })
+}
+
 export async function fetchVectorizationSummary(): Promise<ShopifyBridgeStoreVectorizationSummary> {
   return authenticatedFetchJson('/api/app/store/vectorization', { method: 'GET' })
+}
+
+export async function fetchProvisioningStatus(): Promise<ShopifyBridgeProvisioningStatusSummary> {
+  return authenticatedFetchJson('/api/app/store/provisioning', { method: 'GET' })
 }
 
 export async function reconcileVectorization(): Promise<ShopifyBridgeStoreVectorizationSummary> {
@@ -314,12 +691,105 @@ export async function vectorizeNowStore(): Promise<ShopifyBridgeStoreVectorizati
   return authenticatedFetchJson('/api/app/store/vectorization/vectorize-now', { method: 'POST' })
 }
 
+export async function indexAllStore(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/index-all', { method: 'POST' })
+}
+
+export async function reindexAllStore(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/reindex-all', { method: 'POST' })
+}
+
+export async function reindexSelectedStore(request: ShopifyBridgeStoreVectorizationSelectedEntitiesRequest): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/reindex-selected', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function updateVectorizationPolicyStore(request: ShopifyBridgeUpdateStoreVectorizationPolicyRequest): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/policy', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function fetchVectorizationEventsStore(limit = 10): Promise<ShopifyBridgeStoreVectorizationEventSummary[]> {
+  return authenticatedFetchJson(`/api/app/store/vectorization/events?limit=${limit}`, { method: 'GET' })
+}
+
+export async function replayVectorizationEventStore(eventId: string): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson(`/api/app/store/vectorization/events/${encodeURIComponent(eventId)}/replay`, { method: 'POST' })
+}
+
+export async function retryLastFailedVectorizationAutoRunStore(): Promise<ShopifyBridgeStoreVectorizationSummary> {
+  return authenticatedFetchJson('/api/app/store/vectorization/retry-last-failed-auto-run', { method: 'POST' })
+}
+
 export async function fetchBillingSummary(): Promise<ShopifyBridgeBillingSummary> {
   return authenticatedFetchJson('/api/app/store/billing-summary', { method: 'GET' })
 }
 
-export async function requestBillingApproval(): Promise<ShopifyBridgeBillingApprovalResponse> {
-  return authenticatedFetchJson('/api/app/store/billing/approval', { method: 'POST' })
+export async function fetchPartnerAccessRequests(): Promise<ShopifyBridgePartnerAccessRequestSummary[]> {
+  return authenticatedFetchJson('/api/app/store/partner-access/requests', { method: 'GET' })
+}
+
+export async function approvePartnerAccessRequest(
+  requestId: string,
+  request: ShopifyBridgePartnerAccessDecisionRequest,
+): Promise<ShopifyBridgePartnerAccessDecisionSummary> {
+  return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/approve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function denyPartnerAccessRequest(
+  requestId: string,
+  request: ShopifyBridgePartnerAccessDecisionRequest,
+): Promise<ShopifyBridgePartnerAccessDecisionSummary> {
+  return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/deny`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function revokePartnerAccessRequest(
+  requestId: string,
+  request: ShopifyBridgePartnerAccessDecisionRequest,
+): Promise<ShopifyBridgePartnerAccessDecisionSummary> {
+  return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/revoke`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function fetchSupportReadiness(): Promise<ShopifyBridgeSupportReadinessSummary> {
+  return authenticatedFetchJson('/api/app/store/support-readiness', { method: 'GET' })
+}
+
+export async function requestBillingApproval(tierKey?: string): Promise<ShopifyBridgeBillingApprovalResponse> {
+  return authenticatedFetchJson('/api/app/store/billing/approval', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ tierKey: tierKey ?? 'STARTER' }),
+  })
 }
 
 export async function fetchWebhookSubscriptions(): Promise<ShopifyWebhookSubscriptionStatusSummary> {
@@ -331,6 +801,8 @@ export async function updateSourceSettings(settings: {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  articlesEnabled: boolean
+  metaobjectsEnabled: boolean
 }): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/source-settings', {
     method: 'POST',
@@ -344,8 +816,29 @@ export async function updateSourceSettings(settings: {
 export async function updateWidgetSettings(settings: {
   launcherLabel: string
   welcomeMessage: string
+  shellModeProfile: string
+  defaultConversationMode: string
+  allowedConversationModes: string[]
+  pageModeMappings: Record<string, string>
+  enabledSurfaces: string[]
 }): Promise<ShopifyBridgeStoreSummary> {
   return authenticatedFetchJson('/api/app/store/widget-settings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(settings),
+  })
+}
+
+export async function updateSupportProfile(settings: {
+  contactEmail: string
+  contactUrl: string
+  helpCenterUrl: string
+  orderLookupPageUrl: string
+  supportPolicyNote: string
+}): Promise<ShopifyBridgeSupportReadinessSummary> {
+  return authenticatedFetchJson('/api/app/store/support-profile', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

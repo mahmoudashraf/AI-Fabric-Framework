@@ -5,12 +5,12 @@ import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResu
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,12 +30,23 @@ public class ShopifyBridgeActionExecutionService {
                 descriptionHtml
                 vendor
                 productType
+                metafields(first: 12) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      type
+                      value
+                    }
+                  }
+                }
                 updatedAt
                 variants(first: 25) {
                   nodes {
                     id
                     title
                     sku
+                    price
                     availableForSale
                     inventoryQuantity
                   }
@@ -160,14 +171,9 @@ public class ShopifyBridgeActionExecutionService {
     private ShopifyBridgeActionResult getPolicy(ShopifyBridgeCredentialAcquisition acquisition,
                                                 ShopifyBridgeActionExecuteRequest request) {
         String query = normalize(textParam(request, "query"));
-        if (query == null) {
-            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.query is required.");
-        }
+        int limit = integerParam(request, "limit", 5, 1, 10);
         List<Map<String, Object>> policies = fetchPolicies(acquisition);
-        List<Map<String, Object>> matches = policies.stream()
-            .filter(policy -> matchesPolicy(policy, query))
-            .toList();
-        List<Map<String, Object>> result = matches.isEmpty() ? policies.stream().limit(3).toList() : matches;
+        List<Map<String, Object>> result = policies.stream().limit(limit).toList();
         return ShopifyBridgeActionResult.ok(
             result.isEmpty() ? "No policies found." : "Policies",
             Map.of("items", result, "count", result.size(), "query", query)
@@ -251,48 +257,35 @@ public class ShopifyBridgeActionExecutionService {
             .orElse(null);
     }
 
-    private boolean matchesPolicy(Map<String, Object> policy, String query) {
-        String haystack = String.join(
-            "\n",
-            text(policy, "title"),
-            text(policy, "type"),
-            text(policy, "body")
-        ).toLowerCase(Locale.ROOT);
-        for (String token : tokenize(query)) {
-            if (haystack.contains(token)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private List<String> tokenize(String value) {
-        if (value == null || value.isBlank()) {
-            return List.of();
-        }
-        LinkedHashSet<String> tokens = new LinkedHashSet<>();
-        for (String token : value.toLowerCase(Locale.ROOT).split("[^a-z0-9]+")) {
-            if (!token.isBlank()) {
-                tokens.add(token);
-            }
-        }
-        return List.copyOf(tokens);
-    }
-
     private Map<String, Object> toProductItem(String shopDomain, Map<String, Object> node) {
         List<Map<String, Object>> variants = extractVariants(node);
-        return Map.of(
-            "id", text(node, "id"),
-            "title", text(node, "title"),
-            "handle", text(node, "handle"),
-            "vendor", text(node, "vendor"),
-            "productType", text(node, "productType"),
-            "description", sanitizeRichText(text(node, "descriptionHtml")),
-            "updatedAt", text(node, "updatedAt"),
-            "storefrontUrl", storefrontUrl(shopDomain, text(node, "handle")),
-            "available", variants.stream().anyMatch(variant -> Boolean.TRUE.equals(variant.get("availableForSale"))),
-            "variants", variants
-        );
+        Map<String, Object> primaryVariant = variants.stream().findFirst().orElse(Map.of());
+        ShopifyProductReviewSignals.ReviewSignalSummary reviewSignals = ShopifyProductReviewSignals.summary(node);
+        LinkedHashMap<String, Object> item = new LinkedHashMap<>();
+        item.put("id", text(node, "id"));
+        item.put("title", text(node, "title"));
+        item.put("handle", text(node, "handle"));
+        item.put("vendor", text(node, "vendor"));
+        item.put("productType", text(node, "productType"));
+        item.put("description", sanitizeRichText(text(node, "descriptionHtml")));
+        item.put("updatedAt", text(node, "updatedAt"));
+        item.put("storefrontUrl", storefrontUrl(shopDomain, text(node, "handle")));
+        item.put("available", variants.stream().anyMatch(variant -> Boolean.TRUE.equals(variant.get("availableForSale"))));
+        item.put("primarySku", text(primaryVariant, "sku"));
+        item.put("price", primaryVariant.get("price"));
+        item.put("inventoryQuantity", primaryVariant.get("inventoryQuantity"));
+        item.put("reviewSignalsPresent", reviewSignals.present());
+        if (reviewSignals.provider() != null) {
+            item.put("reviewProvider", reviewSignals.provider());
+        }
+        if (reviewSignals.averageRatingText() != null) {
+            item.put("reviewAverage", reviewSignals.averageRatingText());
+        }
+        if (reviewSignals.reviewCount() != null) {
+            item.put("reviewCount", reviewSignals.reviewCount());
+        }
+        item.put("variants", variants);
+        return item;
     }
 
     private List<Map<String, Object>> extractVariants(Map<String, Object> node) {
@@ -305,6 +298,7 @@ public class ShopifyBridgeActionExecutionService {
             item.put("id", text(variant, "id"));
             item.put("title", text(variant, "title"));
             item.put("sku", text(variant, "sku"));
+            item.put("price", text(variant, "price"));
             item.put("availableForSale", Boolean.TRUE.equals(variant.get("availableForSale")));
             item.put("inventoryQuantity", variant.get("inventoryQuantity"));
             items.add(item);
@@ -346,6 +340,18 @@ public class ShopifyBridgeActionExecutionService {
         return value == null ? null : value.toString().trim();
     }
 
+    private int integerParam(ShopifyBridgeActionExecuteRequest request, String key, int defaultValue, int min, int max) {
+        String raw = textParam(request, key);
+        if (raw == null) {
+            return defaultValue;
+        }
+        try {
+            return Math.max(min, Math.min(max, Integer.parseInt(raw)));
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
     private String text(Map<String, Object> node, String field) {
         Object value = node == null ? null : node.get(field);
         return value == null ? "" : value.toString().trim();
@@ -377,4 +383,5 @@ public class ShopifyBridgeActionExecutionService {
     private String normalize(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
+
 }

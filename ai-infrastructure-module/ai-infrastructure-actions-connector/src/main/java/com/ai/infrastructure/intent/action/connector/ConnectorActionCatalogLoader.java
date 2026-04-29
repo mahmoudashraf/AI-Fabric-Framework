@@ -54,6 +54,7 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_PARAMS = "params";
     private static final String KEY_ANONYMOUS_ALLOWED = "anonymousAllowed";
     private static final String KEY_GROUNDING_ELIGIBLE = "groundingEligible";
+    private static final String KEY_READ_ACTION_RESOLUTION_ELIGIBLE = "readActionResolutionEligible";
     private static final String KEY_RESULT_PRESENTATION_HINT = "resultPresentationHint";
     private static final String KEY_BUILT_IN_MODULE_ID = "builtInModuleId";
     private static final String KEY_BUILT_IN_CARD_ID = "builtInCardId";
@@ -255,6 +256,7 @@ public class ConnectorActionCatalogLoader {
         boolean groundingEligible = raw.containsKey(KEY_GROUNDING_ELIGIBLE)
             ? readBoolean(raw, KEY_GROUNDING_ELIGIBLE, false)
             : defaultGroundingEligible(accessMode);
+        boolean readActionResolutionEligible = readBoolean(raw, KEY_READ_ACTION_RESOLUTION_ELIGIBLE, false);
         ActionResultPresentationHint resultPresentationHint = parseResultPresentationHint(
             readString(raw, KEY_RESULT_PRESENTATION_HINT),
             accessMode,
@@ -281,6 +283,7 @@ public class ConnectorActionCatalogLoader {
             params,
             anonymousAllowed,
             groundingEligible,
+            readActionResolutionEligible,
             resultPresentationHint,
             StringUtils.hasText(builtInModuleId) ? builtInModuleId.trim() : null,
             StringUtils.hasText(builtInCardId) ? builtInCardId.trim() : null,

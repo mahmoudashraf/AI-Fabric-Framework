@@ -3,18 +3,32 @@ package com.ai.fabric.product.shopify.bridge.store.service;
 import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalRequest;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeThinkerHealthSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSupportProfileRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -27,6 +41,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.List;
 
 @Service
 public class ShopifyBridgeMerchantStoreService {
@@ -41,6 +57,8 @@ public class ShopifyBridgeMerchantStoreService {
     private final ShopifyBridgeUsageService usageService;
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService;
+    private final ShopifyStorefrontGovernedActionService governedActionService;
+    private final ShopifyBridgeSupportReadinessService supportReadinessService;
 
     public ShopifyBridgeMerchantStoreService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                              ShopifyBridgeProperties properties,
@@ -51,7 +69,9 @@ public class ShopifyBridgeMerchantStoreService {
                                              ShopifyStorefrontPreviewService storefrontPreviewService,
                                              ShopifyBridgeUsageService usageService,
                                              ShopifyBridgeBillingService billingService,
-                                             ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService) {
+                                             ShopifyWebhookSubscriptionDiagnosticsService webhookSubscriptionDiagnosticsService,
+                                             ShopifyStorefrontGovernedActionService governedActionService,
+                                             ShopifyBridgeSupportReadinessService supportReadinessService) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.properties = properties;
         this.installRecordService = installRecordService;
@@ -62,6 +82,8 @@ public class ShopifyBridgeMerchantStoreService {
         this.usageService = usageService;
         this.billingService = billingService;
         this.webhookSubscriptionDiagnosticsService = webhookSubscriptionDiagnosticsService;
+        this.governedActionService = governedActionService;
+        this.supportReadinessService = supportReadinessService;
     }
 
     public ShopifyBridgeMerchantSessionResponse session(ShopifyMerchantSession merchantSession,
@@ -69,6 +91,8 @@ public class ShopifyBridgeMerchantStoreService {
         ShopifyInstallRecordSummary installRecord = installRecordService.recordAuthenticatedSession(merchantSession, appBridgeHost);
         ShopifyBridgeStoreSummary store = findStoreOrNull(merchantSession.shopDomain());
         boolean installRecoveryRequired = installRecoveryRequired(installRecord, store);
+        ShopifyBridgeSupportReadinessSummary supportReadiness = supportReadinessService.summarizeForShop(merchantSession.shopDomain());
+        ShopifyBridgeThinkerHealthSummary thinkerHealth = thinkerHealth(merchantSession.shopDomain());
         return new ShopifyBridgeMerchantSessionResponse(
             merchantSession.shopDomain(),
             merchantSession.destination(),
@@ -77,6 +101,8 @@ public class ShopifyBridgeMerchantStoreService {
             installRecoveryRequired,
             installRecoveryRequired ? "This shop must complete the Shopify install flow again before Companion can continue onboarding." : null,
             installRecoveryRequired ? buildInstallUrl(merchantSession.shopDomain()) : null,
+            supportReadiness,
+            thinkerHealth,
             installRecord,
             store
         );
@@ -110,13 +136,66 @@ public class ShopifyBridgeMerchantStoreService {
             .orElseGet(() -> billingService.summarizeForShop(merchantSession.shopDomain(), null));
     }
 
+    public List<ShopifyBridgePartnerAccessRequestSummary> listPartnerAccessRequests(ShopifyMerchantSession merchantSession) {
+        return platformShopifyStoreClient.listPartnerAccessRequests(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgePartnerAccessDecisionSummary approvePartnerAccessRequest(ShopifyMerchantSession merchantSession,
+                                                                                String requestId,
+                                                                                ShopifyBridgePartnerAccessDecisionRequest request) {
+        ShopifyBridgePartnerAccessDecisionRequest payload = normalizePartnerDecisionRequest(merchantSession, request);
+        ShopifyBridgePartnerAccessDecisionSummary summary = platformShopifyStoreClient.approvePartnerAccessRequest(
+            merchantSession.shopDomain(),
+            requestId,
+            payload
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PARTNER_ACCESS_APPROVED");
+        return summary;
+    }
+
+    public ShopifyBridgePartnerAccessDecisionSummary denyPartnerAccessRequest(ShopifyMerchantSession merchantSession,
+                                                                             String requestId,
+                                                                             ShopifyBridgePartnerAccessDecisionRequest request) {
+        ShopifyBridgePartnerAccessDecisionRequest payload = normalizePartnerDecisionRequest(merchantSession, request);
+        ShopifyBridgePartnerAccessDecisionSummary summary = platformShopifyStoreClient.denyPartnerAccessRequest(
+            merchantSession.shopDomain(),
+            requestId,
+            payload
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PARTNER_ACCESS_DENIED");
+        return summary;
+    }
+
+    public ShopifyBridgePartnerAccessDecisionSummary revokePartnerAccessRequest(ShopifyMerchantSession merchantSession,
+                                                                               String requestId,
+                                                                               ShopifyBridgePartnerAccessDecisionRequest request) {
+        ShopifyBridgePartnerAccessDecisionRequest payload = normalizePartnerDecisionRequest(merchantSession, request);
+        ShopifyBridgePartnerAccessDecisionSummary summary = platformShopifyStoreClient.revokePartnerAccessRequest(
+            merchantSession.shopDomain(),
+            requestId,
+            payload
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PARTNER_ACCESS_REVOKED");
+        return summary;
+    }
+
     public ShopifyBridgeBillingApprovalResponse requestBillingApproval(ShopifyMerchantSession merchantSession,
-                                                                       String authorizationHeader) {
+                                                                       String authorizationHeader,
+                                                                       ShopifyBridgeBillingApprovalRequest request) {
         ShopifyBridgeCredentialAcquisition acquisition = acquireConnectedCredentials(merchantSession, authorizationHeader);
         ShopifyBridgeBillingApprovalResponse response = billingService.createApproval(
             merchantSession.shopDomain(),
-            acquisition.tokenExchangeMaterial().accessToken()
+            acquisition.tokenExchangeMaterial().accessToken(),
+            request == null ? null : request.tierKey()
         );
+        if ("ACTIVE".equalsIgnoreCase(response.status())) {
+            enqueueProvisioningSafely(
+                merchantSession.shopDomain(),
+                "PACKAGE_CHANGE",
+                request == null ? null : request.tierKey(),
+                "Shopify billing tier is already active; reconciling product package."
+            );
+        }
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_BILLING_APPROVAL_REQUESTED");
         return response;
     }
@@ -152,6 +231,10 @@ public class ShopifyBridgeMerchantStoreService {
         return platformShopifyStoreClient.getVectorization(merchantSession.shopDomain());
     }
 
+    public ShopifyBridgeProvisioningStatusSummary provisioningStatus(ShopifyMerchantSession merchantSession) {
+        return platformShopifyStoreClient.getProvisioningStatus(merchantSession.shopDomain());
+    }
+
     public ShopifyBridgeStoreVectorizationSummary reconcileVectorization(ShopifyMerchantSession merchantSession) {
         ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.reconcileVectorization(merchantSession.shopDomain());
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_RECONCILED");
@@ -164,12 +247,73 @@ public class ShopifyBridgeMerchantStoreService {
         return summary;
     }
 
+    public ShopifyBridgeStoreVectorizationSummary indexAllEnabledData(ShopifyMerchantSession merchantSession) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.indexAllEnabledData(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_INDEX_ALL");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary reindexAllEnabledData(ShopifyMerchantSession merchantSession) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.reindexAllEnabledData(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_REINDEX_ALL");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary reindexSelectedEntityTypes(ShopifyMerchantSession merchantSession,
+                                                                             ShopifyBridgeStoreVectorizationSelectedEntitiesRequest request) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.reindexSelectedEntityTypes(merchantSession.shopDomain(), request);
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_REINDEX_SELECTED");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary updateVectorizationPolicy(ShopifyMerchantSession merchantSession,
+                                                                            ShopifyBridgeUpdateStoreVectorizationPolicyRequest request) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.updateVectorizationPolicy(merchantSession.shopDomain(), request);
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_POLICY_UPDATED");
+        return summary;
+    }
+
+    public List<ShopifyBridgeStoreVectorizationEventSummary> vectorizationEvents(ShopifyMerchantSession merchantSession, int limit) {
+        return platformShopifyStoreClient.fetchVectorizationEvents(merchantSession.shopDomain(), limit);
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary replayVectorizationEvent(ShopifyMerchantSession merchantSession,
+                                                                           String eventId) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.replayVectorizationEvent(merchantSession.shopDomain(), eventId);
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_EVENT_REPLAYED");
+        return summary;
+    }
+
+    public ShopifyBridgeStoreVectorizationSummary retryLastFailedAutoRun(ShopifyMerchantSession merchantSession) {
+        ShopifyBridgeStoreVectorizationSummary summary = platformShopifyStoreClient.retryLastFailedAutoRun(merchantSession.shopDomain());
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_VECTORIZATION_AUTO_RETRY");
+        return summary;
+    }
+
     public ShopifyWebhookSubscriptionStatusSummary webhookSubscriptions(ShopifyMerchantSession merchantSession) {
         return webhookSubscriptionDiagnosticsService.forShop(merchantSession.shopDomain());
     }
 
+    public ShopifyBridgeSupportReadinessSummary supportReadiness(ShopifyMerchantSession merchantSession) {
+        return supportReadinessService.summarizeForShop(merchantSession.shopDomain());
+    }
+
+    public ShopifyBridgeSupportReadinessSummary updateSupportProfile(ShopifyMerchantSession merchantSession,
+                                                                    ShopifyBridgeUpdateSupportProfileRequest request) {
+        platformShopifyStoreClient.updateSupportProfile(
+            merchantSession.shopDomain(),
+            request == null ? new ShopifyBridgeUpdateSupportProfileRequest(null, null, null, null, null) : request
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SUPPORT_PROFILE_UPDATED");
+        return supportReadinessService.summarizeForShop(merchantSession.shopDomain());
+    }
+
     public ShopifyStorefrontPreviewResponse storefrontPreview(ShopifyMerchantSession merchantSession) {
         return storefrontPreviewService.preview(merchantSession.shopDomain());
+    }
+
+    public List<ShopifyBridgeGovernedActionAuditSummary> recentGovernedActions(ShopifyMerchantSession merchantSession, int limit) {
+        return governedActionService.recentActions(merchantSession.shopDomain(), limit);
     }
 
     public ShopifyBridgeStoreSummary updateWidgetSettings(ShopifyMerchantSession merchantSession,
@@ -186,6 +330,8 @@ public class ShopifyBridgeMerchantStoreService {
         boolean collectionsEnabled = request.collectionsEnabled() == null || request.collectionsEnabled();
         boolean pagesEnabled = request.pagesEnabled() == null || request.pagesEnabled();
         boolean policiesEnabled = request.policiesEnabled() == null || request.policiesEnabled();
+        boolean articlesEnabled = request.articlesEnabled() == null || request.articlesEnabled();
+        boolean metaobjectsEnabled = request.metaobjectsEnabled() == null || request.metaobjectsEnabled();
 
         if (current == null) {
             ShopifyBridgeStoreSummary store = platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
@@ -203,7 +349,9 @@ public class ShopifyBridgeMerchantStoreService {
                 productsEnabled,
                 collectionsEnabled,
                 pagesEnabled,
-                policiesEnabled
+                policiesEnabled,
+                articlesEnabled,
+                metaobjectsEnabled
             ));
             usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SOURCE_SETTINGS_UPDATED");
             return store;
@@ -212,7 +360,9 @@ public class ShopifyBridgeMerchantStoreService {
         boolean togglesChanged = current.productsEnabled() != productsEnabled
             || current.collectionsEnabled() != collectionsEnabled
             || current.pagesEnabled() != pagesEnabled
-            || current.policiesEnabled() != policiesEnabled;
+            || current.policiesEnabled() != policiesEnabled
+            || current.articlesEnabled() != articlesEnabled
+            || current.metaobjectsEnabled() != metaobjectsEnabled;
 
         if (!togglesChanged) {
             return current;
@@ -233,11 +383,16 @@ public class ShopifyBridgeMerchantStoreService {
             productsEnabled,
             collectionsEnabled,
             pagesEnabled,
-            policiesEnabled
+            policiesEnabled,
+            articlesEnabled,
+            metaobjectsEnabled
         ));
-        if (hasPlatformBindings(store)) {
-            platformShopifyStoreClient.reconcileVectorization(store.shopDomain());
-        }
+        enqueueProvisioningSafely(
+            store.shopDomain(),
+            "SOURCE_SETTINGS_CHANGE",
+            null,
+            "Merchant changed Shopify Companion knowledge source settings."
+        );
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_SOURCE_SETTINGS_UPDATED");
         return store;
     }
@@ -261,10 +416,27 @@ public class ShopifyBridgeMerchantStoreService {
                 true,
                 true,
                 true,
+                true,
+                true,
                 true
             ));
         }
         return installCredentialService.acquireAndPersistMaterial(merchantSession, authorizationHeader);
+    }
+
+    private ShopifyBridgePartnerAccessDecisionRequest normalizePartnerDecisionRequest(ShopifyMerchantSession merchantSession,
+                                                                                     ShopifyBridgePartnerAccessDecisionRequest request) {
+        String approverName = request == null || request.approverName() == null || request.approverName().isBlank()
+            ? "Shopify admin " + merchantSession.userId()
+            : request.approverName().trim();
+        return new ShopifyBridgePartnerAccessDecisionRequest(
+            approverName,
+            request == null ? null : request.approverEmail(),
+            request == null || request.approvedScope() == null || request.approvedScope().isBlank()
+                ? "FULL_STORE_ACCESS"
+                : request.approvedScope().trim(),
+            request == null ? null : request.decisionReason()
+        );
     }
 
     private ShopifyBridgeStoreSummary findStoreOrNull(String shopDomain) {
@@ -279,6 +451,23 @@ public class ShopifyBridgeMerchantStoreService {
         }
     }
 
+    private ShopifyBridgeThinkerHealthSummary thinkerHealth(String shopDomain) {
+        try {
+            return platformShopifyStoreClient.thinkerHealth(shopDomain);
+        } catch (RuntimeException ex) {
+            return new ShopifyBridgeThinkerHealthSummary(
+                shopDomain,
+                null,
+                false,
+                "UNAVAILABLE",
+                0,
+                0,
+                "Thinker health could not be loaded from the Platform control plane.",
+                List.of("Refresh the app after Platform connectivity is restored.")
+            );
+        }
+    }
+
     private String defaultDisplayName(String shopDomain) {
         if (shopDomain == null || shopDomain.isBlank()) {
             return "Shopify store";
@@ -290,6 +479,29 @@ public class ShopifyBridgeMerchantStoreService {
         return store.customerId() != null && !store.customerId().isBlank()
             && store.deploymentId() != null && !store.deploymentId().isBlank()
             && store.consumerId() != null && !store.consumerId().isBlank();
+    }
+
+    private void enqueueProvisioningSafely(String shopDomain, String jobType, String tierKey, String reason) {
+        try {
+            platformShopifyStoreClient.enqueueProvisioning(
+                shopDomain,
+                new ShopifyBridgeCreateProvisioningJobRequest(
+                    jobType,
+                    null,
+                    tierKey,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    reason,
+                    false
+                )
+            );
+        } catch (RuntimeException ignored) {
+            // The merchant path remains usable; Platform exposes retry/status for provisioning recovery.
+        }
     }
 
     private boolean installRecoveryRequired(ShopifyInstallRecordSummary installRecord,

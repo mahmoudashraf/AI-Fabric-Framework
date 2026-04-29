@@ -12,6 +12,8 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayWorkspaceOrphanSer
 import com.ai.fabric.platform.backend.deployment.model.RailwayWorkspaceProjectCleanupSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRegistrationEntity;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerRegistrationRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -38,6 +40,7 @@ public class RailwayWorkspaceCleanupService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository;
+    private final PlatformManagedProductServiceRepository platformManagedProductServiceRepository;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
@@ -46,6 +49,7 @@ public class RailwayWorkspaceCleanupService {
                                           DeploymentRepository deploymentRepository,
                                           DeploymentReleaseRepository deploymentReleaseRepository,
                                           VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository,
+                                          PlatformManagedProductServiceRepository platformManagedProductServiceRepository,
                                           PlatformAuditService platformAuditService,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
@@ -53,6 +57,7 @@ public class RailwayWorkspaceCleanupService {
         this.deploymentRepository = deploymentRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.vectorizationRunnerRegistrationRepository = vectorizationRunnerRegistrationRepository;
+        this.platformManagedProductServiceRepository = platformManagedProductServiceRepository;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
@@ -325,6 +330,21 @@ public class RailwayWorkspaceCleanupService {
                 deployment.getArchivedAt() != null
             );
             appendOwner(serviceOwnersByName, registration.getRunnerInstanceId(), owner);
+        }
+        for (PlatformManagedProductServiceEntity productService : platformManagedProductServiceRepository.findAll()) {
+            if (!hasText(productService.getRailwayProjectId()) && !hasText(productService.getRailwayServiceId())) {
+                continue;
+            }
+            String ownerId = firstNonBlank(productService.getDeploymentId(), "product-service:" + productService.getServiceRef());
+            String ownerName = firstNonBlank(productService.getDisplayName(), productService.getServiceRef());
+            RailwayWorkspaceCleanupOwnerSummary owner = new RailwayWorkspaceCleanupOwnerSummary(
+                ownerId,
+                ownerName,
+                productService.getEnvironmentScope(),
+                false
+            );
+            appendOwner(projectOwnersById, productService.getRailwayProjectId(), owner);
+            appendOwner(serviceOwnersById, productService.getRailwayServiceId(), owner);
         }
         return new OwnershipIndex(projectOwnersById, serviceOwnersById, serviceOwnersByName);
     }

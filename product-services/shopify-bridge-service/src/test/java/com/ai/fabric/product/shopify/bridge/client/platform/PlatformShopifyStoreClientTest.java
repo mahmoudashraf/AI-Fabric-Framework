@@ -1,6 +1,9 @@
 package com.ai.fabric.product.shopify.bridge.client.platform;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSourcePreflightRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordSyncStatusRequest;
@@ -18,14 +21,19 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class PlatformShopifyStoreClientTest {
@@ -163,6 +171,124 @@ class PlatformShopifyStoreClientTest {
     }
 
     @Test
+    void listPartnerAccessRequestsUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/merchant/partner-access/requests?shopDomain=alpha.myshopify.com"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                [
+                  {
+                    "requestId":"par-1",
+                    "implementationRequestId":"impl-1",
+                    "partnerAccountId":"partner-1",
+                    "partnerName":"Launch Partner",
+                    "clientName":"Alpha",
+                    "contactEmail":"merchant@example.com",
+                    "storeConnectionId":"store-1",
+                    "assignmentId":null,
+                    "shopDomain":"alpha.myshopify.com",
+                    "requestedTier":"MERCHANT_CONFIGURED",
+                    "requestedSurfaces":["ai-search","product-faq"],
+                    "knownIntegrations":["reviews"],
+                    "notes":"Full configured store access",
+                    "requestedScope":"FULL_STORE_ACCESS",
+                    "status":"WAITING_ON_MERCHANT",
+                    "createdAt":"2026-04-25T12:00:00Z",
+                    "expiresAt":"2026-05-25T12:00:00Z",
+                    "approvedAt":null,
+                    "revokedAt":null,
+                    "updatedAt":"2026-04-25T12:00:00Z"
+                  }
+                ]
+                """, MediaType.APPLICATION_JSON));
+
+        List<ShopifyBridgePartnerAccessRequestSummary> requests = client.listPartnerAccessRequests("alpha.myshopify.com");
+
+        assertThat(requests).hasSize(1);
+        assertThat(requests.get(0).requestId()).isEqualTo("par-1");
+        assertThat(requests.get(0).status()).isEqualTo("WAITING_ON_MERCHANT");
+        server.verify();
+    }
+
+    @Test
+    void approvePartnerAccessRequestUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/merchant/partner-access/requests/par-1/approve?shopDomain=alpha.myshopify.com"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "requestId":"par-1",
+                  "assignmentId":"assignment-1",
+                  "shopDomain":"alpha.myshopify.com",
+                  "status":"ACTIVE",
+                  "decidedAt":"2026-04-25T12:05:00Z"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgePartnerAccessDecisionSummary response = client.approvePartnerAccessRequest(
+            "alpha.myshopify.com",
+            "par-1",
+            new ShopifyBridgePartnerAccessDecisionRequest("Merchant Owner", "owner@example.com", "FULL_STORE_ACCESS", null)
+        );
+
+        assertThat(response.assignmentId()).isEqualTo("assignment-1");
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        server.verify();
+    }
+
+    @Test
+    void denyPartnerAccessRequestUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/merchant/partner-access/requests/par-1/deny?shopDomain=alpha.myshopify.com"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "requestId":"par-1",
+                  "assignmentId":null,
+                  "shopDomain":"alpha.myshopify.com",
+                  "status":"DENIED",
+                  "decidedAt":"2026-04-25T12:07:00Z"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgePartnerAccessDecisionSummary response = client.denyPartnerAccessRequest(
+            "alpha.myshopify.com",
+            "par-1",
+            new ShopifyBridgePartnerAccessDecisionRequest("Merchant Owner", "owner@example.com", null, "Merchant declined access.")
+        );
+
+        assertThat(response.assignmentId()).isNull();
+        assertThat(response.status()).isEqualTo("DENIED");
+        server.verify();
+    }
+
+    @Test
+    void revokePartnerAccessRequestUsesPlatformAdminApiKey() {
+        server.expect(requestTo("https://platform.example.com/api/merchant/partner-access/requests/par-1/revoke?shopDomain=alpha.myshopify.com"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "requestId":"par-1",
+                  "assignmentId":"assignment-1",
+                  "shopDomain":"alpha.myshopify.com",
+                  "status":"REVOKED",
+                  "decidedAt":"2026-04-25T12:10:00Z"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgePartnerAccessDecisionSummary response = client.revokePartnerAccessRequest(
+            "alpha.myshopify.com",
+            "par-1",
+            new ShopifyBridgePartnerAccessDecisionRequest("Merchant Owner", "owner@example.com", null, "Merchant revoked access.")
+        );
+
+        assertThat(response.assignmentId()).isEqualTo("assignment-1");
+        assertThat(response.status()).isEqualTo("REVOKED");
+        server.verify();
+    }
+
+    @Test
     void goLiveUsesPlatformAdminApiKey() {
         server.expect(requestTo("https://platform.example.com/api/shopify/stores/alpha.myshopify.com/go-live"))
             .andExpect(method(HttpMethod.POST))
@@ -210,7 +336,7 @@ class PlatformShopifyStoreClientTest {
         ShopifyBridgeStoreSummary response = client.recordSourcePreflight(
             "alpha.myshopify.com",
             new ShopifyBridgeRecordSourcePreflightRequest(List.of(
-                new ShopifyBridgeStoreSourcePreflightCategorySummary("products", true, "READY", 120, "Products reachable")
+                new ShopifyBridgeStoreSourcePreflightCategorySummary("products", true, "READY", 120, "Products reachable", List.of("Judge.me"))
             ))
         );
 
@@ -284,7 +410,12 @@ class PlatformShopifyStoreClientTest {
             "alpha.myshopify.com",
             new ShopifyBridgeUpdateWidgetSettingsRequest(
                 "Need help?",
-                "Ask me about products and policies."
+                "Ask me about products and policies.",
+                "GUIDED_COMMERCE",
+                List.of("ai-search", "comparison"),
+                "navigator",
+                List.of("navigator", "executor"),
+                java.util.Map.of("account", "executor")
             )
         );
 
@@ -305,6 +436,12 @@ class PlatformShopifyStoreClientTest {
                 "products/update",
                 "CONTENT_CHANGED",
                 "products",
+                "UPDATE",
+                "gid://shopify/Product/1",
+                "2026-04-22T00:00:00Z",
+                "wh_123",
+                "checksum-123",
+                1,
                 "Shopify product content changed. Incremental sync is required.",
                 true
             )
@@ -336,7 +473,9 @@ class PlatformShopifyStoreClientTest {
             true,
             true,
             false,
-            true
+            true,
+            false,
+            false
         ));
 
         assertThat(response.installStatus()).isEqualTo("INSTALLED");
@@ -418,6 +557,43 @@ class PlatformShopifyStoreClientTest {
         var response = client.queryConsumerBridgeChat("consumer-alpha", null, "shopper-session-1");
 
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        server.verify();
+    }
+
+    @Test
+    void queryConsumerBridgeChatRetriesTransientServerFailure() {
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withServerError());
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {"success":true,"conversationId":"conv-retry","result":{"message":"Hello after retry"}}
+                """, MediaType.APPLICATION_JSON));
+
+        var response = client.queryConsumerBridgeChat("consumer-alpha", null, null);
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-retry");
+        server.verify();
+    }
+
+    @Test
+    void queryConsumerBridgeChatDoesNotRetryClientFailure() {
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withStatus(FORBIDDEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                    {"message":"forbidden"}
+                    """));
+
+        assertThatThrownBy(() -> client.queryConsumerBridgeChat("consumer-alpha", null, null))
+            .isInstanceOf(RestClientResponseException.class)
+            .hasMessageContaining("403");
+
         server.verify();
     }
 

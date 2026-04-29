@@ -214,7 +214,10 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL", "gpt-4.1-mini");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE", "openai-cloud-default");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE", "openai-cloud-default");
-        assertThat(context.env()).containsEntry("MARKETPLACE_SMOKE_QUERY", "What is the refund policy?");
+        assertThat(context.env()).containsEntry(
+            "MARKETPLACE_SMOKE_QUERY",
+            "Using only retrieved marketplace knowledge sources, summarize the return and refund policy."
+        );
     }
 
     @Test

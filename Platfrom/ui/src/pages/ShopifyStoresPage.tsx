@@ -30,20 +30,47 @@ import { useSearchParams } from 'react-router-dom'
 import {
   bootstrapShopifyStore,
   deleteShopifyStore,
+  enqueueShopifyStoreProvisioning,
+  fetchMerchantPartnerAccessRequests,
+  fetchProductServiceStoreBillingSummary,
   fetchProductServices,
+  fetchShopifyPackageProfiles,
   runProductServiceStoreSourcePreflight,
+  fetchShopifyStoreProvisioning,
+  fetchShopifyStoreVectorization,
+  fetchShopifyStoreGovernedActions,
   fetchShopifyStoreBinding,
   fetchShopifyStore,
   fetchShopifyStores,
   goLiveShopifyStore,
+  indexAllShopifyStoreVectorization,
+  reconcileShopifyStoreVectorization,
   recordShopifyStoreSourcePreflight,
+  replayShopifyStoreVectorizationEvent,
+  reindexAllShopifyStoreVectorization,
+  reindexSelectedShopifyStoreVectorization,
+  revokeMerchantPartnerAccessRequest,
+  retryLastFailedShopifyStoreVectorizationAutoRun,
+  type MerchantPartnerAccessRequestSummary,
+  type CreateShopifyStoreProvisioningJobRequest,
   type RecordShopifyStoreSourcePreflightRequest,
+  type PlatformManagedProductServiceStoreBillingSummary,
+  type ShopifyCompanionPackageProfileSummary,
   type ShopifyStoreBootstrapSummary,
   type ShopifyStoreSourcePreflightCategorySummary,
+  type ShopifyStoreGovernedActionAuditSummary,
+  type ShopifyStoreVectorizationSummary,
+  type ShopifyStoreVectorizationSourcePolicyInput,
+  type ShopifyStoreVectorizationSourcePolicySummary,
+  type ShopifyStoreVectorizationSelectedEntitiesRequest,
+  type UpdateShopifyStoreVectorizationPolicyRequest,
+  updateShopifyStoreVectorizationPolicy,
   upsertShopifyStore,
   type ShopifyStoreConnectionSummary,
+  type ShopifyStoreProvisioningStatusSummary,
   type UpsertShopifyStoreConnectionRequest,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
@@ -57,10 +84,13 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'ENABLED':
     case 'LIVE':
     case 'PREFLIGHT_READY':
+    case 'ACTIVE':
+    case 'APPROVED':
       return 'success'
     case 'FAILED':
     case 'BLOCKED':
     case 'DISCONNECTED':
+    case 'DENIED':
       return 'error'
     case 'NOT_SYNCED':
     case 'NOT_ENABLED':
@@ -69,10 +99,17 @@ function chipColor(value: string | null | undefined): 'success' | 'warning' | 'e
     case 'INSTALL_IDENTITY_READY':
     case 'PLATFORM_BOOTSTRAPPED':
     case 'GO_LIVE_REQUESTED':
+    case 'WAITING_ON_MERCHANT':
+    case 'QUEUED':
+    case 'RUNNING':
       return 'warning'
     default:
       return 'default'
   }
+}
+
+function isActivePartnerAccessStatus(status: string | null | undefined): boolean {
+  return ['ACTIVE', 'APPROVED'].includes((status ?? '').toUpperCase())
 }
 
 function isReleaseInProgress(status: string | null | undefined): boolean {
@@ -82,6 +119,29 @@ function isReleaseInProgress(status: string | null | undefined): boolean {
 type StoreFormState = UpsertShopifyStoreConnectionRequest
 type PreflightCategoryStatus = 'READY' | 'PENDING' | 'BLOCKED' | 'FAILED'
 type PreflightFormCategory = ShopifyStoreSourcePreflightCategorySummary & { itemCountText: string }
+type VectorizationPolicyDraft = UpdateShopifyStoreVectorizationPolicyRequest
+type ShopifyBuilderStatusColor = 'success' | 'warning' | 'error' | 'default'
+type ShopifyBuilderStatusItem = {
+  label: string
+  status: string
+  color: ShopifyBuilderStatusColor
+  detail: string
+}
+type ShopifyBuilderStatusSummary = {
+  status: string
+  color: ShopifyBuilderStatusColor
+  message: string
+  items: ShopifyBuilderStatusItem[]
+}
+
+const DEFAULT_WIDGET_SURFACES = [
+  'ai-search',
+  'contextual-pill',
+  'product-insight',
+  'policy-strip',
+  'product-faq',
+  'comparison',
+]
 
 const emptyForm: StoreFormState = {
   shopDomain: '',
@@ -99,6 +159,8 @@ const emptyForm: StoreFormState = {
   collectionsEnabled: true,
   pagesEnabled: true,
   policiesEnabled: true,
+  articlesEnabled: true,
+  metaobjectsEnabled: false,
 }
 
 function buildPreflightCategories(store: ShopifyStoreConnectionSummary): PreflightFormCategory[] {
@@ -108,6 +170,8 @@ function buildPreflightCategories(store: ShopifyStoreConnectionSummary): Preflig
     { category: 'collections', enabled: store.collectionsEnabled },
     { category: 'pages', enabled: store.pagesEnabled },
     { category: 'policies', enabled: store.policiesEnabled },
+    { category: 'articles', enabled: store.articlesEnabled },
+    { category: 'metaobjects', enabled: store.metaobjectsEnabled },
   ]
     .filter((entry) => entry.enabled)
     .map((entry) => {
@@ -123,7 +187,215 @@ function buildPreflightCategories(store: ShopifyStoreConnectionSummary): Preflig
     })
 }
 
+function buildVectorizationPolicyDraft(summary: ShopifyStoreVectorizationSummary): VectorizationPolicyDraft {
+  return {
+    policyVersion: summary.policy.policyVersion,
+    sourcePolicies: summary.policy.sourcePolicies.map((policy) => ({
+      sourceCategory: policy.sourceCategory,
+      autoIndexingEnabled: policy.autoIndexingEnabled,
+      createTriggerEnabled: policy.createTriggerEnabled,
+      deleteTriggerEnabled: policy.deleteTriggerEnabled,
+      updateTriggerMode: policy.updateTriggerMode,
+      selectedIndexedFields: [...policy.selectedIndexedFields],
+      debounceWindowSeconds: policy.debounceWindowSeconds,
+      minimumRunIntervalSeconds: policy.minimumRunIntervalSeconds,
+    })),
+  }
+}
+
+function sourceFieldOptions(
+  summary: ShopifyStoreVectorizationSummary | undefined,
+  sourceCategory: string,
+): string[] {
+  return (summary?.effectiveIndexedFields ?? [])
+    .filter((field) => field.sourceCategory === sourceCategory && field.selectableForTriggerPolicy)
+    .map((field) => field.fieldKey)
+}
+
+function enabledWidgetSurfaces(store: ShopifyStoreConnectionSummary | null): string[] {
+  return store?.widgetDetail?.settings?.enabledSurfaces?.length
+    ? store.widgetDetail.settings.enabledSurfaces
+    : DEFAULT_WIDGET_SURFACES
+}
+
+function preflightCategory(store: ShopifyStoreConnectionSummary | null, category: string) {
+  return store?.sourcePreflight?.categories.find((item) => item.category === category) ?? null
+}
+
+function buildSourceDepthSummary(
+  store: ShopifyStoreConnectionSummary | null,
+  vectorization: ShopifyStoreVectorizationSummary | undefined,
+): ShopifyBuilderStatusSummary {
+  if (!store) {
+    return {
+      status: 'Unavailable',
+      color: 'warning',
+      message: 'Select a Shopify store to inspect source-depth readiness.',
+      items: [],
+    }
+  }
+
+  const selectedCategories = new Set(vectorization?.selectedCategories ?? [])
+  const articlePreflight = preflightCategory(store, 'articles')
+  const metaobjectPreflight = preflightCategory(store, 'metaobjects')
+
+  const items: ShopifyBuilderStatusItem[] = [
+    {
+      label: 'Product review signals',
+      status: store.productsEnabled && selectedCategories.has('products') ? 'Ready' : 'Needs attention',
+      color: store.productsEnabled && selectedCategories.has('products') ? 'success' : 'warning',
+      detail: store.productsEnabled && selectedCategories.has('products')
+        ? 'Judge.me-compatible review and rating metafields can flow through product sync, vectorization content, and shopper actions when present.'
+        : 'Product ingestion is not fully enabled, so review and rating signals cannot become part of the shopper evidence path yet.',
+    },
+    {
+      label: 'Published article coverage',
+      status: !store.articlesEnabled
+        ? 'Optional'
+        : articlePreflight?.status === 'READY' && selectedCategories.has('articles')
+          ? 'Ready'
+          : 'Needs attention',
+      color: !store.articlesEnabled
+        ? 'default'
+        : articlePreflight?.status === 'READY' && selectedCategories.has('articles')
+          ? 'success'
+          : 'warning',
+      detail: !store.articlesEnabled
+        ? 'Articles are currently disabled for this store.'
+        : articlePreflight?.status === 'READY' && selectedCategories.has('articles')
+          ? `Published article content is enabled with ${articlePreflight?.itemCount ?? 0} discoverable article records ready for the read-first support-policy path.`
+          : 'Articles are enabled, but preflight or vectorization selection still needs attention before the source depth is launch-legible.',
+    },
+    {
+      label: 'Metaobject depth',
+      status: !store.metaobjectsEnabled
+        ? 'Optional'
+        : metaobjectPreflight?.status === 'READY' && selectedCategories.has('metaobjects')
+          ? 'Ready'
+          : 'Needs attention',
+      color: !store.metaobjectsEnabled
+        ? 'default'
+        : metaobjectPreflight?.status === 'READY' && selectedCategories.has('metaobjects')
+          ? 'success'
+          : 'warning',
+      detail: !store.metaobjectsEnabled
+        ? 'Metaobjects are still opt-in for this store.'
+        : metaobjectPreflight?.status === 'READY' && selectedCategories.has('metaobjects')
+          ? `Metaobjects are enabled with ${metaobjectPreflight?.itemCount ?? 0} eligible records in the support-policy source path.`
+          : 'Metaobjects are enabled, but preflight or vectorization selection still needs tightening before they count as live source depth.',
+    },
+    {
+      label: 'Read-first source breadth',
+      status: selectedCategories.has('products') && selectedCategories.has('policies') ? 'Ready' : 'Needs attention',
+      color: selectedCategories.has('products') && selectedCategories.has('policies') ? 'success' : 'warning',
+      detail: selectedCategories.has('products') && selectedCategories.has('policies')
+        ? `Selected categories ${Array.from(selectedCategories).join(' · ')} support both commerce retrieval and support-policy guidance.`
+        : 'The store does not yet have both commerce and support-policy source families selected for vectorization.',
+    },
+  ]
+
+  const hasWarning = items.some((item) => item.color === 'warning')
+  return {
+    status: hasWarning ? 'Needs attention' : 'Ready',
+    color: hasWarning ? 'warning' : 'success',
+    message: hasWarning
+      ? 'The source primitives are mostly there, but at least one content family still needs tighter enablement or selection before the roadmap claim is fully operator-legible.'
+      : 'Articles, metaobjects, review signals, and read-first source breadth are explicit and operator-legible for this store.',
+    items,
+  }
+}
+
+function buildLaunchCommercialSummary(
+  store: ShopifyStoreConnectionSummary | null,
+  billingSummary: PlatformManagedProductServiceStoreBillingSummary | null,
+  vectorization: ShopifyStoreVectorizationSummary | undefined,
+  governedActions: ShopifyStoreGovernedActionAuditSummary[],
+): ShopifyBuilderStatusSummary {
+  if (!store) {
+    return {
+      status: 'Unavailable',
+      color: 'warning',
+      message: 'Select a Shopify store to inspect launch and commercial readiness.',
+      items: [],
+    }
+  }
+
+  const tierKeys = new Set((billingSummary?.availablePlans ?? []).map((plan) => plan.tierKey ?? ''))
+  const elitePlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'ELITE') ?? null
+  const storefrontReady = Boolean(store.readiness?.storefrontReady)
+  const goLiveReady = Boolean(store.readiness?.goLiveEligible)
+  const syncHealthy = store.syncDetail?.status === 'SYNCED'
+  const liveUpdatesHealthy = vectorization?.automation?.autoIndexingHealthy !== false
+  const enabledSurfaces = enabledWidgetSurfaces(store)
+  const allowedSurfaces = billingSummary?.allowedSurfaces?.length
+    ? billingSummary.allowedSurfaces
+    : DEFAULT_WIDGET_SURFACES
+
+  const items: ShopifyBuilderStatusItem[] = [
+    {
+      label: 'Tier ladder',
+      status: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') ? 'Ready' : 'Needs attention',
+      color: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') ? 'success' : 'warning',
+      detail: tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE')
+        ? 'Free, Starter, and Elite are visible from the live billing contract for this store.'
+        : 'The live billing contract is still missing part of the intended Companion tier ladder.',
+    },
+    {
+      label: 'Elite governed commerce packaging',
+      status: elitePlan?.actionCapable && elitePlan?.requiresExplicitConfirmation && elitePlan?.auditTrailAvailable
+        ? 'Ready'
+        : 'Needs attention',
+      color: elitePlan?.actionCapable && elitePlan?.requiresExplicitConfirmation && elitePlan?.auditTrailAvailable
+        ? 'success'
+        : 'warning',
+      detail: elitePlan?.actionCapable && elitePlan?.requiresExplicitConfirmation && elitePlan?.auditTrailAvailable
+        ? `Elite is packaged for ${elitePlan.actionPackages.length ? elitePlan.actionPackages.join(' · ') : 'governed commerce'} with explicit confirmation and audit trail availability.`
+        : 'Elite governance posture is not fully legible in the live billing contract yet.',
+    },
+    {
+      label: 'Store launch gate',
+      status: storefrontReady && goLiveReady && syncHealthy && liveUpdatesHealthy ? 'Ready' : 'Blocked',
+      color: storefrontReady && goLiveReady && syncHealthy && liveUpdatesHealthy ? 'success' : 'error',
+      detail: storefrontReady && goLiveReady && syncHealthy && liveUpdatesHealthy
+        ? 'Storefront, go-live posture, sync, and live updates are aligned closely enough to support a clean launch story.'
+        : 'At least one of storefront readiness, go-live eligibility, sync, or live updates still needs operator attention before launch.',
+    },
+    {
+      label: 'Tier-to-surface alignment',
+      status: enabledSurfaces.every((surfaceId) => allowedSurfaces.includes(surfaceId)) ? 'Aligned' : 'Needs attention',
+      color: enabledSurfaces.every((surfaceId) => allowedSurfaces.includes(surfaceId)) ? 'success' : 'warning',
+      detail: enabledSurfaces.every((surfaceId) => allowedSurfaces.includes(surfaceId))
+        ? `Configured surfaces ${enabledSurfaces.join(' · ')} fit within the current tier allowance.`
+        : 'The current widget surface configuration asks for surfaces outside the active tier allowance.',
+    },
+    {
+      label: 'Governed action evidence',
+      status: governedActions.length > 0 ? 'Observed' : billingSummary?.actionCapable ? 'Awaiting live traffic' : 'Not active',
+      color: governedActions.length > 0 ? 'success' : billingSummary?.actionCapable ? 'warning' : 'default',
+      detail: governedActions.length > 0
+        ? 'Recent governed commerce actions are recorded for this store and available for platform-admin investigation.'
+        : billingSummary?.actionCapable
+          ? 'Elite packaging is available, but no governed commerce actions have been observed on this store yet.'
+          : 'Governed commerce actions are not active for the current store tier.',
+    },
+  ]
+
+  const hasError = items.some((item) => item.color === 'error')
+  const hasWarning = items.some((item) => item.color === 'warning')
+  return {
+    status: hasError ? 'Blocked' : hasWarning ? 'Needs attention' : 'Ready',
+    color: hasError ? 'error' : hasWarning ? 'warning' : 'success',
+    message: hasError
+      ? 'Companion still has at least one launch-blocking operator gap on this store.'
+      : hasWarning
+        ? 'Companion is close, but one or more commercial or launch details still need tightening.'
+        : 'The store now reads like a coherent Companion launch target, not just a configured integration.',
+    items,
+  }
+}
+
 export function ShopifyStoresPage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -132,9 +404,14 @@ export function ShopifyStoresPage() {
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [deleteForce, setDeleteForce] = useState(false)
+  const [partnerAccessRevokeTarget, setPartnerAccessRevokeTarget] = useState<MerchantPartnerAccessRequestSummary | null>(null)
+  const [partnerAccessRevokeReason, setPartnerAccessRevokeReason] = useState('')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [form, setForm] = useState<StoreFormState>(emptyForm)
   const [preflightCategories, setPreflightCategories] = useState<PreflightFormCategory[]>([])
+  const [selectedReindexEntityTypes, setSelectedReindexEntityTypes] = useState<string[]>([])
+  const [vectorizationPolicyDraft, setVectorizationPolicyDraft] = useState<VectorizationPolicyDraft | null>(null)
+  const [selectedProvisioningProfileKey, setSelectedProvisioningProfileKey] = useState('')
 
   const servicesQuery = useQuery({
     queryKey: ['product-services'],
@@ -145,6 +422,13 @@ export function ShopifyStoresPage() {
     queryKey: ['shopify-stores'],
     queryFn: fetchShopifyStores,
   })
+
+  const activePackageProfilesQuery = useQuery({
+    queryKey: ['shopify-package-profiles', 'active'],
+    queryFn: () => fetchShopifyPackageProfiles(true),
+  })
+
+  const activePackageProfiles = activePackageProfilesQuery.data ?? []
 
   const selectedShopDomain = searchParams.get('shop') ?? ''
 
@@ -182,6 +466,83 @@ export function ShopifyStoresPage() {
 
   const selectedStore = selectedStoreQuery.data ?? selectedSummary
 
+  const selectedVectorizationQuery = useQuery({
+    queryKey: ['shopify-stores', selectedShopDomain, 'vectorization'],
+    queryFn: () => fetchShopifyStoreVectorization(selectedShopDomain),
+    enabled: selectedShopDomain.length > 0,
+  })
+
+  const selectedVectorization = selectedVectorizationQuery.data
+
+  const selectedProvisioningQuery = useQuery({
+    queryKey: ['shopify-stores', selectedShopDomain, 'provisioning'],
+    queryFn: () => fetchShopifyStoreProvisioning(selectedShopDomain),
+    enabled: selectedShopDomain.length > 0,
+    refetchInterval: (query) => {
+      const provisioning = query.state.data as ShopifyStoreProvisioningStatusSummary | undefined
+      return ['QUEUED', 'RUNNING'].includes((provisioning?.status ?? '').toUpperCase()) ? 5000 : false
+    },
+  })
+
+  const selectedProvisioning = selectedProvisioningQuery.data ?? null
+
+  useEffect(() => {
+    setSelectedProvisioningProfileKey('')
+  }, [selectedShopDomain])
+
+  useEffect(() => {
+    if (activePackageProfiles.length === 0) {
+      return
+    }
+    const effectiveProfileKey = selectedProvisioning?.effectiveProfile?.profileKey
+    const nextProfileKey =
+      (effectiveProfileKey && activePackageProfiles.some((profile) => profile.profileKey === effectiveProfileKey))
+        ? effectiveProfileKey
+        : activePackageProfiles[0].profileKey
+    setSelectedProvisioningProfileKey((current) =>
+      current && activePackageProfiles.some((profile) => profile.profileKey === current) ? current : nextProfileKey,
+    )
+  }, [activePackageProfiles, selectedProvisioning?.effectiveProfile?.profileKey])
+
+  const selectedProvisioningTargetProfile = useMemo(
+    () => activePackageProfiles.find((profile) => profile.profileKey === selectedProvisioningProfileKey) ?? null,
+    [activePackageProfiles, selectedProvisioningProfileKey],
+  )
+
+  const selectedGovernedActionsQuery = useQuery({
+    queryKey: ['shopify-stores', selectedShopDomain, 'governed-actions'],
+    queryFn: () => fetchShopifyStoreGovernedActions(selectedShopDomain, 10),
+    enabled: selectedShopDomain.length > 0,
+  })
+
+  const selectedGovernedActions = selectedGovernedActionsQuery.data ?? []
+
+  const partnerAccessRequestsQuery = useQuery({
+    queryKey: ['merchant-partner-access-requests', selectedShopDomain],
+    queryFn: () => fetchMerchantPartnerAccessRequests(selectedShopDomain),
+    enabled: selectedShopDomain.length > 0,
+  })
+
+  const partnerAccessRequests = partnerAccessRequestsQuery.data ?? []
+
+  const selectedStoreBillingQuery = useQuery({
+    queryKey: ['product-services', selectedStore?.productServiceRef, selectedShopDomain, 'billing-summary'],
+    queryFn: () => fetchProductServiceStoreBillingSummary(selectedStore!.productServiceRef!, selectedShopDomain),
+    enabled: Boolean(selectedShopDomain.length > 0 && selectedStore?.productServiceRef),
+  })
+
+  const selectedStoreBilling = selectedStoreBillingQuery.data ?? null
+
+  const sourceDepthSummary = useMemo(
+    () => buildSourceDepthSummary(selectedStore, selectedVectorization),
+    [selectedStore, selectedVectorization],
+  )
+
+  const launchCommercialSummary = useMemo(
+    () => buildLaunchCommercialSummary(selectedStore, selectedStoreBilling, selectedVectorization, selectedGovernedActions),
+    [selectedGovernedActions, selectedStore, selectedStoreBilling, selectedVectorization],
+  )
+
   const bindingQuery = useQuery({
     queryKey: ['shopify-stores', selectedShopDomain, 'binding'],
     queryFn: () => fetchShopifyStoreBinding(selectedShopDomain),
@@ -193,6 +554,16 @@ export function ShopifyStoresPage() {
       setPreflightCategories(buildPreflightCategories(selectedStore))
     }
   }, [preflightDialogOpen, selectedStore])
+
+  useEffect(() => {
+    if (selectedVectorization) {
+      setSelectedReindexEntityTypes(selectedVectorization.selectedEntityTypes)
+      setVectorizationPolicyDraft(buildVectorizationPolicyDraft(selectedVectorization))
+    } else {
+      setSelectedReindexEntityTypes([])
+      setVectorizationPolicyDraft(null)
+    }
+  }, [selectedVectorization])
 
   const upsertMutation = useMutation({
     mutationFn: upsertShopifyStore,
@@ -233,6 +604,24 @@ export function ShopifyStoresPage() {
     },
     onError: (error) => {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to bootstrap Shopify store.' })
+    },
+  })
+
+  const provisioningMutation = useMutation({
+    mutationFn: ({ shopDomain, payload }: { shopDomain: string; payload: CreateShopifyStoreProvisioningJobRequest }) =>
+      enqueueShopifyStoreProvisioning(shopDomain, payload),
+    onSuccess: async (job) => {
+      setMessage({ type: 'success', text: `Queued provisioning ${job.jobType} for ${job.shopDomain}.` })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', job.shopDomain] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', job.shopDomain, 'provisioning'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', job.shopDomain, 'vectorization'] }),
+        queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+      ])
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to queue Shopify Companion provisioning.' })
     },
   })
 
@@ -305,6 +694,139 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const revokePartnerAccessMutation = useMutation({
+    mutationFn: ({ shopDomain, requestId, reason }: { shopDomain: string; requestId: string; reason: string }) =>
+      revokeMerchantPartnerAccessRequest(shopDomain, requestId, {
+        approverName: auth.session?.displayName?.trim() || 'Platform operator',
+        approvedScope: 'FULL_STORE_ACCESS',
+        decisionReason: reason,
+      }),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Revoked partner access for ${summary.shopDomain}.` })
+      setPartnerAccessRevokeTarget(null)
+      setPartnerAccessRevokeReason('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['merchant-partner-access-requests', summary.shopDomain] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+        queryClient.invalidateQueries({ queryKey: ['shopify-stores', summary.shopDomain] }),
+      ])
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to revoke partner access.' })
+    },
+  })
+
+  const refreshVectorizationState = async (shopDomain: string) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['shopify-stores'] }),
+      queryClient.invalidateQueries({ queryKey: ['shopify-stores', shopDomain] }),
+      queryClient.invalidateQueries({ queryKey: ['shopify-stores', shopDomain, 'vectorization'] }),
+      queryClient.invalidateQueries({ queryKey: ['product-services'] }),
+    ])
+  }
+
+  const openPartnerAccessRevokeDialog = (request: MerchantPartnerAccessRequestSummary) => {
+    setPartnerAccessRevokeTarget(request)
+    setPartnerAccessRevokeReason('')
+  }
+
+  const submitPartnerAccessRevoke = () => {
+    const target = partnerAccessRevokeTarget
+    const reason = partnerAccessRevokeReason.trim()
+    if (!target) {
+      return
+    }
+    if (!reason) {
+      setMessage({ type: 'error', text: 'Enter an emergency revoke reason before revoking partner access.' })
+      return
+    }
+    revokePartnerAccessMutation.mutate({
+      shopDomain: target.shopDomain,
+      requestId: target.requestId,
+      reason,
+    })
+  }
+
+  const reconcileVectorizationMutation = useMutation({
+    mutationFn: (shopDomain: string) => reconcileShopifyStoreVectorization(shopDomain),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Reconciled indexing support for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to reconcile Shopify indexing support.' })
+    },
+  })
+
+  const indexAllVectorizationMutation = useMutation({
+    mutationFn: (shopDomain: string) => indexAllShopifyStoreVectorization(shopDomain),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Queued indexing for all enabled data on ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to start Shopify indexing.' })
+    },
+  })
+
+  const reindexAllVectorizationMutation = useMutation({
+    mutationFn: (shopDomain: string) => reindexAllShopifyStoreVectorization(shopDomain),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Queued full reindex for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to start Shopify reindex.' })
+    },
+  })
+
+  const reindexSelectedVectorizationMutation = useMutation({
+    mutationFn: ({ shopDomain, payload }: { shopDomain: string; payload: ShopifyStoreVectorizationSelectedEntitiesRequest }) =>
+      reindexSelectedShopifyStoreVectorization(shopDomain, payload),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Queued selected reindex for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to start selected Shopify reindex.' })
+    },
+  })
+
+  const saveVectorizationPolicyMutation = useMutation({
+    mutationFn: ({ shopDomain, payload }: { shopDomain: string; payload: UpdateShopifyStoreVectorizationPolicyRequest }) =>
+      updateShopifyStoreVectorizationPolicy(shopDomain, payload),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Saved live update policy for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save Shopify live update policy.' })
+    },
+  })
+
+  const replayVectorizationEventMutation = useMutation({
+    mutationFn: ({ shopDomain, eventId }: { shopDomain: string; eventId: string }) =>
+      replayShopifyStoreVectorizationEvent(shopDomain, eventId),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Replayed live update event for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to replay Shopify live update event.' })
+    },
+  })
+
+  const retryFailedAutoRunMutation = useMutation({
+    mutationFn: (shopDomain: string) => retryLastFailedShopifyStoreVectorizationAutoRun(shopDomain),
+    onSuccess: async (summary) => {
+      setMessage({ type: 'success', text: `Requeued failed live auto indexing work for ${summary.shopDomain}.` })
+      await refreshVectorizationState(summary.shopDomain)
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to requeue the last failed Shopify live auto indexing run.' })
+    },
+  })
+
   const submitPreflight = () => {
     if (!selectedStore) {
       return
@@ -320,6 +842,46 @@ export function ShopifyStoresPage() {
     }
     preflightMutation.mutate({ shopDomain: selectedStore.shopDomain, payload })
   }
+
+  const updatePolicyDraftSource = (
+    sourceCategory: string,
+    mutator: (current: ShopifyStoreVectorizationSourcePolicyInput) => ShopifyStoreVectorizationSourcePolicyInput,
+  ) => {
+    setVectorizationPolicyDraft((current) => {
+      if (!current) {
+        return current
+      }
+      return {
+        ...current,
+        sourcePolicies: current.sourcePolicies.map((policy) =>
+          policy.sourceCategory === sourceCategory ? mutator(policy) : policy,
+        ),
+      }
+    })
+  }
+
+  const buildPackageReconciliationPayload = (
+    profile: ShopifyCompanionPackageProfileSummary | null,
+  ): CreateShopifyStoreProvisioningJobRequest => ({
+    jobType: 'MANUAL_REPAIR',
+    requestedPackageKey: profile?.packageKey ?? null,
+    requestedTierKey: profile?.tierKey ?? null,
+    requestedRuntimeProfileKey: profile?.runtimeProfileKey ?? null,
+    requestedVectorProfileKey: profile?.vectorProfileKey ?? null,
+    reason: profile
+      ? `Operator requested Shopify Companion package reconciliation using profile ${profile.profileKey}.`
+      : 'Operator requested zero-touch Shopify Companion provisioning reconciliation.',
+    processImmediately: true,
+  })
+
+  const vectorizationBusy =
+    reconcileVectorizationMutation.isPending ||
+    indexAllVectorizationMutation.isPending ||
+    reindexAllVectorizationMutation.isPending ||
+    reindexSelectedVectorizationMutation.isPending ||
+    saveVectorizationPolicyMutation.isPending ||
+    replayVectorizationEventMutation.isPending ||
+    retryFailedAutoRunMutation.isPending
 
   return (
     <Stack spacing={3}>
@@ -368,6 +930,23 @@ export function ShopifyStoresPage() {
                 disabled={bootstrapMutation.isPending}
               >
                 Bootstrap platform
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() =>
+                  provisioningMutation.mutate({
+                    shopDomain: selectedStore.shopDomain,
+                    payload: buildPackageReconciliationPayload(selectedProvisioningTargetProfile),
+                  })
+                }
+                disabled={
+                  provisioningMutation.isPending
+                  || activePackageProfilesQuery.isLoading
+                  || !selectedProvisioningTargetProfile
+                  || ['QUEUED', 'RUNNING'].includes((selectedProvisioning?.status ?? '').toUpperCase())
+                }
+              >
+                Reconcile package
               </Button>
               <Button
                 variant="outlined"
@@ -473,6 +1052,8 @@ export function ShopifyStoresPage() {
                       ['Collections enabled', selectedStore.collectionsEnabled ? 'Yes' : 'No'],
                       ['Pages enabled', selectedStore.pagesEnabled ? 'Yes' : 'No'],
                       ['Policies enabled', selectedStore.policiesEnabled ? 'Yes' : 'No'],
+                      ['Articles enabled', selectedStore.articlesEnabled ? 'Yes' : 'No'],
+                      ['Metaobjects enabled', selectedStore.metaobjectsEnabled ? 'Yes' : 'No'],
                       ['Actions', selectedStore.capabilities ? `${selectedStore.capabilities.actionCount}` : null],
                       ['Knowledge sources', selectedStore.capabilities ? `${selectedStore.capabilities.knowledgeSourceCount}` : null],
                       ['Datasets', selectedStore.capabilities ? `${selectedStore.capabilities.marketplaceDatasetCount}` : null],
@@ -489,6 +1070,210 @@ export function ShopifyStoresPage() {
                       </Grid>
                     ))}
                   </Grid>
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Zero-touch provisioning</Typography>
+                            <Chip size="small" label={selectedProvisioning?.status ?? 'NOT_STARTED'} color={chipColor(selectedProvisioning?.status)} />
+                            <Chip size="small" variant="outlined" label={selectedProvisioning?.phase ?? 'NOT_STARTED'} color={chipColor(selectedProvisioning?.phase)} />
+                          </Stack>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() =>
+                              provisioningMutation.mutate({
+                                shopDomain: selectedStore.shopDomain,
+                                payload: buildPackageReconciliationPayload(selectedProvisioningTargetProfile),
+                              })
+                            }
+                            disabled={
+                              provisioningMutation.isPending
+                              || activePackageProfilesQuery.isLoading
+                              || !selectedProvisioningTargetProfile
+                              || ['QUEUED', 'RUNNING'].includes((selectedProvisioning?.status ?? '').toUpperCase())
+                            }
+                          >
+                            Run reconciliation
+                          </Button>
+                        </Stack>
+                        {selectedProvisioningQuery.isError ? (
+                          <Alert severity="error">
+                            {selectedProvisioningQuery.error instanceof Error
+                              ? selectedProvisioningQuery.error.message
+                              : 'Failed to load Shopify Companion provisioning state.'}
+                          </Alert>
+                        ) : selectedProvisioningQuery.isLoading ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Loading provisioning state...
+                          </Typography>
+                        ) : (
+                          <>
+                            <Typography variant="body2" color="text.secondary">
+                              {selectedProvisioning?.summaryMessage ?? 'No provisioning job has been recorded for this store.'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Next action {selectedProvisioning?.nextAction ?? 'Install or reconnect the Shopify app to start provisioning.'}
+                            </Typography>
+                            <Grid container spacing={1.5} alignItems="stretch">
+                              <Grid item xs={12} md={5}>
+                                <TextField
+                                  select
+                                  label="Target package profile"
+                                  value={selectedProvisioningProfileKey}
+                                  onChange={(event) => setSelectedProvisioningProfileKey(event.target.value)}
+                                  disabled={activePackageProfilesQuery.isLoading || activePackageProfiles.length === 0}
+                                  fullWidth
+                                >
+                                  {activePackageProfiles.map((profile) => (
+                                    <MenuItem key={profile.profileKey} value={profile.profileKey}>
+                                      {profile.profileKey} · {profile.packageKey}/{profile.tierKey}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                              </Grid>
+                              <Grid item xs={12} md={7}>
+                                {activePackageProfilesQuery.isError ? (
+                                  <Alert severity="error">
+                                    {activePackageProfilesQuery.error instanceof Error
+                                      ? activePackageProfilesQuery.error.message
+                                      : 'Failed to load active Shopify package profiles.'}
+                                  </Alert>
+                                ) : selectedProvisioningTargetProfile ? (
+                                  <Alert severity="info">
+                                    Target {selectedProvisioningTargetProfile.displayName} · runtime{' '}
+                                    {selectedProvisioningTargetProfile.runtimeProfileKey} · vector{' '}
+                                    {selectedProvisioningTargetProfile.vectorProfileKey} · verification{' '}
+                                    {selectedProvisioningTargetProfile.verificationPackId ?? '—'}
+                                  </Alert>
+                                ) : (
+                                  <Alert severity="warning">No active package profile is available for reconciliation.</Alert>
+                                )}
+                              </Grid>
+                            </Grid>
+                            {selectedProvisioning?.effectiveProfile ? (
+                              <Grid container spacing={1.5}>
+                                {[
+                                  ['Current profile', selectedProvisioning.effectiveProfile.profileKey],
+                                  ['Package', selectedProvisioning.effectiveProfile.packageKey],
+                                  ['Tier', selectedProvisioning.effectiveProfile.tierKey],
+                                  ['Runtime profile', selectedProvisioning.effectiveProfile.runtimeProfileKey],
+                                  ['Vector profile', selectedProvisioning.effectiveProfile.vectorProfileKey],
+                                  ['Cost posture', selectedProvisioning.effectiveProfile.costPosture],
+                                  ['Vector storage', selectedProvisioning.effectiveProfile.vectorStoragePosture],
+                                  ['Verification pack', selectedProvisioning.effectiveProfile.verificationPackId],
+                                  ['Profile', selectedProvisioning.effectiveProfile.displayName],
+                                ].map(([label, value]) => (
+                                  <Grid item xs={12} md={3} key={label}>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {label}
+                                    </Typography>
+                                    <Typography variant="body2">{value ?? '—'}</Typography>
+                                  </Grid>
+                                ))}
+                              </Grid>
+                            ) : null}
+                            {selectedProvisioning?.latestJob ? (
+                              <Alert severity={selectedProvisioning.latestJob.lastErrorMessage ? 'warning' : 'info'}>
+                                Latest job {selectedProvisioning.latestJob.id} · {selectedProvisioning.latestJob.jobType} · attempt{' '}
+                                {selectedProvisioning.latestJob.attemptCount}/{selectedProvisioning.latestJob.maxAttempts} · updated{' '}
+                                {formatTimestamp(selectedProvisioning.latestJob.updatedAt)}
+                                {selectedProvisioning.latestJob.vectorReindexRequired ? ' · vector reindex required' : ''}
+                                {selectedProvisioning.latestJob.lastErrorMessage ? ` · ${selectedProvisioning.latestJob.lastErrorMessage}` : ''}
+                              </Alert>
+                            ) : null}
+                            {selectedProvisioning?.recentJobs.length ? (
+                              <Stack spacing={0.5}>
+                                {selectedProvisioning.recentJobs.slice(0, 3).map((job) => (
+                                  <Typography key={job.id} variant="caption" color="text.secondary">
+                                    {job.id} · {job.jobType} · {job.status}/{job.phase} · {formatTimestamp(job.createdAt)}
+                                  </Typography>
+                                ))}
+                              </Stack>
+                            ) : null}
+                          </>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography sx={{ fontWeight: 700 }}>Partner access override</Typography>
+                          <Chip size="small" label={`${partnerAccessRequests.length} requests`} />
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={`${partnerAccessRequests.filter((request) => isActivePartnerAccessStatus(request.status)).length} active`}
+                            color={partnerAccessRequests.some((request) => isActivePartnerAccessStatus(request.status)) ? 'success' : 'default'}
+                          />
+                        </Stack>
+                        {partnerAccessRequestsQuery.isError ? (
+                          <Alert severity="error">
+                            {partnerAccessRequestsQuery.error instanceof Error
+                              ? partnerAccessRequestsQuery.error.message
+                              : 'Failed to load partner access requests.'}
+                          </Alert>
+                        ) : partnerAccessRequestsQuery.isLoading ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Loading partner access requests...
+                          </Typography>
+                        ) : partnerAccessRequests.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary">
+                            No partner access requests exist for this store.
+                          </Typography>
+                        ) : (
+                          partnerAccessRequests.map((request) => {
+                            const active = isActivePartnerAccessStatus(request.status)
+                            return (
+                              <Card key={request.requestId} variant="outlined">
+                                <CardContent>
+                                  <Stack spacing={1}>
+                                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        <Typography sx={{ fontWeight: 700 }}>{request.partnerAccountName}</Typography>
+                                        <Chip size="small" label={request.status} color={chipColor(request.status)} />
+                                        {request.assignmentId ? <Chip size="small" variant="outlined" label={request.assignmentId} /> : null}
+                                      </Stack>
+                                      {active ? (
+                                        <Button
+                                          variant="outlined"
+                                          color="error"
+                                          onClick={() => openPartnerAccessRevokeDialog(request)}
+                                          disabled={revokePartnerAccessMutation.isPending}
+                                        >
+                                          Revoke access
+                                        </Button>
+                                      ) : null}
+                                    </Stack>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Client {request.clientName} · Contact {request.contactEmail ?? '—'} · Tier {request.requestedTier ?? 'Merchant selected'}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Surfaces {request.requestedSurfaces.join(' · ') || '—'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      Requested {formatTimestamp(request.createdAt)} · Approved {formatTimestamp(request.approvedAt)} · Revoked{' '}
+                                      {formatTimestamp(request.revokedAt)}
+                                    </Typography>
+                                    {request.notes ? (
+                                      <Typography variant="body2" color="text.secondary">
+                                        {request.notes}
+                                      </Typography>
+                                    ) : null}
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            )
+                          })
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
 
                   {selectedStore.readiness ? (
                     <Card variant="outlined">
@@ -673,6 +1458,621 @@ export function ShopifyStoresPage() {
                     </Card>
                   ) : null}
 
+                  {selectedStoreBillingQuery.isError ? (
+                    <Alert severity="error">
+                      {selectedStoreBillingQuery.error instanceof Error
+                        ? selectedStoreBillingQuery.error.message
+                        : 'Failed to load Shopify store billing summary.'}
+                    </Alert>
+                  ) : null}
+
+                  {selectedStoreBilling ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Companion commercial posture</Typography>
+                            <Chip size="small" label={selectedStoreBilling.tierKey ?? 'UNKNOWN'} color={chipColor(selectedStoreBilling.tierKey)} />
+                            <Chip size="small" variant="outlined" label={selectedStoreBilling.status ?? 'UNKNOWN'} color={chipColor(selectedStoreBilling.status)} />
+                            <Chip size="small" variant="outlined" label={selectedStoreBilling.mode ?? 'UNKNOWN'} />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            Plan {selectedStoreBilling.planName ?? '—'} · Product cap {selectedStoreBilling.catalogProductCap ?? 'unlimited'} · Sync cadence{' '}
+                            {selectedStoreBilling.syncCadence ?? 'platform default'} · Badge{' '}
+                            {selectedStoreBilling.poweredByBadgeRequired ? 'required' : 'optional'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Allowed surfaces {selectedStoreBilling.allowedSurfaces.join(' · ') || '—'} · Chat fallback{' '}
+                            {selectedStoreBilling.chatFallbackEnabled ? 'enabled' : 'disabled'} · Confirmation{' '}
+                            {selectedStoreBilling.requiresExplicitConfirmation ? 'required' : 'not required'} · Audit{' '}
+                            {selectedStoreBilling.auditTrailAvailable ? 'available' : 'not applicable'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Action packages {selectedStoreBilling.actionPackages.length ? selectedStoreBilling.actionPackages.join(' · ') : '—'} · Message{' '}
+                            {selectedStoreBilling.message ?? '—'}
+                          </Typography>
+                          <Grid container spacing={1.5}>
+                            {selectedStoreBilling.availablePlans.map((plan) => (
+                              <Grid item xs={12} md={4} key={`${plan.tierKey ?? 'UNKNOWN'}-${plan.planName ?? 'plan'}`}>
+                                <Card variant="outlined">
+                                  <CardContent>
+                                    <Stack spacing={1}>
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        <Typography sx={{ fontWeight: 700 }}>{plan.planName ?? plan.tierKey ?? 'Plan'}</Typography>
+                                        <Chip size="small" label={plan.tierKey ?? 'UNKNOWN'} color={chipColor(plan.tierKey)} />
+                                        {plan.active ? <Chip size="small" variant="outlined" label="Active" color="success" /> : null}
+                                      </Stack>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {plan.actionCapable ? 'Read + governed actions' : 'Read-first shopper intelligence'} · Surfaces{' '}
+                                        {plan.allowedSurfaces.join(' · ') || '—'}
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        Confirmation {plan.requiresExplicitConfirmation ? 'required' : 'not required'} · Audit{' '}
+                                        {plan.auditTrailAvailable ? 'available' : 'not applicable'}
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        Packages {plan.actionPackages.length ? plan.actionPackages.join(' · ') : '—'}
+                                      </Typography>
+                                    </Stack>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography sx={{ fontWeight: 700 }}>Source depth and roadmap status</Typography>
+                          <Chip size="small" label={sourceDepthSummary.status} color={sourceDepthSummary.color} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {sourceDepthSummary.message}
+                        </Typography>
+                        {sourceDepthSummary.items.map((item) => (
+                          <Card key={item.label} variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
+                                  <Chip size="small" label={item.status} color={item.color} />
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {item.detail}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography sx={{ fontWeight: 700 }}>Launch and commercial readiness</Typography>
+                          <Chip size="small" label={launchCommercialSummary.status} color={launchCommercialSummary.color} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {launchCommercialSummary.message}
+                        </Typography>
+                        {launchCommercialSummary.items.map((item) => (
+                          <Card key={item.label} variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
+                                  <Chip size="small" label={item.status} color={item.color} />
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {item.detail}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  {selectedGovernedActionsQuery.isError ? (
+                    <Alert severity="error">
+                      {selectedGovernedActionsQuery.error instanceof Error
+                        ? selectedGovernedActionsQuery.error.message
+                        : 'Failed to load recent Shopify governed action history.'}
+                    </Alert>
+                  ) : null}
+
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography sx={{ fontWeight: 700 }}>Recent governed commerce actions</Typography>
+                          <Chip size="small" label={`${selectedGovernedActions.length} recent`} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          Platform-admin investigation surface for Elite guided-commerce grants and completions.
+                        </Typography>
+                        {selectedGovernedActionsQuery.isLoading ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Loading governed action history…
+                          </Typography>
+                        ) : selectedGovernedActions.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary">
+                            No governed commerce actions have been recorded for this store yet.
+                          </Typography>
+                        ) : (
+                          selectedGovernedActions.map((action: ShopifyStoreGovernedActionAuditSummary) => (
+                            <Card key={action.id} variant="outlined">
+                              <CardContent>
+                                <Stack spacing={1}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography sx={{ fontWeight: 700 }}>
+                                      {action.actionType.replace(/_/g, ' ')}
+                                    </Typography>
+                                    <Chip size="small" label={action.status} color={chipColor(action.status)} />
+                                    <Chip size="small" variant="outlined" label={action.actionPackage} />
+                                    <Chip size="small" variant="outlined" label={`${action.surfaceId} · ${action.pageType}`} />
+                                    <Typography variant="caption" color="text.secondary">
+                                      {formatTimestamp(action.createdAt)}
+                                    </Typography>
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Product {action.productTitle ?? action.productHandle ?? '—'} · Variant {action.variantId ?? '—'} · Shopper{' '}
+                                    {action.shopperSessionRef ?? '—'}
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Requested {action.requestedQuantity ?? '—'} · Target {action.targetQuantity ?? '—'} · Result{' '}
+                                    {action.resultingQuantity ?? '—'} · Confirmation{' '}
+                                    {action.confirmationRequired ? (action.confirmationAccepted ? 'accepted' : 'required') : 'not required'}
+                                  </Typography>
+                                  {action.message ? (
+                                    <Typography variant="body2" color="text.secondary">
+                                      {action.message}
+                                    </Typography>
+                                  ) : null}
+                                  <Typography variant="caption" color="text.secondary">
+                                    Expires {formatTimestamp(action.expiresAt)} · Completed {formatTimestamp(action.completedAt)}
+                                  </Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ))
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  {selectedVectorizationQuery.isError ? (
+                    <Alert severity="error">
+                      {selectedVectorizationQuery.error instanceof Error
+                        ? selectedVectorizationQuery.error.message
+                        : 'Failed to load Shopify indexing summary.'}
+                    </Alert>
+                  ) : null}
+
+                  {selectedVectorization ? (
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={2}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontWeight: 700 }}>Indexing and live updates</Typography>
+                            <Chip
+                              size="small"
+                              label={selectedVectorization.readyToRun ? 'Ready' : 'Blocked'}
+                              color={selectedVectorization.readyToRun ? 'success' : 'warning'}
+                            />
+                            <Chip size="small" label={selectedVectorization.syncState ?? 'NO_PLAN'} color={chipColor(selectedVectorization.syncState)} />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Runner ${selectedVectorization.runnerRegistrationStatus ?? 'NOT_READY'}`}
+                              color={chipColor(selectedVectorization.runnerRegistrationStatus)}
+                            />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Auto ${selectedVectorization.automation.autoIndexingHealthy ? 'healthy' : 'degraded'}`}
+                              color={selectedVectorization.automation.autoIndexingHealthy ? 'success' : 'warning'}
+                            />
+                          </Stack>
+
+                          <Typography variant="body2" color="text.secondary">
+                            Entity families {selectedVectorization.selectedEntityTypes.join(' · ') || '—'} · Source categories{' '}
+                            {selectedVectorization.selectedCategories.join(' · ') || '—'} · Plan {selectedVectorization.planId ?? '—'} · Connection{' '}
+                            {selectedVectorization.sourceConnectionId ?? '—'}
+                          </Typography>
+
+                          {selectedVectorization.blockingReasons.length > 0 ? (
+                            <Alert severity="warning">
+                              <strong>Indexing blockers</strong>
+                              <List dense>
+                                {selectedVectorization.blockingReasons.map((reason) => (
+                                  <li key={reason}>{reason}</li>
+                                ))}
+                              </List>
+                            </Alert>
+                          ) : null}
+
+                          {selectedVectorization.automation.degradedReasons.length > 0 ? (
+                            <Alert severity="warning">
+                              <strong>Live updates need attention</strong>
+                              <List dense>
+                                {selectedVectorization.automation.degradedReasons.map((reason) => (
+                                  <li key={reason}>{reason}</li>
+                                ))}
+                              </List>
+                            </Alert>
+                          ) : null}
+
+                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
+                            <Button
+                              variant="outlined"
+                              onClick={() => reconcileVectorizationMutation.mutate(selectedStore.shopDomain)}
+                              disabled={vectorizationBusy}
+                            >
+                              Reconcile indexing support
+                            </Button>
+                            <Button
+                              variant="contained"
+                              onClick={() => indexAllVectorizationMutation.mutate(selectedStore.shopDomain)}
+                              disabled={vectorizationBusy || !selectedVectorization.readyToRun}
+                            >
+                              Index all enabled data
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              onClick={() => reindexAllVectorizationMutation.mutate(selectedStore.shopDomain)}
+                              disabled={vectorizationBusy || !selectedVectorization.readyToRun}
+                            >
+                              Reindex all enabled data
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              onClick={() =>
+                                reindexSelectedVectorizationMutation.mutate({
+                                  shopDomain: selectedStore.shopDomain,
+                                  payload: { entityTypes: selectedReindexEntityTypes },
+                                })
+                              }
+                              disabled={
+                                vectorizationBusy ||
+                                !selectedVectorization.readyToRun ||
+                                selectedReindexEntityTypes.length === 0
+                              }
+                            >
+                              Reindex selected families
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              onClick={() => retryFailedAutoRunMutation.mutate(selectedStore.shopDomain)}
+                              disabled={
+                                vectorizationBusy ||
+                                !selectedVectorization.automation.lastAutoRunId ||
+                                !selectedVectorization.automation.lastFailedAutoIndexAt
+                              }
+                            >
+                              Retry last failed auto run
+                            </Button>
+                          </Stack>
+
+                          <FormGroup row>
+                            {selectedVectorization.selectedEntityTypes.map((entityType) => (
+                              <FormControlLabel
+                                key={entityType}
+                                control={
+                                  <Checkbox
+                                    checked={selectedReindexEntityTypes.includes(entityType)}
+                                    onChange={(event) =>
+                                      setSelectedReindexEntityTypes((current) =>
+                                        event.target.checked
+                                          ? [...current, entityType]
+                                          : current.filter((value) => value !== entityType),
+                                      )
+                                    }
+                                  />
+                                }
+                                label={`Reindex ${entityType}`}
+                              />
+                            ))}
+                          </FormGroup>
+
+                          <Grid container spacing={2}>
+                            <Grid item xs={12} md={4}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Stack spacing={1}>
+                                    <Typography sx={{ fontWeight: 700 }}>Automation counters</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Queued {selectedVectorization.automation.queuedEvents} · Leased {selectedVectorization.automation.leasedEvents} ·
+                                      Dispatched {selectedVectorization.automation.dispatchedEvents}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Failed {selectedVectorization.automation.failedEvents} · Dead-lettered{' '}
+                                      {selectedVectorization.automation.deadLetteredEvents}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Last success {formatTimestamp(selectedVectorization.automation.lastSuccessfulAutoIndexAt)}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Last failure {formatTimestamp(selectedVectorization.automation.lastFailedAutoIndexAt)}
+                                    </Typography>
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+
+                            <Grid item xs={12} md={8}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Stack spacing={1.5}>
+                                    <Typography sx={{ fontWeight: 700 }}>Effective indexed fields</Typography>
+                                    {selectedVectorization.effectiveIndexedFields.length === 0 ? (
+                                      <Typography variant="body2" color="text.secondary">
+                                        No effective indexed fields are available until the deployment vectorization plan is active.
+                                      </Typography>
+                                    ) : (
+                                      <Grid container spacing={1}>
+                                        {selectedVectorization.effectiveIndexedFields.map((field) => (
+                                          <Grid item xs={12} md={6} key={field.fieldKey}>
+                                            <Typography variant="body2" color="text.secondary">
+                                              {field.sourceCategory} · {field.label} ({field.fieldKey})
+                                            </Typography>
+                                          </Grid>
+                                        ))}
+                                      </Grid>
+                                    )}
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          </Grid>
+
+                          {vectorizationPolicyDraft ? (
+                            <Card variant="outlined">
+                              <CardContent>
+                                <Stack spacing={2}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography sx={{ fontWeight: 700 }}>Live update policy</Typography>
+                                    <Chip size="small" label={`Version ${selectedVectorization.policy.policyVersion}`} />
+                                    <Typography variant="caption" color="text.secondary">
+                                      Updated by {selectedVectorization.policy.updatedBy ?? 'system'} · {formatTimestamp(selectedVectorization.policy.updatedAt)}
+                                    </Typography>
+                                  </Stack>
+
+                                  {selectedVectorization.policy.sourcePolicies.map((policy) => {
+                                    const draft =
+                                      vectorizationPolicyDraft.sourcePolicies.find((current) => current.sourceCategory === policy.sourceCategory) ?? policy
+                                    const selectableFields = sourceFieldOptions(selectedVectorization, policy.sourceCategory)
+                                    return (
+                                      <Card key={policy.sourceCategory} variant="outlined">
+                                        <CardContent>
+                                          <Stack spacing={1.5}>
+                                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                              <Typography sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
+                                                {policy.sourceCategory}
+                                              </Typography>
+                                              <Chip
+                                                size="small"
+                                                label={policy.enabled ? 'Enabled' : 'Disabled'}
+                                                color={policy.enabled ? 'success' : 'default'}
+                                              />
+                                              <Chip
+                                                size="small"
+                                                variant="outlined"
+                                                label={draft.autoIndexingEnabled ? 'Auto on' : 'Auto off'}
+                                                color={draft.autoIndexingEnabled ? 'success' : 'warning'}
+                                              />
+                                            </Stack>
+
+                                            <FormGroup row>
+                                              <FormControlLabel
+                                                control={
+                                                  <Checkbox
+                                                    checked={Boolean(draft.autoIndexingEnabled)}
+                                                    onChange={(event) =>
+                                                      updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                        ...current,
+                                                        autoIndexingEnabled: event.target.checked,
+                                                      }))
+                                                    }
+                                                  />
+                                                }
+                                                label="Live auto indexing"
+                                              />
+                                              <FormControlLabel
+                                                control={
+                                                  <Checkbox
+                                                    checked={Boolean(draft.createTriggerEnabled)}
+                                                    onChange={(event) =>
+                                                      updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                        ...current,
+                                                        createTriggerEnabled: event.target.checked,
+                                                      }))
+                                                    }
+                                                  />
+                                                }
+                                                label="Create trigger"
+                                              />
+                                              <FormControlLabel
+                                                control={
+                                                  <Checkbox
+                                                    checked={Boolean(draft.deleteTriggerEnabled)}
+                                                    onChange={(event) =>
+                                                      updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                        ...current,
+                                                        deleteTriggerEnabled: event.target.checked,
+                                                      }))
+                                                    }
+                                                  />
+                                                }
+                                                label="Delete trigger"
+                                              />
+                                            </FormGroup>
+
+                                            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                                              <TextField
+                                                select
+                                                label="Update sensitivity"
+                                                value={draft.updateTriggerMode ?? 'INDEXED_FIELDS_ONLY'}
+                                                onChange={(event) =>
+                                                  updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                    ...current,
+                                                    updateTriggerMode: event.target.value,
+                                                  }))
+                                                }
+                                                fullWidth
+                                              >
+                                                <MenuItem value="NONE">NONE</MenuItem>
+                                                <MenuItem value="ANY_UPDATE">ANY_UPDATE</MenuItem>
+                                                <MenuItem value="INDEXED_FIELDS_ONLY">INDEXED_FIELDS_ONLY</MenuItem>
+                                                <MenuItem value="SELECTED_INDEXED_FIELDS">SELECTED_INDEXED_FIELDS</MenuItem>
+                                              </TextField>
+                                              <TextField
+                                                label="Debounce seconds"
+                                                type="number"
+                                                value={draft.debounceWindowSeconds ?? 0}
+                                                onChange={(event) =>
+                                                  updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                    ...current,
+                                                    debounceWindowSeconds: Number.parseInt(event.target.value, 10) || 0,
+                                                  }))
+                                                }
+                                                fullWidth
+                                              />
+                                              <TextField
+                                                label="Minimum run interval seconds"
+                                                type="number"
+                                                value={draft.minimumRunIntervalSeconds ?? 0}
+                                                onChange={(event) =>
+                                                  updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                    ...current,
+                                                    minimumRunIntervalSeconds: Number.parseInt(event.target.value, 10) || 0,
+                                                  }))
+                                                }
+                                                fullWidth
+                                              />
+                                            </Stack>
+
+                                            {draft.updateTriggerMode === 'SELECTED_INDEXED_FIELDS' ? (
+                                              <FormGroup row>
+                                                {selectableFields.map((fieldKey) => (
+                                                  <FormControlLabel
+                                                    key={fieldKey}
+                                                    control={
+                                                      <Checkbox
+                                                        checked={Boolean(draft.selectedIndexedFields?.includes(fieldKey))}
+                                                        onChange={(event) =>
+                                                          updatePolicyDraftSource(policy.sourceCategory, (current) => ({
+                                                            ...current,
+                                                            selectedIndexedFields: event.target.checked
+                                                              ? [...(current.selectedIndexedFields ?? []), fieldKey]
+                                                              : (current.selectedIndexedFields ?? []).filter((value) => value !== fieldKey),
+                                                          }))
+                                                        }
+                                                      />
+                                                    }
+                                                    label={fieldKey}
+                                                  />
+                                                ))}
+                                              </FormGroup>
+                                            ) : null}
+                                          </Stack>
+                                        </CardContent>
+                                      </Card>
+                                    )
+                                  })}
+
+                                  <Stack direction="row" spacing={1}>
+                                    <Button
+                                      variant="contained"
+                                      onClick={() =>
+                                        selectedStore &&
+                                        vectorizationPolicyDraft &&
+                                        saveVectorizationPolicyMutation.mutate({
+                                          shopDomain: selectedStore.shopDomain,
+                                          payload: vectorizationPolicyDraft,
+                                        })
+                                      }
+                                      disabled={vectorizationBusy || !selectedStore || !vectorizationPolicyDraft}
+                                    >
+                                      Save live update policy
+                                    </Button>
+                                  </Stack>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ) : null}
+
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1.5}>
+                                <Typography sx={{ fontWeight: 700 }}>Recent live update events</Typography>
+                                {selectedVectorization.recentEvents.length === 0 ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    No Shopify live update events have been recorded yet.
+                                  </Typography>
+                                ) : (
+                                  selectedVectorization.recentEvents.map((event) => (
+                                    <Card key={event.id} variant="outlined">
+                                      <CardContent>
+                                        <Stack spacing={1}>
+                                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                            <Typography sx={{ fontWeight: 700 }}>
+                                              {event.sourceCategory} {event.operation}
+                                            </Typography>
+                                            <Chip size="small" label={event.status} color={chipColor(event.status)} />
+                                            {event.failureCode ? <Chip size="small" variant="outlined" label={event.failureCode} /> : null}
+                                            <Typography variant="caption" color="text.secondary">
+                                              {formatTimestamp(event.occurredAt)}
+                                            </Typography>
+                                          </Stack>
+                                          <Typography variant="body2" color="text.secondary">
+                                            Topic {event.shopifyTopic ?? '—'} · Entity {event.entityType} · Object {event.sourceObjectId ?? '—'} · Run{' '}
+                                            {event.coalescedRunId ?? '—'}
+                                          </Typography>
+                                          {event.notes ? (
+                                            <Typography variant="body2" color="text.secondary">
+                                              {event.notes}
+                                            </Typography>
+                                          ) : null}
+                                          <Stack direction="row" spacing={1}>
+                                            <Button
+                                              variant="outlined"
+                                              size="small"
+                                              onClick={() =>
+                                                replayVectorizationEventMutation.mutate({
+                                                  shopDomain: selectedStore.shopDomain,
+                                                  eventId: event.id,
+                                                })
+                                              }
+                                              disabled={vectorizationBusy}
+                                            >
+                                              Replay event
+                                            </Button>
+                                          </Stack>
+                                        </Stack>
+                                      </CardContent>
+                                    </Card>
+                                  ))
+                                )}
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ) : selectedVectorizationQuery.isLoading ? (
+                    <Alert severity="info">Loading Shopify indexing state…</Alert>
+                  ) : null}
+
                   {selectedStore.webhookDetail ? (
                     <Card variant="outlined">
                       <CardContent>
@@ -754,7 +2154,12 @@ export function ShopifyStoresPage() {
                           {selectedStore.widgetDetail.settings ? (
                             <Typography variant="body2" color="text.secondary">
                               Launcher {selectedStore.widgetDetail.settings.launcherLabel ?? 'Ask the store assistant'} · Welcome message{' '}
-                              {selectedStore.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'}
+                              {selectedStore.widgetDetail.settings.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.'} · Profile{' '}
+                              {selectedStore.widgetDetail.settings.shellModeProfile ?? 'SHOPIFY_COMPANION'} · Surfaces{' '}
+                              {(selectedStore.widgetDetail.settings.enabledSurfaces?.length
+                                ? selectedStore.widgetDetail.settings.enabledSurfaces
+                                : ['ai-search', 'contextual-pill', 'product-insight', 'policy-strip', 'product-faq', 'comparison']
+                              ).join(' · ')}
                             </Typography>
                           ) : null}
                           {selectedStore.widgetDetail.message ? (
@@ -853,6 +2258,14 @@ export function ShopifyStoresPage() {
                 control={<Checkbox checked={Boolean(form.policiesEnabled)} onChange={(event) => setForm((current) => ({ ...current, policiesEnabled: event.target.checked }))} />}
                 label="Policies"
               />
+              <FormControlLabel
+                control={<Checkbox checked={Boolean(form.articlesEnabled)} onChange={(event) => setForm((current) => ({ ...current, articlesEnabled: event.target.checked }))} />}
+                label="Articles"
+              />
+              <FormControlLabel
+                control={<Checkbox checked={Boolean(form.metaobjectsEnabled)} onChange={(event) => setForm((current) => ({ ...current, metaobjectsEnabled: event.target.checked }))} />}
+                label="Metaobjects"
+              />
             </FormGroup>
           </Stack>
         </DialogContent>
@@ -936,6 +2349,59 @@ export function ShopifyStoresPage() {
           <Button onClick={() => setPreflightDialogOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={submitPreflight} disabled={preflightMutation.isPending || preflightCategories.length === 0}>
             Save preflight
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(partnerAccessRevokeTarget)}
+        onClose={() => {
+          if (!revokePartnerAccessMutation.isPending) {
+            setPartnerAccessRevokeTarget(null)
+            setPartnerAccessRevokeReason('')
+          }
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Revoke Partner Access</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="warning">
+              This immediately revokes active partner visibility for the selected Shopify store and records an audited platform override.
+            </Alert>
+            <Typography variant="body2">
+              Partner <strong>{partnerAccessRevokeTarget?.partnerAccountName ?? '—'}</strong> on{' '}
+              <strong>{partnerAccessRevokeTarget?.shopDomain ?? selectedStore?.shopDomain ?? '—'}</strong>.
+            </Typography>
+            <TextField
+              label="Emergency revoke reason"
+              value={partnerAccessRevokeReason}
+              onChange={(event) => setPartnerAccessRevokeReason(event.target.value)}
+              fullWidth
+              required
+              multiline
+              minRows={3}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setPartnerAccessRevokeTarget(null)
+              setPartnerAccessRevokeReason('')
+            }}
+            disabled={revokePartnerAccessMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={submitPartnerAccessRevoke}
+            disabled={!partnerAccessRevokeTarget || !partnerAccessRevokeReason.trim() || revokePartnerAccessMutation.isPending}
+          >
+            Revoke access
           </Button>
         </DialogActions>
       </Dialog>

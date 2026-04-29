@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -20,19 +21,19 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class PlatformVerificationSuiteScriptContextService {
 
     public static final String SCRIPT_PLATFORM_ADMIN_REGRESSION = "platform-admin-live-regression";
-    public static final String SCRIPT_PLATFORM_CODE_REGRESSION = "platform-code-regression";
     public static final String SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION = "managed-vector-provider-verification";
     public static final String SCRIPT_MARKETPLACE_INSTALL_FLOW = "marketplace-install-flow";
     public static final String SCRIPT_SHOPIFY_COMPANION_VERIFICATION = "shopify-companion-verification";
+    public static final String SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT = "shopify-first-product-readiness-audit";
+    public static final String SCRIPT_PARTNER_ENABLEMENT_VERIFICATION = "partner-enablement-verification";
+    public static final String SCRIPT_THINKER_RESOLVER_READINESS = "thinker-resolver-readiness";
 
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
-    private static final List<String> PROVIDER_SECRET_NAMES = List.of(
-        "PINECONE_API_KEY",
+    private static final String PARTNER_SUPABASE_JWT_SECRET_NAME = "PARTNER_SUPABASE_JWT";
+    private static final List<String> RELEASE_BLOCKING_PROVIDER_SECRET_NAMES = List.of(
         "QDRANT_CLOUD_MANAGEMENT_API_KEY",
-        "QDRANT_API_KEY",
-        "ZILLIZ_CLOUD_API_KEY",
-        "WEAVIATE_API_KEY"
+        "QDRANT_API_KEY"
     );
     private static final List<String> SHOPIFY_OPTIONAL_SECRET_NAMES = List.of(
         "SHOPIFY_BRIDGE_ADMIN_API_KEY",
@@ -59,14 +60,37 @@ public class PlatformVerificationSuiteScriptContextService {
     }
 
     public PlatformVerificationScriptContextSummary build(String scriptKey) {
-        return switch (scriptKey) {
+        return build(scriptKey, Map.of());
+    }
+
+    public PlatformVerificationScriptContextSummary build(String scriptKey, Map<String, String> environmentOverrides) {
+        PlatformVerificationScriptContextSummary base = switch (scriptKey) {
             case SCRIPT_PLATFORM_ADMIN_REGRESSION -> buildPlatformAdminRegression();
-            case SCRIPT_PLATFORM_CODE_REGRESSION -> buildPlatformCodeRegression();
             case SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION -> buildManagedProviderVerification();
             case SCRIPT_MARKETPLACE_INSTALL_FLOW -> buildMarketplaceInstallFlow();
             case SCRIPT_SHOPIFY_COMPANION_VERIFICATION -> buildShopifyCompanionVerification();
+            case SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT -> buildShopifyFirstProductReadinessAudit();
+            case SCRIPT_PARTNER_ENABLEMENT_VERIFICATION -> buildPartnerEnablementVerification();
+            case SCRIPT_THINKER_RESOLVER_READINESS -> buildThinkerResolverReadiness();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
+        if (environmentOverrides == null || environmentOverrides.isEmpty()) {
+            return base;
+        }
+        Map<String, String> environment = new LinkedHashMap<>(base.environment());
+        environmentOverrides.forEach((key, value) -> {
+            if (key != null && !key.isBlank() && value != null && !value.isBlank()) {
+                environment.put(key.trim(), value.trim());
+            }
+        });
+        if (SCRIPT_PARTNER_ENABLEMENT_VERIFICATION.equals(scriptKey)) {
+            environment.put("PARTNER_LIVE_STRICT", "true");
+        }
+        return new PlatformVerificationScriptContextSummary(
+            base.scriptPath(),
+            Map.copyOf(environment),
+            base.secretEnvironment()
+        );
     }
 
     private PlatformVerificationScriptContextSummary buildPlatformAdminRegression() {
@@ -81,6 +105,7 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("ADMIN_TARGET_DEPLOYMENT_ID", adminTargetDeploymentId);
         environment.put("VERIFY_CANONICAL_ROLLOUT_MUTATION", "false");
         environment.put("VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION", "false");
+        environment.put("INFERENCE_SERVICE_REF", PlatformVerificationSuiteCatalog.SHARED_INFERENCE_SERVICE_REF);
 
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-platform-admin-regression.sh",
@@ -89,34 +114,18 @@ public class PlatformVerificationSuiteScriptContextService {
         );
     }
 
-    private PlatformVerificationScriptContextSummary buildPlatformCodeRegression() {
-        Map<String, String> environment = new LinkedHashMap<>();
-        environment.put("BACKEND_TESTS", "true");
-        environment.put("PRODUCT_TESTS", "true");
-        environment.put("INFRASTRUCTURE_TESTS", "true");
-        environment.put("UI_BUILD", "true");
-        environment.put("SHELL_SYNTAX_CHECKS", "true");
-
-        return new PlatformVerificationScriptContextSummary(
-            "scripts/verify-platform-code-regression.sh",
-            environment,
-            Map.of(),
-            suiteProperties.codeRegressionScriptTimeout(),
-            suiteProperties.codeRegressionMaxLogCharacters()
-        );
-    }
-
     private PlatformVerificationScriptContextSummary buildManagedProviderVerification() {
-        String weaviateHost = requireValue(
-            suiteProperties.weaviateHost(),
-            "platform.verification.suites.weaviate-host must be configured for managed provider verification."
-        );
-
         Map<String, String> environment = new LinkedHashMap<>();
-        environment.put("WEAVIATE_HOST", weaviateHost);
+        environment.put("RUN_PINECONE", "false");
+        environment.put("RUN_QDRANT", "true");
+        environment.put("RUN_ZILLIZ", "false");
+        environment.put("RUN_WEAVIATE", "false");
+        environment.put("QDRANT_EXISTING_CLUSTER_NAME", "cluster");
+        environment.put("QDRANT_CREATE_EPHEMERAL_DB_KEY", "false");
+        environment.put("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>();
-        for (String secretName : PROVIDER_SECRET_NAMES) {
+        for (String secretName : RELEASE_BLOCKING_PROVIDER_SECRET_NAMES) {
             String value = platformSecretService.resolveSecret(secretName);
             if (value == null || value.isBlank()) {
                 throw new ResponseStatusException(BAD_REQUEST, "Missing required platform secret for provider verification: " + secretName);
@@ -174,6 +183,111 @@ public class PlatformVerificationSuiteScriptContextService {
         );
     }
 
+    private PlatformVerificationScriptContextSummary buildShopifyFirstProductReadinessAudit() {
+        String bridgeBaseUrl = requireValue(
+            suiteProperties.shopifyBridgeBaseUrl(),
+            "platform.verification.suites.shopify-bridge-base-url must be configured for Shopify first-product readiness audit."
+        );
+        String shopDomain = requireValue(
+            suiteProperties.shopifyShopDomain(),
+            "platform.verification.suites.shopify-shop-domain must be configured for Shopify first-product readiness audit."
+        );
+
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("SHOPIFY_BRIDGE_BASE_URL", bridgeBaseUrl);
+        environment.put("SHOP_DOMAIN", shopDomain);
+        environment.put("READINESS_AUDIT_LOCAL_GATES", "false");
+        if (suiteProperties.shopifyProductServiceRef() != null && !suiteProperties.shopifyProductServiceRef().isBlank()) {
+            environment.put("PRODUCT_SERVICE_REF", suiteProperties.shopifyProductServiceRef());
+        }
+        if (suiteProperties.shopifyEmbeddedHost() != null && !suiteProperties.shopifyEmbeddedHost().isBlank()) {
+            environment.put("SHOPIFY_EMBEDDED_HOST", suiteProperties.shopifyEmbeddedHost());
+        }
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
+        for (String secretName : SHOPIFY_OPTIONAL_SECRET_NAMES) {
+            String value = platformSecretService.resolveSecret(secretName);
+            if (value != null && !value.isBlank()) {
+                secretEnvironment.put(secretName, value);
+            }
+        }
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-shopify-first-product-readiness-audit.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
+    private PlatformVerificationScriptContextSummary buildPartnerEnablementVerification() {
+        String partnerUiBaseUrl = requireValue(
+            suiteProperties.partnerUiBaseUrl(),
+            "platform.verification.suites.partner-ui-base-url must be configured for Partner Enablement verification."
+        );
+        String partnerSupabaseJwt = requireSecret(
+            PARTNER_SUPABASE_JWT_SECRET_NAME,
+            "Missing required platform secret for Partner Enablement verification: " + PARTNER_SUPABASE_JWT_SECRET_NAME
+        );
+
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("PARTNER_UI_BASE_URL", partnerUiBaseUrl);
+        environment.put("PARTNER_LIVE_STRICT", "true");
+        if (suiteProperties.shopifyShopDomain() != null && !suiteProperties.shopifyShopDomain().isBlank()) {
+            environment.put("PARTNER_LIVE_SHOP_DOMAIN", suiteProperties.shopifyShopDomain().trim());
+        }
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>();
+        String merchantAccessApiKey = resolvePartnerMerchantAccessApiKey();
+        if (merchantAccessApiKey != null) {
+            secretEnvironment.put("PLATFORM_API_KEY", merchantAccessApiKey);
+        } else {
+            secretEnvironment.putAll(basePlatformSecretEnvironment());
+        }
+        secretEnvironment.put(PARTNER_SUPABASE_JWT_SECRET_NAME, partnerSupabaseJwt);
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-partner-enablement-live.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
+    private PlatformVerificationScriptContextSummary buildThinkerResolverReadiness() {
+        String platformUiBaseUrl = requireValue(
+            suiteProperties.platformUiBaseUrl(),
+            "platform.verification.suites.platform-ui-base-url must be configured for Thinker Resolver readiness."
+        );
+        String partnerUiBaseUrl = requireValue(
+            suiteProperties.partnerUiBaseUrl(),
+            "platform.verification.suites.partner-ui-base-url must be configured for Thinker Resolver readiness."
+        );
+        String shopDomain = requireValue(
+            suiteProperties.shopifyShopDomain(),
+            "platform.verification.suites.shopify-shop-domain must be configured for Thinker Resolver readiness."
+        );
+        String partnerSupabaseJwt = requireSecret(
+            PARTNER_SUPABASE_JWT_SECRET_NAME,
+            "Missing required platform secret for Thinker Resolver readiness: " + PARTNER_SUPABASE_JWT_SECRET_NAME
+        );
+
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("PLATFORM_UI_BASE_URL", platformUiBaseUrl);
+        environment.put("PARTNER_UI_BASE_URL", partnerUiBaseUrl);
+        environment.put("THINKER_SHOP_DOMAIN", shopDomain);
+        environment.put("THINKER_DEPLOYMENT_ID", resolveAdminTargetDeploymentId());
+        environment.put("THINKER_EXECUTE_LOW_RISK", "false");
+        environment.put("THINKER_REQUIRE_PARTNER_PROOF", "true");
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
+        secretEnvironment.put(PARTNER_SUPABASE_JWT_SECRET_NAME, partnerSupabaseJwt);
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-thinker-resolver-readiness.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
     private Map<String, String> basePlatformEnvironment() {
         Map<String, String> environment = new LinkedHashMap<>();
         environment.put("PLATFORM_BASE_URL", requireValue(
@@ -181,6 +295,17 @@ public class PlatformVerificationSuiteScriptContextService {
             "platform.delivery.public-base-url must be configured for verification suite scripts."
         ));
         return environment;
+    }
+
+    private String resolvePartnerMerchantAccessApiKey() {
+        String productServiceRef = trimToNull(suiteProperties.shopifyProductServiceRef());
+        if (productServiceRef == null) {
+            return null;
+        }
+        String secretName = "MANAGED_PRODUCT_"
+            + productServiceRef.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_")
+            + "_API_KEY";
+        return trimToNull(platformSecretService.resolveSecret(secretName));
     }
 
     private Map<String, String> basePlatformSecretEnvironment() {
@@ -245,6 +370,14 @@ public class PlatformVerificationSuiteScriptContextService {
 
     private String requireValue(String value, String message) {
         String normalized = trimToNull(value);
+        if (normalized == null) {
+            throw new ResponseStatusException(BAD_REQUEST, message);
+        }
+        return normalized;
+    }
+
+    private String requireSecret(String secretName, String message) {
+        String normalized = trimToNull(platformSecretService.resolveSecret(secretName));
         if (normalized == null) {
             throw new ResponseStatusException(BAD_REQUEST, message);
         }

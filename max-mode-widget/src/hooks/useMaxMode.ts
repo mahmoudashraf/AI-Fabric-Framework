@@ -4,7 +4,7 @@
  * Provides imperative methods to open/close the widget,
  * attach products, and send messages.
  */
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { emitEvent } from "@/config";
 import type { SharedAttachment } from "@/context";
 
@@ -17,6 +17,8 @@ export interface UseMaxModeReturn {
   close: () => void;
   /** Toggle the widget open/closed */
   toggle: () => void;
+  /** Attach a generic item to the chat context */
+  attachItem: (item: SharedAttachment) => void;
   /** Attach a product to the chat context */
   attachProduct: (product: { sku: string; name: string; price: number; [key: string]: any }) => void;
   /** Get all pending attachments */
@@ -47,21 +49,31 @@ export function useMaxMode(): UseMaxModeReturn {
     });
   }, []);
 
+  const attachItem = useCallback((attachment: SharedAttachment) => {
+    if (!attachment?.type || !attachment?.data || typeof attachment.data !== "object") {
+      return;
+    }
+    setPendingAttachments((prev) => {
+      const exists = prev.some(
+        (a) =>
+          a.type === attachment.type &&
+          ((a.data.id && a.data.id === attachment.data.id) ||
+            (a.data.sku && a.data.sku === attachment.data.sku)),
+      );
+      if (exists) return prev;
+      return [...prev, attachment];
+    });
+  }, []);
+
   const attachProduct = useCallback(
     (product: { sku: string; name: string; price: number; [key: string]: any }) => {
       const attachment: SharedAttachment = {
         type: "product",
         data: product,
       };
-      setPendingAttachments((prev) => {
-        const exists = prev.some(
-          (a) => a.type === "product" && a.data.sku === product.sku,
-        );
-        if (exists) return prev;
-        return [...prev, attachment];
-      });
+      attachItem(attachment);
     },
-    [],
+    [attachItem],
   );
 
   const clearAttachments = useCallback(() => {
@@ -73,6 +85,7 @@ export function useMaxMode(): UseMaxModeReturn {
     open,
     close,
     toggle,
+    attachItem,
     attachProduct,
     pendingAttachments,
     clearAttachments,

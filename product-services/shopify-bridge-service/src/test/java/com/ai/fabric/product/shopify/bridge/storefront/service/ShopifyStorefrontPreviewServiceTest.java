@@ -4,6 +4,8 @@ import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStore
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightCategorySummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSourcePreflightSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
@@ -53,6 +55,19 @@ class ShopifyStorefrontPreviewServiceTest {
         assertThat(preview.welcomeMessageDefault()).isEqualTo("Ask me about products and store policies.");
         assertThat(preview.themeEditorActivationUrl())
             .isEqualTo("https://admin.shopify.com/store/alpha/themes/current/editor?context=apps&activateAppId=shopify-api-key/companion-app-embed");
+        assertThat(preview.groundingSignals())
+            .contains("Catalog product grounding", "Review-aware product grounding", "Collection grounding", "Store page grounding", "Policy grounding");
+        assertThat(preview.supportedReviewProviders())
+            .containsExactly("Judge.me", "Loox");
+        assertThat(preview.surfacePlacements()).hasSize(7);
+        assertThat(preview.surfacePlacements().get(0).blockHandle()).isEqualTo("companion-ai-search");
+        assertThat(preview.surfacePlacements().get(0).requiredTierKey()).isEqualTo("FREE");
+        assertThat(preview.surfacePlacements().get(1).themeEditorUrl())
+            .contains("addAppBlockId=shopify-api-key/companion-contextual-pill");
+        assertThat(preview.surfacePlacements().get(4).blockHandle()).isEqualTo("companion-product-faq");
+        assertThat(preview.surfacePlacements().get(5).blockHandle()).isEqualTo("companion-comparison");
+        assertThat(preview.surfacePlacements().get(6).blockHandle()).isEqualTo("companion-order-lookup");
+        assertThat(preview.surfacePlacements().get(6).requiredTierKey()).isEqualTo("ELITE");
         assertThat(preview.activationSteps()).isNotEmpty();
     }
 
@@ -112,6 +127,8 @@ class ShopifyStorefrontPreviewServiceTest {
             true,
             true,
             true,
+            false,
+            false,
             new ShopifyBridgeStoreCredentialSummary(
                 "READY",
                 true,
@@ -124,7 +141,20 @@ class ShopifyStorefrontPreviewServiceTest {
                 "read_products,read_content,read_legal_policies",
                 true
             ),
-            null,
+            new ShopifyBridgeStoreSourcePreflightSummary(
+                ready ? "READY" : "NOT_RUN",
+                Instant.parse("2026-04-18T00:00:00Z"),
+                List.of(
+                    new ShopifyBridgeStoreSourcePreflightCategorySummary(
+                        "products",
+                        true,
+                        ready ? "READY" : "PENDING",
+                        ready ? 12 : 0,
+                        ready ? "Products reachable" : "Store data not ready",
+                        ready ? List.of("Judge.me", "Loox") : List.of()
+                    )
+                )
+            ),
             null,
             null,
             new ShopifyBridgeStoreWidgetSummary(
@@ -134,7 +164,12 @@ class ShopifyStorefrontPreviewServiceTest {
                 ready ? "Theme extension loaded successfully." : "Theme extension not enabled yet.",
                 new ShopifyBridgeStoreWidgetSettingsSummary(
                     "Need help?",
-                    "Ask me about products and store policies."
+                    "Ask me about products and store policies.",
+                    "GUIDED_COMMERCE",
+                    List.of("ai-search", "comparison"),
+                    "navigator",
+                    List.of("navigator", "executor"),
+                    java.util.Map.of("account", "executor")
                 )
             ),
             null,

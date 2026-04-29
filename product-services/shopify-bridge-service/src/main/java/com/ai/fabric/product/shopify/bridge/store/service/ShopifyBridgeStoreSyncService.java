@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -41,6 +42,16 @@ public class ShopifyBridgeStoreSyncService {
                 vendor
                 productType
                 tags
+                metafields(first: 12) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      type
+                      value
+                    }
+                  }
+                }
                 updatedAt
               }
             }
@@ -103,13 +114,45 @@ public class ShopifyBridgeStoreSyncService {
         }
         """;
 
+    private static final String ARTICLES_QUERY = """
+        query ShopifyCompanionArticlesSync($cursor: String) {
+          articles(first: 50, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                title
+                handle
+                body
+                summary
+                updatedAt
+                publishedAt
+                blog {
+                  title
+                  handle
+                }
+                author {
+                  name
+                }
+              }
+            }
+          }
+        }
+        """;
+
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeBillingService billingService;
 
     public ShopifyBridgeStoreSyncService(ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
-                                         PlatformShopifyStoreClient platformShopifyStoreClient) {
+                                         PlatformShopifyStoreClient platformShopifyStoreClient,
+                                         ShopifyBridgeBillingService billingService) {
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.billingService = billingService;
     }
 
     public ShopifyBridgeStoreSummary sync(ShopifyBridgeCredentialAcquisition acquisition) {
@@ -128,10 +171,11 @@ public class ShopifyBridgeStoreSyncService {
         ShopifyBridgeStoreSummary store = acquisition.store();
         String shopDomain = store.shopDomain();
         String accessToken = acquisition.tokenExchangeMaterial().accessToken();
+        Integer catalogProductCap = billingService.catalogProductCap(shopDomain, accessToken);
         try {
             List<ShopifyBridgeStoreSyncDocument> documents = new ArrayList<>();
             if (store.productsEnabled()) {
-                documents.addAll(loadProducts(shopDomain, accessToken));
+                documents.addAll(loadProducts(shopDomain, accessToken, catalogProductCap));
             }
             if (store.collectionsEnabled()) {
                 documents.addAll(loadCollections(shopDomain, accessToken));
@@ -141,6 +185,12 @@ public class ShopifyBridgeStoreSyncService {
             }
             if (store.policiesEnabled()) {
                 documents.addAll(loadPolicies(shopDomain, accessToken));
+            }
+            if (store.articlesEnabled()) {
+                documents.addAll(loadArticles(shopDomain, accessToken));
+            }
+            if (store.metaobjectsEnabled()) {
+                documents.addAll(loadMetaobjects(shopDomain, accessToken));
             }
             ShopifyBridgeStoreSummary synced = platformShopifyStoreClient.syncDocuments(
                 shopDomain,
@@ -165,33 +215,41 @@ public class ShopifyBridgeStoreSyncService {
         }
     }
 
-    private List<ShopifyBridgeStoreSyncDocument> loadProducts(String shopDomain, String accessToken) {
-        return paginate(shopDomain, accessToken, PRODUCTS_QUERY, "products").stream()
-            .map(node -> new ShopifyBridgeStoreSyncDocument(
-                requiredText(node, "id"),
-                "products",
-                "product",
-                text(node, "title"),
-                joinContent(
-                    text(node, "title"),
-                    text(node, "vendor"),
-                    text(node, "productType"),
-                    joinTags(node.get("tags")),
-                    sanitizeRichText(text(node, "descriptionHtml"))
-                ),
-                metadata(
+    private List<ShopifyBridgeStoreSyncDocument> loadProducts(String shopDomain, String accessToken, Integer catalogProductCap) {
+        return paginate(shopDomain, accessToken, PRODUCTS_QUERY, "products", catalogProductCap).stream()
+            .map(node -> {
+                ShopifyProductReviewSignals.ReviewSignalSummary reviewSignals = ShopifyProductReviewSignals.summary(node);
+                LinkedHashMap<String, Object> metadata = new LinkedHashMap<>(metadata(
                     "handle", text(node, "handle"),
                     "vendor", text(node, "vendor"),
                     "productType", text(node, "productType"),
+                    "metafieldKeys", ShopifyKeyProductMetafields.keys(node),
                     "updatedAt", text(node, "updatedAt"),
                     "storefrontUrl", storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle")))
-                )
-            ))
+                ));
+                metadata.putAll(reviewSignals.metadata());
+                return new ShopifyBridgeStoreSyncDocument(
+                    requiredText(node, "id"),
+                    "products",
+                    "product",
+                    text(node, "title"),
+                    joinContent(
+                        text(node, "title"),
+                        text(node, "vendor"),
+                        text(node, "productType"),
+                        joinTags(node.get("tags")),
+                        sanitizeRichText(text(node, "descriptionHtml")),
+                        ShopifyProductReviewSignals.content(node),
+                        ShopifyKeyProductMetafields.content(node)
+                    ),
+                    Map.copyOf(metadata)
+                );
+            })
             .toList();
     }
 
     private List<ShopifyBridgeStoreSyncDocument> loadCollections(String shopDomain, String accessToken) {
-        return paginate(shopDomain, accessToken, COLLECTIONS_QUERY, "collections").stream()
+        return paginate(shopDomain, accessToken, COLLECTIONS_QUERY, "collections", null).stream()
             .map(node -> new ShopifyBridgeStoreSyncDocument(
                 requiredText(node, "id"),
                 "collections",
@@ -213,7 +271,7 @@ public class ShopifyBridgeStoreSyncService {
     }
 
     private List<ShopifyBridgeStoreSyncDocument> loadPages(String shopDomain, String accessToken) {
-        return paginate(shopDomain, accessToken, PAGES_QUERY, "pages").stream()
+        return paginate(shopDomain, accessToken, PAGES_QUERY, "pages", null).stream()
             .map(node -> new ShopifyBridgeStoreSyncDocument(
                 requiredText(node, "id"),
                 "pages",
@@ -264,10 +322,56 @@ public class ShopifyBridgeStoreSyncService {
             .toList();
     }
 
+    private List<ShopifyBridgeStoreSyncDocument> loadArticles(String shopDomain, String accessToken) {
+        return paginate(shopDomain, accessToken, ARTICLES_QUERY, "articles", null).stream()
+            .filter(node -> text(node, "publishedAt") != null)
+            .map(node -> new ShopifyBridgeStoreSyncDocument(
+                requiredText(node, "id"),
+                "articles",
+                "support-policy",
+                text(node, "title"),
+                joinContent(
+                    text(node, "title"),
+                    nestedText(node, "blog", "title"),
+                    nestedText(node, "author", "name"),
+                    sanitizeRichText(text(node, "summary")),
+                    sanitizeRichText(text(node, "body"))
+                ),
+                metadata(
+                    "handle", text(node, "handle"),
+                    "updatedAt", text(node, "updatedAt"),
+                    "documentType", "article",
+                    "storefrontUrl", articleStorefrontUrl(shopDomain, node)
+                )
+            ))
+            .toList();
+    }
+
+    private List<ShopifyBridgeStoreSyncDocument> loadMetaobjects(String shopDomain, String accessToken) {
+        return ShopifyMetaobjectSupport.loadAllEntries(shopDomain, accessToken, shopifyAdminGraphqlClient).stream()
+            .map(entry -> new ShopifyBridgeStoreSyncDocument(
+                entry.id(),
+                "metaobjects",
+                "support-policy",
+                entry.title(),
+                entry.content(),
+                metadata(
+                    "handle", entry.handle(),
+                    "updatedAt", entry.updatedAt(),
+                    "documentType", "metaobject",
+                    "storefrontUrl", entry.storefrontUrl(),
+                    "metaobjectType", entry.type(),
+                    "definitionName", entry.definitionName()
+                )
+            ))
+            .toList();
+    }
+
     private List<Map<String, Object>> paginate(String shopDomain,
                                                String accessToken,
                                                String query,
-                                               String connectionField) {
+                                               String connectionField,
+                                               Integer itemCap) {
         List<Map<String, Object>> nodes = new ArrayList<>();
         String cursor = null;
         while (true) {
@@ -287,6 +391,9 @@ public class ShopifyBridgeStoreSyncService {
             for (Object edge : edges) {
                 Map<String, Object> edgeMap = requireMapFromListItem(edge);
                 nodes.add(requireMap(edgeMap.get("node"), "Shopify Admin API response is missing node for " + connectionField + "."));
+                if (itemCap != null && itemCap > 0 && nodes.size() >= itemCap) {
+                    return nodes;
+                }
             }
             Map<String, Object> pageInfo = requireMap(connection.get("pageInfo"), "Shopify Admin API response is missing pageInfo for " + connectionField + ".");
             boolean hasNextPage = Boolean.TRUE.equals(pageInfo.get("hasNextPage"));
@@ -455,6 +562,28 @@ public class ShopifyBridgeStoreSyncService {
         }
         String text = value.toString().trim();
         return text.isEmpty() ? null : text;
+    }
+
+    private String nestedText(Map<String, Object> map, String field, String nestedField) {
+        Object value = map == null ? null : map.get(field);
+        if (!(value instanceof Map<?, ?> nested)) {
+            return null;
+        }
+        Object nestedValue = nested.get(nestedField);
+        if (nestedValue == null) {
+            return null;
+        }
+        String text = nestedValue.toString().trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private String articleStorefrontUrl(String shopDomain, Map<String, Object> node) {
+        String blogHandle = nestedText(node, "blog", "handle");
+        String handle = text(node, "handle");
+        if (blogHandle == null || handle == null) {
+            return null;
+        }
+        return storefrontUrl(shopDomain, "/blogs/" + safePath(blogHandle) + "/" + safePath(handle));
     }
 
     private String syncFailureMessage(RuntimeException ex) {

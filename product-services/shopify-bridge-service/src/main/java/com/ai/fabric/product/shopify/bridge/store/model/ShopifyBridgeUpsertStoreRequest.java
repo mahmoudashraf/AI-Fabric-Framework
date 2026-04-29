@@ -15,6 +15,8 @@ public record ShopifyBridgeUpsertStoreRequest(
     Boolean productsEnabled,
     Boolean collectionsEnabled,
     Boolean pagesEnabled,
-    Boolean policiesEnabled
+    Boolean policiesEnabled,
+    Boolean articlesEnabled,
+    Boolean metaobjectsEnabled
 ) {
 }

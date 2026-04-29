@@ -221,6 +221,7 @@ public class DeploymentReleaseRecoveryService {
         String stepKey = release.getCurrentStepKey();
         return switch (release.getStatus()) {
             case "APPLY_REQUESTED" -> "queue_release".equals(stepKey);
+            case "PRE_APPLY_VERIFYING" -> "preflight_verification".equals(stepKey) || isPreActivationRailwayProvisioningStep(stepKey);
             case "PROVISIONING" -> "wait_for_active".equals(stepKey) || isPreActivationRailwayProvisioningStep(stepKey);
             case "VERIFYING" -> "run_verification".equals(stepKey);
             default -> false;
@@ -232,7 +233,8 @@ public class DeploymentReleaseRecoveryService {
             return false;
         }
         return switch (stepKey.trim()) {
-            case "prepare_apply",
+            case "preflight_verification",
+                 "prepare_apply",
                  "ensure_vector_backend",
                  "prepare_project",
                  "configure_runtime",

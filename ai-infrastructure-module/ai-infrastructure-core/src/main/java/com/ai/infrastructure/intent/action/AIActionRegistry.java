@@ -266,6 +266,7 @@ public class AIActionRegistry {
             .anonymousAllowed(action.anonymousAllowed())
             .confirmationRequired(action.requiresConfirmation())
             .groundingEligible(defaultGroundingEligible(action.accessMode()))
+            .readActionResolutionEligible(action.readActionResolutionEligible())
             .sideEffectLevel(ActionSideEffectLevel.fromAccessMode(action.accessMode()))
             .resultPresentationHint(defaultPresentationHint(action.accessMode()))
             .provenance(AIContributionProvenance.builder()

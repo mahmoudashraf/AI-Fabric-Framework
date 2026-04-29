@@ -20,6 +20,7 @@ public record OrchestrationPolicy(
     String position,
     OrchestrationProperties.InformationMode informationMode,
     OrchestrationCapabilities capabilities,
+    ReadActionResolutionPolicy readActionResolutionPolicy,
     RagBudgets ragBudgets,
     ResponseGenerationBudgets responseGenerationBudgets
 ) {
@@ -30,7 +31,27 @@ public record OrchestrationPolicy(
                                OrchestrationProperties.InformationMode informationMode,
                                OrchestrationCapabilities capabilities,
                                RagBudgets ragBudgets) {
-        this(profile, mode, position, informationMode, capabilities, ragBudgets, null);
+        this(profile, mode, position, informationMode, capabilities, null, ragBudgets, null);
+    }
+
+    public OrchestrationPolicy(OrchestrationProfile profile,
+                               String mode,
+                               String position,
+                               OrchestrationProperties.InformationMode informationMode,
+                               OrchestrationCapabilities capabilities,
+                               ReadActionResolutionPolicy readActionResolutionPolicy,
+                               RagBudgets ragBudgets) {
+        this(profile, mode, position, informationMode, capabilities, readActionResolutionPolicy, ragBudgets, null);
+    }
+
+    public OrchestrationPolicy(OrchestrationProfile profile,
+                               String mode,
+                               String position,
+                               OrchestrationProperties.InformationMode informationMode,
+                               OrchestrationCapabilities capabilities,
+                               RagBudgets ragBudgets,
+                               ResponseGenerationBudgets responseGenerationBudgets) {
+        this(profile, mode, position, informationMode, capabilities, null, ragBudgets, responseGenerationBudgets);
     }
 
     public OrchestrationPolicy {
@@ -39,6 +60,9 @@ public record OrchestrationPolicy(
         position = normalize(position);
         informationMode = informationMode != null ? informationMode : profile.defaultInformationMode();
         capabilities = capabilities != null ? capabilities : OrchestrationCapabilities.defaults();
+        readActionResolutionPolicy = readActionResolutionPolicy != null
+            ? readActionResolutionPolicy
+            : ReadActionResolutionPolicy.defaults();
         ragBudgets = ragBudgets != null ? ragBudgets : RagBudgets.defaults();
         responseGenerationBudgets = responseGenerationBudgets != null
             ? responseGenerationBudgets
@@ -139,6 +163,66 @@ public record OrchestrationPolicy(
                 return null;
             }
             return input;
+        }
+    }
+
+    public record ReadActionResolutionPolicy(
+        boolean enabled,
+        OrchestrationProperties.ReadActionResolutionPlanningMode planningMode,
+        List<String> allowedReadActions,
+        boolean requireAllowlist,
+        int maxIterations,
+        int maxActionsPerIteration,
+        int maxTotalActions,
+        int maxParallelActions,
+        int maxPlannerContextChars,
+        int maxActionEvidenceCharsPerAction,
+        OrchestrationProperties.ReadActionResolutionRagCooperationMode ragCooperationMode,
+        boolean requireGroundingEligible
+    ) {
+        public ReadActionResolutionPolicy {
+            planningMode = planningMode != null
+                ? planningMode
+                : OrchestrationProperties.ReadActionResolutionPlanningMode.OFF;
+            allowedReadActions = RagBudgets.normalizeAllowlist(allowedReadActions);
+            maxIterations = normalizePositive(maxIterations, 1);
+            maxActionsPerIteration = normalizePositive(maxActionsPerIteration, 2);
+            maxTotalActions = normalizePositive(maxTotalActions, maxActionsPerIteration);
+            maxParallelActions = normalizePositive(maxParallelActions, 1);
+            maxPlannerContextChars = normalizePositive(maxPlannerContextChars, 4_000);
+            maxActionEvidenceCharsPerAction = normalizePositive(maxActionEvidenceCharsPerAction, 1_200);
+            ragCooperationMode = ragCooperationMode != null
+                ? ragCooperationMode
+                : OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT;
+            if (!enabled || planningMode == OrchestrationProperties.ReadActionResolutionPlanningMode.OFF) {
+                enabled = false;
+                planningMode = OrchestrationProperties.ReadActionResolutionPlanningMode.OFF;
+            }
+        }
+
+        public static ReadActionResolutionPolicy defaults() {
+            return new ReadActionResolutionPolicy(
+                false,
+                OrchestrationProperties.ReadActionResolutionPlanningMode.OFF,
+                List.of(),
+                false,
+                1,
+                2,
+                2,
+                1,
+                4_000,
+                1_200,
+                OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT,
+                true
+            );
+        }
+
+        public boolean hasAllowedReadActions() {
+            return allowedReadActions != null && !allowedReadActions.isEmpty();
+        }
+
+        private static int normalizePositive(int value, int fallback) {
+            return value > 0 ? value : fallback;
         }
     }
 

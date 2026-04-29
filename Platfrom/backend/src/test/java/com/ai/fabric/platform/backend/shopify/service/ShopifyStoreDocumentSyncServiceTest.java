@@ -431,6 +431,8 @@ class ShopifyStoreDocumentSyncServiceTest {
             true,
             true,
             true,
+            false,
+            false,
             null,
             null,
             null,

@@ -18,6 +18,8 @@ public record UpsertShopifyStoreConnectionRequest(
     Boolean productsEnabled,
     Boolean collectionsEnabled,
     Boolean pagesEnabled,
-    Boolean policiesEnabled
+    Boolean policiesEnabled,
+    Boolean articlesEnabled,
+    Boolean metaobjectsEnabled
 ) {
 }

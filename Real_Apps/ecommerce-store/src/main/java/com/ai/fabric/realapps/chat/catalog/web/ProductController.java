@@ -1,6 +1,9 @@
 package com.ai.fabric.realapps.chat.catalog.web;
 
 import com.ai.fabric.realapps.chat.catalog.domain.Product;
+import com.ai.fabric.realapps.chat.catalog.model.ProductComparisonModels.ProductComparisonResponse;
+import com.ai.fabric.realapps.chat.catalog.model.ProductComparisonModels.SimilarProductsResponse;
+import com.ai.fabric.realapps.chat.catalog.service.ProductComparisonService;
 import com.ai.fabric.realapps.chat.catalog.service.ProductService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -28,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductController {
 
     private final ProductService productService;
+    private final ProductComparisonService productComparisonService;
 
     @GetMapping("/count")
     public Map<String, Object> count() {
@@ -39,7 +43,7 @@ public class ProductController {
         return productService.list(limit);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public Product get(@PathVariable long id) {
         return productService.get(id);
     }
@@ -67,6 +71,18 @@ public class ProductController {
         return productService.trending(limit);
     }
 
+    @GetMapping("/similar")
+    public SimilarProductsResponse similar(@RequestParam("sku") String sku,
+                                           @RequestParam(value = "limit", defaultValue = "5") int limit) {
+        return productComparisonService.findSimilarProducts(sku, limit);
+    }
+
+    @GetMapping("/compare")
+    public ProductComparisonResponse compare(@RequestParam("referenceSku") String referenceSku,
+                                             @RequestParam("comparisonSku") String comparisonSku) {
+        return productComparisonService.compareProducts(referenceSku, comparisonSku);
+    }
+
     @PostMapping
     public ResponseEntity<Product> create(@Valid @RequestBody CreateProductRequest request) {
         Product created = productService.createProduct(
@@ -83,7 +99,7 @@ public class ProductController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public Product update(@PathVariable long id, @Valid @RequestBody UpdateProductRequest request) {
         return productService.updateProduct(
             id,
@@ -99,7 +115,7 @@ public class ProductController {
         );
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public Product delete(@PathVariable long id) {
         return productService.deleteProduct(id);
     }

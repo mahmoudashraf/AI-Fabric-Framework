@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuite
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationReleaseGateSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.ShopifyCompanionVerificationExpectationOverrides;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PlatformVerificationSuiteRunStageRepository;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -22,6 +23,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -181,7 +183,7 @@ public class PlatformVerificationSuiteService {
         runRepository.save(run);
 
         List<PlatformVerificationSuiteRunStageEntity> stages = definition.stages().stream()
-            .map(stage -> toStageEntity(run, stage, now))
+            .map(stage -> toStageEntity(run, stage, now, request))
             .toList();
         stageRepository.saveAll(stages);
 
@@ -195,16 +197,52 @@ public class PlatformVerificationSuiteService {
                 "suiteLabel", run.getSuiteLabel(),
                 "requestedByActorId", run.getRequestedByActorId(),
                 "requestedByRole", run.getRequestedByRole(),
-                "allowControlPlaneRepair", allowControlPlaneRepair
+                "allowControlPlaneRepair", allowControlPlaneRepair,
+                "shopifyExpectationOverrides", request == null || request.shopifyCompanionExpectations() == null
+                    ? ""
+                    : request.shopifyCompanionExpectations().toEnvironmentOverrides().toString()
             ))
         );
         executionService.execute(run.getId(), allowControlPlaneRepair);
         return new PlatformVerificationSuiteDispatchSummary(run.getSuiteKey(), run.getSummaryMessage(), toSummary(run, stages));
     }
 
+    public PlatformVerificationSuiteRunSummary cancelRun(String runId) {
+        PlatformVerificationSuiteRunEntity run = runRepository.findById(runId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Verification suite run not found: " + runId));
+        if (!ACTIVE_STATUSES.contains(run.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Verification suite run is not active: " + runId);
+        }
+        Instant now = Instant.now();
+        List<PlatformVerificationSuiteRunStageEntity> stages = stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId());
+        run.setStatus("CANCELLED");
+        run.setCompletedAt(now);
+        run.setSummaryMessage("Verification suite was cancelled by a platform admin.");
+        runRepository.save(run);
+        stages.stream()
+            .filter(stage -> ACTIVE_STATUSES.contains(stage.getStatus()))
+            .forEach(stage -> {
+                stage.setStatus("CANCELLED");
+                stage.setCompletedAt(now);
+                stage.setSummaryMessage("Stage was cancelled by a platform admin.");
+                stageRepository.save(stage);
+            });
+        platformAuditService.record(
+            "PLATFORM_VERIFICATION_SUITE_CANCELLED",
+            "PLATFORM_VERIFICATION_SUITE",
+            run.getId(),
+            Map.of(
+                "suiteKey", run.getSuiteKey(),
+                "status", "CANCELLED"
+            )
+        );
+        return toSummary(run, stages);
+    }
+
     private PlatformVerificationSuiteRunStageEntity toStageEntity(PlatformVerificationSuiteRunEntity run,
                                                                   com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageDefinitionSummary stage,
-                                                                  Instant createdAt) {
+                                                                  Instant createdAt,
+                                                                  PlatformVerificationSuiteDispatchRequest request) {
         PlatformVerificationSuiteRunStageEntity entity = new PlatformVerificationSuiteRunStageEntity();
         entity.setId(generateStageId());
         entity.setSuiteRunId(run.getId());
@@ -216,10 +254,25 @@ public class PlatformVerificationSuiteService {
         entity.setBlocking(stage.blocking());
         entity.setStatus("QUEUED");
         entity.setSummaryMessage("Awaiting verification suite execution.");
-        entity.setDetailsJson("{}");
+        entity.setDetailsJson(initialStageDetails(stage, request).toString());
         entity.setLogOutput("");
         entity.setCreatedAt(createdAt);
         return entity;
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode initialStageDetails(
+        com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageDefinitionSummary stage,
+        PlatformVerificationSuiteDispatchRequest request
+    ) {
+        com.fasterxml.jackson.databind.node.ObjectNode details = objectMapper.createObjectNode();
+        ShopifyCompanionVerificationExpectationOverrides expectations = request == null ? null : request.shopifyCompanionExpectations();
+        if (expectations == null
+            || expectations.isEmpty()
+            || !PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION.equalsIgnoreCase(stage.targetRef())) {
+            return details;
+        }
+        details.set("scriptEnvironmentOverrides", objectMapper.valueToTree(expectations.toEnvironmentOverrides()));
+        return details;
     }
 
     private int runStageOrder(com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageDefinitionSummary stage,
@@ -283,33 +336,77 @@ public class PlatformVerificationSuiteService {
             if (!ACTIVE_STATUSES.contains(run.getStatus())) {
                 continue;
             }
+            List<PlatformVerificationSuiteRunStageEntity> stages = stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId());
+            if (definitionDrifted(run, stages)) {
+                recoverRun(
+                    run,
+                    stages,
+                    now,
+                    "SUPERSEDED",
+                    "Verification suite was recovered because the active run no longer matches the current suite definition.",
+                    "Stage was superseded because the parent verification suite definition changed while the run was active."
+                );
+                continue;
+            }
             Instant baseline = run.getStartedAt() != null ? run.getStartedAt() : run.getCreatedAt();
             if (baseline == null || !now.isAfter(baseline.plus(suiteProperties.timeout()))) {
                 continue;
             }
-            run.setStatus("TIMED_OUT");
-            run.setCompletedAt(now);
-            run.setSummaryMessage("Verification suite timed out after " + suiteProperties.timeout() + " without a completion signal.");
-            runRepository.save(run);
-            List<PlatformVerificationSuiteRunStageEntity> stages = stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId());
-            stages.stream()
-                .filter(stage -> ACTIVE_STATUSES.contains(stage.getStatus()))
-                .forEach(stage -> {
-                    stage.setStatus("TIMED_OUT");
-                    stage.setCompletedAt(now);
-                    stage.setSummaryMessage("Stage timed out because the parent verification suite exceeded the configured timeout.");
-                    stageRepository.save(stage);
-                });
-            platformAuditService.record(
-                "PLATFORM_VERIFICATION_SUITE_RECOVERED",
-                "PLATFORM_VERIFICATION_SUITE",
-                run.getId(),
-                Map.of(
-                    "suiteKey", run.getSuiteKey(),
-                    "status", "TIMED_OUT"
-                )
+            recoverRun(
+                run,
+                stages,
+                now,
+                "TIMED_OUT",
+                "Verification suite timed out after " + suiteProperties.timeout() + " without a completion signal.",
+                "Stage timed out because the parent verification suite exceeded the configured timeout."
             );
         }
+    }
+
+    private boolean definitionDrifted(PlatformVerificationSuiteRunEntity run,
+                                      List<PlatformVerificationSuiteRunStageEntity> stages) {
+        Optional<PlatformVerificationSuiteDefinitionSummary> definition = catalog.listDefinitions().stream()
+            .filter(candidate -> candidate.key().equalsIgnoreCase(run.getSuiteKey()))
+            .findFirst();
+        if (definition.isEmpty()) {
+            return true;
+        }
+        List<String> currentSignature = definition.get().stages().stream()
+            .map(stage -> stage.key() + "|" + stage.stageType() + "|" + stage.targetRef() + "|" + stage.blocking())
+            .toList();
+        List<String> runSignature = stages.stream()
+            .map(stage -> stage.getStageKey() + "|" + stage.getStageType() + "|" + stage.getTargetRef() + "|" + stage.isBlocking())
+            .toList();
+        return !currentSignature.equals(runSignature);
+    }
+
+    private void recoverRun(PlatformVerificationSuiteRunEntity run,
+                            List<PlatformVerificationSuiteRunStageEntity> stages,
+                            Instant now,
+                            String recoveredStatus,
+                            String runSummary,
+                            String stageSummary) {
+        run.setStatus(recoveredStatus);
+        run.setCompletedAt(now);
+        run.setSummaryMessage(runSummary);
+        runRepository.save(run);
+        stages.stream()
+            .filter(stage -> ACTIVE_STATUSES.contains(stage.getStatus()))
+            .forEach(stage -> {
+                stage.setStatus(recoveredStatus);
+                stage.setCompletedAt(now);
+                stage.setSummaryMessage(stageSummary);
+                stageRepository.save(stage);
+            });
+        platformAuditService.record(
+            "PLATFORM_VERIFICATION_SUITE_RECOVERED",
+            "PLATFORM_VERIFICATION_SUITE",
+            run.getId(),
+            Map.of(
+                "suiteKey", run.getSuiteKey(),
+                "status", recoveredStatus
+            )
+        );
     }
 
     private String generateRunId() {

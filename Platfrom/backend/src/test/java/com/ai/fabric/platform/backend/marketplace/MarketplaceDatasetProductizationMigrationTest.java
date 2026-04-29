@@ -10,6 +10,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MarketplaceDatasetProductizationMigrationTest {
@@ -116,6 +117,37 @@ class MarketplaceDatasetProductizationMigrationTest {
                 String manifestJson = manifestResult.getString("manifest_json");
                 assertTrue(manifestJson.contains("\"datasetId\": \"policy-folder-pack\""));
                 assertTrue(manifestJson.contains("\"ingestionMode\": \"EXTERNAL_SYNC_FOLDER\""));
+            }
+        }
+    }
+
+    @Test
+    void latestShopifyCompanionReadManifestDeclaresGroundedReadResolutionFlags() throws Exception {
+        String url = "jdbc:h2:mem:marketplace_shopify_companion_read_flags;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1";
+        Flyway.configure()
+            .dataSource(url, "sa", "")
+            .locations("classpath:db/migration")
+            .load()
+            .migrate();
+
+        try (Connection connection = DriverManager.getConnection(url, "sa", "")) {
+            try (PreparedStatement manifestStatement = connection.prepareStatement("""
+                select manifest_json
+                from platform_marketplace_plugin_versions
+                where id = 'mkv-action-shopify-companion-read-v1'
+                """);
+                 ResultSet manifestResult = manifestStatement.executeQuery()) {
+                assertTrue(manifestResult.next());
+                String manifestJson = manifestResult.getString("manifest_json");
+                assertTrue(manifestJson.contains("\"actionId\": \"list_products\""));
+                assertFalse(manifestJson.contains("\"actionId\": \"find_similar_products\""));
+                assertFalse(manifestJson.contains("\"actionId\": \"compare_products\""));
+                assertTrue(manifestJson.contains("\"groundingEligible\": true"));
+                assertTrue(manifestJson.contains("\"readActionResolutionEligible\": true"));
+                assertTrue(manifestJson.contains("\"anonymousAllowed\": true"));
+                assertTrue(manifestJson.contains("\"actionId\": \"search_products\""));
+                assertTrue(manifestJson.contains("\"description\": \"Shopper query or category hint\""));
+                assertTrue(manifestJson.contains("\"description\": \"Shopper search query\""));
             }
         }
     }

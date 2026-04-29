@@ -12,6 +12,8 @@ public record ShopifyBridgeMerchantSessionResponse(
     boolean installRecoveryRequired,
     String installRecoveryMessage,
     String installRecoveryUrl,
+    ShopifyBridgeSupportReadinessSummary supportReadiness,
+    ShopifyBridgeThinkerHealthSummary thinkerHealth,
     ShopifyInstallRecordSummary installRecord,
     ShopifyBridgeStoreSummary store
 ) {

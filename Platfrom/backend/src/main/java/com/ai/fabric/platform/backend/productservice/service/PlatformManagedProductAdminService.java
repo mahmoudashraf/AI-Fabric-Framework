@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceBillingPlanSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceHealthSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceBillingSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceDeploymentHistorySummary;
@@ -23,6 +24,10 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayDeploymentSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreUsageSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportProfileSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportSubscriptionSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreOverview;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionOverview;
@@ -36,6 +41,10 @@ import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntit
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCapabilitySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedConsumerSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedCustomerSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedDeploymentSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreReadinessEvaluator;
@@ -47,6 +56,7 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerReposito
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -86,28 +96,31 @@ public class PlatformManagedProductAdminService {
     private final PlatformManagedProductProvisioningService provisioningService;
     private final PlatformAuditService platformAuditService;
     private final RailwayGraphqlClient railwayGraphqlClient;
-    private final ShopifyStoreConnectionService shopifyStoreConnectionService;
+    private final PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ShopifyStoreReadinessEvaluator readinessEvaluator;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    public PlatformManagedProductAdminService(PlatformManagedProductServiceService serviceService,
-                                              PlatformManagedProductServiceRepository serviceRepository,
-                                              ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
-                                              PlatformCustomerRepository platformCustomerRepository,
-                                              DeploymentRepository deploymentRepository,
-                                              DeploymentVersionRepository deploymentVersionRepository,
-                                              DeploymentReleaseRepository deploymentReleaseRepository,
-                                              PlatformConsumerRepository platformConsumerRepository,
-                                              PlatformSecretService platformSecretService,
-                                              PlatformManagedProductProvisioningService provisioningService,
-                                              PlatformAuditService platformAuditService,
-                                              RailwayGraphqlClient railwayGraphqlClient,
-                                              ShopifyStoreConnectionService shopifyStoreConnectionService,
-                                              ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
-                                              ShopifyStoreReadinessEvaluator readinessEvaluator,
-                                              ObjectMapper objectMapper) {
+    @Autowired
+    public PlatformManagedProductAdminService(
+        PlatformManagedProductServiceService serviceService,
+        PlatformManagedProductServiceRepository serviceRepository,
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+        PlatformCustomerRepository platformCustomerRepository,
+        DeploymentRepository deploymentRepository,
+        DeploymentVersionRepository deploymentVersionRepository,
+        DeploymentReleaseRepository deploymentReleaseRepository,
+        PlatformConsumerRepository platformConsumerRepository,
+        PlatformSecretService platformSecretService,
+        PlatformManagedProductProvisioningService provisioningService,
+        PlatformAuditService platformAuditService,
+        RailwayGraphqlClient railwayGraphqlClient,
+        PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient,
+        ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+        ShopifyStoreReadinessEvaluator readinessEvaluator,
+        ObjectMapper objectMapper
+    ) {
         this.serviceService = serviceService;
         this.serviceRepository = serviceRepository;
         this.shopifyStoreConnectionRepository = shopifyStoreConnectionRepository;
@@ -120,11 +133,84 @@ public class PlatformManagedProductAdminService {
         this.provisioningService = provisioningService;
         this.platformAuditService = platformAuditService;
         this.railwayGraphqlClient = railwayGraphqlClient;
-        this.shopifyStoreConnectionService = shopifyStoreConnectionService;
+        this.storeSupportReadinessClient = storeSupportReadinessClient;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
-        this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(HTTP_TIMEOUT).build();
+        this.objectMapper = objectMapper.copy().findAndRegisterModules();
+        this.httpClient = HttpClient.newBuilder()
+            .connectTimeout(HTTP_TIMEOUT)
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+    }
+
+    PlatformManagedProductAdminService(PlatformManagedProductServiceService serviceService,
+                                       PlatformManagedProductServiceRepository serviceRepository,
+                                       ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+                                       PlatformCustomerRepository platformCustomerRepository,
+                                       DeploymentRepository deploymentRepository,
+                                       DeploymentVersionRepository deploymentVersionRepository,
+                                       DeploymentReleaseRepository deploymentReleaseRepository,
+                                       PlatformConsumerRepository platformConsumerRepository,
+                                       PlatformSecretService platformSecretService,
+                                       PlatformManagedProductProvisioningService provisioningService,
+                                       PlatformAuditService platformAuditService,
+                                       RailwayGraphqlClient railwayGraphqlClient,
+                                       ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                       ShopifyStoreReadinessEvaluator readinessEvaluator,
+                                       ObjectMapper objectMapper) {
+        this(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            platformCustomerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            platformConsumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            (PlatformManagedProductStoreSupportReadinessClientService) null,
+            sourcePreflightSupport,
+            readinessEvaluator,
+            objectMapper
+        );
+    }
+
+    PlatformManagedProductAdminService(PlatformManagedProductServiceService serviceService,
+                                       PlatformManagedProductServiceRepository serviceRepository,
+                                       ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+                                       PlatformCustomerRepository platformCustomerRepository,
+                                       DeploymentRepository deploymentRepository,
+                                       DeploymentVersionRepository deploymentVersionRepository,
+                                       DeploymentReleaseRepository deploymentReleaseRepository,
+                                       PlatformConsumerRepository platformConsumerRepository,
+                                       PlatformSecretService platformSecretService,
+                                       PlatformManagedProductProvisioningService provisioningService,
+                                       PlatformAuditService platformAuditService,
+                                       RailwayGraphqlClient railwayGraphqlClient,
+                                       ShopifyStoreConnectionService ignoredShopifyStoreConnectionService,
+                                       ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
+                                       ShopifyStoreReadinessEvaluator readinessEvaluator,
+                                       ObjectMapper objectMapper) {
+        this(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            platformCustomerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            platformConsumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            sourcePreflightSupport,
+            readinessEvaluator,
+            objectMapper
+        );
     }
 
     public List<ShopifyStoreConnectionSummary> listDependents(String serviceRef) {
@@ -278,12 +364,12 @@ public class PlatformManagedProductAdminService {
 
     public ShopifyStoreBindingInspectionSummary getStoreBinding(String serviceRef, String shopDomain) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+        ShopifyStoreConnectionEntity connection = shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
             .orElseThrow(() -> new ResponseStatusException(
                 CONFLICT,
                 "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
             ));
-        return shopifyStoreConnectionService.inspectBinding(shopDomain);
+        return toBindingInspectionSummary(connection, service);
     }
 
     @Transactional
@@ -443,37 +529,15 @@ public class PlatformManagedProductAdminService {
     }
 
     public PlatformManagedProductServiceWebhookSubscriptionSummary getStoreWebhookSubscriptions(String serviceRef, String shopDomain) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        if (!hasText(service.getBaseUrl())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
-        }
-        if (!hasText(service.getSecretName())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
-        }
-        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
-            .orElseThrow(() -> new ResponseStatusException(
-                CONFLICT,
-                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
-            ));
-
-        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
-        if (!hasText(apiKey)) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
-        }
-
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/webhook-subscriptions")))
-                .timeout(HTTP_TIMEOUT)
-                .header("Accept", "application/json")
-                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
-                .GET()
-                .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(CONFLICT, "Managed product webhook subscription request failed with HTTP " + response.statusCode() + ".");
-            }
-            return parseWebhookSubscriptionSummary(objectMapper.readTree(response.body()));
+            return parseWebhookSubscriptionSummary(
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/webhook-subscriptions",
+                    "Managed product webhook subscription request failed."
+                )
+            );
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -482,41 +546,71 @@ public class PlatformManagedProductAdminService {
     }
 
     public PlatformManagedProductServiceStoreBillingSummary getStoreBillingSummary(String serviceRef, String shopDomain) {
-        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
-        if (!hasText(service.getBaseUrl())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
-        }
-        if (!hasText(service.getSecretName())) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
-        }
-        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
-            .orElseThrow(() -> new ResponseStatusException(
-                CONFLICT,
-                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
-            ));
-
-        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
-        if (!hasText(apiKey)) {
-            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
-        }
-
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/billing-summary")))
-                .timeout(HTTP_TIMEOUT)
-                .header("Accept", "application/json")
-                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
-                .GET()
-                .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(CONFLICT, "Managed product billing summary request failed with HTTP " + response.statusCode() + ".");
-            }
-            return parseStoreBillingSummary(shopDomain, objectMapper.readTree(response.body()));
+            return parseStoreBillingSummary(
+                shopDomain,
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/billing-summary",
+                    "Managed product billing summary request failed."
+                )
+            );
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
             throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product billing summary request failed."), ex);
+        }
+    }
+
+    public PlatformManagedProductServiceStoreUsageSummary getStoreUsageSummary(String serviceRef, String shopDomain) {
+        try {
+            return objectMapper.treeToValue(
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/usage-summary",
+                    "Managed product usage summary request failed."
+                ),
+                PlatformManagedProductServiceStoreUsageSummary.class
+            );
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product usage summary request failed."), ex);
+        }
+    }
+
+    public PlatformManagedProductServiceStoreSupportReadinessSummary getStoreSupportReadiness(String serviceRef, String shopDomain) {
+        if (storeSupportReadinessClient == null) {
+            return parseStoreSupportReadiness(
+                shopDomain,
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/support-readiness",
+                    "Managed product support readiness request failed."
+                )
+            );
+        }
+        return storeSupportReadinessClient.getStoreSupportReadiness(serviceRef, shopDomain);
+    }
+
+    public ShopifyStoreVectorizationSummary getStoreVectorizationSummary(String serviceRef, String shopDomain) {
+        try {
+            return objectMapper.treeToValue(
+                fetchStoreAdminPayload(
+                    serviceRef,
+                    shopDomain,
+                    "/vectorization",
+                    "Managed product vectorization request failed."
+                ),
+                ShopifyStoreVectorizationSummary.class
+            );
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product vectorization request failed."), ex);
         }
     }
 
@@ -566,12 +660,72 @@ public class PlatformManagedProductAdminService {
                     "shopDomain", shopDomain
                 )
             );
-            return shopifyStoreConnectionService.getConnection(shopDomain);
+            ShopifyStoreConnectionEntity connection = shopifyStoreConnectionRepository
+                .findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+                .orElseThrow(() -> new ResponseStatusException(
+                    CONFLICT,
+                    "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+                ));
+            return toSummary(connection, service);
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
             throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), "Managed product source preflight request failed."), ex);
         }
+    }
+
+    private JsonNode fetchStoreAdminPayload(String serviceRef,
+                                            String shopDomain,
+                                            String endpointSuffix,
+                                            String failureMessage) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        requireStoreAdminBridgeConfiguration(serviceRef, service);
+        requireMappedStore(serviceRef, service, shopDomain);
+        String apiKey = requireStoreAdminApiKey(service);
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + endpointSuffix)))
+                .timeout(HTTP_TIMEOUT)
+                .header("Accept", "application/json")
+                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .GET()
+                .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ResponseStatusException(CONFLICT, failureMessage + " HTTP " + response.statusCode() + ".");
+            }
+            return objectMapper.readTree(response.body());
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(CONFLICT, firstNonBlank(ex.getMessage(), failureMessage), ex);
+        }
+    }
+
+    private void requireStoreAdminBridgeConfiguration(String serviceRef, PlatformManagedProductServiceEntity service) {
+        if (!hasText(service.getBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare a base URL yet: " + serviceRef);
+        }
+        if (!hasText(service.getSecretName())) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service does not declare an admin secret: " + serviceRef);
+        }
+    }
+
+    private void requireMappedStore(String serviceRef, PlatformManagedProductServiceEntity service, String shopDomain) {
+        shopifyStoreConnectionRepository.findByProductServiceIdAndShopDomainIgnoreCase(service.getId(), shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify store " + shopDomain + " is not mapped to managed product service " + serviceRef + "."
+            ));
+    }
+
+    private String requireStoreAdminApiKey(PlatformManagedProductServiceEntity service) {
+        String apiKey = platformSecretService.resolveSecret(service.getSecretName());
+        if (!hasText(apiKey)) {
+            throw new ResponseStatusException(CONFLICT, "Managed product service admin secret is missing.");
+        }
+        return apiKey;
     }
 
     @Transactional
@@ -616,6 +770,19 @@ public class PlatformManagedProductAdminService {
         var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
         var capabilities = summarizeCapabilities(latestVersion);
         var latestReleaseSummary = toReleaseSummary(latestRelease);
+        var readiness = applySupportReadiness(
+            readinessEvaluator.evaluate(
+                entity,
+                credentials,
+                sourcePreflight,
+                syncDetail,
+                widgetDetail,
+                latestReleaseSummary,
+                deployment != null && deployment.getArchivedAt() != null
+            ),
+            service.getServiceRef(),
+            entity.getShopDomain()
+        );
         return new ShopifyStoreConnectionSummary(
             entity.getId(),
             entity.getShopDomain(),
@@ -639,13 +806,15 @@ public class PlatformManagedProductAdminService {
             entity.isCollectionsEnabled(),
             entity.isPagesEnabled(),
             entity.isPoliciesEnabled(),
+            entity.isArticlesEnabled(),
+            entity.isMetaobjectsEnabled(),
             credentials,
             sourcePreflight,
             syncDetail,
             webhookDetail,
             widgetDetail,
             capabilities,
-            readinessEvaluator.evaluate(entity, credentials, sourcePreflight, syncDetail, widgetDetail, latestReleaseSummary),
+            readiness,
             toVersionSummary(latestVersion),
             latestReleaseSummary,
             entity.getLastSourcePreflightAt(),
@@ -654,6 +823,218 @@ public class PlatformManagedProductAdminService {
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
+    }
+
+    private ShopifyStoreBindingInspectionSummary toBindingInspectionSummary(ShopifyStoreConnectionEntity entity,
+                                                                            PlatformManagedProductServiceEntity service) {
+        PlatformCustomerEntity customer = hasText(entity.getCustomerId())
+            ? platformCustomerRepository.findById(entity.getCustomerId()).orElse(null)
+            : null;
+        DeploymentEntity deployment = hasText(entity.getDeploymentId())
+            ? deploymentRepository.findById(entity.getDeploymentId()).orElse(null)
+            : null;
+        DeploymentVersionEntity latestVersion = deployment == null
+            ? null
+            : deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deployment.getId()).stream().findFirst().orElse(null);
+        DeploymentReleaseEntity latestRelease = deployment == null
+            ? null
+            : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
+        PlatformConsumerEntity consumer = hasText(entity.getConsumerId())
+            ? platformConsumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null)
+            : null;
+        return new ShopifyStoreBindingInspectionSummary(
+            entity.getShopDomain(),
+            service.getServiceRef(),
+            toLinkedCustomerSummary(customer),
+            toLinkedDeploymentSummary(deployment),
+            toLinkedConsumerSummary(consumer, deployment),
+            toVersionSummary(latestVersion),
+            toReleaseSummary(latestRelease),
+            buildBindingWarnings(entity, customer, deployment, consumer)
+        );
+    }
+
+    private com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary applySupportReadiness(
+        com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary base,
+        String serviceRef,
+        String shopDomain
+    ) {
+        if (base == null || storeSupportReadinessClient == null || !hasText(serviceRef)) {
+            return base;
+        }
+        PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness;
+        try {
+            supportReadiness = storeSupportReadinessClient.getStoreSupportReadiness(serviceRef, shopDomain);
+        } catch (ResponseStatusException ex) {
+            return base;
+        }
+        boolean orderLookupTierAllowed = "ELITE".equalsIgnoreCase(supportReadiness.billingTier());
+        boolean supportGateReady = "READY".equalsIgnoreCase(supportReadiness.status())
+            && (!orderLookupTierAllowed
+                || (supportReadiness.orderLookupSupported()
+                    && supportReadiness.appScopesUpdateWebhookReady()
+                    && supportReadiness.merchantHandoffConfigured()));
+        if (supportGateReady) {
+            return base;
+        }
+
+        List<String> supportBlockers = new ArrayList<>();
+        if (!"READY".equalsIgnoreCase(supportReadiness.status())) {
+            supportBlockers.add(firstNonBlank(
+                supportReadiness.message(),
+                "Customer-safe order lookup and governed support posture are not ready for go-live yet."
+            ));
+        }
+        if (orderLookupTierAllowed && "READY".equalsIgnoreCase(supportReadiness.status()) && !supportReadiness.orderLookupSupported()) {
+            supportBlockers.add(firstNonBlank(
+                supportReadiness.message(),
+                "Customer-safe order lookup must be enabled before go-live."
+            ));
+        }
+        if (orderLookupTierAllowed && !supportReadiness.appScopesUpdateWebhookReady()) {
+            supportBlockers.add("APP_SCOPES_UPDATE webhook readiness is required before launch so Shopify scope drift is detected.");
+        }
+        if (orderLookupTierAllowed && !supportReadiness.merchantHandoffConfigured()) {
+            supportBlockers.add(firstNonBlank(
+                supportReadiness.merchantHandoffMessage(),
+                "Merchant support handoff must be configured before launch."
+            ));
+        }
+
+        List<String> goLiveBlockers = new ArrayList<>(base.goLiveBlockingReasons());
+        List<String> storefrontBlockers = new ArrayList<>(base.storefrontBlockingReasons());
+        for (String blocker : supportBlockers) {
+            appendIfMissing(goLiveBlockers, blocker);
+            appendIfMissing(storefrontBlockers, blocker);
+        }
+        List<String> nextActions = new ArrayList<>(base.nextActions());
+        if (supportReadiness.nextActions() != null) {
+            for (String action : supportReadiness.nextActions()) {
+                appendIfMissing(nextActions, action);
+            }
+        }
+
+        boolean goLiveEligible = base.goLiveEligible() && supportGateReady;
+        boolean storefrontReady = base.storefrontReady() && supportGateReady;
+        String overallStatus;
+        if (storefrontReady) {
+            overallStatus = "STOREFRONT_READY";
+        } else if ("GO_LIVE_IN_PROGRESS".equalsIgnoreCase(base.overallStatus())) {
+            overallStatus = "GO_LIVE_IN_PROGRESS";
+        } else if (goLiveEligible) {
+            overallStatus = "READY_FOR_GO_LIVE";
+        } else {
+            overallStatus = "BLOCKED";
+        }
+
+        return new com.ai.fabric.platform.backend.shopify.model.ShopifyStoreReadinessSummary(
+            overallStatus,
+            goLiveEligible,
+            storefrontReady,
+            List.copyOf(goLiveBlockers),
+            List.copyOf(storefrontBlockers),
+            List.copyOf(nextActions)
+        );
+    }
+
+    private ShopifyStoreLinkedCustomerSummary toLinkedCustomerSummary(PlatformCustomerEntity customer) {
+        if (customer == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedCustomerSummary(
+            customer.getId(),
+            customer.getName(),
+            customer.getSlug(),
+            customer.getStatus(),
+            customer.isPlatformManaged(),
+            customer.getCreatedAt(),
+            customer.getUpdatedAt()
+        );
+    }
+
+    private ShopifyStoreLinkedDeploymentSummary toLinkedDeploymentSummary(DeploymentEntity deployment) {
+        if (deployment == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedDeploymentSummary(
+            deployment.getId(),
+            deployment.getName(),
+            deployment.getEnvironmentName(),
+            deployment.getTemplateId(),
+            deployment.getStatus(),
+            deployment.getCustomerId(),
+            deployment.getTenantId(),
+            deployment.getActiveVersionId(),
+            deployment.getRuntimeBaseUrl(),
+            deployment.getConnectorBaseUrl(),
+            deployment.isApprovalRequiredForApply(),
+            deployment.isApprovalRequiredForDelete(),
+            deployment.getCreatedAt(),
+            deployment.getUpdatedAt()
+        );
+    }
+
+    private ShopifyStoreLinkedConsumerSummary toLinkedConsumerSummary(PlatformConsumerEntity consumer,
+                                                                      DeploymentEntity deployment) {
+        if (consumer == null) {
+            return null;
+        }
+        return new ShopifyStoreLinkedConsumerSummary(
+            consumer.getConsumerId(),
+            consumer.getCustomerId(),
+            consumer.getDisplayName(),
+            consumer.getStatus(),
+            consumer.getBoundDeploymentId(),
+            deployment == null ? null : deployment.getName(),
+            deployment == null ? null : deployment.getEnvironmentName(),
+            deployment == null ? null : deployment.getStatus(),
+            consumer.getLastBoundAt(),
+            consumer.getCreatedAt(),
+            consumer.getUpdatedAt()
+        );
+    }
+
+    private List<String> buildBindingWarnings(ShopifyStoreConnectionEntity entity,
+                                              PlatformCustomerEntity customer,
+                                              DeploymentEntity deployment,
+                                              PlatformConsumerEntity consumer) {
+        List<String> warnings = new ArrayList<>();
+        if (!hasText(entity.getCustomerId())) {
+            warnings.add("No platform customer is currently bound.");
+        } else if (customer == null) {
+            warnings.add("Bound customer " + entity.getCustomerId() + " no longer exists.");
+        }
+
+        if (!hasText(entity.getDeploymentId())) {
+            warnings.add("No deployment is currently bound.");
+        } else if (deployment == null) {
+            warnings.add("Bound deployment " + entity.getDeploymentId() + " no longer exists.");
+        }
+
+        if (!hasText(entity.getConsumerId())) {
+            warnings.add("No consumerId is currently bound.");
+        } else if (consumer == null) {
+            warnings.add("Bound consumer " + entity.getConsumerId() + " no longer exists.");
+        }
+
+        if (customer != null && deployment != null && !customer.getId().equals(deployment.getCustomerId())) {
+            warnings.add("Bound deployment belongs to a different customer.");
+        }
+        if (customer != null && consumer != null && !customer.getId().equals(consumer.getCustomerId())) {
+            warnings.add("Bound consumer belongs to a different customer.");
+        }
+        if (deployment != null && consumer != null && hasText(consumer.getBoundDeploymentId())
+            && !deployment.getId().equals(consumer.getBoundDeploymentId())) {
+            warnings.add("Bound consumer points to a different deployment.");
+        }
+        return List.copyOf(warnings);
+    }
+
+    private void appendIfMissing(List<String> values, String candidate) {
+        if (!hasText(candidate) || values.stream().anyMatch(existing -> existing.equalsIgnoreCase(candidate))) {
+            return;
+        }
+        values.add(candidate);
     }
 
     private ShopifyStoreCapabilitySummary summarizeCapabilities(DeploymentVersionEntity version) {
@@ -881,10 +1262,22 @@ public class PlatformManagedProductAdminService {
         }
         return new PlatformManagedProductServiceBillingSummary(
             text(node, "mode", null),
+            text(node, "tierKey", null),
             text(node, "planName", null),
             text(node, "status", null),
             node.path("merchantApprovalRequired").asBoolean(false),
             node.path("launchBlocked").asBoolean(false),
+            node.path("paidTier").asBoolean(false),
+            node.path("actionCapable").asBoolean(false),
+            node.path("catalogProductCap").isNumber() ? node.path("catalogProductCap").asInt() : null,
+            text(node, "syncCadence", null),
+            node.path("poweredByBadgeRequired").asBoolean(false),
+            node.path("chatFallbackEnabled").asBoolean(true),
+            node.path("requiresExplicitConfirmation").asBoolean(false),
+            node.path("auditTrailAvailable").asBoolean(false),
+            stringList(node.path("actionPackages")),
+            stringList(node.path("allowedSurfaces")),
+            parseBillingPlans(node.path("availablePlans")),
             text(node, "message", null)
         );
     }
@@ -939,12 +1332,122 @@ public class PlatformManagedProductAdminService {
         return new PlatformManagedProductServiceStoreBillingSummary(
             shopDomain,
             text(node, "mode", null),
+            text(node, "tierKey", null),
             text(node, "planName", null),
             text(node, "status", "UNKNOWN"),
             node.path("merchantApprovalRequired").asBoolean(false),
             node.path("launchBlocked").asBoolean(false),
+            node.path("paidTier").asBoolean(false),
+            node.path("actionCapable").asBoolean(false),
+            node.path("catalogProductCap").isNumber() ? node.path("catalogProductCap").asInt() : null,
+            text(node, "syncCadence", null),
+            node.path("poweredByBadgeRequired").asBoolean(false),
+            node.path("chatFallbackEnabled").asBoolean(true),
+            node.path("requiresExplicitConfirmation").asBoolean(false),
+            node.path("auditTrailAvailable").asBoolean(false),
+            stringList(node.path("actionPackages")),
+            stringList(node.path("allowedSurfaces")),
+            parseBillingPlans(node.path("availablePlans")),
             text(node, "message", "Managed product service did not return store billing diagnostics.")
         );
+    }
+
+    private PlatformManagedProductServiceStoreSupportReadinessSummary parseStoreSupportReadiness(String shopDomain, JsonNode node) {
+        return new PlatformManagedProductServiceStoreSupportReadinessSummary(
+            shopDomain,
+            text(node, "status", "UNKNOWN"),
+            text(node, "message", "Managed product service did not return support readiness diagnostics."),
+            text(node, "lifecycleStage", "UNKNOWN"),
+            node.path("orderLookupSupported").asBoolean(false),
+            node.path("orderLookupScopeGranted").asBoolean(false),
+            node.path("allOrdersScopeGranted").asBoolean(false),
+            node.path("appScopesUpdateWebhookReady").asBoolean(false),
+            node.path("installRecoveryRequired").asBoolean(false),
+            text(node, "installRecoveryUrl", null),
+            node.path("scopeGrantRequired").asBoolean(false),
+            text(node, "scopeGrantUrl", null),
+            text(node, "installStatus", "UNKNOWN"),
+            text(node, "billingTier", null),
+            text(node, "billingStatus", "UNKNOWN"),
+            stringList(node.path("grantedScopes")),
+            stringList(node.path("missingScopes")),
+            stringList(node.path("activeSubscriptionNames")),
+            parseSupportSubscriptions(node.path("activeSubscriptions")),
+            parseSupportProfile(node.path("supportProfile")),
+            node.path("merchantHandoffConfigured").asBoolean(false),
+            text(node, "merchantHandoffMessage", null),
+            stringList(node.path("nextActions")),
+            stringList(node.path("verificationMethods")),
+            stringList(node.path("supportedCapabilities")),
+            stringList(node.path("blockedCapabilities"))
+        );
+    }
+
+    private List<PlatformManagedProductServiceStoreSupportSubscriptionSummary> parseSupportSubscriptions(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<PlatformManagedProductServiceStoreSupportSubscriptionSummary> values = new ArrayList<>();
+        for (JsonNode item : node) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            values.add(new PlatformManagedProductServiceStoreSupportSubscriptionSummary(
+                text(item, "subscriptionId", null),
+                text(item, "name", null),
+                text(item, "status", "UNKNOWN"),
+                text(item, "tierKey", "UNKNOWN"),
+                item.path("active").asBoolean(false)
+            ));
+        }
+        return List.copyOf(values);
+    }
+
+    private PlatformManagedProductServiceStoreSupportProfileSummary parseSupportProfile(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return new PlatformManagedProductServiceStoreSupportProfileSummary(null, null, null, null, null, false);
+        }
+        return new PlatformManagedProductServiceStoreSupportProfileSummary(
+            text(node, "contactEmail", null),
+            text(node, "contactUrl", null),
+            text(node, "helpCenterUrl", null),
+            text(node, "orderLookupPageUrl", null),
+            text(node, "supportPolicyNote", null),
+            node.path("merchantHandoffConfigured").asBoolean(false)
+        );
+    }
+
+    private List<PlatformManagedProductServiceBillingPlanSummary> parseBillingPlans(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<PlatformManagedProductServiceBillingPlanSummary> values = new ArrayList<>();
+        for (JsonNode item : node) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            values.add(new PlatformManagedProductServiceBillingPlanSummary(
+                text(item, "tierKey", null),
+                text(item, "planName", null),
+                text(item, "amount", null),
+                text(item, "currencyCode", null),
+                text(item, "interval", null),
+                item.path("active").asBoolean(false),
+                item.path("commerciallyAvailable").asBoolean(false),
+                item.path("merchantApprovalSupported").asBoolean(false),
+                item.path("actionCapable").asBoolean(false),
+                item.path("catalogProductCap").isNumber() ? item.path("catalogProductCap").asInt() : null,
+                text(item, "syncCadence", null),
+                item.path("poweredByBadgeRequired").asBoolean(false),
+                item.path("chatFallbackEnabled").asBoolean(true),
+                item.path("requiresExplicitConfirmation").asBoolean(false),
+                item.path("auditTrailAvailable").asBoolean(false),
+                stringList(item.path("actionPackages")),
+                stringList(item.path("allowedSurfaces")),
+                text(item, "message", null)
+            ));
+        }
+        return List.copyOf(values);
     }
 
     private List<PlatformManagedProductServiceUsageEventSummary> parseUsageBreakdown(JsonNode node) {

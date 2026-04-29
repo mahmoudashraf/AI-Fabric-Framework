@@ -50,7 +50,7 @@ public class ShopifyStoreWidgetService {
         Instant now = Instant.now();
         String status = normalizeStatus(request.status());
         ObjectNode details = support.mutableDetails(store.getDetailsJson());
-        ObjectNode widget = details.putObject("widget");
+        ObjectNode widget = details.with("widget");
         widget.put("status", status);
         widget.put("checkedAt", now.toString());
         if (hasText(request.channel())) {

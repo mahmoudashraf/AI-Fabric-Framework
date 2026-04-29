@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Compass, Microscope, ShoppingCart, Zap, ChevronUp } from "lucide-react";
+import type { MaxModeMode } from "@/constants";
 
 const MODES = [
   {
@@ -17,52 +18,57 @@ const MODES = [
   },
   {
     key: "navigator_deep" as const,
-    label: "Deep Search",
+    label: "Deep",
     shortLabel: "Deep",
     icon: Microscope,
     color: "text-purple-600",
     bg: "bg-purple-500",
     bgLight: "bg-purple-50 dark:bg-purple-900/30",
     border: "border-purple-400",
-    description: "In-depth analysis",
+    description: "In-depth reasoning",
   },
   {
     key: "cart_assistant" as const,
-    label: "Cart Assistant",
-    shortLabel: "Cart",
+    label: "Assistant",
+    shortLabel: "Assist",
     icon: ShoppingCart,
     color: "text-emerald-600",
     bg: "bg-emerald-500",
     bgLight: "bg-emerald-50 dark:bg-emerald-900/30",
     border: "border-emerald-400",
-    description: "Cart & orders",
+    description: "Guided support",
   },
   {
     key: "executor" as const,
-    label: "Executor",
-    shortLabel: "Exec",
+    label: "Resolver",
+    shortLabel: "Resolve",
     icon: Zap,
     color: "text-amber-600",
     bg: "bg-amber-500",
     bgLight: "bg-amber-50 dark:bg-amber-900/30",
     border: "border-amber-400",
-    description: "Take actions",
+    description: "Resolve and act",
   },
 ] as const;
 
-type Mode = (typeof MODES)[number]["key"];
-
 export function ModeSelector({
   currentMode,
+  availableModes,
   onModeChange,
 }: {
-  currentMode: Mode;
-  onModeChange: (mode: Mode) => void;
+  currentMode: MaxModeMode;
+  availableModes: MaxModeMode[];
+  onModeChange: (mode: MaxModeMode) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const active = MODES.find((m) => m.key === currentMode) || MODES[0];
+  const selectableModes = MODES.filter((mode) => availableModes.includes(mode.key));
+  if (selectableModes.length <= 1) {
+    return null;
+  }
+
+  const active = selectableModes.find((m) => m.key === currentMode) || selectableModes[0];
   const ActiveIcon = active.icon;
 
   useEffect(() => {
@@ -101,7 +107,7 @@ export function ModeSelector({
             className="absolute bottom-full right-0 mb-1.5 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
           >
             <div className="p-1">
-              {MODES.map((mode) => {
+              {selectableModes.map((mode) => {
                 const Icon = mode.icon;
                 const isActive = mode.key === currentMode;
                 return (

@@ -4,7 +4,7 @@ import { AlertCircle, Ban, Bot, CheckCircle2, HelpCircle, Info, XCircle, Zap } f
 
 import { useToast } from "@/hooks/use-toast";
 
-import type { QuickAction } from "@/constants";
+import type { MaxModeMode, MaxModePosition, QuickAction } from "@/constants";
 import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_CATEGORIES } from "@/constants";
 import {
   emitEvent,
@@ -27,6 +27,50 @@ import { useMaxModeViewSync } from "./useMaxModeViewSync";
 import { useNewDocsPreviewActions } from "./useNewDocsPreviewActions";
 import { useSearchControls } from "./useSearchControls";
 import { useSuggestionsController } from "./useSuggestionsController";
+
+const PENDING_PROMPTS_KEY = "maxmode_widget_pending_prompts";
+
+type PendingPrompt = {
+  id: string;
+  message: string;
+  open?: boolean;
+  position?: MaxModePosition;
+  mode?: MaxModeMode;
+  requestContext?: Record<string, any>;
+};
+
+const CONVERSATION_MODES: MaxModeMode[] = ["navigator", "navigator_deep", "cart_assistant", "executor"];
+
+function loadPendingPrompts(): PendingPrompt[] {
+  try {
+    const raw = sessionStorage.getItem(PENDING_PROMPTS_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePendingPrompts(prompts: PendingPrompt[]) {
+  try {
+    if (!prompts.length) {
+      sessionStorage.removeItem(PENDING_PROMPTS_KEY);
+      return;
+    }
+    sessionStorage.setItem(PENDING_PROMPTS_KEY, JSON.stringify(prompts));
+  } catch {}
+}
+
+function removePendingPrompt(promptId: string | undefined) {
+  if (!promptId) {
+    return;
+  }
+  const remaining = loadPendingPrompts().filter((prompt) => prompt.id !== promptId);
+  savePendingPrompts(remaining);
+}
 
 function expectedAuthModeForIntegrationMode(mode: string): string | null {
   switch (mode) {
@@ -61,7 +105,7 @@ function validateRuntimeAuthContext(
   return null;
 }
 
-function shellPromptMode(moduleId?: string): "navigator" | "navigator_deep" | "cart_assistant" | "executor" {
+function shellPromptMode(moduleId?: string): MaxModeMode {
   switch (moduleId) {
     case "cart":
     case "orders":
@@ -78,7 +122,7 @@ function shellPromptMode(moduleId?: string): "navigator" | "navigator_deep" | "c
   }
 }
 
-function shellPromptPosition(moduleId?: string): "landing" | "catalog" | "search" | "cart" {
+function shellPromptPosition(moduleId?: string): MaxModePosition {
   switch (moduleId) {
     case "cart":
     case "orders":
@@ -182,6 +226,103 @@ function sanitizeRequestContext(hostConfig: MaxModeHostConfig | undefined) {
   return { ...hostConfig.requestContext };
 }
 
+function sanitizeConversationMode(value: string | null | undefined, fallback: MaxModeMode = "navigator"): MaxModeMode {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const normalized = value.trim() as MaxModeMode;
+  return CONVERSATION_MODES.includes(normalized) ? normalized : fallback;
+}
+
+function sanitizeAllowedConversationModes(
+  values: MaxModeMode[] | undefined,
+  fallback: MaxModeMode,
+): MaxModeMode[] {
+  const normalized = (values ?? [])
+    .map((value) => sanitizeConversationMode(value, fallback))
+    .filter((value, index, array) => array.indexOf(value) === index);
+  if (!normalized.includes(fallback)) {
+    normalized.push(fallback);
+  }
+  return normalized.length ? normalized : [fallback];
+}
+
+function sanitizePageModeMappings(
+  values: Record<string, MaxModeMode> | undefined,
+  allowedConversationModes: MaxModeMode[],
+): Record<string, MaxModeMode> {
+  const normalized: Record<string, MaxModeMode> = {};
+  if (!values || typeof values !== "object") {
+    return normalized;
+  }
+  Object.entries(values).forEach(([key, value]) => {
+    const normalizedKey = key.trim().toLowerCase();
+    const normalizedMode = sanitizeConversationMode(value);
+    if (!normalizedKey || !allowedConversationModes.includes(normalizedMode)) {
+      return;
+    }
+    normalized[normalizedKey] = normalizedMode;
+  });
+  return normalized;
+}
+
+function pageModeGroupToPosition(pageGroup: string | null | undefined): MaxModePosition {
+  switch ((pageGroup ?? "").trim().toLowerCase()) {
+    case "product":
+    case "collection":
+    case "content":
+      return "catalog";
+    case "search":
+      return "search";
+    case "cart":
+    case "account":
+      return "cart";
+    default:
+      return "landing";
+  }
+}
+
+function derivePageModeGroup(hostRequestContext: Record<string, any> | undefined): string | null {
+  if (!hostRequestContext || typeof hostRequestContext !== "object") {
+    return null;
+  }
+  const explicitGroup = hostRequestContext.shopifyPageModeGroup;
+  if (typeof explicitGroup === "string" && explicitGroup.trim()) {
+    return explicitGroup.trim().toLowerCase();
+  }
+  const pageType = hostRequestContext.pageType;
+  if (typeof pageType !== "string" || !pageType.trim()) {
+    return null;
+  }
+  const normalized = pageType.trim().toLowerCase();
+  if (normalized === "product") {
+    return "product";
+  }
+  if (normalized === "collection" || normalized === "list-collections") {
+    return "collection";
+  }
+  if (normalized === "search") {
+    return "search";
+  }
+  if (normalized === "cart") {
+    return "cart";
+  }
+  if (
+    normalized === "customers/account" ||
+    normalized === "customers/login" ||
+    normalized === "customers/register" ||
+    normalized === "customers/order" ||
+    normalized === "account" ||
+    normalized === "orders"
+  ) {
+    return "account";
+  }
+  if (normalized === "article" || normalized === "blog" || normalized === "page") {
+    return "content";
+  }
+  return "landing";
+}
+
 function sanitizeHostAttachments(hostAttachments: MaxModeHostAttachment[] | undefined) {
   if (!hostAttachments?.length) {
     return [];
@@ -206,11 +347,43 @@ export function useMaxModeController({
   const { toast } = useToast();
   const widgetConfig = getWidgetConfig();
   const hostConfig = widgetConfig.host;
+  const debugEnabled = widgetConfig.features?.debug === true;
   const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
   const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
   const hostStarterSuggestions = useMemo(() => deriveStarterSuggestions(hostConfig), [hostConfig]);
   const hostRequestContext = useMemo(() => sanitizeRequestContext(hostConfig), [hostConfig]);
   const hostInitialAttachments = useMemo(() => sanitizeHostAttachments(hostConfig?.initialAttachments), [hostConfig]);
+  const pageModeGroup = useMemo(() => derivePageModeGroup(hostRequestContext), [hostRequestContext]);
+  const defaultConversationMode = useMemo(
+    () => sanitizeConversationMode(hostConfig?.defaultConversationMode, "navigator"),
+    [hostConfig?.defaultConversationMode],
+  );
+  const allowedConversationModes = useMemo(
+    () => sanitizeAllowedConversationModes(hostConfig?.allowedConversationModes, defaultConversationMode),
+    [hostConfig?.allowedConversationModes, defaultConversationMode],
+  );
+  const pageModeMappings = useMemo(
+    () => sanitizePageModeMappings(hostConfig?.pageModeMappings, allowedConversationModes),
+    [allowedConversationModes, hostConfig?.pageModeMappings],
+  );
+  const effectiveConversationMode = useMemo(() => {
+    const hostEffectiveMode = sanitizeConversationMode(hostConfig?.effectiveConversationMode, defaultConversationMode);
+    if (allowedConversationModes.includes(hostEffectiveMode)) {
+      return hostEffectiveMode;
+    }
+    const mappedMode = pageModeGroup ? pageModeMappings[pageModeGroup] : undefined;
+    if (mappedMode && allowedConversationModes.includes(mappedMode)) {
+      return mappedMode;
+    }
+    return defaultConversationMode;
+  }, [
+    allowedConversationModes,
+    defaultConversationMode,
+    hostConfig?.effectiveConversationMode,
+    pageModeGroup,
+    pageModeMappings,
+  ]);
+  const initialPosition = useMemo(() => pageModeGroupToPosition(pageModeGroup), [pageModeGroup]);
 
   const [runtimeShellConfig, setRuntimeShellConfig] = useState<RuntimeShellConfigSummary | null>(null);
   const quickActions = useMemo(() => deriveQuickActions(hostConfig, runtimeShellConfig), [hostConfig, runtimeShellConfig]);
@@ -238,8 +411,8 @@ export function useMaxModeController({
   const [isNewDocsPreviewOpen, setIsNewDocsPreviewOpen] = useState(false);
   const [viewedDocumentIds, setViewedDocumentIds] = useState<Set<string>>(new Set());
   // Position state for routing
-  const [currentPosition, setCurrentPosition] = useState<"landing" | "catalog" | "search" | "cart">("landing");
-  const [currentMode, setCurrentMode] = useState<"navigator" | "navigator_deep" | "cart_assistant" | "executor">("navigator");
+  const [currentPosition, setCurrentPosition] = useState<MaxModePosition>(initialPosition);
+  const [currentMode, setCurrentMode] = useState<MaxModeMode>(effectiveConversationMode);
 
   // Debug modal state - stores last request/response for inspection
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
@@ -262,6 +435,7 @@ export function useMaxModeController({
   const authContextProbeInFlightRef = useRef(false);
   const shellConfigProbeKeyRef = useRef<string | null>(null);
   const shellConfigProbeInFlightRef = useRef(false);
+  const pendingPromptFlushInFlightRef = useRef(false);
 
   const {
     suggestions,
@@ -341,6 +515,16 @@ export function useMaxModeController({
     requestContext: hostRequestContext,
   });
 
+  const handleProgrammaticPrompt = useCallback(
+    async (prompt: PendingPrompt | null | undefined) => {
+      if (!prompt?.message?.trim()) {
+        return;
+      }
+      await handleChatQuery(prompt.message.trim(), prompt.position, prompt.mode, prompt.requestContext);
+    },
+    [handleChatQuery],
+  );
+
   const { handleConfirmation } = useConfirmationFlow({
     attachedItems,
     currentConversationId,
@@ -351,6 +535,56 @@ export function useMaxModeController({
     setIsLoading,
     toast,
   });
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    if (pendingPromptFlushInFlightRef.current) {
+      return;
+    }
+    const queued = loadPendingPrompts();
+    if (queued.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    pendingPromptFlushInFlightRef.current = true;
+    savePendingPrompts([]);
+
+    void (async () => {
+      try {
+        for (const prompt of queued) {
+          if (cancelled) {
+            break;
+          }
+          await handleProgrammaticPrompt(prompt);
+        }
+      } finally {
+        pendingPromptFlushInFlightRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [handleProgrammaticPrompt, isOpen]);
+
+  useEffect(() => {
+    function onProgrammaticPrompt(event: Event) {
+      const detail = (event as CustomEvent<PendingPrompt>).detail;
+      if (!detail || !detail.message?.trim() || !isOpen) {
+        return;
+      }
+      removePendingPrompt(detail.id);
+      void handleProgrammaticPrompt(detail);
+    }
+
+    window.addEventListener("maxmode:send-message", onProgrammaticPrompt as EventListener);
+    return () => {
+      window.removeEventListener("maxmode:send-message", onProgrammaticPrompt as EventListener);
+    };
+  }, [handleProgrammaticPrompt, isOpen]);
 
   const { handleClarificationSubmit } = useClarificationFlow({
     attachedItems,
@@ -569,6 +803,24 @@ export function useMaxModeController({
     toast,
   });
 
+  useEffect(() => {
+    function onAttachItem(event: Event) {
+      if (!isOpen) {
+        return;
+      }
+      const detail = (event as CustomEvent<{ item?: { type: string; data: any } }>).detail;
+      if (!detail?.item?.type || !detail.item.data || typeof detail.item.data !== "object") {
+        return;
+      }
+      handleReattachItem(detail.item);
+    }
+
+    window.addEventListener("maxmode:attach-item", onAttachItem as EventListener);
+    return () => {
+      window.removeEventListener("maxmode:attach-item", onAttachItem as EventListener);
+    };
+  }, [handleReattachItem, isOpen]);
+
   const { handleAISearchCategory, handleSelectSearchCategory, clearSearchCategory } = useSearchControls({
     aiSearchCategories,
     setAttachedItems,
@@ -589,9 +841,12 @@ export function useMaxModeController({
   });
 
   const openDebugInspector = useCallback((message?: ChatMessage) => {
+    if (!debugEnabled) {
+      return;
+    }
     if (message) setSelectedDebugMessage(message);
     setIsDebugModalOpen(true);
-  }, []);
+  }, [debugEnabled]);
 
   const closeDebugInspector = useCallback(() => {
     setIsDebugModalOpen(false);
@@ -692,7 +947,7 @@ export function useMaxModeController({
     await handleChatQuery("Show me available products", "search", "navigator");
   }, [handleChatQuery, closeCart]);
 
-  const handleQuickAction = (query: string, position?: "landing" | "catalog" | "search" | "cart", mode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => {
+  const handleQuickAction = (query: string, position?: MaxModePosition, mode?: MaxModeMode) => {
     setChatQuery(query);
     setTimeout(() => handleChatQuery(query, position, mode), 100);
   };
@@ -795,6 +1050,8 @@ export function useMaxModeController({
     setCurrentPosition,
     currentMode,
     setCurrentMode,
+    allowedConversationModes,
+    debugEnabled,
     cartEnabled,
     isDebugModalOpen,
     setIsDebugModalOpen,
