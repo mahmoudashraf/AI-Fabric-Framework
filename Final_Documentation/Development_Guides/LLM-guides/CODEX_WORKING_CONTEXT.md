@@ -196,10 +196,11 @@ Rules:
 
 ## 2026-04-29 Shopify Package Profile Approved Choices
 
-- Shopify Companion package profile approved-choice status: locally implemented; deploy/live smoke pending.
+- Shopify Companion package profile approved-choice status: implemented, committed, pushed, deployed, and live verified against Railway Platform backend.
 - Changed files: Platform backend package profile options models/service/controller/tests, Platform UI package profile editor/API types, 004 handoff, and this working context.
 - Decisions: backend owns package profile choices and compatibility rules; Platform UI only consumes backend options; backend validation is authoritative for package/tier/runtime/vector/inference/template/verification compatibility; no dummy records were created.
 - Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyCompanionPackageProfileCatalogServiceTest,ShopifyCompanionPackageProfileOptionsServiceTest test`; `npm --prefix Platfrom/ui run build`; full `mvn -f Platfrom/backend/pom.xml -q test`; `git diff --check`.
-- Live verification: pending after push/deployment. Required proof: `/api/shopify/package-profiles/options` returns the `ELITE` / `HIGH_QUALITY` / `QDRANT_SHARED` rule and the live Platform UI `New profile` flow no longer snaps back to `BALANCED`.
+- Live verification: commit `f9cf0471` pushed to `Platform-V6`; deployed backend `GET /api/shopify/package-profiles/options` returned HTTP `200` with 4 blueprints, 4 compatibility rules, and the `ELITE` / `ELITE` default mapping `HIGH_QUALITY` / `QDRANT_SHARED` / `mkp-inference-premium-hybrid`.
+- Browser proof: local Platform UI pointed at live Railway backend loaded `Shopify Profiles`, received HTTP `200` from `/api/shopify/package-profiles/options` and `/api/shopify/package-profiles?activeOnly=false`, clicked `New profile`, and produced draft key `SHOPIFY_PROFILE_MOJFYUB5` instead of `BALANCED`. Screenshot: `/tmp/shopify-package-profiles-approved-options-smoke.png`.
 - Blockers: none locally.
-- Next handoff: commit/push, wait for Railway deploy, then run endpoint and browser smoke.
+- Next handoff: no pending approved-choice work; no separate deployed Platform UI URL is defined in the private handoff, so browser proof used local UI against live backend.

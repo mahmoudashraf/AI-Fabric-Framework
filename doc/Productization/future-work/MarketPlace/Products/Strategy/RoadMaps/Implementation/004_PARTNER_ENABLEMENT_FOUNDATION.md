@@ -3364,7 +3364,7 @@ The package profile editor must be selection-driven, but the approved selections
 
 ## Shopify Companion Package Profile Approved Choices Implementation Proof - 2026-04-29
 
-Status: locally implemented and awaiting deployed live smoke.
+Status: implemented, committed, pushed, deployed, and live verified against the Railway Platform backend.
 
 Implemented:
 
@@ -3385,8 +3385,12 @@ mvn -f Platfrom/backend/pom.xml -q test
 git diff --check
 ```
 
-Live verification to complete after deployment:
+Live verification passed after deployment:
 
-- Platform admin can read `/api/shopify/package-profiles/options`.
-- Options include the approved `ELITE` / `ELITE` rule with `defaultRuntimeProfileKey=HIGH_QUALITY`, `defaultVectorProfileKey=QDRANT_SHARED`, and `defaultInferencePluginId=mkp-inference-premium-hybrid`.
-- Platform UI can load `Shopify Profiles`, click `New profile`, and keep the selected generated draft instead of snapping back to `BALANCED`.
+- Commit `f9cf0471` was pushed to `Platform-V6`.
+- `GET https://ai-fabric-framework-production-324f.up.railway.app/api/shopify/package-profiles/options` returned HTTP `200` after Railway deployment completed.
+- The live response contained 4 package profile blueprints and 4 compatibility rules.
+- The live `ELITE` / `ELITE` rule returned `defaultRuntimeProfileKey=HIGH_QUALITY`, `defaultVectorProfileKey=QDRANT_SHARED`, and `defaultInferencePluginId=mkp-inference-premium-hybrid`.
+- Browser smoke used local Platform UI pointed at the live Railway backend because no separate Platform UI Railway URL is defined in the handoff.
+- Browser smoke loaded `Shopify Profiles`, observed live `/api/shopify/package-profiles/options` and `/api/shopify/package-profiles?activeOnly=false` responses with HTTP `200`, clicked `New profile`, and verified the draft profile key became `SHOPIFY_PROFILE_MOJFYUB5` instead of snapping back to `BALANCED`.
+- Browser proof screenshot: `/tmp/shopify-package-profiles-approved-options-smoke.png`.
