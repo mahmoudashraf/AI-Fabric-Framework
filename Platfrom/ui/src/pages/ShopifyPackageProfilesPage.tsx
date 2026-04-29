@@ -28,7 +28,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  fetchDeploymentTemplates,
+  fetchMarketplacePlugins,
+  fetchPlatformVerificationSuiteDefinitions,
   fetchShopifyPackageProfiles,
+  type DeploymentTemplateSummary,
+  type MarketplacePluginSummary,
+  type PlatformVerificationSuiteDefinitionSummary,
   type ShopifyCompanionPackageProfileSummary,
   type UpsertShopifyCompanionPackageProfileRequest,
   updateShopifyPackageProfileStatus,
@@ -47,6 +53,108 @@ const tierOptions = ['FREE', 'STARTER', 'ELITE', 'ENTERPRISE']
 const costPostureOptions = ['LOW', 'STANDARD', 'QUALITY', 'HIGH', 'ENTERPRISE']
 const vectorProvisioningModes = ['EXTERNAL_EXISTING', 'PLATFORM_MANAGED', 'LOCAL_MANAGED']
 const vectorStoragePostures = ['SHARED', 'DEDICATED', 'EMBEDDED']
+const runtimeProfileDefaults = ['LOW_COST', 'BALANCED', 'HIGH_QUALITY', 'ENTERPRISE_DEDICATED']
+const vectorProfileDefaults = ['QDRANT_SHARED', 'QDRANT_DEDICATED', 'PINECONE_SHARED', 'WEAVIATE_SHARED', 'ZILLIZ_DEDICATED']
+const vectorStrategyDefaults = ['qdrant', 'pinecone', 'weaviate', 'milvus', 'zilliz', 'pgvector']
+const templatePluginDefaults = ['mkp-template-shopify-companion']
+const deploymentTemplateDefaults = ['dev-openai-qdrant']
+const inferencePluginDefaults = ['mkp-inference-shared-embeddings', 'mkp-inference-premium-hybrid']
+const verificationPackDefaults = [
+  'starter-launch-readiness',
+  'shopify-companion-starter-readiness',
+  'shopify-companion-elite-readiness',
+]
+
+type ProfileBlueprint = {
+  key: string
+  label: string
+  form: Partial<ProfileFormState>
+}
+
+type SelectionOption = {
+  value: string
+  label: string
+  helper?: string
+}
+
+const profileBlueprints: ProfileBlueprint[] = [
+  {
+    key: 'FREE_LOW_COST',
+    label: 'Free / low cost shared Qdrant',
+    form: {
+      profileKey: 'LOW_COST',
+      packageKey: 'FREE',
+      tierKey: 'FREE',
+      runtimeProfileKey: 'LOW_COST',
+      vectorProfileKey: 'QDRANT_SHARED',
+      displayName: 'Low cost',
+      description: 'Entry package profile using shared inference and shared Qdrant.',
+      costPosture: 'LOW',
+      inferencePluginId: 'mkp-inference-shared-embeddings',
+      vectorStrategy: 'qdrant',
+      vectorProvisioningMode: 'EXTERNAL_EXISTING',
+      vectorStoragePosture: 'SHARED',
+      verificationPackId: 'starter-launch-readiness',
+    },
+  },
+  {
+    key: 'STARTER_BALANCED',
+    label: 'Starter / balanced shared Qdrant',
+    form: {
+      profileKey: 'BALANCED',
+      packageKey: 'STARTER',
+      tierKey: 'STARTER',
+      runtimeProfileKey: 'BALANCED',
+      vectorProfileKey: 'QDRANT_SHARED',
+      displayName: 'Balanced',
+      description: 'Starter profile for managed Shopify Companion launch readiness.',
+      costPosture: 'STANDARD',
+      inferencePluginId: 'mkp-inference-shared-embeddings',
+      vectorStrategy: 'qdrant',
+      vectorProvisioningMode: 'EXTERNAL_EXISTING',
+      vectorStoragePosture: 'SHARED',
+      verificationPackId: 'shopify-companion-starter-readiness',
+    },
+  },
+  {
+    key: 'ELITE_HIGH_QUALITY',
+    label: 'Elite / high quality shared Qdrant',
+    form: {
+      profileKey: 'HIGH_QUALITY',
+      packageKey: 'ELITE',
+      tierKey: 'ELITE',
+      runtimeProfileKey: 'HIGH_QUALITY',
+      vectorProfileKey: 'QDRANT_SHARED',
+      displayName: 'High quality',
+      description: 'Elite Shopify Companion profile with premium inference and shared managed vector storage.',
+      costPosture: 'QUALITY',
+      inferencePluginId: 'mkp-inference-premium-hybrid',
+      vectorStrategy: 'qdrant',
+      vectorProvisioningMode: 'EXTERNAL_EXISTING',
+      vectorStoragePosture: 'SHARED',
+      verificationPackId: 'shopify-companion-elite-readiness',
+    },
+  },
+  {
+    key: 'ENTERPRISE_DEDICATED',
+    label: 'Enterprise / dedicated vector posture',
+    form: {
+      profileKey: 'ENTERPRISE_DEDICATED',
+      packageKey: 'ENTERPRISE',
+      tierKey: 'ENTERPRISE',
+      runtimeProfileKey: 'ENTERPRISE_DEDICATED',
+      vectorProfileKey: 'QDRANT_DEDICATED',
+      displayName: 'Enterprise dedicated',
+      description: 'Enterprise package profile for dedicated vector isolation and higher quality inference.',
+      costPosture: 'ENTERPRISE',
+      inferencePluginId: 'mkp-inference-premium-hybrid',
+      vectorStrategy: 'qdrant',
+      vectorProvisioningMode: 'PLATFORM_MANAGED',
+      vectorStoragePosture: 'DEDICATED',
+      verificationPackId: 'shopify-companion-elite-readiness',
+    },
+  },
+]
 
 const emptyProfileForm: ProfileFormState = {
   profileKey: '',
@@ -149,9 +257,116 @@ function validateDetailsJson(value: string): string | null {
   }
 }
 
+function uniqueValues(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  )
+}
+
+function mergeOptionValues(...groups: Array<Array<string | null | undefined>>): string[] {
+  return uniqueValues(groups.flat())
+}
+
+function optionsFromValues(values: string[]): SelectionOption[] {
+  return values.map((value) => ({ value, label: value }))
+}
+
+function includeCurrentOption(options: SelectionOption[], currentValue: string | null | undefined): SelectionOption[] {
+  const value = currentValue?.trim()
+  if (!value || options.some((option) => option.value === value)) {
+    return options
+  }
+  return [...options, { value, label: value, helper: 'Current saved value' }]
+}
+
+function marketplacePluginOptions(
+  plugins: MarketplacePluginSummary[],
+  currentValues: Array<string | null | undefined>,
+  defaults: string[],
+  predicate: (plugin: MarketplacePluginSummary) => boolean,
+): SelectionOption[] {
+  const pluginOptions = plugins
+    .filter(predicate)
+    .map((plugin) => ({
+      value: plugin.id,
+      label: plugin.displayName ? `${plugin.displayName} (${plugin.id})` : plugin.id,
+      helper: [plugin.pluginType, plugin.latestVersion ? `latest ${plugin.latestVersion}` : null].filter(Boolean).join(' · '),
+    }))
+  const knownValues = mergeOptionValues(defaults, currentValues, pluginOptions.map((option) => option.value))
+  return knownValues.map((value) => pluginOptions.find((option) => option.value === value) ?? { value, label: value })
+}
+
+function deploymentTemplateOptions(
+  templates: DeploymentTemplateSummary[],
+  profiles: ShopifyCompanionPackageProfileSummary[],
+  currentValue: string,
+): SelectionOption[] {
+  const templateOptions = templates.map((template) => ({
+    value: template.id,
+    label: `${template.name} (${template.id})`,
+    helper: `${template.runtimeProfile} · ${template.vectorStrategy}`,
+  }))
+  const knownValues = mergeOptionValues(deploymentTemplateDefaults, profiles.map((profile) => profile.deploymentTemplateId), [currentValue], templateOptions.map((option) => option.value))
+  return knownValues.map((value) => templateOptions.find((option) => option.value === value) ?? { value, label: value })
+}
+
+function verificationPackOptions(
+  suites: PlatformVerificationSuiteDefinitionSummary[],
+  profiles: ShopifyCompanionPackageProfileSummary[],
+  currentValue: string,
+): SelectionOption[] {
+  const suiteOptions = suites.map((suite) => ({
+    value: suite.key,
+    label: `${suite.label} (${suite.key})`,
+    helper: suite.releaseBlocking ? 'Release blocking' : 'Non-blocking',
+  }))
+  const knownValues = mergeOptionValues(verificationPackDefaults, profiles.map((profile) => profile.verificationPackId), [currentValue], suiteOptions.map((option) => option.value))
+  return knownValues.map((value) => suiteOptions.find((option) => option.value === value) ?? { value, label: value })
+}
+
+function isTemplatePlugin(plugin: MarketplacePluginSummary): boolean {
+  const haystack = `${plugin.id} ${plugin.displayName} ${plugin.pluginType}`.toLowerCase()
+  return haystack.includes('template') || haystack.includes('companion')
+}
+
+function isInferencePlugin(plugin: MarketplacePluginSummary): boolean {
+  const haystack = `${plugin.id} ${plugin.displayName} ${plugin.pluginType}`.toLowerCase()
+  return haystack.includes('inference') || (plugin.contributions?.inferenceProfileIds?.length ?? 0) > 0
+}
+
+function selectInput(
+  label: string,
+  value: string,
+  options: SelectionOption[],
+  onChange: (value: string) => void,
+  helperText?: string,
+) {
+  return (
+    <TextField select label={label} value={value} onChange={(event) => onChange(event.target.value)} helperText={helperText ?? ' '} fullWidth>
+      {includeCurrentOption(options, value).map((option) => (
+        <MenuItem key={option.value} value={option.value}>
+          <Stack spacing={0.25}>
+            <Typography variant="body2">{option.label}</Typography>
+            {option.helper ? (
+              <Typography variant="caption" color="text.secondary">
+                {option.helper}
+              </Typography>
+            ) : null}
+          </Stack>
+        </MenuItem>
+      ))}
+    </TextField>
+  )
+}
+
 export function ShopifyPackageProfilesPage() {
   const queryClient = useQueryClient()
   const [selectedProfileKey, setSelectedProfileKey] = useState<string>('')
+  const [draftMode, setDraftMode] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
   const [packageFilter, setPackageFilter] = useState<string>('ALL')
   const [searchTerm, setSearchTerm] = useState('')
@@ -163,20 +378,35 @@ export function ShopifyPackageProfilesPage() {
     queryFn: () => fetchShopifyPackageProfiles(false),
   })
 
+  const deploymentTemplatesQuery = useQuery({
+    queryKey: ['deployment-templates'],
+    queryFn: fetchDeploymentTemplates,
+  })
+
+  const marketplacePluginsQuery = useQuery({
+    queryKey: ['marketplace-plugins'],
+    queryFn: fetchMarketplacePlugins,
+  })
+
+  const verificationSuitesQuery = useQuery({
+    queryKey: ['verification-suites', 'definitions'],
+    queryFn: fetchPlatformVerificationSuiteDefinitions,
+  })
+
   const profiles = profilesQuery.data ?? []
   const selectedProfile = profiles.find((profile) => profile.profileKey === selectedProfileKey) ?? null
 
   useEffect(() => {
-    if (!selectedProfileKey && profiles.length > 0) {
+    if (!draftMode && !selectedProfileKey && profiles.length > 0) {
       setSelectedProfileKey(profiles[0].profileKey)
     }
-  }, [profiles, selectedProfileKey])
+  }, [draftMode, profiles, selectedProfileKey])
 
   useEffect(() => {
-    if (selectedProfile) {
+    if (!draftMode && selectedProfile) {
       setForm(profileToForm(selectedProfile))
     }
-  }, [selectedProfile])
+  }, [draftMode, selectedProfile])
 
   const detailsJsonError = useMemo(() => validateDetailsJson(form.detailsJson), [form.detailsJson])
 
@@ -203,10 +433,94 @@ export function ShopifyPackageProfilesPage() {
       )
     : null
 
+  const profileKeyOptions = useMemo(
+    () => {
+      const existingKeys = new Set(profiles.map((profile) => profile.profileKey))
+      const selectableKeys = draftMode
+        ? profileBlueprints.map((blueprint) => blueprint.form.profileKey).filter((key) => key && !existingKeys.has(key))
+        : profiles.map((profile) => profile.profileKey)
+      return optionsFromValues(mergeOptionValues(selectableKeys, [form.profileKey]))
+    },
+    [draftMode, form.profileKey, profiles],
+  )
+  const runtimeProfileOptions = useMemo(
+    () =>
+      optionsFromValues(
+        mergeOptionValues(
+          runtimeProfileDefaults,
+          profileBlueprints.map((blueprint) => blueprint.form.runtimeProfileKey),
+          profiles.map((profile) => profile.runtimeProfileKey),
+          (deploymentTemplatesQuery.data ?? []).map((template) => template.runtimeProfile),
+          [form.runtimeProfileKey],
+        ),
+      ),
+    [deploymentTemplatesQuery.data, form.runtimeProfileKey, profiles],
+  )
+  const vectorProfileOptions = useMemo(
+    () =>
+      optionsFromValues(
+        mergeOptionValues(
+          vectorProfileDefaults,
+          profileBlueprints.map((blueprint) => blueprint.form.vectorProfileKey),
+          profiles.map((profile) => profile.vectorProfileKey),
+          [form.vectorProfileKey],
+        ),
+      ),
+    [form.vectorProfileKey, profiles],
+  )
+  const vectorStrategyOptions = useMemo(
+    () =>
+      optionsFromValues(
+        mergeOptionValues(
+          vectorStrategyDefaults,
+          profiles.map((profile) => profile.vectorStrategy),
+          (deploymentTemplatesQuery.data ?? []).map((template) => template.vectorStrategy),
+          [form.vectorStrategy],
+        ),
+      ),
+    [deploymentTemplatesQuery.data, form.vectorStrategy, profiles],
+  )
+  const templatePluginOptions = useMemo(
+    () =>
+      marketplacePluginOptions(
+        marketplacePluginsQuery.data ?? [],
+        profiles.map((profile) => profile.templatePluginId).concat(form.templatePluginId),
+        templatePluginDefaults,
+        isTemplatePlugin,
+      ),
+    [form.templatePluginId, marketplacePluginsQuery.data, profiles],
+  )
+  const templateVersionOptions = useMemo(() => {
+    const selectedPlugin = (marketplacePluginsQuery.data ?? []).find((plugin) => plugin.id === form.templatePluginId)
+    return [
+      { value: '', label: 'Use latest published version' },
+      ...optionsFromValues(mergeOptionValues([selectedPlugin?.latestVersion, form.templatePluginVersion])),
+    ]
+  }, [form.templatePluginId, form.templatePluginVersion, marketplacePluginsQuery.data])
+  const deploymentTemplateSelectOptions = useMemo(
+    () => deploymentTemplateOptions(deploymentTemplatesQuery.data ?? [], profiles, form.deploymentTemplateId),
+    [deploymentTemplatesQuery.data, form.deploymentTemplateId, profiles],
+  )
+  const inferencePluginOptions = useMemo(
+    () =>
+      marketplacePluginOptions(
+        marketplacePluginsQuery.data ?? [],
+        profiles.map((profile) => profile.inferencePluginId).concat(form.inferencePluginId),
+        inferencePluginDefaults,
+        isInferencePlugin,
+      ),
+    [form.inferencePluginId, marketplacePluginsQuery.data, profiles],
+  )
+  const verificationPackSelectOptions = useMemo(
+    () => verificationPackOptions(verificationSuitesQuery.data ?? [], profiles, form.verificationPackId),
+    [form.verificationPackId, profiles, verificationSuitesQuery.data],
+  )
+
   const upsertMutation = useMutation({
     mutationFn: (payload: ProfileFormState) => upsertShopifyPackageProfile(payload.profileKey, buildPayload(payload)),
     onSuccess: async (profile) => {
       setMessage({ type: 'success', text: `Saved ${profile.profileKey}.` })
+      setDraftMode(false)
       setSelectedProfileKey(profile.profileKey)
       await queryClient.invalidateQueries({ queryKey: ['shopify-package-profiles'] })
     },
@@ -233,9 +547,40 @@ export function ShopifyPackageProfilesPage() {
 
   const updateForm = (patch: Partial<ProfileFormState>) => setForm((current) => ({ ...current, ...patch }))
 
+  const applyBlueprint = (blueprintKey: string) => {
+    const blueprint = profileBlueprints.find((candidate) => candidate.key === blueprintKey)
+    if (!blueprint) {
+      return
+    }
+    const nextProfileKey = draftMode
+      ? blueprint.form.profileKey ?? form.profileKey
+      : form.profileKey
+    setForm((current) => ({
+      ...current,
+      ...blueprint.form,
+      profileKey: nextProfileKey,
+      status: current.status,
+      templatePluginId: current.templatePluginId || emptyProfileForm.templatePluginId,
+      templatePluginVersion: current.templatePluginVersion,
+      deploymentTemplateId: current.deploymentTemplateId || emptyProfileForm.deploymentTemplateId,
+      reason: current.reason || `Apply ${blueprint.label}`,
+      detailsJson: current.detailsJson,
+    }))
+  }
+
   const startNewProfile = () => {
+    const usedProfileKeys = new Set(profiles.map((profile) => profile.profileKey))
+    const blueprint = profileBlueprints.find((candidate) => !usedProfileKeys.has(candidate.form.profileKey ?? '')) ?? profileBlueprints[1]
+    const generatedKey = `SHOPIFY_PROFILE_${Date.now().toString(36).toUpperCase()}`
     setSelectedProfileKey('')
-    setForm({ ...emptyProfileForm, profileKey: 'NEW_PROFILE', displayName: 'New profile', reason: 'Create package profile' })
+    setDraftMode(true)
+    setForm({
+      ...emptyProfileForm,
+      ...blueprint.form,
+      profileKey: usedProfileKeys.has(blueprint.form.profileKey ?? '') ? generatedKey : blueprint.form.profileKey ?? generatedKey,
+      status: 'DRAFT',
+      reason: `Create ${blueprint.label}`,
+    })
   }
 
   const duplicateSelectedProfile = () => {
@@ -244,6 +589,7 @@ export function ShopifyPackageProfilesPage() {
       return
     }
     setSelectedProfileKey('')
+    setDraftMode(true)
     setForm({
       ...profileToForm(source),
       profileKey: `${source.profileKey}_COPY`,
@@ -254,7 +600,7 @@ export function ShopifyPackageProfilesPage() {
   }
 
   const resetForm = () => {
-    setForm(selectedProfile ? profileToForm(selectedProfile) : emptyProfileForm)
+    setForm(!draftMode && selectedProfile ? profileToForm(selectedProfile) : { ...emptyProfileForm, status: 'DRAFT' })
   }
 
   const canSave = form.profileKey.trim().length > 0
@@ -391,13 +737,16 @@ export function ShopifyPackageProfilesPage() {
                   <Alert severity="info">No profiles match the current filters.</Alert>
                 ) : (
                   <List disablePadding>
-                    {filteredProfiles.map((profile) => (
-                      <ListItemButton
-                        key={profile.profileKey}
-                        selected={profile.profileKey === selectedProfileKey}
-                        onClick={() => setSelectedProfileKey(profile.profileKey)}
-                        sx={{ borderRadius: 2, mb: 0.5 }}
-                      >
+	                    {filteredProfiles.map((profile) => (
+	                      <ListItemButton
+	                        key={profile.profileKey}
+	                        selected={profile.profileKey === selectedProfileKey}
+	                        onClick={() => {
+	                          setDraftMode(false)
+	                          setSelectedProfileKey(profile.profileKey)
+	                        }}
+	                        sx={{ borderRadius: 2, mb: 0.5 }}
+	                      >
                         <ListItemText
                           primary={
                             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -478,58 +827,57 @@ export function ShopifyPackageProfilesPage() {
                   </Stack>
                 </Stack>
 
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={4}>
-                    <TextField label="Profile key" value={form.profileKey} onChange={(event) => updateForm({ profileKey: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField label="Display name" value={form.displayName} onChange={(event) => updateForm({ displayName: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField select label="Status" value={form.status} onChange={(event) => updateForm({ status: event.target.value })} fullWidth>
-                      {statusOptions.map((status) => (
-                        <MenuItem key={status} value={status}>
-                          {status}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField select label="Package" value={form.packageKey} onChange={(event) => updateForm({ packageKey: event.target.value })} fullWidth>
-                      {packageOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField select label="Tier" value={form.tierKey} onChange={(event) => updateForm({ tierKey: event.target.value })} fullWidth>
-                      {tierOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField select label="Cost posture" value={form.costPosture} onChange={(event) => updateForm({ costPosture: event.target.value })} fullWidth>
-                      {costPostureOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField label="Runtime profile key" value={form.runtimeProfileKey} onChange={(event) => updateForm({ runtimeProfileKey: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField label="Vector profile key" value={form.vectorProfileKey} onChange={(event) => updateForm({ vectorProfileKey: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Description"
+	                <Grid container spacing={2}>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput(
+	                      'Profile blueprint',
+	                      profileBlueprints.find((blueprint) => blueprint.form.profileKey === form.profileKey)?.key ?? '',
+	                      [{ value: '', label: 'Manual field selection' }].concat(profileBlueprints.map((blueprint) => ({ value: blueprint.key, label: blueprint.label }))),
+	                      applyBlueprint,
+	                      draftMode ? 'Selects package, runtime, vector, inference, and verification defaults.' : 'Applies field defaults without changing the saved profile key.',
+	                    )}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    <TextField
+	                      select
+	                      label="Profile key"
+	                      value={form.profileKey}
+	                      onChange={(event) => updateForm({ profileKey: event.target.value })}
+	                      helperText={draftMode ? 'Choose the new catalog key.' : 'Saved profile keys are immutable from this editor.'}
+	                      disabled={!draftMode}
+	                      fullWidth
+	                    >
+	                      {includeCurrentOption(profileKeyOptions, form.profileKey).map((option) => (
+	                        <MenuItem key={option.value} value={option.value}>
+	                          {option.label}
+	                        </MenuItem>
+	                      ))}
+	                    </TextField>
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    <TextField label="Display name" value={form.displayName} onChange={(event) => updateForm({ displayName: event.target.value })} helperText="Short operator-facing name." fullWidth />
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Status', form.status, optionsFromValues(statusOptions), (value) => updateForm({ status: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Package', form.packageKey, optionsFromValues(packageOptions), (value) => updateForm({ packageKey: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Tier', form.tierKey, optionsFromValues(tierOptions), (value) => updateForm({ tierKey: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Cost posture', form.costPosture ?? 'STANDARD', optionsFromValues(costPostureOptions), (value) => updateForm({ costPosture: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Runtime profile', form.runtimeProfileKey, runtimeProfileOptions, (value) => updateForm({ runtimeProfileKey: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Vector profile', form.vectorProfileKey, vectorProfileOptions, (value) => updateForm({ vectorProfileKey: value }))}
+	                  </Grid>
+	                  <Grid item xs={12}>
+	                    <TextField
+	                      label="Description"
                       value={form.description}
                       onChange={(event) => updateForm({ description: event.target.value })}
                       minRows={2}
@@ -539,63 +887,34 @@ export function ShopifyPackageProfilesPage() {
                   </Grid>
                 </Grid>
 
-                <Divider />
+	                <Divider />
 
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <TextField label="Template plugin ID" value={form.templatePluginId} onChange={(event) => updateForm({ templatePluginId: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="Template version"
-                      value={form.templatePluginVersion ?? ''}
-                      onChange={(event) => updateForm({ templatePluginVersion: event.target.value })}
-                      fullWidth
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField label="Deployment template" value={form.deploymentTemplateId} onChange={(event) => updateForm({ deploymentTemplateId: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField label="Inference plugin ID" value={form.inferencePluginId} onChange={(event) => updateForm({ inferencePluginId: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField label="Verification pack ID" value={form.verificationPackId} onChange={(event) => updateForm({ verificationPackId: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField label="Vector strategy" value={form.vectorStrategy} onChange={(event) => updateForm({ vectorStrategy: event.target.value })} fullWidth />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      select
-                      label="Vector provisioning"
-                      value={form.vectorProvisioningMode}
-                      onChange={(event) => updateForm({ vectorProvisioningMode: event.target.value })}
-                      fullWidth
-                    >
-                      {vectorProvisioningModes.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      select
-                      label="Vector storage"
-                      value={form.vectorStoragePosture}
-                      onChange={(event) => updateForm({ vectorStoragePosture: event.target.value })}
-                      fullWidth
-                    >
-                      {vectorStoragePostures.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                </Grid>
+	                <Grid container spacing={2}>
+	                  <Grid item xs={12} md={6}>
+	                    {selectInput('Template plugin', form.templatePluginId, templatePluginOptions, (value) => updateForm({ templatePluginId: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={3}>
+	                    {selectInput('Template version', form.templatePluginVersion ?? '', templateVersionOptions, (value) => updateForm({ templatePluginVersion: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={3}>
+	                    {selectInput('Deployment template', form.deploymentTemplateId, deploymentTemplateSelectOptions, (value) => updateForm({ deploymentTemplateId: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={6}>
+	                    {selectInput('Inference plugin', form.inferencePluginId, inferencePluginOptions, (value) => updateForm({ inferencePluginId: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={6}>
+	                    {selectInput('Verification pack', form.verificationPackId, verificationPackSelectOptions, (value) => updateForm({ verificationPackId: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Vector strategy', form.vectorStrategy, vectorStrategyOptions, (value) => updateForm({ vectorStrategy: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Vector provisioning', form.vectorProvisioningMode, optionsFromValues(vectorProvisioningModes), (value) => updateForm({ vectorProvisioningMode: value }))}
+	                  </Grid>
+	                  <Grid item xs={12} md={4}>
+	                    {selectInput('Vector storage', form.vectorStoragePosture, optionsFromValues(vectorStoragePostures), (value) => updateForm({ vectorStoragePosture: value }))}
+	                  </Grid>
+	                </Grid>
 
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={8}>
