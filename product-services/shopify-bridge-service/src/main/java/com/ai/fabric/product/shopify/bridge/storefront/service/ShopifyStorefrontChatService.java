@@ -61,7 +61,8 @@ public class ShopifyStorefrontChatService {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
         ObjectNode normalizedRequest = normalizeRequest(request);
         enforceSurfaceEntitlement(store, normalizedRequest);
-        return platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
+        JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
+        return shapeStorefrontResponse(normalizedRequest, response);
     }
 
     public JsonNode suggestions(String shopDomain, JsonNode request, String shopperSessionId) {
@@ -326,5 +327,118 @@ public class ShopifyStorefrontChatService {
 
     private ResponseStatusException forbidden(String message) {
         return new ResponseStatusException(HttpStatus.FORBIDDEN, message);
+    }
+
+    private JsonNode shapeStorefrontResponse(ObjectNode normalizedRequest, JsonNode response) {
+        String answer = extractAnswer(response);
+        if (!requiresStorefrontFallback(answer)) {
+            return response;
+        }
+        String fallback = storefrontFallbackMessage(normalizedRequest);
+        ObjectNode shaped = response != null && response.isObject()
+            ? (ObjectNode) response.deepCopy()
+            : objectMapper.createObjectNode();
+        shaped.put("success", true);
+        ObjectNode result = objectChild(shaped, "result");
+        result.put("message", fallback);
+        ObjectNode sanitizedPayload = objectChild(result, "sanitizedPayload");
+        sanitizedPayload.put("safeSummary", fallback);
+        sanitizedPayload.put("message", fallback);
+        sanitizedPayload.put("answer", fallback);
+        return shaped;
+    }
+
+    private ObjectNode objectChild(ObjectNode parent, String field) {
+        JsonNode existing = parent.get(field);
+        if (existing != null && existing.isObject()) {
+            return (ObjectNode) existing;
+        }
+        ObjectNode created = objectMapper.createObjectNode();
+        parent.set(field, created);
+        return created;
+    }
+
+    private String extractAnswer(JsonNode response) {
+        for (String path : List.of(
+            "result.sanitizedPayload.safeSummary",
+            "result.sanitizedPayload.message",
+            "result.sanitizedPayload.answer",
+            "result.message",
+            "message",
+            "answer"
+        )) {
+            String value = nestedText(response, path);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String nestedText(JsonNode node, String dottedPath) {
+        JsonNode current = node;
+        for (String part : dottedPath.split("\\.")) {
+            if (current == null || !current.isObject()) {
+                return null;
+            }
+            current = current.get(part);
+        }
+        String value = current == null || current.isNull() || !current.isValueNode() ? null : current.asText(null);
+        return trimToNull(value);
+    }
+
+    private boolean requiresStorefrontFallback(String answer) {
+        String normalized = answer == null ? "" : answer.trim().toLowerCase(Locale.ROOT);
+        return normalized.isBlank()
+            || "action executed.".equals(normalized)
+            || normalized.startsWith("to proceed, please provide:")
+            || normalized.contains("indexed knowledge base")
+            || normalized.contains("available action")
+            || normalized.contains("rephrase it into a task");
+    }
+
+    private String storefrontFallbackMessage(ObjectNode normalizedRequest) {
+        String query = trimToNull(textOrNull(normalizedRequest, "query"));
+        ObjectNode context = storefrontContextFromAttachments(normalizedRequest);
+        String surface = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
+        String normalizedQuery = query == null ? "" : query.toLowerCase(Locale.ROOT);
+
+        if (normalizedQuery.contains("cancel") || normalizedQuery.contains("refund")) {
+            return "I cannot cancel or refund an order from chat. Use the merchant support handoff for order changes, refunds, address updates, and payment questions.";
+        }
+        if (normalizedQuery.contains("order")) {
+            return "Order help should stay with merchant support for this store unless Elite order lookup is enabled and verified. Use the store support page for order status, tracking, changes, or refunds.";
+        }
+        if (containsAny(normalizedQuery, "legal", "import", "medical", "allergy", "certification")) {
+            if (normalizedQuery.contains("certification")) {
+                return "I do not have a verified certification record for this product in the current store sources. Check the product details or contact the merchant before relying on certification claims.";
+            }
+            return "I cannot provide compliance, medical, or legal guidance. I can help with store products, policies, comparisons, and merchant support paths.";
+        }
+        if (normalizedQuery.contains("return") || "policy-strip".equals(surface)) {
+            return "For return questions, review the store return policy and contact merchant support for order-specific exceptions or eligibility.";
+        }
+        if (normalizedQuery.contains("compare") || "comparison".equals(surface)) {
+            return "I can compare store products when product details are available. Share the items or browse a collection, and I will compare fit, use case, and tradeoffs without making unsupported claims.";
+        }
+        if (normalizedQuery.contains("made from") || normalizedQuery.contains("material") || "product-faq".equals(surface)) {
+            return "I do not have this product's exact material details in the current page context. Check the product description, selected variant details, or merchant support before relying on material claims.";
+        }
+        if (normalizedQuery.contains("gift") || "product-insight".equals(surface)) {
+            return "This can be a good gift when the recipient's size, style, and use case match the product details. Check reviews, delivery timing, and return options before buying.";
+        }
+        if (normalizedQuery.contains("travel")) {
+            return "For travel, look for store products that are compact, easy to carry, durable, and useful on the go. Use filters or product details to compare size, materials, and return options.";
+        }
+        return "I can help with store products, policies, comparisons, and support handoff. Ask about a product, collection, return policy, or shopping need.";
+    }
+
+    private boolean containsAny(String value, String... terms) {
+        for (String term : terms) {
+            if (value.contains(term)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

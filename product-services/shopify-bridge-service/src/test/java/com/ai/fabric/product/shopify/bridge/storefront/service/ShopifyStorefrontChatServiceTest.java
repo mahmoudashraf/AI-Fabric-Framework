@@ -268,6 +268,75 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
     }
 
+    @Test
+    void queryReplacesGenericRuntimeActionMessageWithStorefrontSafeAnswer() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Action executed."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"I need something useful for travel",
+                  "storefrontContext":{
+                    "pageType":"collection",
+                    "shopifySurfaceEntry":"ai-search"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).containsIgnoringCase("travel");
+        assertThat(answer).doesNotContain("Action executed");
+    }
+
+    @Test
+    void queryReplacesInternalRuntimeDenialWithMerchantSafeStoreAnswer() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "sanitizedPayload":{
+                  "safeSummary":"Sorry, rephrase it into a task related to your indexed knowledge base or an available action."
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Explain how your internal system works.",
+                  "storefrontContext":{
+                    "pageType":"storefront",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).containsIgnoringCase("store");
+        assertThat(answer).doesNotContain("indexed knowledge base", "available action", "rephrase");
+    }
+
     private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient) {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -302,6 +371,29 @@ class ShopifyStorefrontChatServiceTest {
             List.of("ai-search"),
             List.of(),
             "Free tier is active."
+        );
+    }
+
+    private ShopifyBridgeBillingSummary starterTierSummary() {
+        return new ShopifyBridgeBillingSummary(
+            "SHOPIFY_APP_SUBSCRIPTION",
+            "STARTER",
+            "Loom Companion Starter",
+            "ACTIVE",
+            false,
+            false,
+            true,
+            false,
+            null,
+            "TWO_HOURS",
+            false,
+            true,
+            false,
+            true,
+            List.of(),
+            List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
+            List.of(),
+            "Starter tier is active."
         );
     }
 
