@@ -226,6 +226,13 @@ Rules:
 - Vectorization proof: ecommerce repair run `vrn-4d013427` completed `BOOTSTRAP` with `322` processed, `322` succeeded, `0` failed; Marketplace and Qdrant were `IN_SYNC` at hosted verification time.
 - Final hardening commits pushed to `Platform-V6`: `07d972aa` marketplace grounded smoke query, `ca40b559` Shopify readiness billing posture and Bridge admin secret registry support, `4ebb4996` no ephemeral Qdrant DB key creation in release gate, `905b0dd7` live hosted probes authoritative over stale persisted evidence.
 - Deployed Platform Backend proof: Railway deployments `cf7881b3-6760-457a-aeb5-979b8ec6399c`, `d1a2ac8b-39e6-476a-9800-17ea5842d76d`, `84b33547-7c1b-4136-815f-4f8e10de71af`, and final `255020a3-50d2-4638-9bea-35b7551f482c` reached `SUCCESS`.
+
+## 2026-04-29 Shopify Readiness Operator UI Final Fix
+
+- Re-audit found the live operator endpoint `GET /api/shopify/readiness-audit/latest` showed `NOT_READY/MISSING` because it only read standalone `shopify-first-product-readiness-audit` runs and ignored successful full release-gate stage evidence.
+- Patched `ShopifyCompanionReadinessAuditService` so the readiness state uses the newest standalone readiness run or newest `full-platform-release-readiness` run that contains the Shopify first-product readiness stage.
+- Added regression coverage for deriving readiness UI state from a full release-gate stage when no standalone readiness run exists.
+- Verification passed: targeted Platform backend tests, readiness script syntax check, answer evaluator pycompile, Platform UI build, and `git diff --check`.
 - Live verification prerequisites refreshed without logging secrets: Qdrant data-plane key verified, Shopify Bridge admin key stored as Platform secret `SHOPIFY_BRIDGE_ADMIN_API_KEY`, and a fresh non-social Supabase partner JWT stored as `PARTNER_SUPABASE_JWT` before the final run.
 - Local verification during final hardening passed: shell syntax checks for changed scripts, targeted Platform verification-suite tests, Qdrant-only managed provider verification with `QDRANT_CREATE_EPHEMERAL_DB_KEY=false`, standalone Shopify first-product readiness audit, standalone Partner Enablement strict live verifier, and `git diff --check`.
 - Blockers: none. Unrelated local dirty files remain `.DS_Store` and `Platfrom/ui/tsconfig.app.tsbuildinfo`; do not stage them unless explicitly requested.

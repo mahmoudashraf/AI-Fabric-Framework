@@ -89,4 +89,64 @@ class ShopifyCompanionReadinessAuditServiceTest {
             });
         assertThat(service.latest().evidenceArtifacts()).extracting("name").contains("answer-quality-audit.md", "readiness-matrix.md");
     }
+
+    @Test
+    void usesFullReleaseGateStageWhenStandaloneAuditRunIsAbsent() {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+
+        PlatformVerificationSuiteRunEntity fullGate = new PlatformVerificationSuiteRunEntity();
+        fullGate.setId("vsr-full");
+        fullGate.setSuiteKey(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
+        fullGate.setSuiteLabel("Full platform release readiness");
+        fullGate.setStatus("PASSED");
+        fullGate.setReleaseBlocking(true);
+        fullGate.setSummaryMessage("Verification suite completed successfully.");
+        fullGate.setRequestedByActorId("admin");
+        fullGate.setRequestedByRole("PLATFORM_ADMIN");
+        fullGate.setCreatedAt(Instant.now());
+        fullGate.setCompletedAt(Instant.now());
+
+        PlatformVerificationSuiteRunStageEntity readinessStage = new PlatformVerificationSuiteRunStageEntity();
+        readinessStage.setId("vsrs-readiness");
+        readinessStage.setSuiteRunId(fullGate.getId());
+        readinessStage.setStageOrder(7);
+        readinessStage.setStageKey(PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY);
+        readinessStage.setStageLabel("Shopify first-product readiness audit");
+        readinessStage.setStageType("SCRIPT");
+        readinessStage.setTargetRef("shopify-first-product-readiness-audit");
+        readinessStage.setBlocking(true);
+        readinessStage.setStatus("PASSED");
+        readinessStage.setSummaryMessage("Readiness audit passed.");
+        readinessStage.setDetailsJson("{}");
+        readinessStage.setLogOutput("""
+            QUERY_RESULT {"answerLength":118,"answerPreview":"Travel-friendly product guidance.","checks":{"http_status_ok":true,"answer_non_empty":true},"expectedBehavior":"grounded_product_guidance","failureCategory":null,"forbiddenHits":[],"httpStatus":200,"missingRequiredConcepts":[],"passed":true,"queryId":"product-search-travel","surface":"ai-search","tierProfile":"FREE","unsafeActionExecutionHits":[]}
+            Readiness decision: DESIGN_PARTNER_READY
+            """);
+        readinessStage.setCreatedAt(Instant.now());
+        readinessStage.setStartedAt(Instant.now());
+        readinessStage.setCompletedAt(Instant.now());
+
+        when(runRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(fullGate));
+        when(stageRepository.findBySuiteRunIdOrderByStageOrderAsc(fullGate.getId())).thenReturn(List.of(readinessStage));
+
+        PlatformVerificationSuiteService verificationSuiteService = new PlatformVerificationSuiteService(
+            new PlatformVerificationSuiteCatalog(),
+            runRepository,
+            stageRepository,
+            mock(PlatformVerificationSuiteExecutionService.class),
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
+            mock(PlatformAuditService.class),
+            new ObjectMapper()
+        );
+
+        ShopifyCompanionReadinessAuditService service = new ShopifyCompanionReadinessAuditService(verificationSuiteService, new ObjectMapper());
+
+        assertThat(service.latest().latestRun().id()).isEqualTo("vsr-full");
+        assertThat(service.latest().latestStage().stageKey()).isEqualTo(PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY);
+        assertThat(service.latest().decision()).isEqualTo("DESIGN_PARTNER_READY");
+        assertThat(service.latest().blockers()).isEmpty();
+        assertThat(service.latest().answerResults()).singleElement()
+            .satisfies(result -> assertThat(result.queryId()).isEqualTo("product-search-travel"));
+    }
 }

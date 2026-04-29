@@ -59,10 +59,7 @@ public class ShopifyCompanionReadinessAuditService {
     }
 
     public ShopifyReadinessAuditStateSummary latest() {
-        PlatformVerificationSuiteRunSummary latestRun = verificationSuiteService.listRuns().stream()
-            .filter(run -> PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY.equals(run.suiteKey()))
-            .findFirst()
-            .orElse(null);
+        PlatformVerificationSuiteRunSummary latestRun = latestEvidenceRun();
         PlatformVerificationSuiteStageRunSummary latestStage = latestStage(latestRun);
         String decision = decision(latestRun, latestStage);
         List<ShopifyReadinessAuditAnswerResultSummary> answerResults = answerResults(latestStage);
@@ -79,6 +76,28 @@ public class ShopifyCompanionReadinessAuditService {
             answerResults,
             evidenceArtifacts(latestRun)
         );
+    }
+
+    private PlatformVerificationSuiteRunSummary latestEvidenceRun() {
+        return verificationSuiteService.listRuns().stream()
+            .filter(this::containsReadinessAuditEvidence)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private boolean containsReadinessAuditEvidence(PlatformVerificationSuiteRunSummary run) {
+        if (run == null) {
+            return false;
+        }
+        if (PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY.equals(run.suiteKey())) {
+            return true;
+        }
+        if (!PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY.equals(run.suiteKey())
+            || run.stages() == null) {
+            return false;
+        }
+        return run.stages().stream()
+            .anyMatch(stage -> PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY.equals(stage.stageKey()));
     }
 
     private List<ShopifyReadinessAuditChecklistItemSummary> checklist() {

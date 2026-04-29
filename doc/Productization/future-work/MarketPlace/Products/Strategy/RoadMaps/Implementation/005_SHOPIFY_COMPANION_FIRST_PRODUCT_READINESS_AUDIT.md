@@ -788,3 +788,24 @@ Pushed commits:
 Blockers:
 
 - None for release-gated Shopify Companion first-product readiness or Partner Enablement foundation.
+
+### Operator UI Evidence Fallback Fix - 2026-04-29
+
+Final re-audit found one completion gap: the deployed operator endpoint `GET /api/shopify/readiness-audit/latest` only considered standalone `shopify-first-product-readiness-audit` runs, so a successful `full-platform-release-readiness` run could still render the operator UI as `NOT_READY` when no standalone run existed in the recent run window.
+
+Implementation fix:
+
+- `ShopifyCompanionReadinessAuditService` now treats the newest standalone readiness run or newest full release-gate run containing the `shopify-first-product-readiness-audit` stage as valid readiness evidence.
+- Added regression coverage proving the readiness UI state can be derived from a full release-gate stage when no standalone readiness run is present.
+
+Verification:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyCompanionReadinessAuditServiceTest,PlatformVerificationSuiteScriptContextServiceTest,PlatformVerificationSuiteServiceTest test` passed.
+- `bash -n scripts/verify-shopify-first-product-readiness-audit.sh` passed.
+- `python3 -m py_compile scripts/evaluate-shopify-companion-answers.py` passed.
+- `npm --prefix Platfrom/ui run build` passed.
+- `git diff --check` passed.
+
+Expected live proof after backend deploy:
+
+- `GET /api/shopify/readiness-audit/latest` should report `DESIGN_PARTNER_READY`, fresh evidence, no blockers, 10 checklist items, and answer results sourced from the latest full release-gate readiness stage when a standalone readiness run is absent.
