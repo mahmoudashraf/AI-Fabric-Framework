@@ -43,6 +43,7 @@ public class PublicConsumerBridgeChatService {
     private static final String RUNTIME_PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
     private static final String SCOPE_CHAT_QUERY = "chat:query";
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
+    private static final String THINKER_RUNTIME_MODE = "resolver_assistant";
     private static final Duration RUNTIME_TIMEOUT = Duration.ofSeconds(30);
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
@@ -84,9 +85,13 @@ public class PublicConsumerBridgeChatService {
             throw new ResponseStatusException(BAD_REQUEST, "query is required.");
         }
         body.put("query", query);
-        if (thinkerResolverService != null && thinkerResolverService.isThinkerModeRequest(body)
-            && !thinkerResolverService.isThinkerEnabledForDeployment(resolved.deployment().getId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "Thinker is disabled for this deployment.");
+        boolean thinkerModeRequest = thinkerResolverService != null && thinkerResolverService.isThinkerModeRequest(body);
+        ObjectNode thinkerCaptureRequest = thinkerModeRequest ? body.deepCopy() : null;
+        if (thinkerModeRequest) {
+            if (!thinkerResolverService.isThinkerEnabledForDeployment(resolved.deployment().getId())) {
+                throw new ResponseStatusException(BAD_REQUEST, "Thinker is disabled for this deployment.");
+            }
+            body.put("mode", THINKER_RUNTIME_MODE);
         }
         JsonNode response = sendJson(
             resolved,
@@ -96,8 +101,8 @@ public class PublicConsumerBridgeChatService {
             shopperSessionId,
             List.of(SCOPE_CHAT_QUERY)
         );
-        if (thinkerResolverService != null && thinkerResolverService.isThinkerModeRequest(body)) {
-            thinkerResolverService.captureRuntimeResponse(resolved.deployment(), resolved.consumerId(), body, response, shopperSessionId)
+        if (thinkerModeRequest) {
+            thinkerResolverService.captureRuntimeResponse(resolved.deployment(), resolved.consumerId(), thinkerCaptureRequest, response, shopperSessionId)
                 .ifPresent(summary -> attachThinkerSession(response, summary.id(), summary.status(), summary.recommendation()));
         }
         return response;
