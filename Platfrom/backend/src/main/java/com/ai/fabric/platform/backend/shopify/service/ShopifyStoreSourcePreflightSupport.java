@@ -26,6 +26,7 @@ public class ShopifyStoreSourcePreflightSupport {
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final boolean DEFAULT_DEBUG_ENABLED = false;
     private static final String DEFAULT_CONVERSATION_MODE = "navigator";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
         "ai-search",
@@ -125,6 +126,7 @@ public class ShopifyStoreSourcePreflightSupport {
                         text(settings, "launcherLabel") == null ? DEFAULT_LAUNCHER_LABEL : text(settings, "launcherLabel"),
                         text(settings, "welcomeMessage") == null ? DEFAULT_WELCOME_MESSAGE : text(settings, "welcomeMessage"),
                         text(settings, "shellModeProfile") == null ? DEFAULT_SHELL_MODE_PROFILE : text(settings, "shellModeProfile"),
+                        settings.path("debugEnabled").asBoolean(DEFAULT_DEBUG_ENABLED),
                         enabledSurfaces.isEmpty()
                             ? DEFAULT_ENABLED_SURFACES
                             : enabledSurfaces,
@@ -142,6 +144,7 @@ public class ShopifyStoreSourcePreflightSupport {
                         DEFAULT_LAUNCHER_LABEL,
                         DEFAULT_WELCOME_MESSAGE,
                         DEFAULT_SHELL_MODE_PROFILE,
+                        DEFAULT_DEBUG_ENABLED,
                         DEFAULT_ENABLED_SURFACES,
                         DEFAULT_CONVERSATION_MODE,
                         DEFAULT_ALLOWED_CONVERSATION_MODES,

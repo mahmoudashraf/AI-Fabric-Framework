@@ -2159,7 +2159,7 @@ export function ShopifyStoresPage() {
                               {(selectedStore.widgetDetail.settings.enabledSurfaces?.length
                                 ? selectedStore.widgetDetail.settings.enabledSurfaces
                                 : ['ai-search', 'contextual-pill', 'product-insight', 'policy-strip', 'product-faq', 'comparison']
-                              ).join(' · ')}
+                              ).join(' · ')} · Debug {selectedStore.widgetDetail.settings.debugEnabled ? 'enabled' : 'disabled'}
                             </Typography>
                           ) : null}
                           {selectedStore.widgetDetail.message ? (

@@ -114,6 +114,7 @@ export type ShopifyBridgeStoreSummary = {
       launcherLabel: string | null
       welcomeMessage: string | null
       shellModeProfile: string | null
+      debugEnabled: boolean
       defaultConversationMode: string | null
       allowedConversationModes: string[]
       pageModeMappings: Record<string, string>
@@ -817,6 +818,7 @@ export async function updateWidgetSettings(settings: {
   launcherLabel: string
   welcomeMessage: string
   shellModeProfile: string
+  debugEnabled: boolean
   defaultConversationMode: string
   allowedConversationModes: string[]
   pageModeMappings: Record<string, string>

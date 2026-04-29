@@ -31,6 +31,7 @@ public class ShopifyStoreWidgetSettingsService {
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final boolean DEFAULT_DEBUG_ENABLED = false;
     private static final String DEFAULT_CONVERSATION_MODE = "navigator";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
         "ai-search",
@@ -96,6 +97,7 @@ public class ShopifyStoreWidgetSettingsService {
         String launcherLabel = normalizeLauncherLabel(request.launcherLabel());
         String welcomeMessage = normalizeWelcomeMessage(request.welcomeMessage());
         String shellModeProfile = normalizeShellModeProfile(request.shellModeProfile());
+        boolean debugEnabled = request.debugEnabled() != null ? request.debugEnabled() : DEFAULT_DEBUG_ENABLED;
         List<String> enabledSurfaces = normalizeEnabledSurfaces(request.enabledSurfaces());
         String defaultConversationMode = normalizeDefaultConversationMode(request.defaultConversationMode(), shellModeProfile);
         List<String> allowedConversationModes = normalizeAllowedConversationModes(
@@ -114,6 +116,7 @@ public class ShopifyStoreWidgetSettingsService {
         settings.put("launcherLabel", launcherLabel);
         settings.put("welcomeMessage", welcomeMessage);
         settings.put("shellModeProfile", shellModeProfile);
+        settings.put("debugEnabled", debugEnabled);
         ArrayNode enabledSurfacesNode = settings.putArray("enabledSurfaces");
         enabledSurfaces.forEach(enabledSurfacesNode::add);
         settings.put("defaultConversationMode", defaultConversationMode);
@@ -135,6 +138,7 @@ public class ShopifyStoreWidgetSettingsService {
                 "launcherLabel", launcherLabel,
                 "welcomeMessageLength", Integer.toString(welcomeMessage.length()),
                 "shellModeProfile", shellModeProfile,
+                "debugEnabled", Boolean.toString(debugEnabled),
                 "enabledSurfaces", String.join(",", enabledSurfaces),
                 "defaultConversationMode", defaultConversationMode,
                 "allowedConversationModes", String.join(",", allowedConversationModes),

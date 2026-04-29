@@ -71,6 +71,7 @@ export const partnerProductWidgetSettingsSchema = z.object({
   launcherLabel: z.string(),
   welcomeMessage: z.string(),
   shellModeProfile: z.string(),
+  debugEnabled: z.boolean(),
   enabledSurfaces: z.array(z.string()),
   defaultConversationMode: z.string(),
   allowedConversationModes: z.array(z.string()),

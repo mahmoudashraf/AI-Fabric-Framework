@@ -739,6 +739,7 @@ class ShopifyMerchantControllerTest {
                     "Ask the store assistant",
                     "Store assistant is ready. Ask about products, policies, or collections.",
                     "SHOPIFY_COMPANION",
+                    false,
                     List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
                     "navigator",
                     List.of("navigator", "executor"),

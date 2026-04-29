@@ -885,6 +885,7 @@ export function ProductServicesPage() {
                                   <Typography variant="body2" color="text.secondary">
                                     Widget {store.widgetDetail.status.toLowerCase()} · channel {detailValue(store.widgetDetail.channel)}
                                     {store.widgetDetail.settings?.launcherLabel ? ` · launcher ${store.widgetDetail.settings.launcherLabel}` : ''}
+                                    {store.widgetDetail.settings ? ` · debug ${store.widgetDetail.settings.debugEnabled ? 'enabled' : 'disabled'}` : ''}
                                   </Typography>
                                 ) : null}
                                 {store.readiness?.nextActions?.length ? (

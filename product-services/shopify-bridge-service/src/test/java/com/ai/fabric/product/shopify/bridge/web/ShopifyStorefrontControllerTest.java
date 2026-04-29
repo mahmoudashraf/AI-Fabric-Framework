@@ -79,6 +79,7 @@ class ShopifyStorefrontControllerTest {
             "Need help?",
             "Ask me about products and policies.",
             "SHOPIFY_COMPANION",
+            true,
             "navigator",
             "navigator",
             List.of("navigator"),

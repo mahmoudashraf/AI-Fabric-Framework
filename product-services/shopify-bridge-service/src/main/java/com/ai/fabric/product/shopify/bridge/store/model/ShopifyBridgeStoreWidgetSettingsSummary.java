@@ -7,6 +7,7 @@ public record ShopifyBridgeStoreWidgetSettingsSummary(
     String launcherLabel,
     String welcomeMessage,
     String shellModeProfile,
+    boolean debugEnabled,
     List<String> enabledSurfaces,
     String defaultConversationMode,
     List<String> allowedConversationModes,

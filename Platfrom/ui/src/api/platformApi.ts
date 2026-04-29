@@ -812,6 +812,7 @@ export type ShopifyStoreWidgetSummary = {
     launcherLabel: string | null
     welcomeMessage: string | null
     shellModeProfile: string | null
+    debugEnabled: boolean
     defaultConversationMode: string | null
     allowedConversationModes: string[]
     pageModeMappings: Record<string, string>

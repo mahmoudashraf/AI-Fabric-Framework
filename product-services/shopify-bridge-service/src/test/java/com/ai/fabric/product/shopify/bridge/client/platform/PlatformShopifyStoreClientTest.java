@@ -412,6 +412,7 @@ class PlatformShopifyStoreClientTest {
                 "Need help?",
                 "Ask me about products and policies.",
                 "GUIDED_COMMERCE",
+                true,
                 List.of("ai-search", "comparison"),
                 "navigator",
                 List.of("navigator", "executor"),

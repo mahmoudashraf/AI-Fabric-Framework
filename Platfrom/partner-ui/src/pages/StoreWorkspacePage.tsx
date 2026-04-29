@@ -440,6 +440,7 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
   const [launcherLabel, setLauncherLabel] = useState('')
   const [welcomeMessage, setWelcomeMessage] = useState('')
   const [shellModeProfile, setShellModeProfile] = useState('SHOPIFY_COMPANION')
+  const [debugEnabled, setDebugEnabled] = useState(false)
   const [enabledSurfaces, setEnabledSurfaces] = useState<string[]>([])
   const [defaultConversationMode, setDefaultConversationMode] = useState('navigator')
   const [allowedConversationModes, setAllowedConversationModes] = useState<string[]>(['navigator'])
@@ -466,6 +467,7 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
     setLauncherLabel(controls.widgetSettings.launcherLabel)
     setWelcomeMessage(controls.widgetSettings.welcomeMessage)
     setShellModeProfile(controls.widgetSettings.shellModeProfile)
+    setDebugEnabled(controls.widgetSettings.debugEnabled ?? false)
     setEnabledSurfaces(controls.widgetSettings.enabledSurfaces)
     setDefaultConversationMode(controls.widgetSettings.defaultConversationMode)
     setAllowedConversationModes(controls.widgetSettings.allowedConversationModes)
@@ -496,6 +498,7 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
       launcherLabel,
       welcomeMessage,
       shellModeProfile,
+      debugEnabled,
       enabledSurfaces,
       defaultConversationMode,
       allowedConversationModes: uniqueStrings([...allowedConversationModes, defaultConversationMode]),
@@ -563,6 +566,11 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
                 {CONVERSATION_MODES.map((mode) => <MenuItem key={mode} value={mode}>{titleize(mode)}</MenuItem>)}
               </TextField>
             </Box>
+            <FormControlLabel
+              control={<Checkbox checked={debugEnabled} onChange={(event) => setDebugEnabled(event.target.checked)} />}
+              label="Debug inspector"
+              disabled={!canChangeWidget || widgetMutation.isPending}
+            />
             <Divider />
             <Typography variant="caption" color="text.secondary">Requested surfaces</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 0.5 }}>

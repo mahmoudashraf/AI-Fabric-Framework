@@ -20,6 +20,7 @@ public record ShopifyStorefrontBootstrapResponse(
     String launcherLabel,
     String welcomeMessage,
     String shellModeProfile,
+    boolean debugEnabled,
     String defaultConversationMode,
     String effectiveConversationMode,
     List<String> allowedConversationModes,

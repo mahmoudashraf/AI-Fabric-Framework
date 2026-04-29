@@ -280,6 +280,7 @@ class ShopifyStorefrontOrderLookupServiceTest {
                     "Need help?",
                     "Ask me about products and policies.",
                     "SHOPIFY_COMPANION",
+                    false,
                     enabledSurfaces,
                     "navigator",
                     List.of("navigator", "executor"),

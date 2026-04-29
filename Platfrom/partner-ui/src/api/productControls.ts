@@ -5,6 +5,7 @@ export interface UpdatePartnerWidgetSettingsPayload {
   launcherLabel: string
   welcomeMessage: string
   shellModeProfile: string
+  debugEnabled: boolean
   enabledSurfaces: string[]
   defaultConversationMode: string
   allowedConversationModes: string[]

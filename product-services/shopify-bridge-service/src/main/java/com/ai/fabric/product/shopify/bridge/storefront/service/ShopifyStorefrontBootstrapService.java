@@ -33,6 +33,7 @@ public class ShopifyStorefrontBootstrapService {
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final boolean DEFAULT_DEBUG_ENABLED = false;
     private static final String DEFAULT_CONVERSATION_MODE = "navigator";
     private static final String THINKER_CONVERSATION_MODE = "thinker_deep";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of("ai-search");
@@ -125,6 +126,9 @@ public class ShopifyStorefrontBootstrapService {
             && updated.widgetDetail().settings().shellModeProfile() != null && !updated.widgetDetail().settings().shellModeProfile().isBlank()
             ? updated.widgetDetail().settings().shellModeProfile().trim()
             : DEFAULT_SHELL_MODE_PROFILE;
+        boolean debugEnabled = updated.widgetDetail() != null
+            && updated.widgetDetail().settings() != null
+            && updated.widgetDetail().settings().debugEnabled();
         String configuredDefaultConversationMode = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().defaultConversationMode() != null
             && !updated.widgetDetail().settings().defaultConversationMode().isBlank()
@@ -201,6 +205,7 @@ public class ShopifyStorefrontBootstrapService {
             launcherLabel,
             welcomeMessage,
             shellModeProfile,
+            debugEnabled,
             defaultConversationMode,
             effectiveConversationMode,
             allowedConversationModes,
@@ -246,6 +251,7 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_LAUNCHER_LABEL,
             DEFAULT_WELCOME_MESSAGE,
             DEFAULT_SHELL_MODE_PROFILE,
+            DEFAULT_DEBUG_ENABLED,
             defaultConversationMode,
             resolveEffectiveConversationMode(
                 pageType,

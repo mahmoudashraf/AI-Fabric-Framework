@@ -429,6 +429,7 @@ class ShopifyStorefrontBootstrapServiceTest {
                     "Need help?",
                     "Ask me about products and store policies.",
                     "GUIDED_COMMERCE",
+                    true,
                     List.of("ai-search", "comparison"),
                     "navigator",
                     List.of("navigator", "executor"),

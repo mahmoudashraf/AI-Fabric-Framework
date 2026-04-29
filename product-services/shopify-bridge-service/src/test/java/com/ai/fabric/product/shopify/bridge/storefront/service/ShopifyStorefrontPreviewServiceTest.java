@@ -166,6 +166,7 @@ class ShopifyStorefrontPreviewServiceTest {
                     "Need help?",
                     "Ask me about products and store policies.",
                     "GUIDED_COMMERCE",
+                    false,
                     List.of("ai-search", "comparison"),
                     "navigator",
                     List.of("navigator", "executor"),

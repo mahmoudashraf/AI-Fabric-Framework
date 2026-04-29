@@ -143,6 +143,7 @@ type WidgetSettingsState = {
   launcherLabel: string
   welcomeMessage: string
   shellModeProfile: string
+  debugEnabled: boolean
   defaultConversationMode: string
   allowedConversationModes: string[]
   pageModeMappings: Record<string, string>
@@ -250,6 +251,7 @@ function buildWidgetSettingsState(snapshot?: WidgetSettingsSnapshot | null): Wid
     welcomeMessage:
       snapshot?.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.',
     shellModeProfile,
+    debugEnabled: snapshot?.debugEnabled === true,
     defaultConversationMode,
     allowedConversationModes,
     pageModeMappings: normalizePageModeMappings(snapshot?.pageModeMappings, allowedConversationModes),
@@ -1151,6 +1153,7 @@ export default function App() {
         persisted.launcherLabel !== widgetSettings.launcherLabel ||
         persisted.welcomeMessage !== widgetSettings.welcomeMessage ||
         persisted.shellModeProfile !== widgetSettings.shellModeProfile ||
+        persisted.debugEnabled !== widgetSettings.debugEnabled ||
         persisted.defaultConversationMode !== widgetSettings.defaultConversationMode ||
         JSON.stringify(persisted.allowedConversationModes) !== JSON.stringify(widgetSettings.allowedConversationModes) ||
         JSON.stringify(persisted.pageModeMappings) !== JSON.stringify(widgetSettings.pageModeMappings) ||
@@ -2112,6 +2115,9 @@ export default function App() {
                         <List.Item>Welcome message: {storefrontPreview.welcomeMessageDefault}</List.Item>
                         <List.Item>Shell profile: {store?.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION'}</List.Item>
                         <List.Item>
+                          Debug inspector: {store?.widgetDetail?.settings?.debugEnabled ? 'Enabled' : 'Disabled'}
+                        </List.Item>
+                        <List.Item>
                           Embedded surfaces:{' '}
                           {(store?.widgetDetail?.settings?.enabledSurfaces?.length
                             ? store.widgetDetail.settings.enabledSurfaces
@@ -3072,6 +3078,12 @@ export default function App() {
                     }
                     helpText="This is the default Max widget mode before page-specific routing or shopper selection changes it."
                   />
+                  <Checkbox
+                    label="Debug inspector"
+                    checked={widgetSettings.debugEnabled}
+                    onChange={(checked) => setWidgetSettings((current) => ({ ...current, debugEnabled: checked }))}
+                    helpText="Shows the widget debug control for request and response inspection. Keep disabled for normal shopper traffic."
+                  />
                   <BlockStack gap="150">
                     <Text as="p" variant="bodySm" tone="subdued">
                       Intentional advanced modes
@@ -3633,7 +3645,7 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
           {(store.widgetDetail.settings.enabledSurfaces?.length
             ? store.widgetDetail.settings.enabledSurfaces
             : DEFAULT_WIDGET_SURFACES
-          ).join(', ')}
+          ).join(', ')} · debug {store.widgetDetail.settings.debugEnabled ? 'enabled' : 'disabled'}
         </Text>
       ) : null}
       {store.syncDetail ? (
@@ -4065,6 +4077,7 @@ type WidgetSettingsSnapshot = {
   launcherLabel?: string | null
   welcomeMessage?: string | null
   shellModeProfile?: string | null
+  debugEnabled?: boolean
   defaultConversationMode?: string | null
   allowedConversationModes?: string[]
   pageModeMappings?: Record<string, string>

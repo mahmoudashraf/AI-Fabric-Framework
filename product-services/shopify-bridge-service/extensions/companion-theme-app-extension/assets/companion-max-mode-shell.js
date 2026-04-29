@@ -65,7 +65,7 @@
           integrationMode: 'backend-mediated-private-runtime',
           features: {
             cart: false,
-            debug: false,
+            debug: options.payload.debugEnabled === true,
             conversations: false,
             quickActions: true,
           },
