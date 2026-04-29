@@ -34,12 +34,14 @@ public class ShopifyStorefrontBootstrapService {
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
     private static final String DEFAULT_CONVERSATION_MODE = "navigator";
+    private static final String THINKER_CONVERSATION_MODE = "thinker_deep";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of("ai-search");
     private static final List<String> DEFAULT_ALLOWED_CONVERSATION_MODES = List.of(DEFAULT_CONVERSATION_MODE);
     private static final Map<String, String> DEFAULT_PAGE_MODE_MAPPINGS = Map.of();
     private static final Set<String> CANONICAL_CONVERSATION_MODES = Set.of(
         "navigator",
         "navigator_deep",
+        THINKER_CONVERSATION_MODE,
         "cart_assistant",
         "executor"
     );
@@ -228,7 +230,7 @@ public class ShopifyStorefrontBootstrapService {
                                                            String bridgeSuggestionsUrl,
                                                            String bridgeOrderLookupUrl,
                                                            String bridgeEventUrl) {
-        String defaultConversationMode = defaultConversationModeForShellProfile(DEFAULT_SHELL_MODE_PROFILE);
+        String defaultConversationMode = DEFAULT_CONVERSATION_MODE;
         return new ShopifyStorefrontBootstrapResponse(
             false,
             store.shopDomain(),
@@ -346,9 +348,20 @@ public class ShopifyStorefrontBootstrapService {
     private String resolveDefaultConversationMode(String configuredDefaultConversationMode,
                                                   String shellModeProfile,
                                                   ShopifyBridgeBillingSummary billingSummary) {
-        return normalizeConversationMode(configuredDefaultConversationMode, billingSummary)
+        String resolved = normalizeConversationMode(configuredDefaultConversationMode, billingSummary)
             .or(() -> normalizeConversationMode(defaultConversationModeForShellProfile(shellModeProfile), billingSummary))
             .orElse(DEFAULT_CONVERSATION_MODE);
+        return promoteDepthModeToThinker(resolved, billingSummary);
+    }
+
+    private String promoteDepthModeToThinker(String mode, ShopifyBridgeBillingSummary billingSummary) {
+        if (billingSummary == null || !billingSummary.chatFallbackEnabled()) {
+            return mode;
+        }
+        if (DEFAULT_CONVERSATION_MODE.equals(mode) || "navigator_deep".equals(mode)) {
+            return THINKER_CONVERSATION_MODE;
+        }
+        return mode;
     }
 
     private Optional<String> normalizeConversationMode(String value, ShopifyBridgeBillingSummary billingSummary) {
@@ -369,7 +382,7 @@ public class ShopifyStorefrontBootstrapService {
         if (DEFAULT_CONVERSATION_MODE.equals(mode)) {
             return true;
         }
-        if ("navigator_deep".equals(mode)) {
+        if ("navigator_deep".equals(mode) || THINKER_CONVERSATION_MODE.equals(mode)) {
             return billingSummary != null && billingSummary.chatFallbackEnabled();
         }
         if (ACTION_CONVERSATION_MODES.contains(mode)) {
@@ -426,9 +439,9 @@ public class ShopifyStorefrontBootstrapService {
 
     private String defaultConversationModeForShellProfile(String shellModeProfile) {
         if ("GUIDED_SUPPORT".equalsIgnoreCase(shellModeProfile)) {
-            return "navigator_deep";
+            return THINKER_CONVERSATION_MODE;
         }
-        return DEFAULT_CONVERSATION_MODE;
+        return THINKER_CONVERSATION_MODE;
     }
 
     private String pageModeKey(String rawPageType) {

@@ -54,9 +54,11 @@ export function RequestSection({ debugRequest }: { debugRequest: DebugData["requ
                     ? "bg-amber-500 text-white"
                     : debugRequest.payload?.mode === "cart_assistant"
                       ? "bg-emerald-500 text-white"
-                      : debugRequest.payload?.mode === "navigator_deep"
-                        ? "bg-purple-500 text-white"
-                        : "bg-indigo-500 text-white"
+                      : debugRequest.payload?.mode === "thinker_deep" || debugRequest.payload?.mode === "THINKER_DEEP"
+                        ? "bg-cyan-500 text-white"
+                        : debugRequest.payload?.mode === "navigator_deep"
+                          ? "bg-purple-500 text-white"
+                          : "bg-indigo-500 text-white"
                 }`}
               >
                 {debugRequest.payload?.mode || "—"}
@@ -97,4 +99,3 @@ export function RequestSection({ debugRequest }: { debugRequest: DebugData["requ
     </div>
   );
 }
-

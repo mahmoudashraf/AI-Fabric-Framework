@@ -39,7 +39,7 @@ type PendingPrompt = {
   requestContext?: Record<string, any>;
 };
 
-const CONVERSATION_MODES: MaxModeMode[] = ["navigator", "navigator_deep", "cart_assistant", "executor"];
+const CONVERSATION_MODES: MaxModeMode[] = ["navigator", "navigator_deep", "thinker_deep", "cart_assistant", "executor"];
 
 function loadPendingPrompts(): PendingPrompt[] {
   try {

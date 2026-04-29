@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Compass, Microscope, ShoppingCart, Zap, ChevronUp } from "lucide-react";
+import { Compass, BrainCircuit, Microscope, ShoppingCart, Zap, ChevronUp } from "lucide-react";
 import type { MaxModeMode } from "@/constants";
 
 const MODES = [
@@ -15,6 +15,17 @@ const MODES = [
     bgLight: "bg-blue-50 dark:bg-blue-900/30",
     border: "border-blue-400",
     description: "Browse & discover",
+  },
+  {
+    key: "thinker_deep" as const,
+    label: "Thinker",
+    shortLabel: "Think",
+    icon: BrainCircuit,
+    color: "text-cyan-600",
+    bg: "bg-cyan-500",
+    bgLight: "bg-cyan-50 dark:bg-cyan-900/30",
+    border: "border-cyan-400",
+    description: "Evidence-first reasoning",
   },
   {
     key: "navigator_deep" as const,

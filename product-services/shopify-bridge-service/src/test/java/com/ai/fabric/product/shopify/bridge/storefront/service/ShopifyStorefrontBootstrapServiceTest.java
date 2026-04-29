@@ -234,7 +234,8 @@ class ShopifyStorefrontBootstrapServiceTest {
         ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com", "account");
 
         assertThat(response.billingTier()).isEqualTo("ELITE");
-        assertThat(response.allowedConversationModes()).containsExactly("navigator", "executor");
+        assertThat(response.defaultConversationMode()).isEqualTo("thinker_deep");
+        assertThat(response.allowedConversationModes()).containsExactly("navigator", "executor", "thinker_deep");
         assertThat(response.pageModeMappings()).containsEntry("account", "executor");
         assertThat(response.effectiveConversationMode()).isEqualTo("executor");
     }

@@ -26,7 +26,7 @@ import {
 // See `getWidgetConfig().apiConfig.chatBaseUrl` and `.crudBaseUrl`.
 
 export type MaxModePosition = "landing" | "catalog" | "search" | "cart";
-export type MaxModeMode = "navigator" | "navigator_deep" | "cart_assistant" | "executor";
+export type MaxModeMode = "navigator" | "navigator_deep" | "thinker_deep" | "cart_assistant" | "executor";
 
 export interface QuickAction {
   icon: LucideIcon;

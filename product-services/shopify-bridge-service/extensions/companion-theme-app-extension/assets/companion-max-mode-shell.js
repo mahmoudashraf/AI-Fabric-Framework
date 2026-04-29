@@ -316,13 +316,16 @@
 
   function defaultLauncherMode(shellModeProfile) {
     if (shellModeProfile === 'GUIDED_SUPPORT') {
-      return 'navigator_deep'
+      return 'thinker_deep'
     }
-    return 'navigator'
+    return 'thinker_deep'
   }
 
   function normalizeConversationMode(value) {
-    if (value === 'navigator_deep' || value === 'cart_assistant' || value === 'executor') {
+    if (value === 'thinker_deep' || value === 'THINKER_DEEP' || value === 'navigator_deep' || value === 'cart_assistant' || value === 'executor') {
+      return value === 'THINKER_DEEP' ? 'thinker_deep' : value
+    }
+    if (value === 'navigator') {
       return value
     }
     return 'navigator'

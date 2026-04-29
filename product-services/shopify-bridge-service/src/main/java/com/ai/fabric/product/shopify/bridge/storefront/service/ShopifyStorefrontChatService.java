@@ -43,6 +43,13 @@ public class ShopifyStorefrontChatService {
         "chat",
         "depth"
     );
+    private static final String THINKER_MODE = "THINKER_DEEP";
+    private static final Set<String> THINKER_COMPATIBLE_MODES = Set.of(
+        "navigator",
+        "navigator_deep",
+        "thinker",
+        "thinker_deep"
+    );
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -61,6 +68,7 @@ public class ShopifyStorefrontChatService {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
         ObjectNode normalizedRequest = normalizeRequest(request);
         enforceSurfaceEntitlement(store, normalizedRequest);
+        applyThinkerModeForStorefrontDepthChat(normalizedRequest);
         JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
         return shapeStorefrontResponse(normalizedRequest, response);
     }
@@ -249,6 +257,18 @@ public class ShopifyStorefrontChatService {
         );
         if (!allowedSurfaces.contains(surfaceEntry)) {
             throw forbidden("Companion surface '" + surfaceEntry + "' is not available for this store's current plan.");
+        }
+    }
+
+    private void applyThinkerModeForStorefrontDepthChat(ObjectNode request) {
+        ObjectNode context = storefrontContextFromAttachments(request);
+        String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
+        if (surfaceEntry == null || !DEPTH_SURFACE_ENTRIES.contains(surfaceEntry)) {
+            return;
+        }
+        String requestedMode = trimToNull(textOrNull(request, "mode"));
+        if (requestedMode == null || THINKER_COMPATIBLE_MODES.contains(requestedMode.toLowerCase(Locale.ROOT))) {
+            request.put("mode", THINKER_MODE);
         }
     }
 

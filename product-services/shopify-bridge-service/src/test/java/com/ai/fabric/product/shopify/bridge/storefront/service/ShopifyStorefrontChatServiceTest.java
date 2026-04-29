@@ -269,6 +269,108 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryForcesThinkerModeForStorefrontLauncherChat() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+        when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {
+              "query":"Compare this product with similar items",
+              "mode":"THINKER_DEEP",
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Shopify surface: launcher. Shopify page group: product. Shopify mode: navigator. Product: Travel Pack. Product handle: travel-pack",
+                  "metadata":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"launcher",
+                    "shopifyPageModeGroup":"product",
+                    "shopifyEffectiveConversationMode":"navigator",
+                    "productHandle":"travel-pack",
+                    "productTitle":"Travel Pack"
+                  }
+                }
+              ]
+            }
+            """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","thinkerSession":{"sessionId":"tis-1","status":"RESOLVED"},"result":{"message":"Evidence-based comparison."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Compare this product with similar items",
+                  "mode":"navigator",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"launcher",
+                    "shopifyPageModeGroup":"product",
+                    "shopifyEffectiveConversationMode":"navigator",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("thinkerSession").path("sessionId").asText()).isEqualTo("tis-1");
+    }
+
+    @Test
+    void queryPreservesExplicitActionModeForStorefrontLauncherChat() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {
+              "query":"Help with my order",
+              "mode":"executor",
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Shopify surface: launcher. Product: Travel Pack. Product handle: travel-pack",
+                  "metadata":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"launcher",
+                    "productHandle":"travel-pack",
+                    "productTitle":"Travel Pack"
+                  }
+                }
+              ]
+            }
+            """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Order support handoff is available."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Help with my order",
+                  "mode":"executor",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"launcher",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+    }
+
+    @Test
     void queryReplacesGenericRuntimeActionMessageWithStorefrontSafeAnswer() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);
@@ -394,6 +496,29 @@ class ShopifyStorefrontChatServiceTest {
             List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
             List.of(),
             "Starter tier is active."
+        );
+    }
+
+    private ShopifyBridgeBillingSummary eliteTierSummary() {
+        return new ShopifyBridgeBillingSummary(
+            "SHOPIFY_APP_SUBSCRIPTION",
+            "ELITE",
+            "Loom Companion Elite",
+            "ACTIVE",
+            true,
+            true,
+            true,
+            true,
+            null,
+            "NEAR_REAL_TIME",
+            false,
+            true,
+            true,
+            true,
+            List.of(),
+            List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
+            List.of(),
+            "Elite tier is active."
         );
     }
 
