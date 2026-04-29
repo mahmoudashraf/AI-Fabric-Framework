@@ -220,6 +220,68 @@ class PlatformVerificationSuiteScriptContextServiceTest {
     }
 
     @Test
+    void buildsShopifyFirstProductReadinessAuditContext() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+        when(secretService.resolveSecret("SHOPIFY_BRIDGE_ADMIN_API_KEY")).thenReturn("bridge-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-shopify-first-product-readiness-audit.sh");
+        assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
+        assertThat(context.environment()).containsEntry("SHOPIFY_BRIDGE_BASE_URL", "https://bridge.example.test");
+        assertThat(context.environment()).containsEntry("SHOP_DOMAIN", "shop.example.test");
+        assertThat(context.environment()).containsEntry("PRODUCT_SERVICE_REF", "shopify-bridge-prod");
+        assertThat(context.environment()).containsEntry("READINESS_AUDIT_LOCAL_GATES", "false");
+        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
+        assertThat(context.secretEnvironment()).containsEntry("SHOPIFY_BRIDGE_ADMIN_API_KEY", "bridge-key");
+    }
+
+    @Test
     void buildsPartnerEnablementStrictLiveContext() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);

@@ -1,8 +1,63 @@
 # Partner Enablement Full-Stack Implementer Prompt
 
-Status: implementer prompt (2026-04-25)
+Status: implemented baseline plus historical implementer prompt (revised 2026-04-29)
 
-Use this prompt for the LLM session implementing the first Partner Enablement full-stack slice.
+This file originally carried the first Partner Enablement implementation prompt. The current code has moved beyond that first-slice shape, so use this revision as the truth before reusing any older prompt text below.
+
+## Current Implementation Truth - 2026-04-29
+
+Partner Enablement is implemented as an extraction-ready Platform backend domain under `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/` and a separate Partner UI under `Platfrom/partner-ui`.
+
+Current production contract:
+
+- Supabase proves partner identity; Platform DB owns partner accounts, members, roles, assignments, approvals, implementation requests, audits, support escalations, replies, notes, verification runs, evidence bundles, template applications, and product-control permissions.
+- New partner signup creates an empty workspace. Client-store data appears only after merchant approval or operator/admin assignment.
+- Production approval is installed-store-first: partner selects an eligible installed Shopify store from Platform-owned store mappings; merchant approves, denies, or revokes inside the connected Shopify/admin surface; Platform stores approval and assignment records.
+- The old public shareable approval-link flow remains a compatibility endpoint only and is not the production-default implementation path.
+- Partner-created implementation requests always request full product implementation access to the selected installed store. Partners do not choose tier or requested surfaces; those are merchant/store configuration truth.
+- Product-scoped partner control is implemented through partner-safe endpoints that delegate reads/writes to canonical Shopify store services. Partner UI must not own duplicate product config buckets.
+- Partner UI can run partner-safe verification packs, export evidence, apply templates, add partner notes, open support escalations, and use the live Max widget test for assigned stores.
+- Merchant and operator revocation remove active partner access. Operator/admin override is reserved for emergency/recovery.
+- The Partner UI API client permits only `/api/partners/*` and `/api/merchant/partner-access/*`; operator/admin endpoints remain out of reach.
+- No stubs, placeholders, or dummy implementations are allowed. Gateway contracts must have real adapters or fail closed; tests and live verification must prove the behavior.
+
+Current release-gate wiring:
+
+- `partner-enablement-verification` is a standalone Platform verification suite.
+- `full-platform-release-readiness` includes Partner Enablement as a blocking suite stage after Shopify Companion verification.
+- The strict live verifier is `scripts/verify-partner-enablement-live.sh` with `PARTNER_LIVE_STRICT=true`, a deployed Partner UI URL, live Platform backend URL, and a fresh non-committed `PARTNER_SUPABASE_JWT`.
+- The full release gate can still fail for unrelated provider-rate blockers; treat the standalone Partner Enablement suite as the focused 004 proof.
+
+Current implemented API surface includes:
+
+- `GET /api/partners/session`
+- `POST /api/partners/signup/complete`
+- `GET /api/partners/stores`
+- `GET /api/partners/stores/{storeId}`
+- `GET /api/partners/eligible-stores`
+- `POST /api/partners/client-implementations`
+- `GET /api/partners/client-implementations`
+- `GET /api/partners/client-implementations/{requestId}`
+- `GET /api/partners/catalog`
+- `GET /api/partners/templates`
+- `POST /api/partners/templates/{templateId}/applications`
+- `GET /api/partners/verification-packs`
+- store-scoped verification run, manual step, evidence bundle, note, support, member/profile, product-control, and Max widget routes under `/api/partners/*`
+- merchant/admin approval routes under `/api/merchant/partner-access/requests`
+
+## Completion Proof
+
+Latest durable 004 proof before this 005 handoff:
+
+- Partner Enablement foundation, installed-store approval, request visibility, release-gate wiring, product-scoped controls, and Max widget live test were implemented, pushed, deployed, and live verified on Railway.
+- Recent strict live verification passed against Platform `https://ai-fabric-framework-production-324f.up.railway.app`, Partner UI `https://ai-fabric-framework-production-158d.up.railway.app`, and `shopping-companion-test.myshopify.com`.
+- Package profile approved choices were implemented, pushed, deployed, and live verified at `GET /api/shopify/package-profiles/options`.
+- This revision closes the remaining documentation mismatch by making the installed-store-first, merchant-configured tier/surface, canonical store-config source-of-truth model explicit.
+- This revision also tightens the partner-facing package summary boundary so partner store payloads expose only merchant-safe package/tier/cost/readiness context and do not leak runtime, vector provider, provisioning, or operator sync fields.
+
+## Historical Prompt
+
+The prompt below is preserved for context. Do not implement it verbatim without applying the current implementation truth above.
 
 ---
 
@@ -89,7 +144,7 @@ Boundary rules:
 - Existing deployment/provider/secret/vectorization code must not leak into partner UI or partner APIs.
 - Partner code may call existing platform/shopify services only through narrow gateway interfaces.
 
-Create or stub these gateway contracts where needed:
+Create real gateway contracts/adapters where needed. Do not create stubs, dummy adapters, or placeholder behavior:
 - `PartnerStoreAccessGateway`
 - `PartnerShopifyStoreReadModel`
 - `PartnerEvidenceSource`
@@ -140,7 +195,7 @@ Backend first-slice scope:
    - `GET /api/partners/stores`
    - `POST /api/partners/client-implementations`
    - `GET /api/partners/client-implementations/{requestId}`
-   - `POST /api/partners/client-implementations/{requestId}/store-access-links`
+   - `POST /api/partners/client-implementations/{requestId}/store-access-links` (compatibility only; production flow is installed-store-first merchant approval)
    - `POST /api/merchant/partner-access/{approvalCode}/approve`
    - `GET /api/partners/catalog`
    - `GET /api/partners/support/escalations`

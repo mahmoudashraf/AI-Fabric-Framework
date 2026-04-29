@@ -129,16 +129,9 @@ public class ShopifyPartnerStoreAccessGateway implements PartnerStoreAccessGatew
                 text(state, "profileKey"),
                 text(state, "packageKey"),
                 text(state, "tierKey"),
-                text(state, "runtimeProfileKey"),
-                text(state, "vectorProfileKey"),
                 text(state, "displayName"),
                 text(state, "costPosture"),
-                text(state, "vectorStrategy"),
-                text(state, "vectorProvisioningMode"),
-                text(state, "vectorStoragePosture"),
                 text(state, "verificationPackId"),
-                text(state, "lastProvisioningJobId"),
-                state.path("vectorReindexRequired").asBoolean(false),
                 parseInstant(text(state, "lastReconciledAt"))
             );
         } catch (Exception ex) {

@@ -24,6 +24,7 @@ public class PlatformVerificationSuiteScriptContextService {
     public static final String SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION = "managed-vector-provider-verification";
     public static final String SCRIPT_MARKETPLACE_INSTALL_FLOW = "marketplace-install-flow";
     public static final String SCRIPT_SHOPIFY_COMPANION_VERIFICATION = "shopify-companion-verification";
+    public static final String SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT = "shopify-first-product-readiness-audit";
     public static final String SCRIPT_PARTNER_ENABLEMENT_VERIFICATION = "partner-enablement-verification";
 
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
@@ -70,6 +71,7 @@ public class PlatformVerificationSuiteScriptContextService {
             case SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION -> buildManagedProviderVerification();
             case SCRIPT_MARKETPLACE_INSTALL_FLOW -> buildMarketplaceInstallFlow();
             case SCRIPT_SHOPIFY_COMPANION_VERIFICATION -> buildShopifyCompanionVerification();
+            case SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT -> buildShopifyFirstProductReadinessAudit();
             case SCRIPT_PARTNER_ENABLEMENT_VERIFICATION -> buildPartnerEnablementVerification();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
@@ -175,6 +177,42 @@ public class PlatformVerificationSuiteScriptContextService {
 
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-shopify-companion.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
+    private PlatformVerificationScriptContextSummary buildShopifyFirstProductReadinessAudit() {
+        String bridgeBaseUrl = requireValue(
+            suiteProperties.shopifyBridgeBaseUrl(),
+            "platform.verification.suites.shopify-bridge-base-url must be configured for Shopify first-product readiness audit."
+        );
+        String shopDomain = requireValue(
+            suiteProperties.shopifyShopDomain(),
+            "platform.verification.suites.shopify-shop-domain must be configured for Shopify first-product readiness audit."
+        );
+
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("SHOPIFY_BRIDGE_BASE_URL", bridgeBaseUrl);
+        environment.put("SHOP_DOMAIN", shopDomain);
+        environment.put("READINESS_AUDIT_LOCAL_GATES", "false");
+        if (suiteProperties.shopifyProductServiceRef() != null && !suiteProperties.shopifyProductServiceRef().isBlank()) {
+            environment.put("PRODUCT_SERVICE_REF", suiteProperties.shopifyProductServiceRef());
+        }
+        if (suiteProperties.shopifyEmbeddedHost() != null && !suiteProperties.shopifyEmbeddedHost().isBlank()) {
+            environment.put("SHOPIFY_EMBEDDED_HOST", suiteProperties.shopifyEmbeddedHost());
+        }
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
+        for (String secretName : SHOPIFY_OPTIONAL_SECRET_NAMES) {
+            String value = platformSecretService.resolveSecret(secretName);
+            if (value != null && !value.isBlank()) {
+                secretEnvironment.put(secretName, value);
+            }
+        }
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-shopify-first-product-readiness-audit.sh",
             environment,
             secretEnvironment
         );

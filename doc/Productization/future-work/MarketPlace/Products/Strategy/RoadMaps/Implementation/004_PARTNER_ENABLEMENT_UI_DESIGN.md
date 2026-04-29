@@ -1,6 +1,6 @@
 # Partner Enablement UI Design
 
-Status: validated design specification (2026-04-25)
+Status: implemented UI baseline plus revised current-state design notes (revised 2026-04-29)
 
 Companion to: [004_PARTNER_ENABLEMENT_FOUNDATION.md](004_PARTNER_ENABLEMENT_FOUNDATION.md)
 
@@ -13,6 +13,29 @@ Stack constraint: React 18 · TypeScript · Vite · MUI v6 · Emotion · `@mui/i
 ## Validation Result
 
 This design is accepted as the Partner Enablement UI baseline after alignment with the Partner Enablement Foundation.
+
+## Current-State Revision - 2026-04-29
+
+The implementation has advanced beyond the original approval-link design. Apply these revisions before using the older page-by-page sections:
+
+- Dark theme is the default. Light mode remains available through the shell toggle.
+- New implementation is installed-store-first. Partners select an eligible installed Shopify store from a backend-powered dropdown/search. Free-text shop-domain entry is not the production authority.
+- Partners do not select tier or requested surfaces. The merchant/store configuration decides tier, enabled surfaces, widget configuration, Knowledge Sync/source settings, and support posture. Partner UI displays those values and allows only assigned, capability-scoped product controls.
+- The public merchant approval link card is no longer the production centerpiece. The merchant reviews requests inside the Shopify/admin `Partners` surface, approves/denies there, and can revoke active access later.
+- Partner request status is visible before approval through real `GET /api/partners/client-implementations` data; pending requests must not be represented by hard-coded counts.
+- Product controls are source-of-truth delegated: Partner UI reads/writes the same canonical Shopify store config buckets through Platform partner APIs. Do not introduce partner-owned duplicate settings.
+- Product controls include storefront widget settings, source settings/Knowledge Sync toggles, support profile handoff, verification, evidence, notes, escalation, and live Max widget smoke testing for assigned stores.
+- Partner Max widget live test uses the real Max widget bundle and partner-secured storefront routes with selectable access paths. It is not a mock playground.
+- Revocation is bidirectional: merchant can revoke from Shopify/admin; operator can revoke as emergency/admin override; partner access must fail closed after revocation.
+- The API client allowlist remains `/api/partners/*` and `/api/merchant/partner-access/*` only. No operator/admin/deployment/provider/secret/vectorization endpoints can be called from Partner UI.
+- All data must be live backend data. No dummy rows, placeholder counts, fake stores, fake request statuses, or static success states are acceptable.
+
+Current implemented routes keep the original navigation shape, with these production-backed additions:
+
+- `/implementations/new`: eligible installed store selector, client context, submit full-store-access implementation request.
+- `/implementations/:requestId`: real implementation/request status from Platform.
+- `/stores/:storeId`: Overview, Product controls, Setup/Surfaces/Knowledge, Verification, Evidence, Escalations, Notes, and live Max widget test.
+- `/verification`, `/evidence`, `/templates`, `/support`, `/settings/members`, and `/settings/profile`: real Partner API data, not static placeholders.
 
 Non-negotiable constraints:
 
@@ -254,16 +277,15 @@ Table columns (TanStack Query, server pagination):
 
 `Stepper` (vertical on mobile, horizontal on md+). One step per page-section, advance disabled until valid (RHF + Zod).
 
+**Current production revision:** replace the free-text shop-domain and partner-selected tier/surface steps below with an eligible installed store selector backed by `GET /api/partners/eligible-stores`. The request submits full product implementation access for that selected store. Tier and surfaces are display-only, derived from merchant/store configuration.
+
 **Steps**
 
 1. **Client context** — client name, contact email, vertical (Select), expected go-live date, notes.
-2. **Store** — shop domain (`*.myshopify.com` validated by Zod regex), requested package/tier context (Free/Starter/Elite helper text only until the store is approved), known integrations (multi-select chips). Partners can request or describe package intent, but cannot approve Shopify billing or change a paid plan.
-3. **Surfaces requested** — checklist generated from catalog, filtered by tier rules (Free auto-restricts to AI search; helper alert if user crosses the gate).
-4. **Approval method** — three radio cards:
-   - "Send merchant approval link" (default) — backend generates code, partner gets shareable URL + 7-day expiry chip.
-   - "Approved app install / claim flow" — show install URL preview.
-   - "Operator assignment" — disabled with tooltip "Only operators can use this path; request via support."
-5. **Review & submit** — read-only summary, primary `Create implementation request` button.
+2. **Store** — backend-powered eligible installed store selector, showing shop domain, install status, tier/config posture, source readiness, and widget status. Free-text shop-domain entry is not authoritative.
+3. **Store configuration review** — read-only summary of merchant/store configured package, tier posture, enabled surfaces, Knowledge Sync/source readiness, and support profile. Partner cannot select tier or requested surfaces.
+4. **Merchant approval posture** — show that approval is reviewed inside the connected merchant/admin `Partners` surface; operator assignment remains operator-only and is not exposed as a partner-selectable path.
+5. **Review & submit** — read-only full-store-access implementation summary, primary `Create implementation request` button.
 
 After submit, navigate to `/implementations/:requestId` (see §4.6).
 
@@ -271,21 +293,23 @@ After submit, navigate to `/implementations/:requestId` (see §4.6).
 
 Two-column layout.
 
+**Current production revision:** the approval status page shows the installed-store request status and merchant/admin decision history. Do not center the experience on a public shareable approval link for the production flow.
+
 ```
 LEFT (md=8): Approval status Paper (the centerpiece)
   Big status chip: "Waiting on merchant"
-  Approval link: <CodeBlock> with copy button + "QR" button (opens dialog)
-  Sent to: merchant@example.com  · Sent 2d ago  · Expires in 5d
-  [Resend link] [Revoke link] [Use different method]
+  Store: acme-fashion.myshopify.com
+  Review location: Shopify/admin Partners surface
+  [Open request history] [Open support]
 
   Timeline below:
    • Created       2026-04-23 14:02   you
-   • Link sent     2026-04-23 14:02   system
-   • Link opened   2026-04-24 09:11   merchant (IP region: UK)
+   • Review queued 2026-04-23 14:02   system
+   • Merchant/admin pending
    • —waiting—
 
 RIGHT (md=4): Request summary
-  Client · Vertical · Plan · Surfaces (chips) · Owner
+  Client · Vertical · Store-configured package · Store-configured surfaces (chips) · Owner
   "Edit request" link (only while no approval has occurred)
 ```
 
@@ -805,7 +829,7 @@ If no deployed partner UI exists yet, the implementing session must add the live
 
 - **Never call operator endpoints from this UI.** Even if the network allows it, the audit log will flag it. The API client should refuse any URL not under `/api/partners/*` or `/api/merchant/partner-access/*`.
 - **Evidence URLs are short-lived signed URLs.** Don't cache them in localStorage. Re-request on render.
-- **Approval link copy** must use `navigator.clipboard.writeText` with a fallback `textarea` selection for non-secure contexts.
+- **Compatibility approval-link copy** must use `navigator.clipboard.writeText` with a fallback `textarea` selection for non-secure contexts if the historical public approval-link endpoint is surfaced for recovery. It is not the production-default flow.
 - **`status` enum on the wire is `SCREAMING_SNAKE_CASE`** (matches the Java backend) — convert at the API boundary in `schemas.ts` to the camelCase tokens in `statusTokens.ts`. Don't sprinkle conversion through components.
 - **Reply visibility** — the partner UI must request the thread endpoint with no visibility filter parameter and trust the backend filter. Do not implement client-side filtering as the only protection; do trust-but-verify by asserting with Zod that every returned reply has `visibility === 'PARTNER_VISIBLE'` and dropping (with a console warning) anything else.
 - **No telemetry libraries that exfiltrate URLs.** If you add analytics, scrub `:storeId`, `:escalationId`, `:requestId` from paths first.

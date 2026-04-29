@@ -358,6 +358,16 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$[0].permissions", hasItem("STOREFRONT_SURFACE_CONTROL")))
             .andExpect(jsonPath("$[0].permissions", hasItem("KNOWLEDGE_SOURCE_CONTROL")))
             .andExpect(jsonPath("$[0].approvedAt", notNullValue()))
+            .andExpect(jsonPath("$[0].packageProfile.profileKey", is("HIGH_QUALITY")))
+            .andExpect(jsonPath("$[0].packageProfile.packageKey", is("ELITE")))
+            .andExpect(jsonPath("$[0].packageProfile.tierKey", is("ELITE")))
+            .andExpect(jsonPath("$[0].packageProfile.displayName", is("Elite high quality")))
+            .andExpect(jsonPath("$[0].packageProfile.runtimeProfileKey").doesNotExist())
+            .andExpect(jsonPath("$[0].packageProfile.vectorProfileKey").doesNotExist())
+            .andExpect(jsonPath("$[0].packageProfile.vectorStrategy").doesNotExist())
+            .andExpect(jsonPath("$[0].packageProfile.vectorProvisioningMode").doesNotExist())
+            .andExpect(jsonPath("$[0].packageProfile.vectorStoragePosture").doesNotExist())
+            .andExpect(jsonPath("$[0].packageProfile.vectorReindexRequired").doesNotExist())
             .andExpect(jsonPath("$[0].enabledSurfaces", not(hasItem("order-lookup"))));
 
         mockMvc.perform(get("/api/partners/stores/{storeId}/product-controls", assignmentId)
@@ -968,6 +978,22 @@ class PartnerEnablementIntegrationTest {
         entity.setLastWebhookAt(now);
         entity.setDetailsJson("""
             {
+              "packageState": {
+                "profileKey": "HIGH_QUALITY",
+                "packageKey": "ELITE",
+                "tierKey": "ELITE",
+                "displayName": "Elite high quality",
+                "costPosture": "HIGH",
+                "runtimeProfileKey": "HIGH_QUALITY",
+                "vectorProfileKey": "QDRANT_SHARED",
+                "vectorStrategy": "qdrant",
+                "vectorProvisioningMode": "EXTERNAL_EXISTING",
+                "vectorStoragePosture": "SHARED",
+                "lastProvisioningJobId": "spj-test",
+                "vectorReindexRequired": true,
+                "verificationPackId": "shopify-companion-elite-readiness",
+                "lastReconciledAt": "2026-04-25T22:00:00Z"
+              },
               "widget": {
                 "settings": {
                   "enabledSurfaces": ["ai-search", "product-faq", "comparison"],

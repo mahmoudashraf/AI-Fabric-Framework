@@ -1,6 +1,6 @@
 # Shopify Companion First Product Readiness Audit
 
-Status: implementation handoff (2026-04-25)
+Status: implemented pending final live proof append (revised 2026-04-29)
 
 Owner mode: technical LLM implementation/audit session
 
@@ -652,3 +652,29 @@ Required completion fields:
 - pushed commit refs, if pushed
 
 Do not include secrets, long logs, or raw diffs.
+
+### Implementation Summary - 2026-04-29
+
+Implemented as a first-class platform readiness gate instead of a chat-only checklist:
+
+- Added standalone `shopify-first-product-readiness-audit` verification suite and inserted it as a blocking stage in `full-platform-release-readiness` before Partner Enablement.
+- Added `scripts/verify-shopify-first-product-readiness-audit.sh` to create the audit packet, run active product-truth scans, execute the live Shopify Companion verifier, evaluate answer quality, and write machine-readable/human-readable evidence under `/tmp/shopify-first-product-readiness-audit/`.
+- Added `scripts/evaluate-shopify-companion-answers.py` and a canonical Shopify Companion query pack at `scripts/verification/shopify-first-product-readiness/answer-quality-query-pack.json`.
+- Added Platform backend read models and `GET /api/shopify/readiness-audit/latest` / `definition` for the operator console.
+- Added Platform UI route `/shopify-readiness-audit` with overview, checklist, query pack, answer results, evidence, decision state, stale/blocker handling, and suite rerun action.
+- Rechecked the 004 Partner Enablement docs and patched the partner-facing package summary boundary so runtime/vector/provisioning fields remain operator-only.
+
+Local verification completed before live deployment:
+
+- `bash -n scripts/verify-shopify-first-product-readiness-audit.sh`
+- `python3 -m py_compile scripts/evaluate-shopify-companion-answers.py`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformVerificationSuiteScriptContextServiceTest,PlatformVerificationSuiteServiceTest,ShopifyCompanionReadinessAuditServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementIntegrationTest test`
+- `mvn -f Platfrom/backend/pom.xml -q test`
+- `npm --prefix Platfrom/ui run build`
+- `npm --prefix Platfrom/partner-ui run build`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q test`
+- `npm --prefix product-services/shopify-bridge-service/ui run build`
+- `git diff --check`
+
+Final live proof, artifact paths, readiness decision, blockers, and pushed commit refs must be appended after Railway deploy/live verification completes.

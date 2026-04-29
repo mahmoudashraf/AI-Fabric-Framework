@@ -23,6 +23,7 @@ import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
 import { ShopifyPackageProfilesPage } from './pages/ShopifyPackageProfilesPage'
+import { ShopifyReadinessAuditPage } from './pages/ShopifyReadinessAuditPage'
 import { ShopifyStoresPage } from './pages/ShopifyStoresPage'
 import { UsersPage } from './pages/UsersPage'
 import { VectorizationPage } from './pages/VectorizationPage'
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/inference-services" element={<InferenceServicesPage />} />
           <Route path="/product-services" element={<ProductServicesPage />} />
           <Route path="/shopify-package-profiles" element={<ShopifyPackageProfilesPage />} />
+          <Route path="/shopify-readiness-audit" element={<ShopifyReadinessAuditPage />} />
           <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />

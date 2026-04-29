@@ -59,9 +59,11 @@ class PlatformVerificationSuiteServiceTest {
 
         assertThat(summary.suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
         assertThat(summary.run().status()).isEqualTo("QUEUED");
-        assertThat(summary.run().stages()).hasSize(13);
+        assertThat(summary.run().stages()).hasSize(14);
         assertThat(summary.run().stages().getFirst().stageKey()).isEqualTo("shared-inference-health");
         assertThat(summary.run().stages().get(6).targetRef())
+            .isEqualTo(PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT);
+        assertThat(summary.run().stages().get(7).targetRef())
             .isEqualTo(PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION);
         assertThat(summary.run().stages().getLast().targetRef()).isEqualTo("weaviate");
 
@@ -132,7 +134,7 @@ class PlatformVerificationSuiteServiceTest {
                 && "SUPERSEDED".equals(stage.getStatus())
                 && stage.getCompletedAt() != null
         ));
-        assertThat(summary.run().stages()).hasSize(13);
+        assertThat(summary.run().stages()).hasSize(14);
         verify(executionService).execute(summary.run().id(), false);
     }
 

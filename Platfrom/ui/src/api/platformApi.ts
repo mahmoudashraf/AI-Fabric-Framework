@@ -2599,6 +2599,85 @@ export type PlatformVerificationReleaseGateSummary = {
   latestRun: PlatformVerificationSuiteRunSummary | null
 }
 
+export type ShopifyReadinessAuditChecklistItemSummary = {
+  key: string
+  label: string
+  category: string
+  blocking: boolean
+  passCriteria: string
+}
+
+export type ShopifyReadinessAuditChecklistResultSummary = ShopifyReadinessAuditChecklistItemSummary & {
+  status: string
+  evidence: string
+  notes: string
+}
+
+export type ShopifyReadinessAuditAnswerResultSummary = {
+  queryId: string
+  surface: string | null
+  tierProfile: string | null
+  expectedBehavior: string | null
+  passed: boolean
+  httpStatus: number
+  failureCategory: string | null
+  answerLength: number
+  answerPreview: string | null
+  checks: Record<string, boolean>
+  forbiddenHits: string[]
+  missingRequiredConcepts: string[]
+  unsafeActionExecutionHits: string[]
+}
+
+export type ShopifyReadinessAuditEvidenceArtifactSummary = {
+  name: string
+  category: string
+  path: string
+  description: string
+  status: string
+}
+
+export type ShopifyReadinessAuditQuerySummary = {
+  queryId: string
+  tierProfile: string
+  surface: string
+  query: string
+  storefrontContext: Record<string, unknown>
+  expectedBehavior: string
+  requiredConcepts: string[]
+  forbiddenClaims: string[]
+  expectedDenial: boolean
+  groundingRequired: boolean
+}
+
+export type ShopifyReadinessAuditDefinitionSummary = {
+  suiteKey: string
+  productRef: string
+  displayName: string
+  targetStore: string
+  tierProfile: string
+  artifactRoot: string
+  decisionOptions: string[]
+  rubric: string[]
+  forbiddenInternalTerms: string[]
+  checklist: ShopifyReadinessAuditChecklistItemSummary[]
+  queryPack: ShopifyReadinessAuditQuerySummary[]
+}
+
+export type ShopifyReadinessAuditStateSummary = {
+  definition: ShopifyReadinessAuditDefinitionSummary
+  latestRun: PlatformVerificationSuiteRunSummary | null
+  latestStage: PlatformVerificationSuiteStageRunSummary | null
+  decision: string
+  freshnessStatus: string
+  evidenceCompletedAt: string | null
+  blockers: string[]
+  nextHandoff: string
+  checklistResults: ShopifyReadinessAuditChecklistResultSummary[]
+  answerResults: ShopifyReadinessAuditAnswerResultSummary[]
+  evidenceArtifacts: ShopifyReadinessAuditEvidenceArtifactSummary[]
+}
+
 export type PlatformRailwayServiceDiscoverySummary = {
   available: boolean
   summaryMessage: string
@@ -4410,6 +4489,10 @@ export function fetchPlatformVerificationSuiteRun(runId: string) {
 
 export function fetchPlatformVerificationReleaseGate() {
   return request<PlatformVerificationReleaseGateSummary>('/api/verification-suites/release-gate')
+}
+
+export function fetchShopifyReadinessAuditState() {
+  return request<ShopifyReadinessAuditStateSummary>('/api/shopify/readiness-audit/latest')
 }
 
 export function dispatchPlatformVerificationSuiteRun(

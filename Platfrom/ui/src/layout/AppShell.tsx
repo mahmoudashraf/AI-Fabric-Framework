@@ -6,6 +6,7 @@ import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded'
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
 import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
@@ -57,6 +58,7 @@ const navItems = [
   { label: 'Inference Services', path: '/inference-services', icon: <MemoryRoundedIcon />, platformAdminOnly: true },
   { label: 'Product Services', path: '/product-services', icon: <PrecisionManufacturingRoundedIcon />, platformAdminOnly: true },
   { label: 'Shopify Profiles', path: '/shopify-package-profiles', icon: <TuneRoundedIcon />, platformAdminOnly: true },
+  { label: 'Shopify Readiness', path: '/shopify-readiness-audit', icon: <FactCheckOutlinedIcon />, platformAdminOnly: true },
   { label: 'Shopify Stores', path: '/shopify-stores', icon: <StoreRoundedIcon />, platformAdminOnly: true },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },

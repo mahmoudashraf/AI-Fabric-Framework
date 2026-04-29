@@ -33,17 +33,10 @@ export const partnerProductPackageSchema = z.object({
   profileKey: nullableString,
   packageKey: nullableString,
   tierKey: nullableString,
-  runtimeProfileKey: nullableString,
-  vectorProfileKey: nullableString,
   displayName: nullableString,
   costPosture: nullableString,
-  vectorStrategy: nullableString,
-  vectorProvisioningMode: nullableString,
-  vectorStoragePosture: nullableString,
   verificationPackId: nullableString,
-  lastProvisioningJobId: nullableString,
-  vectorReindexRequired: z.boolean(),
-  lastReconciledAt: nullableDateString,
+  lastConfiguredAt: nullableDateString,
 })
 
 export const partnerStoreSchema = z.object({

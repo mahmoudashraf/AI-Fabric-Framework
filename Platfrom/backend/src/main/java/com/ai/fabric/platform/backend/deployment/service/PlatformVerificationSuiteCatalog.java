@@ -18,6 +18,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String MANAGED_VECTOR_PROVIDER_VERIFICATION_SUITE_KEY = "managed-vector-provider-verification";
     public static final String MARKETPLACE_INSTALL_FLOW_SUITE_KEY = "marketplace-install-flow";
     public static final String SHOPIFY_COMPANION_VERIFICATION_SUITE_KEY = "shopify-companion-verification";
+    public static final String SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY = "shopify-first-product-readiness-audit";
     public static final String PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY = "partner-enablement-verification";
     public static final String SHARED_INFERENCE_SERVICE_REF = "shared-ollama-orchestration";
     public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
@@ -38,6 +39,7 @@ public class PlatformVerificationSuiteCatalog {
             managedVectorProviderVerification(),
             marketplaceInstallFlowVerification(),
             shopifyCompanionVerification(),
+            shopifyFirstProductReadinessAudit(),
             partnerEnablementVerification()
         );
     }
@@ -180,6 +182,14 @@ public class PlatformVerificationSuiteCatalog {
                     "Verify the shared Shopify Bridge service, store binding, storefront bootstrap, and shopper query path."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
+                    "shopify-first-product-readiness-audit",
+                    "Shopify first-product readiness audit",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT,
+                    true,
+                    "Run the Shopify Companion first-product readiness audit, including product truth, live verification, and query-to-answer quality."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
                     "partner-enablement-verification",
                     "Partner Enablement verification",
                     "SCRIPT_VERIFICATION",
@@ -310,6 +320,25 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION,
                     true,
                     "Verify the shared Shopify Bridge service, store binding, storefront bootstrap, and shopper query path."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary shopifyFirstProductReadinessAudit() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY,
+            "Shopify first-product readiness audit",
+            "Standalone Shopify Companion first-product readiness gate for product truth, entitlement posture, live verifier proof, answer quality, support collateral, and reviewable operator evidence.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "shopify-first-product-readiness-audit",
+                    "Shopify first-product readiness audit",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT,
+                    true,
+                    "Run the Shopify Companion first-product readiness audit and write the compact evidence packet."
                 )
             )
         );
