@@ -30,6 +30,8 @@ public class RailwayGraphqlClient {
     private static final Duration INITIAL_RETRY_BACKOFF = Duration.ofMillis(250);
     private static final Duration MIN_REQUEST_TIMEOUT = Duration.ofSeconds(45);
     private static final Duration MAX_REQUEST_TIMEOUT = Duration.ofSeconds(90);
+    private static final double DEFAULT_SERVICE_INSTANCE_VCPUS = 1.0d;
+    private static final double DEFAULT_SERVICE_INSTANCE_MEMORY_GB = 1.0d;
 
     private static final String PROJECTS_QUERY = """
         query workspaceProjects($workspaceId: String!) {
@@ -184,6 +186,12 @@ public class RailwayGraphqlClient {
             environmentId: $environmentId,
             input: $input
           )
+        }
+        """;
+
+    private static final String SERVICE_INSTANCE_LIMITS_UPDATE_MUTATION = """
+        mutation serviceInstanceLimitsUpdate($input: ServiceInstanceLimitsUpdateInput!) {
+          serviceInstanceLimitsUpdate(input: $input)
         }
         """;
 
@@ -587,6 +595,12 @@ public class RailwayGraphqlClient {
                 "input", input
             )
         );
+        updateServiceInstanceLimits(
+            serviceId,
+            environmentId,
+            DEFAULT_SERVICE_INSTANCE_VCPUS,
+            DEFAULT_SERVICE_INSTANCE_MEMORY_GB
+        );
         log.info(
             "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}, dockerfilePath={}, numReplicas={}",
             serviceId,
@@ -594,6 +608,29 @@ public class RailwayGraphqlClient {
             rootDirectory,
             dockerfilePath,
             numReplicas
+        );
+    }
+
+    public void updateServiceInstanceLimits(String serviceId,
+                                            String environmentId,
+                                            double vCpus,
+                                            double memoryGb) {
+        if (vCpus <= 0.0d || memoryGb <= 0.0d) {
+            throw new IllegalArgumentException("Railway service instance limits must be positive.");
+        }
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("serviceId", serviceId);
+        input.put("environmentId", environmentId);
+        input.put("vCPUs", vCpus);
+        input.put("memoryGB", memoryGb);
+
+        execute(SERVICE_INSTANCE_LIMITS_UPDATE_MUTATION, Map.of("input", input));
+        log.info(
+            "Railway service instance limits updated: serviceId={}, environmentId={}, vCPUs={}, memoryGB={}",
+            serviceId,
+            environmentId,
+            vCpus,
+            memoryGb
         );
     }
 

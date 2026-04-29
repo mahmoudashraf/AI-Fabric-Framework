@@ -309,6 +309,58 @@ class RailwayGraphqlClientTest {
         verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
 
+    @Test
+    void updateServiceInstanceAlsoAppliesDefaultCpuAndMemoryLimits() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> updateResponse = mock(HttpResponse.class);
+        HttpResponse<String> limitsResponse = mock(HttpResponse.class);
+        List<String> requestBodies = new ArrayList<>();
+        RailwayGraphqlClient client = new RailwayGraphqlClient(
+            objectMapper,
+            provisioningProperties(),
+            httpClient,
+            duration -> {
+            }
+        );
+
+        when(updateResponse.statusCode()).thenReturn(200);
+        when(updateResponse.body()).thenReturn("""
+            {
+              "data": {
+                "serviceInstanceUpdate": true
+              }
+            }
+            """);
+        when(limitsResponse.statusCode()).thenReturn(200);
+        when(limitsResponse.body()).thenReturn("""
+            {
+              "data": {
+                "serviceInstanceLimitsUpdate": true
+              }
+            }
+            """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenAnswer(invocation -> {
+                requestBodies.add(requestBody(invocation.getArgument(0)));
+                return requestBodies.size() == 1 ? updateResponse : limitsResponse;
+            });
+
+        client.updateServiceInstance(
+            "svc-123",
+            "env-123",
+            "runtime-root",
+            "runtime/Dockerfile",
+            "/actuator/health"
+        );
+
+        assertThat(requestBodies).hasSize(2);
+        assertThat(requestBodies.get(0)).contains("serviceInstanceUpdate");
+        assertThat(requestBodies.get(1)).contains("serviceInstanceLimitsUpdate");
+        assertThat(requestBodies.get(1)).contains("\"vCPUs\":1.0");
+        assertThat(requestBodies.get(1)).contains("\"memoryGB\":1.0");
+        verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
     private PlatformProvisioningProperties provisioningProperties() {
         return new PlatformProvisioningProperties(
             "RAILWAY_API",
