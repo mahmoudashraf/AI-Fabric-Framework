@@ -1,9 +1,6 @@
 package com.ai.fabric.platform.backend.shopify.model;
 
-import java.time.Instant;
-
-public record ShopifyCompanionPackageProfileSummary(
-    String profileKey,
+public record UpsertShopifyCompanionPackageProfileRequest(
     String packageKey,
     String tierKey,
     String runtimeProfileKey,
@@ -21,7 +18,6 @@ public record ShopifyCompanionPackageProfileSummary(
     String verificationPackId,
     String status,
     String detailsJson,
-    Instant createdAt,
-    Instant updatedAt
+    String reason
 ) {
 }

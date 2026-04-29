@@ -13,4 +13,12 @@ public interface ShopifyCompanionPackageProfileRepository extends JpaRepository<
     Optional<ShopifyCompanionPackageProfileEntity> findFirstByTierKeyIgnoreCaseAndStatusIgnoreCaseOrderByUpdatedAtDesc(String tierKey, String status);
 
     List<ShopifyCompanionPackageProfileEntity> findAllByStatusIgnoreCaseOrderByProfileKeyAsc(String status);
+
+    List<ShopifyCompanionPackageProfileEntity> findAllByOrderByProfileKeyAsc();
+
+    List<ShopifyCompanionPackageProfileEntity> findAllByPackageKeyIgnoreCaseAndTierKeyIgnoreCaseAndStatusIgnoreCaseOrderByUpdatedAtDesc(
+        String packageKey,
+        String tierKey,
+        String status
+    );
 }

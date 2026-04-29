@@ -795,11 +795,44 @@ export type ShopifyCompanionPackageProfileSummary = {
   displayName: string
   description: string | null
   costPosture: string | null
+  templatePluginId: string | null
+  templatePluginVersion: string | null
+  deploymentTemplateId: string | null
+  inferencePluginId: string | null
   vectorStrategy: string | null
   vectorProvisioningMode: string | null
   vectorStoragePosture: string | null
   verificationPackId: string | null
   status: string
+  detailsJson: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type UpsertShopifyCompanionPackageProfileRequest = {
+  packageKey: string
+  tierKey: string
+  runtimeProfileKey: string
+  vectorProfileKey: string
+  displayName: string
+  description?: string | null
+  costPosture: string
+  templatePluginId: string
+  templatePluginVersion?: string | null
+  deploymentTemplateId: string
+  inferencePluginId: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  vectorStoragePosture: string
+  verificationPackId: string
+  status: string
+  detailsJson?: string | null
+  reason?: string | null
+}
+
+export type UpdateShopifyCompanionPackageProfileStatusRequest = {
+  status: string
+  reason?: string | null
 }
 
 export type ShopifyStoreProvisioningJobSummary = {
@@ -3547,6 +3580,31 @@ export function bootstrapShopifyStore(shopDomain: string, payload: BootstrapShop
 
 export function fetchShopifyStoreProvisioning(shopDomain: string) {
   return request<ShopifyStoreProvisioningStatusSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/provisioning`)
+}
+
+export function fetchShopifyPackageProfiles(activeOnly = false) {
+  return request<ShopifyCompanionPackageProfileSummary[]>(`/api/shopify/package-profiles?activeOnly=${activeOnly}`)
+}
+
+export function fetchShopifyPackageProfile(profileKey: string) {
+  return request<ShopifyCompanionPackageProfileSummary>(`/api/shopify/package-profiles/${encodeURIComponent(profileKey)}`)
+}
+
+export function upsertShopifyPackageProfile(profileKey: string, payload: UpsertShopifyCompanionPackageProfileRequest) {
+  return request<ShopifyCompanionPackageProfileSummary>(`/api/shopify/package-profiles/${encodeURIComponent(profileKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateShopifyPackageProfileStatus(
+  profileKey: string,
+  payload: UpdateShopifyCompanionPackageProfileStatusRequest,
+) {
+  return request<ShopifyCompanionPackageProfileSummary>(`/api/shopify/package-profiles/${encodeURIComponent(profileKey)}/status`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function enqueueShopifyStoreProvisioning(shopDomain: string, payload: CreateShopifyStoreProvisioningJobRequest = {}) {

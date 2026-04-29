@@ -34,6 +34,7 @@ import {
   fetchMerchantPartnerAccessRequests,
   fetchProductServiceStoreBillingSummary,
   fetchProductServices,
+  fetchShopifyPackageProfiles,
   runProductServiceStoreSourcePreflight,
   fetchShopifyStoreProvisioning,
   fetchShopifyStoreVectorization,
@@ -54,6 +55,7 @@ import {
   type CreateShopifyStoreProvisioningJobRequest,
   type RecordShopifyStoreSourcePreflightRequest,
   type PlatformManagedProductServiceStoreBillingSummary,
+  type ShopifyCompanionPackageProfileSummary,
   type ShopifyStoreBootstrapSummary,
   type ShopifyStoreSourcePreflightCategorySummary,
   type ShopifyStoreGovernedActionAuditSummary,
@@ -409,6 +411,7 @@ export function ShopifyStoresPage() {
   const [preflightCategories, setPreflightCategories] = useState<PreflightFormCategory[]>([])
   const [selectedReindexEntityTypes, setSelectedReindexEntityTypes] = useState<string[]>([])
   const [vectorizationPolicyDraft, setVectorizationPolicyDraft] = useState<VectorizationPolicyDraft | null>(null)
+  const [selectedProvisioningProfileKey, setSelectedProvisioningProfileKey] = useState('')
 
   const servicesQuery = useQuery({
     queryKey: ['product-services'],
@@ -419,6 +422,13 @@ export function ShopifyStoresPage() {
     queryKey: ['shopify-stores'],
     queryFn: fetchShopifyStores,
   })
+
+  const activePackageProfilesQuery = useQuery({
+    queryKey: ['shopify-package-profiles', 'active'],
+    queryFn: () => fetchShopifyPackageProfiles(true),
+  })
+
+  const activePackageProfiles = activePackageProfilesQuery.data ?? []
 
   const selectedShopDomain = searchParams.get('shop') ?? ''
 
@@ -475,6 +485,29 @@ export function ShopifyStoresPage() {
   })
 
   const selectedProvisioning = selectedProvisioningQuery.data ?? null
+
+  useEffect(() => {
+    setSelectedProvisioningProfileKey('')
+  }, [selectedShopDomain])
+
+  useEffect(() => {
+    if (activePackageProfiles.length === 0) {
+      return
+    }
+    const effectiveProfileKey = selectedProvisioning?.effectiveProfile?.profileKey
+    const nextProfileKey =
+      (effectiveProfileKey && activePackageProfiles.some((profile) => profile.profileKey === effectiveProfileKey))
+        ? effectiveProfileKey
+        : activePackageProfiles[0].profileKey
+    setSelectedProvisioningProfileKey((current) =>
+      current && activePackageProfiles.some((profile) => profile.profileKey === current) ? current : nextProfileKey,
+    )
+  }, [activePackageProfiles, selectedProvisioning?.effectiveProfile?.profileKey])
+
+  const selectedProvisioningTargetProfile = useMemo(
+    () => activePackageProfiles.find((profile) => profile.profileKey === selectedProvisioningProfileKey) ?? null,
+    [activePackageProfiles, selectedProvisioningProfileKey],
+  )
 
   const selectedGovernedActionsQuery = useQuery({
     queryKey: ['shopify-stores', selectedShopDomain, 'governed-actions'],
@@ -827,6 +860,20 @@ export function ShopifyStoresPage() {
     })
   }
 
+  const buildPackageReconciliationPayload = (
+    profile: ShopifyCompanionPackageProfileSummary | null,
+  ): CreateShopifyStoreProvisioningJobRequest => ({
+    jobType: 'MANUAL_REPAIR',
+    requestedPackageKey: profile?.packageKey ?? null,
+    requestedTierKey: profile?.tierKey ?? null,
+    requestedRuntimeProfileKey: profile?.runtimeProfileKey ?? null,
+    requestedVectorProfileKey: profile?.vectorProfileKey ?? null,
+    reason: profile
+      ? `Operator requested Shopify Companion package reconciliation using profile ${profile.profileKey}.`
+      : 'Operator requested zero-touch Shopify Companion provisioning reconciliation.',
+    processImmediately: true,
+  })
+
   const vectorizationBusy =
     reconcileVectorizationMutation.isPending ||
     indexAllVectorizationMutation.isPending ||
@@ -889,14 +936,15 @@ export function ShopifyStoresPage() {
                 onClick={() =>
                   provisioningMutation.mutate({
                     shopDomain: selectedStore.shopDomain,
-                    payload: {
-                      jobType: 'MANUAL_REPAIR',
-                      reason: 'Operator requested zero-touch Shopify Companion provisioning reconciliation.',
-                      processImmediately: true,
-                    },
+                    payload: buildPackageReconciliationPayload(selectedProvisioningTargetProfile),
                   })
                 }
-                disabled={provisioningMutation.isPending || ['QUEUED', 'RUNNING'].includes((selectedProvisioning?.status ?? '').toUpperCase())}
+                disabled={
+                  provisioningMutation.isPending
+                  || activePackageProfilesQuery.isLoading
+                  || !selectedProvisioningTargetProfile
+                  || ['QUEUED', 'RUNNING'].includes((selectedProvisioning?.status ?? '').toUpperCase())
+                }
               >
                 Reconcile package
               </Button>
@@ -1038,14 +1086,15 @@ export function ShopifyStoresPage() {
                             onClick={() =>
                               provisioningMutation.mutate({
                                 shopDomain: selectedStore.shopDomain,
-                                payload: {
-                                  jobType: 'MANUAL_REPAIR',
-                                  reason: 'Operator requested zero-touch Shopify Companion provisioning reconciliation.',
-                                  processImmediately: true,
-                                },
+                                payload: buildPackageReconciliationPayload(selectedProvisioningTargetProfile),
                               })
                             }
-                            disabled={provisioningMutation.isPending || ['QUEUED', 'RUNNING'].includes((selectedProvisioning?.status ?? '').toUpperCase())}
+                            disabled={
+                              provisioningMutation.isPending
+                              || activePackageProfilesQuery.isLoading
+                              || !selectedProvisioningTargetProfile
+                              || ['QUEUED', 'RUNNING'].includes((selectedProvisioning?.status ?? '').toUpperCase())
+                            }
                           >
                             Run reconciliation
                           </Button>
@@ -1068,9 +1117,46 @@ export function ShopifyStoresPage() {
                             <Typography variant="body2" color="text.secondary">
                               Next action {selectedProvisioning?.nextAction ?? 'Install or reconnect the Shopify app to start provisioning.'}
                             </Typography>
+                            <Grid container spacing={1.5} alignItems="stretch">
+                              <Grid item xs={12} md={5}>
+                                <TextField
+                                  select
+                                  label="Target package profile"
+                                  value={selectedProvisioningProfileKey}
+                                  onChange={(event) => setSelectedProvisioningProfileKey(event.target.value)}
+                                  disabled={activePackageProfilesQuery.isLoading || activePackageProfiles.length === 0}
+                                  fullWidth
+                                >
+                                  {activePackageProfiles.map((profile) => (
+                                    <MenuItem key={profile.profileKey} value={profile.profileKey}>
+                                      {profile.profileKey} · {profile.packageKey}/{profile.tierKey}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                              </Grid>
+                              <Grid item xs={12} md={7}>
+                                {activePackageProfilesQuery.isError ? (
+                                  <Alert severity="error">
+                                    {activePackageProfilesQuery.error instanceof Error
+                                      ? activePackageProfilesQuery.error.message
+                                      : 'Failed to load active Shopify package profiles.'}
+                                  </Alert>
+                                ) : selectedProvisioningTargetProfile ? (
+                                  <Alert severity="info">
+                                    Target {selectedProvisioningTargetProfile.displayName} · runtime{' '}
+                                    {selectedProvisioningTargetProfile.runtimeProfileKey} · vector{' '}
+                                    {selectedProvisioningTargetProfile.vectorProfileKey} · verification{' '}
+                                    {selectedProvisioningTargetProfile.verificationPackId ?? '—'}
+                                  </Alert>
+                                ) : (
+                                  <Alert severity="warning">No active package profile is available for reconciliation.</Alert>
+                                )}
+                              </Grid>
+                            </Grid>
                             {selectedProvisioning?.effectiveProfile ? (
                               <Grid container spacing={1.5}>
                                 {[
+                                  ['Current profile', selectedProvisioning.effectiveProfile.profileKey],
                                   ['Package', selectedProvisioning.effectiveProfile.packageKey],
                                   ['Tier', selectedProvisioning.effectiveProfile.tierKey],
                                   ['Runtime profile', selectedProvisioning.effectiveProfile.runtimeProfileKey],

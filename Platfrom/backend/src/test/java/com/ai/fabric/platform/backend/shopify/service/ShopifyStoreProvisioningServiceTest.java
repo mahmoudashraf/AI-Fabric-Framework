@@ -143,11 +143,18 @@ class ShopifyStoreProvisioningServiceTest {
             "High quality",
             "Premium generation and shared vector storage.",
             "QUALITY",
+            "mkp-template-shopify-companion",
+            null,
+            "dev-openai-qdrant",
+            "mkp-inference-premium-hybrid",
             "qdrant",
             "EXTERNAL_EXISTING",
             "SHARED",
             "starter-launch-readiness",
-            "ACTIVE"
+            "ACTIVE",
+            "{}",
+            null,
+            null
         );
         return new ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile(
             "HIGH_QUALITY",

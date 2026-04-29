@@ -21,6 +21,7 @@ import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded'
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
 import StoreRoundedIcon from '@mui/icons-material/StoreRounded'
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
 import {
   AppBar,
   Box,
@@ -55,6 +56,7 @@ const navItems = [
   { label: 'Marketplace', path: '/marketplace', icon: <StorefrontRoundedIcon /> },
   { label: 'Inference Services', path: '/inference-services', icon: <MemoryRoundedIcon />, platformAdminOnly: true },
   { label: 'Product Services', path: '/product-services', icon: <PrecisionManufacturingRoundedIcon />, platformAdminOnly: true },
+  { label: 'Shopify Profiles', path: '/shopify-package-profiles', icon: <TuneRoundedIcon />, platformAdminOnly: true },
   { label: 'Shopify Stores', path: '/shopify-stores', icon: <StoreRoundedIcon />, platformAdminOnly: true },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },

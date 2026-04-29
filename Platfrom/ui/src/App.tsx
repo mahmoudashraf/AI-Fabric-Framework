@@ -22,6 +22,7 @@ import { RevisionsPage } from './pages/RevisionsPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
+import { ShopifyPackageProfilesPage } from './pages/ShopifyPackageProfilesPage'
 import { ShopifyStoresPage } from './pages/ShopifyStoresPage'
 import { UsersPage } from './pages/UsersPage'
 import { VectorizationPage } from './pages/VectorizationPage'
@@ -82,6 +83,7 @@ export default function App() {
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/inference-services" element={<InferenceServicesPage />} />
           <Route path="/product-services" element={<ProductServicesPage />} />
+          <Route path="/shopify-package-profiles" element={<ShopifyPackageProfilesPage />} />
           <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />

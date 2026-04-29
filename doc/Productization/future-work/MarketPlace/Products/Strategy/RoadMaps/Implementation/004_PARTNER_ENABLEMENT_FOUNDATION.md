@@ -3228,3 +3228,72 @@ Result:
 - `Shopify Companion verification passed for shopping-companion-test.myshopify.com`.
 - Covered Platform health, Shopify Bridge health, product service summary/health/overview/Railway logs, store summary, source coverage, binding inspection, consumer runtime credentials, billing posture, support readiness, webhook diagnostics, vectorization overview, governed actions, vectorization events, Bridge shell, embedded app shell and asset, Bridge admin overview, Bridge admin vectorization source page, Shopify webhook subscriptions, storefront bootstrap, storefront suggestions, storefront query, storefront event, and store summary after bootstrap.
 - No raw secrets were printed in the verification command or proof.
+
+## Shopify Companion Package Profile Platform UI Change Plan - 2026-04-29
+
+Status: implementation in progress.
+
+### Why This Change Exists
+
+The zero-touch installer can already resolve package/profile combinations such as `ELITE -> HIGH_QUALITY -> QDRANT_SHARED`, but the profile catalog is only seeded in database migration data and shown read-only on store status screens. Platform operators need a real control-plane surface to configure these mappings without editing SQL or code.
+
+This is not a partner-side or merchant-side configuration surface. It is a Platform-admin catalog that defines how merchant-visible packages map to runtime cost posture, inference plugins, vector posture, deployment templates, and verification packs.
+
+### Source-Of-Truth Rule
+
+- `shopify_companion_package_profiles` is the canonical catalog for Shopify Companion package/profile definitions.
+- Platform backend API is the only write path for catalog mutations.
+- Platform UI edits the canonical catalog through authenticated Platform-admin endpoints.
+- Shopify provisioning jobs resolve profile state through `ShopifyCompanionPackageProfileCatalogService`.
+- Store-level package/profile state is a snapshot of the resolved catalog at provisioning time; changing a catalog profile affects future provisioning and explicit store reconciliation, not silently every already-provisioned store.
+- Partner UI and Shopify admin app must not duplicate this catalog. They may show the effective store package/profile state after assignment/install, but all reads and writes must project from Platform store/provisioning records.
+- Marketplace plugin installs, provider config, vector resources, verification pack execution, and release gating must consume the same resolved package profile. No separate UI or script may maintain a second package-to-profile map.
+
+### Scope
+
+1. Add a Platform-admin package profile catalog API.
+   - List all profiles or active-only profiles.
+   - Fetch one profile by `profileKey`.
+   - Upsert a profile with full package, runtime, inference, vector, template, verification, status, and JSON detail fields.
+   - Change profile status through an audited endpoint.
+   - Reject invalid profile keys, missing required runtime/vector/template/inference fields, invalid status values, malformed JSON detail payloads, and duplicate active package/tier mappings.
+
+2. Add a Platform UI page for package profile management.
+   - Navigation entry: `Shopify Profiles`.
+   - Dense operator catalog view with package/tier/runtime/vector/status filters.
+   - Editable profile form for `profileKey`, `packageKey`, `tierKey`, `runtimeProfileKey`, `vectorProfileKey`, `displayName`, `description`, `costPosture`, `templatePluginId`, `templatePluginVersion`, `deploymentTemplateId`, `inferencePluginId`, `vectorStrategy`, `vectorProvisioningMode`, `vectorStoragePosture`, `verificationPackId`, `status`, and `detailsJson`.
+   - Save, activate, disable, reset, and duplicate-as-new flows.
+   - Resolution preview showing exactly what provisioning will use.
+   - Guardrail messaging that active catalog changes require store reconciliation to affect existing stores.
+
+3. Extend Shopify Stores operator UI.
+   - Load active package profiles from the same catalog API.
+   - Let operators select a target package profile before running package reconciliation.
+   - Send the selected package, tier, runtime profile, and vector profile into the provisioning job request.
+   - Show the selected profile details beside the current effective store profile so operators can see current-vs-target before queuing work.
+
+4. Keep other UI surfaces realistic and non-duplicative.
+   - Partner UI stays read-only for package/runtime/vector details because partner authority is store assignment and product control, not global package catalog administration.
+   - Shopify admin app shows merchant-safe install/provisioning/status and plan/billing actions only.
+   - Marketplace and provider pages remain the source for plugin/provider inventory, but package profile mapping references those IDs from the Shopify profile catalog.
+   - Verification UI continues to own verification run evidence; the profile catalog only selects the required pack ID.
+
+### Security, Audit, And Enterprise Requirements
+
+- Read endpoints require Platform admin/operator authority.
+- Write endpoints require Platform admin authority.
+- Every write records a Platform audit event with profile key, package key, tier key, runtime profile, vector profile, inference plugin, verification pack, status, and operator reason.
+- Raw secrets, provider tokens, Shopify tokens, runtime assertions, and private admin keys are not accepted in the profile payload and must not be logged.
+- No dummy/stub profiles are seeded for verification. Test coverage may use in-memory unit data only.
+- Active profile uniqueness is enforced at the package/tier level so the resolver cannot silently pick an arbitrary active mapping.
+
+### Verification Requirements
+
+- Backend tests cover list/resolve/upsert/status update validation, duplicate active package/tier rejection, JSON detail validation, and audit calls.
+- Platform UI build passes with the new route and store reconciliation selector.
+- `git diff --check` passes.
+- Live smoke after deployment must prove:
+  - Platform admin can read `/api/shopify/package-profiles`.
+  - Active catalog includes the live `HIGH_QUALITY` / `ELITE` / `QDRANT_SHARED` profile.
+  - Existing live store provisioning status still resolves to the same effective profile after the catalog API is deployed.
+  - No live write smoke creates disposable/dummy package profiles in production.
