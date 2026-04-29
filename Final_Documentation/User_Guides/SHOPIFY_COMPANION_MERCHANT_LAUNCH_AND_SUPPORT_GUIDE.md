@@ -13,6 +13,7 @@ Use it to operate the current live product safely.
 Related guides:
 
 - [Shopify Companion Customer Capabilities Guide](./SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md)
+- [Shopify Companion Readiness Audit Operator Guide](./SHOPIFY_COMPANION_READINESS_AUDIT_OPERATOR_GUIDE.md)
 - [Shopify Companion Developer And Store Admin Guide](../Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md)
 - [Shopify Companion Launch, Review, And Support Exports Guide](../Development_Guides/SHOPIFY_COMPANION_LAUNCH_REVIEW_AND_SUPPORT_EXPORTS_GUIDE.md)
 
