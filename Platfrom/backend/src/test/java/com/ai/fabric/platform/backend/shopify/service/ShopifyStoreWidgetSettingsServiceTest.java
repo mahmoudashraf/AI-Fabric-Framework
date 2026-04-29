@@ -43,7 +43,7 @@ class ShopifyStoreWidgetSettingsServiceTest {
                 "Need help?",
                 "Ask me about products and policies.",
                 "GUIDED_COMMERCE",
-                List.of("ai-search", "comparison"),
+                List.of("ai-search", "comparison", "order-lookup"),
                 "executor",
                 List.of("navigator", "executor"),
                 Map.of("account", "executor", "landing", "navigator")
@@ -54,7 +54,7 @@ class ShopifyStoreWidgetSettingsServiceTest {
         assertThat(store.getDetailsJson()).contains("\"launcherLabel\":\"Need help?\"");
         assertThat(store.getDetailsJson()).contains("\"welcomeMessage\":\"Ask me about products and policies.\"");
         assertThat(store.getDetailsJson()).contains("\"shellModeProfile\":\"GUIDED_COMMERCE\"");
-        assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\"]");
+        assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\",\"order-lookup\"]");
         assertThat(store.getDetailsJson()).contains("\"defaultConversationMode\":\"executor\"");
         assertThat(store.getDetailsJson()).contains("\"allowedConversationModes\":[\"navigator\",\"executor\"]");
         assertThat(store.getDetailsJson()).contains("\"pageModeMappings\":");

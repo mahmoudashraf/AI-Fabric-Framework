@@ -51,7 +51,8 @@ public class ShopifyStoreWidgetSettingsService {
         "product-insight",
         "policy-strip",
         "product-faq",
-        "comparison"
+        "comparison",
+        "order-lookup"
     );
     private static final Set<String> ALLOWED_CONVERSATION_MODES = Set.of(
         "navigator",
