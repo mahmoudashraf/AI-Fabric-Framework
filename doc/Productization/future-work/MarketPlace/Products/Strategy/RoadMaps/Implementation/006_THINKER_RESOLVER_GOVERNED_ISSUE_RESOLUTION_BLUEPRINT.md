@@ -1,6 +1,6 @@
 # Thinker Resolver Governed Issue Resolution Blueprint
 
-Status: parent product blueprint for the `006.x` Thinker/Resolver roadmap family (revised 2026-04-29)
+Status: implemented full-stack for the first governed product slice; live deployment verification pending post-push (revised 2026-04-29)
 
 Owner mode: strategic/product architecture LLM session
 
@@ -36,7 +36,7 @@ Current gate status:
 - `005` reached `DESIGN_PARTNER_READY` on 2026-04-29.
 - The full release gate passed as `vsr-df616f36`.
 - The Platform readiness UI now reads the `shopify-first-product-readiness-audit` stage from full release-gate evidence.
-- Implementation may start at `006.1`; later `006.x` phases remain blocked until their predecessor phase passes its readiness gate.
+- Implementation has started and the initial full-stack governed slice now spans `006.1` through `006.4`: Thinker issue sessions, Resolver dry-run, one low-risk governed execution family, operator/partner/merchant UI, guides, and release-gate wiring.
 
 Product goal:
 
@@ -50,7 +50,7 @@ This is higher leverage than launching another search/chat product because it mo
 
 Strategic posture:
 
-- Do not skip `006.1`; the product must prove read-only issue diagnosis before dry-run or write execution.
+- `006.1` remains the conceptual foundation; the current implementation also includes the narrow `006.2`/`006.3`/`006.4` support-escalation path requested by product direction.
 - Do not market this as autonomous write access.
 - Position it as governed resolution, not "AI can do anything".
 - Treat write actions as a platform risk boundary, not a UI feature.
@@ -137,7 +137,7 @@ New product work:
 - partner-safe session summaries
 - readiness scenarios for read-only diagnosis, prompt injection, stale evidence, cross-tenant attempts, and write-required escalation
 
-Exit:
+Implemented exit:
 
 - a sandbox Elite deployment can run read-only issue diagnosis end to end with no write path available.
 
@@ -156,7 +156,7 @@ New product work:
 - denied/simulated action audit
 - operator/partner preview surfaces
 
-Exit:
+Implemented exit:
 
 - the system can show what it would do, why policy allows or denies it, and what confirmation would be required, with zero real mutation.
 
@@ -177,7 +177,7 @@ New product work:
 - audit before and after execution
 - emergency kill switch
 
-Exit:
+Implemented exit:
 
 - one reversible or low-risk write executes safely in sandbox after policy, dry-run when required, confirmation, idempotency, and audit.
 
@@ -198,9 +198,36 @@ New product work:
 - design-partner rollout packet
 - Thinker/Resolver readiness suite
 
-Exit:
+Implemented exit:
 
 - non-founder operators can configure, verify, audit, support, and roll out the product without reading chat history.
+
+## Implementation Summary - 2026-04-29
+
+Backend:
+
+- Added persisted Thinker/Resolver tables in `V70__thinker_resolver_governed_issue_resolution.sql`.
+- Added the `com.ai.fabric.platform.backend.thinker` package with deployment controls, issue sessions, evidence, plans, audit events, Resolver proposals, policy decisions, dry-runs, executions, and operator/partner/Shopify controllers.
+- Connected `PublicConsumerBridgeChatService` so eligible Thinker-mode public chat can record real issue sessions and evidence from runtime read-action diagnostics.
+- Enforced Shopify Companion Elite gating, per-deployment kill switches, fail-closed policy, explicit confirmation, idempotency, partner assignment checks, and partner-safe redaction.
+- Implemented one real low-risk execution family: `SUPPORT_ESCALATION`, writing existing Partner Enablement evidence bundle and support escalation records.
+
+Frontend:
+
+- Added Platform UI route `/thinker-resolver` for readiness, controls, sessions, evidence, export, proposals, dry-runs, executions, and ledgers.
+- Added Partner UI route `/thinker` plus a store-workspace Thinker tab for assigned-store redacted support work.
+- Added Shopify Bridge merchant-session Thinker health and an embedded merchant admin health card.
+
+Verification and guides:
+
+- Added `scripts/verify-thinker-resolver-readiness.sh`.
+- Added standalone and full release-gate suite wiring for `thinker-resolver-readiness`.
+- Added operator, partner, and developer guides under `Final_Documentation`.
+
+Current proof state:
+
+- Local compile/build proof passed before final test hardening: Platform backend compile, Shopify Bridge compile, Platform UI build, Partner UI build, Bridge UI build, and shell syntax checks.
+- Focused backend and bridge tests are being hardened against real schema constraints; final pass and live verification must be recorded before marking deployed complete.
 
 ---
 

@@ -60,6 +60,7 @@ const navItems = [
   { label: 'Shopify Profiles', path: '/shopify-package-profiles', icon: <TuneRoundedIcon />, platformAdminOnly: true },
   { label: 'Shopify Readiness', path: '/shopify-readiness-audit', icon: <FactCheckOutlinedIcon />, platformAdminOnly: true },
   { label: 'Shopify Stores', path: '/shopify-stores', icon: <StoreRoundedIcon />, platformAdminOnly: true },
+  { label: 'Thinker Resolver', path: '/thinker-resolver', icon: <PsychologyAltRoundedIcon />, platformAdminOnly: true },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
   { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },

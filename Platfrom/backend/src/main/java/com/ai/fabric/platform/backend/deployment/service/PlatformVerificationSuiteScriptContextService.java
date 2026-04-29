@@ -26,6 +26,7 @@ public class PlatformVerificationSuiteScriptContextService {
     public static final String SCRIPT_SHOPIFY_COMPANION_VERIFICATION = "shopify-companion-verification";
     public static final String SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT = "shopify-first-product-readiness-audit";
     public static final String SCRIPT_PARTNER_ENABLEMENT_VERIFICATION = "partner-enablement-verification";
+    public static final String SCRIPT_THINKER_RESOLVER_READINESS = "thinker-resolver-readiness";
 
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
@@ -70,6 +71,7 @@ public class PlatformVerificationSuiteScriptContextService {
             case SCRIPT_SHOPIFY_COMPANION_VERIFICATION -> buildShopifyCompanionVerification();
             case SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT -> buildShopifyFirstProductReadinessAudit();
             case SCRIPT_PARTNER_ENABLEMENT_VERIFICATION -> buildPartnerEnablementVerification();
+            case SCRIPT_THINKER_RESOLVER_READINESS -> buildThinkerResolverReadiness();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
         if (environmentOverrides == null || environmentOverrides.isEmpty()) {
@@ -245,6 +247,42 @@ public class PlatformVerificationSuiteScriptContextService {
 
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-partner-enablement-live.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
+    private PlatformVerificationScriptContextSummary buildThinkerResolverReadiness() {
+        String platformUiBaseUrl = requireValue(
+            suiteProperties.platformUiBaseUrl(),
+            "platform.verification.suites.platform-ui-base-url must be configured for Thinker Resolver readiness."
+        );
+        String partnerUiBaseUrl = requireValue(
+            suiteProperties.partnerUiBaseUrl(),
+            "platform.verification.suites.partner-ui-base-url must be configured for Thinker Resolver readiness."
+        );
+        String shopDomain = requireValue(
+            suiteProperties.shopifyShopDomain(),
+            "platform.verification.suites.shopify-shop-domain must be configured for Thinker Resolver readiness."
+        );
+        String partnerSupabaseJwt = requireSecret(
+            PARTNER_SUPABASE_JWT_SECRET_NAME,
+            "Missing required platform secret for Thinker Resolver readiness: " + PARTNER_SUPABASE_JWT_SECRET_NAME
+        );
+
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("PLATFORM_UI_BASE_URL", platformUiBaseUrl);
+        environment.put("PARTNER_UI_BASE_URL", partnerUiBaseUrl);
+        environment.put("THINKER_SHOP_DOMAIN", shopDomain);
+        environment.put("THINKER_DEPLOYMENT_ID", resolveAdminTargetDeploymentId());
+        environment.put("THINKER_EXECUTE_LOW_RISK", "false");
+        environment.put("THINKER_REQUIRE_PARTNER_PROOF", "true");
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
+        secretEnvironment.put(PARTNER_SUPABASE_JWT_SECRET_NAME, partnerSupabaseJwt);
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-thinker-resolver-readiness.sh",
             environment,
             secretEnvironment
         );

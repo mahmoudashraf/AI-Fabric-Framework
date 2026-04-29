@@ -27,6 +27,7 @@ import FolderZipOutlinedIcon from '@mui/icons-material/FolderZipOutlined'
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined'
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined'
+import PsychologyAltOutlinedIcon from '@mui/icons-material/PsychologyAltOutlined'
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 import SpaceDashboardOutlinedIcon from '@mui/icons-material/SpaceDashboardOutlined'
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined'
@@ -44,6 +45,7 @@ const navItems = [
   { label: 'New implementation', to: '/implementations/new', icon: AddTaskOutlinedIcon, cta: true },
   { label: 'Intelligence catalog', to: '/catalog', icon: AutoAwesomeOutlinedIcon },
   { label: 'Templates & playbooks', to: '/templates', icon: CollectionsBookmarkOutlinedIcon },
+  { label: 'Thinker sessions', to: '/thinker', icon: PsychologyAltOutlinedIcon },
   { label: 'Verification packs', to: '/verification', icon: FactCheckOutlinedIcon },
   { label: 'Evidence bundles', to: '/evidence', icon: FolderZipOutlinedIcon },
   { label: 'Support', to: '/support', icon: SupportAgentOutlinedIcon, badge: true },

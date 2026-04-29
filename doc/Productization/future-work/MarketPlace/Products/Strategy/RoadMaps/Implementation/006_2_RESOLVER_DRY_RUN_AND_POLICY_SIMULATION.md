@@ -1,6 +1,6 @@
 # 006.2 Resolver Dry-Run And Policy Simulation
 
-Status: future implementation handoff, blocked until `006.1` is complete and live verified (created 2026-04-29)
+Status: implemented locally as the Resolver preview portion of the full 006 slice; live deployment verification pending post-push (created 2026-04-29)
 
 Owner mode: technical LLM implementation session
 
@@ -48,10 +48,10 @@ Do not skip dry-run because a write action appears low risk. `006.2` is the safe
 
 As of 2026-04-29:
 
-- `006.1` is planned but not implemented.
-- Existing platform approval/confirmation patterns exist for deployment operations and Shopify billing, but they are not a Resolver dry-run product layer.
-- Existing Shopify governed-action packaging and audit wording exists in Platform/merchant UI, but broad customer-facing governed writes are not implemented as a general Resolver product.
-- No `ResolverDryRun`, `ResolverPolicyDecision`, `WriteIntentProposal`, or Resolver simulation model exists yet.
+- `006.1` issue sessions, evidence, plans, and controls are implemented locally.
+- Resolver proposal, policy decision, and dry-run persistence now exists.
+- Policy decisions are computed by Platform/product policy, not LLM self-report.
+- Dry-run is non-mutating and must complete before governed execution.
 
 This phase must build on the `006.1` IssueSession/EvidenceBundle/ResolutionPlan primitives. Do not create a parallel session model.
 
@@ -304,4 +304,19 @@ Create equivalent focused tests if these exact test classes do not exist yet.
 - Readiness scenarios pass.
 - Completion status is added to `CODEX_WORKING_CONTEXT.md`.
 
-Do not start `006.3` until this phase passes its readiness pack.
+This phase has been implemented together with the narrow `006.3` support-escalation execution path under explicit product direction. Do not add additional write families without a new readiness pass.
+
+## Implementation Summary - 2026-04-29
+
+Implemented:
+
+- Resolver intent proposals tied to Thinker sessions and source evidence.
+- Policy decisions with allow/deny outcome, reasons, required confirmation, approval posture, and product boundary.
+- Non-mutating dry-runs with expected result and risk output.
+- Operator UI for proposal creation, dry-run execution, and policy ledger review.
+- Partner-safe preview projection with operator-only parameters redacted.
+
+Verification proof:
+
+- Integration tests create a proposal from real session evidence, assert policy `ALLOWED`, run dry-run, and then use the dry-run as the only path to the governed support escalation execution.
+- Live readiness script checks proposal creation, policy, dry-run, policy ledger, and partner redaction.

@@ -1,6 +1,6 @@
 # 006.3 Governed Low-Risk Write Execution
 
-Status: future implementation handoff, blocked until `006.2` dry-run is complete and live verified (created 2026-04-29)
+Status: implemented locally for one low-risk support-escalation action family; live deployment verification pending post-push (created 2026-04-29)
 
 Owner mode: technical LLM implementation session
 
@@ -43,10 +43,10 @@ Do not include refunds, cancellations, financial adjustments, permission grants,
 
 As of 2026-04-29:
 
-- No general Resolver write-execution product layer exists.
-- Shopify Companion has governed-action packaging language and order-lookup/support-readiness posture, but Free/Starter remain read-only and governed writes are not broadly shipped.
-- Platform has approval and audit primitives that can inform implementation, but not a customer-facing governed Resolver execution gateway.
-- `006.3` must reuse `006.1` sessions and `006.2` policy/dry-run results. Do not create separate write-session objects detached from Thinker/Resolver lineage.
+- A governed Resolver execution gateway now exists for the low-risk `SUPPORT_ESCALATION` family.
+- Free/Starter remain read-only; Shopify Companion Thinker/Resolver remains Elite-gated.
+- Execution reuses `006.1` sessions and `006.2` policy/dry-run results.
+- No separate write-session object was created.
 
 ---
 
@@ -288,4 +288,21 @@ Create equivalent focused tests if these exact test classes do not exist yet.
 - a kill switch can disable the action family without redeploying.
 - completion status is added to `CODEX_WORKING_CONTEXT.md`.
 
-Do not start `006.4` until `006.3` has live sandbox proof.
+`006.4` packaging was implemented together with this narrow execution family. Do not add refunds, order changes, permission grants, account deletion, or high-risk writes without a separate plan and proof.
+
+## Implementation Summary - 2026-04-29
+
+Implemented:
+
+- Governed execution endpoint for Resolver proposals.
+- Required confirmation text: `CREATE SUPPORT ESCALATION`.
+- Idempotency key enforcement.
+- Per-deployment `governedExecutionEnabled` gate.
+- Action-family kill switch through `disabledActionFamilies`.
+- Fail-closed policy if the partner assignment is missing required support permission.
+- Real writes to existing Partner Enablement support escalation and evidence bundle tables.
+
+Verification proof:
+
+- Integration tests execute the support-escalation path after policy and dry-run, then assert the Partner Evidence Bundle and Partner Support Escalation records exist.
+- Live readiness script keeps execution disabled by default and supports `THINKER_EXECUTE_LOW_RISK=true` for explicit sandbox proof.

@@ -18,6 +18,8 @@ public interface PartnerStoreAssignmentRepository extends JpaRepository<PartnerS
 
     Optional<PartnerStoreAssignmentEntity> findByPartnerAccountIdAndStoreConnectionId(String partnerAccountId, String storeConnectionId);
 
+    List<PartnerStoreAssignmentEntity> findByShopDomainIgnoreCaseAndStatusOrderByCreatedAtDesc(String shopDomain, String status);
+
     boolean existsByPartnerAccountIdAndStoreConnectionIdAndStatus(String partnerAccountId, String storeConnectionId, String status);
 
     long countByPartnerAccountIdAndStatus(String partnerAccountId, String status);

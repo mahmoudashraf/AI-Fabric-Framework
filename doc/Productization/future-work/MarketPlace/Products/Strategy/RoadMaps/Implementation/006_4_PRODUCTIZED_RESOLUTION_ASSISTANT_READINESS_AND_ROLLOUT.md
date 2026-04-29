@@ -1,6 +1,6 @@
 # 006.4 Productized Resolution Assistant Readiness And Rollout
 
-Status: future implementation handoff, blocked until `006.3` governed low-risk writes are complete and live verified (created 2026-04-29)
+Status: implemented locally for operator/partner/merchant packaging and release-gate wiring; live deployment verification pending post-push (created 2026-04-29)
 
 Owner mode: technical LLM implementation session
 
@@ -35,11 +35,11 @@ Shopify Companion Elite remains the first reference vertical, but the core platf
 
 As of 2026-04-29:
 
-- `006.1`, `006.2`, and `006.3` are planned phases.
-- Platform already has verification-suite and readiness-audit patterns from Shopify Companion `005`.
+- `006.1`, `006.2`, and one narrow `006.3` support-escalation execution path are implemented locally.
+- Platform verification-suite and readiness-audit patterns from Shopify Companion `005` are reused.
 - Partner Enablement already has assigned-store scoping, evidence bundles, support escalations, and partner-safe exports.
 - Shopify Companion already has merchant launch/support/export material.
-- No productized Thinker/Resolver readiness UI, support runbook, pricing/tier model, partner onboarding flow, or second-store proof exists yet.
+- Productized Thinker/Resolver readiness UI, guides, release-gate wiring, partner assigned-store view, and Shopify merchant health surface are implemented locally.
 
 `006.4` must reuse existing verification, partner, and support patterns. Do not create a parallel release-gate mechanism.
 
@@ -282,4 +282,21 @@ If the script does not exist, create it in this phase using the existing Platfor
 - product truth prevents autonomous-write overclaiming.
 - completion status is added to `CODEX_WORKING_CONTEXT.md`.
 
-Only after this phase should the team consider secondary domains or broader partner-configured action packs.
+Only after deployed readiness proof should the team consider secondary domains or broader partner-configured action packs.
+
+## Implementation Summary - 2026-04-29
+
+Implemented:
+
+- Platform UI `Thinker Resolver` console.
+- Partner UI `Thinker sessions` route and store workspace tab.
+- Shopify Bridge merchant-admin Thinker health card.
+- Operator guide, partner guide, and developer guide.
+- Standalone verification suite `thinker-resolver-readiness`.
+- Full release-gate stage for Thinker/Resolver readiness.
+
+Verification proof:
+
+- Local builds cover Platform UI, Partner UI, and Shopify Bridge UI.
+- Release-gate script context wires Platform UI, Partner UI, Shopify store, target deployment, and partner JWT secret into `scripts/verify-thinker-resolver-readiness.sh`.
+- Live proof must be recorded after code is committed, pushed, deployed, and the suite can hit the new production endpoints.

@@ -14,6 +14,8 @@ This guide should be read with:
 - `Final_Documentation/Development_Guides/SHOPIFY_INTERNAL_DEVELOPMENT_AND_FULL_DEPLOYMENT_GUIDE.md`
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_READINESS_AUDIT_DEVELOPER_GUIDE.md`
 - `Final_Documentation/User_Guides/SHOPIFY_COMPANION_READINESS_AUDIT_OPERATOR_GUIDE.md`
+- `Final_Documentation/User_Guides/THINKER_RESOLVER_OPERATOR_GUIDE.md`
+- `Final_Documentation/Development_Guides/THINKER_RESOLVER_DEVELOPER_GUIDE.md`
 - `Final_Documentation/Development_Guides/SHOPIFY_COMPANION_LAUNCH_REVIEW_AND_SUPPORT_EXPORTS_GUIDE.md`
 - `Final_Documentation/User_Guides/SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md`
 - `doc/Productization/future-work/MarketPlace/Products/Companion/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`

@@ -20,6 +20,7 @@ import { ProfilePage } from './pages/ProfilePage'
 import { StoreWorkspacePage } from './pages/StoreWorkspacePage'
 import { SupportCenterPage } from './pages/SupportCenterPage'
 import { TemplatesPage } from './pages/TemplatesPage'
+import { ThinkerSessionsPage } from './pages/ThinkerSessionsPage'
 import { VerificationPacksPage } from './pages/VerificationPacksPage'
 import { VerificationRunDetailPage } from './pages/VerificationRunDetailPage'
 
@@ -76,6 +77,7 @@ function WorkspaceRoutes({ mode, onToggleMode }: { mode: 'light' | 'dark'; onTog
         <Route path="/implementations/:requestId" element={<ImplementationRequestDetailPage />} />
         <Route path="/catalog" element={<IntelligenceCatalogPage session={session} />} />
         <Route path="/templates" element={<TemplatesPage />} />
+        <Route path="/thinker" element={<ThinkerSessionsPage />} />
         <Route path="/verification" element={<VerificationPacksPage />} />
         <Route path="/verification/:runId" element={<VerificationRunDetailPage />} />
         <Route path="/evidence" element={<EvidenceBundlesPage />} />

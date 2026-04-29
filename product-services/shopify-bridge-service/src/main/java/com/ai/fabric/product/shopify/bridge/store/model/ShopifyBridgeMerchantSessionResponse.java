@@ -13,6 +13,7 @@ public record ShopifyBridgeMerchantSessionResponse(
     String installRecoveryMessage,
     String installRecoveryUrl,
     ShopifyBridgeSupportReadinessSummary supportReadiness,
+    ShopifyBridgeThinkerHealthSummary thinkerHealth,
     ShopifyInstallRecordSummary installRecord,
     ShopifyBridgeStoreSummary store
 ) {

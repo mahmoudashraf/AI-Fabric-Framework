@@ -969,6 +969,7 @@ export default function App() {
     billingSummary?.availablePlans?.filter((plan) => plan.tierKey !== 'FREE' && !plan.active) ?? []
   const webhookSubscriptions = state.webhookSubscriptions
   const supportReadiness = session?.supportReadiness ?? null
+  const thinkerHealth = session?.thinkerHealth ?? null
   const provisioningStatus = state.provisioningStatus
   const vectorizationSummary = state.vectorizationSummary
   const shopperSurfaceUsage = usageSummary?.last7DaySurfaceUsage ?? []
@@ -1505,6 +1506,49 @@ export default function App() {
                   )}
                 </BlockStack>
               </Card>
+              <Box paddingBlockStart="400">
+                <Card>
+                  <BlockStack gap="300">
+                    <InlineStack gap="200" align="space-between" blockAlign="center">
+                      <Text as="h2" variant="headingMd">
+                        Thinker deep diagnosis
+                      </Text>
+                      <Badge tone={badgeTone(thinkerHealth?.status ?? 'DISABLED')}>
+                        {thinkerHealth?.status ?? 'DISABLED'}
+                      </Badge>
+                    </InlineStack>
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Merchant-safe visibility into whether deep diagnostic sessions can be captured for this store. Partner access still requires an active merchant-approved assignment.
+                    </Text>
+                    {thinkerHealth ? (
+                      <BlockStack gap="200">
+                        <List type="bullet">
+                          <List.Item>Enabled: {thinkerHealth.enabled ? 'yes' : 'no'}</List.Item>
+                          <List.Item>Recent sessions: {thinkerHealth.recentSessionCount}</List.Item>
+                          <List.Item>Blocked sessions: {thinkerHealth.blockedSessionCount}</List.Item>
+                          <List.Item>Linked deployment: {thinkerHealth.deploymentId ?? 'not linked'}</List.Item>
+                        </List>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {thinkerHealth.message}
+                        </Text>
+                        {thinkerHealth.nextActions.length ? (
+                          <Banner tone={thinkerHealth.status === 'READY' ? 'success' : 'warning'}>
+                            <List type="bullet">
+                              {thinkerHealth.nextActions.map((action) => (
+                                <List.Item key={action}>{action}</List.Item>
+                              ))}
+                            </List>
+                          </Banner>
+                        ) : null}
+                      </BlockStack>
+                    ) : (
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        Thinker health has not been returned in the current merchant session.
+                      </Text>
+                    )}
+                  </BlockStack>
+                </Card>
+              </Box>
             </Box>
             ) : null}
 

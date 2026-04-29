@@ -68,6 +68,7 @@ class PublicConsumerBridgeChatServiceTest {
                 platformSecretService,
                 new RuntimePrivateAssertionSigningService(platformSecretService, objectMapper),
                 new RuntimePublicTokenSigningService(platformSecretService, objectMapper),
+                null,
                 objectMapper
             );
 
@@ -165,6 +166,7 @@ class PublicConsumerBridgeChatServiceTest {
                 platformSecretService,
                 new RuntimePrivateAssertionSigningService(platformSecretService, objectMapper),
                 new RuntimePublicTokenSigningService(platformSecretService, objectMapper),
+                null,
                 objectMapper
             );
 
@@ -238,6 +240,7 @@ class PublicConsumerBridgeChatServiceTest {
             platformSecretService,
             new RuntimePrivateAssertionSigningService(platformSecretService, objectMapper),
             new RuntimePublicTokenSigningService(platformSecretService, objectMapper),
+            null,
             objectMapper
         );
 

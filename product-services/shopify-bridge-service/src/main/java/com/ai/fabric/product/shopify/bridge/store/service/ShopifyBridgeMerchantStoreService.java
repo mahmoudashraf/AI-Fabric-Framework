@@ -23,6 +23,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisionin
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeThinkerHealthSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSupportProfileRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
@@ -91,6 +92,7 @@ public class ShopifyBridgeMerchantStoreService {
         ShopifyBridgeStoreSummary store = findStoreOrNull(merchantSession.shopDomain());
         boolean installRecoveryRequired = installRecoveryRequired(installRecord, store);
         ShopifyBridgeSupportReadinessSummary supportReadiness = supportReadinessService.summarizeForShop(merchantSession.shopDomain());
+        ShopifyBridgeThinkerHealthSummary thinkerHealth = thinkerHealth(merchantSession.shopDomain());
         return new ShopifyBridgeMerchantSessionResponse(
             merchantSession.shopDomain(),
             merchantSession.destination(),
@@ -100,6 +102,7 @@ public class ShopifyBridgeMerchantStoreService {
             installRecoveryRequired ? "This shop must complete the Shopify install flow again before Companion can continue onboarding." : null,
             installRecoveryRequired ? buildInstallUrl(merchantSession.shopDomain()) : null,
             supportReadiness,
+            thinkerHealth,
             installRecord,
             store
         );
@@ -445,6 +448,23 @@ public class ShopifyBridgeMerchantStoreService {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Platform denied Shopify store access.", ex);
         } catch (HttpClientErrorException.Unauthorized ex) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Platform Shopify admin credentials were rejected.", ex);
+        }
+    }
+
+    private ShopifyBridgeThinkerHealthSummary thinkerHealth(String shopDomain) {
+        try {
+            return platformShopifyStoreClient.thinkerHealth(shopDomain);
+        } catch (RuntimeException ex) {
+            return new ShopifyBridgeThinkerHealthSummary(
+                shopDomain,
+                null,
+                false,
+                "UNAVAILABLE",
+                0,
+                0,
+                "Thinker health could not be loaded from the Platform control plane.",
+                List.of("Refresh the app after Platform connectivity is restored.")
+            );
         }
     }
 

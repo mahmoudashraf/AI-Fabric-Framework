@@ -306,6 +306,158 @@ export const partnerStoreNoteSchema = z.object({
   updatedAt: z.string(),
 })
 
+export const partnerThinkerSessionSchema = z.object({
+  id: z.string(),
+  deploymentId: nullableString,
+  tenantId: nullableString,
+  customerId: nullableString,
+  storeId: nullableString,
+  shopDomain: nullableString,
+  consumerId: nullableString,
+  userSubject: nullableString,
+  channel: z.string(),
+  mode: z.string(),
+  status: z.string(),
+  issueCategory: z.string(),
+  riskClass: z.string(),
+  userQuestion: z.string(),
+  userSafeAnswer: nullableString,
+  sourceCitations: z.array(z.string()),
+  terminalReason: nullableString,
+  startedAt: z.string(),
+  completedAt: nullableDateString,
+  updatedAt: z.string(),
+  evidenceCount: z.number(),
+  recommendation: nullableString,
+})
+
+export const partnerThinkerEvidenceSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  kind: z.string(),
+  sourceKind: z.string(),
+  sourceIdentifier: z.string(),
+  freshness: z.string(),
+  confidence: z.number(),
+  redactionState: z.string(),
+  summary: z.string(),
+  safeSummary: z.string(),
+  operatorRawReference: nullableString,
+  capturedAt: z.string(),
+})
+
+export const partnerThinkerPlanSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  issueSummary: z.string(),
+  diagnosis: z.string(),
+  optionsConsidered: z.array(z.string()),
+  recommendedNextStep: z.string(),
+  recommendation: z.string(),
+  userExplanation: z.string(),
+  escalationTarget: nullableString,
+  evidenceItemIds: z.array(z.string()),
+  createdAt: z.string(),
+})
+
+export const partnerResolverPolicySchema = z.object({
+  id: z.string(),
+  proposalId: z.string(),
+  outcome: z.string(),
+  riskLevel: z.string(),
+  requiredScopes: z.array(z.string()),
+  missingScopes: z.array(z.string()),
+  tierRequirement: z.string(),
+  actorRequirement: z.string(),
+  dryRunRequired: z.boolean(),
+  confirmationRequired: z.boolean(),
+  approvalRequired: z.boolean(),
+  confirmationPreview: nullableString,
+  operatorReason: z.string(),
+  userReason: z.string(),
+  decidedAt: z.string(),
+})
+
+export const partnerResolverDryRunSchema = z.object({
+  id: z.string(),
+  proposalId: z.string(),
+  targetAction: z.string(),
+  validatedParameters: z.unknown(),
+  expectedStateTransition: z.string(),
+  expectedSideEffects: z.array(z.string()),
+  warnings: z.array(z.string()),
+  unsupportedFields: z.array(z.string()),
+  idempotencyPosture: z.string(),
+  rollbackPosture: z.string(),
+  evidenceFreshness: z.string(),
+  productBoundary: z.string(),
+  status: z.string(),
+  createdAt: z.string(),
+})
+
+export const partnerResolverExecutionSchema = z.object({
+  id: z.string(),
+  proposalId: z.string(),
+  dryRunId: nullableString,
+  idempotencyKey: z.string(),
+  actionFamily: z.string(),
+  status: z.string(),
+  productBoundary: z.string(),
+  executionResult: z.unknown(),
+  verificationStatus: z.string(),
+  recoveryGuidance: nullableString,
+  createdAt: z.string(),
+  completedAt: nullableDateString,
+})
+
+export const partnerResolverProposalSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  actionId: z.string(),
+  actionFamily: z.string(),
+  targetDomain: z.string(),
+  productBoundary: z.string(),
+  actorContext: z.string(),
+  tenantId: nullableString,
+  storeId: nullableString,
+  deploymentId: nullableString,
+  redactedParameters: z.unknown(),
+  operatorParameters: z.unknown().nullable().optional(),
+  sourceEvidenceItemIds: z.array(z.string()),
+  proposalText: z.string(),
+  normalizedIntent: z.unknown(),
+  status: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  latestPolicyDecision: partnerResolverPolicySchema.nullable(),
+  latestDryRun: partnerResolverDryRunSchema.nullable(),
+  executions: z.array(partnerResolverExecutionSchema),
+})
+
+export const partnerThinkerAuditSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  eventType: z.string(),
+  actorId: z.string(),
+  actorRole: z.string(),
+  details: z.unknown(),
+  createdAt: z.string(),
+})
+
+export const partnerThinkerSessionDetailSchema = z.object({
+  session: partnerThinkerSessionSchema,
+  evidence: z.array(partnerThinkerEvidenceSchema),
+  plan: partnerThinkerPlanSchema.nullable(),
+  auditEvents: z.array(partnerThinkerAuditSchema),
+  resolverProposals: z.array(partnerResolverProposalSchema),
+})
+
+export const partnerThinkerEscalationResultSchema = z.object({
+  supportEscalationId: z.string(),
+  evidenceBundleId: z.string(),
+  status: z.string(),
+})
+
 export type PartnerSession = z.infer<typeof partnerSessionSchema>
 export type PartnerMember = z.infer<typeof partnerMemberSchema>
 export type PartnerStore = z.infer<typeof partnerStoreSchema>
@@ -329,3 +481,7 @@ export type PartnerEvidenceBundle = z.infer<typeof partnerEvidenceBundleSchema>
 export type PartnerTemplate = z.infer<typeof partnerTemplateSchema>
 export type PartnerTemplateApplication = z.infer<typeof partnerTemplateApplicationSchema>
 export type PartnerStoreNote = z.infer<typeof partnerStoreNoteSchema>
+export type PartnerThinkerSession = z.infer<typeof partnerThinkerSessionSchema>
+export type PartnerThinkerEvidence = z.infer<typeof partnerThinkerEvidenceSchema>
+export type PartnerThinkerSessionDetail = z.infer<typeof partnerThinkerSessionDetailSchema>
+export type PartnerThinkerEscalationResult = z.infer<typeof partnerThinkerEscalationResultSchema>

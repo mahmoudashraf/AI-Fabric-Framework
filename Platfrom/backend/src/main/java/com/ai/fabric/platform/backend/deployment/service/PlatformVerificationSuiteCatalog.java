@@ -20,6 +20,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String SHOPIFY_COMPANION_VERIFICATION_SUITE_KEY = "shopify-companion-verification";
     public static final String SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY = "shopify-first-product-readiness-audit";
     public static final String PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY = "partner-enablement-verification";
+    public static final String THINKER_RESOLVER_READINESS_SUITE_KEY = "thinker-resolver-readiness";
     public static final String SHARED_INFERENCE_SERVICE_REF = "openai-cloud-orchestration";
     public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
@@ -37,7 +38,8 @@ public class PlatformVerificationSuiteCatalog {
             marketplaceInstallFlowVerification(),
             shopifyCompanionVerification(),
             shopifyFirstProductReadinessAudit(),
-            partnerEnablementVerification()
+            partnerEnablementVerification(),
+            thinkerResolverReadiness()
         );
     }
 
@@ -169,6 +171,14 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
                     true,
                     "Verify Partner Enablement backend auth, deployed Partner UI routing, merchant approval/revoke flow, and persisted partner workflow evidence."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "thinker-resolver-readiness",
+                    "Thinker Resolver readiness",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_THINKER_RESOLVER_READINESS,
+                    true,
+                    "Verify Thinker session persistence, evidence export, Resolver policy, dry-run, optional low-risk execution, partner redaction, and Shopify Thinker health."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "marketplace-hosted-verification",
@@ -307,6 +317,25 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
                     true,
                     "Verify Partner Enablement backend auth, deployed Partner UI routing, merchant approval/revoke flow, and persisted partner workflow evidence."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary thinkerResolverReadiness() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            THINKER_RESOLVER_READINESS_SUITE_KEY,
+            "Thinker Resolver readiness",
+            "Standalone governed issue-resolution verification for Thinker evidence capture, policy simulation, partner redaction, and Shopify merchant health.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "thinker-resolver-readiness",
+                    "Thinker Resolver readiness",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_THINKER_RESOLVER_READINESS,
+                    true,
+                    "Verify Thinker session persistence, evidence export, Resolver policy, dry-run, optional low-risk execution, partner redaction, and Shopify Thinker health."
                 )
             )
         );

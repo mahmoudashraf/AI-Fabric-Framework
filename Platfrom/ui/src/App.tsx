@@ -25,6 +25,7 @@ import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
 import { ShopifyPackageProfilesPage } from './pages/ShopifyPackageProfilesPage'
 import { ShopifyReadinessAuditPage } from './pages/ShopifyReadinessAuditPage'
 import { ShopifyStoresPage } from './pages/ShopifyStoresPage'
+import { ThinkerResolverPage } from './pages/ThinkerResolverPage'
 import { UsersPage } from './pages/UsersPage'
 import { VectorizationPage } from './pages/VectorizationPage'
 import { VerificationPage } from './pages/VerificationPage'
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="/shopify-package-profiles" element={<ShopifyPackageProfilesPage />} />
           <Route path="/shopify-readiness-audit" element={<ShopifyReadinessAuditPage />} />
           <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
+          <Route path="/thinker-resolver" element={<ThinkerResolverPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />
           <Route path="/prompts" element={<PromptsPage />} />

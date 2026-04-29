@@ -1,6 +1,6 @@
 # 006.1 Thinker Phase 1 Read-Only Issue Resolution Productization
 
-Status: implementation handoff, not yet implemented (renamed from `007` and revised 2026-04-29)
+Status: implemented locally as part of full 006 Thinker/Resolver slice; live deployment verification pending post-push (renamed from `007` and revised 2026-04-29)
 
 Owner mode: technical LLM implementation session
 
@@ -119,7 +119,7 @@ Current code status confirmed 2026-04-29:
 - `commerce.yml` already defines `resolver_assistant` and `thinker` modes with read-action resolution configuration.
 - `thinker` mode is configured for iterative read-action resolution with bounded iterations/actions.
 - Platform Partner Enablement already has partner evidence bundles and support escalations, but those are not Thinker issue sessions and must not be treated as a complete substitute.
-- Dedicated `IssueSession`, Thinker `EvidenceBundle`, `ResolutionPlan`, Thinker operator UI, partner Thinker view, end-user source-cited depth-layer flow, Thinker readiness pack, and per-deployment Thinker kill switch are not implemented yet.
+- Dedicated `IssueSession`, Thinker evidence items, resolution plans, Thinker operator UI, partner Thinker view, Thinker readiness verifier, Shopify merchant health surface, and per-deployment Thinker kill switch are now implemented locally.
 
 ---
 
@@ -143,6 +143,26 @@ Use this compact template:
 ```
 
 Do not paste long logs, diffs, secrets, or noisy reasoning into the working context.
+
+## Implementation Summary - 2026-04-29
+
+Implemented:
+
+- Thinker deployment controls with `thinkerEnabled`, `resolverPreviewEnabled`, `governedExecutionEnabled`, and disabled action families.
+- Issue sessions with status, mode, channel, user question, safe answer, tenant/customer/deployment/store linkage, and support-export endpoint.
+- Evidence items with safe summaries and operator-only raw references.
+- Resolution plans with next steps, required action family, risk level, and escalation posture.
+- Prompt-injection/cross-tenant/write-required classification that blocks unsafe direct resolution.
+- Shopify Companion Elite gating for store-linked Thinker sessions.
+- Operator UI for session inspection and export.
+- Partner UI for assigned-store, redacted Thinker review.
+- Shopify Bridge merchant health card for Thinker readiness.
+
+Verification proof:
+
+- New integration coverage exercises real Platform persistence, operator evidence visibility, partner redaction, and session creation.
+- The local live verifier creates a real Thinker session against the configured deployment and checks detail, evidence, export, health, and partner proof when credentials are supplied.
+- Final pass is recorded in `CODEX_WORKING_CONTEXT.md` after the test/live-verify/commit/push loop completes.
 
 ---
 

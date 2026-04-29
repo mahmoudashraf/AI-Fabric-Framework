@@ -80,6 +80,7 @@ if [[ "${SHELL_SYNTAX_CHECKS}" == "true" ]]; then
     bash -n scripts/verify-platform-code-regression.sh &&
     bash -n scripts/verify-shopify-companion.sh &&
     bash -n scripts/verify-shopify-companion-uninstall.sh &&
+    bash -n scripts/verify-thinker-resolver-readiness.sh &&
     bash -n scripts/verify-vector-deployment.sh &&
     bash -n scripts/resolve-verification-rollouts.sh &&
     bash -n scripts/run-platform-deployment-verification.sh &&

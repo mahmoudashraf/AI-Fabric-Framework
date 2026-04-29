@@ -175,6 +175,16 @@ export type ShopifyBridgeMerchantSessionResponse = {
   installRecoveryMessage: string | null
   installRecoveryUrl: string | null
   supportReadiness: ShopifyBridgeSupportReadinessSummary | null
+  thinkerHealth: {
+    shopDomain: string
+    deploymentId: string | null
+    enabled: boolean
+    status: string
+    recentSessionCount: number
+    blockedSessionCount: number
+    message: string
+    nextActions: string[]
+  } | null
   installRecord: {
     status: string
     accessTokenSecretRef: string | null

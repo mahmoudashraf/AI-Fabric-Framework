@@ -148,6 +148,13 @@ Rules:
 - Current code status recorded in `006.1`: `ReadActionResolutionService` and commerce `thinker` mode exist; dedicated IssueSession, Thinker EvidenceBundle, ResolutionPlan, Thinker UI, partner view, readiness pack, and kill switch are not implemented yet.
 - Decision: Shopify Companion Elite is the first reference vertical for `006.1`; Thinker/Resolver remains a reusable platform product line, not a separate Shopify-only app.
 
+## 2026-04-29 Coolify Deployment Provider 007
+
+- Created `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md`.
+- Decision: Coolify is a first-class deployment provider beside Railway for tenant runtimes and restartable services; Platform UI/backend/Postgres/partner UI/Shopify bridge, billing, webhooks, readiness audit, and provider administration stay on Railway.
+- Decision: implement Coolify through deployment target profiles, provider registry, immutable GHCR image artifacts, provider resource handles, operator UI, audit, backup/restore, and release verification. Do not add another global `platform.provisioning.mode` path or a one-off `railway|coolify` flag.
+- First implementation slice should be target profiles/provider registry/Railway compatibility before any Coolify API calls.
+
 ## 2026-04-25 Partner Enablement Supabase And Deployment Unblock
 
 - Used ignored private handoff section `7.5 Subabse Partner UI` as the Supabase credential source; extracted runtime/admin values into `/tmp/partner_supabase.env` without committing secrets.
@@ -246,3 +253,12 @@ Rules:
 - Live verification prerequisites refreshed without logging secrets: Qdrant data-plane key verified, Shopify Bridge admin key stored as Platform secret `SHOPIFY_BRIDGE_ADMIN_API_KEY`, and a fresh non-social Supabase partner JWT stored as `PARTNER_SUPABASE_JWT` before the final run.
 - Local verification during final hardening passed: shell syntax checks for changed scripts, targeted Platform verification-suite tests, Qdrant-only managed provider verification with `QDRANT_CREATE_EPHEMERAL_DB_KEY=false`, standalone Shopify first-product readiness audit, standalone Partner Enablement strict live verifier, and `git diff --check`.
 - Blockers: none. Unrelated local dirty files remain `.DS_Store` and `Platfrom/ui/tsconfig.app.tsbuildinfo`; do not stage them unless explicitly requested.
+
+## 2026-04-29 Thinker Resolver 006 Full-Stack Implementation
+
+- Implemented 006 as a single governed issue-resolution product line for Shopify Companion Elite: Thinker evidence sessions, redacted partner/operator views, Resolver proposals, policy decisions, dry-runs, and governed low-risk support-escalation execution.
+- Backend changes: new V70 persistence model, operator/partner/Shopify Thinker Resolver APIs, Shopify Companion runtime Thinker capture, per-deployment kill switches, Elite gate, assignment/scope checks, partner-safe redaction, append-only audit ledgers, and real Partner Evidence Bundle / Support Escalation creation for governed execution.
+- UI changes: Platform operator console at `/thinker-resolver`, Partner UI Thinker sessions page and store workspace tab, and Shopify merchant session health card for Thinker deep diagnosis readiness.
+- Verification changes: new `scripts/verify-thinker-resolver-readiness.sh`, standalone `thinker-resolver-readiness` suite, and full release-gate insertion after Partner Enablement; release-gate tests now expect the 12-stage suite.
+- Guides added: Thinker Resolver operator guide, partner guide, and developer guide; roadmap docs `006`, `006.1`, `006.2`, `006.3`, and `006.4` now reflect implemented code status.
+- Local verification passed: `bash -n scripts/verify-thinker-resolver-readiness.sh`; `bash -n scripts/verify-platform-code-regression.sh`; focused `ThinkerResolverIntegrationTest` and `PublicConsumerBridgeChatServiceTest`; full `mvn -f Platfrom/backend/pom.xml -q test`; full `mvn -f product-services/shopify-bridge-service/pom.xml -q test`; Platform UI build; Partner UI build; Shopify Bridge UI build; `git diff --check`; changed-code scan found no dummy/stub implementation.

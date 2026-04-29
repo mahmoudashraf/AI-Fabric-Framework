@@ -47,6 +47,7 @@ import { getProductControls, updateProductSourceSettings, updateProductSupportPr
 import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerProductControl, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
 import { getPartnerStore } from '../api/stores'
 import { listTemplateApplications } from '../api/templates'
+import { listStoreThinkerSessions } from '../api/thinker'
 import { completeVerificationStep, getStoreVerificationPack, listStoreVerificationRuns, runStoreVerification } from '../api/verification'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { DataTable, type DataColumn } from '../components/DataTable'
@@ -157,6 +158,7 @@ export function StoreWorkspacePage() {
           <Tab label="Setup checklist" />
           <Tab label="Verification" />
           <Tab label="Evidence" />
+          <Tab label="Thinker" />
           <Tab label="Escalations" />
           <Tab label="Notes" />
         </Tabs>
@@ -175,7 +177,8 @@ export function StoreWorkspacePage() {
       {tab === 2 ? <SetupTab store={store} latestRun={latestRun} templates={appliedTemplates} /> : null}
       {tab === 3 ? <VerificationTab storeId={store.id} /> : null}
       {tab === 4 ? <EvidenceTab storeId={store.id} /> : null}
-      {tab === 5 ? (
+      {tab === 5 ? <ThinkerTab storeId={store.id} /> : null}
+      {tab === 6 ? (
         <Paper sx={{ p: 2 }}>
           <Typography variant="h3">Support center</Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
@@ -184,7 +187,7 @@ export function StoreWorkspacePage() {
           <Button sx={{ mt: 2 }} onClick={() => navigate('/support')}>Open support</Button>
         </Paper>
       ) : null}
-      {tab === 6 ? <NotesTab storeId={store.id} /> : null}
+      {tab === 7 ? <NotesTab storeId={store.id} /> : null}
       <EscalationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} storeId={store.id} />
     </>
   )
@@ -823,6 +826,45 @@ function EvidenceTab({ storeId }: { storeId: string }) {
         </Stack>
       </Paper>
       <DataTable columns={columns} rows={bundlesQuery.data ?? []} getRowKey={(row) => row.id} loading={bundlesQuery.isLoading} />
+    </Stack>
+  )
+}
+
+function ThinkerTab({ storeId }: { storeId: string }) {
+  const { api } = useSupabaseAuth()
+  const navigate = useNavigate()
+  const sessionsQuery = useQuery({ queryKey: ['thinker-sessions', storeId], queryFn: () => listStoreThinkerSessions(api, storeId) })
+  return (
+    <Stack spacing={2}>
+      <Paper sx={{ p: 2 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ md: 'center' }}>
+          <Box>
+            <Typography variant="h3">Thinker diagnosis</Typography>
+            <Typography color="text.secondary">Read-only diagnostic sessions and partner-safe evidence for this assigned store.</Typography>
+          </Box>
+          <Button variant="contained" onClick={() => navigate(`/thinker?storeId=${encodeURIComponent(storeId)}`)}>
+            Open Thinker queue
+          </Button>
+        </Stack>
+      </Paper>
+      {sessionsQuery.isLoading ? <LinearProgress /> : null}
+      {(sessionsQuery.data ?? []).length === 0 ? (
+        <Alert severity="info">No Thinker sessions are captured for this store yet.</Alert>
+      ) : (
+        <Paper sx={{ p: 2 }}>
+          <Stack spacing={1.25}>
+            {(sessionsQuery.data ?? []).slice(0, 6).map((session) => (
+              <TimelineRow
+                key={session.id}
+                title={titleize(session.issueCategory)}
+                subtitle={`${session.evidenceCount} evidence items - ${session.userQuestion}`}
+                status={session.status}
+                meta={formatDateTime(session.startedAt)}
+              />
+            ))}
+          </Stack>
+        </Paper>
+      )}
     </Stack>
   )
 }

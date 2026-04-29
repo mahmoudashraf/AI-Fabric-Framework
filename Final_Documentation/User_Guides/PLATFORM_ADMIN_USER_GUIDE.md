@@ -11,6 +11,7 @@ Companion guide:
 - `Final_Documentation/User_Guides/PLATFORM_USER_TYPES_GUIDE.md`
 - `Final_Documentation/User_Guides/PLATFORM_CONFIG_AND_SECRETS_MANAGEMENT_GUIDE.md`
 - `Final_Documentation/User_Guides/MARKETPLACE_ADMIN_USER_GUIDE.md`
+- `Final_Documentation/User_Guides/THINKER_RESOLVER_OPERATOR_GUIDE.md`
 
 ---
 
@@ -118,6 +119,17 @@ Use this screen to manage:
 - LLM/provider settings
 - embedding model settings
 - vector strategy and related provider configuration
+
+### 3.7 Thinker Resolver
+
+Use this screen to manage governed issue resolution:
+
+- per-deployment Thinker and Resolver controls
+- Thinker issue sessions, evidence, plans, audit, and exports
+- Resolver policy decisions, dry-runs, and low-risk support escalation executions
+- product action-family kill switches
+
+See `Final_Documentation/User_Guides/THINKER_RESOLVER_OPERATOR_GUIDE.md` for the full operating procedure.
 
 ### 3.7 Security
 

@@ -68,6 +68,172 @@ export type DeleteDeploymentRequest = {
   reason?: string
 }
 
+export type ThinkerDeploymentControlSummary = {
+  deploymentId: string
+  thinkerEnabled: boolean
+  resolverPreviewEnabled: boolean
+  governedExecutionEnabled: boolean
+  disabledActionFamilies: string[]
+  updatedAt: string | null
+  updatedBy: string | null
+}
+
+export type ThinkerIssueSessionSummary = {
+  id: string
+  deploymentId: string | null
+  tenantId: string | null
+  customerId: string | null
+  storeId: string | null
+  shopDomain: string | null
+  consumerId: string | null
+  userSubject: string | null
+  channel: string
+  mode: string
+  status: string
+  issueCategory: string
+  riskClass: string
+  userQuestion: string
+  userSafeAnswer: string | null
+  sourceCitations: string[]
+  terminalReason: string | null
+  startedAt: string
+  completedAt: string | null
+  updatedAt: string
+  evidenceCount: number
+  recommendation: string | null
+}
+
+export type ThinkerEvidenceItemSummary = {
+  id: string
+  sessionId: string
+  kind: string
+  sourceKind: string
+  sourceIdentifier: string
+  freshness: string
+  confidence: number
+  redactionState: string
+  summary: string
+  safeSummary: string
+  operatorRawReference: string | null
+  capturedAt: string
+}
+
+export type ThinkerResolutionPlanSummary = {
+  id: string
+  sessionId: string
+  issueSummary: string
+  diagnosis: string
+  optionsConsidered: string[]
+  recommendedNextStep: string
+  recommendation: string
+  userExplanation: string
+  escalationTarget: string | null
+  evidenceItemIds: string[]
+  createdAt: string
+}
+
+export type ThinkerSessionAuditSummary = {
+  id: string
+  sessionId: string
+  eventType: string
+  actorId: string
+  actorRole: string
+  details: unknown
+  createdAt: string
+}
+
+export type ResolverPolicyDecisionSummary = {
+  id: string
+  proposalId: string
+  outcome: string
+  riskLevel: string
+  requiredScopes: string[]
+  missingScopes: string[]
+  tierRequirement: string
+  actorRequirement: string
+  dryRunRequired: boolean
+  confirmationRequired: boolean
+  approvalRequired: boolean
+  confirmationPreview: string | null
+  operatorReason: string
+  userReason: string
+  decidedAt: string
+}
+
+export type ResolverDryRunSummary = {
+  id: string
+  proposalId: string
+  targetAction: string
+  validatedParameters: unknown
+  expectedStateTransition: string
+  expectedSideEffects: string[]
+  warnings: string[]
+  unsupportedFields: string[]
+  idempotencyPosture: string
+  rollbackPosture: string
+  evidenceFreshness: string
+  productBoundary: string
+  status: string
+  createdAt: string
+}
+
+export type ResolverExecutionSummary = {
+  id: string
+  proposalId: string
+  dryRunId: string | null
+  idempotencyKey: string
+  actionFamily: string
+  status: string
+  productBoundary: string
+  executionResult: unknown
+  verificationStatus: string
+  recoveryGuidance: string | null
+  createdAt: string
+  completedAt: string | null
+}
+
+export type ResolverIntentProposalSummary = {
+  id: string
+  sessionId: string
+  actionId: string
+  actionFamily: string
+  targetDomain: string
+  productBoundary: string
+  actorContext: string
+  tenantId: string | null
+  storeId: string | null
+  deploymentId: string | null
+  redactedParameters: unknown
+  operatorParameters: unknown
+  sourceEvidenceItemIds: string[]
+  proposalText: string
+  normalizedIntent: unknown
+  status: string
+  createdAt: string
+  updatedAt: string
+  latestPolicyDecision: ResolverPolicyDecisionSummary | null
+  latestDryRun: ResolverDryRunSummary | null
+  executions: ResolverExecutionSummary[]
+}
+
+export type ThinkerIssueSessionDetail = {
+  session: ThinkerIssueSessionSummary
+  evidence: ThinkerEvidenceItemSummary[]
+  plan: ThinkerResolutionPlanSummary | null
+  auditEvents: ThinkerSessionAuditSummary[]
+  resolverProposals: ResolverIntentProposalSummary[]
+}
+
+export type ThinkerReadinessSummary = {
+  status: string
+  decision: string
+  generatedAt: string
+  passed: number
+  failed: number
+  scenarios: Array<{ key: string; label: string; status: string; evidence: string }>
+  blockers: string[]
+}
+
 export type DeploymentDeletionStatusSummary = {
   operationId: string
   status: string
@@ -4224,6 +4390,120 @@ export function fetchPlatformUsers() {
 
 export function fetchPlatformCustomers() {
   return request<PlatformCustomerSummary[]>('/api/platform/customers')
+}
+
+export function fetchThinkerSessions(params?: { shopDomain?: string; deploymentId?: string; status?: string }) {
+  const search = new URLSearchParams()
+  if (params?.shopDomain) search.set('shopDomain', params.shopDomain)
+  if (params?.deploymentId) search.set('deploymentId', params.deploymentId)
+  if (params?.status) search.set('status', params.status)
+  const suffix = search.size > 0 ? `?${search.toString()}` : ''
+  return request<ThinkerIssueSessionSummary[]>(`/api/operator/thinker/sessions${suffix}`)
+}
+
+export function fetchThinkerSession(sessionId: string) {
+  return request<ThinkerIssueSessionDetail>(`/api/operator/thinker/sessions/${encodeURIComponent(sessionId)}`)
+}
+
+export function fetchThinkerEvidence(sessionId: string) {
+  return request<ThinkerEvidenceItemSummary[]>(`/api/operator/thinker/sessions/${encodeURIComponent(sessionId)}/evidence`)
+}
+
+export async function downloadThinkerSessionExport(sessionId: string) {
+  const apiKey = getStoredPlatformApiKey()
+  const response = await fetch(`${apiBaseUrl}/api/operator/thinker/sessions/${encodeURIComponent(sessionId)}/export`, {
+    credentials: 'include',
+    headers: {
+      ...(apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {}),
+    },
+  })
+  if (!response.ok) {
+    const message = await response.text()
+    throw new PlatformApiError(response.status, message || `Request failed with status ${response.status}`)
+  }
+  return response.blob()
+}
+
+export function createThinkerSession(payload: {
+  deploymentId: string
+  shopDomain?: string
+  userQuestion: string
+  userSafeAnswer?: string
+  evidence?: Array<{
+    kind?: string
+    sourceKind?: string
+    sourceIdentifier?: string
+    freshness?: string
+    confidence?: number
+    summary: string
+    safeSummary?: string
+  }>
+}) {
+  return request<ThinkerIssueSessionSummary>('/api/operator/thinker/sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchThinkerDeploymentControl(deploymentId: string) {
+  return request<ThinkerDeploymentControlSummary>(`/api/operator/thinker/deployments/${encodeURIComponent(deploymentId)}/control`)
+}
+
+export function updateThinkerDeploymentControl(deploymentId: string, payload: {
+  thinkerEnabled?: boolean
+  resolverPreviewEnabled?: boolean
+  governedExecutionEnabled?: boolean
+  disabledActionFamilies?: string[]
+}) {
+  return request<ThinkerDeploymentControlSummary>(`/api/operator/thinker/deployments/${encodeURIComponent(deploymentId)}/control`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchThinkerReadiness() {
+  return request<ThinkerReadinessSummary>('/api/operator/thinker/readiness')
+}
+
+export function createResolverProposal(payload: {
+  sessionId: string
+  actionId?: string
+  actionFamily?: string
+  targetDomain?: string
+  productBoundary?: string
+  parameters?: Record<string, unknown>
+  sourceEvidenceItemIds?: string[]
+  proposalText: string
+}) {
+  return request<ResolverIntentProposalSummary>('/api/operator/resolver/proposals', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchResolverProposals() {
+  return request<ResolverIntentProposalSummary[]>('/api/operator/resolver/proposals')
+}
+
+export function fetchResolverPolicyDecisions() {
+  return request<ResolverPolicyDecisionSummary[]>('/api/operator/resolver/policy-decisions')
+}
+
+export function runResolverDryRun(proposalId: string) {
+  return request<ResolverDryRunSummary>(`/api/operator/resolver/proposals/${encodeURIComponent(proposalId)}/dry-run`, {
+    method: 'POST',
+  })
+}
+
+export function executeResolverProposal(proposalId: string, payload: { idempotencyKey: string; confirmationText: string; dryRunId?: string }) {
+  return request<ResolverExecutionSummary>(`/api/operator/resolver/proposals/${encodeURIComponent(proposalId)}/execute`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchResolverExecutions() {
+  return request<ResolverExecutionSummary[]>('/api/operator/resolver/executions')
 }
 
 export function createPlatformCustomer(payload: {

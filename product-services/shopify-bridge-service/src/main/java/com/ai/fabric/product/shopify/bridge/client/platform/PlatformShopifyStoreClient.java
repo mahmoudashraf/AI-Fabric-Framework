@@ -22,6 +22,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVector
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSyncStoreDocumentsRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeThinkerHealthSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSupportProfileRequest;
@@ -392,6 +393,14 @@ public class PlatformShopifyStoreClient {
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .retrieve()
             .body(ShopifyBridgeStoreVectorizationSummary.class);
+    }
+
+    public ShopifyBridgeThinkerHealthSummary thinkerHealth(String shopDomain) {
+        return restClient.get()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/thinker-health")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeThinkerHealthSummary.class);
     }
 
     public PlatformPublicConsumerDeploymentCredentialsResponse getConsumerCredentials(String consumerId) {
