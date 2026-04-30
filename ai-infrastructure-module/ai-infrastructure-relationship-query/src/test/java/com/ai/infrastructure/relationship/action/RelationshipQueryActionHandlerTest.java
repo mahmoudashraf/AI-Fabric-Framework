@@ -272,10 +272,10 @@ class RelationshipQueryActionHandlerTest {
         assertThat(documents).hasSize(1);
         assertThat(documents.getFirst())
             .containsEntry("title", "The Collection Snowboard: Liquid")
-            .containsEntry("handle", "the-collection-snowboard-liquid")
             .containsEntry("price", "749.95")
             .containsEntry("available", true)
             .containsEntry("inventoryQuantity", 50)
+            .doesNotContainKey("handle")
             .doesNotContainKey("sourceUrl")
             .doesNotContainKey("id")
             .doesNotContainKey("content")

@@ -224,7 +224,7 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         }
         List<Map<String, Object>> out = new ArrayList<>();
         for (Object item : list) {
-            if (out.size() >= 8) {
+            if (out.size() >= 5) {
                 break;
             }
             if (item instanceof Map<?, ?> map) {
@@ -270,7 +270,6 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         if (source == null || source.isEmpty()) {
             return;
         }
-        putIfPresent(target, "handle", mapObject(source, "handle"));
         putIfPresent(target, "vendor", mapObject(source, "vendor"));
         putIfPresent(target, "productType", mapObject(source, "productType"));
         putIfPresent(target, "available", mapObject(source, "available"));

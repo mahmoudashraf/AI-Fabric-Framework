@@ -395,7 +395,7 @@ public class RelationshipQueryActionHandler {
         }
         List<Map<String, Object>> facts = new ArrayList<>();
         for (Object raw : list) {
-            if (facts.size() >= 8) {
+            if (facts.size() >= 5) {
                 break;
             }
             Map<String, Object> fact = compactDocumentFact(raw);
@@ -449,7 +449,6 @@ public class RelationshipQueryActionHandler {
         if (metadata == null || metadata.isEmpty()) {
             return;
         }
-        putIfPresent(fact, "handle", mapValue(metadata, "handle"));
         putIfPresent(fact, "vendor", mapValue(metadata, "vendor"));
         putIfPresent(fact, "productType", mapValue(metadata, "productType"));
         putIfPresent(fact, "available", mapValue(metadata, "available"));

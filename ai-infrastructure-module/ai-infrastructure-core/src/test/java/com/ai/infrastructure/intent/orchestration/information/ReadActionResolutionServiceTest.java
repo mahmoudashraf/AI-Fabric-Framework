@@ -257,6 +257,92 @@ class ReadActionResolutionServiceTest {
     }
 
     @Test
+    void shouldKeepOversizedActionEvidenceAsValidBoundedJson() throws Exception {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
+        PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
+
+        AIActionMetaData searchProducts = AIActionMetaData.builder()
+            .name("search_products")
+            .description("Search live catalog products.")
+            .category("catalog")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .build();
+        AIActionHandler searchHandler = mock(AIActionHandler.class);
+        when(searchHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
+        when(searchHandler.executeAction(eq(Map.of("query", "snowboard")), any(ActionContext.class))).thenReturn(
+            ActionResult.builder()
+                .success(true)
+                .message("Products loaded.")
+                .data(ActionPayload.object(Map.of("count", 12)))
+                .build()
+        );
+        when(searchHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class)))
+            .thenReturn(Optional.of(Map.of(
+                "count", 12,
+                "items", List.of(
+                    productFact("The Collection Snowboard: Liquid", "749.95", true, 50),
+                    productFact("The Out of Stock Snowboard", "885.95", false, 0),
+                    productFact("The Inventory Not Tracked Snowboard", "949.95", true, 0),
+                    productFact("The Collection Snowboard: Oxygen", "1025.00", true, 50),
+                    productFact("The Multi-managed Snowboard", "629.95", true, 8),
+                    productFact("The Complete Snowboard", "699.95", true, 15)
+                )
+            )));
+
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(searchProducts));
+        when(actionRegistry.findHandler("search_products")).thenReturn(Optional.of(searchHandler));
+        when(actionRegistry.findMetadata("search_products")).thenReturn(Optional.of(searchProducts));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
+            .thenReturn(resolvedTemplate("system", ""));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
+            .thenReturn(resolvedTemplate("user", "query={{query}}\nactions={{eligible_actions_json}}"));
+        when(aiCoreService.generateContent(any(), eq(LlmPurpose.ORCHESTRATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "decision": "EXECUTE_READ_ACTIONS",
+                      "actions": [
+                        {"name": "search_products", "params": {"query": "snowboard"}, "priority": 1}
+                      ],
+                      "needsMoreSteps": false
+                    }
+                    """)
+                .build()
+        );
+
+        ReadActionResolutionService service = new ReadActionResolutionService(
+            aiCoreService,
+            actionRegistry,
+            new IntentExtractionJsonSupport(new ObjectMapper()),
+            templateResolver,
+            new PromptRenderer()
+        );
+
+        ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(
+            Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("Which snowboards are under 800?")
+                .optimizedQuery("snowboard")
+                .build(),
+            OrchestrationContext.forUser("user-1"),
+            PipelineContext.from("Which snowboards are under 800?", OrchestrationContext.forUser("user-1"))
+                .toBuilder()
+                .orchestrationPolicy(readActionPolicy("thinker", List.of("search_products"),
+                    OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
+                    OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE))
+                .build()
+        );
+
+        String evidence = outcome.executedActions().getFirst().evidenceSummary();
+        assertThat(evidence).doesNotEndWith("...");
+        new ObjectMapper().readTree(evidence);
+        assertThat(evidence).contains("The Collection Snowboard: Liquid");
+    }
+
+    @Test
     void shouldExecuteOnlyPlannerEligibleReadActionsFromAllowlist() {
         AICoreService aiCoreService = mock(AICoreService.class);
         AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
@@ -497,6 +583,18 @@ class ReadActionResolutionServiceTest {
         return new ResolvedPromptTemplate(
             new PromptTemplate(new PromptTemplateKey("orchestration/read-action-resolution", "v1", name), body),
             List.of("v1")
+        );
+    }
+
+    private Map<String, Object> productFact(String title, String price, boolean available, int inventoryQuantity) {
+        return Map.of(
+            "title", title,
+            "productType", "snowboard",
+            "vendor", "Hydrogen Vendor",
+            "price", price,
+            "available", available,
+            "inventoryQuantity", inventoryQuantity,
+            "reviewSignalsPresent", false
         );
     }
 

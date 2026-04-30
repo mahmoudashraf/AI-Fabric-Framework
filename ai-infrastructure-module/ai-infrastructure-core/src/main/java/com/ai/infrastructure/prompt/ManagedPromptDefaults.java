@@ -34,7 +34,8 @@ public final class ManagedPromptDefaults {
             + "context as evidence for a named product that was not found. Do not refer users to generic "
             + "documentation or support resources unless that handoff is explicit in the evidence. When "
             + "live action evidence includes product facts, prefer those facts over retrieved context for "
-            + "price, availability, inventory, and review-signal fields.";
+            + "price, availability, inventory, and review-signal fields. Mention product names and numeric "
+            + "facts only when they are explicitly present in the provided evidence.";
 
     public static final String RETRIEVAL_PROMPT =
         "Use retrieved knowledge as the primary source for domain facts. Prefer the most relevant, current, "

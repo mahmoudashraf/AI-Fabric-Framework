@@ -468,7 +468,7 @@ public class ReadActionResolutionService {
         try {
             Optional<Map<String, Object>> llmFacts = handler.buildPostActionLlmFacts(result, actionContext);
             if (llmFacts.isPresent() && llmFacts.get() != null && !llmFacts.get().isEmpty()) {
-                return truncate(writeJson(sanitizeValue(llmFacts.get(), 0)), maxChars);
+                return writeBoundedEvidenceJson(sanitizeValue(llmFacts.get(), 0), maxChars);
             }
         } catch (Exception ex) {
             log.debug("Read-action resolution facts builder failed: {}", ex.getMessage());
@@ -488,7 +488,53 @@ public class ReadActionResolutionService {
         if (result.getPinnedTargets() != null && !result.getPinnedTargets().isEmpty()) {
             payload.put("pinnedTargets", result.getPinnedTargets());
         }
-        return truncate(writeJson(payload), maxChars);
+        return writeBoundedEvidenceJson(payload, maxChars);
+    }
+
+    private String writeBoundedEvidenceJson(Object value, int maxChars) {
+        String json = writeJson(value);
+        if (maxChars <= 0 || json.length() <= maxChars) {
+            return json;
+        }
+
+        for (int itemLimit : List.of(3, 1)) {
+            Object compacted = shrinkEvidenceLists(value, itemLimit);
+            json = writeJson(compacted);
+            if (json.length() <= maxChars) {
+                return json;
+            }
+        }
+
+        Map<String, Object> fallback = new LinkedHashMap<>();
+        fallback.put("truncated", true);
+        fallback.put("summary", truncate(String.valueOf(value), Math.min(400, Math.max(80, maxChars - 80))));
+        json = writeJson(fallback);
+        return json.length() <= maxChars ? json : "{\"truncated\":true}";
+    }
+
+    private Object shrinkEvidenceLists(Object value, int maxItems) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> compacted = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry == null || entry.getKey() == null) {
+                    continue;
+                }
+                compacted.put(String.valueOf(entry.getKey()), shrinkEvidenceLists(entry.getValue(), maxItems));
+            }
+            return compacted;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> compacted = new ArrayList<>();
+            int limit = Math.min(list.size(), Math.max(0, maxItems));
+            for (int i = 0; i < limit; i++) {
+                compacted.add(shrinkEvidenceLists(list.get(i), maxItems));
+            }
+            if (list.size() > limit) {
+                compacted.add(Map.of("_omittedItems", list.size() - limit));
+            }
+            return compacted;
+        }
+        return value;
     }
 
     private Object sanitizePayload(ActionPayload payload) {
