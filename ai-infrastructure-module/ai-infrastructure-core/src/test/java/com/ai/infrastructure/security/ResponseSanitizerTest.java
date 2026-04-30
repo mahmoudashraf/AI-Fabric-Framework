@@ -173,6 +173,39 @@ class ResponseSanitizerTest {
     }
 
     @Test
+    void shouldRemoveTerminalGenericAssistanceParagraphAfterBulletList() {
+        String answer = """
+            No negative reviews are available in the live store data.
+
+            Product facts:
+            - Price: $749.95
+            - Available inventory: 50 units
+
+            If you have any other questions or need further information, feel free to ask!
+            """.stripTrailing();
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message(answer)
+            .data(Map.of("answer", answer))
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-789");
+
+        String expected = """
+            No negative reviews are available in the live store data.
+
+            Product facts:
+            - Price: $749.95
+            - Available inventory: 50 units
+            """.stripTrailing();
+        assertThat(payload.get("message")).isEqualTo(expected);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) payload.get("data");
+        assertThat(data).containsEntry("answer", expected);
+    }
+
+    @Test
     void shouldRemoveTerminalExternalInformationHandoff() {
         OrchestrationResult result = OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)

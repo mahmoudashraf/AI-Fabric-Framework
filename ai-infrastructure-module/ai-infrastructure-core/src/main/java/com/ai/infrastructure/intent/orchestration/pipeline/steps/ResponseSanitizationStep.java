@@ -10,9 +10,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -103,6 +105,8 @@ public class ResponseSanitizationStep implements PipelineStep {
         }
         
         String identifier = context.getIdentifier();
+
+        applySanitizationToChildren(result, identifier, Collections.newSetFromMap(new IdentityHashMap<>()));
         
         // ResponseSanitizer guarantees a non-empty payload
         Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, identifier);
@@ -121,6 +125,23 @@ public class ResponseSanitizationStep implements PipelineStep {
         return context.toBuilder()
             .sanitizedPayload(sanitizedPayload)
             .build();
+    }
+
+    private void applySanitizationToChildren(OrchestrationResult result,
+                                             String identifier,
+                                             Set<OrchestrationResult> visited) {
+        if (result == null || !visited.add(result) || result.getChildren() == null || result.getChildren().isEmpty()) {
+            return;
+        }
+        for (OrchestrationResult child : result.getChildren()) {
+            if (child == null) {
+                continue;
+            }
+            applySanitizationToChildren(child, identifier, visited);
+            Map<String, Object> childPayload = responseSanitizer.sanitize(child, identifier);
+            child.setSanitizedPayload(childPayload);
+            applySanitizedTextMirrors(child, childPayload);
+        }
     }
     
     // =========================================================================
