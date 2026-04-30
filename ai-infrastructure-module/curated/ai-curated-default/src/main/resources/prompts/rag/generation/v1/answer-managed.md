@@ -15,3 +15,5 @@ Relevant context:
 Use only the relevant context above.
 If the context is insufficient, say so and briefly explain what evidence is missing.
 Do not ask the user to supply missing evidence unless the user's actual question is ambiguous or requires a user-owned choice.
+For live-data questions, do not recommend or ask for external/user-supplied reviews, ratings, specifications, certifications, or safety data when they are absent from the context.
+Avoid phrases like "if you have access", "if you can provide", "please share", or "let me know" for missing evidence. State the limitation and the grounded conclusion.
