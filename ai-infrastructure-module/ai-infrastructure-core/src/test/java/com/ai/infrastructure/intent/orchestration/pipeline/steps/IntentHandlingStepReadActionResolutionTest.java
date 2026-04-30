@@ -103,6 +103,7 @@ class IntentHandlingStepReadActionResolutionTest {
         verify(aiCoreService).generateTextResponse(promptCaptor.capture(), eq(LlmPurpose.GENERATION));
         assertThat(promptCaptor.getValue())
             .contains("LIVE STORE READ ACTION RESPONSE POLICY")
+            .contains("If a named product lookup failed or returned no matching product, do not answer using similarly named products, generic documents, or unrelated policy documents; state that the named product is not present in the live store data and that availability or safety cannot be confirmed.")
             .contains("Do not provide a website, support, vendor, manufacturer, shopper-supplied-data, or generic next-step handoff unless that handoff is explicitly present in the read-action evidence.");
         verify(ragProvider, never()).performRag(any());
         verify(ragProvider, never()).performRAGQuery(any());

@@ -30,7 +30,8 @@ public final class ManagedPromptDefaults {
         "Respond with concise grounded answers. Summarize the relevant evidence first, then state the "
             + "outcome clearly. If evidence is weak or missing, say so directly and stop at the grounded "
             + "conclusion. Do not append optional-assistance closers or ask for preferences unless the "
-            + "user's request needs a user-owned choice.";
+            + "user's request needs a user-owned choice. Do not use unrelated policy or similar-product "
+            + "context as evidence for a named product that was not found.";
 
     public static final String RETRIEVAL_PROMPT =
         "Use retrieved knowledge as the primary source for domain facts. Prefer the most relevant, current, "
