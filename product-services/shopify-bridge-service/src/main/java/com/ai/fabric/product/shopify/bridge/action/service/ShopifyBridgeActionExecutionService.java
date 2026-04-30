@@ -14,10 +14,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class ShopifyBridgeActionExecutionService {
@@ -224,8 +226,13 @@ public class ShopifyBridgeActionExecutionService {
         List<Map<String, Object>> documents = new ArrayList<>();
         List<Map<String, Object>> productItems = List.of();
         List<Map<String, Object>> policyItems = List.of();
+        List<String> productSearchQueries = List.of();
+        boolean productFallbackToRecentCatalog = false;
         if (wantsProducts) {
-            productItems = fetchProducts(acquisition, query).stream().limit(limit).toList();
+            ProductRelationshipSearch search = fetchRelationshipProducts(acquisition, query, limit);
+            productItems = search.items();
+            productSearchQueries = search.queries();
+            productFallbackToRecentCatalog = search.fallbackToRecentCatalog();
             productItems.stream()
                 .map(this::productRelationshipDocument)
                 .forEach(documents::add);
@@ -250,11 +257,13 @@ public class ShopifyBridgeActionExecutionService {
         data.put("totalResults", documents.size());
         data.put("returnedResults", documents.size());
         data.put("hybridSearchUsed", false);
-        data.put("metadata", Map.of(
-            "source", "shopify-admin-api",
-            "shopDomain", acquisition.store().shopDomain(),
-            "relationshipMode", "SHOPIFY_COMPANION_LIVE_CATALOG"
-        ));
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("source", "shopify-admin-api");
+        metadata.put("shopDomain", acquisition.store().shopDomain());
+        metadata.put("relationshipMode", "SHOPIFY_COMPANION_LIVE_CATALOG");
+        metadata.put("productSearchQueries", productSearchQueries);
+        metadata.put("productFallbackToRecentCatalog", productFallbackToRecentCatalog);
+        data.put("metadata", metadata);
         return ShopifyBridgeActionResult.ok(
             documents.isEmpty() ? "No relationship query results found." : "Relationship query results",
             data
@@ -408,6 +417,89 @@ public class ShopifyBridgeActionExecutionService {
             items.add(toProductItem(acquisition.store().shopDomain(), node));
         }
         return items;
+    }
+
+    private ProductRelationshipSearch fetchRelationshipProducts(ShopifyBridgeCredentialAcquisition acquisition,
+                                                                String query,
+                                                                int limit) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        List<String> attemptedQueries = new ArrayList<>();
+        for (String searchQuery : relationshipProductSearchQueries(query)) {
+            attemptedQueries.add(searchQuery);
+            addUniqueProducts(items, fetchProducts(acquisition, searchQuery), limit);
+            if (items.size() >= limit) {
+                return new ProductRelationshipSearch(items, attemptedQueries, false);
+            }
+        }
+        if (items.isEmpty()) {
+            attemptedQueries.add("<recent-catalog>");
+            addUniqueProducts(items, fetchProducts(acquisition, null), limit);
+            return new ProductRelationshipSearch(items, attemptedQueries, true);
+        }
+        return new ProductRelationshipSearch(items, attemptedQueries, false);
+    }
+
+    private List<String> relationshipProductSearchQueries(String query) {
+        LinkedHashSet<String> queries = new LinkedHashSet<>();
+        String normalized = normalize(query);
+        if (normalized != null) {
+            queries.add(normalized);
+        }
+        List<String> tokens = relationshipProductSearchTokens(query);
+        if (!tokens.isEmpty()) {
+            queries.add(String.join(" ", tokens));
+            tokens.forEach(queries::add);
+        }
+        return new ArrayList<>(queries);
+    }
+
+    private List<String> relationshipProductSearchTokens(String query) {
+        String normalized = normalize(query);
+        if (normalized == null) {
+            return List.of();
+        }
+        Set<String> stopWords = Set.of(
+            "a", "an", "and", "are", "as", "at", "be", "before", "best", "better", "buy", "can",
+            "catalog", "compare", "comparison", "find", "for", "from", "good", "help", "i", "in",
+            "is", "item", "items", "me", "my", "of", "on", "option", "options", "or", "please",
+            "product", "products", "recommend", "recommendation", "recommendations", "safe", "safest",
+            "shop", "shopping", "should", "similar", "store", "tell", "that", "the", "these", "this",
+            "those", "to", "which", "with", "you"
+        );
+        return java.util.Arrays.stream(normalized.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9\\s-]", " ").split("\\s+"))
+            .map(String::trim)
+            .filter(token -> token.length() >= 3)
+            .map(this::singularCatalogToken)
+            .filter(token -> !stopWords.contains(token))
+            .distinct()
+            .toList();
+    }
+
+    private String singularCatalogToken(String token) {
+        if (token.length() > 4 && token.endsWith("ies")) {
+            return token.substring(0, token.length() - 3) + "y";
+        }
+        if (token.length() > 4 && token.endsWith("s") && !token.endsWith("ss")) {
+            return token.substring(0, token.length() - 1);
+        }
+        return token;
+    }
+
+    private void addUniqueProducts(List<Map<String, Object>> target,
+                                   List<Map<String, Object>> candidates,
+                                   int limit) {
+        for (Map<String, Object> candidate : candidates) {
+            if (target.size() >= limit) {
+                return;
+            }
+            String candidateKey = firstNonBlank(text(candidate, "id"), text(candidate, "handle"), text(candidate, "title"));
+            boolean alreadyPresent = target.stream()
+                .map(item -> firstNonBlank(text(item, "id"), text(item, "handle"), text(item, "title")))
+                .anyMatch(existingKey -> existingKey != null && existingKey.equals(candidateKey));
+            if (!alreadyPresent) {
+                target.add(candidate);
+            }
+        }
     }
 
     private List<Map<String, Object>> fetchPolicies(ShopifyBridgeCredentialAcquisition acquisition) {
@@ -866,6 +958,11 @@ public class ShopifyBridgeActionExecutionService {
     }
 
     private record ProductLookup(Map<String, Object> product, Map<String, Object> variant, String lookupMethod) {
+    }
+
+    private record ProductRelationshipSearch(List<Map<String, Object>> items,
+                                             List<String> queries,
+                                             boolean fallbackToRecentCatalog) {
     }
 
 }
