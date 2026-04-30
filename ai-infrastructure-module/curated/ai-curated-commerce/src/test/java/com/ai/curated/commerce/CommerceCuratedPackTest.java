@@ -42,13 +42,13 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution()).isNotNull();
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getEnabled()).isTrue();
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getAllowedReadActions())
-            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .contains("list_products", "search_products", "relationship_query", "get_product_details", "check_availability", "get_policy", "view_cart")
             .doesNotContain("find_similar_products", "compare_products");
         assertThat(props.getModes().get("thinker").getReadActionResolution()).isNotNull();
         assertThat(props.getModes().get("thinker").getReadActionResolution().getPlanningMode())
             .isEqualTo(OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE);
         assertThat(props.getModes().get("thinker").getReadActionResolution().getAllowedReadActions())
-            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .contains("list_products", "search_products", "relationship_query", "get_product_details", "check_availability", "get_policy", "view_cart")
             .doesNotContain("find_similar_products", "compare_products");
 
         // Commerce pack intentionally uses the default prompt bundle (no overlays) to avoid duplication.
