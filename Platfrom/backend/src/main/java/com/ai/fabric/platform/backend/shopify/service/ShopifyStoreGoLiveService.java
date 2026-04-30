@@ -23,7 +23,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,13 +35,6 @@ public class ShopifyStoreGoLiveService {
 
     private static final String SHOPIFY_BRIDGE_SHARED_SECRET_ENV = "SHOPIFY_BRIDGE_SHARED_SECRET";
     private static final String SHOPIFY_BRIDGE_API_KEY_HEADER = "X-BRIDGE-API-KEY";
-    private static final List<String> SHOPIFY_COMPANION_ACTION_IDS = List.of(
-        "list_products",
-        "search_products",
-        "get_product_details",
-        "check_availability",
-        "get_policy"
-    );
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     private final ShopifyStoreConnectionRepository repository;
@@ -187,9 +179,9 @@ public class ShopifyStoreGoLiveService {
         changed |= putText(upstreamAuth, "value", "${" + SHOPIFY_BRIDGE_SHARED_SECRET_ENV + "}");
 
         ObjectNode actions = ensureNestedObject(routingConfig, "actions");
-        Set<String> allowedActionIds = allowedShopifyCompanionActionIds(draft.actionsConfig());
+        Set<String> allowedActionIds = ShopifyCompanionActionCatalog.routeActionIds(draft.actionsConfig());
         changed |= pruneStaleShopifyCompanionActionRoutes(actions, allowedActionIds, store.getShopDomain());
-        for (String actionId : SHOPIFY_COMPANION_ACTION_IDS) {
+        for (String actionId : allowedActionIds) {
             changed |= ensureShopifyCompanionActionRoute(actions, actionId, store.getShopDomain());
         }
 
@@ -227,22 +219,6 @@ public class ShopifyStoreGoLiveService {
         changed |= putText(body, "idempotencyKey", "{{idempotencyKey}}");
         changed |= putText(body, "trace", "{{trace}}");
         return changed;
-    }
-
-    private Set<String> allowedShopifyCompanionActionIds(JsonNode actionsConfig) {
-        LinkedHashSet<String> actionIds = new LinkedHashSet<>();
-        if (actionsConfig != null && actionsConfig.path("actions").isArray()) {
-            for (JsonNode action : actionsConfig.path("actions")) {
-                String actionId = blankToNull(action.path("name").asText(null));
-                if (actionId != null) {
-                    actionIds.add(actionId);
-                }
-            }
-        }
-        if (actionIds.isEmpty()) {
-            actionIds.addAll(SHOPIFY_COMPANION_ACTION_IDS);
-        }
-        return actionIds;
     }
 
     private boolean pruneStaleShopifyCompanionActionRoutes(ObjectNode actions,

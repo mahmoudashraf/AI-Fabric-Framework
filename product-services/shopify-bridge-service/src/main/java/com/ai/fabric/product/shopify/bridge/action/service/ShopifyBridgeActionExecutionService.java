@@ -3,6 +3,9 @@ package com.ai.fabric.product.shopify.bridge.action.service;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExecuteRequest;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantRequest;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
@@ -74,11 +77,14 @@ public class ShopifyBridgeActionExecutionService {
 
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
+    private final ShopifyStorefrontGovernedActionService governedActionService;
 
     public ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
-                                               ShopifyAdminGraphqlClient shopifyAdminGraphqlClient) {
+                                               ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
+                                               ShopifyStorefrontGovernedActionService governedActionService) {
         this.installCredentialService = installCredentialService;
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
+        this.governedActionService = governedActionService;
     }
 
     public ShopifyBridgeActionResult execute(String shopDomain, ShopifyBridgeActionExecuteRequest request) {
@@ -105,6 +111,8 @@ public class ShopifyBridgeActionExecutionService {
             case "get_product_details" -> getProductDetails(acquisition.get(), request);
             case "check_availability" -> checkAvailability(acquisition.get(), request);
             case "get_policy" -> getPolicy(acquisition.get(), request);
+            case "add_product_to_cart", "add_to_cart" -> addProductToCart(acquisition.get(), request);
+            case "update_cart_quantity" -> updateCartQuantity(acquisition.get(), request);
             default -> ShopifyBridgeActionResult.failure("ACTION_NOT_SUPPORTED", "Action is not supported.");
         };
     }
@@ -194,6 +202,129 @@ public class ShopifyBridgeActionExecutionService {
             result.isEmpty() ? "No policies found." : "Policies",
             data
         );
+    }
+
+    private ShopifyBridgeActionResult addProductToCart(ShopifyBridgeCredentialAcquisition acquisition,
+                                                       ShopifyBridgeActionExecuteRequest request) {
+        ProductLookup lookup = resolveGuidedCommerceProduct(acquisition, request);
+        if (lookup == null) {
+            return ShopifyBridgeActionResult.failure(
+                "PRODUCT_SELECTION_REQUIRED",
+                "Choose a specific product or variant before adding it to the cart."
+            );
+        }
+        Map<String, Object> variant = lookup.variant();
+        if (variant == null || numericShopifyId(text(variant, "id")) == null) {
+            return ShopifyBridgeActionResult.failure(
+                "VARIANT_SELECTION_REQUIRED",
+                "Choose a Shopify variant before adding it to the cart."
+            );
+        }
+        return grantGuidedCommerce(
+            acquisition,
+            request,
+            "ADD_TO_CART",
+            lookup.product(),
+            variant,
+            integerParam(request, "quantity", 1, 1, 10),
+            null,
+            null
+        );
+    }
+
+    private ShopifyBridgeActionResult updateCartQuantity(ShopifyBridgeCredentialAcquisition acquisition,
+                                                         ShopifyBridgeActionExecuteRequest request) {
+        String cartLineKey = firstNonBlank(textParam(request, "cartLineKey"), textParam(request, "lineKey"));
+        if (cartLineKey == null) {
+            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.cartLineKey is required.");
+        }
+        Integer targetQuantity = requiredIntegerParam(request, "targetQuantity", 0, 25);
+        if (targetQuantity == null) {
+            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.targetQuantity must be a number between 0 and 25.");
+        }
+        ProductLookup lookup = resolveGuidedCommerceProduct(acquisition, request);
+        if (lookup == null || lookup.variant() == null || numericShopifyId(text(lookup.variant(), "id")) == null) {
+            return ShopifyBridgeActionResult.failure("VARIANT_SELECTION_REQUIRED", "params.variantId or a resolvable product query is required.");
+        }
+        return grantGuidedCommerce(
+            acquisition,
+            request,
+            "UPDATE_CART_QUANTITY",
+            lookup.product(),
+            lookup.variant(),
+            null,
+            targetQuantity,
+            cartLineKey
+        );
+    }
+
+    private ShopifyBridgeActionResult grantGuidedCommerce(ShopifyBridgeCredentialAcquisition acquisition,
+                                                          ShopifyBridgeActionExecuteRequest request,
+                                                          String actionType,
+                                                          Map<String, Object> product,
+                                                          Map<String, Object> variant,
+                                                          Integer requestedQuantity,
+                                                          Integer targetQuantity,
+                                                          String cartLineKey) {
+        String shopperSessionId = shopperSessionId(request);
+        if (shopperSessionId == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SHOPPER_SESSION_REQUIRED",
+                "A shopper session identifier is required for governed commerce actions."
+            );
+        }
+        String productId = numericShopifyId(text(product, "id"));
+        String variantId = numericShopifyId(text(variant, "id"));
+        try {
+            ShopifyStorefrontGovernedActionGrantResponse grant = governedActionService.grant(
+                acquisition.store().shopDomain(),
+                new ShopifyStorefrontGovernedActionGrantRequest(
+                    actionType,
+                    firstNonBlank(textParam(request, "surfaceId"), "max-mode"),
+                    firstNonBlank(textParam(request, "pageType"), "product"),
+                    productId,
+                    firstNonBlank(textParam(request, "productHandle"), text(product, "handle")),
+                    firstNonBlank(textParam(request, "productTitle"), text(product, "title")),
+                    variantId,
+                    requestedQuantity,
+                    targetQuantity,
+                    cartLineKey,
+                    true
+                ),
+                shopperSessionId
+            );
+            LinkedHashMap<String, Object> data = new LinkedHashMap<>();
+            data.put("actionType", grant.actionType());
+            data.put("actionPackage", grant.actionPackage());
+            data.put("operationKind", grant.operationKind());
+            data.put("auditId", grant.auditId());
+            data.put("token", grant.token());
+            data.put("variantId", grant.variantId());
+            data.put("requestedQuantity", grant.requestedQuantity());
+            data.put("targetQuantity", grant.targetQuantity());
+            data.put("cartLineKey", grant.cartLineKey());
+            data.put("confirmationRequired", grant.confirmationRequired());
+            data.put("confirmationAccepted", true);
+            data.put("expiresAt", grant.expiresAt());
+            data.put("productTitle", text(product, "title"));
+            data.put("productHandle", text(product, "handle"));
+            data.put("productId", productId);
+            data.put("storefrontUrl", product.get("storefrontUrl"));
+            data.put("clientCompletionRequired", true);
+            data.put("completePath", "/api/storefront/shops/" + acquisition.store().shopDomain() + "/actions/complete");
+            data.put("message", grant.message());
+            return ShopifyBridgeActionResult.ok(
+                "ADD_TO_CART".equals(actionType)
+                    ? "Guided add-to-cart grant created."
+                    : "Guided cart update grant created.",
+                data
+            );
+        } catch (ResponseStatusException ex) {
+            String message = ex.getReason() == null || ex.getReason().isBlank()
+                ? "Governed commerce action could not be granted."
+                : ex.getReason();
+            return ShopifyBridgeActionResult.failure("GOVERNED_ACTION_REJECTED", message);
+        }
     }
 
     private List<Map<String, Object>> fetchProducts(ShopifyBridgeCredentialAcquisition acquisition,
@@ -291,6 +422,27 @@ public class ShopifyBridgeActionExecutionService {
             return null;
         }
         return new ProductLookup(product, primaryAvailabilityVariant(product), "TITLE_OR_HANDLE");
+    }
+
+    private ProductLookup resolveGuidedCommerceProduct(ShopifyBridgeCredentialAcquisition acquisition,
+                                                       ShopifyBridgeActionExecuteRequest request) {
+        String variantId = numericShopifyId(firstNonBlank(textParam(request, "variantId"), textParam(request, "shopifyVariantId")));
+        if (variantId != null) {
+            LinkedHashMap<String, Object> product = new LinkedHashMap<>();
+            product.put("id", firstNonBlank(textParam(request, "productId"), textParam(request, "shopifyProductId"), ""));
+            product.put("title", firstNonBlank(textParam(request, "productTitle"), textParam(request, "title"), ""));
+            product.put("handle", firstNonBlank(textParam(request, "productHandle"), textParam(request, "handle"), ""));
+            product.put("storefrontUrl", storefrontUrl(acquisition.store().shopDomain(), text(product, "handle")));
+            LinkedHashMap<String, Object> variant = new LinkedHashMap<>();
+            variant.put("id", variantId);
+            variant.put("title", firstNonBlank(textParam(request, "variantTitle"), ""));
+            return new ProductLookup(product, variant, "VARIANT_ID");
+        }
+        String lookupValue = productLookupValue(request);
+        if (lookupValue == null) {
+            return null;
+        }
+        return findProduct(acquisition, lookupValue);
     }
 
     @SuppressWarnings("unchecked")
@@ -425,6 +577,19 @@ public class ShopifyBridgeActionExecutionService {
         }
     }
 
+    private Integer requiredIntegerParam(ShopifyBridgeActionExecuteRequest request, String key, int min, int max) {
+        String raw = textParam(request, key);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            int value = Integer.parseInt(raw);
+            return value < min || value > max ? null : value;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private String text(Map<String, Object> node, String field) {
         Object value = node == null ? null : node.get(field);
         return value == null ? "" : value.toString().trim();
@@ -492,6 +657,45 @@ public class ShopifyBridgeActionExecutionService {
             String normalized = normalize(value);
             if (normalized != null) {
                 return normalized;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String shopperSessionId(ShopifyBridgeActionExecuteRequest request) {
+        if (request == null) {
+            return null;
+        }
+        if (request.trace() != null) {
+            Object direct = request.trace().get("sessionId");
+            if (direct != null && !direct.toString().isBlank()) {
+                return direct.toString().trim();
+            }
+            Object authContext = request.trace().get("authContext");
+            if (authContext instanceof Map<?, ?> map) {
+                Object session = map.get("sessionId");
+                if (session != null && !session.toString().isBlank()) {
+                    return session.toString().trim();
+                }
+            }
+        }
+        return firstNonBlank(textParam(request, "shopperSessionId"), request.idempotencyKey());
+    }
+
+    private String numericShopifyId(String value) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            return null;
+        }
+        if (normalized.chars().allMatch(Character::isDigit)) {
+            return normalized;
+        }
+        int slash = normalized.lastIndexOf('/');
+        if (slash >= 0 && slash + 1 < normalized.length()) {
+            String tail = normalized.substring(slash + 1);
+            if (!tail.isBlank() && tail.chars().allMatch(Character::isDigit)) {
+                return tail;
             }
         }
         return null;

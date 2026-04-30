@@ -3,6 +3,9 @@ package com.ai.fabric.product.shopify.bridge.action.service;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExecuteRequest;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantRequest;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
@@ -15,6 +18,7 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,7 +32,7 @@ class ShopifyBridgeActionExecutionServiceTest {
     void listProductsReturnsProductItems() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenReturn(Map.of(
@@ -98,7 +102,7 @@ class ShopifyBridgeActionExecutionServiceTest {
     void checkAvailabilityRequiresSku() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
 
@@ -116,7 +120,7 @@ class ShopifyBridgeActionExecutionServiceTest {
     void checkAvailabilityFallsBackToTitleLookupWhenPlannerSuppliesTitleAsSku() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any()))
@@ -167,7 +171,7 @@ class ShopifyBridgeActionExecutionServiceTest {
     void unsupportedActionReturnsFailure() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
 
@@ -184,7 +188,7 @@ class ShopifyBridgeActionExecutionServiceTest {
     void getPolicyFiltersFetchedPoliciesByQuery() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any())).thenReturn(Map.of(
@@ -232,7 +236,7 @@ class ShopifyBridgeActionExecutionServiceTest {
     void getPolicyAcceptsPolicyTypeAndOmitsNullQuery() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(credentialService, graphqlClient);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
         when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any())).thenReturn(Map.of(
@@ -279,6 +283,153 @@ class ShopifyBridgeActionExecutionServiceTest {
         assertThat(unfilteredResult.success()).isTrue();
         assertThat(unfilteredResult.data()).doesNotContainKey("query");
         assertThat((List<?>) unfilteredResult.data().get("items")).hasSize(2);
+    }
+
+    @Test
+    void addProductToCartCreatesGovernedCommerceGrant() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyStorefrontGovernedActionService governedActionService = mock(ShopifyStorefrontGovernedActionService.class);
+        AtomicReference<ShopifyStorefrontGovernedActionGrantRequest> grantRequest = new AtomicReference<>();
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(
+            credentialService,
+            graphqlClient,
+            governedActionService
+        );
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenReturn(Map.of(
+            "data", Map.of(
+                "products", Map.of(
+                    "edges", List.of(
+                        productEdge(
+                            "gid://shopify/Product/99",
+                            "The Minimal Snowboard",
+                            "the-minimal-snowboard",
+                            "",
+                            "Hydrogen Vendor",
+                            "",
+                            "2026-04-19T00:00:00Z",
+                            "gid://shopify/ProductVariant/123456789",
+                            "Default Title",
+                            "",
+                            true,
+                            4,
+                            "885.95"
+                        )
+                    )
+                )
+            )
+        ));
+        when(governedActionService.grant(eq("alpha.myshopify.com"), any(), eq("shopper-session-1")))
+            .thenAnswer(invocation -> {
+                grantRequest.set(invocation.getArgument(1));
+                return new ShopifyStorefrontGovernedActionGrantResponse(
+                    "sga-1",
+                    "signed-token",
+                    "ADD_TO_CART",
+                    "guided-commerce",
+                    "CART_ADD",
+                    "123456789",
+                    2,
+                    null,
+                    null,
+                    true,
+                    Instant.parse("2026-04-23T12:05:00Z"),
+                    "Guided add-to-cart approval granted."
+                );
+            });
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "add_product_to_cart",
+                Map.of("query", "The Minimal Snowboard", "quantity", 2, "surfaceId", "max-mode"),
+                "idem-1",
+                Map.of("sessionId", "shopper-session-1")
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("Guided add-to-cart grant created.");
+        assertThat(result.data()).containsEntry("auditId", "sga-1");
+        assertThat(result.data()).containsEntry("operationKind", "CART_ADD");
+        assertThat(result.data()).containsEntry("variantId", "123456789");
+        assertThat(result.data()).containsEntry("clientCompletionRequired", true);
+        assertThat(grantRequest.get()).isNotNull();
+        assertThat(grantRequest.get().actionType()).isEqualTo("ADD_TO_CART");
+        assertThat(grantRequest.get().variantId()).isEqualTo("123456789");
+        assertThat(grantRequest.get().requestedQuantity()).isEqualTo(2);
+        assertThat(grantRequest.get().confirmationAccepted()).isTrue();
+
+        when(governedActionService.grant(eq("alpha.myshopify.com"), any(), eq("param-session-1")))
+            .thenReturn(new ShopifyStorefrontGovernedActionGrantResponse(
+                "sga-2",
+                "signed-token-2",
+                "ADD_TO_CART",
+                "guided-commerce",
+                "CART_ADD",
+                "123456789",
+                1,
+                null,
+                null,
+                true,
+                Instant.parse("2026-04-23T12:06:00Z"),
+                "Guided add-to-cart approval granted."
+            ));
+
+        ShopifyBridgeActionResult fallbackSessionResult = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "add_product_to_cart",
+                Map.of("query", "The Minimal Snowboard", "shopperSessionId", "param-session-1"),
+                null,
+                null
+            )
+        );
+
+        assertThat(fallbackSessionResult.success()).isTrue();
+        assertThat(fallbackSessionResult.data()).containsEntry("auditId", "sga-2");
+    }
+
+    @Test
+    void addProductToCartRequiresShopperSessionForAuditBinding() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenReturn(Map.of(
+            "data", Map.of(
+                "products", Map.of(
+                    "edges", List.of(
+                        productEdge(
+                            "gid://shopify/Product/99",
+                            "The Minimal Snowboard",
+                            "the-minimal-snowboard",
+                            "",
+                            "Hydrogen Vendor",
+                            "",
+                            "2026-04-19T00:00:00Z",
+                            "gid://shopify/ProductVariant/123456789",
+                            "Default Title",
+                            "",
+                            true,
+                            4,
+                            "885.95"
+                        )
+                    )
+                )
+            )
+        ));
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest("add_product_to_cart", Map.of("query", "The Minimal Snowboard"), null, Map.of())
+        );
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("SHOPPER_SESSION_REQUIRED");
     }
 
     private ShopifyBridgeCredentialAcquisition acquisition(String shopDomain) {
@@ -330,6 +481,15 @@ class ShopifyBridgeActionExecutionServiceTest {
                 "read_products,read_content,read_legal_policies",
                 false
             )
+        );
+    }
+
+    private ShopifyBridgeActionExecutionService service(ShopifyBridgeInstallCredentialService credentialService,
+                                                        ShopifyAdminGraphqlClient graphqlClient) {
+        return new ShopifyBridgeActionExecutionService(
+            credentialService,
+            graphqlClient,
+            mock(ShopifyStorefrontGovernedActionService.class)
         );
     }
 

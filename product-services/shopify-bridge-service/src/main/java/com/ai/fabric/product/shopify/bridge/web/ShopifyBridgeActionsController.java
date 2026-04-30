@@ -35,7 +35,11 @@ public class ShopifyBridgeActionsController {
         return switch (result.errorCode() == null ? "" : result.errorCode()) {
             case "INVALID_REQUEST" -> HttpStatus.BAD_REQUEST;
             case "NOT_FOUND", "ACTION_NOT_SUPPORTED" -> HttpStatus.NOT_FOUND;
-            case "NOT_CONNECTED" -> HttpStatus.CONFLICT;
+            case "NOT_CONNECTED",
+                 "PRODUCT_SELECTION_REQUIRED",
+                 "VARIANT_SELECTION_REQUIRED",
+                 "SHOPPER_SESSION_REQUIRED",
+                 "GOVERNED_ACTION_REJECTED" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_GATEWAY;
         };
     }

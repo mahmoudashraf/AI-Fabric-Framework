@@ -160,7 +160,9 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("search_products")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_product_details")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("check_availability")))
-            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_policy")));
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_policy")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("add_product_to_cart")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("update_cart_quantity")));
 
         mockMvc.perform(asAdmin(
                 get("/api/marketplace/plugins/{pluginId}/versions/{version}", "mkp-action-shopify-companion-read", "1.0.0")
@@ -170,7 +172,9 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='list_products')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='check_availability')].groundingEligible", is(List.of(true))))
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='check_availability')].readActionResolutionEligible", is(List.of(true))))
-            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='get_policy')].anonymousAllowed", is(List.of(true))));
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='get_policy')].anonymousAllowed", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='add_product_to_cart')].requiresConfirmation", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='add_product_to_cart')].groundingEligible", is(List.of(false))));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
@@ -867,7 +871,9 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='check_availability')].groundingEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='check_availability')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].groundingEligible", is(List.of(true))))
-            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].readActionResolutionEligible", is(List.of(true))));
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].readActionResolutionEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='add_product_to_cart')].requiresConfirmation", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='add_product_to_cart')].accessMode", is(List.of("WRITE_ONLY"))));
 
         String draftId = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()).id());
         String versionId = runAsAdmin(() -> deploymentService.publishDraft(draftId).id());
@@ -877,6 +883,8 @@ class MarketplaceIntegrationTest {
 
         assertThat(actionsArtifactYaml).contains("name: \"list_products\"");
         assertThat(actionsArtifactYaml).contains("name: \"check_availability\"");
+        assertThat(actionsArtifactYaml).contains("name: \"add_product_to_cart\"");
+        assertThat(actionsArtifactYaml).contains("requiresConfirmation: true");
         assertThat(actionsArtifactYaml).doesNotContain("name: \"find_similar_products\"");
         assertThat(actionsArtifactYaml).doesNotContain("name: \"compare_products\"");
         assertThat(actionsArtifactYaml).contains("groundingEligible: true");
