@@ -1823,12 +1823,15 @@ public class IntentHandlingStep implements PipelineStep {
                                                                      AIActionMetaData metadata,
                                                                      OrchestrationPolicy policy) {
         boolean isRelationshipQuery = ACTION_RELATIONSHIP_QUERY.equalsIgnoreCase(actionName);
+        boolean forceReadActionGeneration = shouldForceReadActionPostActionGeneration(actionName, metadata, policy);
         if (isRelationshipQuery) {
-            if (relationshipQueryPostActionGenerationProperties == null || !relationshipQueryPostActionGenerationProperties.isEnabled()) {
+            if (relationshipQueryPostActionGenerationProperties == null
+                || (!relationshipQueryPostActionGenerationProperties.isEnabled() && !forceReadActionGeneration)) {
                 return ResolvedPostActionGeneration.disabled();
             }
         } else {
-            if (postActionGenerationProperties == null || !postActionGenerationProperties.isEnabled()) {
+            if (postActionGenerationProperties == null
+                || (!postActionGenerationProperties.isEnabled() && !forceReadActionGeneration)) {
                 return ResolvedPostActionGeneration.disabled();
             }
         }
@@ -1841,12 +1844,12 @@ public class IntentHandlingStep implements PipelineStep {
             instructions = intent.getGenerationInstructions();
         }
 
-        if (!requested && shouldForceReadActionPostActionGeneration(actionName, metadata, policy)) {
+        if (!requested && forceReadActionGeneration) {
             requested = true;
             instructions = "Answer the user's request from the read-action result facts. If the facts are insufficient, state what is missing instead of inventing details.";
         }
 
-        return new ResolvedPostActionGeneration(requested, instructions);
+        return new ResolvedPostActionGeneration(requested, instructions, forceReadActionGeneration);
     }
 
     private boolean shouldForceReadActionPostActionGeneration(String actionName,
@@ -1862,7 +1865,8 @@ public class IntentHandlingStep implements PipelineStep {
                                                                              OrchestrationContext context,
                                                                              PipelineContext pipelineContext,
                                                                              Map<String, Object> actionParams) {
-        if (handler == null || postActionGenerationProperties == null || !postActionGenerationProperties.isEnabled()) {
+        boolean forced = request != null && request.forced();
+        if (handler == null || postActionGenerationProperties == null || (!postActionGenerationProperties.isEnabled() && !forced)) {
             return null;
         }
 
@@ -2177,9 +2181,9 @@ public class IntentHandlingStep implements PipelineStep {
     private record PostActionGenerationOutcome(String summary, String message, Map<String, Object> metadata) {
     }
 
-    private record ResolvedPostActionGeneration(boolean shouldGenerate, String generationInstructions) {
+    private record ResolvedPostActionGeneration(boolean shouldGenerate, String generationInstructions, boolean forced) {
         static ResolvedPostActionGeneration disabled() {
-            return new ResolvedPostActionGeneration(false, null);
+            return new ResolvedPostActionGeneration(false, null, false);
         }
     }
     

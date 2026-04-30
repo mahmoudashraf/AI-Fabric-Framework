@@ -166,7 +166,7 @@ class IntentHandlingStepPostActionGenerationTest {
                 .build());
 
         RelationshipQueryPostActionGenerationProperties relationshipProperties = new RelationshipQueryPostActionGenerationProperties();
-        relationshipProperties.setEnabled(true);
+        relationshipProperties.setEnabled(false);
 
         IntentHandlingStep step = new IntentHandlingStep(
             registry,
