@@ -97,6 +97,25 @@ public class ResponseSanitizationProperties {
      */
     private boolean publishEvents = true;
 
+    /**
+     * Remove generic assistant closing sentences from generated answers before they reach clients.
+     */
+    private boolean removeGenericAssistanceClosers = true;
+
+    /**
+     * Case-insensitive terminal sentence prefixes treated as generic closers.
+     */
+    private List<String> genericAssistanceCloserPrefixes = List.of(
+        "if you have any other",
+        "if you have more",
+        "if you need any",
+        "if you need more",
+        "let me know if",
+        "feel free to ask",
+        "happy to help",
+        "i hope this helps"
+    );
+
     public Set<String> normalizedHighRiskTypes() {
         return highRiskTypes.stream()
             .map(type -> type == null ? null : type.trim().toUpperCase(Locale.ROOT))

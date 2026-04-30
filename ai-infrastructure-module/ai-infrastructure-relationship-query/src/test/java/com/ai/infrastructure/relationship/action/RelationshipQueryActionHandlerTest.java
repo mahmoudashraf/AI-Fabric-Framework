@@ -224,6 +224,62 @@ class RelationshipQueryActionHandlerTest {
         assertThat(entityTypesCaptor.getValue()).containsExactly("user", "product");
     }
 
+    @Test
+    void buildFactsShouldExposeCompactDocumentMetadataForGeneration() {
+        RAGResponse.RAGDocument document = RAGResponse.RAGDocument.builder()
+            .id("gid://shopify/Product/1")
+            .title("The Collection Snowboard: Liquid")
+            .type("product")
+            .content("The Collection Snowboard: Liquid")
+            .metadata(Map.of(
+                "handle", "the-collection-snowboard-liquid",
+                "vendor", "Hydrogen Vendor",
+                "productType", "snowboard",
+                "available", true,
+                "price", "749.95",
+                "inventoryQuantity", 50,
+                "primarySku", "",
+                "storefrontUrl", "https://shopping-companion-test.myshopify.com/products/the-collection-snowboard-liquid",
+                "raw", "large internal payload"
+            ))
+            .build();
+        when(queryService.execute(any(), anyList(), any(QueryOptions.class)))
+            .thenReturn(RAGResponse.builder()
+                .success(true)
+                .totalResults(1)
+                .returnedResults(1)
+                .entityType("product")
+                .documents(List.of(document))
+                .build());
+
+        ActionResult result = handler.execute(
+            "Find similar available snowboards under 800 dollars",
+            List.of("product"),
+            10,
+            ReturnMode.FULL,
+            null,
+            actionContext("user-123")
+        );
+
+        Map<String, Object> facts = handler.buildFacts(result, actionContext("user-123"));
+
+        assertThat(facts)
+            .containsEntry("success", true)
+            .containsEntry("totalResults", 1)
+            .containsEntry("returnedResults", 1);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get("documents");
+        assertThat(documents).hasSize(1);
+        assertThat(documents.getFirst())
+            .containsEntry("title", "The Collection Snowboard: Liquid")
+            .containsEntry("handle", "the-collection-snowboard-liquid")
+            .containsEntry("price", "749.95")
+            .containsEntry("available", true)
+            .containsEntry("inventoryQuantity", 50)
+            .containsEntry("sourceUrl", "https://shopping-companion-test.myshopify.com/products/the-collection-snowboard-liquid")
+            .doesNotContainKey("raw");
+    }
+
     private static ActionContext actionContext(String userId) {
         OrchestrationContext context = userId == null
             ? OrchestrationContext.builder().build()

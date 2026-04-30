@@ -43,6 +43,9 @@ public class ResponseSanitizationStep implements PipelineStep {
     // Sanitization keys
     private static final String SANITIZATION_KEY = "sanitization";
     private static final String DETECTED_TYPES_KEY = "detectedTypes";
+    private static final String MESSAGE_KEY = "message";
+    private static final String DATA_KEY = "data";
+    private static final String ANSWER_KEY = "answer";
     
     // =========================================================================
     // Dependencies
@@ -111,6 +114,7 @@ public class ResponseSanitizationStep implements PipelineStep {
         }
         
         result.setSanitizedPayload(sanitizedPayload);
+        applySanitizedTextMirrors(result, sanitizedPayload);
         
         log.debug("Response sanitization complete for request {}", context.getRequestId());
         
@@ -161,5 +165,31 @@ public class ResponseSanitizationStep implements PipelineStep {
         }
         
         return sanitizedPayload;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applySanitizedTextMirrors(OrchestrationResult result, Map<String, Object> sanitizedPayload) {
+        Object sanitizedMessage = sanitizedPayload.get(MESSAGE_KEY);
+        if (sanitizedMessage instanceof String message) {
+            result.setMessage(message);
+        }
+
+        Object sanitizedData = sanitizedPayload.get(DATA_KEY);
+        if (!(sanitizedData instanceof Map<?, ?> sanitizedDataMap)) {
+            return;
+        }
+        Object sanitizedAnswer = sanitizedDataMap.get(ANSWER_KEY);
+        if (!(sanitizedAnswer instanceof String answer)) {
+            return;
+        }
+        Map<String, Object> originalData = result.getData() != null
+            ? result.getData()
+            : Collections.emptyMap();
+        if (answer.equals(originalData.get(ANSWER_KEY))) {
+            return;
+        }
+        Map<String, Object> updatedData = new LinkedHashMap<>(originalData);
+        updatedData.put(ANSWER_KEY, answer);
+        result.setData(Collections.unmodifiableMap(updatedData));
     }
 }

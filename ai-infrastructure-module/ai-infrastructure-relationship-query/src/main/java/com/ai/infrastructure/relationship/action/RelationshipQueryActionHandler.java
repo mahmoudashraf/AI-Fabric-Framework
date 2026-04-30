@@ -9,6 +9,7 @@ import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.action.annotation.ActionAllowed;
 import com.ai.infrastructure.intent.action.annotation.ActionExecute;
+import com.ai.infrastructure.intent.action.annotation.ActionFacts;
 import com.ai.infrastructure.intent.action.annotation.Param;
 import com.ai.infrastructure.relationship.model.QueryMode;
 import com.ai.infrastructure.relationship.model.QueryOptions;
@@ -22,10 +23,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -235,6 +239,36 @@ public class RelationshipQueryActionHandler {
         return accessControlPolicy.canExecuteRelationshipQueries(authContext);
     }
 
+    @ActionFacts
+    public Map<String, Object> buildFacts(ActionResult actionResult, ActionContext context) {
+        if (actionResult == null) {
+            return Map.of();
+        }
+
+        Map<String, Object> facts = new LinkedHashMap<>();
+        facts.put("success", actionResult.isSuccess());
+        if (actionResult.getMessage() != null && !actionResult.getMessage().isBlank()) {
+            facts.put("message", actionResult.getMessage());
+        }
+        if (actionResult.getErrorCode() != null && !actionResult.getErrorCode().isBlank()) {
+            facts.put("errorCode", actionResult.getErrorCode());
+        }
+
+        Map<String, Object> data = actionResult.getData() != null
+            ? actionResult.getData().toMap()
+            : Map.of();
+        copyIfPresent(data, facts, DATA_KEY_TOTAL_RESULTS);
+        copyIfPresent(data, facts, DATA_KEY_RETURNED_RESULTS);
+        copyIfPresent(data, facts, DATA_KEY_ENTITY_TYPE);
+        copyIfPresent(data, facts, DATA_KEY_CONFIDENCE_SCORE);
+
+        Object documents = data.get(DATA_KEY_DOCUMENTS);
+        List<Map<String, Object>> documentFacts = compactDocumentFacts(documents);
+        facts.put(DATA_KEY_DOCUMENTS, documentFacts);
+        facts.put("documentCount", documentFacts.size());
+        return Collections.unmodifiableMap(facts);
+    }
+
     private QueryOptions buildQueryOptions(Integer limit, ReturnMode returnMode, Double similarityThreshold) {
         QueryOptions.QueryOptionsBuilder builder = QueryOptions.builder();
 
@@ -347,6 +381,132 @@ public class RelationshipQueryActionHandler {
             return ReturnMode.IDS;
         }
         return ReturnMode.fromValue(raw.toString());
+    }
+
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source != null && source.containsKey(key)) {
+            target.put(key, source.get(key));
+        }
+    }
+
+    private List<Map<String, Object>> compactDocumentFacts(Object documents) {
+        if (!(documents instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> facts = new ArrayList<>();
+        for (Object raw : list) {
+            if (facts.size() >= 8) {
+                break;
+            }
+            Map<String, Object> fact = compactDocumentFact(raw);
+            if (!fact.isEmpty()) {
+                facts.add(Collections.unmodifiableMap(fact));
+            }
+        }
+        return facts.isEmpty() ? List.of() : List.copyOf(facts);
+    }
+
+    private Map<String, Object> compactDocumentFact(Object raw) {
+        if (raw instanceof RAGResponse.RAGDocument document) {
+            Map<String, Object> fact = new LinkedHashMap<>();
+            putIfPresent(fact, "id", document.getId());
+            putIfPresent(fact, "title", document.getTitle());
+            putIfPresent(fact, "entityType", firstNonBlank(document.getType(), metadataString(document.getMetadata(), "entityType"), metadataString(document.getMetadata(), "documentType"), metadataString(document.getMetadata(), "vectorSpace")));
+            putSelectedMetadata(fact, document.getMetadata());
+            putIfPresent(fact, "sourceUrl", firstNonBlank(document.getUrl(), metadataString(document.getMetadata(), "sourceUrl"), metadataString(document.getMetadata(), "storefrontUrl")));
+            putIfPresent(fact, "content", truncate(document.getContent(), 300));
+            return fact;
+        }
+        if (raw instanceof Map<?, ?> map) {
+            Map<String, Object> fact = new LinkedHashMap<>();
+            putIfPresent(fact, "id", mapValue(map, "id"));
+            putIfPresent(fact, "title", mapValue(map, "title"));
+            putIfPresent(fact, "entityType", firstNonBlank(asString(mapValue(map, "entityType")), asString(mapValue(map, "type"))));
+            Object metadata = mapValue(map, "metadata");
+            if (metadata instanceof Map<?, ?> metadataMap) {
+                putSelectedMetadata(fact, metadataMap);
+                putIfPresent(fact, "sourceUrl", firstNonBlank(asString(mapValue(map, "url")), metadataString(metadataMap, "sourceUrl"), metadataString(metadataMap, "storefrontUrl")));
+            } else {
+                putIfPresent(fact, "sourceUrl", mapValue(map, "url"));
+            }
+            putIfPresent(fact, "content", truncate(asString(mapValue(map, "content")), 300));
+            return fact;
+        }
+        return Map.of();
+    }
+
+    private void putSelectedMetadata(Map<String, Object> fact, Map<?, ?> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return;
+        }
+        putIfPresent(fact, "handle", mapValue(metadata, "handle"));
+        putIfPresent(fact, "vendor", mapValue(metadata, "vendor"));
+        putIfPresent(fact, "productType", mapValue(metadata, "productType"));
+        putIfPresent(fact, "available", mapValue(metadata, "available"));
+        putIfPresent(fact, "price", mapValue(metadata, "price"));
+        putIfPresent(fact, "inventoryQuantity", mapValue(metadata, "inventoryQuantity"));
+        putIfPresent(fact, "primarySku", mapValue(metadata, "primarySku"));
+        putIfPresent(fact, "currency", mapValue(metadata, "currency"));
+    }
+
+    private Object mapValue(Map<?, ?> map, String key) {
+        if (map == null || key == null) {
+            return null;
+        }
+        Object direct = map.get(key);
+        if (direct != null) {
+            return direct;
+        }
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry != null && entry.getKey() != null && key.equalsIgnoreCase(entry.getKey().toString())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private String metadataString(Map<?, ?> metadata, String key) {
+        return asString(mapValue(metadata, key));
+    }
+
+    private void putIfPresent(Map<String, Object> target, String key, Object value) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof String text) {
+            String trimmed = text.trim();
+            if (!trimmed.isEmpty()) {
+                target.put(key, trimmed);
+            }
+            return;
+        }
+        target.put(key, value);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String asString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return Objects.toString(value, null);
+    }
+
+    private String truncate(String value, int maxChars) {
+        if (value == null || maxChars <= 0 || value.length() <= maxChars) {
+            return value;
+        }
+        return value.substring(0, Math.max(0, maxChars - 3)) + "...";
     }
 
 

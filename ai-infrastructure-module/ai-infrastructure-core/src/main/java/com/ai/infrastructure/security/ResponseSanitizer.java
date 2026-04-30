@@ -150,16 +150,17 @@ public class ResponseSanitizer {
         if (!StringUtils.hasText(text)) {
             return SanitizationOutcome.of(text, RiskLevel.NONE, List.of());
         }
+        String hygieneApplied = applyAnswerHygiene(text);
         if (piiDetectionService == null) {
-            return SanitizationOutcome.of(text, RiskLevel.NONE, List.of());
+            return SanitizationOutcome.of(hygieneApplied, RiskLevel.NONE, List.of());
         }
-        PIIDetectionResult analysis = piiDetectionService.analyze(text);
+        PIIDetectionResult analysis = piiDetectionService.analyze(hygieneApplied);
         if (!analysis.isPiiDetected()) {
-            return SanitizationOutcome.of(text, RiskLevel.NONE, List.of());
+            return SanitizationOutcome.of(hygieneApplied, RiskLevel.NONE, List.of());
         }
 
         String sanitized = properties.isForceRedaction()
-            ? redact(text, analysis.getDetections())
+            ? redact(hygieneApplied, analysis.getDetections())
             : analysis.getProcessedQuery();
 
         List<String> types = analysis.getDetections().stream()
@@ -180,6 +181,60 @@ public class ResponseSanitizer {
         }
 
         return SanitizationOutcome.of(sanitized, riskLevel, types);
+    }
+
+    private String applyAnswerHygiene(String text) {
+        if (!properties.isRemoveGenericAssistanceClosers() || !StringUtils.hasText(text)) {
+            return text;
+        }
+
+        String current = text.stripTrailing();
+        boolean changed;
+        do {
+            changed = false;
+            int start = lastSentenceStart(current);
+            if (start <= 0 || start >= current.length()) {
+                break;
+            }
+            String candidate = current.substring(start).trim();
+            if (isGenericAssistanceCloser(candidate)) {
+                current = current.substring(0, start).stripTrailing();
+                changed = true;
+            }
+        } while (changed && StringUtils.hasText(current));
+
+        return StringUtils.hasText(current) ? current : text;
+    }
+
+    private int lastSentenceStart(String text) {
+        if (!StringUtils.hasText(text)) {
+            return -1;
+        }
+        for (int i = text.length() - 2; i >= 0; i--) {
+            char ch = text.charAt(i);
+            if ((ch == '.' || ch == '!' || ch == '?') && Character.isWhitespace(text.charAt(i + 1))) {
+                int start = i + 1;
+                while (start < text.length() && Character.isWhitespace(text.charAt(start))) {
+                    start++;
+                }
+                return start;
+            }
+        }
+        return 0;
+    }
+
+    private boolean isGenericAssistanceCloser(String sentence) {
+        if (!StringUtils.hasText(sentence) || CollectionUtils.isEmpty(properties.getGenericAssistanceCloserPrefixes())) {
+            return false;
+        }
+        String normalized = sentence
+            .trim()
+            .replaceAll("\\s+", " ")
+            .toLowerCase(Locale.ROOT);
+        return properties.getGenericAssistanceCloserPrefixes().stream()
+            .filter(StringUtils::hasText)
+            .map(prefix -> prefix.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT))
+            .anyMatch(normalized::startsWith);
     }
 
     private SanitizationOutcome<Object> sanitizeObject(Object value, String userId) {

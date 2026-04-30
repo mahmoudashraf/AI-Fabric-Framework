@@ -133,6 +133,40 @@ class ResponseSanitizerTest {
         verifyNoInteractions(eventPublisher);
     }
 
+    @Test
+    void shouldRemoveTerminalGenericAssistanceCloser() {
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message("No negative reviews are available in the live store data. If you have any other specific questions about this snowboard, feel free to ask!")
+            .data(Map.of(
+                "answer", "No negative reviews are available in the live store data. If you have any other specific questions about this snowboard, feel free to ask!"
+            ))
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-789");
+
+        assertThat(payload.get("message")).isEqualTo("No negative reviews are available in the live store data.");
+        assertThat(payload.get("safeSummary")).isEqualTo("No negative reviews are available in the live store data.");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) payload.get("data");
+        assertThat(data).containsEntry("answer", "No negative reviews are available in the live store data.");
+    }
+
+    @Test
+    void shouldPreserveNonTerminalCloserTextWhenItIsEvidence() {
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message("The product card says \"feel free to ask\" in its footer. Live store data does not include safety certifications.")
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-789");
+
+        assertThat(payload.get("message"))
+            .isEqualTo("The product card says \"feel free to ask\" in its footer. Live store data does not include safety certifications.");
+    }
+
     private Map<String, Object> buildData() {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("confirmationMessage", "Confirmation sent to user@example.com");
