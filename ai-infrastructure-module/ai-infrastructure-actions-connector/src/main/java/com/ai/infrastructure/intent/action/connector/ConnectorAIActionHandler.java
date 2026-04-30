@@ -27,6 +27,10 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private static final String REDACTED = "[REDACTED]";
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
+    private static final Pattern MAX_PRICE_QUERY = Pattern.compile(
+        "\\b(?:under|below|less\\s+than|no\\s+more\\s+than|at\\s+most|max(?:imum)?|up\\s+to)\\s*\\$?\\s*(\\d+(?:\\.\\d+)?)\\b|\\$\\s*(\\d+(?:\\.\\d+)?)\\s*(?:or\\s+less|or\\s+under|and\\s+under)\\b",
+        Pattern.CASE_INSENSITIVE
+    );
 
     private final AIActionMetaData metadata;
     private final boolean requiresConfirmation;
@@ -236,11 +240,53 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                 }
             }
         }
-        out.sort((left, right) -> Boolean.compare(matchesQuery(right, relevanceQuery), matchesQuery(left, relevanceQuery)));
+        PriceConstraint priceConstraint = PriceConstraint.fromQuery(relevanceQuery);
+        boolean wantsAvailable = mentionsAvailability(relevanceQuery);
+        out.sort((left, right) -> {
+            int scoreCompare = Integer.compare(
+                relevanceScore(right, relevanceQuery, priceConstraint, wantsAvailable),
+                relevanceScore(left, relevanceQuery, priceConstraint, wantsAvailable)
+            );
+            if (scoreCompare != 0) {
+                return scoreCompare;
+            }
+            if (priceConstraint != null) {
+                return Double.compare(priceOrMax(left), priceOrMax(right));
+            }
+            return 0;
+        });
         if (out.size() > 5) {
             out = new ArrayList<>(out.subList(0, 5));
         }
         return out.isEmpty() ? List.of() : List.copyOf(out);
+    }
+
+    private int relevanceScore(Map<String, Object> record,
+                               String query,
+                               PriceConstraint priceConstraint,
+                               boolean wantsAvailable) {
+        int score = 0;
+        if (matchesQuery(record, query)) {
+            score += 1_000;
+        }
+        if (priceConstraint != null) {
+            Double price = numericValue(record.get("price"));
+            if (price != null) {
+                score += priceConstraint.matches(price) ? 300 : -300;
+            }
+        }
+        if (wantsAvailable) {
+            Boolean available = booleanValue(record.get("available"));
+            if (available != null) {
+                score += available ? 150 : -150;
+            }
+        }
+        Object productType = record.get("productType");
+        if (productType != null && StringUtils.hasText(query)
+            && query.toLowerCase(Locale.ROOT).contains(String.valueOf(productType).toLowerCase(Locale.ROOT))) {
+            score += 50;
+        }
+        return score;
     }
 
     private boolean matchesQuery(Map<String, Object> record, String query) {
@@ -250,6 +296,63 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         String normalizedQuery = query.toLowerCase(Locale.ROOT);
         Object title = record.get("title");
         return title != null && normalizedQuery.contains(String.valueOf(title).toLowerCase(Locale.ROOT));
+    }
+
+    private boolean mentionsAvailability(String query) {
+        if (!StringUtils.hasText(query)) {
+            return false;
+        }
+        String normalized = query.toLowerCase(Locale.ROOT);
+        return normalized.contains("available")
+            || normalized.contains("in stock")
+            || normalized.contains("instock");
+    }
+
+    private double priceOrMax(Map<String, Object> record) {
+        Double price = record != null ? numericValue(record.get("price")) : null;
+        return price != null ? price : Double.MAX_VALUE;
+    }
+
+    private Double numericValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value == null) {
+            return null;
+        }
+        String raw = value.toString().trim();
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String normalized = raw.replaceAll("[^0-9.\\-]", "");
+        if (!StringUtils.hasText(normalized) || ".".equals(normalized) || "-".equals(normalized)) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private Boolean booleanValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value == null) {
+            return null;
+        }
+        String raw = value.toString().trim();
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        if ("true".equalsIgnoreCase(raw) || "yes".equalsIgnoreCase(raw)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(raw) || "no".equalsIgnoreCase(raw)) {
+            return false;
+        }
+        return null;
     }
 
     private Map<String, Object> compactRecord(Map<?, ?> record) {
@@ -374,5 +477,32 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             return s.substring(0, max - 3) + "...";
         }
         return s;
+    }
+
+    private record PriceConstraint(
+        double max
+    ) {
+        private boolean matches(double price) {
+            return price <= max;
+        }
+
+        private static PriceConstraint fromQuery(String query) {
+            if (!StringUtils.hasText(query)) {
+                return null;
+            }
+            Matcher matcher = MAX_PRICE_QUERY.matcher(query);
+            if (!matcher.find()) {
+                return null;
+            }
+            String raw = StringUtils.hasText(matcher.group(1)) ? matcher.group(1) : matcher.group(2);
+            if (!StringUtils.hasText(raw)) {
+                return null;
+            }
+            try {
+                return new PriceConstraint(Double.parseDouble(raw));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
     }
 }

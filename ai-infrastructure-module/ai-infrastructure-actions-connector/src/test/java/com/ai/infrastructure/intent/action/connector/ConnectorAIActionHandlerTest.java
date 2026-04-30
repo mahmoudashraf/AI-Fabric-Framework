@@ -130,14 +130,67 @@ class ConnectorAIActionHandlerTest {
             .contains("The Collection Snowboard: Liquid", "The Collection Snowboard: Oxygen");
     }
 
+    @Test
+    void shouldPrioritizeAvailableBudgetMatchesBeforeApplyingEvidenceLimit() {
+        AIActionMetaData metadata = AIActionMetaData.builder()
+            .name("relationship_query")
+            .category("shopify-companion")
+            .accessMode(ActionAccessMode.READ)
+            .build();
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Action executed.")
+            .data(ActionPayload.object(Map.of(
+                "data", Map.of(
+                    "query", "Find similar available snowboards under 800 dollars",
+                    "documents", List.of(
+                        productRecord("The Collection Snowboard: Liquid", "749.95", true),
+                        productRecord("The Out of Stock Snowboard", "885.95", false),
+                        productRecord("The Inventory Not Tracked Snowboard", "949.95", true),
+                        productRecord("The Collection Snowboard: Oxygen", "1025.00", true),
+                        productRecord("The Multi-managed Snowboard", "629.95", true),
+                        productRecord("The Complete Snowboard", "699.95", true)
+                    ),
+                    "totalResults", 6,
+                    "returnedResults", 6
+                )
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata,
+            false,
+            null,
+            Set.of(),
+            null
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
+        assertThat(documents).hasSize(5);
+        assertThat(documents.subList(0, 3))
+            .extracting(document -> document.get("title"))
+            .containsExactly(
+                "The Multi-managed Snowboard",
+                "The Complete Snowboard",
+                "The Collection Snowboard: Liquid"
+            );
+    }
+
     private Map<String, Object> productRecord(String title, String price) {
+        return productRecord(title, price, true);
+    }
+
+    private Map<String, Object> productRecord(String title, String price, boolean available) {
         return Map.of(
             "title", title,
             "entityType", "product",
             "metadata", Map.of(
                 "vendor", "Hydrogen Vendor",
                 "productType", "snowboard",
-                "available", true,
+                "available", available,
                 "price", price,
                 "inventoryQuantity", 50
             )

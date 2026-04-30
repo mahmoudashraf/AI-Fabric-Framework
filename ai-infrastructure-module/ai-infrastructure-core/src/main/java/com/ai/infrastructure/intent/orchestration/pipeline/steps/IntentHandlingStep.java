@@ -369,7 +369,7 @@ public class IntentHandlingStep implements PipelineStep {
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                 .success(false)
-                .message("Actions are disabled by server policy for this request.")
+                .message("Cart-changing actions are not enabled in this conversation mode. I can still answer product and policy questions from live store data.")
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
