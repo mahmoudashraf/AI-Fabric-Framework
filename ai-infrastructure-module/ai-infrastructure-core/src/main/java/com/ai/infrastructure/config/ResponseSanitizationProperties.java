@@ -140,7 +140,12 @@ public class ResponseSanitizationProperties {
         "relevant documentation",
         "support resources",
         "additional resources",
-        "external reviews"
+        "external reviews",
+        "check the store",
+        "store policy directly",
+        "store's policy directly",
+        "return policy directly",
+        "policy page"
     );
 
     public Set<String> normalizedHighRiskTypes() {

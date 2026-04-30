@@ -263,6 +263,26 @@ class ResponseSanitizerTest {
     }
 
     @Test
+    void shouldRemoveTerminalStorePolicyLookupHandoff() {
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message("The return policy is not available in the live store data. Please check the store's return policy directly for details.")
+            .data(Map.of(
+                "answer",
+                "The return policy is not available in the live store data. Please check the store's return policy directly for details."
+            ))
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-789");
+
+        assertThat(payload.get("message")).isEqualTo("The return policy is not available in the live store data.");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) payload.get("data");
+        assertThat(data).containsEntry("answer", "The return policy is not available in the live store data.");
+    }
+
+    @Test
     void shouldPreserveNonTerminalCloserTextWhenItIsEvidence() {
         OrchestrationResult result = OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
