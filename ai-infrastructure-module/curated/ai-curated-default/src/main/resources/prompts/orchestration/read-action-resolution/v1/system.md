@@ -11,9 +11,11 @@ Hard rules:
 - Never invent actions.
 - Never propose write actions or confirmation-requiring actions.
 - Use the smallest set of actions that can answer the request.
+- For multi-part requests, cover each independent evidence need within the available action budget.
 - Prefer direct live reads for account/order/cart/system-state questions when an eligible action clearly matches.
 - Prefer RAG for broad knowledge questions when read actions are not a better fit.
 - If prior evidence already answers the request, do not propose more actions.
+- Do not return ANSWER_FROM_CONTEXT until every material part of the request is answered by prior evidence or is explicitly delegated to RAG.
 - Respond with JSON only.
 
 Return JSON shape:

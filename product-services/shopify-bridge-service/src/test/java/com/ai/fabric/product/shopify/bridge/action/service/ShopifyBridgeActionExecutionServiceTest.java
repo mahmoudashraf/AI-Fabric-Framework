@@ -265,6 +265,56 @@ class ShopifyBridgeActionExecutionServiceTest {
     }
 
     @Test
+    void getPolicyMatchesPolicyIntentInsidePlannerNaturalLanguageQuery() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any())).thenReturn(Map.of(
+            "data", Map.of(
+                "shop", Map.of(
+                    "shopPolicies", List.of(
+                        Map.of(
+                            "id", "gid://shopify/ShopPolicy/1",
+                            "title", "Refund Policy",
+                            "type", "REFUND_POLICY",
+                            "body", "<p>Refunds within 30 days</p>",
+                            "url", "https://alpha.myshopify.com/policies/refund-policy",
+                            "updatedAt", "2026-04-19T00:00:00Z"
+                        ),
+                        Map.of(
+                            "id", "gid://shopify/ShopPolicy/2",
+                            "title", "Shipping Policy",
+                            "type", "SHIPPING_POLICY",
+                            "body", "<p>Ships in 2-3 days</p>",
+                            "url", "https://alpha.myshopify.com/policies/shipping-policy",
+                            "updatedAt", "2026-04-19T00:00:00Z"
+                        )
+                    )
+                )
+            )
+        ));
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "get_policy",
+                Map.of("query", "return policy for product handle the-collection-snowboard-liquid"),
+                null,
+                Map.of()
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("Policies");
+        assertThat(result.data()).containsEntry("count", 1);
+        List<?> items = (List<?>) result.data().get("items");
+        assertThat(items).hasSize(1);
+        assertThat(((Map<?, ?>) items.getFirst()).get("title")).isEqualTo("Refund Policy");
+    }
+
+    @Test
     void getPolicyAcceptsPolicyTypeAndOmitsNullQuery() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);

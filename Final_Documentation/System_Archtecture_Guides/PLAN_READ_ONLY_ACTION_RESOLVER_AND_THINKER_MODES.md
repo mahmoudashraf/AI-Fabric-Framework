@@ -142,11 +142,13 @@ The framework already ships examples like:
 
 So “mode as a policy bundle” is already established.
 
-### 2.2 What is missing
+### 2.2 Historical Gap Before Implementation
 
-The current framework does **not** support a real read-action planning loop.
+The items in this section describe the pre-implementation gap that existed before the current
+`ReadActionResolutionService` and curated `thinker` mode were added. They are retained as
+historical design context, not as current code status.
 
-Specifically missing:
+Previously missing:
 
 - no dedicated mode/capability for “plan safe read actions to answer this question”
 - no LLM planner contract that chooses a bounded set of read-only actions for an informational request
@@ -510,6 +512,13 @@ Optional heuristics:
   - account status
   - policies from live systems
   - relationship query style lookups
+
+Current implementation note:
+
+- The LLM planner chooses which eligible read actions to execute.
+- Runtime policy constrains eligibility, access mode, grounding eligibility, budgets, and allowlists.
+- Application code must not replace a planner-selected read action with a different action based on text matching.
+- Action handlers may still perform deterministic lookup normalization inside the selected action, such as mapping "return policy" to the Shopify refund policy record.
 
 Requests that should **not** use this path:
 

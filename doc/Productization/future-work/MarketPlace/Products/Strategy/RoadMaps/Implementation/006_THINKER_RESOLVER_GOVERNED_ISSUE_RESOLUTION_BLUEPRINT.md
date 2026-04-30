@@ -96,6 +96,13 @@ Current supported behavior:
 - final user-facing generation happens after read-action evidence is gathered.
 - diagnostics include planner iterations, executed actions, grounding-usable action count, RAG cooperation, and final decision.
 
+Planner/action boundary:
+
+- The LLM planner owns query-specific read-action selection.
+- Product/platform policy constrains eligible read actions, budgets, grounding eligibility, and auth.
+- Application code must not substitute one planner-selected read action for another by keyword/text matching.
+- Selected read actions may still perform deterministic lookup normalization internally, for example resolving a natural-language return/refund policy request to Shopify's `REFUND_POLICY` record.
+
 Important boundary:
 
 - This existing capability is read-only.

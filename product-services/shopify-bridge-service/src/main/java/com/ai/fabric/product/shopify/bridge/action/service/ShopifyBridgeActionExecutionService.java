@@ -958,12 +958,46 @@ public class ShopifyBridgeActionExecutionService {
         if (normalizedQuery == null) {
             return true;
         }
-        String needle = normalizedQuery.toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
-        String compactNeedle = needle.replace("_policy", "");
-        return policyFieldMatches(policy, "type", needle)
-            || policyFieldMatches(policy, "type", compactNeedle)
-            || policyFieldMatches(policy, "title", normalizedQuery.toLowerCase(Locale.ROOT))
-            || policyFieldMatches(policy, "body", normalizedQuery.toLowerCase(Locale.ROOT));
+        for (String needle : policySearchNeedles(normalizedQuery)) {
+            String typedNeedle = needle.replace('-', '_').replace(' ', '_');
+            String compactNeedle = typedNeedle.replace("_policy", "");
+            if (policyFieldMatches(policy, "type", typedNeedle)
+                || policyFieldMatches(policy, "type", compactNeedle)
+                || policyFieldMatches(policy, "title", needle)
+                || policyFieldMatches(policy, "body", needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> policySearchNeedles(String query) {
+        String normalized = query == null ? "" : query.toLowerCase(Locale.ROOT).trim();
+        if (normalized.isBlank()) {
+            return List.of();
+        }
+        LinkedHashSet<String> needles = new LinkedHashSet<>();
+        needles.add(normalized);
+        if (containsAny(normalized, "refund", "return")) {
+            needles.add("refund policy");
+            needles.add("refund");
+            needles.add("return policy");
+            needles.add("return");
+        }
+        if (containsAny(normalized, "shipping", "ship", "delivery")) {
+            needles.add("shipping policy");
+            needles.add("shipping");
+            needles.add("delivery");
+        }
+        if (containsAny(normalized, "privacy", "personal data", "data policy")) {
+            needles.add("privacy policy");
+            needles.add("privacy");
+        }
+        if (containsAny(normalized, "terms", "service", "legal")) {
+            needles.add("terms of service");
+            needles.add("terms");
+        }
+        return List.copyOf(needles);
     }
 
     private boolean policyFieldMatches(Map<String, Object> policy, String field, String needle) {
