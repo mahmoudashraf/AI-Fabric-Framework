@@ -4035,6 +4035,9 @@ public class IntentHandlingStep implements PipelineStep {
         if (uniform == com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.SESSION_METADATA) {
             return "PINNED TARGETS (previously pinned; not current UI selection):";
         }
+        if (uniform == com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource.REQUEST_ATTACHMENTS) {
+            return "ATTACHMENTS (user-provided text evidence visible to the assistant; authoritative for this turn):";
+        }
 
         return "PINNED TARGETS (authoritative):";
     }
