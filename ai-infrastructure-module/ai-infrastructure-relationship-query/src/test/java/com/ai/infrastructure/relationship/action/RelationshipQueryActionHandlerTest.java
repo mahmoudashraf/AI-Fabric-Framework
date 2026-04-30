@@ -276,7 +276,9 @@ class RelationshipQueryActionHandlerTest {
             .containsEntry("price", "749.95")
             .containsEntry("available", true)
             .containsEntry("inventoryQuantity", 50)
-            .containsEntry("sourceUrl", "https://shopping-companion-test.myshopify.com/products/the-collection-snowboard-liquid")
+            .doesNotContainKey("sourceUrl")
+            .doesNotContainKey("id")
+            .doesNotContainKey("content")
             .doesNotContainKey("raw");
     }
 

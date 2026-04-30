@@ -409,30 +409,40 @@ public class RelationshipQueryActionHandler {
     private Map<String, Object> compactDocumentFact(Object raw) {
         if (raw instanceof RAGResponse.RAGDocument document) {
             Map<String, Object> fact = new LinkedHashMap<>();
-            putIfPresent(fact, "id", document.getId());
             putIfPresent(fact, "title", document.getTitle());
             putIfPresent(fact, "entityType", firstNonBlank(document.getType(), metadataString(document.getMetadata(), "entityType"), metadataString(document.getMetadata(), "documentType"), metadataString(document.getMetadata(), "vectorSpace")));
             putSelectedMetadata(fact, document.getMetadata());
-            putIfPresent(fact, "sourceUrl", firstNonBlank(document.getUrl(), metadataString(document.getMetadata(), "sourceUrl"), metadataString(document.getMetadata(), "storefrontUrl")));
-            putIfPresent(fact, "content", truncate(document.getContent(), 300));
+            if (!hasCommerceFacts(fact)) {
+                putIfPresent(fact, "content", truncate(document.getContent(), 300));
+            }
             return fact;
         }
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> fact = new LinkedHashMap<>();
-            putIfPresent(fact, "id", mapValue(map, "id"));
             putIfPresent(fact, "title", mapValue(map, "title"));
             putIfPresent(fact, "entityType", firstNonBlank(asString(mapValue(map, "entityType")), asString(mapValue(map, "type"))));
             Object metadata = mapValue(map, "metadata");
             if (metadata instanceof Map<?, ?> metadataMap) {
                 putSelectedMetadata(fact, metadataMap);
-                putIfPresent(fact, "sourceUrl", firstNonBlank(asString(mapValue(map, "url")), metadataString(metadataMap, "sourceUrl"), metadataString(metadataMap, "storefrontUrl")));
-            } else {
-                putIfPresent(fact, "sourceUrl", mapValue(map, "url"));
             }
-            putIfPresent(fact, "content", truncate(asString(mapValue(map, "content")), 300));
+            if (!hasCommerceFacts(fact)) {
+                putIfPresent(fact, "content", truncate(asString(mapValue(map, "content")), 300));
+            }
             return fact;
         }
         return Map.of();
+    }
+
+    private boolean hasCommerceFacts(Map<String, Object> fact) {
+        if (fact == null || fact.isEmpty()) {
+            return false;
+        }
+        return fact.containsKey("price")
+            || fact.containsKey("available")
+            || fact.containsKey("inventoryQuantity")
+            || fact.containsKey("reviewSignalsPresent")
+            || fact.containsKey("reviewAverage")
+            || fact.containsKey("reviewCount");
     }
 
     private void putSelectedMetadata(Map<String, Object> fact, Map<?, ?> metadata) {

@@ -2810,6 +2810,8 @@ public class IntentHandlingStep implements PipelineStep {
         return """
             LIVE STORE READ ACTION RESPONSE POLICY
             - Treat the read-action evidence below as live store data.
+            - Use read-action evidence as the source of truth for product price, availability, inventory, and review-signal fields when retrieved context omits or conflicts with those fields.
+            - If list/search/relationship evidence returns multiple products or a count greater than one, do not state that only one product exists; summarize the relevant returned products and then state any missing evidence.
             - If read actions found no records for a requested fact, state that the fact is not available in the live store data.
             - If a named product lookup failed or returned no matching product, do not answer using similarly named products, generic documents, or unrelated policy documents; state that the named product is not present in the live store data and that availability or safety cannot be confirmed.
             - Do not expose implementation wording such as upstream failure, HTTP status, error code, or action failure; translate failed lookups into user-facing missing live data.

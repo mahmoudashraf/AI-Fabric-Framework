@@ -32,7 +32,9 @@ public final class ManagedPromptDefaults {
             + "conclusion. Do not append optional-assistance closers or ask for preferences unless the "
             + "user's request needs a user-owned choice. Do not use unrelated policy or similar-product "
             + "context as evidence for a named product that was not found. Do not refer users to generic "
-            + "documentation or support resources unless that handoff is explicit in the evidence.";
+            + "documentation or support resources unless that handoff is explicit in the evidence. When "
+            + "live action evidence includes product facts, prefer those facts over retrieved context for "
+            + "price, availability, inventory, and review-signal fields.";
 
     public static final String RETRIEVAL_PROMPT =
         "Use retrieved knowledge as the primary source for domain facts. Prefer the most relevant, current, "

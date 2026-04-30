@@ -239,7 +239,6 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private Map<String, Object> compactRecord(Map<?, ?> record) {
         Map<String, Object> compact = new LinkedHashMap<>();
-        putIfPresent(compact, "id", mapObject(record, "id"));
         putIfPresent(compact, "title", firstNonBlank(asString(mapObject(record, "title")), asString(mapObject(record, "name"))));
         putIfPresent(compact, "entityType", firstNonBlank(asString(mapObject(record, "entityType")), asString(mapObject(record, "type"))));
 
@@ -249,15 +248,22 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         }
         putSelectedMetadata(compact, record);
 
-        putIfPresent(compact, "sourceUrl", firstNonBlank(
-            asString(mapObject(record, "sourceUrl")),
-            asString(mapObject(record, "storefrontUrl")),
-            asString(mapObject(record, "url")),
-            metadata instanceof Map<?, ?> metadataMap ? asString(mapObject(metadataMap, "storefrontUrl")) : null,
-            metadata instanceof Map<?, ?> metadataMap ? asString(mapObject(metadataMap, "sourceUrl")) : null
-        ));
-        putIfPresent(compact, "content", truncate(asString(mapObject(record, "content")), 300));
+        if (!hasCommerceFacts(compact)) {
+            putIfPresent(compact, "content", truncate(asString(mapObject(record, "content")), 300));
+        }
         return compact;
+    }
+
+    private boolean hasCommerceFacts(Map<String, Object> compact) {
+        if (compact == null || compact.isEmpty()) {
+            return false;
+        }
+        return compact.containsKey("price")
+            || compact.containsKey("available")
+            || compact.containsKey("inventoryQuantity")
+            || compact.containsKey("reviewSignalsPresent")
+            || compact.containsKey("reviewAverage")
+            || compact.containsKey("reviewCount");
     }
 
     private void putSelectedMetadata(Map<String, Object> target, Map<?, ?> source) {
