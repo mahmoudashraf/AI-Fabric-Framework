@@ -198,7 +198,7 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 read.getMaxTotalActions() != null ? read.getMaxTotalActions() : 2,
                 read.getMaxParallelActions() != null ? read.getMaxParallelActions() : 1,
                 read.getMaxPlannerContextChars() != null ? read.getMaxPlannerContextChars() : 4_000,
-                read.getMaxActionEvidenceCharsPerAction() != null ? read.getMaxActionEvidenceCharsPerAction() : 1_200,
+                read.getMaxActionEvidenceCharsPerAction() != null ? read.getMaxActionEvidenceCharsPerAction() : 2_400,
                 read.getRagCooperationMode(),
                 read.getRequireGroundingEligible() == null || read.getRequireGroundingEligible()
             );
