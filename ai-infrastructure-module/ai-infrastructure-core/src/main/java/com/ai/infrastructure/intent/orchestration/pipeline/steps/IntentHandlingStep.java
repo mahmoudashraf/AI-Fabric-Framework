@@ -129,6 +129,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_ACTION_RESULT = "actionResult";
     private static final String DATA_KEY_CONFIRMATION_MESSAGE = "confirmationMessage";
     private static final String DATA_KEY_ANSWER = "answer";
+    private static final String DATA_KEY_DATA = "data";
     private static final String DATA_KEY_DOCUMENTS = "documents";
     private static final String DATA_KEY_RAG_RESPONSE = "ragResponse";
     private static final String DATA_KEY_REQUIRES_GENERATION = "requiresGeneration";
@@ -430,7 +431,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
-        postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
+        postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams, meta, policy);
 
         effectiveParams = applyBatchTargetsDefaulting(meta, effectiveParams, pipelineContext);
         actionContext = actionContext.withActionParams(effectiveParams);
@@ -1715,9 +1716,10 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         Map<String, Object> actionData = coerceToMap(actionResult.getData());
-        List<?> documents = actionData != null ? coerceToList(actionData.get(DATA_KEY_DOCUMENTS)) : null;
+        Map<String, Object> relationshipData = selectRelationshipActionData(actionData);
+        List<?> documents = relationshipData != null ? coerceToList(relationshipData.get(DATA_KEY_DOCUMENTS)) : null;
 
-        int totalResults = coerceToInt(actionData != null ? actionData.get("totalResults") : null,
+        int totalResults = coerceToInt(relationshipData != null ? relationshipData.get("totalResults") : null,
             documents != null ? documents.size() : 0);
 
         if (documents == null || documents.isEmpty()) {
@@ -1747,6 +1749,8 @@ public class IntentHandlingStep implements PipelineStep {
         Map<String, Object> params = intent.getActionParams();
         if (params != null && params.get("query") != null) {
             relationalQuery = params.get("query").toString();
+        } else if (relationshipData != null && relationshipData.get("query") != null) {
+            relationalQuery = relationshipData.get("query").toString();
         }
 
         String systemPrompt = promptRenderer.render(
@@ -1815,7 +1819,9 @@ public class IntentHandlingStep implements PipelineStep {
     private ResolvedPostActionGeneration resolvePostActionGeneration(String actionName,
                                                                      Intent intent,
                                                                      PipelineContext pipelineContext,
-                                                                     Map<String, Object> params) {
+                                                                     Map<String, Object> params,
+                                                                     AIActionMetaData metadata,
+                                                                     OrchestrationPolicy policy) {
         boolean isRelationshipQuery = ACTION_RELATIONSHIP_QUERY.equalsIgnoreCase(actionName);
         if (isRelationshipQuery) {
             if (relationshipQueryPostActionGenerationProperties == null || !relationshipQueryPostActionGenerationProperties.isEnabled()) {
@@ -1835,7 +1841,18 @@ public class IntentHandlingStep implements PipelineStep {
             instructions = intent.getGenerationInstructions();
         }
 
+        if (!requested && shouldForceReadActionPostActionGeneration(actionName, metadata, policy)) {
+            requested = true;
+            instructions = "Answer the user's request from the read-action result facts. If the facts are insufficient, state what is missing instead of inventing details.";
+        }
+
         return new ResolvedPostActionGeneration(requested, instructions);
+    }
+
+    private boolean shouldForceReadActionPostActionGeneration(String actionName,
+                                                              AIActionMetaData metadata,
+                                                              OrchestrationPolicy policy) {
+        return isReadActionExecutionAllowedByReadResolutionPolicy(actionName, metadata, policy);
     }
 
     private PostActionGenerationOutcome maybeGenerateGenericPostActionSummary(AIActionHandler handler,
@@ -1955,6 +1972,27 @@ public class IntentHandlingStep implements PipelineStep {
             return result;
         }
         return null;
+    }
+
+    private Map<String, Object> selectRelationshipActionData(Map<String, Object> actionData) {
+        if (actionData == null || actionData.isEmpty()) {
+            return actionData;
+        }
+        Map<String, Object> nested = coerceToMap(actionData.get(DATA_KEY_DATA));
+        if (hasRelationshipResultShape(nested)) {
+            return nested;
+        }
+        return actionData;
+    }
+
+    private boolean hasRelationshipResultShape(Map<String, Object> data) {
+        if (data == null || data.isEmpty()) {
+            return false;
+        }
+        return data.containsKey(DATA_KEY_DOCUMENTS)
+            || data.containsKey("totalResults")
+            || data.containsKey("returnedResults")
+            || data.containsKey("query");
     }
 
     private List<?> coerceToList(Object value) {

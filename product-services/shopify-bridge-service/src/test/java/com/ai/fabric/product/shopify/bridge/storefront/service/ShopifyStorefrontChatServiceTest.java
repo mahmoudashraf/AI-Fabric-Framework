@@ -613,7 +613,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryReplacesGenericRuntimeActionMessageWithStorefrontSafeAnswer() throws Exception {
+    void queryPreservesGenericRuntimeActionMessageForRuntimeDiagnostics() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
@@ -636,13 +636,15 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).containsIgnoringCase("travel");
-        assertThat(answer).doesNotContain("Action executed");
+        JsonNode sanitizedPayload = response.path("result").path("sanitizedPayload");
+        assertThat(sanitizedPayload.path("type").asText()).isEqualTo("INFORMATION_PROVIDED");
+        assertThat(sanitizedPayload.path("success").asBoolean()).isTrue();
+        assertThat(sanitizedPayload.path("safeSummary").asText()).isEqualTo("Action executed.");
+        assertThat(sanitizedPayload.path("answer").asText()).isEqualTo("Action executed.");
     }
 
     @Test
-    void queryReplacesInternalRuntimeDenialWithMerchantSafeStoreAnswer() throws Exception {
+    void queryPreservesInternalRuntimeDenialInsteadOfInventingStorefrontAnswer() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -677,12 +679,11 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).containsIgnoringCase("store");
-        assertThat(answer).doesNotContain("indexed knowledge base", "available action", "rephrase");
+        assertThat(answer).contains("indexed knowledge base", "available action", "rephrase");
     }
 
     @Test
-    void queryFallbackTreatsRefundPolicyAsReadOnlyPolicyQuestion() throws Exception {
+    void queryPreservesRuntimePolicyAnswerWithoutBridgeSemanticRewrite() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -717,12 +718,11 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).containsIgnoringCase("return policy");
-        assertThat(answer).doesNotContain("I cannot cancel or refund an order");
+        assertThat(answer).contains("indexed knowledge base", "available action", "rephrase");
     }
 
     @Test
-    void queryFallbackStillBlocksRefundOrderMutation() throws Exception {
+    void queryDoesNotInventMutationBlockWhenRuntimeReturnsGenericActionMessage() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -750,7 +750,7 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("I cannot cancel or refund an order from chat.");
+        assertThat(answer).isEqualTo("Action executed.");
     }
 
     private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient) {
