@@ -27,6 +27,23 @@ ai:
           max-documents-returned-to-client: 30
           max-documents-used-for-context: 8
           max-context-chars: 6000
+        read-action-resolution:
+          enabled: true
+          planning-mode: SINGLE_PASS
+          require-allowlist: true
+          allowed-read-actions:
+            - list_products
+            - search_products
+            - relationship_query
+            - get_product_details
+            - check_availability
+            - get_policy
+            - view_cart
+          max-actions-per-iteration: 2
+          max-total-actions: 2
+          max-parallel-actions: 1
+          rag-cooperation-mode: RAG_IF_ACTIONS_INSUFFICIENT
+          require-grounding-eligible: true
       executor:
         information-mode: LLM_DRIVEN
         actions-enabled: true

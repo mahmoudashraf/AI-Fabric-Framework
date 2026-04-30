@@ -36,6 +36,11 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes()).containsKey("navigator");
         assertThat(props.getModes()).containsKey("navigator_deep");
         assertThat(props.getModes().get("navigator_deep").getUseAdvancedRag()).isEqualTo(true);
+        assertThat(props.getModes().get("navigator_deep").getReadActionResolution()).isNotNull();
+        assertThat(props.getModes().get("navigator_deep").getReadActionResolution().getEnabled()).isTrue();
+        assertThat(props.getModes().get("navigator_deep").getReadActionResolution().getAllowedReadActions())
+            .contains("list_products", "search_products", "relationship_query", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .doesNotContain("find_similar_products", "compare_products");
         assertThat(props.getModes()).containsKey("cart_assistant");
         assertThat(props.getModes()).containsKey("resolver_assistant");
         assertThat(props.getModes()).containsKey("thinker");
