@@ -70,6 +70,7 @@ class CommerceCuratedPackTest {
             .contains("Use only the relevant commerce context above")
             .contains("no safest option can be identified from the available live store data")
             .contains("state that it is not available in the live store data")
+            .contains("treat the explicit availability fact as the stock-status source of truth")
             .contains("Do not recommend checking another website, contacting support, contacting a vendor/manufacturer")
             .contains("Do not add next-step or handoff sentences for missing live data")
             .contains("Do not substitute price, availability, vendor, or product title as safety evidence")
