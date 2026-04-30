@@ -190,7 +190,7 @@ public record OrchestrationPolicy(
             maxTotalActions = normalizePositive(maxTotalActions, maxActionsPerIteration);
             maxParallelActions = normalizePositive(maxParallelActions, 1);
             maxPlannerContextChars = normalizePositive(maxPlannerContextChars, 4_000);
-            maxActionEvidenceCharsPerAction = normalizePositive(maxActionEvidenceCharsPerAction, 1_200);
+            maxActionEvidenceCharsPerAction = normalizePositive(maxActionEvidenceCharsPerAction, 2_400);
             ragCooperationMode = ragCooperationMode != null
                 ? ragCooperationMode
                 : OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT;
@@ -211,7 +211,7 @@ public record OrchestrationPolicy(
                 2,
                 1,
                 4_000,
-                1_200,
+                2_400,
                 OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT,
                 true
             );

@@ -372,6 +372,14 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             summary.put(prefix + "PriceTitle", title);
         }
         summary.put(prefix + "Price", price);
+        Object available = record.get("available");
+        if (available != null) {
+            summary.put(prefix + "Available", available);
+        }
+        Object inventoryQuantity = record.get("inventoryQuantity");
+        if (inventoryQuantity != null) {
+            summary.put(prefix + "InventoryQuantity", inventoryQuantity);
+        }
     }
 
     private int relevanceScore(Map<String, Object> record,

@@ -189,8 +189,12 @@ class ConnectorAIActionHandlerTest {
         assertThat(matchedPriceSummary)
             .containsEntry("lowestPriceTitle", "The Multi-managed Snowboard")
             .containsEntry("lowestPrice", 629.95)
+            .containsEntry("lowestAvailable", true)
+            .containsEntry("lowestInventoryQuantity", 50)
             .containsEntry("highestPriceTitle", "The Collection Snowboard: Liquid")
-            .containsEntry("highestPrice", 749.95);
+            .containsEntry("highestPrice", 749.95)
+            .containsEntry("highestAvailable", true)
+            .containsEntry("highestInventoryQuantity", 50);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> constraintMatches = (List<Map<String, Object>>) facts.get().get("documentsConstraintMatches");
         assertThat(constraintMatches)
