@@ -22,6 +22,7 @@ import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerReposito
 import com.ai.fabric.platform.backend.tenant.repository.PlatformTenantRepository;
 import com.ai.fabric.platform.backend.thinker.model.ThinkerResolverModels.ThinkerIssueSessionDetail;
 import com.ai.fabric.platform.backend.thinker.service.ThinkerResolverService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -89,6 +90,8 @@ class ThinkerResolverIntegrationTest {
     private PlatformTenantRepository platformTenantRepository;
     @Autowired
     private ThinkerResolverService thinkerResolverService;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @AfterEach
     void clearSecurityContext() {
@@ -283,6 +286,105 @@ class ThinkerResolverIntegrationTest {
         assertThat(partnerDetail.session().customerId()).isNull();
         assertThat(partnerDetail.evidence()).allSatisfy(item -> assertThat(item.operatorRawReference()).isNull());
         assertThat(partnerDetail.resolverProposals()).allSatisfy(item -> assertThat(item.operatorParameters()).isNull());
+    }
+
+    @Test
+    void captureRuntimeResponseTreatsDirectReadActionResultAsThinkerEvidence() throws Exception {
+        seedStoreAndPartnerAssignment(List.of("STORE_READ", "PRODUCT_CONFIG_READ", "SUPPORT_MANAGE"));
+
+        mockMvc.perform(put("/api/operator/thinker/deployments/{deploymentId}/control", DEPLOYMENT_ID)
+                .header("X-PLATFORM-API-KEY", ADMIN_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "thinkerEnabled": true,
+                      "resolverPreviewEnabled": true,
+                      "governedExecutionEnabled": true,
+                      "disabledActionFamilies": []
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        var deployment = deploymentRepository.findById(DEPLOYMENT_ID).orElseThrow();
+        var captured = thinkerResolverService.captureRuntimeResponse(
+            deployment,
+            "consumer-thinker-resolver",
+            objectMapper.readTree("""
+                {
+                  "query": "relationship_query: Compare Liquid and Oxygen using live data.",
+                  "mode": "THINKER_DEEP"
+                }
+                """),
+            objectMapper.readTree("""
+                {
+                  "success": true,
+                  "conversationId": "conv-direct-read-action",
+                  "sessionId": "runtime-session-1",
+                  "result": {
+                    "type": "ACTION_EXECUTED",
+                    "success": true,
+                    "message": "Generated comparison from direct read-action evidence.",
+                    "data": {
+                      "action": "relationship_query",
+                      "metadata": {
+                        "name": "relationship_query",
+                        "accessMode": "READ",
+                        "sideEffectLevel": "NONE",
+                        "groundingEligible": true,
+                        "readActionResolutionEligible": true
+                      },
+                      "actionResult": {
+                        "success": true,
+                        "message": "Action executed.",
+                        "data": {
+                          "success": true,
+                          "message": "Relationship query results",
+                          "data": {
+                            "query": "Compare Liquid and Oxygen",
+                            "documents": [
+                              {
+                                "id": "product-liquid",
+                                "title": "Liquid",
+                                "metadata": {
+                                  "available": true,
+                                  "price": "749.95"
+                                }
+                              }
+                            ],
+                            "items": [
+                              {
+                                "title": "Liquid",
+                                "available": true,
+                                "price": "749.95"
+                              }
+                            ],
+                            "totalResults": 1,
+                            "returnedResults": 1
+                          }
+                        }
+                      },
+                      "postActionGeneration": {
+                        "used": true,
+                        "purpose": "GENERATION"
+                      }
+                    }
+                  }
+                }
+                """),
+            "shopper-session-direct-read-action"
+        );
+
+        assertThat(captured).hasValueSatisfying(summary -> {
+            assertThat(summary.status()).isEqualTo("RESOLVED");
+            assertThat(summary.recommendation()).isEqualTo("ANSWER_WITH_EVIDENCE");
+            assertThat(summary.evidenceCount()).isEqualTo(1);
+            assertThat(summary.userSafeAnswer()).isEqualTo("Generated comparison from direct read-action evidence.");
+        });
+        ThinkerIssueSessionDetail detail = thinkerResolverService.getOperatorSession(captured.orElseThrow().id());
+        assertThat(detail.evidence()).hasSize(1);
+        assertThat(detail.evidence().getFirst().sourceKind()).isEqualTo("RUNTIME_DIRECT_ACTION");
+        assertThat(detail.evidence().getFirst().sourceIdentifier()).isEqualTo("relationship_query");
+        assertThat(detail.evidence().getFirst().operatorRawReference()).isEqualTo("/result/data/actionResult");
     }
 
     private void seedStoreAndPartnerAssignment(List<String> permissions) {

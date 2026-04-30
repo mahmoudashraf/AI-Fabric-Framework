@@ -86,6 +86,7 @@ public class ThinkerResolverService {
     private static final List<String> SHOPIFY_PHASE_1_ALLOWLIST = List.of(
         "list_products",
         "search_products",
+        "relationship_query",
         "get_product_details",
         "check_availability",
         "get_policy",
@@ -202,7 +203,7 @@ public class ThinkerResolverService {
             "STOREFRONT_DEPTH_LAYER",
             "THINKER_DEEP",
             text(request, "query"),
-            text(response.path("result"), "message"),
+            runtimeAnswer(response),
             evidence,
             deployment.getTenantId(),
             text(response, "conversationId"),
@@ -711,6 +712,7 @@ public class ThinkerResolverService {
     private List<CreateEvidenceItemRequest> evidenceFromRuntime(JsonNode readActionResolution, JsonNode response) {
         List<CreateEvidenceItemRequest> evidence = new ArrayList<>();
         JsonNode executedActions = readActionResolution.path("executedActions");
+        boolean capturedExecutedActionEvidence = false;
         if (executedActions.isArray()) {
             for (JsonNode action : executedActions) {
                 String actionName = firstNonBlank(text(action, "name"), text(action, "actionName"), "read-action");
@@ -725,7 +727,11 @@ public class ThinkerResolverService {
                     truncate(summary, 900),
                     "/result/metadata/readActionResolution/executedActions/" + evidence.size()
                 ));
+                capturedExecutedActionEvidence = true;
             }
+        }
+        if (!capturedExecutedActionEvidence) {
+            appendDirectReadActionEvidence(evidence, response);
         }
         JsonNode documents = response.path("result").path("data").path("documents");
         if (documents.isArray()) {
@@ -745,6 +751,87 @@ public class ThinkerResolverService {
             }
         }
         return evidence;
+    }
+
+    private void appendDirectReadActionEvidence(List<CreateEvidenceItemRequest> evidence, JsonNode response) {
+        JsonNode result = response.path("result");
+        if (!"ACTION_EXECUTED".equalsIgnoreCase(text(result, "type"))) {
+            return;
+        }
+        JsonNode actionData = result.path("data");
+        if (!actionData.isObject()) {
+            return;
+        }
+        JsonNode metadata = actionData.path("metadata");
+        if (!isReadOnlyActionMetadata(metadata)) {
+            return;
+        }
+        String actionName = firstNonBlank(text(actionData, "action"), text(metadata, "name"), "read-action");
+        JsonNode actionResult = actionData.path("actionResult");
+        JsonNode evidencePayload = firstObject(
+            actionResult.path("data").path("data"),
+            actionResult.path("data"),
+            actionResult,
+            actionData
+        );
+        String summary = firstNonBlank(structuredSummary(evidencePayload), text(result, "message"), actionData.toString());
+        evidence.add(new CreateEvidenceItemRequest(
+            "READ_ACTION_RESULT",
+            "RUNTIME_DIRECT_ACTION",
+            actionName,
+            "FRESH",
+            metadata.path("groundingEligible").asBoolean(false) ? 0.9 : 0.75,
+            truncate(summary, 1800),
+            truncate(summary, 900),
+            "/result/data/actionResult"
+        ));
+    }
+
+    private boolean isReadOnlyActionMetadata(JsonNode metadata) {
+        if (metadata == null || !metadata.isObject()) {
+            return false;
+        }
+        String accessMode = text(metadata, "accessMode");
+        String sideEffectLevel = text(metadata, "sideEffectLevel");
+        return "READ".equalsIgnoreCase(accessMode)
+            || "NONE".equalsIgnoreCase(sideEffectLevel)
+            || metadata.path("readActionResolutionEligible").asBoolean(false)
+            || metadata.path("groundingEligible").asBoolean(false);
+    }
+
+    private JsonNode firstObject(JsonNode... candidates) {
+        if (candidates == null) {
+            return objectMapper.createObjectNode();
+        }
+        for (JsonNode candidate : candidates) {
+            if (candidate != null && !candidate.isMissingNode() && !candidate.isNull()) {
+                return candidate;
+            }
+        }
+        return objectMapper.createObjectNode();
+    }
+
+    private String structuredSummary(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if ((node.isObject() || node.isArray()) && node.size() == 0) {
+            return null;
+        }
+        return node.toString();
+    }
+
+    private String runtimeAnswer(JsonNode response) {
+        JsonNode result = response.path("result");
+        JsonNode sanitizedPayload = result.path("sanitizedPayload");
+        return firstNonBlank(
+            text(sanitizedPayload, "answer"),
+            text(sanitizedPayload, "safeSummary"),
+            text(sanitizedPayload, "message"),
+            text(result, "answer"),
+            text(result, "message"),
+            text(response, "message")
+        );
     }
 
     private ThinkerEvidenceItemEntity saveEvidenceItem(String sessionId, CreateEvidenceItemRequest request, Instant now) {

@@ -36,6 +36,7 @@ import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.DefaultResourceLoader;
 
@@ -234,7 +235,10 @@ class IntentHandlingStepPostActionGenerationTest {
         assertThat(result.getData()).containsKey("postActionGeneration");
 
         verify(handler).executeAction(any(), any());
-        verify(aiCoreService).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION));
+        ArgumentCaptor<AIGenerationRequest> generationRequest = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService).generateContent(generationRequest.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(generationRequest.getValue().getPrompt())
+            .contains("Do not treat presence, status, or availability alone as safety");
     }
 
     @Test
