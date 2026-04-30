@@ -155,6 +155,30 @@ class ThinkerResolverIntegrationTest {
                     {
                       "deploymentId": "dep-thinker-resolver-test",
                       "shopDomain": "thinker-resolver-test.myshopify.com",
+                      "userQuestion": "What is the return or refund policy for this product?",
+                      "evidence": [
+                        {
+                          "kind": "READ_ACTION_RESULT",
+                          "sourceKind": "INTEGRATION_TEST",
+                          "sourceIdentifier": "refund-policy-read-proof",
+                          "summary": "The request asks to read policy evidence.",
+                          "safeSummary": "The request asks to read policy evidence."
+                        }
+                      ]
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("RESOLVED")))
+            .andExpect(jsonPath("$.issueCategory", is("POLICY_LOOKUP")))
+            .andExpect(jsonPath("$.riskClass", is("READ_ONLY")));
+
+        mockMvc.perform(post("/api/operator/thinker/sessions")
+                .header("X-PLATFORM-API-KEY", ADMIN_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "deploymentId": "dep-thinker-resolver-test",
+                      "shopDomain": "thinker-resolver-test.myshopify.com",
                       "userQuestion": "Please change the return policy and publish the update.",
                       "evidence": [
                         {

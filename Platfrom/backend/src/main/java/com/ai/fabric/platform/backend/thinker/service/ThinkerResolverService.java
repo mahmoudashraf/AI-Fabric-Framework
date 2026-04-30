@@ -1282,7 +1282,13 @@ public class ThinkerResolverService {
 
     private boolean detectsWriteIntent(String value) {
         String normalized = lower(value);
-        return normalized.contains("refund")
+        return normalized.contains("issue refund")
+            || normalized.contains("process refund")
+            || normalized.contains("create refund")
+            || normalized.contains("give refund")
+            || normalized.contains("refund order")
+            || normalized.contains("refund my order")
+            || normalized.contains("cancel and refund")
             || normalized.contains("cancel order")
             || normalized.contains("change address")
             || normalized.contains("change policy")
@@ -1299,6 +1305,9 @@ public class ThinkerResolverService {
 
     private String classifyIssue(String value) {
         String normalized = lower(value);
+        if (detectsWriteIntent(value)) {
+            return "WRITE_REQUIRED_SUPPORT";
+        }
         if (normalized.contains("policy") || normalized.contains("return")) {
             return "POLICY_LOOKUP";
         }
@@ -1307,9 +1316,6 @@ public class ThinkerResolverService {
         }
         if (normalized.contains("compare") || normalized.contains("which")) {
             return "PRODUCT_COMPARISON";
-        }
-        if (detectsWriteIntent(value)) {
-            return "WRITE_REQUIRED_SUPPORT";
         }
         return "GENERAL_DIAGNOSIS";
     }
