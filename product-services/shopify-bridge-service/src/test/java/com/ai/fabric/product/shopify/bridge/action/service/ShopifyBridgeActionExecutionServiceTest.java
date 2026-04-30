@@ -99,6 +99,38 @@ class ShopifyBridgeActionExecutionServiceTest {
     }
 
     @Test
+    void listProductsFallsBackToExtractedCatalogTermForNaturalLanguageQuery() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
+        List<String> attemptedQueries = new ArrayList<>();
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenAnswer(invocation -> {
+            Map<?, ?> variables = invocation.getArgument(3);
+            String query = variables.get("query") == null ? null : variables.get("query").toString();
+            attemptedQueries.add(query);
+            return "snowboard".equals(query) ? productsPayload() : emptyProductsPayload();
+        });
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "list_products",
+                Map.of("query", "The Collection Snowboard: Liquid and similar snowboards"),
+                null,
+                Map.of()
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("Products");
+        assertThat(result.data()).containsEntry("count", 3);
+        assertThat(attemptedQueries).contains("The Collection Snowboard: Liquid and similar snowboards", "snowboard");
+        assertThat(result.data()).containsEntry("productFallbackToRecentCatalog", false);
+    }
+
+    @Test
     void checkAvailabilityRequiresSku() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);

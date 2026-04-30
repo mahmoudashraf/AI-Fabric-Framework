@@ -122,20 +122,23 @@ public class ShopifyBridgeActionExecutionService {
 
     private ShopifyBridgeActionResult listProducts(ShopifyBridgeCredentialAcquisition acquisition,
                                                    ShopifyBridgeActionExecuteRequest request) {
-        List<Map<String, Object>> items = fetchProducts(acquisition, textParam(request, "query"));
+        String query = textParam(request, "query");
+        ProductRelationshipSearch search = fetchRelationshipProducts(acquisition, query, 10);
+        List<Map<String, Object>> items = search.items();
         return ShopifyBridgeActionResult.ok(
             items.isEmpty() ? "No products found." : "Products",
-            Map.of("items", items, "count", items.size())
+            productSearchData(items, query, search)
         );
     }
 
     private ShopifyBridgeActionResult searchProducts(ShopifyBridgeCredentialAcquisition acquisition,
                                                      ShopifyBridgeActionExecuteRequest request) {
         String query = textParam(request, "query");
-        List<Map<String, Object>> items = fetchProducts(acquisition, query);
+        ProductRelationshipSearch search = fetchRelationshipProducts(acquisition, query, 10);
+        List<Map<String, Object>> items = search.items();
         return ShopifyBridgeActionResult.ok(
             items.isEmpty() ? "No matching products found." : "Products",
-            Map.of("items", items, "count", items.size(), "query", query)
+            productSearchData(items, query, search)
         );
     }
 
@@ -268,6 +271,20 @@ public class ShopifyBridgeActionExecutionService {
             documents.isEmpty() ? "No relationship query results found." : "Relationship query results",
             data
         );
+    }
+
+    private Map<String, Object> productSearchData(List<Map<String, Object>> items,
+                                                  String query,
+                                                  ProductRelationshipSearch search) {
+        LinkedHashMap<String, Object> data = new LinkedHashMap<>();
+        data.put("items", items);
+        data.put("count", items.size());
+        if (query != null) {
+            data.put("query", query);
+        }
+        data.put("productSearchQueries", search.queries());
+        data.put("productFallbackToRecentCatalog", search.fallbackToRecentCatalog());
+        return data;
     }
 
     private ShopifyBridgeActionResult addProductToCart(ShopifyBridgeCredentialAcquisition acquisition,
