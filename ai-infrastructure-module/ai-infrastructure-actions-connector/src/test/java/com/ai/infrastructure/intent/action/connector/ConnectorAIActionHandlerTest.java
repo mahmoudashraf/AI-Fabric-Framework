@@ -47,6 +47,7 @@ class ConnectorAIActionHandlerTest {
                 "data", Map.of(
                     "query", "Find similar available snowboards under 800 dollars",
                     "documents", List.of(document),
+                    "items", List.of(document),
                     "totalResults", 1,
                     "returnedResults", 1
                 )
@@ -70,6 +71,7 @@ class ConnectorAIActionHandlerTest {
             .containsEntry("returnedResults", 1);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
+        assertThat(facts.get()).doesNotContainKey("items");
         assertThat(documents).hasSize(1);
         assertThat(documents.getFirst())
             .containsEntry("title", "The Collection Snowboard: Liquid")
@@ -81,5 +83,64 @@ class ConnectorAIActionHandlerTest {
             .doesNotContainKey("sourceUrl")
             .doesNotContainKey("id")
             .doesNotContainKey("raw");
+    }
+
+    @Test
+    void shouldPrioritizeRecordsNamedInTheQueryBeforeApplyingEvidenceLimit() {
+        AIActionMetaData metadata = AIActionMetaData.builder()
+            .name("relationship_query")
+            .category("shopify-companion")
+            .accessMode(ActionAccessMode.READ)
+            .build();
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Action executed.")
+            .data(ActionPayload.object(Map.of(
+                "data", Map.of(
+                    "query", "Compare The Collection Snowboard: Liquid and The Collection Snowboard: Oxygen",
+                    "documents", List.of(
+                        productRecord("The Collection Snowboard: Liquid", "749.95"),
+                        productRecord("The Out of Stock Snowboard", "885.95"),
+                        productRecord("The Inventory Not Tracked Snowboard", "949.95"),
+                        productRecord("The Complete Snowboard", "699.95"),
+                        productRecord("The Multi-managed Snowboard", "629.95"),
+                        productRecord("The Collection Snowboard: Oxygen", "1025.00")
+                    ),
+                    "totalResults", 6,
+                    "returnedResults", 6
+                )
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata,
+            false,
+            null,
+            Set.of(),
+            null
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
+        assertThat(documents).hasSize(5);
+        assertThat(documents)
+            .extracting(document -> document.get("title"))
+            .contains("The Collection Snowboard: Liquid", "The Collection Snowboard: Oxygen");
+    }
+
+    private Map<String, Object> productRecord(String title, String price) {
+        return Map.of(
+            "title", title,
+            "entityType", "product",
+            "metadata", Map.of(
+                "vendor", "Hydrogen Vendor",
+                "productType", "snowboard",
+                "available", true,
+                "price", price,
+                "inventoryQuantity", 50
+            )
+        );
     }
 }

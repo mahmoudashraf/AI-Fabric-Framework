@@ -121,9 +121,12 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         if (businessPayload != payload) {
             copyCommonFields(businessPayload, facts);
         }
-        putCompactedList(facts, "documents", businessPayload.get("documents"));
-        putCompactedList(facts, "items", businessPayload.get("items"));
-        putCompactedList(facts, "policies", businessPayload.get("policies"));
+        String relevanceQuery = asString(facts.get("query"));
+        boolean hasDocuments = putCompactedList(facts, "documents", businessPayload.get("documents"), relevanceQuery);
+        if (!hasDocuments) {
+            putCompactedList(facts, "items", businessPayload.get("items"), relevanceQuery);
+        }
+        putCompactedList(facts, "policies", businessPayload.get("policies"), relevanceQuery);
         Object product = businessPayload.get("product");
         if (product instanceof Map<?, ?> productMap) {
             Map<String, Object> compactProduct = compactRecord(productMap);
@@ -210,23 +213,22 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         }
     }
 
-    private void putCompactedList(Map<String, Object> facts, String key, Object value) {
-        List<Map<String, Object>> compacted = compactRecords(value);
+    private boolean putCompactedList(Map<String, Object> facts, String key, Object value, String relevanceQuery) {
+        List<Map<String, Object>> compacted = compactRecords(value, relevanceQuery);
         if (!compacted.isEmpty()) {
             facts.put(key, compacted);
             facts.put(key + "Count", compacted.size());
+            return true;
         }
+        return false;
     }
 
-    private List<Map<String, Object>> compactRecords(Object value) {
+    private List<Map<String, Object>> compactRecords(Object value, String relevanceQuery) {
         if (!(value instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
         List<Map<String, Object>> out = new ArrayList<>();
         for (Object item : list) {
-            if (out.size() >= 5) {
-                break;
-            }
             if (item instanceof Map<?, ?> map) {
                 Map<String, Object> compact = compactRecord(map);
                 if (!compact.isEmpty()) {
@@ -234,7 +236,20 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                 }
             }
         }
+        out.sort((left, right) -> Boolean.compare(matchesQuery(right, relevanceQuery), matchesQuery(left, relevanceQuery)));
+        if (out.size() > 5) {
+            out = new ArrayList<>(out.subList(0, 5));
+        }
         return out.isEmpty() ? List.of() : List.copyOf(out);
+    }
+
+    private boolean matchesQuery(Map<String, Object> record, String query) {
+        if (record == null || !StringUtils.hasText(query)) {
+            return false;
+        }
+        String normalizedQuery = query.toLowerCase(Locale.ROOT);
+        Object title = record.get("title");
+        return title != null && normalizedQuery.contains(String.valueOf(title).toLowerCase(Locale.ROOT));
     }
 
     private Map<String, Object> compactRecord(Map<?, ?> record) {
