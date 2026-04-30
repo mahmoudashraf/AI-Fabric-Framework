@@ -35,6 +35,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionTopicSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceUsageEventSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceUsageSummary;
+import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceShopifyBillingConfigRequest;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
@@ -487,6 +488,24 @@ public class PlatformManagedProductAdminService {
     @Transactional
     public PlatformManagedProductServiceSummary scale(String serviceRef, Integer desiredReplicas) {
         return provisioningService.scale(serviceRef, desiredReplicas);
+    }
+
+    @Transactional
+    public PlatformManagedProductServiceSummary updateShopifyBillingConfig(String serviceRef,
+                                                                           UpdatePlatformManagedProductServiceShopifyBillingConfigRequest request) {
+        PlatformManagedProductServiceSummary summary = serviceService.updateShopifyBillingConfig(serviceRef, request);
+        platformAuditService.record(
+            "MANAGED_PRODUCT_SHOPIFY_BILLING_CONFIG_UPDATED",
+            TARGET_TYPE,
+            summary.serviceRef(),
+            Map.of(
+                "serviceRef", summary.serviceRef(),
+                "mode", summary.shopifyBillingConfig() == null ? "" : summary.shopifyBillingConfig().mode(),
+                "starterEnabled", summary.shopifyBillingConfig() != null && summary.shopifyBillingConfig().starterEnabled(),
+                "eliteEnabled", summary.shopifyBillingConfig() != null && summary.shopifyBillingConfig().eliteEnabled()
+            )
+        );
+        return summary;
     }
 
     @Transactional

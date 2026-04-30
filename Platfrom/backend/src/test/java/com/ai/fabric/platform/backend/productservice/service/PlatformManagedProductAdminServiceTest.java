@@ -313,7 +313,8 @@ class PlatformManagedProductAdminServiceTest {
             null,
             null,
             0,
-            0
+            0,
+            null
         );
 
         when(provisioningService.refreshRailwayBindingFromWorkspace("shopify-bridge-prod")).thenReturn(service);

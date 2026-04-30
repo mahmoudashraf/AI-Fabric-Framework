@@ -53,12 +53,14 @@ import {
   restartProductService,
   rotateProductServiceSecret,
   scaleProductService,
+  updateProductServiceShopifyBillingConfig,
   type CreatePlatformManagedProductServiceRequest,
   type PlatformAuditEventSummary,
   type PlatformManagedProductServiceBillingSummary,
   type PlatformManagedProductServiceHealthSummary,
   type PlatformManagedProductServiceOverviewSummary,
   type PlatformManagedProductServiceProbeSummary,
+  type PlatformManagedProductServiceShopifyBillingConfig,
   type PlatformManagedProductServiceSummary,
   type RailwayLogEntrySummary,
   type ShopifyStoreConnectionSummary,
@@ -230,6 +232,26 @@ function railwaySeverityColor(entry: RailwayLogEntrySummary): 'default' | 'error
 
 type ProductServiceFormState = CreatePlatformManagedProductServiceRequest
 
+const defaultShopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig = {
+  mode: 'FREE',
+  starterEnabled: false,
+  starterPlanName: 'Loom Companion Starter',
+  starterPlanHandle: 'loom-companion-starter',
+  starterAmount: '29.00',
+  starterCurrencyCode: 'USD',
+  starterInterval: 'EVERY_30_DAYS',
+  starterTrialDays: 7,
+  starterTest: true,
+  eliteEnabled: false,
+  elitePlanName: 'Loom Companion Elite',
+  elitePlanHandle: 'loom-companion-elite',
+  eliteAmount: '179.00',
+  eliteCurrencyCode: 'USD',
+  eliteTrialDays: 0,
+  eliteInterval: 'EVERY_30_DAYS',
+  eliteTest: true,
+}
+
 const emptyForm: ProductServiceFormState = {
   serviceRef: '',
   displayName: '',
@@ -247,6 +269,195 @@ const emptyForm: ProductServiceFormState = {
   serviceRoot: 'product-services/shopify-bridge-service',
   dockerfilePath: 'product-services/shopify-bridge-service/deploy/railway/Dockerfile',
   secretName: null,
+  shopifyBillingConfig: defaultShopifyBillingConfig,
+}
+
+function billingConfigOrDefault(
+  value: PlatformManagedProductServiceShopifyBillingConfig | null | undefined,
+): PlatformManagedProductServiceShopifyBillingConfig {
+  return {
+    ...defaultShopifyBillingConfig,
+    ...(value ?? {}),
+  }
+}
+
+function shopifyBillingConfigFields(
+  config: PlatformManagedProductServiceShopifyBillingConfig,
+  onChange: (patch: Partial<PlatformManagedProductServiceShopifyBillingConfig>) => void,
+) {
+  return (
+    <Stack spacing={2}>
+      <TextField select label="Billing mode" value={config.mode} onChange={(event) => onChange({ mode: event.target.value })} fullWidth>
+        <MenuItem value="FREE">Free-only</MenuItem>
+        <MenuItem value="SHOPIFY_APP_SUBSCRIPTION">Shopify app subscriptions</MenuItem>
+      </TextField>
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <TextField
+            select
+            label="Starter"
+            value={config.starterEnabled ? 'true' : 'false'}
+            onChange={(event) => onChange({ starterEnabled: event.target.value === 'true' })}
+            fullWidth
+          >
+            <MenuItem value="false">Disabled</MenuItem>
+            <MenuItem value="true">Enabled</MenuItem>
+          </TextField>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <TextField
+            select
+            label="Elite"
+            value={config.eliteEnabled ? 'true' : 'false'}
+            onChange={(event) => onChange({ eliteEnabled: event.target.value === 'true' })}
+            fullWidth
+          >
+            <MenuItem value="false">Disabled</MenuItem>
+            <MenuItem value="true">Enabled</MenuItem>
+          </TextField>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <TextField
+            select
+            label="Test billing"
+            value={config.starterTest && config.eliteTest ? 'true' : 'false'}
+            onChange={(event) => {
+              const enabled = event.target.value === 'true'
+              onChange({ starterTest: enabled, eliteTest: enabled })
+            }}
+            fullWidth
+          >
+            <MenuItem value="true">Test subscriptions</MenuItem>
+            <MenuItem value="false">Live subscriptions</MenuItem>
+          </TextField>
+        </Grid>
+      </Grid>
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <TextField
+            label="Starter plan"
+            value={config.starterPlanName}
+            onChange={(event) => onChange({ starterPlanName: event.target.value })}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <TextField
+            label="Starter handle"
+            value={config.starterPlanHandle}
+            onChange={(event) => onChange({ starterPlanHandle: event.target.value })}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} md={2}>
+          <TextField
+            label="Starter amount"
+            value={config.starterAmount}
+            onChange={(event) => onChange({ starterAmount: event.target.value })}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} md={2}>
+          <TextField
+            select
+            label="Currency"
+            value={config.starterCurrencyCode}
+            onChange={(event) => onChange({ starterCurrencyCode: event.target.value })}
+            fullWidth
+          >
+            <MenuItem value="USD">USD</MenuItem>
+            <MenuItem value="GBP">GBP</MenuItem>
+            <MenuItem value="EUR">EUR</MenuItem>
+          </TextField>
+        </Grid>
+      </Grid>
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <TextField
+            select
+            label="Starter interval"
+            value={config.starterInterval}
+            onChange={(event) => onChange({ starterInterval: event.target.value })}
+            fullWidth
+          >
+            <MenuItem value="EVERY_30_DAYS">Every 30 days</MenuItem>
+            <MenuItem value="ANNUAL">Annual</MenuItem>
+          </TextField>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <TextField
+            label="Starter trial days"
+            type="number"
+            value={config.starterTrialDays}
+            onChange={(event) => onChange({ starterTrialDays: Number(event.target.value) })}
+            fullWidth
+          />
+        </Grid>
+      </Grid>
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <TextField
+            label="Elite plan"
+            value={config.elitePlanName}
+            onChange={(event) => onChange({ elitePlanName: event.target.value })}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <TextField
+            label="Elite handle"
+            value={config.elitePlanHandle}
+            onChange={(event) => onChange({ elitePlanHandle: event.target.value })}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} md={2}>
+          <TextField
+            label="Elite amount"
+            value={config.eliteAmount}
+            onChange={(event) => onChange({ eliteAmount: event.target.value })}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12} md={2}>
+          <TextField
+            select
+            label="Currency"
+            value={config.eliteCurrencyCode}
+            onChange={(event) => onChange({ eliteCurrencyCode: event.target.value })}
+            fullWidth
+          >
+            <MenuItem value="USD">USD</MenuItem>
+            <MenuItem value="GBP">GBP</MenuItem>
+            <MenuItem value="EUR">EUR</MenuItem>
+          </TextField>
+        </Grid>
+      </Grid>
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <TextField
+            select
+            label="Elite interval"
+            value={config.eliteInterval}
+            onChange={(event) => onChange({ eliteInterval: event.target.value })}
+            fullWidth
+          >
+            <MenuItem value="EVERY_30_DAYS">Every 30 days</MenuItem>
+            <MenuItem value="ANNUAL">Annual</MenuItem>
+          </TextField>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <TextField
+            label="Elite trial days"
+            type="number"
+            value={config.eliteTrialDays}
+            onChange={(event) => onChange({ eliteTrialDays: Number(event.target.value) })}
+            fullWidth
+          />
+        </Grid>
+      </Grid>
+    </Stack>
+  )
 }
 
 export function ProductServicesPage() {
@@ -254,6 +465,7 @@ export function ProductServicesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [rotateDialogOpen, setRotateDialogOpen] = useState(false)
+  const [shopifyBillingDialogOpen, setShopifyBillingDialogOpen] = useState(false)
   const [forceRecreateDialogOpen, setForceRecreateDialogOpen] = useState(false)
   const [decommissionDialogOpen, setDecommissionDialogOpen] = useState(false)
   const [webhookDialogStore, setWebhookDialogStore] = useState<ShopifyStoreConnectionSummary | null>(null)
@@ -267,6 +479,8 @@ export function ProductServicesPage() {
   const [scaleValue, setScaleValue] = useState('1')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [form, setForm] = useState<ProductServiceFormState>(emptyForm)
+  const [shopifyBillingDraft, setShopifyBillingDraft] =
+    useState<PlatformManagedProductServiceShopifyBillingConfig>(defaultShopifyBillingConfig)
 
   const servicesQuery = useQuery({
     queryKey: ['product-services'],
@@ -303,8 +517,9 @@ export function ProductServicesPage() {
   useEffect(() => {
     if (selectedService) {
       setScaleValue(`${selectedService.desiredReplicas ?? 1}`)
+      setShopifyBillingDraft(billingConfigOrDefault(selectedService.shopifyBillingConfig))
     }
-  }, [selectedService?.desiredReplicas, selectedService?.serviceRef])
+  }, [selectedService?.desiredReplicas, selectedService?.serviceRef, selectedService?.shopifyBillingConfig])
 
   const dependentsQuery = useQuery({
     queryKey: ['product-services', selectedServiceRef, 'dependents'],
@@ -428,6 +643,24 @@ export function ProductServicesPage() {
       await refreshSelected(service.serviceRef)
     },
     onError: (error) => setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to scale product service.' }),
+  })
+
+  const updateShopifyBillingMutation = useMutation({
+    mutationFn: ({ serviceRef, payload }: { serviceRef: string; payload: PlatformManagedProductServiceShopifyBillingConfig }) =>
+      updateProductServiceShopifyBillingConfig(serviceRef, payload),
+    onSuccess: async (service) => {
+      setMessage({
+        type: 'success',
+        text: `Updated Shopify billing configuration for ${service.displayName}. Reconcile to apply it to Railway.`,
+      })
+      setShopifyBillingDialogOpen(false)
+      await refreshSelected(service.serviceRef)
+    },
+    onError: (error) =>
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Failed to update Shopify billing configuration.',
+      }),
   })
 
   const restartMutation = useMutation({
@@ -638,6 +871,28 @@ export function ProductServicesPage() {
                       <Alert severity="warning">
                         Decommission is blocked while {selectedService?.dependentStoresCount ?? 0} Shopify store mapping(s) still depend on this
                         service. Remove the mappings first.
+                      </Alert>
+                    ) : null}
+                    {selectedService.shopifyBillingConfig ? (
+                      <Alert
+                        severity={selectedService.shopifyBillingConfig.mode === 'SHOPIFY_APP_SUBSCRIPTION' ? 'info' : 'warning'}
+                        action={
+                          <Button
+                            color="inherit"
+                            size="small"
+                            onClick={() => {
+                              setShopifyBillingDraft(billingConfigOrDefault(selectedService.shopifyBillingConfig))
+                              setShopifyBillingDialogOpen(true)
+                            }}
+                          >
+                            Configure
+                          </Button>
+                        }
+                      >
+                        Shopify billing config {selectedService.shopifyBillingConfig.mode} · Starter{' '}
+                        {selectedService.shopifyBillingConfig.starterEnabled ? 'enabled' : 'off'} · Elite{' '}
+                        {selectedService.shopifyBillingConfig.eliteEnabled ? 'enabled' : 'off'}. Reconcile applies these values to the
+                        Railway Bridge service on create or recreate.
                       </Alert>
                     ) : null}
                   </Stack>
@@ -966,12 +1221,63 @@ export function ProductServicesPage() {
             <TextField label="Service root" value={form.serviceRoot ?? ''} onChange={(event) => setForm((current) => ({ ...current, serviceRoot: event.target.value || null }))} fullWidth />
             <TextField label="Dockerfile path" value={form.dockerfilePath ?? ''} onChange={(event) => setForm((current) => ({ ...current, dockerfilePath: event.target.value || null }))} fullWidth />
             <TextField label="Secret name (optional)" value={form.secretName ?? ''} onChange={(event) => setForm((current) => ({ ...current, secretName: event.target.value || null }))} fullWidth />
+            <Divider />
+            <Stack spacing={1}>
+              <Typography sx={{ fontWeight: 700 }}>Shopify billing</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Stored on the Platform service record and applied to Railway on reconcile, create, and recreate.
+              </Typography>
+            </Stack>
+            {shopifyBillingConfigFields(billingConfigOrDefault(form.shopifyBillingConfig), (patch) =>
+              setForm((current) => ({
+                ...current,
+                shopifyBillingConfig: {
+                  ...billingConfigOrDefault(current.shopifyBillingConfig),
+                  ...patch,
+                },
+              })),
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => createMutation.mutate(form)} disabled={createMutation.isPending}>
             Register
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={shopifyBillingDialogOpen} onClose={() => setShopifyBillingDialogOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Configure Shopify Billing</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="info">
+              This changes the Platform-owned Bridge billing configuration. Run Reconcile after saving to update the managed Railway service
+              environment and redeploy the Bridge.
+            </Alert>
+            {shopifyBillingConfigFields(shopifyBillingDraft, (patch) =>
+              setShopifyBillingDraft((current) => ({
+                ...current,
+                ...patch,
+              })),
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShopifyBillingDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() =>
+              selectedService
+                ? updateShopifyBillingMutation.mutate({
+                    serviceRef: selectedService.serviceRef,
+                    payload: shopifyBillingDraft,
+                  })
+                : undefined
+            }
+            disabled={!selectedService || updateShopifyBillingMutation.isPending}
+          >
+            Save billing config
           </Button>
         </DialogActions>
       </Dialog>

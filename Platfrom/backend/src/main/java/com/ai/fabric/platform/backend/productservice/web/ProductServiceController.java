@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionSummary;
 import com.ai.fabric.platform.backend.productservice.model.RotatePlatformManagedProductServiceSecretRequest;
 import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceScaleRequest;
+import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceShopifyBillingConfigRequest;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
@@ -167,6 +168,15 @@ public class ProductServiceController {
     public PlatformManagedProductServiceSummary scale(@PathVariable String serviceRef,
                                                       @Valid @RequestBody UpdatePlatformManagedProductServiceScaleRequest request) {
         return adminService.scale(serviceRef, request.desiredReplicas());
+    }
+
+    @PutMapping("/{serviceRef}/shopify-billing-config")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformManagedProductServiceSummary updateShopifyBillingConfig(
+        @PathVariable String serviceRef,
+        @Valid @RequestBody UpdatePlatformManagedProductServiceShopifyBillingConfigRequest request
+    ) {
+        return adminService.updateShopifyBillingConfig(serviceRef, request);
     }
 
     @PutMapping("/{serviceRef}/rotate-secret")

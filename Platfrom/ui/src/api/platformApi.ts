@@ -568,6 +568,27 @@ export type PlatformManagedProductServiceSummary = {
   driftMessage: string | null
   dependentStoresCount: number
   activeDependentStoresCount: number
+  shopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig | null
+}
+
+export type PlatformManagedProductServiceShopifyBillingConfig = {
+  mode: string
+  starterEnabled: boolean
+  starterPlanName: string
+  starterPlanHandle: string
+  starterAmount: string
+  starterCurrencyCode: string
+  starterInterval: string
+  starterTrialDays: number
+  starterTest: boolean
+  eliteEnabled: boolean
+  elitePlanName: string
+  elitePlanHandle: string
+  eliteAmount: string
+  eliteCurrencyCode: string
+  eliteInterval: string
+  eliteTrialDays: number
+  eliteTest: boolean
 }
 
 export type PlatformManagedProductServiceProbeSummary = {
@@ -771,6 +792,7 @@ export type CreatePlatformManagedProductServiceRequest = {
   serviceRoot: string | null
   dockerfilePath: string | null
   secretName: string | null
+  shopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig | null
 }
 
 export type UpdatePlatformManagedProductServiceScaleRequest = {
@@ -3823,6 +3845,19 @@ export function scaleProductService(serviceRef: string, payload: UpdatePlatformM
     method: 'PUT',
     body: JSON.stringify(payload),
   })
+}
+
+export function updateProductServiceShopifyBillingConfig(
+  serviceRef: string,
+  payload: PlatformManagedProductServiceShopifyBillingConfig,
+) {
+  return request<PlatformManagedProductServiceSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/shopify-billing-config`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function restartProductService(serviceRef: string) {
