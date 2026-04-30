@@ -43,7 +43,7 @@ public class PublicConsumerBridgeChatService {
     private static final String RUNTIME_PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
     private static final String SCOPE_CHAT_QUERY = "chat:query";
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
-    private static final String THINKER_RUNTIME_MODE = "resolver_assistant";
+    private static final String THINKER_RUNTIME_MODE = "thinker";
     private static final Duration RUNTIME_TIMEOUT = Duration.ofSeconds(30);
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;

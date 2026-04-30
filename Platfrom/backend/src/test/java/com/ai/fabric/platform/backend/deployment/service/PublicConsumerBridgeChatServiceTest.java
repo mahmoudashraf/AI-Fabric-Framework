@@ -235,7 +235,7 @@ class PublicConsumerBridgeChatServiceTest {
     }
 
     @Test
-    void thinkerQueryUsesRuntimeResolverModeAndCapturesOriginalThinkerRequest() throws Exception {
+    void thinkerQueryUsesRuntimeThinkerModeAndCapturesOriginalThinkerRequest() throws Exception {
         AtomicReference<String> capturedBody = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
@@ -312,7 +312,7 @@ class PublicConsumerBridgeChatServiceTest {
             );
 
             JsonNode runtimeBody = objectMapper.readTree(capturedBody.get());
-            assertThat(runtimeBody.path("mode").asText()).isEqualTo("resolver_assistant");
+            assertThat(runtimeBody.path("mode").asText()).isEqualTo("thinker");
             assertThat(response.path("thinkerSession").path("sessionId").asText()).isEqualTo("tis-live");
             assertThat(response.path("thinkerSession").path("status").asText()).isEqualTo("RESOLVED");
             assertThat(response.path("thinkerSession").path("recommendation").asText()).isEqualTo("ANSWER_WITH_EVIDENCE");
