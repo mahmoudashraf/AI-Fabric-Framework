@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.Set;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
@@ -45,5 +47,22 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(starterPrompts).hasSize(3);
         assertThat(starterPrompts).extracting(node -> node.path("id").asText())
             .contains("support-capabilities", "refund-policy", "notification-troubleshooting");
+    }
+
+    @Test
+    void pruneRoutesWithoutActionsRemovesOrphanedMarketplaceRoutes() {
+        ObjectNode routing = objectMapper.createObjectNode();
+        ObjectNode routes = routing.putObject("actions");
+        routes.putObject("relationship_query").put("path", "/stale");
+        routes.putObject("search_products").put("path", "/active");
+
+        boolean changed = DeploymentMarketplaceDraftCompilerService.pruneRoutesWithoutActions(
+            routing,
+            Set.of("search_products")
+        );
+
+        assertThat(changed).isTrue();
+        assertThat(routes.has("relationship_query")).isFalse();
+        assertThat(routes.path("search_products").path("path").asText()).isEqualTo("/active");
     }
 }

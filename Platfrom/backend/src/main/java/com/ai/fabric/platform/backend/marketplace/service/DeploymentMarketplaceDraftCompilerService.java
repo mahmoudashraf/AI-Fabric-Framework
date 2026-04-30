@@ -102,6 +102,7 @@ public class DeploymentMarketplaceDraftCompilerService {
             : deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode actionsRoot = ensureObject(draft.actionsConfig());
         ObjectNode entityRoot = normalizeEntityRoot(draft.entityConfig());
+        ObjectNode routingRoot = ensureObject(draft.routingConfig());
         ObjectNode knowledgeSourceRoot = normalizeKnowledgeSourceRoot(draft.knowledgeSourceConfig());
         ObjectNode shellRoot = normalizeShellRoot(draft.shellConfig());
         ObjectNode marketplaceDatasetRoot = normalizeMarketplaceDatasetRoot(draft.marketplaceDatasetConfig());
@@ -178,10 +179,11 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
 
+        boolean routingChanged = pruneRoutesWithoutActions(routingRoot, actionNames(actionsRoot.path("actions")));
         UpdateDeploymentDraftRequest updateRequest = new UpdateDeploymentDraftRequest(
             actionsRoot,
             entityRoot,
-            null,
+            routingChanged ? routingRoot : null,
             providerRoot,
             null,
             null,
@@ -886,6 +888,21 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     private void stripMarketplaceManagedDatasets(ObjectNode marketplaceDatasetRoot) {
         removeMarketplaceManagedEntries(ensureArray(marketplaceDatasetRoot, "datasets"));
+    }
+
+    static boolean pruneRoutesWithoutActions(ObjectNode routingRoot, Set<String> actionNames) {
+        if (routingRoot == null || !(routingRoot.path("actions") instanceof ObjectNode routes)) {
+            return false;
+        }
+        Set<String> validActionNames = actionNames == null ? Set.of() : actionNames;
+        List<String> staleRoutes = new ArrayList<>();
+        routes.fieldNames().forEachRemaining(routeName -> {
+            if (!validActionNames.contains(routeName)) {
+                staleRoutes.add(routeName);
+            }
+        });
+        staleRoutes.forEach(routes::remove);
+        return !staleRoutes.isEmpty();
     }
 
     private void stripMarketplaceManagedInference(ObjectNode providerRoot) {
