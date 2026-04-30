@@ -65,5 +65,8 @@ class CommerceCuratedPackTest {
             promptBundle
         );
         assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1");
+        assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
+            .contains("no safest option can be identified from the available live store data")
+            .contains("do not recommend or ask for external/user-supplied reviews");
     }
 }
