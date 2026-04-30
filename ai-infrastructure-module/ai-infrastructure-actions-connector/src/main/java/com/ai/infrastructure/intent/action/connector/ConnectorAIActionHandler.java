@@ -27,9 +27,19 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private static final String REDACTED = "[REDACTED]";
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
-    private static final Pattern MAX_PRICE_QUERY = Pattern.compile(
-        "\\b(?:under|below|less\\s+than|no\\s+more\\s+than|at\\s+most|max(?:imum)?|up\\s+to)\\s*\\$?\\s*(\\d+(?:\\.\\d+)?)\\b|\\$\\s*(\\d+(?:\\.\\d+)?)\\s*(?:or\\s+less|or\\s+under|and\\s+under)\\b",
-        Pattern.CASE_INSENSITIVE
+    private static final List<Pattern> MAX_PRICE_QUERY_PATTERNS = List.of(
+        Pattern.compile(
+            "\\b(?:under|below|less\\s+than|no\\s+more\\s+than|at\\s+most|max(?:imum)?|up\\s+to)\\s*\\$?\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b",
+            Pattern.CASE_INSENSITIVE
+        ),
+        Pattern.compile(
+            "\\$\\s*(?<amount>\\d+(?:\\.\\d+)?)\\s*(?:or\\s+less|or\\s+under|and\\s+under)\\b",
+            Pattern.CASE_INSENSITIVE
+        ),
+        Pattern.compile(
+            "\\b(?:price|price[_-]?(?:usd|amount|value)|amount|cost)\\b\\s*(?<operator><=|<)\\s*\\$?\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b",
+            Pattern.CASE_INSENSITIVE
+        )
     );
 
     private final AIActionMetaData metadata;
@@ -220,18 +230,22 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
     private boolean putCompactedList(Map<String, Object> facts, String key, Object value, String relevanceQuery) {
         List<Map<String, Object>> compacted = compactRecords(value, relevanceQuery);
         if (!compacted.isEmpty()) {
-            facts.put(key, compacted);
-            facts.put(key + "Count", compacted.size());
+            List<Map<String, Object>> constraintMatches = filterConstraintMatches(compacted, relevanceQuery);
+            boolean hasConstraints = hasQueryConstraints(relevanceQuery);
+            if (hasConstraints && !constraintMatches.isEmpty()) {
+                facts.put(key + "ConstraintMatches", constraintMatches);
+                facts.put(key + "ConstraintMatchCount", constraintMatches.size());
+            }
+            Map<String, Object> matchedPriceSummary = buildPriceSummary(constraintMatches);
+            if (!matchedPriceSummary.isEmpty()) {
+                facts.put(key + "MatchedPriceSummary", matchedPriceSummary);
+            }
             Map<String, Object> priceSummary = buildPriceSummary(compacted);
             if (!priceSummary.isEmpty()) {
                 facts.put(key + "PriceSummary", priceSummary);
             }
-            Map<String, Object> matchedPriceSummary = buildPriceSummary(
-                filterConstraintMatches(compacted, relevanceQuery)
-            );
-            if (!matchedPriceSummary.isEmpty()) {
-                facts.put(key + "MatchedPriceSummary", matchedPriceSummary);
-            }
+            facts.put(key, compacted);
+            facts.put(key + "Count", compacted.size());
             return true;
         }
         return false;
@@ -300,6 +314,10 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             matches.add(record);
         }
         return matches.isEmpty() ? List.of() : List.copyOf(matches);
+    }
+
+    private boolean hasQueryConstraints(String query) {
+        return PriceConstraint.fromQuery(query) != null || mentionsAvailability(query);
     }
 
     private Map<String, Object> buildPriceSummary(List<Map<String, Object>> records) {
@@ -400,7 +418,10 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         String normalized = query.toLowerCase(Locale.ROOT);
         return normalized.contains("available")
             || normalized.contains("in stock")
-            || normalized.contains("instock");
+            || normalized.contains("in_stock")
+            || normalized.contains("instock")
+            || normalized.contains("stock_status")
+            || normalized.contains("stock status");
     }
 
     private double priceOrMax(Map<String, Object> record) {
@@ -575,27 +596,40 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
     }
 
     private record PriceConstraint(
-        double max
+        double max,
+        boolean inclusive
     ) {
         private boolean matches(double price) {
-            return price <= max;
+            return inclusive ? price <= max : price < max;
         }
 
         private static PriceConstraint fromQuery(String query) {
             if (!StringUtils.hasText(query)) {
                 return null;
             }
-            Matcher matcher = MAX_PRICE_QUERY.matcher(query);
-            if (!matcher.find()) {
-                return null;
+            for (Pattern pattern : MAX_PRICE_QUERY_PATTERNS) {
+                Matcher matcher = pattern.matcher(query);
+                if (!matcher.find()) {
+                    continue;
+                }
+                String raw = group(matcher, "amount");
+                if (!StringUtils.hasText(raw)) {
+                    continue;
+                }
+                try {
+                    String operator = group(matcher, "operator");
+                    return new PriceConstraint(Double.parseDouble(raw), !"<".equals(operator));
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
             }
-            String raw = StringUtils.hasText(matcher.group(1)) ? matcher.group(1) : matcher.group(2);
-            if (!StringUtils.hasText(raw)) {
-                return null;
-            }
+            return null;
+        }
+
+        private static String group(Matcher matcher, String name) {
             try {
-                return new PriceConstraint(Double.parseDouble(raw));
-            } catch (NumberFormatException ignored) {
+                return matcher.group(name);
+            } catch (IllegalArgumentException ignored) {
                 return null;
             }
         }

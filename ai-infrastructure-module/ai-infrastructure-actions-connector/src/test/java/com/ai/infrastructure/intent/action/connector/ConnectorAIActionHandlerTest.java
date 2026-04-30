@@ -142,7 +142,7 @@ class ConnectorAIActionHandlerTest {
             .message("Action executed.")
             .data(ActionPayload.object(Map.of(
                 "data", Map.of(
-                    "query", "Find similar available snowboards under 800 dollars",
+                    "query", "Find snowboards with price_usd < 800 AND stock_status = 'in_stock'",
                     "documents", List.of(
                         productRecord("The Collection Snowboard: Liquid", "749.95", true),
                         productRecord("The Out of Stock Snowboard", "885.95", false),
@@ -191,6 +191,16 @@ class ConnectorAIActionHandlerTest {
             .containsEntry("lowestPrice", 629.95)
             .containsEntry("highestPriceTitle", "The Collection Snowboard: Liquid")
             .containsEntry("highestPrice", 749.95);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> constraintMatches = (List<Map<String, Object>>) facts.get().get("documentsConstraintMatches");
+        assertThat(constraintMatches)
+            .extracting(document -> document.get("title"))
+            .containsExactly(
+                "The Multi-managed Snowboard",
+                "The Complete Snowboard",
+                "The Collection Snowboard: Liquid"
+            );
+        assertThat(facts.get()).containsEntry("documentsConstraintMatchCount", 3);
     }
 
     private Map<String, Object> productRecord(String title, String price) {

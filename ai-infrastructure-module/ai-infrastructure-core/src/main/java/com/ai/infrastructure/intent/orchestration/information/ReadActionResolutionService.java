@@ -86,6 +86,7 @@ public class ReadActionResolutionService {
         "documentcount",
         "policycount"
     );
+    private static final int MAX_SANITIZED_EVIDENCE_MAP_ENTRIES = 16;
 
     private final AICoreService aiCoreService;
     private final AIActionRegistry actionRegistry;
@@ -677,7 +678,7 @@ public class ReadActionResolutionService {
                 if (entry == null || entry.getKey() == null) {
                     continue;
                 }
-                if (++count > 10) {
+                if (++count > MAX_SANITIZED_EVIDENCE_MAP_ENTRIES) {
                     sanitized.put("_truncated", true);
                     break;
                 }
