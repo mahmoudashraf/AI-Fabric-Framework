@@ -331,7 +331,6 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             }
             Map<String, Object> compact = new LinkedHashMap<>();
             putIfPresent(compact, "title", record.get("title"));
-            putIfPresent(compact, "vendor", record.get("vendor"));
             putIfPresent(compact, "price", record.get("price"));
             putIfPresent(compact, "available", record.get("available"));
             putIfPresent(compact, "inventoryQuantity", record.get("inventoryQuantity"));

@@ -207,6 +207,7 @@ class ConnectorAIActionHandlerTest {
         assertThat(constraintMatches.getFirst())
             .containsEntry("price", "629.95")
             .containsEntry("available", true)
+            .doesNotContainKey("vendor")
             .doesNotContainKey("productType")
             .doesNotContainKey("primarySku");
         assertThat(facts.get()).containsEntry("documentsConstraintMatchCount", 3);
