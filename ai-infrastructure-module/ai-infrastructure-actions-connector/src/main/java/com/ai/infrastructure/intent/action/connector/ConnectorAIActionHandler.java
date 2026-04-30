@@ -233,7 +233,7 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             List<Map<String, Object>> constraintMatches = filterConstraintMatches(compacted, relevanceQuery);
             boolean hasConstraints = hasQueryConstraints(relevanceQuery);
             if (hasConstraints && !constraintMatches.isEmpty()) {
-                facts.put(key + "ConstraintMatches", constraintMatches);
+                facts.put(key + "ConstraintMatches", compactConstraintMatches(constraintMatches));
                 facts.put(key + "ConstraintMatchCount", constraintMatches.size());
             }
             Map<String, Object> matchedPriceSummary = buildPriceSummary(constraintMatches);
@@ -318,6 +318,31 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private boolean hasQueryConstraints(String query) {
         return PriceConstraint.fromQuery(query) != null || mentionsAvailability(query);
+    }
+
+    private List<Map<String, Object>> compactConstraintMatches(List<Map<String, Object>> records) {
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> record : records) {
+            if (record == null || record.isEmpty()) {
+                continue;
+            }
+            Map<String, Object> compact = new LinkedHashMap<>();
+            putIfPresent(compact, "title", record.get("title"));
+            putIfPresent(compact, "vendor", record.get("vendor"));
+            putIfPresent(compact, "price", record.get("price"));
+            putIfPresent(compact, "available", record.get("available"));
+            putIfPresent(compact, "inventoryQuantity", record.get("inventoryQuantity"));
+            putIfPresent(compact, "reviewSignalsPresent", record.get("reviewSignalsPresent"));
+            putIfPresent(compact, "reviewAverage", record.get("reviewAverage"));
+            putIfPresent(compact, "reviewCount", record.get("reviewCount"));
+            if (!compact.isEmpty()) {
+                out.add(Collections.unmodifiableMap(compact));
+            }
+        }
+        return out.isEmpty() ? List.of() : List.copyOf(out);
     }
 
     private Map<String, Object> buildPriceSummary(List<Map<String, Object>> records) {

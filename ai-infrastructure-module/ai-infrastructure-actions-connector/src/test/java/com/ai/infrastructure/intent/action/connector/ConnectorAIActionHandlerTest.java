@@ -204,6 +204,11 @@ class ConnectorAIActionHandlerTest {
                 "The Complete Snowboard",
                 "The Collection Snowboard: Liquid"
             );
+        assertThat(constraintMatches.getFirst())
+            .containsEntry("price", "629.95")
+            .containsEntry("available", true)
+            .doesNotContainKey("productType")
+            .doesNotContainKey("primarySku");
         assertThat(facts.get()).containsEntry("documentsConstraintMatchCount", 3);
     }
 
