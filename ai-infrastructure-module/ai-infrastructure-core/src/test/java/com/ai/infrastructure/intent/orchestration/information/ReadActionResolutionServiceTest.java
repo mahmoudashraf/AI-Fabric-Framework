@@ -579,6 +579,108 @@ class ReadActionResolutionServiceTest {
             .doesNotContain("query=Product availability for productHandle='the-collection-snowboard-liquid'");
     }
 
+    @Test
+    void shouldTreatSuccessfulEmptyReadActionResultAsInsufficientEvidenceAndUseRag() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
+        PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
+
+        AIActionMetaData getPolicy = AIActionMetaData.builder()
+            .name("get_policy")
+            .description("Return matching policy documents.")
+            .category("policy")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .requiredParameters(Set.of("query"))
+            .build();
+        AIActionHandler policyHandler = mock(AIActionHandler.class);
+        when(policyHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
+        when(policyHandler.executeAction(eq(Map.of("query", "return policy")), any(ActionContext.class)))
+            .thenReturn(ActionResult.builder()
+                .success(true)
+                .message("Action executed.")
+                .data(ActionPayload.object(Map.of("count", 0)))
+                .build());
+        when(policyHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class)))
+            .thenReturn(Optional.of(Map.of(
+                "action", "get_policy",
+                "category", "shopify-companion",
+                "success", true,
+                "message", "Action executed.",
+                "query", "return policy",
+                "count", 0
+            )));
+
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(getPolicy));
+        when(actionRegistry.findHandler("get_policy")).thenReturn(Optional.of(policyHandler));
+        when(actionRegistry.findMetadata("get_policy")).thenReturn(Optional.of(getPolicy));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
+            .thenReturn(resolvedTemplate("system", ""));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
+            .thenReturn(resolvedTemplate("user",
+                "mode={{mode}}\nquery={{query}}\nintent={{intent_json}}\nactions={{eligible_actions_json}}\nprior={{prior_evidence_json}}\n"
+                    + "max={{max_actions_per_iteration}}\ntotal={{max_total_actions}}\nrag={{rag_cooperation_mode}}\n"
+                    + "iteration={{iteration}}\niterations={{max_iterations}}"));
+        when(aiCoreService.generateContent(any(), eq(LlmPurpose.ORCHESTRATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "decision": "EXECUTE_READ_ACTIONS",
+                      "actions": [
+                        {"name": "get_policy", "params": {"query": "return policy"}, "priority": 1}
+                      ],
+                      "needsMoreSteps": true,
+                      "suggestedVectorSpaces": ["policy"]
+                    }
+                    """)
+                .build(),
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "decision": "ANSWER_FROM_CONTEXT",
+                      "actions": [],
+                      "needsMoreSteps": false,
+                      "missingEvidenceReason": "Policy action returned no matching documents.",
+                      "suggestedVectorSpaces": ["policy"]
+                    }
+                    """)
+                .build()
+        );
+
+        ReadActionResolutionService service = new ReadActionResolutionService(
+            aiCoreService,
+            actionRegistry,
+            new IntentExtractionJsonSupport(new ObjectMapper()),
+            templateResolver,
+            new PromptRenderer()
+        );
+
+        ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(
+            Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("What return policy applies?")
+                .optimizedQuery("return policy")
+                .build(),
+            OrchestrationContext.forUser("user-1"),
+            PipelineContext.from("What return policy applies?", OrchestrationContext.forUser("user-1"))
+                .toBuilder()
+                .orchestrationPolicy(readActionPolicy("thinker", List.of("get_policy"),
+                    OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE,
+                    OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT))
+                .build()
+        );
+
+        assertThat(outcome.attempted()).isTrue();
+        assertThat(outcome.executedActions()).hasSize(1);
+        assertThat(outcome.executedActions().getFirst().groundingUsable()).isFalse();
+        assertThat(outcome.hasGroundingEvidence()).isFalse();
+        assertThat(outcome.canAnswerFromActionEvidenceOnly()).isFalse();
+        assertThat(outcome.useRag()).isTrue();
+        assertThat(outcome.diagnostics()).containsEntry("groundingUsableActionCount", 0L);
+        assertThat(outcome.diagnostics()).containsEntry("insufficientActionEvidenceCount", 1L);
+    }
+
     private ResolvedPromptTemplate resolvedTemplate(String name, String body) {
         return new ResolvedPromptTemplate(
             new PromptTemplate(new PromptTemplateKey("orchestration/read-action-resolution", "v1", name), body),

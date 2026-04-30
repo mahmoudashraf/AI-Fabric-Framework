@@ -60,6 +60,32 @@ public class ReadActionResolutionService {
     private static final String PLACEHOLDER_RAG_COOPERATION_MODE = "rag_cooperation_mode";
     private static final String PLACEHOLDER_ITERATION = "iteration";
     private static final String PLACEHOLDER_MAX_ITERATIONS = "max_iterations";
+    private static final Set<String> NON_GROUNDING_EVIDENCE_KEYS = Set.of(
+        "action",
+        "category",
+        "success",
+        "message",
+        "errorcode",
+        "query",
+        "lookup",
+        "lookupmethod",
+        "truncated",
+        "truncateditems",
+        "omitteditems",
+        "_truncated",
+        "_truncateditems",
+        "_omitteditems",
+        "summary"
+    );
+    private static final Set<String> COUNT_EVIDENCE_KEYS = Set.of(
+        "count",
+        "total",
+        "totalcount",
+        "resultcount",
+        "itemcount",
+        "documentcount",
+        "policycount"
+    );
 
     private final AICoreService aiCoreService;
     private final AIActionRegistry actionRegistry;
@@ -152,7 +178,15 @@ public class ReadActionResolutionService {
         }
 
         boolean hasSuccessfulActionEvidence = executedActions.stream().anyMatch(ExecutedReadAction::groundingUsable);
-        boolean useRag = shouldUseRag(lastDecision, hasSuccessfulActionEvidence, readPolicy);
+        long insufficientActionEvidenceCount = executedActions.stream()
+            .filter(action -> action != null && !action.groundingUsable())
+            .count();
+        boolean useRag = shouldUseRag(
+            lastDecision,
+            hasSuccessfulActionEvidence,
+            insufficientActionEvidenceCount > 0,
+            readPolicy
+        );
         String evidenceContext = buildEvidenceContext(executedActions, readPolicy.maxPlannerContextChars());
         List<String> preferredVectorSpaces = lastDecision != null
             ? normalizeVectorSpaces(lastDecision.suggestedVectorSpaces)
@@ -169,6 +203,7 @@ public class ReadActionResolutionService {
         diagnostics.put("executedActions", executedActions.stream().map(ExecutedReadAction::toDiagnosticMap).toList());
         diagnostics.put("executedActionsCount", executedActions.size());
         diagnostics.put("groundingUsableActionCount", executedActions.stream().filter(ExecutedReadAction::groundingUsable).count());
+        diagnostics.put("insufficientActionEvidenceCount", insufficientActionEvidenceCount);
         diagnostics.put("useRag", useRag);
         if (lastDecision != null) {
             diagnostics.put("finalDecision", lastDecision.decision != null ? lastDecision.decision.name() : null);
@@ -398,27 +433,37 @@ public class ReadActionResolutionService {
 
         try {
             ActionResult result = handler.executeAction(proposal.params(), actionContext);
-            String evidence = buildEvidenceSnippet(handler, result, actionContext, readPolicy.maxActionEvidenceCharsPerAction());
+            EvidenceSnippet evidence = buildEvidenceSnippet(
+                handler,
+                result,
+                actionContext,
+                readPolicy.maxActionEvidenceCharsPerAction()
+            );
             return new ExecutedReadAction(
                 proposal.name(),
                 Collections.unmodifiableMap(new LinkedHashMap<>(proposal.params())),
                 metadata,
                 result,
-                result != null && result.isSuccess() && StringUtils.hasText(evidence),
-                evidence,
+                result != null && result.isSuccess() && evidence.groundingUsable(),
+                evidence.summary(),
                 null
             );
         } catch (Exception ex) {
             log.warn("Read-action resolution action '{}' failed: {}", proposal.name(), ex.getMessage(), ex);
             ActionResult errorResult = handler.handleError(ex, actionContext);
-            String evidence = buildEvidenceSnippet(handler, errorResult, actionContext, readPolicy.maxActionEvidenceCharsPerAction());
+            EvidenceSnippet evidence = buildEvidenceSnippet(
+                handler,
+                errorResult,
+                actionContext,
+                readPolicy.maxActionEvidenceCharsPerAction()
+            );
             return new ExecutedReadAction(
                 proposal.name(),
                 Collections.unmodifiableMap(new LinkedHashMap<>(proposal.params())),
                 metadata,
                 errorResult,
                 false,
-                evidence,
+                evidence.summary(),
                 ex.getMessage()
             );
         }
@@ -445,30 +490,36 @@ public class ReadActionResolutionService {
 
     private boolean shouldUseRag(PlannerDecision decision,
                                  boolean hasSuccessfulActionEvidence,
+                                 boolean hasInsufficientActionEvidence,
                                  OrchestrationPolicy.ReadActionResolutionPolicy readPolicy) {
         if (decision == null) {
             return readPolicy.ragCooperationMode() != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE;
         }
         return switch (decision.decision) {
-            case ANSWER_FROM_CONTEXT -> false;
-            case EXECUTE_READ_ACTIONS -> !hasSuccessfulActionEvidence
+            case ANSWER_FROM_CONTEXT -> (!hasSuccessfulActionEvidence || hasInsufficientActionEvidence)
+                && readPolicy.ragCooperationMode() != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE;
+            case EXECUTE_READ_ACTIONS -> (!hasSuccessfulActionEvidence || hasInsufficientActionEvidence)
                 && readPolicy.ragCooperationMode() != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE;
             case EXECUTE_READ_ACTIONS_AND_RAG, USE_RAG_ONLY -> readPolicy.ragCooperationMode()
                 != com.ai.infrastructure.config.OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE;
         };
     }
 
-    private String buildEvidenceSnippet(AIActionHandler handler,
-                                        ActionResult result,
-                                        ActionContext actionContext,
-                                        int maxChars) {
+    private EvidenceSnippet buildEvidenceSnippet(AIActionHandler handler,
+                                                 ActionResult result,
+                                                 ActionContext actionContext,
+                                                 int maxChars) {
         if (result == null) {
-            return null;
+            return EvidenceSnippet.empty();
         }
         try {
             Optional<Map<String, Object>> llmFacts = handler.buildPostActionLlmFacts(result, actionContext);
             if (llmFacts.isPresent() && llmFacts.get() != null && !llmFacts.get().isEmpty()) {
-                return writeBoundedEvidenceJson(sanitizeValue(llmFacts.get(), 0), maxChars);
+                Object sanitized = sanitizeValue(llmFacts.get(), 0);
+                return new EvidenceSnippet(
+                    writeBoundedEvidenceJson(sanitized, maxChars),
+                    hasSubstantiveEvidence(sanitized)
+                );
             }
         } catch (Exception ex) {
             log.debug("Read-action resolution facts builder failed: {}", ex.getMessage());
@@ -488,7 +539,69 @@ public class ReadActionResolutionService {
         if (result.getPinnedTargets() != null && !result.getPinnedTargets().isEmpty()) {
             payload.put("pinnedTargets", result.getPinnedTargets());
         }
-        return writeBoundedEvidenceJson(payload, maxChars);
+        Object sanitized = sanitizeValue(payload, 0);
+        return new EvidenceSnippet(
+            writeBoundedEvidenceJson(sanitized, maxChars),
+            hasSubstantiveEvidence(sanitized)
+        );
+    }
+
+    private boolean hasSubstantiveEvidence(Object value) {
+        return hasSubstantiveEvidence(null, value, 0);
+    }
+
+    private boolean hasSubstantiveEvidence(String key, Object value, int depth) {
+        if (value == null || depth > 6) {
+            return false;
+        }
+        String normalizedKey = normalizeEvidenceKey(key);
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry == null || entry.getKey() == null) {
+                    continue;
+                }
+                String childKey = String.valueOf(entry.getKey());
+                if (isNonGroundingEvidenceKey(childKey)) {
+                    continue;
+                }
+                if (hasSubstantiveEvidence(childKey, entry.getValue(), depth + 1)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (hasSubstantiveEvidence(key, item, depth + 1)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (value instanceof String text) {
+            return StringUtils.hasText(text) && !isNonGroundingEvidenceKey(normalizedKey);
+        }
+        if (value instanceof Number number) {
+            if (COUNT_EVIDENCE_KEYS.contains(normalizedKey)) {
+                return number.doubleValue() > 0;
+            }
+            return StringUtils.hasText(normalizedKey) && !isNonGroundingEvidenceKey(normalizedKey);
+        }
+        if (value instanceof Boolean) {
+            return StringUtils.hasText(normalizedKey) && !isNonGroundingEvidenceKey(normalizedKey);
+        }
+        return StringUtils.hasText(String.valueOf(value)) && !isNonGroundingEvidenceKey(normalizedKey);
+    }
+
+    private boolean isNonGroundingEvidenceKey(String key) {
+        String normalized = normalizeEvidenceKey(key);
+        return !StringUtils.hasText(normalized) || NON_GROUNDING_EVIDENCE_KEYS.contains(normalized);
+    }
+
+    private String normalizeEvidenceKey(String key) {
+        return StringUtils.hasText(key)
+            ? key.trim().replace("-", "").replace("_", "").toLowerCase(Locale.ROOT)
+            : "";
     }
 
     private String writeBoundedEvidenceJson(Object value, int maxChars) {
@@ -749,6 +862,15 @@ public class ReadActionResolutionService {
         List<String> suggestedVectorSpaces,
         Map<String, Object> diagnostics
     ) {
+    }
+
+    private record EvidenceSnippet(
+        String summary,
+        boolean groundingUsable
+    ) {
+        private static EvidenceSnippet empty() {
+            return new EvidenceSnippet(null, false);
+        }
     }
 
     public record ResolutionOutcome(
