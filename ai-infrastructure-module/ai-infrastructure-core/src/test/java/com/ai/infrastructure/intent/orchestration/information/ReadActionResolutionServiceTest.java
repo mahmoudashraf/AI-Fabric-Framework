@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 class ReadActionResolutionServiceTest {
 
     @Test
-    void shouldPreferPurposeBuiltAvailabilityActionForExplicitSkuAvailabilityRequests() {
+    void shouldRespectPlannerSelectedReadActionWithoutApplicationOverride() {
         AICoreService aiCoreService = mock(AICoreService.class);
         AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
         PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
@@ -69,21 +69,22 @@ class ReadActionResolutionServiceTest {
         AIActionHandler availabilityHandler = mock(AIActionHandler.class);
         AIActionHandler detailsHandler = mock(AIActionHandler.class);
         when(availabilityHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
-        when(availabilityHandler.executeAction(eq(Map.of("sku", "SKU-AAA-100")), any(ActionContext.class)))
+        when(detailsHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
+        when(detailsHandler.executeAction(eq(Map.of("sku", "SKU-AAA-100")), any(ActionContext.class)))
             .thenReturn(ActionResult.builder()
                 .success(true)
-                .message("Availability")
+                .message("Product details")
                 .data(ActionPayload.object(Map.of(
                     "sku", "SKU-AAA-100",
-                    "available", true,
-                    "inventory", 21
+                    "title", "Alpha Pack",
+                    "available", true
                 )))
                 .build());
-        when(availabilityHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class))).thenReturn(
+        when(detailsHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class))).thenReturn(
             Optional.of(Map.of(
                 "sku", "SKU-AAA-100",
-                "available", true,
-                "inventory", 21
+                "title", "Alpha Pack",
+                "available", true
             ))
         );
 
@@ -91,6 +92,7 @@ class ReadActionResolutionServiceTest {
         when(actionRegistry.findHandler("check_availability")).thenReturn(Optional.of(availabilityHandler));
         when(actionRegistry.findHandler("get_product_details")).thenReturn(Optional.of(detailsHandler));
         when(actionRegistry.findMetadata("check_availability")).thenReturn(Optional.of(availability));
+        when(actionRegistry.findMetadata("get_product_details")).thenReturn(Optional.of(productDetails));
         when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
             .thenReturn(resolvedTemplate("system", ""));
         when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
@@ -102,7 +104,7 @@ class ReadActionResolutionServiceTest {
             AIGenerationResponse.builder()
                 .content("""
                     {
-                      "decision": "EXECUTE_READ_ACTIONS_AND_RAG",
+                      "decision": "EXECUTE_READ_ACTIONS",
                       "actions": [
                         {"name": "get_product_details", "params": {"sku": "SKU-AAA-100"}, "priority": 1}
                       ],
@@ -139,11 +141,117 @@ class ReadActionResolutionServiceTest {
         assertThat(outcome.useRag()).isFalse();
         assertThat(outcome.canAnswerFromActionEvidenceOnly()).isTrue();
         assertThat(outcome.executedActions()).hasSize(1);
-        assertThat(outcome.executedActions().getFirst().actionName()).isEqualTo("check_availability");
+        assertThat(outcome.executedActions().getFirst().actionName()).isEqualTo("get_product_details");
         assertThat(outcome.diagnostics()).containsEntry("executedActionsCount", 1);
         assertThat(outcome.diagnostics()).containsEntry("finalDecision", "EXECUTE_READ_ACTIONS");
-        verify(availabilityHandler).executeAction(eq(Map.of("sku", "SKU-AAA-100")), any(ActionContext.class));
-        verify(detailsHandler, never()).executeAction(any(), any(ActionContext.class));
+        verify(detailsHandler).executeAction(eq(Map.of("sku", "SKU-AAA-100")), any(ActionContext.class));
+        verify(availabilityHandler, never()).executeAction(any(), any(ActionContext.class));
+    }
+
+    @Test
+    void shouldExecuteMultiplePlannerSelectedReadActionsWithinBudget() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
+        PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
+
+        AIActionMetaData searchProducts = AIActionMetaData.builder()
+            .name("search_products")
+            .description("Search live catalog products.")
+            .category("catalog")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .build();
+        AIActionMetaData getPolicy = AIActionMetaData.builder()
+            .name("get_policy")
+            .description("Return a store policy.")
+            .category("policy")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .requiredParameters(Set.of("policyType"))
+            .build();
+
+        AIActionHandler searchHandler = mock(AIActionHandler.class);
+        AIActionHandler policyHandler = mock(AIActionHandler.class);
+        when(searchHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
+        when(policyHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
+        when(searchHandler.executeAction(eq(Map.of("query", "snowboard")), any(ActionContext.class))).thenReturn(
+            ActionResult.builder()
+                .success(true)
+                .message("Products loaded.")
+                .data(ActionPayload.object(Map.of("count", 3)))
+                .build()
+        );
+        when(policyHandler.executeAction(eq(Map.of("policyType", "shipping")), any(ActionContext.class))).thenReturn(
+            ActionResult.builder()
+                .success(true)
+                .message("Shipping policy loaded.")
+                .data(ActionPayload.object(Map.of("shipsFrom", "warehouse")))
+                .build()
+        );
+        when(searchHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class)))
+            .thenReturn(Optional.of(Map.of("productsFound", 3)));
+        when(policyHandler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class)))
+            .thenReturn(Optional.of(Map.of("policyType", "shipping")));
+
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(searchProducts, getPolicy));
+        when(actionRegistry.findHandler("search_products")).thenReturn(Optional.of(searchHandler));
+        when(actionRegistry.findHandler("get_policy")).thenReturn(Optional.of(policyHandler));
+        when(actionRegistry.findMetadata("search_products")).thenReturn(Optional.of(searchProducts));
+        when(actionRegistry.findMetadata("get_policy")).thenReturn(Optional.of(getPolicy));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
+            .thenReturn(resolvedTemplate("system", ""));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
+            .thenReturn(resolvedTemplate("user",
+                "mode={{mode}}\nquery={{query}}\nintent={{intent_json}}\nactions={{eligible_actions_json}}\nprior={{prior_evidence_json}}\n"
+                    + "max={{max_actions_per_iteration}}\ntotal={{max_total_actions}}\nrag={{rag_cooperation_mode}}\n"
+                    + "iteration={{iteration}}\niterations={{max_iterations}}"));
+        when(aiCoreService.generateContent(any(), eq(LlmPurpose.ORCHESTRATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "decision": "EXECUTE_READ_ACTIONS",
+                      "actions": [
+                        {"name": "search_products", "params": {"query": "snowboard"}, "priority": 1},
+                        {"name": "get_policy", "params": {"policyType": "shipping"}, "priority": 2}
+                      ],
+                      "needsMoreSteps": false
+                    }
+                    """)
+                .build()
+        );
+
+        ReadActionResolutionService service = new ReadActionResolutionService(
+            aiCoreService,
+            actionRegistry,
+            new IntentExtractionJsonSupport(new ObjectMapper()),
+            templateResolver,
+            new PromptRenderer()
+        );
+
+        ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(
+            Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("Compare snowboards and include shipping context.")
+                .optimizedQuery("Compare snowboards and shipping policy")
+                .build(),
+            OrchestrationContext.forUser("user-1"),
+            PipelineContext.from("Compare snowboards and include shipping context.", OrchestrationContext.forUser("user-1"))
+                .toBuilder()
+                .orchestrationPolicy(readActionPolicy("thinker", List.of("search_products", "get_policy"),
+                    OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
+                    OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE))
+                .build()
+        );
+
+        assertThat(outcome.attempted()).isTrue();
+        assertThat(outcome.executedActions()).hasSize(2);
+        assertThat(outcome.executedActions().stream().map(ReadActionResolutionService.ExecutedReadAction::actionName).toList())
+            .containsExactly("search_products", "get_policy");
+        assertThat(outcome.diagnostics()).containsEntry("executedActionsCount", 2);
+        verify(searchHandler).executeAction(eq(Map.of("query", "snowboard")), any(ActionContext.class));
+        verify(policyHandler).executeAction(eq(Map.of("policyType", "shipping")), any(ActionContext.class));
     }
 
     @Test
