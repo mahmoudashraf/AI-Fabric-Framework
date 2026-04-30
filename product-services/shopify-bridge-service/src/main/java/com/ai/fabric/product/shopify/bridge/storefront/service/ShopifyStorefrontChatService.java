@@ -516,7 +516,7 @@ public class ShopifyStorefrontChatService {
         String surface = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
         String normalizedQuery = query == null ? "" : query.toLowerCase(Locale.ROOT);
 
-        if (normalizedQuery.contains("cancel") || normalizedQuery.contains("refund")) {
+        if (containsOrderMutationIntent(normalizedQuery)) {
             return "I cannot cancel or refund an order from chat. Use the merchant support handoff for order changes, refunds, address updates, and payment questions.";
         }
         if (normalizedQuery.contains("order")) {
@@ -528,7 +528,7 @@ public class ShopifyStorefrontChatService {
             }
             return "I cannot provide compliance, medical, or legal guidance. I can help with store products, policies, comparisons, and merchant support paths.";
         }
-        if (normalizedQuery.contains("return") || "policy-strip".equals(surface)) {
+        if (normalizedQuery.contains("return") || normalizedQuery.contains("refund") || "policy-strip".equals(surface)) {
             return "For return questions, review the store return policy and contact merchant support for order-specific exceptions or eligibility.";
         }
         if (normalizedQuery.contains("compare") || "comparison".equals(surface)) {
@@ -544,6 +544,23 @@ public class ShopifyStorefrontChatService {
             return "For travel, look for store products that are compact, easy to carry, durable, and useful on the go. Use filters or product details to compare size, materials, and return options.";
         }
         return "I can help with store products, policies, comparisons, and support handoff. Ask about a product, collection, return policy, or shopping need.";
+    }
+
+    private boolean containsOrderMutationIntent(String normalizedQuery) {
+        return containsAny(
+            normalizedQuery,
+            "cancel order",
+            "cancel my order",
+            "cancel this order",
+            "cancel and refund",
+            "issue refund",
+            "process refund",
+            "create refund",
+            "give refund",
+            "refund order",
+            "refund my order",
+            "refund this order"
+        );
     }
 
     private boolean containsAny(String value, String... terms) {

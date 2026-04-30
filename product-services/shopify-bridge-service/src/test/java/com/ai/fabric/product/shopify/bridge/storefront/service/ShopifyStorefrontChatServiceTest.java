@@ -681,6 +681,78 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(answer).doesNotContain("indexed knowledge base", "available action", "rephrase");
     }
 
+    @Test
+    void queryFallbackTreatsRefundPolicyAsReadOnlyPolicyQuestion() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "sanitizedPayload":{
+                  "safeSummary":"Sorry, rephrase it into a task related to your indexed knowledge base or an available action."
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"What is the return or refund policy for this product?",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).containsIgnoringCase("return policy");
+        assertThat(answer).doesNotContain("I cannot cancel or refund an order");
+    }
+
+    @Test
+    void queryFallbackStillBlocksRefundOrderMutation() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Action executed."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Cancel and refund my order now.",
+                  "mode":"executor",
+                  "storefrontContext":{
+                    "pageType":"account",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).contains("I cannot cancel or refund an order from chat.");
+    }
+
     private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient) {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
