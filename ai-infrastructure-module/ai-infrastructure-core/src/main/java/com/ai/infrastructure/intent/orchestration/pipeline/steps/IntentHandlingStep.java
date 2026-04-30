@@ -106,6 +106,10 @@ import java.time.Instant;
 @Component
 public class IntentHandlingStep implements PipelineStep {
     private static final String ACTION_RELATIONSHIP_QUERY = "relationship_query";
+    private static final String READ_ACTION_GENERATION_GROUNDING_INSTRUCTION =
+        "Use the read-action facts as the only evidence. If the user's requested conclusion depends on a fact type "
+            + "that is absent, say that the evidence is missing. Do not substitute a present fact such as status, "
+            + "availability, price, name, or identifier as evidence for a different requested attribute.";
     
     // =========================================================================
     // Constants
@@ -1844,12 +1848,33 @@ public class IntentHandlingStep implements PipelineStep {
             instructions = intent.getGenerationInstructions();
         }
 
-        if (!requested && forceReadActionGeneration) {
+        if (forceReadActionGeneration) {
             requested = true;
-            instructions = "Answer the user's request from the read-action result facts. If the facts are insufficient, state what is missing instead of inventing details.";
+            if (!StringUtils.hasText(instructions)) {
+                instructions = "Answer the user's request from the read-action result facts. If the facts are insufficient, state what is missing instead of inventing details.";
+            }
+            instructions = appendGenerationInstruction(
+                instructions,
+                READ_ACTION_GENERATION_GROUNDING_INSTRUCTION
+            );
         }
 
         return new ResolvedPostActionGeneration(requested, instructions, forceReadActionGeneration);
+    }
+
+    private String appendGenerationInstruction(String existing, String addition) {
+        if (!StringUtils.hasText(addition)) {
+            return StringUtils.hasText(existing) ? existing.trim() : null;
+        }
+        if (!StringUtils.hasText(existing)) {
+            return addition.trim();
+        }
+        String trimmedExisting = existing.trim();
+        String trimmedAddition = addition.trim();
+        if (trimmedExisting.contains(trimmedAddition)) {
+            return trimmedExisting;
+        }
+        return trimmedExisting + "\n\nEvidence contract: " + trimmedAddition;
     }
 
     private boolean shouldForceReadActionPostActionGeneration(String actionName,
