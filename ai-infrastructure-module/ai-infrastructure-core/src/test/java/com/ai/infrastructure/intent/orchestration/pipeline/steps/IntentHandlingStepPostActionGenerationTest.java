@@ -242,6 +242,88 @@ class IntentHandlingStepPostActionGenerationTest {
     }
 
     @Test
+    void shouldForceGenericPostActionGenerationForGroundingEligibleReadAction() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        AIActionMetaData metadata = AIActionMetaData.builder()
+            .name("search_products")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .anonymousAllowed(true)
+            .build();
+        when(registry.findHandler("search_products")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("search_products")).thenReturn(Optional.of(metadata));
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Action executed.")
+            .data(ActionResultContracts.object(Map.of("items", List.of(
+                Map.of("title", "Liquid", "available", true, "price", "749.95"),
+                Map.of("title", "Oxygen", "available", true, "price", "1025.00")
+            ))))
+            .build();
+        when(handler.executeAction(any(), any())).thenReturn(actionResult);
+        when(handler.buildPostActionLlmFacts(eq(actionResult), any())).thenReturn(Optional.of(Map.of(
+            "products", List.of(
+                Map.of("title", "Liquid", "available", true, "price", "749.95"),
+                Map.of("title", "Oxygen", "available", true, "price", "1025.00")
+            )
+        )));
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenReturn(AIGenerationResponse.builder()
+                .content("Liquid is available and lower priced than Oxygen based on the read-action facts.")
+                .model("test-model")
+                .build());
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf((RAGProvider) null),
+            aiCoreService,
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            null,
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("search_products")
+            .requiresGeneration(false)
+            .actionParams(Map.of("query", "Compare Liquid and Oxygen"))
+            .build();
+
+        PipelineContext context = PipelineContext.from("Compare Liquid and Oxygen", OrchestrationContext.forUser("user-1"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).contains("Liquid is available");
+        assertThat(result.getMessage()).doesNotContain("Action executed");
+        assertThat(result.getData()).containsKey("postActionGeneration");
+
+        verify(handler).executeAction(any(), any());
+        verify(aiCoreService).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION));
+    }
+
+    @Test
     void shouldSkipPostActionGenerationWhenHandlerOptsOut() {
         AIActionRegistry registry = mock(AIActionRegistry.class);
         AIActionHandler handler = mock(AIActionHandler.class);

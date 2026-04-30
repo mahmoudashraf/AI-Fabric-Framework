@@ -1880,7 +1880,14 @@ public class IntentHandlingStep implements PipelineStep {
     private boolean shouldForceReadActionPostActionGeneration(String actionName,
                                                               AIActionMetaData metadata,
                                                               OrchestrationPolicy policy) {
-        return isReadActionExecutionAllowedByReadResolutionPolicy(actionName, metadata, policy);
+        return isReadActionExecutionAllowedByReadResolutionPolicy(actionName, metadata, policy)
+            || isGroundingEligibleReadAction(metadata);
+    }
+
+    private boolean isGroundingEligibleReadAction(AIActionMetaData metadata) {
+        return metadata != null
+            && metadata.getAccessMode() == ActionAccessMode.READ
+            && metadata.isGroundingEligible();
     }
 
     private PostActionGenerationOutcome maybeGenerateGenericPostActionSummary(AIActionHandler handler,
