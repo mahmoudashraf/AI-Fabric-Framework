@@ -958,17 +958,31 @@ public class ShopifyBridgeActionExecutionService {
         if (normalizedQuery == null) {
             return true;
         }
+        boolean knownIntent = policyQueryHasKnownIntent(normalizedQuery);
         for (String needle : policySearchNeedles(normalizedQuery)) {
-            String typedNeedle = needle.replace('-', '_').replace(' ', '_');
-            String compactNeedle = typedNeedle.replace("_policy", "");
-            if (policyFieldMatches(policy, "type", typedNeedle)
-                || policyFieldMatches(policy, "type", compactNeedle)
-                || policyFieldMatches(policy, "title", needle)
-                || policyFieldMatches(policy, "body", needle)) {
+            if (policyTypeOrTitleMatches(policy, needle)
+                || (!knownIntent && policyFieldMatches(policy, "body", needle))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean policyQueryHasKnownIntent(String query) {
+        return containsAny(
+            query,
+            "refund",
+            "return",
+            "shipping",
+            "ship",
+            "delivery",
+            "privacy",
+            "personal data",
+            "data policy",
+            "terms",
+            "service",
+            "legal"
+        );
     }
 
     private List<String> policySearchNeedles(String query) {
@@ -998,6 +1012,14 @@ public class ShopifyBridgeActionExecutionService {
             needles.add("terms");
         }
         return List.copyOf(needles);
+    }
+
+    private boolean policyTypeOrTitleMatches(Map<String, Object> policy, String needle) {
+        String typedNeedle = needle.replace('-', '_').replace(' ', '_');
+        String compactNeedle = typedNeedle.replace("_policy", "");
+        return policyFieldMatches(policy, "type", typedNeedle)
+            || policyFieldMatches(policy, "type", compactNeedle)
+            || policyFieldMatches(policy, "title", needle);
     }
 
     private boolean policyFieldMatches(Map<String, Object> policy, String field, String needle) {

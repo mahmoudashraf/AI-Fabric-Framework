@@ -315,6 +315,83 @@ class ShopifyBridgeActionExecutionServiceTest {
     }
 
     @Test
+    void getPolicyDoesNotReturnUnrelatedPolicyBodyForKnownIntent() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any())).thenReturn(Map.of(
+            "data", Map.of(
+                "shop", Map.of(
+                    "shopPolicies", List.of(
+                        Map.of(
+                            "id", "gid://shopify/ShopPolicy/1",
+                            "title", "Privacy Policy",
+                            "type", "PRIVACY_POLICY",
+                            "body", "<p>Customers may return to this page to review privacy settings.</p>",
+                            "url", "https://alpha.myshopify.com/policies/privacy-policy",
+                            "updatedAt", "2026-04-19T00:00:00Z"
+                        )
+                    )
+                )
+            )
+        ));
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "get_policy",
+                Map.of("query", "return policy for product handle the-collection-snowboard-liquid"),
+                null,
+                Map.of()
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("No policies found.");
+        assertThat(result.data()).containsEntry("count", 0);
+        assertThat((List<?>) result.data().get("items")).isEmpty();
+    }
+
+    @Test
+    void getPolicyStillAllowsBodySearchForUnknownPolicyQueries() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any())).thenReturn(Map.of(
+            "data", Map.of(
+                "shop", Map.of(
+                    "shopPolicies", List.of(
+                        Map.of(
+                            "id", "gid://shopify/ShopPolicy/1",
+                            "title", "Store Policy",
+                            "type", "LEGAL_NOTICE",
+                            "body", "<p>Safety notices are provided by the manufacturer.</p>",
+                            "url", "https://alpha.myshopify.com/policies/store-policy",
+                            "updatedAt", "2026-04-19T00:00:00Z"
+                        )
+                    )
+                )
+            )
+        ));
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest("get_policy", Map.of("query", "safety notices"), null, Map.of())
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("Policies");
+        assertThat(result.data()).containsEntry("count", 1);
+        List<?> items = (List<?>) result.data().get("items");
+        assertThat(items).hasSize(1);
+        assertThat(((Map<?, ?>) items.getFirst()).get("title")).isEqualTo("Store Policy");
+    }
+
+    @Test
     void getPolicyAcceptsPolicyTypeAndOmitsNullQuery() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
