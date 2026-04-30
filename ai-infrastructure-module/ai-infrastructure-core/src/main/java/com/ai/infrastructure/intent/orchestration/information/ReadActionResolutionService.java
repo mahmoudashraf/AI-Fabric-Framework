@@ -611,6 +611,14 @@ public class ReadActionResolutionService {
             return json;
         }
 
+        for (int itemLimit : List.of(5, 3, 1)) {
+            Object prioritized = prioritizeEvidence(value, itemLimit);
+            json = writeJson(prioritized);
+            if (json.length() <= maxChars) {
+                return json;
+            }
+        }
+
         for (int itemLimit : List.of(3, 1)) {
             Object compacted = shrinkEvidenceLists(value, itemLimit);
             json = writeJson(compacted);
@@ -649,6 +657,91 @@ public class ReadActionResolutionService {
             return compacted;
         }
         return value;
+    }
+
+    private Object prioritizeEvidence(Object value, int maxItems) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return shrinkEvidenceLists(value, maxItems);
+        }
+        Map<String, Object> prioritized = new LinkedHashMap<>();
+        List<String> commonKeys = List.of(
+            "action",
+            "category",
+            "success",
+            "query",
+            "count",
+            "totalResults",
+            "returnedResults",
+            "productTitle",
+            "productHandle",
+            "available",
+            "inventoryQuantity"
+        );
+        for (String key : commonKeys) {
+            putPrioritizedEvidence(map, prioritized, key, maxItems);
+        }
+
+        boolean hasConstraintEvidence = map.keySet().stream()
+            .filter(key -> key != null)
+            .map(String::valueOf)
+            .anyMatch(key -> key.endsWith("ConstraintMatches"));
+        List<String> suffixPriority = hasConstraintEvidence
+            ? List.of(
+                "ConstraintMatches",
+                "ConstraintMatchCount",
+                "MatchedPriceSummary",
+                "PriceSummary",
+                "product"
+            )
+            : List.of(
+                "MatchedPriceSummary",
+                "PriceSummary",
+                "product",
+                "documents",
+                "items",
+                "policies"
+            );
+        for (String suffix : suffixPriority) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry == null || entry.getKey() == null) {
+                    continue;
+                }
+                String key = String.valueOf(entry.getKey());
+                if (prioritized.containsKey(key)) {
+                    continue;
+                }
+                if (key.endsWith(suffix) || key.equals(suffix)) {
+                    prioritized.put(key, shrinkEvidenceLists(entry.getValue(), maxItems));
+                }
+            }
+        }
+        return prioritized.isEmpty() ? shrinkEvidenceLists(value, maxItems) : prioritized;
+    }
+
+    private void putPrioritizedEvidence(Map<?, ?> source, Map<String, Object> target, String key, int maxItems) {
+        if (source == null || target == null || !StringUtils.hasText(key)) {
+            return;
+        }
+        Object value = mapValueIgnoreCase(source, key);
+        if (value != null) {
+            target.put(key, shrinkEvidenceLists(value, maxItems));
+        }
+    }
+
+    private Object mapValueIgnoreCase(Map<?, ?> source, String key) {
+        if (source == null || key == null) {
+            return null;
+        }
+        Object direct = source.get(key);
+        if (direct != null) {
+            return direct;
+        }
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry != null && entry.getKey() != null && key.equalsIgnoreCase(String.valueOf(entry.getKey()))) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     private Object sanitizePayload(ActionPayload payload) {

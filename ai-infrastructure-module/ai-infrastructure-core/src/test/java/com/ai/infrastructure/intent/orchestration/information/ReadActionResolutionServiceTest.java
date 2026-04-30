@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -340,6 +341,122 @@ class ReadActionResolutionServiceTest {
         assertThat(evidence).doesNotEndWith("...");
         new ObjectMapper().readTree(evidence);
         assertThat(evidence).contains("The Collection Snowboard: Liquid");
+    }
+
+    @Test
+    void shouldPreserveConstraintMatchesWhenActionEvidenceIsOversized() throws Exception {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
+        PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
+
+        AIActionMetaData relationshipQuery = AIActionMetaData.builder()
+            .name("relationship_query")
+            .description("Run a live product relationship query.")
+            .category("catalog")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .build();
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(handler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
+        when(handler.executeAction(eq(Map.of("query", "Find snowboards with price_usd < 800 AND stock_status = 'in_stock'")), any(ActionContext.class))).thenReturn(
+            ActionResult.builder()
+                .success(true)
+                .message("Action executed.")
+                .data(ActionPayload.object(Map.of("count", 10)))
+                .build()
+        );
+
+        Map<String, Object> facts = new LinkedHashMap<>();
+        facts.put("action", "relationship_query");
+        facts.put("category", "shopify-companion");
+        facts.put("success", true);
+        facts.put("message", "Action executed.");
+        facts.put("query", "Find snowboards with price_usd < 800 AND stock_status = 'in_stock'");
+        facts.put("totalResults", 10);
+        facts.put("returnedResults", 10);
+        facts.put("documentsConstraintMatches", List.of(
+            productFact("The Multi-managed Snowboard", "629.95", true, 100),
+            productFact("The Complete Snowboard", "699.95", true, 15),
+            productFact("The Collection Snowboard: Liquid", "749.95", true, 50)
+        ));
+        facts.put("documentsConstraintMatchCount", 3);
+        facts.put("documentsMatchedPriceSummary", Map.of(
+            "lowestPriceTitle", "The Multi-managed Snowboard",
+            "lowestPrice", 629.95,
+            "highestPriceTitle", "The Collection Snowboard: Liquid",
+            "highestPrice", 749.95
+        ));
+        facts.put("documentsPriceSummary", Map.of(
+            "lowestPriceTitle", "The Multi-managed Snowboard",
+            "lowestPrice", 629.95,
+            "highestPriceTitle", "The Collection Snowboard: Oxygen",
+            "highestPrice", 1025.0
+        ));
+        facts.put("documents", List.of(
+            productFact("The Multi-managed Snowboard", "629.95", true, 100),
+            productFact("The Complete Snowboard", "699.95", true, 15),
+            productFact("The Collection Snowboard: Liquid", "749.95", true, 50),
+            productFact("The Out of Stock Snowboard", "885.95", false, 0),
+            productFact("The Inventory Not Tracked Snowboard", "949.95", true, 0),
+            productFact("The Collection Snowboard: Oxygen", "1025.00", true, 50)
+        ));
+        facts.put("documentsCount", 6);
+        when(handler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class))).thenReturn(Optional.of(facts));
+
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(relationshipQuery));
+        when(actionRegistry.findHandler("relationship_query")).thenReturn(Optional.of(handler));
+        when(actionRegistry.findMetadata("relationship_query")).thenReturn(Optional.of(relationshipQuery));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
+            .thenReturn(resolvedTemplate("system", ""));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
+            .thenReturn(resolvedTemplate("user", "query={{query}}\nactions={{eligible_actions_json}}"));
+        when(aiCoreService.generateContent(any(), eq(LlmPurpose.ORCHESTRATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "decision": "EXECUTE_READ_ACTIONS",
+                      "actions": [
+                        {"name": "relationship_query", "params": {"query": "Find snowboards with price_usd < 800 AND stock_status = 'in_stock'"}, "priority": 1}
+                      ],
+                      "needsMoreSteps": false
+                    }
+                    """)
+                .build()
+        );
+
+        ReadActionResolutionService service = new ReadActionResolutionService(
+            aiCoreService,
+            actionRegistry,
+            new IntentExtractionJsonSupport(new ObjectMapper()),
+            templateResolver,
+            new PromptRenderer()
+        );
+
+        ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(
+            Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("Find similar available snowboards under 800 dollars.")
+                .optimizedQuery("Find similar available snowboards under 800 dollars.")
+                .build(),
+            OrchestrationContext.forUser("user-1"),
+            PipelineContext.from("Find similar available snowboards under 800 dollars.", OrchestrationContext.forUser("user-1"))
+                .toBuilder()
+                .orchestrationPolicy(readActionPolicy("thinker", List.of("relationship_query"),
+                    OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
+                    OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE))
+                .build()
+        );
+
+        String evidence = outcome.executedActions().getFirst().evidenceSummary();
+        new ObjectMapper().readTree(evidence);
+        assertThat(evidence)
+            .contains("documentsConstraintMatches")
+            .contains("The Multi-managed Snowboard")
+            .contains("The Complete Snowboard")
+            .contains("The Collection Snowboard: Liquid")
+            .contains("749.95")
+            .doesNotContain("\"truncated\":true");
     }
 
     @Test
