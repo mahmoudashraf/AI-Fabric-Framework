@@ -14,6 +14,9 @@ final class ShopifyCompanionActionCatalog {
 
     static final String ACTION_PLUGIN_ID = "mkp-action-shopify-companion-read";
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
+    private static final Set<String> DISABLED_ACTION_IDS = Set.of(
+        "relationship_query"
+    );
 
     private static final List<String> DEFAULT_ACTION_IDS = List.of(
         "list_products",
@@ -21,7 +24,6 @@ final class ShopifyCompanionActionCatalog {
         "get_product_details",
         "check_availability",
         "get_policy",
-        "relationship_query",
         "add_product_to_cart",
         "add_to_cart",
         "update_cart_quantity"
@@ -29,8 +31,7 @@ final class ShopifyCompanionActionCatalog {
 
     private static final Set<String> PRODUCT_FILTER_ACTION_IDS = Set.of(
         "list_products",
-        "search_products",
-        "relationship_query"
+        "search_products"
     );
 
     private static final List<String> PRODUCT_FIELDS = List.of(
@@ -46,24 +47,6 @@ final class ShopifyCompanionActionCatalog {
         "reviewSignalsPresent",
         "reviewAverage",
         "reviewCount"
-    );
-
-    private static final List<String> PRODUCT_DOCUMENT_FIELDS = List.of(
-        "title",
-        "entityType",
-        "content",
-        "sourceUrl",
-        "metadata.handle",
-        "metadata.vendor",
-        "metadata.productType",
-        "metadata.available",
-        "metadata.price",
-        "metadata.primarySku",
-        "metadata.inventoryQuantity",
-        "metadata.storefrontUrl",
-        "metadata.reviewSignalsPresent",
-        "metadata.reviewAverage",
-        "metadata.reviewCount"
     );
 
     private static final List<String> POLICY_FIELDS = List.of(
@@ -82,8 +65,21 @@ final class ShopifyCompanionActionCatalog {
         if (actionsConfig == null || !actionsConfig.path("actions").isArray()) {
             return false;
         }
+        ArrayNode actions = (ArrayNode) actionsConfig.path("actions");
         boolean changed = false;
-        for (JsonNode action : actionsConfig.path("actions")) {
+        for (int i = actions.size() - 1; i >= 0; i--) {
+            JsonNode action = actions.get(i);
+            String actionId = firstNonBlank(
+                action.path("name").asText(null),
+                action.path("actionId").asText(null),
+                action.path("id").asText(null)
+            );
+            if (isDisabledAction(actionId)) {
+                actions.remove(i);
+                changed = true;
+            }
+        }
+        for (JsonNode action : actions) {
             if (!(action instanceof ObjectNode actionNode)) {
                 continue;
             }
@@ -118,7 +114,7 @@ final class ShopifyCompanionActionCatalog {
                     action.path("actionId").asText(null),
                     action.path("id").asText(null)
                 );
-                if (actionId != null && isShopifyCompanionAction(action, actionId)) {
+                if (actionId != null && !isDisabledAction(actionId) && isShopifyCompanionAction(action, actionId)) {
                     actionIds.add(actionId);
                 }
             }
@@ -188,7 +184,6 @@ final class ShopifyCompanionActionCatalog {
             case "get_product_details" -> productDetailsFacts();
             case "check_availability" -> availabilityFacts();
             case "get_policy" -> policyFacts();
-            case "relationship_query" -> relationshipFacts();
             default -> null;
         };
     }
@@ -245,24 +240,6 @@ final class ShopifyCompanionActionCatalog {
         return facts;
     }
 
-    private static ObjectNode relationshipFacts() {
-        ObjectNode facts = baseFacts("query", "totalResults", "returnedResults");
-        ArrayNode lists = JSON.arrayNode();
-        lists.add(productDocumentList("documents", "documents", 8));
-        lists.add(productList("items", "products", 8));
-        ObjectNode policies = JSON.objectNode();
-        policies.put("sourcePath", "policies");
-        policies.put("target", "policies");
-        policies.put("maxItems", 5);
-        policies.set("includeFields", array(POLICY_FIELDS));
-        policies.put("fallbackContentField", "body");
-        policies.put("fallbackContentMaxChars", 900);
-        policies.set("rankRules", rankBy("title"));
-        lists.add(policies);
-        facts.set("lists", lists);
-        return facts;
-    }
-
     private static ObjectNode baseFacts(String... copyFields) {
         ObjectNode facts = JSON.objectNode();
         facts.put("rootPath", "data");
@@ -293,39 +270,6 @@ final class ShopifyCompanionActionCatalog {
             "reviewCount"
         ));
         list.set("summaries", productSummaries(target, "price", "title", "available", "inventoryQuantity", "storefrontUrl"));
-        return list;
-    }
-
-    private static ObjectNode productDocumentList(String sourcePath, String target, int maxItems) {
-        ObjectNode list = JSON.objectNode();
-        list.put("sourcePath", sourcePath);
-        list.put("target", target);
-        list.put("maxItems", maxItems);
-        list.set("includeFields", array(PRODUCT_DOCUMENT_FIELDS));
-        list.put("fallbackContentField", "content");
-        list.put("fallbackContentMaxChars", 700);
-        list.set("rankRules", productRankRules("metadata.price", "metadata.available"));
-        list.set("constraints", productConstraints(
-            "metadata.price",
-            "metadata.available",
-            "title",
-            "metadata.handle",
-            "metadata.available",
-            "metadata.price",
-            "metadata.inventoryQuantity",
-            "metadata.storefrontUrl",
-            "metadata.reviewSignalsPresent",
-            "metadata.reviewAverage",
-            "metadata.reviewCount"
-        ));
-        list.set("summaries", productSummaries(
-            target,
-            "metadata.price",
-            "title",
-            "metadata.available",
-            "metadata.inventoryQuantity",
-            "metadata.storefrontUrl"
-        ));
         return list;
     }
 
@@ -444,6 +388,9 @@ final class ShopifyCompanionActionCatalog {
     }
 
     private static boolean isShopifyCompanionAction(JsonNode action, String actionId) {
+        if (isDisabledAction(actionId)) {
+            return false;
+        }
         if (DEFAULT_ACTION_IDS.contains(actionId)) {
             return true;
         }
@@ -453,6 +400,10 @@ final class ShopifyCompanionActionCatalog {
         }
         String category = blankToNull(action.path("category").asText(null));
         return "shopify-companion".equals(normalize(category));
+    }
+
+    private static boolean isDisabledAction(String actionId) {
+        return DISABLED_ACTION_IDS.contains(normalize(actionId));
     }
 
     private static String normalize(String value) {

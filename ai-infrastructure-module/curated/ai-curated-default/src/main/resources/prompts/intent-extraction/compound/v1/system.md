@@ -62,7 +62,8 @@ EXTRACTION RULES:
      * Do NOT copy parameter descriptions/examples into parameter values.
 14. When action == "relationship_query":
 {{relationship_query_entity_types_rule}}
-   - If the user message starts with a relationship-query hint prefix (e.g., "relationship_query:", "relationship query:", "relationship-query:"), you MUST set intent.type=ACTION and action="relationship_query".
+   - If the user message starts with a relationship-query hint prefix (e.g., "relationship_query:", "relationship query:", "relationship-query:") and relationship_query is listed in AVAILABLE ACTIONS, you MUST set intent.type=ACTION and action="relationship_query".
+   - If relationship_query is not listed in AVAILABLE ACTIONS, do not invent it. Use INFORMATION with retrieval/generation when the request can be answered by RAG, or ask for clarification only when the user's business question itself is ambiguous.
    - actionParams.query is REQUIRED and MUST contain the natural-language relationship query to execute.
      * The query parameter is an internal executable search/query built from the user message and supplied attachments/targets/context; never ask the user to provide a separate "query" value for relationship_query.
      * If a meaningful relationship_query.query cannot be derived, do not emit relationship_query as an ACTION. Use INFORMATION with retrieval/generation when the request can be answered by RAG, or ask for clarification only when the user's business question itself is ambiguous.

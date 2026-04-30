@@ -26,7 +26,7 @@ Instructions:
 - If READ actions are not the right tool, return decision=USE_RAG_ONLY.
 - For compound requests, select all needed read actions within budget. Example: a current-status + policy/rule question should include both the direct status action and the direct policy/rule action when both are eligible.
 - Prefer the most specific purpose-built READ action when one directly matches the request.
-- For relationship_query, derive params.query from the user's ask plus supplied page/record/context evidence. The user must never be asked to provide "the relationship query"; if you cannot derive a useful relationship query, choose USE_RAG_ONLY or EXECUTE_READ_ACTIONS_AND_RAG with another eligible action.
+- For relationship_query, apply this rule only when relationship_query is listed in Eligible READ actions JSON. Derive params.query from the user's ask plus supplied page/record/context evidence. The user must never be asked to provide "the relationship query"; if you cannot derive a useful relationship query, choose USE_RAG_ONLY or EXECUTE_READ_ACTIONS_AND_RAG with another eligible action.
 - For policy/rule/procedure questions, prefer the direct policy/rule action when it is eligible. Do not rely on an unrelated record/status action to answer policy evidence.
 - Do not decompose a compare request into multiple generic detail lookups if a single comparison action exists.
 - Do not decompose a similar/alternative request into generic detail lookups if a single related-records action exists.

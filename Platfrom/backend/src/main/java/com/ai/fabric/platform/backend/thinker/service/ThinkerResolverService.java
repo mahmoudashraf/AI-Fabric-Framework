@@ -86,7 +86,6 @@ public class ThinkerResolverService {
     private static final List<String> SHOPIFY_PHASE_1_ALLOWLIST = List.of(
         "list_products",
         "search_products",
-        "relationship_query",
         "get_product_details",
         "check_availability",
         "get_policy",

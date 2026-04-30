@@ -39,22 +39,22 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes().get("navigator_deep").getReadActionResolution()).isNotNull();
         assertThat(props.getModes().get("navigator_deep").getReadActionResolution().getEnabled()).isTrue();
         assertThat(props.getModes().get("navigator_deep").getReadActionResolution().getAllowedReadActions())
-            .contains("list_products", "search_products", "relationship_query", "get_product_details", "check_availability", "get_policy", "view_cart")
-            .doesNotContain("find_similar_products", "compare_products");
+            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
         assertThat(props.getModes()).containsKey("cart_assistant");
         assertThat(props.getModes()).containsKey("resolver_assistant");
         assertThat(props.getModes()).containsKey("thinker");
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution()).isNotNull();
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getEnabled()).isTrue();
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getAllowedReadActions())
-            .contains("list_products", "search_products", "relationship_query", "get_product_details", "check_availability", "get_policy", "view_cart")
-            .doesNotContain("find_similar_products", "compare_products");
+            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
         assertThat(props.getModes().get("thinker").getReadActionResolution()).isNotNull();
         assertThat(props.getModes().get("thinker").getReadActionResolution().getPlanningMode())
             .isEqualTo(OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE);
         assertThat(props.getModes().get("thinker").getReadActionResolution().getAllowedReadActions())
-            .contains("list_products", "search_products", "relationship_query", "get_product_details", "check_availability", "get_policy", "view_cart")
-            .doesNotContain("find_similar_products", "compare_products");
+            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
 
         assertThat(environment.getProperty("ai.prompts.bundle.overlays[0]")).isEqualTo("v1-commerce");
         PromptBundleProperties promptBundle = Binder.get(environment)

@@ -311,7 +311,7 @@ class ThinkerResolverIntegrationTest {
             "consumer-thinker-resolver",
             objectMapper.readTree("""
                 {
-                  "query": "relationship_query: Compare Liquid and Oxygen using live data.",
+                  "query": "Search products using live data.",
                   "mode": "THINKER_DEEP"
                 }
                 """),
@@ -325,9 +325,9 @@ class ThinkerResolverIntegrationTest {
                     "success": true,
                     "message": "Generated comparison from direct read-action evidence.",
                     "data": {
-                      "action": "relationship_query",
+                      "action": "search_products",
                       "metadata": {
-                        "name": "relationship_query",
+                        "name": "search_products",
                         "accessMode": "READ",
                         "sideEffectLevel": "NONE",
                         "groundingEligible": true,
@@ -338,19 +338,9 @@ class ThinkerResolverIntegrationTest {
                         "message": "Action executed.",
                         "data": {
                           "success": true,
-                          "message": "Relationship query results",
+                          "message": "Products",
                           "data": {
-                            "query": "Compare Liquid and Oxygen",
-                            "documents": [
-                              {
-                                "id": "product-liquid",
-                                "title": "Liquid",
-                                "metadata": {
-                                  "available": true,
-                                  "price": "749.95"
-                                }
-                              }
-                            ],
+                            "query": "snowboard",
                             "items": [
                               {
                                 "title": "Liquid",
@@ -383,7 +373,7 @@ class ThinkerResolverIntegrationTest {
         ThinkerIssueSessionDetail detail = thinkerResolverService.getOperatorSession(captured.orElseThrow().id());
         assertThat(detail.evidence()).hasSize(1);
         assertThat(detail.evidence().getFirst().sourceKind()).isEqualTo("RUNTIME_DIRECT_ACTION");
-        assertThat(detail.evidence().getFirst().sourceIdentifier()).isEqualTo("relationship_query");
+        assertThat(detail.evidence().getFirst().sourceIdentifier()).isEqualTo("search_products");
         assertThat(detail.evidence().getFirst().operatorRawReference()).isEqualTo("/result/data/actionResult");
     }
 

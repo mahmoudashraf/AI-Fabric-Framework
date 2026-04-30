@@ -38,7 +38,6 @@ ai:
           allowed-read-actions:
             - list_products
             - search_products
-            - relationship_query
             - get_product_details
             - check_availability
             - get_policy
@@ -81,7 +80,6 @@ ai:
           allowed-read-actions:
             - list_products
             - search_products
-            - relationship_query
             - get_product_details
             - check_availability
             - get_policy
@@ -107,7 +105,6 @@ ai:
           allowed-read-actions:
             - list_products
             - search_products
-            - relationship_query
             - get_product_details
             - check_availability
             - get_policy

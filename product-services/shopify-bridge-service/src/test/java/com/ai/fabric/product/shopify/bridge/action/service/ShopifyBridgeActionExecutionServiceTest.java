@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ShopifyBridgeActionExecutionServiceTest {
@@ -485,13 +486,12 @@ class ShopifyBridgeActionExecutionServiceTest {
     }
 
     @Test
-    void relationshipQueryReturnsLiveProductDocumentsForComparisonPrompts() {
+    void relationshipQueryIsDisabledForDirectBridgeExecution() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
         ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
 
         when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
-        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenReturn(productsPayload());
 
         ShopifyBridgeActionResult result = service.execute(
             "alpha.myshopify.com",
@@ -503,56 +503,10 @@ class ShopifyBridgeActionExecutionServiceTest {
             )
         );
 
-        assertThat(result.success()).isTrue();
-        assertThat(result.message()).isEqualTo("Relationship query results");
-        assertThat(result.data()).containsEntry("totalResults", 2);
-        List<?> documents = (List<?>) result.data().get("documents");
-        assertThat(documents).hasSize(2);
-        Map<?, ?> firstDocument = (Map<?, ?>) documents.getFirst();
-        assertThat(firstDocument.get("entityType")).isEqualTo("product");
-        assertThat(firstDocument.get("title")).isEqualTo("Travel Bag");
-        Map<?, ?> metadata = (Map<?, ?>) firstDocument.get("metadata");
-        assertThat(metadata.get("reviewProvider")).isEqualTo("Judge.me");
-    }
-
-    @Test
-    void relationshipQueryFallsBackToExtractedCatalogTermForNaturalLanguagePrompts() {
-        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
-        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
-        List<String> attemptedQueries = new ArrayList<>();
-
-        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
-        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenAnswer(invocation -> {
-            Map<?, ?> variables = invocation.getArgument(3);
-            String query = variables.get("query") == null ? null : variables.get("query").toString();
-            attemptedQueries.add(query);
-            return "snowboard".equals(query) ? productsPayload() : emptyProductsPayload();
-        });
-
-        ShopifyBridgeActionResult result = service.execute(
-            "alpha.myshopify.com",
-            new ShopifyBridgeActionExecuteRequest(
-                "relationship_query",
-                Map.of("query", "Compare snowboards with similar products and tell me which is safest to buy.", "entityTypes", List.of("product"), "limit", 2),
-                null,
-                Map.of()
-            )
-        );
-
-        assertThat(result.success()).isTrue();
-        assertThat(result.message()).isEqualTo("Relationship query results");
-        assertThat(result.data()).containsEntry("totalResults", 2);
-        assertThat(attemptedQueries).contains(
-            "Compare snowboards with similar products and tell me which is safest to buy.",
-            "snowboard"
-        );
-        Map<?, ?> metadata = (Map<?, ?>) result.data().get("metadata");
-        List<String> productSearchQueries = ((List<?>) metadata.get("productSearchQueries")).stream()
-            .map(Object::toString)
-            .toList();
-        assertThat(productSearchQueries).contains("snowboard");
-        assertThat(metadata.get("productFallbackToRecentCatalog")).isEqualTo(false);
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("ACTION_NOT_SUPPORTED");
+        assertThat(result.message()).isEqualTo("Action is not supported.");
+        verifyNoInteractions(graphqlClient);
     }
 
     @Test

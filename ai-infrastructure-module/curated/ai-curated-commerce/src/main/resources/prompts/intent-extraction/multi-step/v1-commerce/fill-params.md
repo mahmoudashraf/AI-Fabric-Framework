@@ -14,8 +14,6 @@ Rules:
 - Never fabricate values for required parameters to "make the action executable".
 - Omit missing required parameters (do not fabricate); the backend will ask the user for missing required params.
 - Do NOT copy parameter descriptions/examples into parameter values.
-- For relationship_query: actionParams.query MUST contain ONLY the natural-language relationship query derived from the USER REQUEST and supplied ATTACHMENTS / pinned targets context. If the user request includes a relationship-query hint prefix (e.g., "relationship_query:"), do NOT include that prefix inside actionParams.query.
-- For relationship_query: do NOT omit actionParams.query and do NOT ask the user to supply a separate query. If no meaningful query can be derived, leave the action unmapped so the orchestration layer can use retrieval/RAG or ask a business-level clarification.
 - Do NOT invent action names or additional intents.
 - Do NOT include markdown or commentary.
 

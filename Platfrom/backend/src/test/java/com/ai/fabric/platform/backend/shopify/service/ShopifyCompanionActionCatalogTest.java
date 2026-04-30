@@ -17,6 +17,10 @@ class ShopifyCompanionActionCatalogTest {
             .put("category", "shopify-companion")
             .put("accessMode", "READ");
         actions.addObject()
+            .put("name", "search_products")
+            .put("category", "shopify-companion")
+            .put("accessMode", "READ");
+        actions.addObject()
             .put("name", "add_product_to_cart")
             .put("category", "shopify-companion")
             .put("accessMode", "WRITE_ONLY");
@@ -28,21 +32,18 @@ class ShopifyCompanionActionCatalogTest {
         boolean changed = ShopifyCompanionActionCatalog.ensureLlmFactsDefaults(config);
 
         assertThat(changed).isTrue();
-        ObjectNode relationship = (ObjectNode) config.path("actions").get(0);
-        assertThat(relationship.path("llmFacts").path("rootPath").asText()).isEqualTo("data");
-        assertThat(relationship.path("llmFacts").path("lists").size()).isEqualTo(3);
-        assertThat(relationship.path("llmFacts").path("lists").get(0).path("target").asText()).isEqualTo("documents");
-        assertThat(relationship.path("llmFacts").path("lists").get(0).path("constraints").path("target").asText())
+        assertThat(config.path("actions").findValuesAsText("name")).doesNotContain("relationship_query");
+        ObjectNode searchProducts = (ObjectNode) config.path("actions").get(0);
+        assertThat(searchProducts.path("llmFacts").path("rootPath").asText()).isEqualTo("data");
+        assertThat(searchProducts.path("llmFacts").path("lists").size()).isEqualTo(1);
+        assertThat(searchProducts.path("llmFacts").path("lists").get(0).path("target").asText()).isEqualTo("products");
+        assertThat(searchProducts.path("llmFacts").path("lists").get(0).path("constraints").path("target").asText())
             .isEqualTo("productConstraintMatches");
-        assertThat(relationship.path("llmFacts").path("lists").get(0).toString())
-            .contains("metadata.price", "metadata.available")
-            .doesNotContain("\"field\":\"price\"")
-            .doesNotContain("\"field\":\"available\"");
-        assertThat(relationship.path("llmFacts").path("lists").get(1).toString())
+        assertThat(searchProducts.path("llmFacts").path("lists").get(0).toString())
             .contains("\"field\":\"price\"", "\"field\":\"available\"");
-        assertThat(relationship.path("params").findValuesAsText("name")).contains("maxPrice", "availableOnly");
-        assertThat(relationship.toString()).contains("PARAM_NUMERIC_UPPER_BOUND").contains("PARAM_BOOLEAN_TRUE");
-        assertThat(relationship.toString()).doesNotContain("QUERY_").doesNotContain("queryPatterns").doesNotContain("queryTerms");
+        assertThat(searchProducts.path("params").findValuesAsText("name")).contains("maxPrice", "availableOnly");
+        assertThat(searchProducts.toString()).contains("PARAM_NUMERIC_UPPER_BOUND").contains("PARAM_BOOLEAN_TRUE");
+        assertThat(searchProducts.toString()).doesNotContain("QUERY_").doesNotContain("queryPatterns").doesNotContain("queryTerms");
         assertThat(config.path("actions").get(1).has("llmFacts")).isFalse();
         assertThat(config.path("actions").get(2).has("llmFacts")).isFalse();
     }
