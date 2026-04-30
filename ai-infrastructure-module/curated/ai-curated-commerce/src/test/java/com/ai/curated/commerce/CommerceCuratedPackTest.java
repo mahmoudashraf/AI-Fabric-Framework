@@ -69,6 +69,7 @@ class CommerceCuratedPackTest {
             .contains("no safest option can be identified from the available live store data")
             .contains("state that it is not available in the live store data")
             .contains("Do not recommend checking another website, contacting support, contacting a vendor/manufacturer")
+            .contains("Do not add next-step or handoff sentences for missing live data")
             .contains("Do not substitute price, availability, vendor, or product title as safety evidence")
             .contains("Do not append generic closers");
     }

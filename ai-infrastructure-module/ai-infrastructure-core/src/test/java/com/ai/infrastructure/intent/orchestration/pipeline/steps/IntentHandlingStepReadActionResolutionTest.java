@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -97,6 +99,11 @@ class IntentHandlingStepReadActionResolutionTest {
         assertThat(result.getMessage()).isEqualTo("Alpha Laptop is in stock right now.");
         assertThat(result.getMetadata()).containsKey("readActionResolution");
         assertThat(result.getData()).containsKey("readActionResolution");
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiCoreService).generateTextResponse(promptCaptor.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(promptCaptor.getValue())
+            .contains("LIVE STORE READ ACTION RESPONSE POLICY")
+            .contains("Do not provide a website, support, vendor, manufacturer, shopper-supplied-data, or generic next-step handoff unless that handoff is explicitly present in the read-action evidence.");
         verify(ragProvider, never()).performRag(any());
         verify(ragProvider, never()).performRAGQuery(any());
     }

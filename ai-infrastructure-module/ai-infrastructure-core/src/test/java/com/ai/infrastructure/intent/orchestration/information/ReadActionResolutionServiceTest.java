@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent.orchestration.information;
 import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -24,6 +25,7 @@ import com.ai.infrastructure.prompt.PromptTemplateKey;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.prompt.ResolvedPromptTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -420,6 +422,75 @@ class ReadActionResolutionServiceTest {
         assertThat(outcome.executedActions()).isEmpty();
         assertThat(outcome.useRag()).isTrue();
         verify(availabilityHandler, never()).executeAction(any(), any(ActionContext.class));
+    }
+
+    @Test
+    void shouldPlanFromEffectiveUserQueryInsteadOfLossyOptimizedQuery() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
+        PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
+
+        AIActionMetaData getPolicy = AIActionMetaData.builder()
+            .name("get_policy")
+            .description("Return a store policy.")
+            .category("policy")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .requiredParameters(Set.of("policyType"))
+            .build();
+        AIActionHandler policyHandler = mock(AIActionHandler.class);
+
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(getPolicy));
+        when(actionRegistry.findHandler("get_policy")).thenReturn(Optional.of(policyHandler));
+        when(actionRegistry.findMetadata("get_policy")).thenReturn(Optional.of(getPolicy));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
+            .thenReturn(resolvedTemplate("system", ""));
+        when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
+            .thenReturn(resolvedTemplate("user", "query={{query}}\nintent={{intent_json}}"));
+        when(aiCoreService.generateContent(any(), eq(LlmPurpose.ORCHESTRATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("""
+                    {
+                      "decision": "USE_RAG_ONLY",
+                      "actions": [],
+                      "needsMoreSteps": false
+                    }
+                    """)
+                .build()
+        );
+
+        ReadActionResolutionService service = new ReadActionResolutionService(
+            aiCoreService,
+            actionRegistry,
+            new IntentExtractionJsonSupport(new ObjectMapper()),
+            templateResolver,
+            new PromptRenderer()
+        );
+
+        service.resolve(
+            Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("Is Liquid available and what is the return policy?")
+                .optimizedQuery("Product availability for productHandle='the-collection-snowboard-liquid'")
+                .build(),
+            OrchestrationContext.forUser("user-1"),
+            PipelineContext.from(
+                    "Is The Collection Snowboard: Liquid available, and what is the return policy?",
+                    OrchestrationContext.forUser("user-1")
+                )
+                .toBuilder()
+                .orchestrationPolicy(readActionPolicy("thinker", List.of("get_policy"),
+                    OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
+                    OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT))
+                .build()
+        );
+
+        ArgumentCaptor<AIGenerationRequest> promptCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService).generateContent(promptCaptor.capture(), eq(LlmPurpose.ORCHESTRATION));
+        assertThat(promptCaptor.getValue().getPrompt())
+            .contains("query=Is The Collection Snowboard: Liquid available, and what is the return policy?")
+            .doesNotContain("query=Product availability for productHandle='the-collection-snowboard-liquid'");
     }
 
     private ResolvedPromptTemplate resolvedTemplate(String name, String body) {

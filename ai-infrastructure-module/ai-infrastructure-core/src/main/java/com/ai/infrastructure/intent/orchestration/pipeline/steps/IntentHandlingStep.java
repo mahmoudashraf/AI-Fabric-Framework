@@ -2793,13 +2793,29 @@ public class IntentHandlingStep implements PipelineStep {
                                                                 ReadActionResolutionService.ResolutionOutcome resolutionOutcome) {
         String combinedContext = retrievedContext;
         if (resolutionOutcome != null && StringUtils.hasText(resolutionOutcome.evidenceContext())) {
+            String readActionEvidence = readActionEvidenceGenerationContext(resolutionOutcome.evidenceContext());
             if (!StringUtils.hasText(combinedContext) || RAG_NO_CONTEXT_MESSAGE.equals(combinedContext)) {
-                combinedContext = resolutionOutcome.evidenceContext();
+                combinedContext = readActionEvidence;
             } else {
-                combinedContext = resolutionOutcome.evidenceContext() + "\n\n" + combinedContext;
+                combinedContext = readActionEvidence + "\n\n" + combinedContext;
             }
         }
         return prependPinnedTargetsContext(combinedContext, pipelineContext);
+    }
+
+    private String readActionEvidenceGenerationContext(String evidenceContext) {
+        if (!StringUtils.hasText(evidenceContext)) {
+            return evidenceContext;
+        }
+        return """
+            LIVE STORE READ ACTION RESPONSE POLICY
+            - Treat the read-action evidence below as live store data.
+            - If read actions found no records for a requested fact, state that the fact is not available in the live store data.
+            - Do not provide a website, support, vendor, manufacturer, shopper-supplied-data, or generic next-step handoff unless that handoff is explicitly present in the read-action evidence.
+            - Do not append generic closers.
+
+            %s
+            """.formatted(evidenceContext);
     }
 
     private OrchestrationResult handleInformationBasic(Intent intent,

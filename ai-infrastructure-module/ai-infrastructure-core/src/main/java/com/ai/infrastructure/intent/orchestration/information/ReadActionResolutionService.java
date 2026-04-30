@@ -564,11 +564,11 @@ public class ReadActionResolutionService {
     }
 
     private String resolvePlannerQuery(Intent intent, PipelineContext pipelineContext) {
-        if (intent != null && StringUtils.hasText(intent.getOptimizedQuery())) {
-            return intent.getOptimizedQuery().trim();
-        }
         if (pipelineContext != null && StringUtils.hasText(pipelineContext.getEffectiveQuery())) {
             return pipelineContext.getEffectiveQuery().trim();
+        }
+        if (intent != null && StringUtils.hasText(intent.getOptimizedQuery())) {
+            return intent.getOptimizedQuery().trim();
         }
         return intent != null ? intent.getIntentOrAction() : null;
     }
