@@ -62,7 +62,8 @@ class RegisteredConnectorActionMappingTest {
                 .sourceId("create_order")
                 .sourceLocation("classpath:test-actions.yml")
                 .build(),
-            List.of()
+            List.of(),
+            null
         );
 
         RegisteredConnectorAction entity = RegisteredConnectorAction.fromDefinition(definition);

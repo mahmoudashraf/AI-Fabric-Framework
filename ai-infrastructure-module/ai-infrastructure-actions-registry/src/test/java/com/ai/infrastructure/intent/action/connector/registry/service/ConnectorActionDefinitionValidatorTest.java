@@ -33,7 +33,8 @@ class ConnectorActionDefinitionValidatorTest {
             null,
             null,
             null,
-            List.of()
+            List.of(),
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -61,7 +62,8 @@ class ConnectorActionDefinitionValidatorTest {
             null,
             null,
             null,
-            List.of()
+            List.of(),
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -87,7 +89,8 @@ class ConnectorActionDefinitionValidatorTest {
             null,
             null,
             null,
-            List.of()
+            List.of(),
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))

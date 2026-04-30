@@ -9,7 +9,7 @@ Use one call to capture intent, generation need, and optimized query (no extra s
 EXTRACTION RULES:
 1. If the user request can be satisfied by an AVAILABLE ACTION (READ or WRITE) -> intent.type = ACTION and include action + actionParams.
    - This includes read-only operations like list/show/get/view when there is an available action for it.
-   - For user-specific or system-state data (cart, orders, account, shipment tracking, addresses), you MUST use the action if available (do NOT answer "I don't have access" when an action exists).
+   - For user-specific, workflow-state, or system-state data, you MUST use the action if available (do NOT answer "I don't have access" when an action exists).
 2. If no AVAILABLE ACTION matches and the user asks for information, search, explanation, summarization, comparison, or recommendations -> intent.type = INFORMATION.
 3. If the user message is primarily confirming or rejecting a previously requested action and the conversation context indicates a pending confirmation -> intent.type = CONFIRMATION_POSITIVE or CONFIRMATION_NEGATIVE.
 4. Use intent.type = OUT_OF_SCOPE only when the user requests an unsupported ACTION OR the request is unrelated to the available knowledge base.
@@ -30,7 +30,7 @@ EXTRACTION RULES:
 	     * Never merge multiple target values into one parameter unless the action paramsSchema explicitly supports it via an array param marked [batchTargets].
 	     * Use only identifiers/fields present in each target's metadata/contentText (never invent).
    - Set requiresTargetResolution=true only when the request depends on attachments or prior working-set targets and the current message does not already provide an explicit item name or identifier.
-   - If the user already names the item in the current message (for example a product name, document title, order id, SKU, account id, or another explicit handle), set requiresTargetResolution=false.
+   - If the user already names the item in the current message (for example a record name, document title, case id, account id, or another explicit handle), set requiresTargetResolution=false.
    - If the user clearly refers to a single item but multiple pinned targets exist and you cannot disambiguate: ask for clarification (requiresTargetResolution=true).
 8. requiresGeneration (INFORMATION): set true when the final user response needs synthesis (summaries, explanations, comparisons, recommendations).
    - requiresGeneration=false for pure retrieval/listing requests where the user wants records/results without synthesis.
@@ -57,7 +57,7 @@ EXTRACTION RULES:
    - If the user asks to summarize / explain / answer using the knowledge base, that is INFORMATION (set vectorSpace + requiresRetrieval and requiresGeneration as appropriate) NOT an ACTION.
    - If the user requests an ACTION and no AVAILABLE ACTION matches it, return intent.type=OUT_OF_SCOPE.
    - ACTION PARAMETER RULES:
-     * Only populate actionParams with values the user explicitly provided (or unambiguous literals like email address, SKU, quantity).
+     * Only populate actionParams with values the user explicitly provided (or unambiguous literals like record id, case id, or quantity).
      * Never fabricate parameter values to satisfy required parameters. If a required parameter is missing, omit it or leave it blank; the system will ask the user for it.
      * Do NOT copy parameter descriptions/examples into parameter values.
 14. When action == "relationship_query":
@@ -73,22 +73,22 @@ EXTRACTION RULES:
      * Do NOT include post-processing instructions inside actionParams.query.
      * Do NOT rewrite the user's query or add constraints that the user did not ask for.
    - Examples:
-     * {"type":"ACTION","action":"relationship_query","actionParams":{"query":"find all brands","entityTypes":["brand"],"limit":20}}
-     * For user message "relationship_query: find all brands and then summarize": set actionParams.query="find all brands", requiresGeneration=true, generationInstructions="summarize".
+     * {"type":"ACTION","action":"relationship_query","actionParams":{"query":"find related records","entityTypes":["record"],"limit":20}}
+     * For user message "relationship_query: find related records and then summarize": set actionParams.query="find related records", requiresGeneration=true, generationInstructions="summarize".
 
 15. Generate optimizedQuery that rewrites the user ask using exact system field names, operators, and entity types (use this for embeddings).
 16. Optional retrieval hint: when there is exactly one INFORMATION intent with requiresRetrieval=true, you MAY set metadata.retrievalQueryHint.
     - Keep it short (keywords/identifiers only), max 200 chars.
-    - Never include emails/phones/addresses.
+    - Never include sensitive personal contact details.
 
 NEXT-STEP RECOMMENDATIONS:
 - Whenever an intent unlocks a logical follow-up, populate nextStepRecommended with intent, query, rationale, confidence, and vectorSpace.
-- The vectorSpace should specify which knowledge base section to search for the follow-up (e.g., 'faq', 'policies', 'test-product').
+    - The vectorSpace should specify which knowledge base section to search for the follow-up (e.g., 'faq', 'policies', 'reference').
 - Only surface recommendations with confidence >= 0.70.
 - Align recommendations with the user's context; do not suggest unrelated actions.
 - nextStepRecommended.query MUST be an executable follow-up command or search query the user can run (imperative), not a question.
-  - Good: "List my active orders", "Search products for Samsung tablets", "Show return policy"
-  - Bad: "Would you like me to list your orders?", "Please specify more details?"
+  - Good: "List my active records", "Search records for the requested terms", "Show the relevant policy"
+  - Bad: "Would you like me to list records?", "Please specify more details?"
 
 	OUTPUT JSON SCHEMA:
 	{
@@ -107,13 +107,13 @@ NEXT-STEP RECOMMENDATIONS:
       "directAnswer": "required when requiresRetrieval is false AND requiresGeneration is false (short reply)",
       "generationInstructions": "optional post-action generation instruction",
       "needsAdvancedRAG": false,
-      "optimizedQuery": "Product entities with price_usd < 60.00 AND stock_status = 'in_stock'",
+      "optimizedQuery": "Records where score < 60.00 AND status = 'active'",
       "nextStepRecommended": {
         "intent": "potential_follow_up_intent",
         "query": "Executable follow-up command or search query",
         "rationale": "Why this is useful",
         "confidence": 0.88,
-        "vectorSpace": "faq | policies | test-product | ..."
+        "vectorSpace": "faq | policies | reference | ..."
 	      }
 	    }
 	  ],

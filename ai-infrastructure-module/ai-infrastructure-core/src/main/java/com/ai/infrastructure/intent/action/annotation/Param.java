@@ -52,7 +52,7 @@ public @interface Param {
     /**
      * When true, this parameter can be populated by batching pinned targets.
      *
-     * <p>Example: an {@code add_to_cart} action may accept {@code items: [{sku, quantity}, ...]} derived from
+     * <p>Example: a batch action may accept {@code items: [{id, quantity}, ...]} derived from
      * multiple UI-selected pinned targets.</p>
      */
     boolean batchTargets() default false;

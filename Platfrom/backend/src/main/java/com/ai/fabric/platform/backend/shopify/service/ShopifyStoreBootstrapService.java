@@ -453,41 +453,60 @@ public class ShopifyStoreBootstrapService {
     }
 
     private void ensureShopifyCompanionConnectorDefaults(ShopifyStoreConnectionEntity store, String deploymentId) {
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        ObjectNode actionsConfig = ensureObject(draft.actionsConfig());
+        boolean actionsConfigChanged = ShopifyCompanionActionCatalog.ensureLlmFactsDefaults(actionsConfig);
+
         PlatformManagedProductServiceEntity productService = resolveProductService(store.getProductServiceId());
         String productServiceBaseUrl = productService == null ? null : blankToNull(productService.getBaseUrl());
         if (!hasText(productServiceBaseUrl)) {
+            if (actionsConfigChanged) {
+                deploymentService.updateDraft(
+                    draft.id(),
+                    new UpdateDeploymentDraftRequest(
+                        actionsConfig,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                );
+            }
             return;
         }
 
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode routingConfig = ensureObject(draft.routingConfig());
-        boolean changed = false;
+        boolean routingChanged = false;
 
         ObjectNode connector = ensureNestedObject(routingConfig, "connector");
         ObjectNode upstream = ensureNestedObject(connector, "upstream");
-        changed |= putText(upstream, "base-url", trimTrailingSlash(productServiceBaseUrl));
+        routingChanged |= putText(upstream, "base-url", trimTrailingSlash(productServiceBaseUrl));
 
         ObjectNode upstreamAuth = ensureNestedObject(upstream, "auth");
-        changed |= putText(upstreamAuth, "type", "API_KEY");
-        changed |= putText(upstreamAuth, "header", SHOPIFY_BRIDGE_API_KEY_HEADER);
-        changed |= putText(upstreamAuth, "value", "${" + SHOPIFY_BRIDGE_SHARED_SECRET_ENV + "}");
+        routingChanged |= putText(upstreamAuth, "type", "API_KEY");
+        routingChanged |= putText(upstreamAuth, "header", SHOPIFY_BRIDGE_API_KEY_HEADER);
+        routingChanged |= putText(upstreamAuth, "value", "${" + SHOPIFY_BRIDGE_SHARED_SECRET_ENV + "}");
 
         ObjectNode actions = ensureNestedObject(routingConfig, "actions");
-        Set<String> allowedActionIds = ShopifyCompanionActionCatalog.routeActionIds(draft.actionsConfig());
-        changed |= pruneStaleShopifyCompanionActionRoutes(actions, allowedActionIds, store.getShopDomain());
+        Set<String> allowedActionIds = ShopifyCompanionActionCatalog.routeActionIds(actionsConfig);
+        routingChanged |= pruneStaleShopifyCompanionActionRoutes(actions, allowedActionIds, store.getShopDomain());
         for (String actionId : allowedActionIds) {
-            changed |= ensureShopifyCompanionActionRoute(actions, actionId, store.getShopDomain());
+            routingChanged |= ensureShopifyCompanionActionRoute(actions, actionId, store.getShopDomain());
         }
 
-        if (!changed) {
+        if (!actionsConfigChanged && !routingChanged) {
             return;
         }
         deploymentService.updateDraft(
             draft.id(),
             new UpdateDeploymentDraftRequest(
+                actionsConfigChanged ? actionsConfig : null,
                 null,
-                null,
-                routingConfig,
+                routingChanged ? routingConfig : null,
                 null,
                 null,
                 null,

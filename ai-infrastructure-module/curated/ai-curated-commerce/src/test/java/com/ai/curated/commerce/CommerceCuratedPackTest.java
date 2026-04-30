@@ -56,16 +56,18 @@ class CommerceCuratedPackTest {
             .contains("list_products", "search_products", "relationship_query", "get_product_details", "check_availability", "get_policy", "view_cart")
             .doesNotContain("find_similar_products", "compare_products");
 
-        // Commerce pack intentionally uses the default prompt bundle (no overlays) to avoid duplication.
-        assertThat(environment.getProperty("ai.prompts.bundle.overlays[0]")).isNull();
-        PromptBundleProperties promptBundle = new PromptBundleProperties();
+        assertThat(environment.getProperty("ai.prompts.bundle.overlays[0]")).isEqualTo("v1-commerce");
+        PromptBundleProperties promptBundle = Binder.get(environment)
+            .bind("ai.prompts.bundle", PromptBundleProperties.class)
+            .orElseGet(PromptBundleProperties::new);
 
         PromptTemplateResolver resolver = new PromptTemplateResolver(
             new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
             promptBundle
         );
-        assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1");
+        assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1-commerce");
         assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
+            .contains("Use only the relevant commerce context above")
             .contains("no safest option can be identified from the available live store data")
             .contains("state that it is not available in the live store data")
             .contains("Do not recommend checking another website, contacting support, contacting a vendor/manufacturer")

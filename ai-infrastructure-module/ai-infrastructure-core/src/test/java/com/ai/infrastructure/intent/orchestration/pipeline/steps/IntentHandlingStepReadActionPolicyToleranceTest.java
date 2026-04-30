@@ -136,7 +136,7 @@ class IntentHandlingStepReadActionPolicyToleranceTest {
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
         assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getMessage()).isEqualTo("Cart-changing actions are not enabled in this conversation mode. I can still answer product and policy questions from live store data.");
+        assertThat(result.getMessage()).isEqualTo("Mutating actions are not enabled in this conversation mode. I can still answer factual questions from configured knowledge and read-only live evidence.");
         assertThat(result.getData()).containsEntry("reason", "ACTIONS_DISABLED_BY_POLICY");
         verify(handler, never()).executeAction(anyMap(), any());
     }

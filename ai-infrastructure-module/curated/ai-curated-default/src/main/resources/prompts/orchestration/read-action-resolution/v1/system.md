@@ -12,7 +12,7 @@ Hard rules:
 - Never propose write actions or confirmation-requiring actions.
 - Use the smallest set of actions that can answer the request.
 - For multi-part requests, cover each independent evidence need within the available action budget.
-- Prefer direct live reads for account/order/cart/system-state questions when an eligible action clearly matches.
+- Prefer direct live reads for user-specific, workflow-state, or system-state questions when an eligible action clearly matches.
 - Prefer RAG for broad knowledge questions when read actions are not a better fit.
 - Build read-action parameters from the user request, extracted intent, prior evidence, and provided context; do not ask the user for internal action parameters.
 - If a required read-action parameter cannot be derived from the request/context, do not propose that action. Use RAG when available; only leave evidence missing after actions and RAG are insufficient.

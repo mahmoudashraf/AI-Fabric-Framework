@@ -369,7 +369,7 @@ public class IntentHandlingStep implements PipelineStep {
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                 .success(false)
-                .message("Cart-changing actions are not enabled in this conversation mode. I can still answer product and policy questions from live store data.")
+                .message("Mutating actions are not enabled in this conversation mode. I can still answer factual questions from configured knowledge and read-only live evidence.")
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
@@ -728,7 +728,7 @@ public class IntentHandlingStep implements PipelineStep {
                 }
 
                 if (value == null && "quantity".equalsIgnoreCase(propName)) {
-                    // Default quantities for batch actions (e.g., add_to_cart) to 1 when not provided.
+                    // Default quantities for batch actions to 1 when not provided.
                     value = 1;
                 }
 
@@ -807,7 +807,7 @@ public class IntentHandlingStep implements PipelineStep {
         if (meta == null || meta.getAccessMode() != ActionAccessMode.READ) {
             return null;
         }
-        // In action-first modes (e.g., cart assistant / executor), an empty list is a valid, user-visible result.
+        // In action-first modes, an empty list is a valid, user-visible result.
         // Falling back to RAG here makes it look like the action wasn't executed.
         OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
         if (policy != null
@@ -2442,7 +2442,7 @@ public class IntentHandlingStep implements PipelineStep {
         String retrievalQuery = applyRetrievalQueryHint(retrievalBaseQuery, pipelineContext, intent, metadata);
 
 	        // Prefer the LLM-provided optimizedQuery (when present) as the base for the embedding query.
-	        // The user query may be too short/ambiguous (e.g., "price?", "compare") while optimizedQuery carries
+	        // The user query may be too short/ambiguous while optimizedQuery carries
 	        // the resolved intent semantics and identifiers.
 	        String embeddingBaseQuery = retrievalBaseQuery;
 	        embeddingBaseQuery = applyRetrievalQueryHint(embeddingBaseQuery, pipelineContext, intent, null);
@@ -2455,7 +2455,7 @@ public class IntentHandlingStep implements PipelineStep {
 	            && !pipelineContext.getResolvedTargets().isEmpty()
 	            && intent != null
 	            && !Boolean.TRUE.equals(intent.getRequiresTargetResolution())) {
-	            // Deep mode is specifically intended to handle implicit follow-ups like "negative reviews?"
+	            // Deep mode is specifically intended to handle implicit target-dependent follow-ups
 	            // where the user relies on pinned targets. Make the embedding query eligible for target hints.
 	            intent.setRequiresTargetResolution(true);
 	            forcedTargetResolution = true;
@@ -2529,7 +2529,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                    fallbackSpaces = capVectorSpacesToBudget(fallbackSpaces, ragBudgets);
 	                    if (fallbackSpaces.size() > 1) {
 	                        // Deep mode: when Advanced RAG returns no documents/confidence, broaden retrieval across
-	                        // all configured spaces (e.g., reviews/policies) instead of returning a potentially
+	                        // all configured spaces instead of returning a potentially
 	                        // ungrounded generated answer.
 	                        metadata.put("advancedRagFallback", true);
 	                        metadata.put("advancedRagFallbackReason", "NO_RELEVANT_RESULTS");
@@ -2808,17 +2808,16 @@ public class IntentHandlingStep implements PipelineStep {
             return evidenceContext;
         }
         return """
-            LIVE STORE READ ACTION RESPONSE POLICY
-            - Treat the read-action evidence below as live store data.
-            - Use read-action evidence as the source of truth for product price, availability, inventory, and review-signal fields when retrieved context omits or conflicts with those fields.
-            - Mention product names, prices, inventory quantities, vendors, and availability only when the exact fact is explicitly present in the read-action evidence or retrieved context; do not infer missing products from product-line naming patterns or model knowledge.
-            - If list/search/relationship evidence returns multiple products or a count greater than one, do not state that only one product exists; summarize the relevant returned products and then state any missing evidence.
-            - If read actions found no records for a requested fact, state that the fact is not available in the live store data.
-            - If a named product lookup failed or returned no matching product, do not answer using similarly named products, generic documents, or unrelated policy documents; state that the named product is not present in the live store data and that availability or safety cannot be confirmed.
-            - Do not expose implementation wording such as upstream failure, HTTP status, error code, or action failure; translate failed lookups into user-facing missing live data.
-            - Policy documents answer policy questions only. Do not treat privacy, shipping, contact, or other policy documents as product-specific safety evidence unless the evidence explicitly links that policy to the requested product and safety claim.
-            - Do not provide a website, support, vendor, manufacturer, shopper-supplied-data, or generic next-step handoff unless that handoff is explicitly present in the read-action evidence.
-            - Do not refer users to generic documentation or support resources when live evidence is missing; state the missing live evidence directly.
+            READ ACTION EVIDENCE POLICY
+            - Treat the read-action evidence below as live action output from configured systems.
+            - Use read-action evidence as the source of truth for fields it explicitly contains when retrieved context omits or conflicts with those fields.
+            - Mention names, identifiers, numeric values, statuses, and other facts only when the exact fact is explicitly present in the read-action evidence or retrieved context.
+            - If list/search/relationship evidence returns multiple records or a count greater than one, do not state that only one record exists; summarize the relevant returned records and then state any missing evidence.
+            - If read actions found no records for a requested fact, state that the fact is not available from the live evidence.
+            - If a named lookup failed or returned no matching record, do not answer using similarly named records, generic documents, or unrelated context; state that the named record is not present in the live evidence.
+            - Do not expose implementation wording such as upstream failure, HTTP status, error code, or action failure; translate failed lookups into user-facing missing live evidence.
+            - Do not use unrelated documents as entity-specific evidence unless the evidence explicitly links them to the requested entity and claim.
+            - Do not provide handoffs, next steps, or support references unless they are explicitly present in the evidence.
             - Do not append generic closers.
 
             %s
@@ -4300,7 +4299,7 @@ public class IntentHandlingStep implements PipelineStep {
      * ACTION intent by concatenating the batch parameter list.
      *
      * <p>This is schema-driven and domain-agnostic. It reduces multi-confirmation loops and aligns with the
-     * "true batch schema" contract for actions like {@code add_to_cart(items=[...])}.</p>
+     * "true batch schema" contract for actions with array item parameters.</p>
      */
     private MultiIntentResponse coalesceBatchActionIntents(MultiIntentResponse response) {
         if (response == null || response.getIntents() == null || response.getIntents().size() < 2) {

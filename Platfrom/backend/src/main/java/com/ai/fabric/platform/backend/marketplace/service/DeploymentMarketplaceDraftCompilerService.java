@@ -596,6 +596,9 @@ public class DeploymentMarketplaceDraftCompilerService {
             if (actionEntry.path("postPolicies").isArray()) {
                 compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
             }
+            if (actionEntry.path("llmFacts").isObject()) {
+                compiled.set("llmFacts", actionEntry.path("llmFacts").deepCopy());
+            }
             applyMarketplaceProvenance(compiled, install, plugin, version);
             actions.add(compiled);
         }

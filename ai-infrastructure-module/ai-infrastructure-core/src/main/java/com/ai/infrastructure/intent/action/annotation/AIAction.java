@@ -21,7 +21,7 @@ import java.lang.annotation.Target;
 public @interface AIAction {
 
     /**
-     * Stable action identifier (e.g. {@code add_to_cart}).
+     * Stable action identifier (e.g. {@code create_ticket}).
      */
     String name();
 
@@ -31,7 +31,7 @@ public @interface AIAction {
     String description();
 
     /**
-     * Logical grouping (e.g. {@code commerce}, {@code support}).
+     * Logical grouping (e.g. {@code support}, {@code operations}).
      */
     String category() default "general";
 

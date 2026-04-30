@@ -263,20 +263,20 @@ class ReadActionResolutionServiceTest {
         AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
         PromptTemplateResolver templateResolver = mock(PromptTemplateResolver.class);
 
-        AIActionMetaData searchProducts = AIActionMetaData.builder()
-            .name("search_products")
-            .description("Search live catalog products.")
-            .category("catalog")
+        AIActionMetaData searchRecords = AIActionMetaData.builder()
+            .name("search_records")
+            .description("Search live records.")
+            .category("records")
             .accessMode(ActionAccessMode.READ)
             .groundingEligible(true)
             .readActionResolutionEligible(true)
             .build();
         AIActionHandler searchHandler = mock(AIActionHandler.class);
         when(searchHandler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
-        when(searchHandler.executeAction(eq(Map.of("query", "snowboard")), any(ActionContext.class))).thenReturn(
+        when(searchHandler.executeAction(eq(Map.of("query", "candidates")), any(ActionContext.class))).thenReturn(
             ActionResult.builder()
                 .success(true)
-                .message("Products loaded.")
+                .message("Records loaded.")
                 .data(ActionPayload.object(Map.of("count", 12)))
                 .build()
         );
@@ -284,18 +284,18 @@ class ReadActionResolutionServiceTest {
             .thenReturn(Optional.of(Map.of(
                 "count", 12,
                 "items", List.of(
-                    productFact("The Collection Snowboard: Liquid", "749.95", true, 50),
-                    productFact("The Out of Stock Snowboard", "885.95", false, 0),
-                    productFact("The Inventory Not Tracked Snowboard", "949.95", true, 0),
-                    productFact("The Collection Snowboard: Oxygen", "1025.00", true, 50),
-                    productFact("The Multi-managed Snowboard", "629.95", true, 8),
-                    productFact("The Complete Snowboard", "699.95", true, 15)
+                    recordFact("Alpha Candidate", "8.5", true, 50),
+                    recordFact("Beta Candidate", "11.5", true, 0),
+                    recordFact("Gamma Candidate", "12.5", false, 0),
+                    recordFact("Delta Candidate", "9.5", true, 50),
+                    recordFact("Epsilon Candidate", "6.5", true, 8),
+                    recordFact("Zeta Candidate", "7.5", true, 15)
                 )
             )));
 
-        when(actionRegistry.getAllMetadata()).thenReturn(List.of(searchProducts));
-        when(actionRegistry.findHandler("search_products")).thenReturn(Optional.of(searchHandler));
-        when(actionRegistry.findMetadata("search_products")).thenReturn(Optional.of(searchProducts));
+        when(actionRegistry.getAllMetadata()).thenReturn(List.of(searchRecords));
+        when(actionRegistry.findHandler("search_records")).thenReturn(Optional.of(searchHandler));
+        when(actionRegistry.findMetadata("search_records")).thenReturn(Optional.of(searchRecords));
         when(templateResolver.resolve("orchestration/read-action-resolution", "system"))
             .thenReturn(resolvedTemplate("system", ""));
         when(templateResolver.resolve("orchestration/read-action-resolution", "user"))
@@ -306,7 +306,7 @@ class ReadActionResolutionServiceTest {
                     {
                       "decision": "EXECUTE_READ_ACTIONS",
                       "actions": [
-                        {"name": "search_products", "params": {"query": "snowboard"}, "priority": 1}
+                        {"name": "search_records", "params": {"query": "candidates"}, "priority": 1}
                       ],
                       "needsMoreSteps": false
                     }
@@ -325,13 +325,13 @@ class ReadActionResolutionServiceTest {
         ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(
             Intent.builder()
                 .type(IntentType.INFORMATION)
-                .intent("Which snowboards are under 800?")
-                .optimizedQuery("snowboard")
+                .intent("Which candidates are under 10?")
+                .optimizedQuery("candidates")
                 .build(),
             OrchestrationContext.forUser("user-1"),
-            PipelineContext.from("Which snowboards are under 800?", OrchestrationContext.forUser("user-1"))
+            PipelineContext.from("Which candidates are under 10?", OrchestrationContext.forUser("user-1"))
                 .toBuilder()
-                .orchestrationPolicy(readActionPolicy("thinker", List.of("search_products"),
+                .orchestrationPolicy(readActionPolicy("thinker", List.of("search_records"),
                     OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
                     OrchestrationProperties.ReadActionResolutionRagCooperationMode.NONE))
                 .build()
@@ -340,7 +340,7 @@ class ReadActionResolutionServiceTest {
         String evidence = outcome.executedActions().getFirst().evidenceSummary();
         assertThat(evidence).doesNotEndWith("...");
         new ObjectMapper().readTree(evidence);
-        assertThat(evidence).contains("The Collection Snowboard: Liquid");
+        assertThat(evidence).contains("Alpha Candidate");
     }
 
     @Test
@@ -351,15 +351,15 @@ class ReadActionResolutionServiceTest {
 
         AIActionMetaData relationshipQuery = AIActionMetaData.builder()
             .name("relationship_query")
-            .description("Run a live product relationship query.")
-            .category("catalog")
+            .description("Run a live relationship query.")
+            .category("records")
             .accessMode(ActionAccessMode.READ)
             .groundingEligible(true)
             .readActionResolutionEligible(true)
             .build();
         AIActionHandler handler = mock(AIActionHandler.class);
         when(handler.validateActionAllowed(any(ActionContext.class))).thenReturn(true);
-        when(handler.executeAction(eq(Map.of("query", "Find snowboards with price_usd < 800 AND stock_status = 'in_stock'")), any(ActionContext.class))).thenReturn(
+        when(handler.executeAction(eq(Map.of("query", "Find ready candidates with score < 10")), any(ActionContext.class))).thenReturn(
             ActionResult.builder()
                 .success(true)
                 .message("Action executed.")
@@ -369,39 +369,39 @@ class ReadActionResolutionServiceTest {
 
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("action", "relationship_query");
-        facts.put("category", "shopify-companion");
+        facts.put("category", "records");
         facts.put("success", true);
         facts.put("message", "Action executed.");
-        facts.put("query", "Find snowboards with price_usd < 800 AND stock_status = 'in_stock'");
+        facts.put("query", "Find ready candidates with score < 10");
         facts.put("totalResults", 10);
         facts.put("returnedResults", 10);
-        facts.put("documentsConstraintMatches", List.of(
-            productFact("The Multi-managed Snowboard", "629.95", true, 100),
-            productFact("The Complete Snowboard", "699.95", true, 15),
-            productFact("The Collection Snowboard: Liquid", "749.95", true, 50)
+        facts.put("recordsConstraintMatches", List.of(
+            recordFact("Epsilon Candidate", "6.5", true, 100),
+            recordFact("Zeta Candidate", "7.5", true, 15),
+            recordFact("Alpha Candidate", "8.5", true, 50)
         ));
-        facts.put("documentsConstraintMatchCount", 3);
-        facts.put("documentsMatchedPriceSummary", Map.of(
-            "lowestPriceTitle", "The Multi-managed Snowboard",
-            "lowestPrice", 629.95,
-            "highestPriceTitle", "The Collection Snowboard: Liquid",
-            "highestPrice", 749.95
+        facts.put("recordsConstraintMatchCount", 3);
+        facts.put("recordsMatchedScoreSummary", Map.of(
+            "lowestScoreName", "Epsilon Candidate",
+            "lowestScore", 6.5,
+            "highestScoreName", "Alpha Candidate",
+            "highestScore", 8.5
         ));
-        facts.put("documentsPriceSummary", Map.of(
-            "lowestPriceTitle", "The Multi-managed Snowboard",
-            "lowestPrice", 629.95,
-            "highestPriceTitle", "The Collection Snowboard: Oxygen",
-            "highestPrice", 1025.0
+        facts.put("recordsScoreSummary", Map.of(
+            "lowestScoreName", "Epsilon Candidate",
+            "lowestScore", 6.5,
+            "highestScoreName", "Beta Candidate",
+            "highestScore", 11.5
         ));
-        facts.put("documents", List.of(
-            productFact("The Multi-managed Snowboard", "629.95", true, 100),
-            productFact("The Complete Snowboard", "699.95", true, 15),
-            productFact("The Collection Snowboard: Liquid", "749.95", true, 50),
-            productFact("The Out of Stock Snowboard", "885.95", false, 0),
-            productFact("The Inventory Not Tracked Snowboard", "949.95", true, 0),
-            productFact("The Collection Snowboard: Oxygen", "1025.00", true, 50)
+        facts.put("records", List.of(
+            recordFact("Epsilon Candidate", "6.5", true, 100),
+            recordFact("Zeta Candidate", "7.5", true, 15),
+            recordFact("Alpha Candidate", "8.5", true, 50),
+            recordFact("Beta Candidate", "11.5", true, 0),
+            recordFact("Gamma Candidate", "12.5", false, 0),
+            recordFact("Delta Candidate", "9.5", true, 50)
         ));
-        facts.put("documentsCount", 6);
+        facts.put("recordsCount", 6);
         when(handler.buildPostActionLlmFacts(any(ActionResult.class), any(ActionContext.class))).thenReturn(Optional.of(facts));
 
         when(actionRegistry.getAllMetadata()).thenReturn(List.of(relationshipQuery));
@@ -417,7 +417,7 @@ class ReadActionResolutionServiceTest {
                     {
                       "decision": "EXECUTE_READ_ACTIONS",
                       "actions": [
-                        {"name": "relationship_query", "params": {"query": "Find snowboards with price_usd < 800 AND stock_status = 'in_stock'"}, "priority": 1}
+                        {"name": "relationship_query", "params": {"query": "Find ready candidates with score < 10"}, "priority": 1}
                       ],
                       "needsMoreSteps": false
                     }
@@ -436,11 +436,11 @@ class ReadActionResolutionServiceTest {
         ReadActionResolutionService.ResolutionOutcome outcome = service.resolve(
             Intent.builder()
                 .type(IntentType.INFORMATION)
-                .intent("Find similar available snowboards under 800 dollars.")
-                .optimizedQuery("Find similar available snowboards under 800 dollars.")
+                .intent("Find ready candidates under 10.")
+                .optimizedQuery("Find ready candidates under 10.")
                 .build(),
             OrchestrationContext.forUser("user-1"),
-            PipelineContext.from("Find similar available snowboards under 800 dollars.", OrchestrationContext.forUser("user-1"))
+            PipelineContext.from("Find ready candidates under 10.", OrchestrationContext.forUser("user-1"))
                 .toBuilder()
                 .orchestrationPolicy(readActionPolicy("thinker", List.of("relationship_query"),
                     OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
@@ -451,11 +451,11 @@ class ReadActionResolutionServiceTest {
         String evidence = outcome.executedActions().getFirst().evidenceSummary();
         new ObjectMapper().readTree(evidence);
         assertThat(evidence)
-            .contains("documentsConstraintMatches")
-            .contains("The Multi-managed Snowboard")
-            .contains("The Complete Snowboard")
-            .contains("The Collection Snowboard: Liquid")
-            .contains("749.95")
+            .contains("recordsConstraintMatches")
+            .contains("Epsilon Candidate")
+            .contains("Zeta Candidate")
+            .contains("Alpha Candidate")
+            .contains("8.5")
             .doesNotContain("\"truncated\":true");
     }
 
@@ -805,15 +805,14 @@ class ReadActionResolutionServiceTest {
         );
     }
 
-    private Map<String, Object> productFact(String title, String price, boolean available, int inventoryQuantity) {
+    private Map<String, Object> recordFact(String name, String scoreValue, boolean ready, int rank) {
         return Map.of(
-            "title", title,
-            "productType", "snowboard",
-            "vendor", "Hydrogen Vendor",
-            "price", price,
-            "available", available,
-            "inventoryQuantity", inventoryQuantity,
-            "reviewSignalsPresent", false
+            "name", name,
+            "kind", "candidate",
+            "scoreValue", scoreValue,
+            "ready", ready,
+            "rank", rank,
+            "evidencePresent", false
         );
     }
 

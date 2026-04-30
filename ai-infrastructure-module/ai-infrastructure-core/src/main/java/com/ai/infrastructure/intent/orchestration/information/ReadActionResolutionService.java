@@ -668,14 +668,14 @@ public class ReadActionResolutionService {
             "action",
             "category",
             "success",
+            "message",
+            "errorCode",
             "query",
             "count",
             "totalResults",
             "returnedResults",
-            "productTitle",
-            "productHandle",
-            "available",
-            "inventoryQuantity"
+            "lookup",
+            "lookupMethod"
         );
         for (String key : commonKeys) {
             putPrioritizedEvidence(map, prioritized, key, maxItems);
@@ -689,17 +689,15 @@ public class ReadActionResolutionService {
             ? List.of(
                 "ConstraintMatches",
                 "ConstraintMatchCount",
-                "MatchedPriceSummary",
-                "PriceSummary",
-                "product"
+                "Summary"
             )
             : List.of(
-                "MatchedPriceSummary",
-                "PriceSummary",
-                "product",
+                "Summary",
                 "documents",
+                "records",
+                "results",
                 "items",
-                "policies"
+                "objects"
             );
         for (String suffix : suffixPriority) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {

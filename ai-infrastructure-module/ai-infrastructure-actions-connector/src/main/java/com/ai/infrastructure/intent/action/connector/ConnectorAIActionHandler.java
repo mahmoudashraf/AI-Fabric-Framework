@@ -27,37 +27,37 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private static final String REDACTED = "[REDACTED]";
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
-    private static final List<Pattern> MAX_PRICE_QUERY_PATTERNS = List.of(
-        Pattern.compile(
-            "\\b(?:under|below|less\\s+than|no\\s+more\\s+than|at\\s+most|max(?:imum)?|up\\s+to)\\s*\\$?\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b",
-            Pattern.CASE_INSENSITIVE
-        ),
-        Pattern.compile(
-            "\\$\\s*(?<amount>\\d+(?:\\.\\d+)?)\\s*(?:or\\s+less|or\\s+under|and\\s+under)\\b",
-            Pattern.CASE_INSENSITIVE
-        ),
-        Pattern.compile(
-            "\\b(?:price|price[_-]?(?:usd|amount|value)|amount|cost)\\b\\s*(?<operator><=|<)\\s*\\$?\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b",
-            Pattern.CASE_INSENSITIVE
-        )
-    );
+    private static final int FALLBACK_MAX_RECORDS = 5;
+    private static final int FALLBACK_MAX_SCALAR_FIELDS = 16;
+    private static final int FALLBACK_MAX_CONTENT_CHARS = 300;
 
     private final AIActionMetaData metadata;
     private final boolean requiresConfirmation;
     private final String confirmationTemplate;
     private final Set<String> sensitiveParams;
     private final ActionConnectorExecutor executor;
+    private final ConnectorActionLlmFactsDefinition llmFacts;
 
     public ConnectorAIActionHandler(AIActionMetaData metadata,
                                     boolean requiresConfirmation,
                                     String confirmationTemplate,
                                     Set<String> sensitiveParams,
                                     ActionConnectorExecutor executor) {
+        this(metadata, requiresConfirmation, confirmationTemplate, sensitiveParams, executor, null);
+    }
+
+    public ConnectorAIActionHandler(AIActionMetaData metadata,
+                                    boolean requiresConfirmation,
+                                    String confirmationTemplate,
+                                    Set<String> sensitiveParams,
+                                    ActionConnectorExecutor executor,
+                                    ConnectorActionLlmFactsDefinition llmFacts) {
         this.metadata = metadata;
         this.requiresConfirmation = requiresConfirmation;
         this.confirmationTemplate = StringUtils.hasText(confirmationTemplate) ? confirmationTemplate.trim() : null;
         this.sensitiveParams = sensitiveParams != null ? Set.copyOf(sensitiveParams) : Set.of();
         this.executor = executor;
+        this.llmFacts = llmFacts;
     }
 
     @Override
@@ -127,28 +127,612 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         Map<String, Object> payload = actionResult.getData() != null
             ? actionResult.getData().toMap()
             : Map.of();
-        Map<String, Object> businessPayload = mapValue(payload, "data");
-        if (businessPayload == null) {
-            businessPayload = payload;
-        }
-        copyCommonFields(payload, facts);
-        if (businessPayload != payload) {
-            copyCommonFields(businessPayload, facts);
-        }
-        String relevanceQuery = asString(facts.get("query"));
-        boolean hasDocuments = putCompactedList(facts, "documents", businessPayload.get("documents"), relevanceQuery);
-        if (!hasDocuments) {
-            putCompactedList(facts, "items", businessPayload.get("items"), relevanceQuery);
-        }
-        putCompactedList(facts, "policies", businessPayload.get("policies"), relevanceQuery);
-        Object product = businessPayload.get("product");
-        if (product instanceof Map<?, ?> productMap) {
-            Map<String, Object> compactProduct = compactRecord(productMap);
-            if (!compactProduct.isEmpty()) {
-                facts.put("product", compactProduct);
-            }
+        Map<String, Object> rootPayload = selectFactsRoot(payload);
+        if (llmFacts != null && llmFacts.configured()) {
+            applyConfiguredFacts(facts, rootPayload);
+        } else {
+            applyFallbackFacts(facts, payload, rootPayload);
         }
         return Optional.of(Collections.unmodifiableMap(facts));
+    }
+
+    private void applyConfiguredFacts(Map<String, Object> facts, Map<String, Object> rootPayload) {
+        if (rootPayload == null || rootPayload.isEmpty()) {
+            return;
+        }
+        for (String field : llmFacts.copyFields()) {
+            copyPath(rootPayload, facts, field);
+        }
+        String relevanceQuery = asString(facts.get("query"));
+        for (ConnectorActionLlmFactsListDefinition listDefinition : llmFacts.lists()) {
+            putConfiguredList(facts, rootPayload, listDefinition, relevanceQuery);
+        }
+        for (ConnectorActionLlmFactsObjectDefinition objectDefinition : llmFacts.objects()) {
+            putConfiguredObject(facts, rootPayload, objectDefinition);
+        }
+    }
+
+    private void applyFallbackFacts(Map<String, Object> facts,
+                                    Map<String, Object> payload,
+                                    Map<String, Object> rootPayload) {
+        copyCommonTopLevelFields(rootPayload, facts);
+        if (rootPayload != payload) {
+            copyCommonTopLevelFields(payload, facts);
+        }
+        String relevanceQuery = asString(facts.get("query"));
+        boolean hasPrimaryList = putFallbackList(facts, "documents", rootPayload.get("documents"), relevanceQuery);
+        if (!hasPrimaryList) {
+            hasPrimaryList = putFallbackList(facts, "results", rootPayload.get("results"), relevanceQuery);
+        }
+        if (!hasPrimaryList) {
+            putFallbackList(facts, "items", rootPayload.get("items"), relevanceQuery);
+        }
+    }
+
+    private void putConfiguredList(Map<String, Object> facts,
+                                   Map<String, Object> rootPayload,
+                                   ConnectorActionLlmFactsListDefinition listDefinition,
+                                   String relevanceQuery) {
+        if (listDefinition == null || !StringUtils.hasText(listDefinition.sourcePath())
+            || !StringUtils.hasText(listDefinition.target())) {
+            return;
+        }
+        Object rawValue = resolvePath(rootPayload, listDefinition.sourcePath());
+        List<Map<String, Object>> records = compactRecords(rawValue, listDefinition, relevanceQuery);
+        if (records.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> constraintMatches = filterConstraintMatches(records, listDefinition.constraints(), relevanceQuery);
+        if (!constraintMatches.isEmpty() && listDefinition.constraints() != null) {
+            facts.put(listDefinition.constraints().target(), compactConstraintMatches(constraintMatches, listDefinition.constraints()));
+            String countTarget = firstNonBlank(
+                listDefinition.constraints().countTarget(),
+                listDefinition.constraints().target() + "Count"
+            );
+            facts.put(countTarget, constraintMatches.size());
+        }
+        for (ConnectorActionLlmFactsSummaryDefinition summaryDefinition : listDefinition.summaries()) {
+            List<Map<String, Object>> source = "CONSTRAINT_MATCHES".equalsIgnoreCase(firstNonBlank(summaryDefinition.source(), "ALL"))
+                ? constraintMatches
+                : records;
+            Map<String, Object> summary = buildNumericRangeSummary(source, summaryDefinition);
+            if (!summary.isEmpty()) {
+                facts.put(summaryDefinition.target(), summary);
+            }
+        }
+        facts.put(listDefinition.target(), records);
+        facts.put(listDefinition.target() + "Count", records.size());
+    }
+
+    private void putConfiguredObject(Map<String, Object> facts,
+                                     Map<String, Object> rootPayload,
+                                     ConnectorActionLlmFactsObjectDefinition objectDefinition) {
+        if (objectDefinition == null || !StringUtils.hasText(objectDefinition.sourcePath())
+            || !StringUtils.hasText(objectDefinition.target())) {
+            return;
+        }
+        Object rawValue = resolvePath(rootPayload, objectDefinition.sourcePath());
+        if (!(rawValue instanceof Map<?, ?> rawMap)) {
+            return;
+        }
+        Map<String, Object> compact = compactConfiguredObject(
+            rawMap,
+            objectDefinition.includeFields(),
+            objectDefinition.fallbackContentField(),
+            objectDefinition.fallbackContentMaxChars()
+        );
+        if (!compact.isEmpty()) {
+            facts.put(objectDefinition.target(), Collections.unmodifiableMap(compact));
+        }
+    }
+
+    private boolean putFallbackList(Map<String, Object> facts,
+                                    String target,
+                                    Object value,
+                                    String relevanceQuery) {
+        List<Map<String, Object>> records = compactFallbackRecords(value, relevanceQuery);
+        if (records.isEmpty()) {
+            return false;
+        }
+        facts.put(target, records);
+        facts.put(target + "Count", records.size());
+        return true;
+    }
+
+    private Map<String, Object> selectFactsRoot(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return Map.of();
+        }
+        if (llmFacts != null && StringUtils.hasText(llmFacts.rootPath())) {
+            Object configuredRoot = resolvePath(payload, llmFacts.rootPath());
+            return configuredRoot instanceof Map<?, ?> map ? toStringObjectMap(map) : Map.of();
+        }
+        Object nested = mapObject(payload, "data");
+        return nested instanceof Map<?, ?> nestedMap ? toStringObjectMap(nestedMap) : payload;
+    }
+
+    private List<Map<String, Object>> compactRecords(Object value,
+                                                     ConnectorActionLlmFactsListDefinition listDefinition,
+                                                     String relevanceQuery) {
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                Map<String, Object> compact = compactConfiguredObject(
+                    map,
+                    listDefinition.includeFields(),
+                    listDefinition.fallbackContentField(),
+                    listDefinition.fallbackContentMaxChars()
+                );
+                if (!compact.isEmpty()) {
+                    out.add(Collections.unmodifiableMap(compact));
+                }
+            }
+        }
+        sortConfiguredRecords(out, listDefinition.rankRules(), relevanceQuery);
+        return limit(out, listDefinition.maxItems());
+    }
+
+    private List<Map<String, Object>> compactFallbackRecords(Object value, String relevanceQuery) {
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                Map<String, Object> compact = compactFallbackRecord(map);
+                if (!compact.isEmpty()) {
+                    out.add(Collections.unmodifiableMap(compact));
+                }
+            }
+        }
+        out.sort((left, right) -> Integer.compare(
+            fallbackRelevanceScore(right, relevanceQuery),
+            fallbackRelevanceScore(left, relevanceQuery)
+        ));
+        return limit(out, FALLBACK_MAX_RECORDS);
+    }
+
+    private Map<String, Object> compactConfiguredObject(Map<?, ?> record,
+                                                        List<String> includeFields,
+                                                        String fallbackContentField,
+                                                        int fallbackContentMaxChars) {
+        Map<String, Object> compact = new LinkedHashMap<>();
+        if (includeFields != null) {
+            for (String field : includeFields) {
+                copyPath(record, compact, field);
+            }
+        }
+        if (compact.isEmpty() && StringUtils.hasText(fallbackContentField)) {
+            putIfPresent(compact, leafKey(fallbackContentField), truncate(asString(resolvePath(record, fallbackContentField)), fallbackContentMaxChars));
+        }
+        return compact;
+    }
+
+    private Map<String, Object> compactFallbackRecord(Map<?, ?> record) {
+        Map<String, Object> compact = new LinkedHashMap<>();
+        copyFallbackScalars(record, compact);
+        if (!compact.containsKey("content")) {
+            Object content = mapObject(record, "content");
+            putIfPresent(compact, "content", truncate(asString(content), FALLBACK_MAX_CONTENT_CHARS));
+        }
+        return compact;
+    }
+
+    private void copyFallbackScalars(Map<?, ?> source, Map<String, Object> target) {
+        if (source == null || source.isEmpty() || target.size() >= FALLBACK_MAX_SCALAR_FIELDS) {
+            return;
+        }
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry == null || entry.getKey() == null || target.size() >= FALLBACK_MAX_SCALAR_FIELDS) {
+                continue;
+            }
+            String key = String.valueOf(entry.getKey());
+            Object value = entry.getValue();
+            if (isSafeScalar(value)) {
+                putIfPresent(target, key, truncateScalar(value));
+            } else if (value instanceof Map<?, ?> nested) {
+                copyNestedFallbackScalars(nested, target);
+            }
+        }
+    }
+
+    private void copyNestedFallbackScalars(Map<?, ?> source, Map<String, Object> target) {
+        if (source == null || source.isEmpty() || target.size() >= FALLBACK_MAX_SCALAR_FIELDS) {
+            return;
+        }
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry == null || entry.getKey() == null || target.size() >= FALLBACK_MAX_SCALAR_FIELDS) {
+                continue;
+            }
+            String key = String.valueOf(entry.getKey());
+            Object value = entry.getValue();
+            if (isSafeScalar(value) && !target.containsKey(key)) {
+                putIfPresent(target, key, truncateScalar(value));
+            }
+        }
+    }
+
+    private List<Map<String, Object>> filterConstraintMatches(List<Map<String, Object>> records,
+                                                              ConnectorActionLlmFactsConstraintDefinition constraints,
+                                                              String query) {
+        if (records == null || records.isEmpty() || constraints == null || constraints.rules().isEmpty()) {
+            return List.of();
+        }
+        List<ConnectorActionLlmFactsRuleDefinition> activeRules = constraints.rules().stream()
+            .filter(rule -> ruleActive(rule, query))
+            .toList();
+        if (activeRules.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> matches = new ArrayList<>();
+        for (Map<String, Object> record : records) {
+            boolean matched = true;
+            for (ConnectorActionLlmFactsRuleDefinition rule : activeRules) {
+                if (!ruleMatches(rule, record, query)) {
+                    matched = false;
+                    break;
+                }
+            }
+            if (matched) {
+                matches.add(record);
+            }
+        }
+        return matches.isEmpty() ? List.of() : List.copyOf(matches);
+    }
+
+    private List<Map<String, Object>> compactConstraintMatches(List<Map<String, Object>> records,
+                                                               ConnectorActionLlmFactsConstraintDefinition constraints) {
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> record : records) {
+            Map<String, Object> compact = constraints.includeFields().isEmpty()
+                ? new LinkedHashMap<>(record)
+                : compactConfiguredObject(record, constraints.includeFields(), null, FALLBACK_MAX_CONTENT_CHARS);
+            if (!compact.isEmpty()) {
+                out.add(Collections.unmodifiableMap(compact));
+            }
+        }
+        return out.isEmpty() ? List.of() : List.copyOf(out);
+    }
+
+    private Map<String, Object> buildNumericRangeSummary(List<Map<String, Object>> records,
+                                                         ConnectorActionLlmFactsSummaryDefinition definition) {
+        if (records == null || records.isEmpty() || definition == null || !StringUtils.hasText(definition.field())
+            || !StringUtils.hasText(definition.target())) {
+            return Map.of();
+        }
+        Map<String, Object> lowest = null;
+        Map<String, Object> highest = null;
+        Double lowestValue = null;
+        Double highestValue = null;
+        int valueRecords = 0;
+
+        for (Map<String, Object> record : records) {
+            Double value = numericValue(resolvePath(record, definition.field()));
+            if (value == null) {
+                continue;
+            }
+            valueRecords++;
+            if (lowestValue == null || value < lowestValue) {
+                lowestValue = value;
+                lowest = record;
+            }
+            if (highestValue == null || value > highestValue) {
+                highestValue = value;
+                highest = record;
+            }
+        }
+        if (valueRecords == 0) {
+            return Map.of();
+        }
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put(firstNonBlank(definition.recordCountKey(), "valueRecords"), valueRecords);
+        putSummaryEndpoint(summary, "lowest", lowest, lowestValue, definition);
+        putSummaryEndpoint(summary, "highest", highest, highestValue, definition);
+        return Collections.unmodifiableMap(summary);
+    }
+
+    private void putSummaryEndpoint(Map<String, Object> summary,
+                                    String prefix,
+                                    Map<String, Object> record,
+                                    Double value,
+                                    ConnectorActionLlmFactsSummaryDefinition definition) {
+        if (summary == null || record == null || value == null || definition == null) {
+            return;
+        }
+        boolean lowest = "lowest".equals(prefix);
+        String valueKey = lowest
+            ? firstNonBlank(definition.lowestValueKey(), "lowestValue")
+            : firstNonBlank(definition.highestValueKey(), "highestValue");
+        summary.put(valueKey, value);
+        if (StringUtils.hasText(definition.labelField())) {
+            Object label = resolvePath(record, definition.labelField());
+            String labelKey = lowest
+                ? firstNonBlank(definition.lowestLabelKey(), "lowestLabel")
+                : firstNonBlank(definition.highestLabelKey(), "highestLabel");
+            putIfPresent(summary, labelKey, label);
+        }
+        for (ConnectorActionLlmFactsSummaryExtraFieldDefinition extraField : definition.extraFields()) {
+            if (extraField == null || !StringUtils.hasText(extraField.field())) {
+                continue;
+            }
+            String targetKey = lowest ? extraField.lowestKey() : extraField.highestKey();
+            if (StringUtils.hasText(targetKey)) {
+                putIfPresent(summary, targetKey, resolvePath(record, extraField.field()));
+            }
+        }
+    }
+
+    private void sortConfiguredRecords(List<Map<String, Object>> records,
+                                       List<ConnectorActionLlmFactsRuleDefinition> rules,
+                                       String query) {
+        if (records == null || records.size() < 2) {
+            return;
+        }
+        records.sort((left, right) -> {
+            int scoreCompare = Integer.compare(
+                configuredRelevanceScore(right, rules, query),
+                configuredRelevanceScore(left, rules, query)
+            );
+            if (scoreCompare != 0) {
+                return scoreCompare;
+            }
+            ConnectorActionLlmFactsRuleDefinition ascendingRule = firstAscendingNumericRule(rules, query);
+            if (ascendingRule != null) {
+                return Double.compare(
+                    numericOrMax(resolvePath(left, ascendingRule.field())),
+                    numericOrMax(resolvePath(right, ascendingRule.field()))
+                );
+            }
+            return 0;
+        });
+    }
+
+    private int configuredRelevanceScore(Map<String, Object> record,
+                                         List<ConnectorActionLlmFactsRuleDefinition> rules,
+                                         String query) {
+        int score = fallbackRelevanceScore(record, query);
+        if (rules == null || rules.isEmpty()) {
+            return score;
+        }
+        for (ConnectorActionLlmFactsRuleDefinition rule : rules) {
+            score += ruleScore(rule, record, query);
+        }
+        return score;
+    }
+
+    private int ruleScore(ConnectorActionLlmFactsRuleDefinition rule,
+                          Map<String, Object> record,
+                          String query) {
+        if (rule == null || !StringUtils.hasText(rule.type())) {
+            return 0;
+        }
+        String type = normalizeRuleType(rule.type());
+        if ("QUERY_CONTAINS_FIELD_VALUE".equals(type)) {
+            return queryContainsFieldValue(query, resolvePath(record, rule.field())) ? rule.score() : 0;
+        }
+        if (!ruleActive(rule, query)) {
+            return 0;
+        }
+        if (ruleMatches(rule, record, query)) {
+            return rule.scoreMatch();
+        }
+        return resolvePath(record, rule.field()) == null ? rule.scoreMissing() : rule.scoreMismatch();
+    }
+
+    private boolean ruleActive(ConnectorActionLlmFactsRuleDefinition rule, String query) {
+        if (rule == null || !StringUtils.hasText(rule.type())) {
+            return false;
+        }
+        String type = normalizeRuleType(rule.type());
+        return switch (type) {
+            case "QUERY_NUMERIC_UPPER_BOUND" -> numericUpperBound(rule, query) != null;
+            case "QUERY_TERMS_BOOLEAN_TRUE" -> queryContainsAny(query, rule.queryTerms());
+            case "QUERY_CONTAINS_FIELD_VALUE" -> StringUtils.hasText(query);
+            default -> false;
+        };
+    }
+
+    private boolean ruleMatches(ConnectorActionLlmFactsRuleDefinition rule,
+                                Map<String, Object> record,
+                                String query) {
+        if (rule == null || !StringUtils.hasText(rule.type())) {
+            return false;
+        }
+        String type = normalizeRuleType(rule.type());
+        Object value = resolvePath(record, rule.field());
+        if ("QUERY_NUMERIC_UPPER_BOUND".equals(type)) {
+            NumericUpperBound upperBound = numericUpperBound(rule, query);
+            Double numeric = numericValue(value);
+            return upperBound != null && numeric != null && upperBound.matches(numeric);
+        }
+        if ("QUERY_TERMS_BOOLEAN_TRUE".equals(type)) {
+            return Boolean.TRUE.equals(booleanValue(value));
+        }
+        if ("QUERY_CONTAINS_FIELD_VALUE".equals(type)) {
+            return queryContainsFieldValue(query, value);
+        }
+        return false;
+    }
+
+    private ConnectorActionLlmFactsRuleDefinition firstAscendingNumericRule(List<ConnectorActionLlmFactsRuleDefinition> rules,
+                                                                            String query) {
+        if (rules == null || rules.isEmpty()) {
+            return null;
+        }
+        for (ConnectorActionLlmFactsRuleDefinition rule : rules) {
+            if (rule != null
+                && rule.sortAscendingOnMatch()
+                && "QUERY_NUMERIC_UPPER_BOUND".equals(normalizeRuleType(rule.type()))
+                && numericUpperBound(rule, query) != null) {
+                return rule;
+            }
+        }
+        return null;
+    }
+
+    private NumericUpperBound numericUpperBound(ConnectorActionLlmFactsRuleDefinition rule, String query) {
+        if (rule == null || rule.queryPatterns().isEmpty() || !StringUtils.hasText(query)) {
+            return null;
+        }
+        for (String rawPattern : rule.queryPatterns()) {
+            if (!StringUtils.hasText(rawPattern)) {
+                continue;
+            }
+            Matcher matcher = Pattern.compile(rawPattern, Pattern.CASE_INSENSITIVE).matcher(query);
+            if (!matcher.find()) {
+                continue;
+            }
+            String rawAmount = matcherGroup(matcher, "amount");
+            if (!StringUtils.hasText(rawAmount) && matcher.groupCount() >= 1) {
+                rawAmount = matcher.group(1);
+            }
+            if (!StringUtils.hasText(rawAmount)) {
+                continue;
+            }
+            try {
+                String operator = matcherGroup(matcher, "operator");
+                return new NumericUpperBound(Double.parseDouble(rawAmount), !"<".equals(operator));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String matcherGroup(Matcher matcher, String name) {
+        try {
+            return matcher.group(name);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private int fallbackRelevanceScore(Map<String, Object> record, String query) {
+        if (record == null || record.isEmpty() || !StringUtils.hasText(query)) {
+            return 0;
+        }
+        int score = 0;
+        for (Object value : record.values()) {
+            if (queryContainsFieldValue(query, value)) {
+                score += 100;
+            }
+        }
+        return score;
+    }
+
+    private boolean queryContainsFieldValue(String query, Object value) {
+        if (!StringUtils.hasText(query) || value == null) {
+            return false;
+        }
+        String candidate = value.toString().trim();
+        if (candidate.length() < 3 || candidate.length() > 120) {
+            return false;
+        }
+        return query.toLowerCase(Locale.ROOT).contains(candidate.toLowerCase(Locale.ROOT));
+    }
+
+    private boolean queryContainsAny(String query, List<String> terms) {
+        if (!StringUtils.hasText(query) || terms == null || terms.isEmpty()) {
+            return false;
+        }
+        String normalized = query.toLowerCase(Locale.ROOT);
+        return terms.stream()
+            .filter(StringUtils::hasText)
+            .map(term -> term.toLowerCase(Locale.ROOT))
+            .anyMatch(normalized::contains);
+    }
+
+    private void copyCommonTopLevelFields(Map<String, Object> source, Map<String, Object> target) {
+        if (source == null || source.isEmpty()) {
+            return;
+        }
+        copyPath(source, target, "query");
+        copyPath(source, target, "count");
+        copyPath(source, target, "totalResults");
+        copyPath(source, target, "returnedResults");
+        copyPath(source, target, "lookup");
+        copyPath(source, target, "lookupMethod");
+    }
+
+    private void copyPath(Map<?, ?> source, Map<String, Object> target, String path) {
+        if (source == null || target == null || !StringUtils.hasText(path)) {
+            return;
+        }
+        Object value = resolvePath(source, path);
+        putIfPresent(target, leafKey(path), value);
+    }
+
+    private Object resolvePath(Map<?, ?> source, String path) {
+        if (source == null || !StringUtils.hasText(path)) {
+            return null;
+        }
+        Object current = source;
+        String[] parts = path.trim().split("\\.");
+        for (String part : parts) {
+            if (!StringUtils.hasText(part)) {
+                return null;
+            }
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = mapObject(map, part.trim());
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> toStringObjectMap(Map<?, ?> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry != null && entry.getKey() != null) {
+                out.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return out;
+    }
+
+    private Object mapObject(Map<?, ?> source, String key) {
+        if (source == null || key == null) {
+            return null;
+        }
+        Object direct = source.get(key);
+        if (direct != null) {
+            return direct;
+        }
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry != null && entry.getKey() != null && key.equalsIgnoreCase(entry.getKey().toString())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private void putIfPresent(Map<String, Object> target, String key, Object value) {
+        if (target == null || !StringUtils.hasText(key) || value == null) {
+            return;
+        }
+        if (value instanceof String text) {
+            String trimmed = text.trim();
+            if (!trimmed.isEmpty()) {
+                target.put(key, trimmed);
+            }
+            return;
+        }
+        target.put(key, value);
     }
 
     private String renderTemplate(String template, Map<String, Object> params) {
@@ -202,263 +786,63 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         return "Confirm " + actionName + " (" + joined + ")?";
     }
 
-    private void copyCommonFields(Map<String, Object> source, Map<String, Object> target) {
-        if (source == null || source.isEmpty()) {
-            return;
-        }
-        copyIfPresent(source, target, "query");
-        copyIfPresent(source, target, "count");
-        copyIfPresent(source, target, "totalResults");
-        copyIfPresent(source, target, "returnedResults");
-        copyIfPresent(source, target, "lookup");
-        copyIfPresent(source, target, "lookupMethod");
-        copyIfPresent(source, target, "productTitle");
-        copyIfPresent(source, target, "productHandle");
-        copyIfPresent(source, target, "variantTitle");
-        copyIfPresent(source, target, "available");
-        copyIfPresent(source, target, "inventoryQuantity");
-        copyIfPresent(source, target, "storefrontUrl");
-    }
-
-    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
-        Object value = source.get(key);
-        if (value != null) {
-            putIfPresent(target, key, value);
-        }
-    }
-
-    private boolean putCompactedList(Map<String, Object> facts, String key, Object value, String relevanceQuery) {
-        List<Map<String, Object>> compacted = compactRecords(value, relevanceQuery);
-        if (!compacted.isEmpty()) {
-            List<Map<String, Object>> constraintMatches = filterConstraintMatches(compacted, relevanceQuery);
-            boolean hasConstraints = hasQueryConstraints(relevanceQuery);
-            if (hasConstraints && !constraintMatches.isEmpty()) {
-                facts.put(key + "ConstraintMatches", compactConstraintMatches(constraintMatches));
-                facts.put(key + "ConstraintMatchCount", constraintMatches.size());
-            }
-            Map<String, Object> matchedPriceSummary = buildPriceSummary(constraintMatches);
-            if (!matchedPriceSummary.isEmpty()) {
-                facts.put(key + "MatchedPriceSummary", matchedPriceSummary);
-            }
-            Map<String, Object> priceSummary = buildPriceSummary(compacted);
-            if (!priceSummary.isEmpty()) {
-                facts.put(key + "PriceSummary", priceSummary);
-            }
-            facts.put(key, compacted);
-            facts.put(key + "Count", compacted.size());
-            return true;
-        }
-        return false;
-    }
-
-    private List<Map<String, Object>> compactRecords(Object value, String relevanceQuery) {
-        if (!(value instanceof List<?> list) || list.isEmpty()) {
-            return List.of();
-        }
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (Object item : list) {
-            if (item instanceof Map<?, ?> map) {
-                Map<String, Object> compact = compactRecord(map);
-                if (!compact.isEmpty()) {
-                    out.add(Collections.unmodifiableMap(compact));
-                }
-            }
-        }
-        PriceConstraint priceConstraint = PriceConstraint.fromQuery(relevanceQuery);
-        boolean wantsAvailable = mentionsAvailability(relevanceQuery);
-        out.sort((left, right) -> {
-            int scoreCompare = Integer.compare(
-                relevanceScore(right, relevanceQuery, priceConstraint, wantsAvailable),
-                relevanceScore(left, relevanceQuery, priceConstraint, wantsAvailable)
-            );
-            if (scoreCompare != 0) {
-                return scoreCompare;
-            }
-            if (priceConstraint != null) {
-                return Double.compare(priceOrMax(left), priceOrMax(right));
-            }
-            return 0;
-        });
-        if (out.size() > 5) {
-            out = new ArrayList<>(out.subList(0, 5));
-        }
-        return out.isEmpty() ? List.of() : List.copyOf(out);
-    }
-
-    private List<Map<String, Object>> filterConstraintMatches(List<Map<String, Object>> records, String query) {
+    private List<Map<String, Object>> limit(List<Map<String, Object>> records, int maxItems) {
         if (records == null || records.isEmpty()) {
             return List.of();
         }
-        PriceConstraint priceConstraint = PriceConstraint.fromQuery(query);
-        boolean wantsAvailable = mentionsAvailability(query);
-        if (priceConstraint == null && !wantsAvailable) {
-            return records;
+        int limit = Math.max(0, maxItems);
+        if (records.size() > limit) {
+            return List.copyOf(records.subList(0, limit));
         }
-        List<Map<String, Object>> matches = new ArrayList<>();
-        for (Map<String, Object> record : records) {
-            if (record == null) {
-                continue;
-            }
-            if (priceConstraint != null) {
-                Double price = numericValue(record.get("price"));
-                if (price == null || !priceConstraint.matches(price)) {
-                    continue;
-                }
-            }
-            if (wantsAvailable) {
-                Boolean available = booleanValue(record.get("available"));
-                if (!Boolean.TRUE.equals(available)) {
-                    continue;
-                }
-            }
-            matches.add(record);
-        }
-        return matches.isEmpty() ? List.of() : List.copyOf(matches);
+        return List.copyOf(records);
     }
 
-    private boolean hasQueryConstraints(String query) {
-        return PriceConstraint.fromQuery(query) != null || mentionsAvailability(query);
+    private String leafKey(String path) {
+        if (!StringUtils.hasText(path)) {
+            return path;
+        }
+        String normalized = path.trim();
+        int dot = normalized.lastIndexOf('.');
+        return dot >= 0 ? normalized.substring(dot + 1) : normalized;
     }
 
-    private List<Map<String, Object>> compactConstraintMatches(List<Map<String, Object>> records) {
-        if (records == null || records.isEmpty()) {
-            return List.of();
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
         }
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> record : records) {
-            if (record == null || record.isEmpty()) {
-                continue;
-            }
-            Map<String, Object> compact = new LinkedHashMap<>();
-            putIfPresent(compact, "title", record.get("title"));
-            putIfPresent(compact, "price", record.get("price"));
-            putIfPresent(compact, "available", record.get("available"));
-            putIfPresent(compact, "inventoryQuantity", record.get("inventoryQuantity"));
-            putIfPresent(compact, "reviewSignalsPresent", record.get("reviewSignalsPresent"));
-            putIfPresent(compact, "reviewAverage", record.get("reviewAverage"));
-            putIfPresent(compact, "reviewCount", record.get("reviewCount"));
-            if (!compact.isEmpty()) {
-                out.add(Collections.unmodifiableMap(compact));
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
             }
         }
-        return out.isEmpty() ? List.of() : List.copyOf(out);
+        return null;
     }
 
-    private Map<String, Object> buildPriceSummary(List<Map<String, Object>> records) {
-        if (records == null || records.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> lowest = null;
-        Map<String, Object> highest = null;
-        Double lowestPrice = null;
-        Double highestPrice = null;
-        int pricedCount = 0;
-        int availableCount = 0;
-
-        for (Map<String, Object> record : records) {
-            if (Boolean.TRUE.equals(booleanValue(record.get("available")))) {
-                availableCount++;
-            }
-            Double price = numericValue(record.get("price"));
-            if (price == null) {
-                continue;
-            }
-            pricedCount++;
-            if (lowestPrice == null || price < lowestPrice) {
-                lowestPrice = price;
-                lowest = record;
-            }
-            if (highestPrice == null || price > highestPrice) {
-                highestPrice = price;
-                highest = record;
-            }
-        }
-        if (pricedCount == 0) {
-            return Map.of();
-        }
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("pricedRecords", pricedCount);
-        summary.put("availableRecords", availableCount);
-        putPriceEndpoint(summary, "lowest", lowest, lowestPrice);
-        putPriceEndpoint(summary, "highest", highest, highestPrice);
-        return Collections.unmodifiableMap(summary);
+    private String asString(Object value) {
+        return value == null ? null : Objects.toString(value, null);
     }
 
-    private void putPriceEndpoint(Map<String, Object> summary,
-                                  String prefix,
-                                  Map<String, Object> record,
-                                  Double price) {
-        if (summary == null || record == null || price == null) {
-            return;
+    private Object truncateScalar(Object value) {
+        if (value instanceof String text) {
+            return truncate(text, FALLBACK_MAX_CONTENT_CHARS);
         }
-        Object title = record.get("title");
-        if (title != null) {
-            summary.put(prefix + "PriceTitle", title);
-        }
-        summary.put(prefix + "Price", price);
-        Object available = record.get("available");
-        if (available != null) {
-            summary.put(prefix + "Available", available);
-        }
-        Object inventoryQuantity = record.get("inventoryQuantity");
-        if (inventoryQuantity != null) {
-            summary.put(prefix + "InventoryQuantity", inventoryQuantity);
-        }
+        return value;
     }
 
-    private int relevanceScore(Map<String, Object> record,
-                               String query,
-                               PriceConstraint priceConstraint,
-                               boolean wantsAvailable) {
-        int score = 0;
-        if (matchesQuery(record, query)) {
-            score += 1_000;
+    private String truncate(String value, int maxChars) {
+        if (value == null || maxChars <= 0 || value.length() <= maxChars) {
+            return value;
         }
-        if (priceConstraint != null) {
-            Double price = numericValue(record.get("price"));
-            if (price != null) {
-                score += priceConstraint.matches(price) ? 300 : -300;
-            }
-        }
-        if (wantsAvailable) {
-            Boolean available = booleanValue(record.get("available"));
-            if (available != null) {
-                score += available ? 150 : -150;
-            }
-        }
-        Object productType = record.get("productType");
-        if (productType != null && StringUtils.hasText(query)
-            && query.toLowerCase(Locale.ROOT).contains(String.valueOf(productType).toLowerCase(Locale.ROOT))) {
-            score += 50;
-        }
-        return score;
+        return value.substring(0, Math.max(0, maxChars - 3)) + "...";
     }
 
-    private boolean matchesQuery(Map<String, Object> record, String query) {
-        if (record == null || !StringUtils.hasText(query)) {
-            return false;
-        }
-        String normalizedQuery = query.toLowerCase(Locale.ROOT);
-        Object title = record.get("title");
-        return title != null && normalizedQuery.contains(String.valueOf(title).toLowerCase(Locale.ROOT));
-    }
-
-    private boolean mentionsAvailability(String query) {
-        if (!StringUtils.hasText(query)) {
-            return false;
-        }
-        String normalized = query.toLowerCase(Locale.ROOT);
-        return normalized.contains("available")
-            || normalized.contains("in stock")
-            || normalized.contains("in_stock")
-            || normalized.contains("instock")
-            || normalized.contains("stock_status")
-            || normalized.contains("stock status");
-    }
-
-    private double priceOrMax(Map<String, Object> record) {
-        Double price = record != null ? numericValue(record.get("price")) : null;
-        return price != null ? price : Double.MAX_VALUE;
+    private boolean isSafeScalar(Object value) {
+        return value == null
+            || value instanceof String
+            || value instanceof Number
+            || value instanceof Boolean
+            || value instanceof Character
+            || value instanceof Enum<?>;
     }
 
     private Double numericValue(Object value) {
@@ -483,6 +867,11 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         }
     }
 
+    private double numericOrMax(Object value) {
+        Double numeric = numericValue(value);
+        return numeric != null ? numeric : Double.MAX_VALUE;
+    }
+
     private Boolean booleanValue(Object value) {
         if (value instanceof Boolean bool) {
             return bool;
@@ -503,108 +892,8 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         return null;
     }
 
-    private Map<String, Object> compactRecord(Map<?, ?> record) {
-        Map<String, Object> compact = new LinkedHashMap<>();
-        putIfPresent(compact, "title", firstNonBlank(asString(mapObject(record, "title")), asString(mapObject(record, "name"))));
-        putIfPresent(compact, "entityType", firstNonBlank(asString(mapObject(record, "entityType")), asString(mapObject(record, "type"))));
-
-        Object metadata = mapObject(record, "metadata");
-        if (metadata instanceof Map<?, ?> metadataMap) {
-            putSelectedMetadata(compact, metadataMap);
-        }
-        putSelectedMetadata(compact, record);
-
-        if (!hasCommerceFacts(compact)) {
-            putIfPresent(compact, "content", truncate(asString(mapObject(record, "content")), 300));
-        }
-        return compact;
-    }
-
-    private boolean hasCommerceFacts(Map<String, Object> compact) {
-        if (compact == null || compact.isEmpty()) {
-            return false;
-        }
-        return compact.containsKey("price")
-            || compact.containsKey("available")
-            || compact.containsKey("inventoryQuantity")
-            || compact.containsKey("reviewSignalsPresent")
-            || compact.containsKey("reviewAverage")
-            || compact.containsKey("reviewCount");
-    }
-
-    private void putSelectedMetadata(Map<String, Object> target, Map<?, ?> source) {
-        if (source == null || source.isEmpty()) {
-            return;
-        }
-        putIfPresent(target, "vendor", mapObject(source, "vendor"));
-        putIfPresent(target, "productType", mapObject(source, "productType"));
-        putIfPresent(target, "available", mapObject(source, "available"));
-        putIfPresent(target, "price", mapObject(source, "price"));
-        putIfPresent(target, "inventoryQuantity", mapObject(source, "inventoryQuantity"));
-        putIfPresent(target, "primarySku", mapObject(source, "primarySku"));
-        putIfPresent(target, "sku", mapObject(source, "sku"));
-        putIfPresent(target, "reviewSignalsPresent", mapObject(source, "reviewSignalsPresent"));
-        putIfPresent(target, "reviewAverage", mapObject(source, "reviewAverage"));
-        putIfPresent(target, "reviewCount", mapObject(source, "reviewCount"));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> mapValue(Map<String, Object> source, String key) {
-        Object value = source != null ? source.get(key) : null;
-        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
-    }
-
-    private Object mapObject(Map<?, ?> source, String key) {
-        if (source == null || key == null) {
-            return null;
-        }
-        Object direct = source.get(key);
-        if (direct != null) {
-            return direct;
-        }
-        for (Map.Entry<?, ?> entry : source.entrySet()) {
-            if (entry != null && entry.getKey() != null && key.equalsIgnoreCase(entry.getKey().toString())) {
-                return entry.getValue();
-            }
-        }
-        return null;
-    }
-
-    private void putIfPresent(Map<String, Object> target, String key, Object value) {
-        if (value == null) {
-            return;
-        }
-        if (value instanceof String text) {
-            String trimmed = text.trim();
-            if (!trimmed.isEmpty()) {
-                target.put(key, trimmed);
-            }
-            return;
-        }
-        target.put(key, value);
-    }
-
-    private String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value.trim();
-            }
-        }
-        return null;
-    }
-
-    private String asString(Object value) {
-        return value == null ? null : Objects.toString(value, null);
-    }
-
-    private String truncate(String value, int maxChars) {
-        if (value == null || maxChars <= 0 || value.length() <= maxChars) {
-            return value;
-        }
-        return value.substring(0, Math.max(0, maxChars - 3)) + "...";
+    private String normalizeRuleType(String type) {
+        return type == null ? "" : type.trim().toUpperCase(Locale.ROOT);
     }
 
     private String escapeHtml(String input) {
@@ -627,43 +916,12 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         return s;
     }
 
-    private record PriceConstraint(
+    private record NumericUpperBound(
         double max,
         boolean inclusive
     ) {
-        private boolean matches(double price) {
-            return inclusive ? price <= max : price < max;
-        }
-
-        private static PriceConstraint fromQuery(String query) {
-            if (!StringUtils.hasText(query)) {
-                return null;
-            }
-            for (Pattern pattern : MAX_PRICE_QUERY_PATTERNS) {
-                Matcher matcher = pattern.matcher(query);
-                if (!matcher.find()) {
-                    continue;
-                }
-                String raw = group(matcher, "amount");
-                if (!StringUtils.hasText(raw)) {
-                    continue;
-                }
-                try {
-                    String operator = group(matcher, "operator");
-                    return new PriceConstraint(Double.parseDouble(raw), !"<".equals(operator));
-                } catch (NumberFormatException ignored) {
-                    return null;
-                }
-            }
-            return null;
-        }
-
-        private static String group(Matcher matcher, String name) {
-            try {
-                return matcher.group(name);
-            } catch (IllegalArgumentException ignored) {
-                return null;
-            }
+        private boolean matches(double value) {
+            return inclusive ? value <= max : value < max;
         }
     }
 }

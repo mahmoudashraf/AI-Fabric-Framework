@@ -72,7 +72,7 @@ public class OrchestrationProperties {
     /**
      * Server-side routing from a UI position signal to an orchestration mode.
      *
-     * <p>Used to allow the client to send a low-spoof-risk position (e.g. "cart") while the server selects the mode.</p>
+     * <p>Used to allow the client to send a low-spoof-risk position signal while the server selects the mode.</p>
      *
      * <p><strong>Note:</strong> this is intended for app/web-layer routing only. Core orchestration policy resolution
      * should not depend on UI positions.</p>

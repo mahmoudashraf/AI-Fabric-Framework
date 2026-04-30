@@ -8,6 +8,43 @@ actions:
     anonymousAllowed: true
     groundingEligible: true
     readActionResolutionEligible: true
+    llmFacts:
+      rootPath: data
+      copyFields:
+        - query
+        - totalResults
+      lists:
+        - sourcePath: records
+          target: records
+          maxItems: 4
+          includeFields:
+            - name
+            - metadata.scoreValue
+          rankRules:
+            - type: QUERY_CONTAINS_FIELD_VALUE
+              field: name
+              score: 100
+          constraints:
+            target: recordsConstraintMatches
+            countTarget: recordsConstraintMatchCount
+            includeFields:
+              - name
+              - scoreValue
+            rules:
+              - type: QUERY_NUMERIC_UPPER_BOUND
+                field: scoreValue
+                queryPatterns:
+                  - "\\bscore\\b\\s*(?<operator><=|<)\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b"
+          summaries:
+            - target: recordsScoreSummary
+              source: ALL
+              field: scoreValue
+              recordCountKey: scoredRecords
+              lowestValueKey: lowestScore
+              highestValueKey: highestScore
+              labelField: name
+              lowestLabelKey: lowestScoreName
+              highestLabelKey: highestScoreName
     params:
       - name: query
         type: STRING

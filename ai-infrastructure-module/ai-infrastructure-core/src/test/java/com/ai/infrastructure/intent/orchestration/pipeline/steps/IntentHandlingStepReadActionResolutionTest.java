@@ -56,20 +56,20 @@ class IntentHandlingStepReadActionResolutionTest {
         RAGProvider ragProvider = mock(RAGProvider.class);
         AICoreService aiCoreService = mock(AICoreService.class);
         when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class)))
-            .thenReturn(AIGenerationResponse.builder().content("Alpha Laptop is in stock right now.").build());
+            .thenReturn(AIGenerationResponse.builder().content("Alpha Record is ready right now.").build());
 
         ReadActionResolutionService readActionResolutionService = mock(ReadActionResolutionService.class);
         when(readActionResolutionService.resolve(any(), any(), any())).thenReturn(
             ReadActionResolutionService.ResolutionOutcome.answerFromActionsOnly(
-                "READ ACTION EVIDENCE\n- action: check_availability\n  success: true\n  evidence: Alpha Laptop is in stock.",
-                List.of("product"),
+                "READ ACTION EVIDENCE\n- action: check_status\n  success: true\n  evidence: Alpha Record is ready.",
+                List.of("records"),
                 List.of(new ReadActionResolutionService.ExecutedReadAction(
-                    "check_availability",
-                    Map.of("sku", "SKU-001"),
+                    "check_status",
+                    Map.of("recordId", "REC-001"),
                     null,
                     null,
                     true,
-                    "Alpha Laptop is in stock.",
+                    "Alpha Record is ready.",
                     null
                 )),
                 Map.of("attempted", true, "executedActionsCount", 1)
@@ -81,14 +81,14 @@ class IntentHandlingStepReadActionResolutionTest {
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
-            .intent("Is Alpha Laptop in stock?")
+            .intent("Is Alpha Record ready?")
             .requiresRetrieval(true)
             .requiresGeneration(true)
-            .vectorSpace("product")
-            .optimizedQuery("check Alpha Laptop stock")
+            .vectorSpace("records")
+            .optimizedQuery("check Alpha Record status")
             .build();
 
-        PipelineContext context = PipelineContext.from("Is Alpha Laptop in stock?", OrchestrationContext.forUser("user-1"))
+        PipelineContext context = PipelineContext.from("Is Alpha Record ready?", OrchestrationContext.forUser("user-1"))
             .toBuilder()
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
@@ -97,15 +97,15 @@ class IntentHandlingStepReadActionResolutionTest {
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.getMessage()).isEqualTo("Alpha Laptop is in stock right now.");
+        assertThat(result.getMessage()).isEqualTo("Alpha Record is ready right now.");
         assertThat(result.getMetadata()).containsKey("readActionResolution");
         assertThat(result.getData()).containsKey("readActionResolution");
         ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
         verify(aiCoreService).generateTextResponse(promptCaptor.capture(), eq(LlmPurpose.GENERATION));
         assertThat(promptCaptor.getValue())
-            .contains("LIVE STORE READ ACTION RESPONSE POLICY")
-            .contains("If a named product lookup failed or returned no matching product, do not answer using similarly named products, generic documents, or unrelated policy documents; state that the named product is not present in the live store data and that availability or safety cannot be confirmed.")
-            .contains("Do not provide a website, support, vendor, manufacturer, shopper-supplied-data, or generic next-step handoff unless that handoff is explicitly present in the read-action evidence.");
+            .contains("READ ACTION EVIDENCE POLICY")
+            .contains("If a named lookup failed or returned no matching record")
+            .contains("Do not provide handoffs, next steps, or support references unless they are explicitly present in the evidence.");
         verify(ragProvider, never()).performRag(any());
         verify(ragProvider, never()).performRAGQuery(any());
     }
@@ -325,19 +325,19 @@ class IntentHandlingStepReadActionResolutionTest {
         AICoreService aiCoreService = mock(AICoreService.class);
         when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class)))
             .thenReturn(AIGenerationResponse.builder()
-                .content("The Collection Snowboard: Liquid is available for $749.95 with 50 units in stock.")
+                .content("Alpha Record has score 7.5 and status ready.")
                 .build());
         when(advancedRagProvider.performAdvancedRAG(any())).thenReturn(
             AdvancedRAGResponse.builder()
                 .success(true)
-                .response("The product context does not provide price or stock.")
-                .context("The Collection Snowboard: Liquid is a snowboard.")
+                .response("The retrieved context does not provide score or status.")
+                .context("Alpha Record is a candidate.")
                 .confidenceScore(0.9)
                 .documents(List.of(AdvancedRAGResponse.RAGDocument.builder()
-                    .id("product-1")
-                    .title("The Collection Snowboard: Liquid")
-                    .content("The Collection Snowboard: Liquid is a snowboard.")
-                    .type("product")
+                    .id("record-1")
+                    .title("Alpha Record")
+                    .content("Alpha Record is a candidate.")
+                    .type("record")
                     .build()))
                 .build()
         );
@@ -345,15 +345,15 @@ class IntentHandlingStepReadActionResolutionTest {
         ReadActionResolutionService readActionResolutionService = mock(ReadActionResolutionService.class);
         when(readActionResolutionService.resolve(any(), any(), any())).thenReturn(
             ReadActionResolutionService.ResolutionOutcome.continueWithRag(
-                "READ ACTION EVIDENCE\n- action: get_product_details\n  success: true\n  evidence: {\"title\":\"The Collection Snowboard: Liquid\",\"price\":\"749.95\",\"available\":true,\"inventoryQuantity\":50}",
-                List.of("product"),
+                "READ ACTION EVIDENCE\n- action: get_record_details\n  success: true\n  evidence: {\"name\":\"Alpha Record\",\"score\":7.5,\"status\":\"ready\"}",
+                List.of("records"),
                 List.of(new ReadActionResolutionService.ExecutedReadAction(
-                    "get_product_details",
-                    Map.of("query", "The Collection Snowboard: Liquid"),
+                    "get_record_details",
+                    Map.of("query", "Alpha Record"),
                     null,
                     null,
                     true,
-                    "{\"title\":\"The Collection Snowboard: Liquid\",\"price\":\"749.95\",\"available\":true,\"inventoryQuantity\":50}",
+                    "{\"name\":\"Alpha Record\",\"score\":7.5,\"status\":\"ready\"}",
                     null
                 )),
                 Map.of("attempted", true, "useRag", true, "executedActionsCount", 1)
@@ -365,16 +365,16 @@ class IntentHandlingStepReadActionResolutionTest {
 
         Intent intent = Intent.builder()
             .type(IntentType.INFORMATION)
-            .intent("Is The Collection Snowboard: Liquid under $800 and in stock?")
+            .intent("Is Alpha Record under 10 and ready?")
             .requiresRetrieval(true)
             .requiresGeneration(true)
             .needsAdvancedRAG(true)
-            .optimizedQuery("The Collection Snowboard Liquid price stock")
-            .vectorSpace("product")
+            .optimizedQuery("Alpha Record score status")
+            .vectorSpace("records")
             .build();
 
         PipelineContext context = PipelineContext.from(
-                "Is The Collection Snowboard: Liquid under $800 and in stock?",
+                "Is Alpha Record under 10 and ready?",
                 OrchestrationContext.forUser("user-1")
             )
             .toBuilder()
@@ -384,16 +384,16 @@ class IntentHandlingStepReadActionResolutionTest {
         OrchestrationResult result = step.process(context).getIntentResult();
 
         assertThat(result.getMessage()).isEqualTo(
-            "The Collection Snowboard: Liquid is available for $749.95 with 50 units in stock."
+            "Alpha Record has score 7.5 and status ready."
         );
         verify(advancedRagProvider).performAdvancedRAG(any());
         ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
         verify(aiCoreService).generateTextResponse(promptCaptor.capture(), eq(LlmPurpose.GENERATION));
         assertThat(promptCaptor.getValue())
-            .contains("LIVE STORE READ ACTION RESPONSE POLICY")
-            .contains("\"price\":\"749.95\"")
-            .contains("\"inventoryQuantity\":50")
-            .contains("The Collection Snowboard: Liquid is a snowboard.");
+            .contains("READ ACTION EVIDENCE POLICY")
+            .contains("\"score\":7.5")
+            .contains("\"status\":\"ready\"")
+            .contains("Alpha Record is a candidate.");
     }
 
     private IntentHandlingStep buildStep(RAGProvider ragProvider, AICoreService aiCoreService) {

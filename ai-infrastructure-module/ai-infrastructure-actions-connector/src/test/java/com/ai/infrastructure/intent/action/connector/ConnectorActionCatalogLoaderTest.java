@@ -170,5 +170,16 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(action.accessMode()).isEqualTo(ActionAccessMode.READ);
         assertThat(action.groundingEligible()).isTrue();
         assertThat(action.readActionResolutionEligible()).isTrue();
+        assertThat(action.llmFacts()).isNotNull();
+        assertThat(action.llmFacts().rootPath()).isEqualTo("data");
+        assertThat(action.llmFacts().copyFields()).containsExactly("query", "totalResults");
+        assertThat(action.llmFacts().lists()).hasSize(1);
+        ConnectorActionLlmFactsListDefinition list = action.llmFacts().lists().getFirst();
+        assertThat(list.sourcePath()).isEqualTo("records");
+        assertThat(list.target()).isEqualTo("records");
+        assertThat(list.rankRules()).hasSize(1);
+        assertThat(list.constraints()).isNotNull();
+        assertThat(list.constraints().rules()).hasSize(1);
+        assertThat(list.summaries()).hasSize(1);
     }
 }

@@ -28,7 +28,8 @@ public record ConnectorActionDefinition(
     String builtInModuleId,
     String builtInCardId,
     AIContributionProvenance provenance,
-    List<ConnectorActionPostPolicyDefinition> postPolicies
+    List<ConnectorActionPostPolicyDefinition> postPolicies,
+    ConnectorActionLlmFactsDefinition llmFacts
 ) {
     public ConnectorActionDefinition {
         params = params != null ? List.copyOf(params) : List.of();

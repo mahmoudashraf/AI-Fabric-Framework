@@ -16,218 +16,262 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ConnectorAIActionHandlerTest {
 
     @Test
-    void shouldBuildCompactLlmFactsFromNestedConnectorPayload() {
-        AIActionMetaData metadata = AIActionMetaData.builder()
-            .name("relationship_query")
-            .category("shopify-companion")
-            .accessMode(ActionAccessMode.READ)
-            .build();
-        Map<String, Object> document = Map.of(
-            "id", "gid://shopify/Product/1",
-            "entityType", "product",
-            "title", "The Collection Snowboard: Liquid",
-            "metadata", Map.of(
-                "handle", "the-collection-snowboard-liquid",
-                "vendor", "Hydrogen Vendor",
-                "productType", "snowboard",
-                "available", true,
-                "price", "749.95",
-                "inventoryQuantity", 50,
-                "storefrontUrl", "https://shopping-companion-test.myshopify.com/products/the-collection-snowboard-liquid",
-                "raw", "large internal payload"
-            ),
-            "sourceUrl", "https://shopping-companion-test.myshopify.com/products/the-collection-snowboard-liquid"
-        );
+    void shouldBuildCompactLlmFactsFromConfiguredProjection() {
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("Action executed.")
             .data(ActionPayload.object(Map.of(
                 "success", true,
-                "message", "Relationship query results",
                 "data", Map.of(
-                    "query", "Find similar available snowboards under 800 dollars",
-                    "documents", List.of(document),
-                    "items", List.of(document),
-                    "totalResults", 1,
-                    "returnedResults", 1
+                    "query", "Find ready candidates under 10",
+                    "documents", List.of(
+                        candidateRecord("Beta Candidate", "11.5", true),
+                        candidateRecord("Alpha Candidate", "8.5", true),
+                        candidateRecord("Gamma Candidate", "7.0", false),
+                        candidateRecord("Delta Candidate", "6.5", true)
+                    ),
+                    "totalResults", 4,
+                    "returnedResults", 4
                 )
             )))
             .build();
         ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
-            metadata,
+            metadata(),
             false,
             null,
             Set.of(),
-            null
+            null,
+            configuredFacts()
         );
 
         Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
 
         assertThat(facts).isPresent();
         assertThat(facts.get())
-            .containsEntry("action", "relationship_query")
-            .containsEntry("query", "Find similar available snowboards under 800 dollars")
-            .containsEntry("totalResults", 1)
-            .containsEntry("returnedResults", 1);
+            .containsEntry("action", "search_records")
+            .containsEntry("query", "Find ready candidates under 10")
+            .containsEntry("totalResults", 4)
+            .containsEntry("returnedResults", 4);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> records = (List<Map<String, Object>>) facts.get().get("records");
+        assertThat(records)
+            .extracting(record -> record.get("name"))
+            .containsExactly("Delta Candidate", "Alpha Candidate", "Gamma Candidate", "Beta Candidate");
+        assertThat(records.getFirst())
+            .containsEntry("scoreValue", "6.5")
+            .containsEntry("isReady", true)
+            .doesNotContainKey("internalPayload");
+    }
+
+    @Test
+    void shouldEmitConfiguredConstraintMatchesAndNumericSummaryWithoutDomainRules() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Action executed.")
+            .data(ActionPayload.object(Map.of(
+                "data", Map.of(
+                    "query", "Find ready candidates with score <= 10",
+                    "documents", List.of(
+                        candidateRecord("Beta Candidate", "11.5", true),
+                        candidateRecord("Alpha Candidate", "8.5", true),
+                        candidateRecord("Gamma Candidate", "7.0", false),
+                        candidateRecord("Delta Candidate", "6.5", true)
+                    ),
+                    "totalResults", 4,
+                    "returnedResults", 4
+                )
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata(),
+            false,
+            null,
+            Set.of(),
+            null,
+            configuredFacts()
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> constraintMatches = (List<Map<String, Object>>) facts.get().get("recordsConstraintMatches");
+        assertThat(constraintMatches)
+            .extracting(record -> record.get("name"))
+            .containsExactly("Delta Candidate", "Alpha Candidate");
+        assertThat(facts.get()).containsEntry("recordsConstraintMatchCount", 2);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> allSummary = (Map<String, Object>) facts.get().get("recordsScoreSummary");
+        assertThat(allSummary)
+            .containsEntry("scoredRecords", 4)
+            .containsEntry("lowestScoreName", "Delta Candidate")
+            .containsEntry("lowestScore", 6.5)
+            .containsEntry("highestScoreName", "Beta Candidate")
+            .containsEntry("highestScore", 11.5);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> matchedSummary = (Map<String, Object>) facts.get().get("recordsMatchedScoreSummary");
+        assertThat(matchedSummary)
+            .containsEntry("scoredRecords", 2)
+            .containsEntry("lowestScoreName", "Delta Candidate")
+            .containsEntry("lowestScore", 6.5)
+            .containsEntry("highestScoreName", "Alpha Candidate")
+            .containsEntry("highestScore", 8.5)
+            .containsEntry("highestReady", true);
+    }
+
+    @Test
+    void shouldUseGenericFallbackProjectionWhenNoCatalogProjectionIsConfigured() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Action executed.")
+            .data(ActionPayload.object(Map.of(
+                "data", Map.of(
+                    "query", "alpha",
+                    "documents", List.of(Map.of(
+                        "id", "record-1",
+                        "name", "Alpha Record",
+                        "metadata", Map.of(
+                            "status", "ready",
+                            "rank", 3,
+                            "internalPayload", "bounded scalar evidence"
+                        ),
+                        "nested", Map.of("ignoredNestedList", List.of("a", "b"))
+                    )),
+                    "totalResults", 1
+                )
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata(),
+            false,
+            null,
+            Set.of(),
+            null
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
-        assertThat(facts.get()).doesNotContainKey("items");
         assertThat(documents).hasSize(1);
         assertThat(documents.getFirst())
-            .containsEntry("title", "The Collection Snowboard: Liquid")
-            .containsEntry("entityType", "product")
-            .containsEntry("price", "749.95")
-            .containsEntry("available", true)
-            .containsEntry("inventoryQuantity", 50)
-            .doesNotContainKey("handle")
-            .doesNotContainKey("sourceUrl")
-            .doesNotContainKey("id")
-            .doesNotContainKey("raw");
+            .containsEntry("name", "Alpha Record")
+            .containsEntry("status", "ready")
+            .containsEntry("rank", 3)
+            .doesNotContainKey("ignoredNestedList");
     }
 
-    @Test
-    void shouldPrioritizeRecordsNamedInTheQueryBeforeApplyingEvidenceLimit() {
-        AIActionMetaData metadata = AIActionMetaData.builder()
-            .name("relationship_query")
-            .category("shopify-companion")
+    private AIActionMetaData metadata() {
+        return AIActionMetaData.builder()
+            .name("search_records")
+            .category("generic")
             .accessMode(ActionAccessMode.READ)
             .build();
-        ActionResult actionResult = ActionResult.builder()
-            .success(true)
-            .message("Action executed.")
-            .data(ActionPayload.object(Map.of(
-                "data", Map.of(
-                    "query", "Compare The Collection Snowboard: Liquid and The Collection Snowboard: Oxygen",
-                    "documents", List.of(
-                        productRecord("The Collection Snowboard: Liquid", "749.95"),
-                        productRecord("The Out of Stock Snowboard", "885.95"),
-                        productRecord("The Inventory Not Tracked Snowboard", "949.95"),
-                        productRecord("The Complete Snowboard", "699.95"),
-                        productRecord("The Multi-managed Snowboard", "629.95"),
-                        productRecord("The Collection Snowboard: Oxygen", "1025.00")
-                    ),
-                    "totalResults", 6,
-                    "returnedResults", 6
-                )
-            )))
-            .build();
-        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
-            metadata,
-            false,
-            null,
-            Set.of(),
-            null
-        );
-
-        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
-
-        assertThat(facts).isPresent();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
-        assertThat(documents).hasSize(5);
-        assertThat(documents)
-            .extracting(document -> document.get("title"))
-            .contains("The Collection Snowboard: Liquid", "The Collection Snowboard: Oxygen");
     }
 
-    @Test
-    void shouldPrioritizeAvailableBudgetMatchesBeforeApplyingEvidenceLimit() {
-        AIActionMetaData metadata = AIActionMetaData.builder()
-            .name("relationship_query")
-            .category("shopify-companion")
-            .accessMode(ActionAccessMode.READ)
-            .build();
-        ActionResult actionResult = ActionResult.builder()
-            .success(true)
-            .message("Action executed.")
-            .data(ActionPayload.object(Map.of(
-                "data", Map.of(
-                    "query", "Find snowboards with price_usd < 800 AND stock_status = 'in_stock'",
-                    "documents", List.of(
-                        productRecord("The Collection Snowboard: Liquid", "749.95", true),
-                        productRecord("The Out of Stock Snowboard", "885.95", false),
-                        productRecord("The Inventory Not Tracked Snowboard", "949.95", true),
-                        productRecord("The Collection Snowboard: Oxygen", "1025.00", true),
-                        productRecord("The Multi-managed Snowboard", "629.95", true),
-                        productRecord("The Complete Snowboard", "699.95", true)
-                    ),
-                    "totalResults", 6,
-                    "returnedResults", 6
-                )
-            )))
-            .build();
-        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
-            metadata,
-            false,
-            null,
-            Set.of(),
-            null
-        );
-
-        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
-
-        assertThat(facts).isPresent();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
-        assertThat(documents).hasSize(5);
-        assertThat(documents.subList(0, 3))
-            .extracting(document -> document.get("title"))
-            .containsExactly(
-                "The Multi-managed Snowboard",
-                "The Complete Snowboard",
-                "The Collection Snowboard: Liquid"
-            );
-        @SuppressWarnings("unchecked")
-        Map<String, Object> priceSummary = (Map<String, Object>) facts.get().get("documentsPriceSummary");
-        assertThat(priceSummary)
-            .containsEntry("lowestPriceTitle", "The Multi-managed Snowboard")
-            .containsEntry("lowestPrice", 629.95)
-            .containsEntry("highestPriceTitle", "The Collection Snowboard: Oxygen")
-            .containsEntry("highestPrice", 1025.00);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> matchedPriceSummary = (Map<String, Object>) facts.get().get("documentsMatchedPriceSummary");
-        assertThat(matchedPriceSummary)
-            .containsEntry("lowestPriceTitle", "The Multi-managed Snowboard")
-            .containsEntry("lowestPrice", 629.95)
-            .containsEntry("lowestAvailable", true)
-            .containsEntry("lowestInventoryQuantity", 50)
-            .containsEntry("highestPriceTitle", "The Collection Snowboard: Liquid")
-            .containsEntry("highestPrice", 749.95)
-            .containsEntry("highestAvailable", true)
-            .containsEntry("highestInventoryQuantity", 50);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> constraintMatches = (List<Map<String, Object>>) facts.get().get("documentsConstraintMatches");
-        assertThat(constraintMatches)
-            .extracting(document -> document.get("title"))
-            .containsExactly(
-                "The Multi-managed Snowboard",
-                "The Complete Snowboard",
-                "The Collection Snowboard: Liquid"
-            );
-        assertThat(constraintMatches.getFirst())
-            .containsEntry("price", "629.95")
-            .containsEntry("available", true)
-            .doesNotContainKey("vendor")
-            .doesNotContainKey("productType")
-            .doesNotContainKey("primarySku");
-        assertThat(facts.get()).containsEntry("documentsConstraintMatchCount", 3);
-    }
-
-    private Map<String, Object> productRecord(String title, String price) {
-        return productRecord(title, price, true);
-    }
-
-    private Map<String, Object> productRecord(String title, String price, boolean available) {
+    private Map<String, Object> candidateRecord(String name, String score, boolean ready) {
         return Map.of(
-            "title", title,
-            "entityType", "product",
+            "name", name,
+            "kind", "candidate",
             "metadata", Map.of(
-                "vendor", "Hydrogen Vendor",
-                "productType", "snowboard",
-                "available", available,
-                "price", price,
-                "inventoryQuantity", 50
+                "scoreValue", score,
+                "isReady", ready,
+                "internalPayload", "large internal payload"
             )
+        );
+    }
+
+    private ConnectorActionLlmFactsDefinition configuredFacts() {
+        ConnectorActionLlmFactsRuleDefinition numericUpperBound = new ConnectorActionLlmFactsRuleDefinition(
+            "QUERY_NUMERIC_UPPER_BOUND",
+            "scoreValue",
+            List.of(
+                "\\b(?:under|below|less\\s+than|no\\s+more\\s+than|at\\s+most|up\\s+to)\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b",
+                "\\bscore\\b\\s*(?<operator><=|<)\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b"
+            ),
+            List.of(),
+            0,
+            300,
+            -300,
+            -300,
+            true
+        );
+        ConnectorActionLlmFactsRuleDefinition readyRule = new ConnectorActionLlmFactsRuleDefinition(
+            "QUERY_TERMS_BOOLEAN_TRUE",
+            "isReady",
+            List.of(),
+            List.of("ready"),
+            0,
+            150,
+            0,
+            -150,
+            false
+        );
+        ConnectorActionLlmFactsRuleDefinition nameRule = new ConnectorActionLlmFactsRuleDefinition(
+            "QUERY_CONTAINS_FIELD_VALUE",
+            "name",
+            List.of(),
+            List.of(),
+            1_000,
+            0,
+            0,
+            0,
+            false
+        );
+        ConnectorActionLlmFactsConstraintDefinition constraints = new ConnectorActionLlmFactsConstraintDefinition(
+            "recordsConstraintMatches",
+            "recordsConstraintMatchCount",
+            List.of("name", "scoreValue", "isReady"),
+            List.of(numericUpperBound, readyRule)
+        );
+        ConnectorActionLlmFactsSummaryExtraFieldDefinition readyExtra = new ConnectorActionLlmFactsSummaryExtraFieldDefinition(
+            "isReady",
+            "lowestReady",
+            "highestReady"
+        );
+        ConnectorActionLlmFactsSummaryDefinition allSummary = new ConnectorActionLlmFactsSummaryDefinition(
+            "recordsScoreSummary",
+            "ALL",
+            "scoreValue",
+            "scoredRecords",
+            "lowestScore",
+            "highestScore",
+            "name",
+            "lowestScoreName",
+            "highestScoreName",
+            List.of(readyExtra)
+        );
+        ConnectorActionLlmFactsSummaryDefinition matchedSummary = new ConnectorActionLlmFactsSummaryDefinition(
+            "recordsMatchedScoreSummary",
+            "CONSTRAINT_MATCHES",
+            "scoreValue",
+            "scoredRecords",
+            "lowestScore",
+            "highestScore",
+            "name",
+            "lowestScoreName",
+            "highestScoreName",
+            List.of(readyExtra)
+        );
+        ConnectorActionLlmFactsListDefinition listDefinition = new ConnectorActionLlmFactsListDefinition(
+            "documents",
+            "records",
+            5,
+            List.of("name", "kind", "metadata.scoreValue", "metadata.isReady"),
+            null,
+            300,
+            List.of(nameRule, numericUpperBound, readyRule),
+            constraints,
+            List.of(allSummary, matchedSummary)
+        );
+        return new ConnectorActionLlmFactsDefinition(
+            "data",
+            List.of("query", "totalResults", "returnedResults"),
+            List.of(listDefinition),
+            List.of()
         );
     }
 }

@@ -1,4 +1,8 @@
 ai:
+  prompts:
+    bundle:
+      overlays:
+        - v1-commerce
   orchestration:
     profile: PRODUCTION_CHAT
     default-mode: navigator
