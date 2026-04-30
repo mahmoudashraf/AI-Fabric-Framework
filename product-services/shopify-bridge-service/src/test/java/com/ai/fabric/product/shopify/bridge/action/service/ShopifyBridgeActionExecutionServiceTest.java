@@ -286,6 +286,37 @@ class ShopifyBridgeActionExecutionServiceTest {
     }
 
     @Test
+    void relationshipQueryReturnsLiveProductDocumentsForComparisonPrompts() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenReturn(productsPayload());
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "relationship_query",
+                Map.of("query", "compare bags with similar products", "entityTypes", List.of("product"), "limit", 2),
+                null,
+                Map.of()
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("Relationship query results");
+        assertThat(result.data()).containsEntry("totalResults", 2);
+        List<?> documents = (List<?>) result.data().get("documents");
+        assertThat(documents).hasSize(2);
+        Map<?, ?> firstDocument = (Map<?, ?>) documents.getFirst();
+        assertThat(firstDocument.get("entityType")).isEqualTo("product");
+        assertThat(firstDocument.get("title")).isEqualTo("Travel Bag");
+        Map<?, ?> metadata = (Map<?, ?>) firstDocument.get("metadata");
+        assertThat(metadata.get("reviewProvider")).isEqualTo("Judge.me");
+    }
+
+    @Test
     void addProductToCartCreatesGovernedCommerceGrant() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);

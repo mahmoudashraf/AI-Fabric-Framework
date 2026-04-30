@@ -161,6 +161,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_product_details")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("check_availability")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("get_policy")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("relationship_query")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("add_product_to_cart")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("update_cart_quantity")));
 
@@ -173,6 +174,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='check_availability')].groundingEligible", is(List.of(true))))
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='check_availability')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='get_policy')].anonymousAllowed", is(List.of(true))))
+            .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='relationship_query')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='add_product_to_cart')].requiresConfirmation", is(List.of(true))))
             .andExpect(jsonPath("$.manifest.contributions.actions[?(@.actionId=='add_product_to_cart')].groundingEligible", is(List.of(false))));
 
@@ -872,6 +874,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='check_availability')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].groundingEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='get_policy')].readActionResolutionEligible", is(List.of(true))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='relationship_query')].readActionResolutionEligible", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='add_product_to_cart')].requiresConfirmation", is(List.of(true))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='add_product_to_cart')].accessMode", is(List.of("WRITE_ONLY"))));
 
@@ -883,6 +886,7 @@ class MarketplaceIntegrationTest {
 
         assertThat(actionsArtifactYaml).contains("name: \"list_products\"");
         assertThat(actionsArtifactYaml).contains("name: \"check_availability\"");
+        assertThat(actionsArtifactYaml).contains("name: \"relationship_query\"");
         assertThat(actionsArtifactYaml).contains("name: \"add_product_to_cart\"");
         assertThat(actionsArtifactYaml).contains("requiresConfirmation: true");
         assertThat(actionsArtifactYaml).doesNotContain("name: \"find_similar_products\"");

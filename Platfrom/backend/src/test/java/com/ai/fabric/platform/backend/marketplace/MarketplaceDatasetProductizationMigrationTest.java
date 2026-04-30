@@ -146,6 +146,7 @@ class MarketplaceDatasetProductizationMigrationTest {
                 assertTrue(manifestJson.contains("\"readActionResolutionEligible\": true"));
                 assertTrue(manifestJson.contains("\"anonymousAllowed\": true"));
                 assertTrue(manifestJson.contains("\"actionId\": \"search_products\""));
+                assertTrue(manifestJson.contains("\"actionId\": \"relationship_query\""));
                 assertTrue(manifestJson.contains("\"actionId\": \"add_product_to_cart\""));
                 assertTrue(manifestJson.contains("\"actionId\": \"update_cart_quantity\""));
                 assertTrue(manifestJson.contains("\"requiresConfirmation\": true"));

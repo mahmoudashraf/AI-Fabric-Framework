@@ -17,6 +17,7 @@ final class ShopifyCompanionActionCatalog {
         "get_product_details",
         "check_availability",
         "get_policy",
+        "relationship_query",
         "add_product_to_cart",
         "add_to_cart",
         "update_cart_quantity"

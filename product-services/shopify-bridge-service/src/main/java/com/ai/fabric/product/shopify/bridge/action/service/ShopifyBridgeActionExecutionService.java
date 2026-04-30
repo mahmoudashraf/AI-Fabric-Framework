@@ -111,6 +111,7 @@ public class ShopifyBridgeActionExecutionService {
             case "get_product_details" -> getProductDetails(acquisition.get(), request);
             case "check_availability" -> checkAvailability(acquisition.get(), request);
             case "get_policy" -> getPolicy(acquisition.get(), request);
+            case "relationship_query" -> relationshipQuery(acquisition.get(), request);
             case "add_product_to_cart", "add_to_cart" -> addProductToCart(acquisition.get(), request);
             case "update_cart_quantity" -> updateCartQuantity(acquisition.get(), request);
             default -> ShopifyBridgeActionResult.failure("ACTION_NOT_SUPPORTED", "Action is not supported.");
@@ -200,6 +201,62 @@ public class ShopifyBridgeActionExecutionService {
         }
         return ShopifyBridgeActionResult.ok(
             result.isEmpty() ? "No policies found." : "Policies",
+            data
+        );
+    }
+
+    private ShopifyBridgeActionResult relationshipQuery(ShopifyBridgeCredentialAcquisition acquisition,
+                                                        ShopifyBridgeActionExecuteRequest request) {
+        String query = firstNonBlank(textParam(request, "query"), textParam(request, "semanticQuery"));
+        if (query == null) {
+            return ShopifyBridgeActionResult.failure("INVALID_REQUEST", "params.query is required.");
+        }
+        int limit = integerParam(request, "limit", 8, 1, 20);
+        List<String> entityTypes = listParam(request, "entityTypes");
+        boolean explicitEntityTypes = !entityTypes.isEmpty();
+        boolean wantsPolicies = entityTypesContain(entityTypes, "policy")
+            || containsAny(query, "policy", "policies", "return", "refund", "shipping", "privacy", "terms");
+        boolean wantsProducts = !explicitEntityTypes
+            || entityTypesContain(entityTypes, "product")
+            || entityTypesContain(entityTypes, "catalog")
+            || containsAny(query, "product", "products", "snowboard", "item", "items", "buy", "compare", "similar");
+
+        List<Map<String, Object>> documents = new ArrayList<>();
+        List<Map<String, Object>> productItems = List.of();
+        List<Map<String, Object>> policyItems = List.of();
+        if (wantsProducts) {
+            productItems = fetchProducts(acquisition, query).stream().limit(limit).toList();
+            productItems.stream()
+                .map(this::productRelationshipDocument)
+                .forEach(documents::add);
+        }
+        if (wantsPolicies && documents.size() < limit) {
+            int remaining = Math.max(1, limit - documents.size());
+            policyItems = fetchPolicies(acquisition).stream()
+                .filter(policy -> policyMatches(policy, query))
+                .limit(remaining)
+                .toList();
+            policyItems.stream()
+                .map(this::policyRelationshipDocument)
+                .forEach(documents::add);
+        }
+
+        LinkedHashMap<String, Object> data = new LinkedHashMap<>();
+        data.put("query", query);
+        data.put("entityTypes", entityTypes);
+        data.put("documents", documents);
+        data.put("items", productItems);
+        data.put("policies", policyItems);
+        data.put("totalResults", documents.size());
+        data.put("returnedResults", documents.size());
+        data.put("hybridSearchUsed", false);
+        data.put("metadata", Map.of(
+            "source", "shopify-admin-api",
+            "shopDomain", acquisition.store().shopDomain(),
+            "relationshipMode", "SHOPIFY_COMPANION_LIVE_CATALOG"
+        ));
+        return ShopifyBridgeActionResult.ok(
+            documents.isEmpty() ? "No relationship query results found." : "Relationship query results",
             data
         );
     }
@@ -513,6 +570,50 @@ public class ShopifyBridgeActionExecutionService {
         return item;
     }
 
+    private Map<String, Object> productRelationshipDocument(Map<String, Object> product) {
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("handle", product.get("handle"));
+        metadata.put("vendor", product.get("vendor"));
+        metadata.put("productType", product.get("productType"));
+        metadata.put("available", product.get("available"));
+        metadata.put("price", product.get("price"));
+        metadata.put("primarySku", product.get("primarySku"));
+        metadata.put("inventoryQuantity", product.get("inventoryQuantity"));
+        metadata.put("storefrontUrl", product.get("storefrontUrl"));
+        metadata.put("reviewSignalsPresent", product.get("reviewSignalsPresent"));
+        if (product.containsKey("reviewProvider")) {
+            metadata.put("reviewProvider", product.get("reviewProvider"));
+        }
+        if (product.containsKey("reviewAverage")) {
+            metadata.put("reviewAverage", product.get("reviewAverage"));
+        }
+        if (product.containsKey("reviewCount")) {
+            metadata.put("reviewCount", product.get("reviewCount"));
+        }
+        LinkedHashMap<String, Object> document = new LinkedHashMap<>();
+        document.put("id", product.get("id"));
+        document.put("entityType", "product");
+        document.put("title", product.get("title"));
+        document.put("content", product.get("description"));
+        document.put("metadata", metadata);
+        document.put("sourceUrl", product.get("storefrontUrl"));
+        return document;
+    }
+
+    private Map<String, Object> policyRelationshipDocument(Map<String, Object> policy) {
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("type", policy.get("type"));
+        metadata.put("updatedAt", policy.get("updatedAt"));
+        LinkedHashMap<String, Object> document = new LinkedHashMap<>();
+        document.put("id", policy.get("id"));
+        document.put("entityType", "policy");
+        document.put("title", policy.get("title"));
+        document.put("content", policy.get("body"));
+        document.put("metadata", metadata);
+        document.put("sourceUrl", policy.get("url"));
+        return document;
+    }
+
     private List<Map<String, Object>> extractVariants(Map<String, Object> node) {
         Map<String, Object> variants = requireMap(node.get("variants"));
         List<?> rawNodes = requireList(variants.get("nodes"));
@@ -563,6 +664,34 @@ public class ShopifyBridgeActionExecutionService {
         }
         Object value = request.params().get(key);
         return value == null ? null : value.toString().trim();
+    }
+
+    private List<String> listParam(ShopifyBridgeActionExecuteRequest request, String key) {
+        if (request == null || request.params() == null) {
+            return List.of();
+        }
+        Object value = request.params().get(key);
+        if (value instanceof List<?> list) {
+            return list.stream()
+                .map(raw -> raw == null ? null : raw.toString().trim())
+                .filter(raw -> raw != null && !raw.isBlank())
+                .map(raw -> raw.toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
+        }
+        if (value == null) {
+            return List.of();
+        }
+        String raw = value.toString().trim();
+        if (raw.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(raw.split(","))
+            .map(String::trim)
+            .filter(part -> !part.isBlank())
+            .map(part -> part.toLowerCase(Locale.ROOT))
+            .distinct()
+            .toList();
     }
 
     private int integerParam(ShopifyBridgeActionExecuteRequest request, String key, int defaultValue, int min, int max) {
@@ -647,6 +776,20 @@ public class ShopifyBridgeActionExecutionService {
     private boolean looksLikeSku(String value) {
         String normalized = normalize(value);
         return normalized != null && !normalized.matches(".*\\s+.*");
+    }
+
+    private boolean entityTypesContain(List<String> entityTypes, String expected) {
+        return entityTypes.stream().anyMatch(type -> expected.equals(type) || (expected + "s").equals(type));
+    }
+
+    private boolean containsAny(String value, String... tokens) {
+        String normalized = value == null ? "" : value.toLowerCase(Locale.ROOT);
+        for (String token : tokens) {
+            if (normalized.contains(token)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String firstNonBlank(String... values) {
