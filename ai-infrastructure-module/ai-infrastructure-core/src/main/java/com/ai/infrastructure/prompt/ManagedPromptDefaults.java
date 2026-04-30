@@ -28,14 +28,17 @@ public final class ManagedPromptDefaults {
 
     public static final String ANSWER_GENERATION_PROMPT =
         "Respond with concise grounded answers. Summarize the relevant evidence first, then state the "
-            + "outcome clearly. If evidence is weak or missing, say so directly.";
+            + "outcome clearly. If evidence is weak or missing, say so directly and stop at the grounded "
+            + "conclusion. Do not append optional-assistance closers or ask for preferences unless the "
+            + "user's request needs a user-owned choice.";
 
     public static final String RETRIEVAL_PROMPT =
         "Use retrieved knowledge as the primary source for domain facts. Prefer the most relevant, current, "
             + "and policy-safe context over generic model knowledge.";
 
     public static final String ASSISTANT_UI_PROMPT =
-        "Write in a clear operator-friendly style suitable for product UIs. Keep formatting compact and easy to scan.";
+        "Write in a clear operator-friendly style suitable for product UIs. Keep formatting compact and easy to scan. "
+            + "End with the decision or limitation, not a generic invitation for more questions.";
 
     private ManagedPromptDefaults() {
     }

@@ -224,17 +224,36 @@ public class ResponseSanitizer {
     }
 
     private boolean isGenericAssistanceCloser(String sentence) {
-        if (!StringUtils.hasText(sentence) || CollectionUtils.isEmpty(properties.getGenericAssistanceCloserPrefixes())) {
+        if (!StringUtils.hasText(sentence)) {
             return false;
         }
         String normalized = sentence
             .trim()
             .replaceAll("\\s+", " ")
             .toLowerCase(Locale.ROOT);
-        return properties.getGenericAssistanceCloserPrefixes().stream()
+        if (!CollectionUtils.isEmpty(properties.getGenericAssistanceCloserPrefixes())
+            && properties.getGenericAssistanceCloserPrefixes().stream()
             .filter(StringUtils::hasText)
             .map(prefix -> prefix.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT))
-            .anyMatch(normalized::startsWith);
+            .anyMatch(normalized::startsWith)) {
+            return true;
+        }
+
+        if (CollectionUtils.isEmpty(properties.getGenericAssistanceCloserFragments())) {
+            return false;
+        }
+        boolean terminalHandoffShape = normalized.startsWith("if ")
+            || normalized.startsWith("please ")
+            || normalized.startsWith("i recommend ")
+            || normalized.startsWith("you can ")
+            || normalized.startsWith("you may ");
+        if (!terminalHandoffShape) {
+            return false;
+        }
+        return properties.getGenericAssistanceCloserFragments().stream()
+            .filter(StringUtils::hasText)
+            .map(fragment -> fragment.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT))
+            .anyMatch(normalized::contains);
     }
 
     private SanitizationOutcome<Object> sanitizeObject(Object value, String userId) {

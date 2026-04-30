@@ -107,13 +107,33 @@ public class ResponseSanitizationProperties {
      */
     private List<String> genericAssistanceCloserPrefixes = List.of(
         "if you have any other",
+        "if you have specific",
         "if you have more",
+        "if you would like",
+        "if you want",
         "if you need any",
         "if you need more",
         "let me know if",
         "feel free to ask",
         "happy to help",
         "i hope this helps"
+    );
+
+    /**
+     * Case-insensitive phrases that make a terminal sentence a non-evidence handoff when the sentence
+     * is phrased as optional assistance, preference gathering, or external follow-up.
+     */
+    private List<String> genericAssistanceCloserFragments = List.of(
+        "let me know",
+        "assist further",
+        "help further",
+        "happy to help",
+        "feel free to",
+        "ask any",
+        "ask more",
+        "need further assistance",
+        "seeking further information",
+        "seek further information"
     );
 
     public Set<String> normalizedHighRiskTypes() {

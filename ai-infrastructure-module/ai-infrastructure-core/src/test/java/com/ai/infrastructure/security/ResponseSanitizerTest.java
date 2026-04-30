@@ -154,6 +154,38 @@ class ResponseSanitizerTest {
     }
 
     @Test
+    void shouldRemoveTerminalPreferenceGatheringCloser() {
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message("Only one available snowboard is under $800 in the live store data. If you have specific features or preferences in mind, please let me know, and I can assist further!")
+            .data(Map.of(
+                "answer", "Only one available snowboard is under $800 in the live store data. If you have specific features or preferences in mind, please let me know, and I can assist further!"
+            ))
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-789");
+
+        assertThat(payload.get("message")).isEqualTo("Only one available snowboard is under $800 in the live store data.");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) payload.get("data");
+        assertThat(data).containsEntry("answer", "Only one available snowboard is under $800 in the live store data.");
+    }
+
+    @Test
+    void shouldRemoveTerminalExternalInformationHandoff() {
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message("Beginner suitability is not available in the live store data. I recommend considering other factors or seeking further information.")
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-789");
+
+        assertThat(payload.get("message")).isEqualTo("Beginner suitability is not available in the live store data.");
+    }
+
+    @Test
     void shouldPreserveNonTerminalCloserTextWhenItIsEvidence() {
         OrchestrationResult result = OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
