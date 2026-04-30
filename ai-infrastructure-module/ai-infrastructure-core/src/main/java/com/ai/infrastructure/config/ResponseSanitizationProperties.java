@@ -108,6 +108,7 @@ public class ResponseSanitizationProperties {
     private List<String> genericAssistanceCloserPrefixes = List.of(
         "if you have any other",
         "if you have specific",
+        "if you have any further",
         "if you have more",
         "if you would like",
         "if you want",
@@ -133,7 +134,11 @@ public class ResponseSanitizationProperties {
         "ask more",
         "need further assistance",
         "seeking further information",
-        "seek further information"
+        "seek further information",
+        "further questions",
+        "refer to relevant",
+        "relevant documentation",
+        "support resources"
     );
 
     public Set<String> normalizedHighRiskTypes() {

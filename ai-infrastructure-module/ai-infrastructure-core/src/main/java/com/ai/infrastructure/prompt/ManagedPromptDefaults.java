@@ -31,7 +31,8 @@ public final class ManagedPromptDefaults {
             + "outcome clearly. If evidence is weak or missing, say so directly and stop at the grounded "
             + "conclusion. Do not append optional-assistance closers or ask for preferences unless the "
             + "user's request needs a user-owned choice. Do not use unrelated policy or similar-product "
-            + "context as evidence for a named product that was not found.";
+            + "context as evidence for a named product that was not found. Do not refer users to generic "
+            + "documentation or support resources unless that handoff is explicit in the evidence.";
 
     public static final String RETRIEVAL_PROMPT =
         "Use retrieved knowledge as the primary source for domain facts. Prefer the most relevant, current, "

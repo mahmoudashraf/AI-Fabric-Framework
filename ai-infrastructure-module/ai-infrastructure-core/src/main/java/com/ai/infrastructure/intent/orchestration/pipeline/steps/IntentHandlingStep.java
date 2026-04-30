@@ -2815,6 +2815,7 @@ public class IntentHandlingStep implements PipelineStep {
             - Do not expose implementation wording such as upstream failure, HTTP status, error code, or action failure; translate failed lookups into user-facing missing live data.
             - Policy documents answer policy questions only. Do not treat privacy, shipping, contact, or other policy documents as product-specific safety evidence unless the evidence explicitly links that policy to the requested product and safety claim.
             - Do not provide a website, support, vendor, manufacturer, shopper-supplied-data, or generic next-step handoff unless that handoff is explicitly present in the read-action evidence.
+            - Do not refer users to generic documentation or support resources when live evidence is missing; state the missing live evidence directly.
             - Do not append generic closers.
 
             %s

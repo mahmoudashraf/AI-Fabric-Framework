@@ -219,6 +219,28 @@ class ResponseSanitizerTest {
     }
 
     @Test
+    void shouldRemoveTerminalDocumentationAndSupportHandoff() {
+        String answer = """
+            No return policy is available in the live store data.
+
+            If you have any further questions about the return policy, please refer to the relevant documentation or support resources.
+            """.stripTrailing();
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message(answer)
+            .data(Map.of("answer", answer))
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-789");
+
+        assertThat(payload.get("message")).isEqualTo("No return policy is available in the live store data.");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) payload.get("data");
+        assertThat(data).containsEntry("answer", "No return policy is available in the live store data.");
+    }
+
+    @Test
     void shouldPreserveNonTerminalCloserTextWhenItIsEvidence() {
         OrchestrationResult result = OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)
