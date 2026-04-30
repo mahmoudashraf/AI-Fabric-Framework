@@ -165,6 +165,77 @@ class IntentHandlingStepReadActionResolutionTest {
     }
 
     @Test
+    void shouldGenerateFinalAnswerWhenReadActionPlannerUsesRagEvenIfExtractorDidNotRequestGeneration() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder()
+                .content("No negative review or safety complaint evidence was found in the live store data.")
+                .build());
+        when(ragProvider.performRAGQuery(any())).thenReturn(RAGResponse.builder()
+            .documents(List.of(
+                RAGResponse.RAGDocument.builder()
+                    .id("product-1")
+                    .title("Alpha Snowboard")
+                    .content("Alpha Snowboard catalog record.")
+                    .metadata(Map.of("vectorSpace", "product"))
+                    .build()
+            ))
+            .context("Alpha Snowboard catalog record.")
+            .success(true)
+            .build());
+
+        ReadActionResolutionService readActionResolutionService = mock(ReadActionResolutionService.class);
+        when(readActionResolutionService.resolve(any(), any(), any())).thenReturn(
+            ReadActionResolutionService.ResolutionOutcome.continueWithRag(
+                "READ ACTION EVIDENCE\n- action: relationship_query\n  success: true\n  evidence: No review records matched the requested complaint query.",
+                List.of("product"),
+                List.of(new ReadActionResolutionService.ExecutedReadAction(
+                    "relationship_query",
+                    Map.of("query", "negative reviews or safety complaints for Alpha Snowboard"),
+                    null,
+                    null,
+                    true,
+                    "No review records matched the requested complaint query.",
+                    null
+                )),
+                Map.of("attempted", true, "useRag", true, "executedActionsCount", 1)
+            )
+        );
+
+        IntentHandlingStep step = buildStep(ragProvider, aiCoreService);
+        ReflectionTestUtils.setField(step, "readActionResolutionServiceProvider", providerOf(readActionResolutionService));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("Are there any negative reviews or safety complaints for Alpha Snowboard?")
+            .requiresRetrieval(true)
+            .requiresGeneration(false)
+            .optimizedQuery("negative reviews or safety complaints for Alpha Snowboard")
+            .vectorSpace("product")
+            .build();
+
+        PipelineContext context = PipelineContext.from(
+                "Are there any negative reviews or safety complaints for Alpha Snowboard?",
+                OrchestrationContext.forUser("user-1")
+            )
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = step.process(context).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isEqualTo("No negative review or safety complaint evidence was found in the live store data.");
+        assertThat(result.getData()).containsEntry("requiresGeneration", true);
+        assertThat(result.getData()).containsKey("ragResponse");
+        assertThat(result.getMetadata()).containsKey("readActionResolution");
+        verify(ragProvider).performRAGQuery(any());
+        verify(ragProvider, never()).performRag(any());
+    }
+
+    @Test
     void shouldUseReadActionEvidenceInsteadOfFanoutClarificationWhenRagIsAmbiguous() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         AICoreService aiCoreService = mock(AICoreService.class);

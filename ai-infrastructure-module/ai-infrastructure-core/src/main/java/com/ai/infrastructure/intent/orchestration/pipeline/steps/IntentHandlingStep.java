@@ -2293,6 +2293,13 @@ public class IntentHandlingStep implements PipelineStep {
             pipelineContext,
             metadata
         );
+        if (!needsGeneration
+            && readActionResolution.attempted()
+            && (readActionResolution.hasGroundingEvidence() || readActionResolution.useRag())) {
+            needsGeneration = true;
+            metadata.put("readActionResolutionForcedGeneration", true);
+            metadata.put(DATA_KEY_REQUIRES_GENERATION, true);
+        }
         if (readActionResolution.canAnswerFromActionEvidenceOnly()) {
             return handleInformationFromReadActionEvidence(
                 intent,
