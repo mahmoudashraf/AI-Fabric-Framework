@@ -222,6 +222,16 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         if (!compacted.isEmpty()) {
             facts.put(key, compacted);
             facts.put(key + "Count", compacted.size());
+            Map<String, Object> priceSummary = buildPriceSummary(compacted);
+            if (!priceSummary.isEmpty()) {
+                facts.put(key + "PriceSummary", priceSummary);
+            }
+            Map<String, Object> matchedPriceSummary = buildPriceSummary(
+                filterConstraintMatches(compacted, relevanceQuery)
+            );
+            if (!matchedPriceSummary.isEmpty()) {
+                facts.put(key + "MatchedPriceSummary", matchedPriceSummary);
+            }
             return true;
         }
         return false;
@@ -259,6 +269,91 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             out = new ArrayList<>(out.subList(0, 5));
         }
         return out.isEmpty() ? List.of() : List.copyOf(out);
+    }
+
+    private List<Map<String, Object>> filterConstraintMatches(List<Map<String, Object>> records, String query) {
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+        PriceConstraint priceConstraint = PriceConstraint.fromQuery(query);
+        boolean wantsAvailable = mentionsAvailability(query);
+        if (priceConstraint == null && !wantsAvailable) {
+            return records;
+        }
+        List<Map<String, Object>> matches = new ArrayList<>();
+        for (Map<String, Object> record : records) {
+            if (record == null) {
+                continue;
+            }
+            if (priceConstraint != null) {
+                Double price = numericValue(record.get("price"));
+                if (price == null || !priceConstraint.matches(price)) {
+                    continue;
+                }
+            }
+            if (wantsAvailable) {
+                Boolean available = booleanValue(record.get("available"));
+                if (!Boolean.TRUE.equals(available)) {
+                    continue;
+                }
+            }
+            matches.add(record);
+        }
+        return matches.isEmpty() ? List.of() : List.copyOf(matches);
+    }
+
+    private Map<String, Object> buildPriceSummary(List<Map<String, Object>> records) {
+        if (records == null || records.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> lowest = null;
+        Map<String, Object> highest = null;
+        Double lowestPrice = null;
+        Double highestPrice = null;
+        int pricedCount = 0;
+        int availableCount = 0;
+
+        for (Map<String, Object> record : records) {
+            if (Boolean.TRUE.equals(booleanValue(record.get("available")))) {
+                availableCount++;
+            }
+            Double price = numericValue(record.get("price"));
+            if (price == null) {
+                continue;
+            }
+            pricedCount++;
+            if (lowestPrice == null || price < lowestPrice) {
+                lowestPrice = price;
+                lowest = record;
+            }
+            if (highestPrice == null || price > highestPrice) {
+                highestPrice = price;
+                highest = record;
+            }
+        }
+        if (pricedCount == 0) {
+            return Map.of();
+        }
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("pricedRecords", pricedCount);
+        summary.put("availableRecords", availableCount);
+        putPriceEndpoint(summary, "lowest", lowest, lowestPrice);
+        putPriceEndpoint(summary, "highest", highest, highestPrice);
+        return Collections.unmodifiableMap(summary);
+    }
+
+    private void putPriceEndpoint(Map<String, Object> summary,
+                                  String prefix,
+                                  Map<String, Object> record,
+                                  Double price) {
+        if (summary == null || record == null || price == null) {
+            return;
+        }
+        Object title = record.get("title");
+        if (title != null) {
+            summary.put(prefix + "PriceTitle", title);
+        }
+        summary.put(prefix + "Price", price);
     }
 
     private int relevanceScore(Map<String, Object> record,

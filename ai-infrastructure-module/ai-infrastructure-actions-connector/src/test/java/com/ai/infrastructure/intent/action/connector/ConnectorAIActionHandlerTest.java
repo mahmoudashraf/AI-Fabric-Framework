@@ -177,6 +177,20 @@ class ConnectorAIActionHandlerTest {
                 "The Complete Snowboard",
                 "The Collection Snowboard: Liquid"
             );
+        @SuppressWarnings("unchecked")
+        Map<String, Object> priceSummary = (Map<String, Object>) facts.get().get("documentsPriceSummary");
+        assertThat(priceSummary)
+            .containsEntry("lowestPriceTitle", "The Multi-managed Snowboard")
+            .containsEntry("lowestPrice", 629.95)
+            .containsEntry("highestPriceTitle", "The Collection Snowboard: Oxygen")
+            .containsEntry("highestPrice", 1025.00);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> matchedPriceSummary = (Map<String, Object>) facts.get().get("documentsMatchedPriceSummary");
+        assertThat(matchedPriceSummary)
+            .containsEntry("lowestPriceTitle", "The Multi-managed Snowboard")
+            .containsEntry("lowestPrice", 629.95)
+            .containsEntry("highestPriceTitle", "The Collection Snowboard: Liquid")
+            .containsEntry("highestPrice", 749.95);
     }
 
     private Map<String, Object> productRecord(String title, String price) {
