@@ -34,6 +34,12 @@ class ShopifyCompanionActionCatalogTest {
         assertThat(relationship.path("llmFacts").path("lists").get(0).path("target").asText()).isEqualTo("documents");
         assertThat(relationship.path("llmFacts").path("lists").get(0).path("constraints").path("target").asText())
             .isEqualTo("productConstraintMatches");
+        assertThat(relationship.path("llmFacts").path("lists").get(0).toString())
+            .contains("metadata.price", "metadata.available")
+            .doesNotContain("\"field\":\"price\"")
+            .doesNotContain("\"field\":\"available\"");
+        assertThat(relationship.path("llmFacts").path("lists").get(1).toString())
+            .contains("\"field\":\"price\"", "\"field\":\"available\"");
         assertThat(relationship.path("params").findValuesAsText("name")).contains("maxPrice", "availableOnly");
         assertThat(relationship.toString()).contains("PARAM_NUMERIC_UPPER_BOUND").contains("PARAM_BOOLEAN_TRUE");
         assertThat(relationship.toString()).doesNotContain("QUERY_").doesNotContain("queryPatterns").doesNotContain("queryTerms");

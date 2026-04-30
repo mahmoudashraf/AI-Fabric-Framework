@@ -278,9 +278,21 @@ final class ShopifyCompanionActionCatalog {
         list.set("includeFields", array(PRODUCT_FIELDS));
         list.put("fallbackContentField", "description");
         list.put("fallbackContentMaxChars", 700);
-        list.set("rankRules", productRankRules());
-        list.set("constraints", productConstraints());
-        list.set("summaries", productSummaries(target));
+        list.set("rankRules", productRankRules("price", "available"));
+        list.set("constraints", productConstraints(
+            "price",
+            "available",
+            "title",
+            "handle",
+            "available",
+            "price",
+            "inventoryQuantity",
+            "storefrontUrl",
+            "reviewSignalsPresent",
+            "reviewAverage",
+            "reviewCount"
+        ));
+        list.set("summaries", productSummaries(target, "price", "title", "available", "inventoryQuantity", "storefrontUrl"));
         return list;
     }
 
@@ -292,63 +304,83 @@ final class ShopifyCompanionActionCatalog {
         list.set("includeFields", array(PRODUCT_DOCUMENT_FIELDS));
         list.put("fallbackContentField", "content");
         list.put("fallbackContentMaxChars", 700);
-        list.set("rankRules", productRankRules());
-        list.set("constraints", productConstraints());
-        list.set("summaries", productSummaries(target));
+        list.set("rankRules", productRankRules("metadata.price", "metadata.available"));
+        list.set("constraints", productConstraints(
+            "metadata.price",
+            "metadata.available",
+            "title",
+            "metadata.handle",
+            "metadata.available",
+            "metadata.price",
+            "metadata.inventoryQuantity",
+            "metadata.storefrontUrl",
+            "metadata.reviewSignalsPresent",
+            "metadata.reviewAverage",
+            "metadata.reviewCount"
+        ));
+        list.set("summaries", productSummaries(
+            target,
+            "metadata.price",
+            "title",
+            "metadata.available",
+            "metadata.inventoryQuantity",
+            "metadata.storefrontUrl"
+        ));
         return list;
     }
 
-    private static ArrayNode productRankRules() {
+    private static ArrayNode productRankRules(String priceField, String availableField) {
         ArrayNode rules = JSON.arrayNode();
-        rules.add(priceUpperBoundRule());
-        rules.add(availableRule());
+        rules.add(priceUpperBoundRule(priceField));
+        rules.add(availableRule(availableField));
         return rules;
     }
 
-    private static ObjectNode productConstraints() {
+    private static ObjectNode productConstraints(String priceField, String availableField, String... includeFields) {
         ObjectNode constraints = JSON.objectNode();
         constraints.put("target", "productConstraintMatches");
         constraints.put("countTarget", "productConstraintMatchCount");
-        constraints.set("includeFields", array(
-            "title",
-            "handle",
-            "available",
-            "price",
-            "inventoryQuantity",
-            "storefrontUrl",
-            "reviewSignalsPresent",
-            "reviewAverage",
-            "reviewCount"
-        ));
+        constraints.set("includeFields", array(includeFields));
         ArrayNode rules = JSON.arrayNode();
-        rules.add(priceUpperBoundRule());
-        rules.add(availableRule());
+        rules.add(priceUpperBoundRule(priceField));
+        rules.add(availableRule(availableField));
         constraints.set("rules", rules);
         return constraints;
     }
 
-    private static ArrayNode productSummaries(String target) {
+    private static ArrayNode productSummaries(String target,
+                                             String priceField,
+                                             String labelField,
+                                             String availableField,
+                                             String inventoryField,
+                                             String storefrontUrlField) {
         ArrayNode summaries = JSON.arrayNode();
-        summaries.add(priceSummary(target + "PriceSummary", "ALL"));
-        summaries.add(priceSummary(target + "MatchedPriceSummary", "CONSTRAINT_MATCHES"));
+        summaries.add(priceSummary(target + "PriceSummary", "ALL", priceField, labelField, availableField, inventoryField, storefrontUrlField));
+        summaries.add(priceSummary(target + "MatchedPriceSummary", "CONSTRAINT_MATCHES", priceField, labelField, availableField, inventoryField, storefrontUrlField));
         return summaries;
     }
 
-    private static ObjectNode priceSummary(String target, String source) {
+    private static ObjectNode priceSummary(String target,
+                                           String source,
+                                           String priceField,
+                                           String labelField,
+                                           String availableField,
+                                           String inventoryField,
+                                           String storefrontUrlField) {
         ObjectNode summary = JSON.objectNode();
         summary.put("target", target);
         summary.put("source", source);
-        summary.put("field", "price");
+        summary.put("field", priceField);
         summary.put("recordCountKey", "pricedProducts");
         summary.put("lowestValueKey", "lowestPrice");
         summary.put("highestValueKey", "highestPrice");
-        summary.put("labelField", "title");
+        summary.put("labelField", labelField);
         summary.put("lowestLabelKey", "lowestPriceTitle");
         summary.put("highestLabelKey", "highestPriceTitle");
         ArrayNode extraFields = JSON.arrayNode();
-        extraFields.add(extraField("available", "lowestAvailable", "highestAvailable"));
-        extraFields.add(extraField("inventoryQuantity", "lowestInventoryQuantity", "highestInventoryQuantity"));
-        extraFields.add(extraField("storefrontUrl", "lowestStorefrontUrl", "highestStorefrontUrl"));
+        extraFields.add(extraField(availableField, "lowestAvailable", "highestAvailable"));
+        extraFields.add(extraField(inventoryField, "lowestInventoryQuantity", "highestInventoryQuantity"));
+        extraFields.add(extraField(storefrontUrlField, "lowestStorefrontUrl", "highestStorefrontUrl"));
         summary.set("extraFields", extraFields);
         return summary;
     }
@@ -365,10 +397,10 @@ final class ShopifyCompanionActionCatalog {
         return JSON.arrayNode();
     }
 
-    private static ObjectNode priceUpperBoundRule() {
+    private static ObjectNode priceUpperBoundRule(String field) {
         ObjectNode rule = JSON.objectNode();
         rule.put("type", "PARAM_NUMERIC_UPPER_BOUND");
-        rule.put("field", "price");
+        rule.put("field", field);
         rule.put("paramPath", "maxPrice");
         rule.put("operator", "<=");
         rule.put("scoreMatch", 40);
@@ -378,10 +410,10 @@ final class ShopifyCompanionActionCatalog {
         return rule;
     }
 
-    private static ObjectNode availableRule() {
+    private static ObjectNode availableRule(String field) {
         ObjectNode rule = JSON.objectNode();
         rule.put("type", "PARAM_BOOLEAN_TRUE");
-        rule.put("field", "available");
+        rule.put("field", field);
         rule.put("paramPath", "availableOnly");
         rule.put("scoreMatch", 25);
         rule.put("scoreMismatch", -25);
