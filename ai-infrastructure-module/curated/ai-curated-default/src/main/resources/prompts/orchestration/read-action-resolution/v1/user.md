@@ -26,6 +26,7 @@ Instructions:
 - If READ actions are not the right tool, return decision=USE_RAG_ONLY.
 - For compound requests, select all needed read actions within budget. Example: an availability + return/refund policy question should include both the direct availability action and the direct policy action when both are eligible.
 - Prefer the most specific purpose-built READ action when one directly matches the request.
+- For relationship_query, derive params.query from the user's ask plus supplied page/product/collection/context evidence. The shopper must never be asked to provide "the relationship query"; if you cannot derive a useful relationship query, choose USE_RAG_ONLY or EXECUTE_READ_ACTIONS_AND_RAG with another eligible action.
 - For return/refund/shipping/privacy/terms questions, prefer the direct policy action when it is eligible. Do not rely on a product or availability action to answer policy evidence.
 - Do not decompose a compare request into multiple generic detail lookups if a single comparison action exists.
 - Do not decompose a similar/alternative request into generic detail lookups if a single similar-products action exists.
