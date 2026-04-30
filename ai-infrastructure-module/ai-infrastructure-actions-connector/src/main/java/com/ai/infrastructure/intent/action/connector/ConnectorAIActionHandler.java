@@ -129,21 +129,21 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             : Map.of();
         Map<String, Object> rootPayload = selectFactsRoot(payload);
         if (llmFacts != null && llmFacts.configured()) {
-            applyConfiguredFacts(facts, rootPayload);
+            applyConfiguredFacts(facts, rootPayload, context);
         } else {
-            applyFallbackFacts(facts, payload, rootPayload);
+            applyFallbackFacts(facts, payload, rootPayload, context);
         }
         return Optional.of(Collections.unmodifiableMap(facts));
     }
 
-    private void applyConfiguredFacts(Map<String, Object> facts, Map<String, Object> rootPayload) {
+    private void applyConfiguredFacts(Map<String, Object> facts, Map<String, Object> rootPayload, ActionContext context) {
         if (rootPayload == null || rootPayload.isEmpty()) {
             return;
         }
         for (String field : llmFacts.copyFields()) {
             copyPath(rootPayload, facts, field);
         }
-        String relevanceQuery = asString(facts.get("query"));
+        String relevanceQuery = resolveRelevanceQuery(facts, context);
         for (ConnectorActionLlmFactsListDefinition listDefinition : llmFacts.lists()) {
             putConfiguredList(facts, rootPayload, listDefinition, relevanceQuery);
         }
@@ -154,12 +154,13 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private void applyFallbackFacts(Map<String, Object> facts,
                                     Map<String, Object> payload,
-                                    Map<String, Object> rootPayload) {
+                                    Map<String, Object> rootPayload,
+                                    ActionContext context) {
         copyCommonTopLevelFields(rootPayload, facts);
         if (rootPayload != payload) {
             copyCommonTopLevelFields(payload, facts);
         }
-        String relevanceQuery = asString(facts.get("query"));
+        String relevanceQuery = resolveRelevanceQuery(facts, context);
         boolean hasPrimaryList = putFallbackList(facts, "documents", rootPayload.get("documents"), relevanceQuery);
         if (!hasPrimaryList) {
             hasPrimaryList = putFallbackList(facts, "results", rootPayload.get("results"), relevanceQuery);
@@ -626,6 +627,18 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             }
         }
         return score;
+    }
+
+    private String resolveRelevanceQuery(Map<String, Object> facts, ActionContext context) {
+        String requestQuery = context != null
+            ? firstNonBlank(context.originalQuery(), context.effectiveQuery())
+            : null;
+        String actionQuery = facts != null ? asString(facts.get("query")) : null;
+        if (StringUtils.hasText(requestQuery) && StringUtils.hasText(actionQuery)
+            && !requestQuery.trim().equalsIgnoreCase(actionQuery.trim())) {
+            return requestQuery.trim() + "\n" + actionQuery.trim();
+        }
+        return firstNonBlank(requestQuery, actionQuery);
     }
 
     private boolean queryContainsFieldValue(String query, Object value) {

@@ -42,6 +42,14 @@ public record ActionContext(OrchestrationContext orchestrationContext, PipelineC
         return orchestrationContext != null ? orchestrationContext.getMetadata() : Map.of();
     }
 
+    public String originalQuery() {
+        return pipelineContext != null ? trimToNull(pipelineContext.getOriginalQuery()) : null;
+    }
+
+    public String effectiveQuery() {
+        return pipelineContext != null ? trimToNull(pipelineContext.getEffectiveQuery()) : originalQuery();
+    }
+
     public AIAccessSubjectContext authContext() {
         Map<String, Object> metadata = metadata();
         String subjectId = metadataText(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID);

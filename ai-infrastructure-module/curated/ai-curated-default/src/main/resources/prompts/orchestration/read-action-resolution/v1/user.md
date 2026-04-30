@@ -33,3 +33,4 @@ Instructions:
 - Do not decompose a current-status check into broader catalog reads if a direct status action exists.
 - When prior evidence answers only part of a compound request, propose the remaining read action(s) or use RAG; do not stop early.
 - Keep params minimal and only use values that are directly implied by the request.
+- Do not shorten a free-text query/search parameter in a way that drops material filters or criteria from the request. Preserve bounds, requested statuses, entity labels, and comparison criteria unless a typed parameter already carries them.

@@ -2,8 +2,11 @@ package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -119,6 +122,50 @@ class ConnectorAIActionHandlerTest {
             .containsEntry("highestScoreName", "Alpha Candidate")
             .containsEntry("highestScore", 8.5)
             .containsEntry("highestReady", true);
+    }
+
+    @Test
+    void shouldEvaluateConfiguredRulesAgainstOriginalRequestWhenActionQueryDropsConstraints() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Action executed.")
+            .data(ActionPayload.object(Map.of(
+                "data", Map.of(
+                    "query", "ready candidates",
+                    "documents", List.of(
+                        candidateRecord("Beta Candidate", "11.5", true),
+                        candidateRecord("Alpha Candidate", "8.5", true),
+                        candidateRecord("Gamma Candidate", "7.0", false),
+                        candidateRecord("Delta Candidate", "6.5", true)
+                    ),
+                    "totalResults", 4,
+                    "returnedResults", 4
+                )
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata(),
+            false,
+            null,
+            Set.of(),
+            null,
+            configuredFacts()
+        );
+        OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-1");
+        ActionContext context = new ActionContext(
+            orchestrationContext,
+            PipelineContext.from("Find ready candidates under 10", orchestrationContext)
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, context);
+
+        assertThat(facts).isPresent();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> constraintMatches = (List<Map<String, Object>>) facts.get().get("recordsConstraintMatches");
+        assertThat(constraintMatches)
+            .extracting(record -> record.get("name"))
+            .containsExactly("Delta Candidate", "Alpha Candidate");
+        assertThat(facts.get()).containsEntry("recordsConstraintMatchCount", 2);
     }
 
     @Test

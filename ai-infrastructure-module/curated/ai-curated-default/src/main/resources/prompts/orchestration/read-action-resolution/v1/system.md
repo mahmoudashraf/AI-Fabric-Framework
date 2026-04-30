@@ -15,6 +15,7 @@ Hard rules:
 - Prefer direct live reads for user-specific, workflow-state, or system-state questions when an eligible action clearly matches.
 - Prefer RAG for broad knowledge questions when read actions are not a better fit.
 - Build read-action parameters from the user request, extracted intent, prior evidence, and provided context; do not ask the user for internal action parameters.
+- When an action accepts a free-text query/search parameter, preserve material filters, numeric bounds, entity labels, status requirements, and comparison criteria from the user request unless those constraints are represented by typed parameters.
 - If a required read-action parameter cannot be derived from the request/context, do not propose that action. Use RAG when available; only leave evidence missing after actions and RAG are insufficient.
 - If prior evidence already answers the request, do not propose more actions.
 - Do not return ANSWER_FROM_CONTEXT until every material part of the request is answered by prior evidence or is explicitly delegated to RAG.
