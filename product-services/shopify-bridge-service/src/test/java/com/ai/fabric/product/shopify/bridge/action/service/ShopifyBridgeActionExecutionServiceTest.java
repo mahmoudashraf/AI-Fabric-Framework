@@ -131,6 +131,46 @@ class ShopifyBridgeActionExecutionServiceTest {
     }
 
     @Test
+    void listProductsAppliesTypedProductFilters() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyBridgeActionExecutionService service = service(credentialService, graphqlClient);
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(graphqlClient.execute(eq("alpha.myshopify.com"), eq("token-1"), any(), any())).thenReturn(Map.of(
+            "data", Map.of(
+                "products", Map.of(
+                    "edges", List.of(
+                        productEdge("gid://shopify/Product/1", "Travel Bag", "travel-bag", "Carry on bag", "Loom", "Bags", "2026-04-19T00:00:00Z", "gid://shopify/ProductVariant/11", "Black", "SKU-1", true, 5, "99.00"),
+                        productEdge("gid://shopify/Product/2", "Budget Bag", "budget-bag", "Unavailable bag", "Loom", "Bags", "2026-04-19T00:00:00Z", "gid://shopify/ProductVariant/22", "Grey", "SKU-2", false, 0, "79.00"),
+                        productEdge("gid://shopify/Product/3", "Premium Bag", "premium-bag", "Premium bag", "Loom", "Bags", "2026-04-19T00:00:00Z", "gid://shopify/ProductVariant/33", "White", "SKU-3", true, 3, "129.00")
+                    )
+                )
+            )
+        ));
+
+        ShopifyBridgeActionResult result = service.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "list_products",
+                Map.of("query", "bags", "maxPrice", 100, "availableOnly", true),
+                null,
+                Map.of()
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("count", 1);
+        List<?> items = (List<?>) result.data().get("items");
+        assertThat(((Map<?, ?>) items.getFirst()).get("title")).isEqualTo("Travel Bag");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> filtersApplied = (Map<String, Object>) result.data().get("filtersApplied");
+        assertThat(filtersApplied)
+            .containsEntry("maxPrice", 100.0)
+            .containsEntry("availableOnly", true);
+    }
+
+    @Test
     void checkAvailabilityRequiresSku() {
         ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);

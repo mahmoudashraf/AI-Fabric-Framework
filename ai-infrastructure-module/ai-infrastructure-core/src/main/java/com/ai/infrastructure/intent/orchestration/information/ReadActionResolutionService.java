@@ -423,7 +423,7 @@ public class ReadActionResolutionService {
 
         AIActionHandler handler = handlerOpt.get();
         AIActionMetaData metadata = metadataOpt.get();
-        ActionContext actionContext = new ActionContext(orchestrationContext, pipelineContext);
+        ActionContext actionContext = new ActionContext(orchestrationContext, pipelineContext, proposal.params());
 
         if (orchestrationContext != null && orchestrationContext.isAnonymous() && !metadata.isAnonymousAllowed()) {
             return ExecutedReadAction.failure(proposal.name(), proposal.params(), "ANONYMOUS_NOT_ALLOWED", metadata, null);

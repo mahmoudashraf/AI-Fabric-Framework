@@ -131,7 +131,7 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         if (llmFacts != null && llmFacts.configured()) {
             applyConfiguredFacts(facts, rootPayload, context);
         } else {
-            applyFallbackFacts(facts, payload, rootPayload, context);
+            applyFallbackFacts(facts, payload, rootPayload);
         }
         return Optional.of(Collections.unmodifiableMap(facts));
     }
@@ -143,9 +143,9 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         for (String field : llmFacts.copyFields()) {
             copyPath(rootPayload, facts, field);
         }
-        String relevanceQuery = resolveRelevanceQuery(facts, context);
+        Map<String, Object> actionParams = context != null ? context.actionParams() : Map.of();
         for (ConnectorActionLlmFactsListDefinition listDefinition : llmFacts.lists()) {
-            putConfiguredList(facts, rootPayload, listDefinition, relevanceQuery);
+            putConfiguredList(facts, rootPayload, listDefinition, actionParams);
         }
         for (ConnectorActionLlmFactsObjectDefinition objectDefinition : llmFacts.objects()) {
             putConfiguredObject(facts, rootPayload, objectDefinition);
@@ -154,37 +154,35 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private void applyFallbackFacts(Map<String, Object> facts,
                                     Map<String, Object> payload,
-                                    Map<String, Object> rootPayload,
-                                    ActionContext context) {
+                                    Map<String, Object> rootPayload) {
         copyCommonTopLevelFields(rootPayload, facts);
         if (rootPayload != payload) {
             copyCommonTopLevelFields(payload, facts);
         }
-        String relevanceQuery = resolveRelevanceQuery(facts, context);
-        boolean hasPrimaryList = putFallbackList(facts, "documents", rootPayload.get("documents"), relevanceQuery);
+        boolean hasPrimaryList = putFallbackList(facts, "documents", rootPayload.get("documents"));
         if (!hasPrimaryList) {
-            hasPrimaryList = putFallbackList(facts, "results", rootPayload.get("results"), relevanceQuery);
+            hasPrimaryList = putFallbackList(facts, "results", rootPayload.get("results"));
         }
         if (!hasPrimaryList) {
-            putFallbackList(facts, "items", rootPayload.get("items"), relevanceQuery);
+            putFallbackList(facts, "items", rootPayload.get("items"));
         }
     }
 
     private void putConfiguredList(Map<String, Object> facts,
                                    Map<String, Object> rootPayload,
                                    ConnectorActionLlmFactsListDefinition listDefinition,
-                                   String relevanceQuery) {
+                                   Map<String, Object> actionParams) {
         if (listDefinition == null || !StringUtils.hasText(listDefinition.sourcePath())
             || !StringUtils.hasText(listDefinition.target())) {
             return;
         }
         Object rawValue = resolvePath(rootPayload, listDefinition.sourcePath());
-        List<Map<String, Object>> records = compactRecords(rawValue, listDefinition, relevanceQuery);
+        List<Map<String, Object>> records = compactRecords(rawValue, listDefinition, actionParams);
         if (records.isEmpty()) {
             return;
         }
 
-        List<Map<String, Object>> constraintMatches = filterConstraintMatches(records, listDefinition.constraints(), relevanceQuery);
+        List<Map<String, Object>> constraintMatches = filterConstraintMatches(records, listDefinition.constraints(), actionParams);
         if (!constraintMatches.isEmpty() && listDefinition.constraints() != null) {
             facts.put(listDefinition.constraints().target(), compactConstraintMatches(constraintMatches, listDefinition.constraints()));
             String countTarget = firstNonBlank(
@@ -230,9 +228,8 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private boolean putFallbackList(Map<String, Object> facts,
                                     String target,
-                                    Object value,
-                                    String relevanceQuery) {
-        List<Map<String, Object>> records = compactFallbackRecords(value, relevanceQuery);
+                                    Object value) {
+        List<Map<String, Object>> records = compactFallbackRecords(value);
         if (records.isEmpty()) {
             return false;
         }
@@ -255,7 +252,7 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private List<Map<String, Object>> compactRecords(Object value,
                                                      ConnectorActionLlmFactsListDefinition listDefinition,
-                                                     String relevanceQuery) {
+                                                     Map<String, Object> actionParams) {
         if (!(value instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
@@ -273,11 +270,11 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                 }
             }
         }
-        sortConfiguredRecords(out, listDefinition.rankRules(), relevanceQuery);
+        sortConfiguredRecords(out, listDefinition.rankRules(), actionParams);
         return limit(out, listDefinition.maxItems());
     }
 
-    private List<Map<String, Object>> compactFallbackRecords(Object value, String relevanceQuery) {
+    private List<Map<String, Object>> compactFallbackRecords(Object value) {
         if (!(value instanceof List<?> list) || list.isEmpty()) {
             return List.of();
         }
@@ -290,10 +287,6 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                 }
             }
         }
-        out.sort((left, right) -> Integer.compare(
-            fallbackRelevanceScore(right, relevanceQuery),
-            fallbackRelevanceScore(left, relevanceQuery)
-        ));
         return limit(out, FALLBACK_MAX_RECORDS);
     }
 
@@ -359,12 +352,12 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private List<Map<String, Object>> filterConstraintMatches(List<Map<String, Object>> records,
                                                               ConnectorActionLlmFactsConstraintDefinition constraints,
-                                                              String query) {
+                                                              Map<String, Object> actionParams) {
         if (records == null || records.isEmpty() || constraints == null || constraints.rules().isEmpty()) {
             return List.of();
         }
         List<ConnectorActionLlmFactsRuleDefinition> activeRules = constraints.rules().stream()
-            .filter(rule -> ruleActive(rule, query))
+            .filter(rule -> ruleActive(rule, actionParams))
             .toList();
         if (activeRules.isEmpty()) {
             return List.of();
@@ -373,7 +366,7 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         for (Map<String, Object> record : records) {
             boolean matched = true;
             for (ConnectorActionLlmFactsRuleDefinition rule : activeRules) {
-                if (!ruleMatches(rule, record, query)) {
+                if (!ruleMatches(rule, record, actionParams)) {
                     matched = false;
                     break;
                 }
@@ -473,19 +466,19 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private void sortConfiguredRecords(List<Map<String, Object>> records,
                                        List<ConnectorActionLlmFactsRuleDefinition> rules,
-                                       String query) {
+                                       Map<String, Object> actionParams) {
         if (records == null || records.size() < 2) {
             return;
         }
         records.sort((left, right) -> {
             int scoreCompare = Integer.compare(
-                configuredRelevanceScore(right, rules, query),
-                configuredRelevanceScore(left, rules, query)
+                configuredRelevanceScore(right, rules, actionParams),
+                configuredRelevanceScore(left, rules, actionParams)
             );
             if (scoreCompare != 0) {
                 return scoreCompare;
             }
-            ConnectorActionLlmFactsRuleDefinition ascendingRule = firstAscendingNumericRule(rules, query);
+            ConnectorActionLlmFactsRuleDefinition ascendingRule = firstAscendingNumericRule(rules, actionParams);
             if (ascendingRule != null) {
                 return Double.compare(
                     numericOrMax(resolvePath(left, ascendingRule.field())),
@@ -498,169 +491,119 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private int configuredRelevanceScore(Map<String, Object> record,
                                          List<ConnectorActionLlmFactsRuleDefinition> rules,
-                                         String query) {
-        int score = fallbackRelevanceScore(record, query);
+                                         Map<String, Object> actionParams) {
+        int score = 0;
         if (rules == null || rules.isEmpty()) {
             return score;
         }
         for (ConnectorActionLlmFactsRuleDefinition rule : rules) {
-            score += ruleScore(rule, record, query);
+            score += ruleScore(rule, record, actionParams);
         }
         return score;
     }
 
     private int ruleScore(ConnectorActionLlmFactsRuleDefinition rule,
                           Map<String, Object> record,
-                          String query) {
+                          Map<String, Object> actionParams) {
         if (rule == null || !StringUtils.hasText(rule.type())) {
             return 0;
         }
-        String type = normalizeRuleType(rule.type());
-        if ("QUERY_CONTAINS_FIELD_VALUE".equals(type)) {
-            return queryContainsFieldValue(query, resolvePath(record, rule.field())) ? rule.score() : 0;
-        }
-        if (!ruleActive(rule, query)) {
+        if (!ruleActive(rule, actionParams)) {
             return 0;
         }
-        if (ruleMatches(rule, record, query)) {
+        if (ruleMatches(rule, record, actionParams)) {
             return rule.scoreMatch();
         }
         return resolvePath(record, rule.field()) == null ? rule.scoreMissing() : rule.scoreMismatch();
     }
 
-    private boolean ruleActive(ConnectorActionLlmFactsRuleDefinition rule, String query) {
+    private boolean ruleActive(ConnectorActionLlmFactsRuleDefinition rule, Map<String, Object> actionParams) {
         if (rule == null || !StringUtils.hasText(rule.type())) {
             return false;
         }
         String type = normalizeRuleType(rule.type());
+        Object paramValue = resolvePath(actionParams, rule.paramPath());
         return switch (type) {
-            case "QUERY_NUMERIC_UPPER_BOUND" -> numericUpperBound(rule, query) != null;
-            case "QUERY_TERMS_BOOLEAN_TRUE" -> queryContainsAny(query, rule.queryTerms());
-            case "QUERY_CONTAINS_FIELD_VALUE" -> StringUtils.hasText(query);
+            case "PARAM_NUMERIC_UPPER_BOUND", "PARAM_NUMERIC_LOWER_BOUND" -> numericValue(paramValue) != null;
+            case "PARAM_BOOLEAN_TRUE" -> Boolean.TRUE.equals(booleanValue(paramValue));
+            case "PARAM_BOOLEAN_FALSE" -> Boolean.FALSE.equals(booleanValue(paramValue));
+            case "PARAM_EQUALS" -> paramValue != null || rule.value() != null;
             default -> false;
         };
     }
 
     private boolean ruleMatches(ConnectorActionLlmFactsRuleDefinition rule,
                                 Map<String, Object> record,
-                                String query) {
+                                Map<String, Object> actionParams) {
         if (rule == null || !StringUtils.hasText(rule.type())) {
             return false;
         }
         String type = normalizeRuleType(rule.type());
-        Object value = resolvePath(record, rule.field());
-        if ("QUERY_NUMERIC_UPPER_BOUND".equals(type)) {
-            NumericUpperBound upperBound = numericUpperBound(rule, query);
-            Double numeric = numericValue(value);
-            return upperBound != null && numeric != null && upperBound.matches(numeric);
+        Object recordValue = resolvePath(record, rule.field());
+        Object paramValue = resolvePath(actionParams, rule.paramPath());
+        if ("PARAM_NUMERIC_UPPER_BOUND".equals(type)) {
+            Double upperBound = numericValue(paramValue);
+            Double numeric = numericValue(recordValue);
+            return upperBound != null && numeric != null && compareNumeric(numeric, upperBound, firstNonBlank(rule.operator(), "<="));
         }
-        if ("QUERY_TERMS_BOOLEAN_TRUE".equals(type)) {
-            return Boolean.TRUE.equals(booleanValue(value));
+        if ("PARAM_NUMERIC_LOWER_BOUND".equals(type)) {
+            Double lowerBound = numericValue(paramValue);
+            Double numeric = numericValue(recordValue);
+            return lowerBound != null && numeric != null && compareNumeric(numeric, lowerBound, firstNonBlank(rule.operator(), ">="));
         }
-        if ("QUERY_CONTAINS_FIELD_VALUE".equals(type)) {
-            return queryContainsFieldValue(query, value);
+        if ("PARAM_BOOLEAN_TRUE".equals(type)) {
+            return Boolean.TRUE.equals(booleanValue(recordValue));
+        }
+        if ("PARAM_BOOLEAN_FALSE".equals(type)) {
+            return Boolean.FALSE.equals(booleanValue(recordValue));
+        }
+        if ("PARAM_EQUALS".equals(type)) {
+            Object expected = rule.value() != null ? rule.value() : paramValue;
+            return valuesEqual(recordValue, expected);
         }
         return false;
     }
 
     private ConnectorActionLlmFactsRuleDefinition firstAscendingNumericRule(List<ConnectorActionLlmFactsRuleDefinition> rules,
-                                                                            String query) {
+                                                                            Map<String, Object> actionParams) {
         if (rules == null || rules.isEmpty()) {
             return null;
         }
         for (ConnectorActionLlmFactsRuleDefinition rule : rules) {
             if (rule != null
                 && rule.sortAscendingOnMatch()
-                && "QUERY_NUMERIC_UPPER_BOUND".equals(normalizeRuleType(rule.type()))
-                && numericUpperBound(rule, query) != null) {
+                && "PARAM_NUMERIC_UPPER_BOUND".equals(normalizeRuleType(rule.type()))
+                && ruleActive(rule, actionParams)) {
                 return rule;
             }
         }
         return null;
     }
 
-    private NumericUpperBound numericUpperBound(ConnectorActionLlmFactsRuleDefinition rule, String query) {
-        if (rule == null || rule.queryPatterns().isEmpty() || !StringUtils.hasText(query)) {
-            return null;
-        }
-        for (String rawPattern : rule.queryPatterns()) {
-            if (!StringUtils.hasText(rawPattern)) {
-                continue;
-            }
-            Matcher matcher = Pattern.compile(rawPattern, Pattern.CASE_INSENSITIVE).matcher(query);
-            if (!matcher.find()) {
-                continue;
-            }
-            String rawAmount = matcherGroup(matcher, "amount");
-            if (!StringUtils.hasText(rawAmount) && matcher.groupCount() >= 1) {
-                rawAmount = matcher.group(1);
-            }
-            if (!StringUtils.hasText(rawAmount)) {
-                continue;
-            }
-            try {
-                String operator = matcherGroup(matcher, "operator");
-                return new NumericUpperBound(Double.parseDouble(rawAmount), !"<".equals(operator));
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
-        return null;
+    private boolean compareNumeric(double recordValue, double bound, String operator) {
+        return switch (firstNonBlank(operator, "<=")) {
+            case "<" -> recordValue < bound;
+            case ">" -> recordValue > bound;
+            case ">=" -> recordValue >= bound;
+            default -> recordValue <= bound;
+        };
     }
 
-    private String matcherGroup(Matcher matcher, String name) {
-        try {
-            return matcher.group(name);
-        } catch (IllegalArgumentException ignored) {
-            return null;
+    private boolean valuesEqual(Object recordValue, Object expected) {
+        if (recordValue == null || expected == null) {
+            return recordValue == expected;
         }
-    }
-
-    private int fallbackRelevanceScore(Map<String, Object> record, String query) {
-        if (record == null || record.isEmpty() || !StringUtils.hasText(query)) {
-            return 0;
+        if (recordValue instanceof Number || expected instanceof Number) {
+            Double left = numericValue(recordValue);
+            Double right = numericValue(expected);
+            return left != null && right != null && Double.compare(left, right) == 0;
         }
-        int score = 0;
-        for (Object value : record.values()) {
-            if (queryContainsFieldValue(query, value)) {
-                score += 100;
-            }
+        Boolean leftBoolean = booleanValue(recordValue);
+        Boolean rightBoolean = booleanValue(expected);
+        if (leftBoolean != null || rightBoolean != null) {
+            return Objects.equals(leftBoolean, rightBoolean);
         }
-        return score;
-    }
-
-    private String resolveRelevanceQuery(Map<String, Object> facts, ActionContext context) {
-        String requestQuery = context != null
-            ? firstNonBlank(context.originalQuery(), context.effectiveQuery())
-            : null;
-        String actionQuery = facts != null ? asString(facts.get("query")) : null;
-        if (StringUtils.hasText(requestQuery) && StringUtils.hasText(actionQuery)
-            && !requestQuery.trim().equalsIgnoreCase(actionQuery.trim())) {
-            return requestQuery.trim() + "\n" + actionQuery.trim();
-        }
-        return firstNonBlank(requestQuery, actionQuery);
-    }
-
-    private boolean queryContainsFieldValue(String query, Object value) {
-        if (!StringUtils.hasText(query) || value == null) {
-            return false;
-        }
-        String candidate = value.toString().trim();
-        if (candidate.length() < 3 || candidate.length() > 120) {
-            return false;
-        }
-        return query.toLowerCase(Locale.ROOT).contains(candidate.toLowerCase(Locale.ROOT));
-    }
-
-    private boolean queryContainsAny(String query, List<String> terms) {
-        if (!StringUtils.hasText(query) || terms == null || terms.isEmpty()) {
-            return false;
-        }
-        String normalized = query.toLowerCase(Locale.ROOT);
-        return terms.stream()
-            .filter(StringUtils::hasText)
-            .map(term -> term.toLowerCase(Locale.ROOT))
-            .anyMatch(normalized::contains);
+        return recordValue.toString().trim().equalsIgnoreCase(expected.toString().trim());
     }
 
     private void copyCommonTopLevelFields(Map<String, Object> source, Map<String, Object> target) {
@@ -929,12 +872,4 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         return s;
     }
 
-    private record NumericUpperBound(
-        double max,
-        boolean inclusive
-    ) {
-        private boolean matches(double value) {
-            return inclusive ? value <= max : value < max;
-        }
-    }
 }

@@ -148,6 +148,9 @@ class ReadActionResolutionServiceTest {
         assertThat(outcome.diagnostics()).containsEntry("executedActionsCount", 1);
         assertThat(outcome.diagnostics()).containsEntry("finalDecision", "EXECUTE_READ_ACTIONS");
         verify(detailsHandler).executeAction(eq(Map.of("sku", "SKU-AAA-100")), any(ActionContext.class));
+        ArgumentCaptor<ActionContext> factsContext = ArgumentCaptor.forClass(ActionContext.class);
+        verify(detailsHandler).buildPostActionLlmFacts(any(ActionResult.class), factsContext.capture());
+        assertThat(factsContext.getValue().actionParams()).containsEntry("sku", "SKU-AAA-100");
         verify(availabilityHandler, never()).executeAction(any(), any(ActionContext.class));
     }
 

@@ -26,7 +26,7 @@ class ConnectorAIActionHandlerTest {
             .data(ActionPayload.object(Map.of(
                 "success", true,
                 "data", Map.of(
-                    "query", "Find ready candidates under 10",
+                    "query", "Find candidates",
                     "documents", List.of(
                         candidateRecord("Beta Candidate", "11.5", true),
                         candidateRecord("Alpha Candidate", "8.5", true),
@@ -47,12 +47,15 @@ class ConnectorAIActionHandlerTest {
             configuredFacts()
         );
 
-        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, actionContext(Map.of(
+            "maxScore", 10,
+            "readyOnly", true
+        )));
 
         assertThat(facts).isPresent();
         assertThat(facts.get())
             .containsEntry("action", "search_records")
-            .containsEntry("query", "Find ready candidates under 10")
+            .containsEntry("query", "Find candidates")
             .containsEntry("totalResults", 4)
             .containsEntry("returnedResults", 4);
         @SuppressWarnings("unchecked")
@@ -94,7 +97,10 @@ class ConnectorAIActionHandlerTest {
             configuredFacts()
         );
 
-        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, actionContext(Map.of(
+            "maxScore", 10,
+            "readyOnly", true
+        )));
 
         assertThat(facts).isPresent();
         @SuppressWarnings("unchecked")
@@ -125,7 +131,7 @@ class ConnectorAIActionHandlerTest {
     }
 
     @Test
-    void shouldEvaluateConfiguredRulesAgainstOriginalRequestWhenActionQueryDropsConstraints() {
+    void shouldNotInferConfiguredConstraintsFromOriginalRequestText() {
         ActionResult actionResult = ActionResult.builder()
             .success(true)
             .message("Action executed.")
@@ -162,10 +168,13 @@ class ConnectorAIActionHandlerTest {
         assertThat(facts).isPresent();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> constraintMatches = (List<Map<String, Object>>) facts.get().get("recordsConstraintMatches");
-        assertThat(constraintMatches)
+        assertThat(constraintMatches).isNull();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> records = (List<Map<String, Object>>) facts.get().get("records");
+        assertThat(records)
             .extracting(record -> record.get("name"))
-            .containsExactly("Delta Candidate", "Alpha Candidate");
-        assertThat(facts.get()).containsEntry("recordsConstraintMatchCount", 2);
+            .containsExactly("Beta Candidate", "Alpha Candidate", "Gamma Candidate", "Delta Candidate");
+        assertThat(facts.get()).doesNotContainKey("recordsConstraintMatchCount");
     }
 
     @Test
@@ -231,15 +240,18 @@ class ConnectorAIActionHandlerTest {
         );
     }
 
+    private ActionContext actionContext(Map<String, Object> params) {
+        OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-1");
+        return new ActionContext(orchestrationContext, PipelineContext.from("Find candidates", orchestrationContext), params);
+    }
+
     private ConnectorActionLlmFactsDefinition configuredFacts() {
         ConnectorActionLlmFactsRuleDefinition numericUpperBound = new ConnectorActionLlmFactsRuleDefinition(
-            "QUERY_NUMERIC_UPPER_BOUND",
+            "PARAM_NUMERIC_UPPER_BOUND",
             "scoreValue",
-            List.of(
-                "\\b(?:under|below|less\\s+than|no\\s+more\\s+than|at\\s+most|up\\s+to)\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b",
-                "\\bscore\\b\\s*(?<operator><=|<)\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b"
-            ),
-            List.of(),
+            "maxScore",
+            "<=",
+            null,
             0,
             300,
             -300,
@@ -247,25 +259,15 @@ class ConnectorAIActionHandlerTest {
             true
         );
         ConnectorActionLlmFactsRuleDefinition readyRule = new ConnectorActionLlmFactsRuleDefinition(
-            "QUERY_TERMS_BOOLEAN_TRUE",
+            "PARAM_BOOLEAN_TRUE",
             "isReady",
-            List.of(),
-            List.of("ready"),
+            "readyOnly",
+            null,
+            null,
             0,
             150,
             0,
             -150,
-            false
-        );
-        ConnectorActionLlmFactsRuleDefinition nameRule = new ConnectorActionLlmFactsRuleDefinition(
-            "QUERY_CONTAINS_FIELD_VALUE",
-            "name",
-            List.of(),
-            List.of(),
-            1_000,
-            0,
-            0,
-            0,
             false
         );
         ConnectorActionLlmFactsConstraintDefinition constraints = new ConnectorActionLlmFactsConstraintDefinition(
@@ -310,7 +312,7 @@ class ConnectorAIActionHandlerTest {
             List.of("name", "kind", "metadata.scoreValue", "metadata.isReady"),
             null,
             300,
-            List.of(nameRule, numericUpperBound, readyRule),
+            List.of(numericUpperBound, readyRule),
             constraints,
             List.of(allSummary, matchedSummary)
         );

@@ -6,7 +6,7 @@ import java.util.List;
  * Generic post-action fact projection rules for connector-backed actions.
  *
  * <p>The connector framework owns the projection mechanics only. Domain field
- * names, query patterns, and output labels belong in the action catalog.</p>
+ * names, typed parameter paths, and output labels belong in the action catalog.</p>
  */
 public record ConnectorActionLlmFactsDefinition(
     String rootPath,
@@ -61,18 +61,15 @@ record ConnectorActionLlmFactsObjectDefinition(
 record ConnectorActionLlmFactsRuleDefinition(
     String type,
     String field,
-    List<String> queryPatterns,
-    List<String> queryTerms,
+    String paramPath,
+    String operator,
+    Object value,
     int score,
     int scoreMatch,
     int scoreMissing,
     int scoreMismatch,
     boolean sortAscendingOnMatch
 ) {
-    ConnectorActionLlmFactsRuleDefinition {
-        queryPatterns = queryPatterns != null ? List.copyOf(queryPatterns) : List.of();
-        queryTerms = queryTerms != null ? List.copyOf(queryTerms) : List.of();
-    }
 }
 
 record ConnectorActionLlmFactsConstraintDefinition(

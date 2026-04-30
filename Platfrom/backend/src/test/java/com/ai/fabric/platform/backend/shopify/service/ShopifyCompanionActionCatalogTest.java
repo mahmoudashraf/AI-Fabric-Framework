@@ -34,6 +34,9 @@ class ShopifyCompanionActionCatalogTest {
         assertThat(relationship.path("llmFacts").path("lists").get(0).path("target").asText()).isEqualTo("documents");
         assertThat(relationship.path("llmFacts").path("lists").get(0).path("constraints").path("target").asText())
             .isEqualTo("productConstraintMatches");
+        assertThat(relationship.path("params").findValuesAsText("name")).contains("maxPrice", "availableOnly");
+        assertThat(relationship.toString()).contains("PARAM_NUMERIC_UPPER_BOUND").contains("PARAM_BOOLEAN_TRUE");
+        assertThat(relationship.toString()).doesNotContain("QUERY_").doesNotContain("queryPatterns").doesNotContain("queryTerms");
         assertThat(config.path("actions").get(1).has("llmFacts")).isFalse();
         assertThat(config.path("actions").get(2).has("llmFacts")).isFalse();
     }
@@ -50,7 +53,8 @@ class ShopifyCompanionActionCatalogTest {
 
         boolean changed = ShopifyCompanionActionCatalog.ensureLlmFactsDefaults(config);
 
-        assertThat(changed).isFalse();
+        assertThat(changed).isTrue();
         assertThat(action.path("llmFacts").path("copyFields").get(0).asText()).isEqualTo("customField");
+        assertThat(action.path("params").findValuesAsText("name")).contains("maxPrice", "availableOnly");
     }
 }

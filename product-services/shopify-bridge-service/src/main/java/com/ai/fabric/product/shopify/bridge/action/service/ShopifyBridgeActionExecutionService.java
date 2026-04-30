@@ -123,22 +123,24 @@ public class ShopifyBridgeActionExecutionService {
     private ShopifyBridgeActionResult listProducts(ShopifyBridgeCredentialAcquisition acquisition,
                                                    ShopifyBridgeActionExecuteRequest request) {
         String query = textParam(request, "query");
+        ProductFilters filters = productFilters(request);
         ProductRelationshipSearch search = fetchRelationshipProducts(acquisition, query, 10);
-        List<Map<String, Object>> items = search.items();
+        List<Map<String, Object>> items = filterProducts(search.items(), filters);
         return ShopifyBridgeActionResult.ok(
             items.isEmpty() ? "No products found." : "Products",
-            productSearchData(items, query, search)
+            productSearchData(items, query, search, filters)
         );
     }
 
     private ShopifyBridgeActionResult searchProducts(ShopifyBridgeCredentialAcquisition acquisition,
                                                      ShopifyBridgeActionExecuteRequest request) {
         String query = textParam(request, "query");
+        ProductFilters filters = productFilters(request);
         ProductRelationshipSearch search = fetchRelationshipProducts(acquisition, query, 10);
-        List<Map<String, Object>> items = search.items();
+        List<Map<String, Object>> items = filterProducts(search.items(), filters);
         return ShopifyBridgeActionResult.ok(
             items.isEmpty() ? "No matching products found." : "Products",
-            productSearchData(items, query, search)
+            productSearchData(items, query, search, filters)
         );
     }
 
@@ -231,9 +233,10 @@ public class ShopifyBridgeActionExecutionService {
         List<Map<String, Object>> policyItems = List.of();
         List<String> productSearchQueries = List.of();
         boolean productFallbackToRecentCatalog = false;
+        ProductFilters filters = productFilters(request);
         if (wantsProducts) {
             ProductRelationshipSearch search = fetchRelationshipProducts(acquisition, query, limit);
-            productItems = search.items();
+            productItems = filterProducts(search.items(), filters);
             productSearchQueries = search.queries();
             productFallbackToRecentCatalog = search.fallbackToRecentCatalog();
             productItems.stream()
@@ -260,6 +263,7 @@ public class ShopifyBridgeActionExecutionService {
         data.put("totalResults", documents.size());
         data.put("returnedResults", documents.size());
         data.put("hybridSearchUsed", false);
+        data.put("filtersApplied", filters.toMap());
         LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("source", "shopify-admin-api");
         metadata.put("shopDomain", acquisition.store().shopDomain());
@@ -275,7 +279,8 @@ public class ShopifyBridgeActionExecutionService {
 
     private Map<String, Object> productSearchData(List<Map<String, Object>> items,
                                                   String query,
-                                                  ProductRelationshipSearch search) {
+                                                  ProductRelationshipSearch search,
+                                                  ProductFilters filters) {
         LinkedHashMap<String, Object> data = new LinkedHashMap<>();
         data.put("items", items);
         data.put("count", items.size());
@@ -284,6 +289,7 @@ public class ShopifyBridgeActionExecutionService {
         }
         data.put("productSearchQueries", search.queries());
         data.put("productFallbackToRecentCatalog", search.fallbackToRecentCatalog());
+        data.put("filtersApplied", filters.toMap());
         return data;
     }
 
@@ -517,6 +523,22 @@ public class ShopifyBridgeActionExecutionService {
                 target.add(candidate);
             }
         }
+    }
+
+    private List<Map<String, Object>> filterProducts(List<Map<String, Object>> products, ProductFilters filters) {
+        if (products == null || products.isEmpty() || filters == null || !filters.hasAny()) {
+            return products == null ? List.of() : List.copyOf(products);
+        }
+        return products.stream()
+            .filter(product -> !Boolean.TRUE.equals(filters.availableOnly()) || Boolean.TRUE.equals(product.get("available")))
+            .filter(product -> {
+                if (filters.maxPrice() == null) {
+                    return true;
+                }
+                Double price = numericValue(product.get("price"));
+                return price != null && price <= filters.maxPrice();
+            })
+            .toList();
     }
 
     private List<Map<String, Object>> fetchPolicies(ShopifyBridgeCredentialAcquisition acquisition) {
@@ -775,6 +797,44 @@ public class ShopifyBridgeActionExecutionService {
         return value == null ? null : value.toString().trim();
     }
 
+    private ProductFilters productFilters(ShopifyBridgeActionExecuteRequest request) {
+        return new ProductFilters(
+            decimalParam(request, "maxPrice"),
+            booleanParam(request, "availableOnly")
+        );
+    }
+
+    private Double decimalParam(ShopifyBridgeActionExecuteRequest request, String key) {
+        if (request == null || request.params() == null) {
+            return null;
+        }
+        return numericValue(request.params().get(key));
+    }
+
+    private Boolean booleanParam(ShopifyBridgeActionExecuteRequest request, String key) {
+        if (request == null || request.params() == null) {
+            return null;
+        }
+        Object value = request.params().get(key);
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value == null) {
+            return null;
+        }
+        String raw = value.toString().trim();
+        if (raw.isBlank()) {
+            return null;
+        }
+        if ("true".equalsIgnoreCase(raw) || "yes".equalsIgnoreCase(raw)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(raw) || "no".equalsIgnoreCase(raw)) {
+            return false;
+        }
+        return null;
+    }
+
     private List<String> listParam(ShopifyBridgeActionExecuteRequest request, String key) {
         if (request == null || request.params() == null) {
             return List.of();
@@ -831,6 +891,28 @@ public class ShopifyBridgeActionExecutionService {
     private String text(Map<String, Object> node, String field) {
         Object value = node == null ? null : node.get(field);
         return value == null ? "" : value.toString().trim();
+    }
+
+    private Double numericValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value == null) {
+            return null;
+        }
+        String raw = value.toString().trim();
+        if (raw.isBlank()) {
+            return null;
+        }
+        String normalized = raw.replaceAll("[^0-9.\\-]", "");
+        if (normalized.isBlank() || ".".equals(normalized) || "-".equals(normalized)) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private String sanitizeRichText(String value) {
@@ -1036,6 +1118,24 @@ public class ShopifyBridgeActionExecutionService {
     private record ProductRelationshipSearch(List<Map<String, Object>> items,
                                              List<String> queries,
                                              boolean fallbackToRecentCatalog) {
+    }
+
+    private record ProductFilters(Double maxPrice, Boolean availableOnly) {
+
+        private boolean hasAny() {
+            return maxPrice != null || availableOnly != null;
+        }
+
+        private Map<String, Object> toMap() {
+            LinkedHashMap<String, Object> out = new LinkedHashMap<>();
+            if (maxPrice != null) {
+                out.put("maxPrice", maxPrice);
+            }
+            if (availableOnly != null) {
+                out.put("availableOnly", availableOnly);
+            }
+            return Map.copyOf(out);
+        }
     }
 
 }

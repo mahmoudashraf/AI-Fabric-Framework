@@ -27,6 +27,12 @@ final class ShopifyCompanionActionCatalog {
         "update_cart_quantity"
     );
 
+    private static final Set<String> PRODUCT_FILTER_ACTION_IDS = Set.of(
+        "list_products",
+        "search_products",
+        "relationship_query"
+    );
+
     private static final List<String> PRODUCT_FIELDS = List.of(
         "title",
         "handle",
@@ -89,6 +95,7 @@ final class ShopifyCompanionActionCatalog {
             if (actionId == null || !isShopifyCompanionAction(action, actionId) || !isReadAction(action)) {
                 continue;
             }
+            changed |= ensureProductFilterParams(actionNode, actionId);
             if (hasConfiguredLlmFacts(action.path("llmFacts"))) {
                 continue;
             }
@@ -138,6 +145,41 @@ final class ShopifyCompanionActionCatalog {
         return llmFacts.path("copyFields").isArray() && !llmFacts.path("copyFields").isEmpty()
             || llmFacts.path("lists").isArray() && !llmFacts.path("lists").isEmpty()
             || llmFacts.path("objects").isArray() && !llmFacts.path("objects").isEmpty();
+    }
+
+    private static boolean ensureProductFilterParams(ObjectNode action, String actionId) {
+        if (action == null || !PRODUCT_FILTER_ACTION_IDS.contains(normalize(actionId))) {
+            return false;
+        }
+        ArrayNode params;
+        if (action.path("params").isArray()) {
+            params = (ArrayNode) action.path("params");
+        } else {
+            params = JSON.arrayNode();
+            action.set("params", params);
+        }
+        boolean changed = false;
+        changed |= ensureParam(params, "maxPrice", "Maximum product price from a shopper-stated numeric upper-bound price constraint. Set only when directly implied; keep the topic in query.", "NUMBER", false);
+        changed |= ensureParam(params, "availableOnly", "True only when the shopper asks for products that are available or in stock.", "BOOLEAN", false);
+        return changed;
+    }
+
+    private static boolean ensureParam(ArrayNode params, String name, String description, String type, boolean required) {
+        if (params == null || name == null) {
+            return false;
+        }
+        for (JsonNode param : params) {
+            if (name.equals(param.path("name").asText(null))) {
+                return false;
+            }
+        }
+        ObjectNode param = JSON.objectNode();
+        param.put("name", name);
+        param.put("description", description);
+        param.put("type", type);
+        param.put("required", required);
+        params.add(param);
+        return true;
     }
 
     private static ObjectNode defaultLlmFacts(String actionId) {
@@ -257,12 +299,7 @@ final class ShopifyCompanionActionCatalog {
     }
 
     private static ArrayNode productRankRules() {
-        ArrayNode rules = rankBy("title");
-        ObjectNode handle = JSON.objectNode();
-        handle.put("type", "QUERY_CONTAINS_FIELD_VALUE");
-        handle.put("field", "handle");
-        handle.put("score", 80);
-        rules.add(handle);
+        ArrayNode rules = JSON.arrayNode();
         rules.add(priceUpperBoundRule());
         rules.add(availableRule());
         return rules;
@@ -325,24 +362,15 @@ final class ShopifyCompanionActionCatalog {
     }
 
     private static ArrayNode rankBy(String field) {
-        ArrayNode rules = JSON.arrayNode();
-        ObjectNode rule = JSON.objectNode();
-        rule.put("type", "QUERY_CONTAINS_FIELD_VALUE");
-        rule.put("field", field);
-        rule.put("score", 100);
-        rules.add(rule);
-        return rules;
+        return JSON.arrayNode();
     }
 
     private static ObjectNode priceUpperBoundRule() {
         ObjectNode rule = JSON.objectNode();
-        rule.put("type", "QUERY_NUMERIC_UPPER_BOUND");
+        rule.put("type", "PARAM_NUMERIC_UPPER_BOUND");
         rule.put("field", "price");
-        ArrayNode patterns = JSON.arrayNode();
-        patterns.add("\\b(?:under|below|less\\s+than|no\\s+more\\s+than|at\\s+most|max(?:imum)?|up\\s+to)\\s*\\$?\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b");
-        patterns.add("\\$\\s*(?<amount>\\d+(?:\\.\\d+)?)\\s*(?:or\\s+less|or\\s+under|and\\s+under)\\b");
-        patterns.add("\\b(?:price|amount|cost)\\b\\s*(?<operator><=|<)\\s*\\$?\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b");
-        rule.set("queryPatterns", patterns);
+        rule.put("paramPath", "maxPrice");
+        rule.put("operator", "<=");
         rule.put("scoreMatch", 40);
         rule.put("scoreMissing", -15);
         rule.put("scoreMismatch", -20);
@@ -352,9 +380,9 @@ final class ShopifyCompanionActionCatalog {
 
     private static ObjectNode availableRule() {
         ObjectNode rule = JSON.objectNode();
-        rule.put("type", "QUERY_TERMS_BOOLEAN_TRUE");
+        rule.put("type", "PARAM_BOOLEAN_TRUE");
         rule.put("field", "available");
-        rule.set("queryTerms", array("available", "in stock", "in-stock", "instock", "stock status"));
+        rule.put("paramPath", "availableOnly");
         rule.put("scoreMatch", 25);
         rule.put("scoreMismatch", -25);
         return rule;

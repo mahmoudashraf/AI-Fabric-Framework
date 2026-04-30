@@ -21,9 +21,10 @@ actions:
             - name
             - metadata.scoreValue
           rankRules:
-            - type: QUERY_CONTAINS_FIELD_VALUE
-              field: name
-              score: 100
+            - type: PARAM_NUMERIC_UPPER_BOUND
+              field: scoreValue
+              paramPath: maxScore
+              scoreMatch: 100
           constraints:
             target: recordsConstraintMatches
             countTarget: recordsConstraintMatchCount
@@ -31,10 +32,9 @@ actions:
               - name
               - scoreValue
             rules:
-              - type: QUERY_NUMERIC_UPPER_BOUND
+              - type: PARAM_NUMERIC_UPPER_BOUND
                 field: scoreValue
-                queryPatterns:
-                  - "\\bscore\\b\\s*(?<operator><=|<)\\s*(?<amount>\\d+(?:\\.\\d+)?)\\b"
+                paramPath: maxScore
           summaries:
             - target: recordsScoreSummary
               source: ALL
@@ -50,3 +50,7 @@ actions:
         type: STRING
         description: "Policy query"
         required: true
+      - name: maxScore
+        type: NUMBER
+        description: "Maximum score filter"
+        required: false

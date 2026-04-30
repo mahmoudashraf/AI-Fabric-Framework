@@ -180,6 +180,8 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(list.rankRules()).hasSize(1);
         assertThat(list.constraints()).isNotNull();
         assertThat(list.constraints().rules()).hasSize(1);
+        assertThat(list.constraints().rules().getFirst().type()).isEqualTo("PARAM_NUMERIC_UPPER_BOUND");
+        assertThat(list.constraints().rules().getFirst().paramPath()).isEqualTo("maxScore");
         assertThat(list.summaries()).hasSize(1);
     }
 }

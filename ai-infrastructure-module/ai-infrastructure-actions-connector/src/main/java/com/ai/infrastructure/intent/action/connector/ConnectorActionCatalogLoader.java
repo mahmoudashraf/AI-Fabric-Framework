@@ -76,8 +76,9 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_RULES = "rules";
     private static final String KEY_COUNT_TARGET = "countTarget";
     private static final String KEY_FIELD = "field";
-    private static final String KEY_QUERY_PATTERNS = "queryPatterns";
-    private static final String KEY_QUERY_TERMS = "queryTerms";
+    private static final String KEY_PARAM_PATH = "paramPath";
+    private static final String KEY_OPERATOR = "operator";
+    private static final String KEY_VALUE = "value";
     private static final String KEY_SCORE = "score";
     private static final String KEY_SCORE_MATCH = "scoreMatch";
     private static final String KEY_SCORE_MISSING = "scoreMissing";
@@ -522,15 +523,22 @@ public class ConnectorActionCatalogLoader {
                 throw new IllegalStateException("Invalid action contract in " + label
                     + " for action '" + actionName + "': each " + fieldName + " entry requires type and field.");
             }
-            List<String> queryPatterns = readStringList(raw.get(KEY_QUERY_PATTERNS));
-            for (String pattern : queryPatterns) {
-                validateRegex(pattern, label, actionName, fieldName);
+            String normalizedType = type.trim().toUpperCase(Locale.ROOT);
+            if (!isSupportedLlmFactRuleType(normalizedType)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': unsupported " + fieldName + " type '" + type + "'.");
+            }
+            String paramPath = readString(raw, KEY_PARAM_PATH);
+            if (!StringUtils.hasText(paramPath)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': each " + fieldName + " entry requires paramPath.");
             }
             out.add(new ConnectorActionLlmFactsRuleDefinition(
                 type.trim(),
                 field.trim(),
-                queryPatterns,
-                readStringList(raw.get(KEY_QUERY_TERMS)),
+                paramPath.trim(),
+                readString(raw, KEY_OPERATOR),
+                raw.get(KEY_VALUE),
                 readPositiveInt(raw.get(KEY_SCORE), label, actionName, fieldName + ".score", 0),
                 readInt(raw.get(KEY_SCORE_MATCH), label, actionName, fieldName + ".scoreMatch", 0),
                 readInt(raw.get(KEY_SCORE_MISSING), label, actionName, fieldName + ".scoreMissing", 0),
@@ -539,6 +547,14 @@ public class ConnectorActionCatalogLoader {
             ));
         }
         return List.copyOf(out);
+    }
+
+    private boolean isSupportedLlmFactRuleType(String type) {
+        return "PARAM_NUMERIC_UPPER_BOUND".equals(type)
+            || "PARAM_NUMERIC_LOWER_BOUND".equals(type)
+            || "PARAM_BOOLEAN_TRUE".equals(type)
+            || "PARAM_BOOLEAN_FALSE".equals(type)
+            || "PARAM_EQUALS".equals(type);
     }
 
     private List<ConnectorActionPostPolicyDefinition> parsePostPolicies(Object rawPostPolicies,
@@ -1168,18 +1184,6 @@ public class ConnectorActionCatalogLoader {
         } catch (NumberFormatException ex) {
             throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName
                 + "': " + field + " must be an integer.");
-        }
-    }
-
-    private void validateRegex(String pattern, String label, String actionName, String field) {
-        if (!StringUtils.hasText(pattern)) {
-            return;
-        }
-        try {
-            Pattern.compile(pattern);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName
-                + "': " + field + " contains invalid regex '" + pattern + "'.", ex);
         }
     }
 

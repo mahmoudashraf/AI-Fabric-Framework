@@ -409,9 +409,9 @@ public class IntentHandlingStep implements PipelineStep {
 
         Map<String, Object> params = intent.getActionParams();
         String identifier = context.getIdentifier();
-        ActionContext actionContext = new ActionContext(context, pipelineContext);
 
         Map<String, Object> effectiveParams = params != null ? new LinkedHashMap<>(params) : new LinkedHashMap<>();
+        ActionContext actionContext = new ActionContext(context, pipelineContext, effectiveParams);
         ResolvedPostActionGeneration postActionRequest = null;
 
         if (!handler.validateActionAllowed(actionContext)) {
@@ -433,6 +433,7 @@ public class IntentHandlingStep implements PipelineStep {
         postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
 
         effectiveParams = applyBatchTargetsDefaulting(meta, effectiveParams, pipelineContext);
+        actionContext = actionContext.withActionParams(effectiveParams);
 
         ActionParamValidation validation = validateRequiredActionParams(meta, effectiveParams, pipelineContext);
         List<String> missingRequired = validation != null ? validation.missingRequired() : List.of();
@@ -574,6 +575,7 @@ public class IntentHandlingStep implements PipelineStep {
                 actionResult,
                 context,
                 pipelineContext,
+                effectiveParams,
                 postActionRequest
             );
             if (postActionGeneration != null) {
@@ -1699,6 +1701,7 @@ public class IntentHandlingStep implements PipelineStep {
                                                                       ActionResult actionResult,
                                                                       OrchestrationContext context,
                                                                       PipelineContext pipelineContext,
+                                                                      Map<String, Object> actionParams,
                                                                       ResolvedPostActionGeneration request) {
         if (request == null || !request.shouldGenerate()) {
             return null;
@@ -1708,7 +1711,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         if (!ACTION_RELATIONSHIP_QUERY.equalsIgnoreCase(actionName)) {
-            return maybeGenerateGenericPostActionSummary(handler, actionName, request, actionResult, context, pipelineContext);
+            return maybeGenerateGenericPostActionSummary(handler, actionName, request, actionResult, context, pipelineContext, actionParams);
         }
 
         Map<String, Object> actionData = coerceToMap(actionResult.getData());
@@ -1840,14 +1843,15 @@ public class IntentHandlingStep implements PipelineStep {
                                                                              ResolvedPostActionGeneration request,
                                                                              ActionResult actionResult,
                                                                              OrchestrationContext context,
-                                                                             PipelineContext pipelineContext) {
+                                                                             PipelineContext pipelineContext,
+                                                                             Map<String, Object> actionParams) {
         if (handler == null || postActionGenerationProperties == null || !postActionGenerationProperties.isEnabled()) {
             return null;
         }
 
         Optional<Map<String, Object>> factsOpt;
         try {
-            factsOpt = handler.buildPostActionLlmFacts(actionResult, new ActionContext(context, pipelineContext));
+            factsOpt = handler.buildPostActionLlmFacts(actionResult, new ActionContext(context, pipelineContext, actionParams));
         } catch (Exception ex) {
             log.warn("Action handler {} failed to build post-action facts for '{}': {}",
                 handler.getClass().getName(), actionName, ex.getMessage());

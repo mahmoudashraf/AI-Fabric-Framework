@@ -33,4 +33,5 @@ Instructions:
 - Do not decompose a current-status check into broader catalog reads if a direct status action exists.
 - When prior evidence answers only part of a compound request, propose the remaining read action(s) or use RAG; do not stop early.
 - Keep params minimal and only use values that are directly implied by the request.
-- Do not shorten a free-text query/search parameter in a way that drops material filters or criteria from the request. Preserve bounds, requested statuses, entity labels, and comparison criteria unless a typed parameter already carries them.
+- Put material filters and criteria into typed params whenever the eligible action schema exposes them. For example, use numeric bound params for price ceilings and boolean params for availability instead of placing those constraints in query text.
+- Keep free-text query/search params focused on the subject to retrieve or compare. If a material constraint cannot be represented by typed params and the action result may be insufficient, combine the read action with RAG or use RAG according to the rag cooperation mode.
