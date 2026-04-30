@@ -3282,10 +3282,12 @@ public class IntentHandlingStep implements PipelineStep {
 	            boolean lowConfidence = advancedResponse.getConfidenceScore() == null || advancedResponse.getConfidenceScore() <= 0.0d;
 	            boolean noEvidence = !hasRetrievedEvidence && lowConfidence;
 
+                boolean hasReadActionEvidence = readActionResolution != null
+                    && StringUtils.hasText(readActionResolution.evidenceContext());
 	            String answer = null;
             ResponseGenerationTrace generationTrace = null;
 	            if (needsGeneration) {
-	                if (StringUtils.hasText(advancedResponse.getResponse()) && !noEvidence) {
+	                if (StringUtils.hasText(advancedResponse.getResponse()) && !noEvidence && !hasReadActionEvidence) {
 	                    answer = advancedResponse.getResponse();
 	                } else {
 	                    try {

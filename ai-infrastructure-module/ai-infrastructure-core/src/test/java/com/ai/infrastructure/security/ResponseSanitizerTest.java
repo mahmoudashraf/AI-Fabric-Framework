@@ -241,6 +241,28 @@ class ResponseSanitizerTest {
     }
 
     @Test
+    void shouldRemoveTerminalAdditionalResourcesHandoff() {
+        String answer = """
+            Beginner suitability is not available in the live store data.
+
+            If you are looking for a gift, I recommend considering additional resources or reviews that specifically address beginner suitability.
+            """.stripTrailing();
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message(answer)
+            .data(Map.of("answer", answer))
+            .build();
+
+        Map<String, Object> payload = sanitizer.sanitize(result, "user-789");
+
+        assertThat(payload.get("message")).isEqualTo("Beginner suitability is not available in the live store data.");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) payload.get("data");
+        assertThat(data).containsEntry("answer", "Beginner suitability is not available in the live store data.");
+    }
+
+    @Test
     void shouldPreserveNonTerminalCloserTextWhenItIsEvidence() {
         OrchestrationResult result = OrchestrationResult.builder()
             .type(OrchestrationResultType.INFORMATION_PROVIDED)

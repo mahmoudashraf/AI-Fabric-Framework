@@ -9,6 +9,7 @@ import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -317,7 +318,91 @@ class IntentHandlingStepReadActionResolutionTest {
         verify(ragProvider, times(2)).performRAGQuery(any());
     }
 
+    @Test
+    void shouldRegenerateAdvancedRagResponseWhenReadActionEvidenceExists() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        AdvancedRAGProvider advancedRagProvider = mock(AdvancedRAGProvider.class);
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder()
+                .content("The Collection Snowboard: Liquid is available for $749.95 with 50 units in stock.")
+                .build());
+        when(advancedRagProvider.performAdvancedRAG(any())).thenReturn(
+            AdvancedRAGResponse.builder()
+                .success(true)
+                .response("The product context does not provide price or stock.")
+                .context("The Collection Snowboard: Liquid is a snowboard.")
+                .confidenceScore(0.9)
+                .documents(List.of(AdvancedRAGResponse.RAGDocument.builder()
+                    .id("product-1")
+                    .title("The Collection Snowboard: Liquid")
+                    .content("The Collection Snowboard: Liquid is a snowboard.")
+                    .type("product")
+                    .build()))
+                .build()
+        );
+
+        ReadActionResolutionService readActionResolutionService = mock(ReadActionResolutionService.class);
+        when(readActionResolutionService.resolve(any(), any(), any())).thenReturn(
+            ReadActionResolutionService.ResolutionOutcome.continueWithRag(
+                "READ ACTION EVIDENCE\n- action: get_product_details\n  success: true\n  evidence: {\"title\":\"The Collection Snowboard: Liquid\",\"price\":\"749.95\",\"available\":true,\"inventoryQuantity\":50}",
+                List.of("product"),
+                List.of(new ReadActionResolutionService.ExecutedReadAction(
+                    "get_product_details",
+                    Map.of("query", "The Collection Snowboard: Liquid"),
+                    null,
+                    null,
+                    true,
+                    "{\"title\":\"The Collection Snowboard: Liquid\",\"price\":\"749.95\",\"available\":true,\"inventoryQuantity\":50}",
+                    null
+                )),
+                Map.of("attempted", true, "useRag", true, "executedActionsCount", 1)
+            )
+        );
+
+        IntentHandlingStep step = buildStep(ragProvider, aiCoreService, advancedRagProvider);
+        ReflectionTestUtils.setField(step, "readActionResolutionServiceProvider", providerOf(readActionResolutionService));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("Is The Collection Snowboard: Liquid under $800 and in stock?")
+            .requiresRetrieval(true)
+            .requiresGeneration(true)
+            .needsAdvancedRAG(true)
+            .optimizedQuery("The Collection Snowboard Liquid price stock")
+            .vectorSpace("product")
+            .build();
+
+        PipelineContext context = PipelineContext.from(
+                "Is The Collection Snowboard: Liquid under $800 and in stock?",
+                OrchestrationContext.forUser("user-1")
+            )
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = step.process(context).getIntentResult();
+
+        assertThat(result.getMessage()).isEqualTo(
+            "The Collection Snowboard: Liquid is available for $749.95 with 50 units in stock."
+        );
+        verify(advancedRagProvider).performAdvancedRAG(any());
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiCoreService).generateTextResponse(promptCaptor.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(promptCaptor.getValue())
+            .contains("LIVE STORE READ ACTION RESPONSE POLICY")
+            .contains("\"price\":\"749.95\"")
+            .contains("\"inventoryQuantity\":50")
+            .contains("The Collection Snowboard: Liquid is a snowboard.");
+    }
+
     private IntentHandlingStep buildStep(RAGProvider ragProvider, AICoreService aiCoreService) {
+        return buildStep(ragProvider, aiCoreService, null);
+    }
+
+    private IntentHandlingStep buildStep(RAGProvider ragProvider,
+                                         AICoreService aiCoreService,
+                                         AdvancedRAGProvider advancedRagProvider) {
         AIServiceConfig aiServiceConfig = new AIServiceConfig();
         aiServiceConfig.getFeatures().setEnableGeneration(true);
         return new IntentHandlingStep(
@@ -325,7 +410,7 @@ class IntentHandlingStepReadActionResolutionTest {
             providerOf(ragProvider),
             aiCoreService,
             aiServiceConfig,
-            providerOf((AdvancedRAGProvider) null),
+            providerOf(advancedRagProvider),
             new VectorSpaceRoutingProperties(),
             new RankBasedMerger(),
             new RelationshipQueryPostActionGenerationProperties(),

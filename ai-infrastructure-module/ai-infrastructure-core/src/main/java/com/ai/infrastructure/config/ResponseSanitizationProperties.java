@@ -138,7 +138,9 @@ public class ResponseSanitizationProperties {
         "further questions",
         "refer to relevant",
         "relevant documentation",
-        "support resources"
+        "support resources",
+        "additional resources",
+        "external reviews"
     );
 
     public Set<String> normalizedHighRiskTypes() {
