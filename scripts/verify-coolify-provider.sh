@@ -5,6 +5,7 @@ TOKEN_FILE="${COOLIFY_TOKEN_FILE:-/tmp/coolify_api_tokens.env}"
 STAGING_BASE_URL="${COOLIFY_STAGING_BASE_URL:-http://46.224.145.148:8000}"
 PRODUCTION_BASE_URL="${COOLIFY_PRODUCTION_BASE_URL:-http://46.225.162.106:8000}"
 STRICT_APPLICATION_SMOKE="${COOLIFY_STRICT_APPLICATION_SMOKE:-false}"
+KEEP_SMOKE_APP="${COOLIFY_KEEP_SMOKE_APP:-false}"
 
 STAGING_PROJECT_UUID="${COOLIFY_STAGING_PROJECT_UUID:-id069t43frp519u5i3dg2jpr}"
 STAGING_ENVIRONMENT_NAME="${COOLIFY_STAGING_ENVIRONMENT_NAME:-staging}"
@@ -101,7 +102,9 @@ verify_instance() {
 
 create_smoke_body() {
   local name="$1"
+  local domain="$2"
   python3 - "$name" \
+    "$domain" \
     "${STAGING_PROJECT_UUID}" \
     "${STAGING_SERVER_UUID}" \
     "${STAGING_ENVIRONMENT_NAME}" \
@@ -113,7 +116,7 @@ create_smoke_body() {
 import json
 import sys
 
-name, project_uuid, server_uuid, environment_name, environment_uuid, destination_uuid, image, tag, port = sys.argv[1:]
+name, domain, project_uuid, server_uuid, environment_name, environment_uuid, destination_uuid, image, tag, port = sys.argv[1:]
 print(json.dumps({
     "project_uuid": project_uuid,
     "server_uuid": server_uuid,
@@ -125,6 +128,7 @@ print(json.dumps({
     "ports_exposes": port,
     "name": name,
     "description": "Disposable Coolify provider verification smoke application.",
+    "domains": domain,
     "health_check_enabled": False,
     "instant_deploy": False,
     "autogenerate_domain": False,
@@ -136,9 +140,10 @@ PY
 run_staging_smoke() {
   local token="$1"
   local name="codex-coolify-smoke-$(date +%s)"
+  local domain="${name}.46.224.145.148.sslip.io"
   local body
   local uuid
-  body="$(create_smoke_body "${name}")"
+  body="$(create_smoke_body "${name}" "${domain}")"
   uuid="$(curl_json POST "${STAGING_BASE_URL}" "${token}" "/applications/dockerimage" "${body}" | json_field uuid)"
   if [[ -z "${uuid}" ]]; then
     echo "FAIL: Coolify smoke application create did not return uuid." >&2
@@ -146,7 +151,9 @@ run_staging_smoke() {
   fi
 
   cleanup_smoke() {
-    curl_json DELETE "${STAGING_BASE_URL}" "${token}" "/applications/${uuid}?delete_configurations=true&delete_volumes=true&docker_cleanup=true&delete_connected_networks=true" >/dev/null 2>&1 || true
+    if [[ "${KEEP_SMOKE_APP}" != "true" ]]; then
+      curl_json DELETE "${STAGING_BASE_URL}" "${token}" "/applications/${uuid}?delete_configurations=true&delete_volumes=true&docker_cleanup=true&delete_connected_networks=true" >/dev/null 2>&1 || true
+    fi
   }
   trap cleanup_smoke EXIT
 
@@ -159,15 +166,20 @@ run_staging_smoke() {
     status="$(curl_json GET "${STAGING_BASE_URL}" "${token}" "/applications/${uuid}" | json_field status)"
     if [[ "${status}" == *running* || ( "${status}" == *healthy* && "${status}" != *unhealthy* ) ]]; then
       echo "[coolify] staging smoke: uuid=${uuid} status=${status}"
+      echo "[coolify] staging smoke: domain=${domain}"
       curl_json GET "${STAGING_BASE_URL}" "${token}" "/applications/${uuid}/logs?lines=20" >/dev/null 2>&1 || true
-      cleanup_smoke
+      if [[ "${KEEP_SMOKE_APP}" == "true" ]]; then
+        echo "[coolify] staging smoke kept for inspection."
+      else
+        cleanup_smoke
+      fi
       trap - EXIT
       return
     fi
     sleep 5
   done
 
-  echo "FAIL: Coolify staging smoke application did not report running/healthy status before timeout. Last status=${status:-unknown}." >&2
+  echo "FAIL: Coolify staging smoke application did not report running/healthy status before timeout. uuid=${uuid} domain=${domain} last_status=${status:-unknown}." >&2
   exit 1
 }
 
