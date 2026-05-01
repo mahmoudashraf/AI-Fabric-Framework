@@ -615,8 +615,10 @@ public class DeploymentController {
     @ResponseStatus(HttpStatus.CREATED)
     public DeploymentReleaseSummary applyVersion(@PathVariable String deploymentId,
                                                  @PathVariable String versionId,
-                                                 @RequestParam(required = false) String approvalId) {
-        return deploymentService.applyVersion(deploymentId, versionId, approvalId);
+                                                 @RequestParam(required = false) String approvalId,
+                                                 @RequestParam(required = false) String targetProfileId,
+                                                 @RequestParam(required = false) String sourceArtifactId) {
+        return deploymentService.applyVersion(deploymentId, versionId, approvalId, targetProfileId, sourceArtifactId);
     }
 
     @GetMapping("/deployments/{deploymentId}/releases")

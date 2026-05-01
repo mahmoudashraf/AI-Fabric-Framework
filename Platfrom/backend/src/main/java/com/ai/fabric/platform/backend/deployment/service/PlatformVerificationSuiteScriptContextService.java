@@ -27,6 +27,7 @@ public class PlatformVerificationSuiteScriptContextService {
     public static final String SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT = "shopify-first-product-readiness-audit";
     public static final String SCRIPT_PARTNER_ENABLEMENT_VERIFICATION = "partner-enablement-verification";
     public static final String SCRIPT_THINKER_RESOLVER_READINESS = "thinker-resolver-readiness";
+    public static final String SCRIPT_COOLIFY_PROVIDER_VERIFICATION = "coolify-provider-verification";
 
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
@@ -72,6 +73,7 @@ public class PlatformVerificationSuiteScriptContextService {
             case SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT -> buildShopifyFirstProductReadinessAudit();
             case SCRIPT_PARTNER_ENABLEMENT_VERIFICATION -> buildPartnerEnablementVerification();
             case SCRIPT_THINKER_RESOLVER_READINESS -> buildThinkerResolverReadiness();
+            case SCRIPT_COOLIFY_PROVIDER_VERIFICATION -> buildCoolifyProviderVerification();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
         if (environmentOverrides == null || environmentOverrides.isEmpty()) {
@@ -282,6 +284,29 @@ public class PlatformVerificationSuiteScriptContextService {
 
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-thinker-resolver-readiness.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
+    private PlatformVerificationScriptContextSummary buildCoolifyProviderVerification() {
+        Map<String, String> environment = new LinkedHashMap<>();
+        environment.put("COOLIFY_STRICT_APPLICATION_SMOKE", "false");
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>();
+        String stagingToken = requireSecret(
+            "COOLIFY_STAGING_API_TOKEN",
+            "Missing required platform secret for Coolify provider verification: COOLIFY_STAGING_API_TOKEN"
+        );
+        String productionToken = requireSecret(
+            "COOLIFY_PRODUCTION_API_TOKEN",
+            "Missing required platform secret for Coolify provider verification: COOLIFY_PRODUCTION_API_TOKEN"
+        );
+        secretEnvironment.put("COOLIFY_STAGING_API_TOKEN", stagingToken);
+        secretEnvironment.put("COOLIFY_PRODUCTION_API_TOKEN", productionToken);
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-coolify-provider.sh",
             environment,
             secretEnvironment
         );

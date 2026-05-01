@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation roadmap (created 2026-04-29)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core partially implemented 2026-05-01)
 
 Owner mode: technical LLM implementation session
 
@@ -1887,3 +1887,39 @@ Blockers:
 Next handoff:
 
 - Slice 2 should add a Coolify provider adapter skeleton behind the registry, still without creating application resources until source artifact and credential contracts are finalized.
+
+---
+
+## 2026-05-01 Slice 2/3 Backend Provider Core
+
+Status: backend provider core implemented and locally testable; full production tenant runtime rollout remains blocked by DNS/GHCR/runtime-health gates.
+
+Implemented:
+
+- `CoolifyApiClient` for `/api/v1` health/version, Docker image application create/update/list/get, env bulk update, start/stop/restart/delete, status, and logs.
+- `CoolifyDeploymentProvider` behind `DeploymentProviderRegistry`.
+- `CoolifyTargetProfileResolver` with secret-managed token resolution from `COOLIFY_STAGING_API_TOKEN` and `COOLIFY_PRODUCTION_API_TOKEN`.
+- Provider lifecycle defaults on `DeploymentProvisioningProvider` for preflight/start/stop/restart/delete/status/logs.
+- Source artifact records and API for Docker image artifact create/list/promote.
+- Provider resource handle action API for status/logs/start/stop/restart/delete.
+- Apply endpoint optional query params:
+  - `targetProfileId`
+  - `sourceArtifactId`
+- Release execution now captures `providerResourceHandleId` from provisioning details.
+- GitHub Actions workflow `.github/workflows/coolify-image-artifacts.yml` builds/pushes runtime and REST connector images to GHCR and uploads metadata JSON.
+- Verification suite key `coolify-provider-verification` runs `scripts/verify-coolify-provider.sh`.
+
+Live validation:
+
+- Non-strict verifier passed against staging and production Coolify hosts:
+  - staging `version=4.0.0`, `health=OK`, `applications=0`
+  - production `version=4.0.0`, `health=OK`, `applications=0`
+- Strict disposable staging smoke creates, starts, and deletes an app, but the app did not report `running`/healthy before timeout. Cleanup left staging with zero applications. Treat this as a remaining runtime smoke blocker before accepting Slice 3 as fully live.
+
+Remaining blockers:
+
+- Custom DNS was intentionally skipped; without runtime DNS/FQDN, tenant runtime post-apply verification cannot be considered production-ready.
+- GHCR read credential and host registry auth are not configured in Coolify yet.
+- Coolify target profiles remain inactive in seed data until staging runtime smoke, GHCR auth, DNS, backup/restore, and dashboard/API hardening gates are complete.
+- Backup/restore rehearsal for Coolify state, APP_KEY, SSH keys, and app volumes is still pending.
+- Operator UI integration is API-ready but not implemented in the frontend.

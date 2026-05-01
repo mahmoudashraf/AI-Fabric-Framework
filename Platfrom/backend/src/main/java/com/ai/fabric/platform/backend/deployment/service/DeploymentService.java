@@ -1322,17 +1322,26 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId, String approvalId) {
-        return applyVersionInternal(deploymentId, versionId, approvalId, false);
+        return applyVersion(deploymentId, versionId, approvalId, null, null);
+    }
+
+    @Transactional
+    public DeploymentReleaseSummary applyVersion(String deploymentId,
+                                                 String versionId,
+                                                 String approvalId,
+                                                 String targetProfileId,
+                                                 String sourceArtifactId) {
+        return applyVersionInternal(deploymentId, versionId, approvalId, false, targetProfileId, sourceArtifactId);
     }
 
     @Transactional
     public DeploymentReleaseSummary applyVersionForTrustedCaller(String deploymentId, String versionId) {
-        return applyVersionInternal(deploymentId, versionId, null, true);
+        return applyVersionInternal(deploymentId, versionId, null, true, null, null);
     }
 
     @Transactional
     DeploymentReleaseSummary applyVersionForPublicApi(String deploymentId, String versionId) {
-        return applyVersionInternal(deploymentId, versionId, null, true);
+        return applyVersionInternal(deploymentId, versionId, null, true, null, null);
     }
 
     @Transactional
@@ -1340,6 +1349,16 @@ public class DeploymentService {
                                                   String versionId,
                                                   String approvalId,
                                                   boolean skipAccessCheck) {
+        return applyVersionInternal(deploymentId, versionId, approvalId, skipAccessCheck, null, null);
+    }
+
+    @Transactional
+    DeploymentReleaseSummary applyVersionInternal(String deploymentId,
+                                                  String versionId,
+                                                  String approvalId,
+                                                  boolean skipAccessCheck,
+                                                  String targetProfileId,
+                                                  String sourceArtifactId) {
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         if (!skipAccessCheck) {
@@ -1377,10 +1396,11 @@ public class DeploymentService {
         release.setStatus("APPLY_REQUESTED");
         release.setVerificationStatus("PENDING");
         release.setProvisioningStatus("QUEUED");
-        var targetProfile = deploymentProvisioningService.selectedTargetProfile();
+        var targetProfile = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
         release.setProvisioningTarget(targetProfile.getProviderType().legacyTarget());
         release.setTargetProfileId(targetProfile.getId());
         release.setProviderType(targetProfile.getProviderType());
+        release.setSourceArtifactId(StringUtils.hasText(sourceArtifactId) ? sourceArtifactId.trim() : null);
         release.setCurrentStepKey("queue_release");
         release.setCurrentStepDescription("Apply request accepted and queued.");
         release.setErrorMessage(null);
@@ -1400,7 +1420,9 @@ public class DeploymentService {
             java.util.Map.of(
                 "deploymentId", deploymentId,
                 "versionId", versionId,
-                "provisioningTarget", release.getProvisioningTarget()
+                "provisioningTarget", release.getProvisioningTarget(),
+                "targetProfileId", release.getTargetProfileId(),
+                "sourceArtifactId", release.getSourceArtifactId() == null ? "" : release.getSourceArtifactId()
             )
         );
 

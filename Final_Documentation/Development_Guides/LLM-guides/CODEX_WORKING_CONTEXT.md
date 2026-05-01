@@ -219,6 +219,16 @@ Rules:
 - Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyCompanionPackageProfileCatalogServiceTest,ShopifyCompanionPackageProfileOptionsServiceTest test`; `npm --prefix Platfrom/ui run build`; full `mvn -f Platfrom/backend/pom.xml -q test`; `git diff --check`.
 - Live verification: commit `f9cf0471` pushed to `Platform-V6`; deployed backend `GET /api/shopify/package-profiles/options` returned HTTP `200` with 4 blueprints, 4 compatibility rules, and the `ELITE` / `ELITE` default mapping `HIGH_QUALITY` / `QDRANT_SHARED` / `mkp-inference-premium-hybrid`.
 
+## 2026-05-01 Coolify 007 Provider Core Continuation
+
+- Continued `007` on `Platform-V8` after rebase commit `926f03291`; no push yet.
+- Implemented Coolify backend provider core: `CoolifyApiClient`, `CoolifyDeploymentProvider`, `CoolifyTargetProfileResolver`, source artifact service/API, provider resource action service/API, apply `targetProfileId`/`sourceArtifactId` overrides, `providerResourceHandleId` capture, and Coolify verification suite/script wiring.
+- Added `.github/workflows/coolify-image-artifacts.yml` for GHCR runtime/REST connector image artifacts and metadata upload.
+- Added `scripts/verify-coolify-provider.sh`; it loads `/tmp/coolify_api_tokens.env` or env vars and never prints token values.
+- Verification passed: focused Platform backend Maven slice including new Coolify tests, Terraform `fmt`/`validate`, `bash -n` for Coolify/Hetzner scripts, live non-strict Coolify verifier showing staging/prod `version=4.0.0`, `health=OK`, `applications=0`.
+- Live strict staging smoke created/started/deleted a disposable app but did not reach `running`/healthy before timeout; cleanup left staging with zero apps. Treat runtime smoke as blocked until DNS/GHCR/Coolify app health are resolved.
+- Remaining blockers: DNS skipped by request, GHCR read credentials/host registry auth missing, Coolify profiles intentionally inactive, backup/restore rehearsal pending, frontend operator UI not implemented.
+
 ## 2026-05-01 Coolify 007 Slice 0 Hetzner Host Automation Baseline
 
 - Initial user instruction requested no commits to the current branch until told; this was later superseded by permission to commit normally to `Platform-V8`.

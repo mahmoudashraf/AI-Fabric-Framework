@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import org.springframework.util.StringUtils;
 
 @Service
 public class DeploymentReleaseExecutionService {
@@ -287,6 +288,11 @@ public class DeploymentReleaseExecutionService {
         release.setProvisioningStatus(provisioningResult.status());
         release.setProvisioningTarget(provisioningResult.target());
         release.setProviderType(DeploymentProviderType.fromLegacyMode(provisioningResult.target()));
+        JsonNode provisioningDetails = readJson(provisioningResult.detailsJson());
+        String providerResourceHandleId = provisioningDetails.path("providerResourceHandleId").asText(null);
+        if (StringUtils.hasText(providerResourceHandleId)) {
+            release.setProviderResourceHandleId(providerResourceHandleId);
+        }
         release.setVerificationRunId(null);
         release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);

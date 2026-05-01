@@ -491,6 +491,22 @@ public class PlatformSecretService {
                 true
             )
         );
+        secrets.put(
+            "COOLIFY_STAGING_API_TOKEN",
+            new SecretDefinition(
+                "Coolify Staging API Token",
+                "Bearer token used by operator automation to verify and provision applications on the staging Coolify host.",
+                false
+            )
+        );
+        secrets.put(
+            "COOLIFY_PRODUCTION_API_TOKEN",
+            new SecretDefinition(
+                "Coolify Production API Token",
+                "Bearer token used by operator automation to verify and provision applications on the production Coolify host.",
+                false
+            )
+        );
         return Map.copyOf(secrets);
     }
 

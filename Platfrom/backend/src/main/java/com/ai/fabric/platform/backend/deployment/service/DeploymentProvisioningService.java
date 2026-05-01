@@ -40,4 +40,8 @@ public class DeploymentProvisioningService {
     public DeploymentTargetProfileEntity selectedTargetProfile() {
         return targetProfileService.resolveDefaultRuntimeProfile();
     }
+
+    public DeploymentTargetProfileEntity selectedTargetProfile(String targetProfileId) {
+        return targetProfileService.resolveForRequest(targetProfileId);
+    }
 }

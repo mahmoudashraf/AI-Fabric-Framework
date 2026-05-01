@@ -21,6 +21,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY = "shopify-first-product-readiness-audit";
     public static final String PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY = "partner-enablement-verification";
     public static final String THINKER_RESOLVER_READINESS_SUITE_KEY = "thinker-resolver-readiness";
+    public static final String COOLIFY_PROVIDER_VERIFICATION_SUITE_KEY = "coolify-provider-verification";
     public static final String SHARED_INFERENCE_SERVICE_REF = "openai-cloud-orchestration";
     public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
@@ -39,7 +40,8 @@ public class PlatformVerificationSuiteCatalog {
             shopifyCompanionVerification(),
             shopifyFirstProductReadinessAudit(),
             partnerEnablementVerification(),
-            thinkerResolverReadiness()
+            thinkerResolverReadiness(),
+            coolifyProviderVerification()
         );
     }
 
@@ -336,6 +338,25 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_THINKER_RESOLVER_READINESS,
                     true,
                     "Verify Thinker session persistence, evidence export, Resolver policy, dry-run, optional low-risk execution, partner redaction, and Shopify Thinker health."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary coolifyProviderVerification() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            COOLIFY_PROVIDER_VERIFICATION_SUITE_KEY,
+            "Coolify provider verification",
+            "Standalone Coolify provider verification for staging and production API health plus optional disposable staging application lifecycle smoke.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "coolify-provider-verification",
+                    "Coolify provider verification",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_COOLIFY_PROVIDER_VERIFICATION,
+                    true,
+                    "Verify Coolify API tokens, live host health/version, application listing, and optional staging create/start/log/delete flow."
                 )
             )
         );
