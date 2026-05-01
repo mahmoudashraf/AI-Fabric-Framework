@@ -29,6 +29,16 @@ export interface UpdatePartnerSupportProfilePayload {
   supportPolicyNote: string | null
 }
 
+export interface ActivatePartnerPackageTrialPayload {
+  tierKey: string
+  trialDays: number
+  reason?: string | null
+}
+
+export interface DeactivatePartnerPackageTrialPayload {
+  reason?: string | null
+}
+
 export function getProductControls(api: PartnerApiClient, storeId: string) {
   return api.request(`/api/partners/stores/${encodeURIComponent(storeId)}/product-controls`, partnerProductControlSchema)
 }
@@ -61,6 +71,29 @@ export function updateProductSupportProfile(
   payload: UpdatePartnerSupportProfilePayload,
 ) {
   return api.request(`/api/partners/stores/${encodeURIComponent(storeId)}/product-controls/support-profile`, partnerProductControlSchema, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function activatePackageTrial(
+  api: PartnerApiClient,
+  storeId: string,
+  payload: ActivatePartnerPackageTrialPayload,
+) {
+  return api.request(`/api/partners/stores/${encodeURIComponent(storeId)}/package-trials`, partnerProductControlSchema, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deactivatePackageTrial(
+  api: PartnerApiClient,
+  storeId: string,
+  trialId: string,
+  payload: DeactivatePartnerPackageTrialPayload,
+) {
+  return api.request(`/api/partners/stores/${encodeURIComponent(storeId)}/package-trials/${encodeURIComponent(trialId)}/deactivate`, partnerProductControlSchema, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

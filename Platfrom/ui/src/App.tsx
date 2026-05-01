@@ -15,6 +15,7 @@ import { InferenceServicesPage } from './pages/InferenceServicesPage'
 import { ProductServicesPage } from './pages/ProductServicesPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { OverviewPage } from './pages/OverviewPage'
+import { PartnerPrivilegesPage } from './pages/PartnerPrivilegesPage'
 import { PocPage } from './pages/PocPage'
 import { ProvidersPage } from './pages/ProvidersPage'
 import { PromptsPage } from './pages/PromptsPage'
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/inference-services" element={<InferenceServicesPage />} />
           <Route path="/product-services" element={<ProductServicesPage />} />
+          <Route path="/partner-privileges" element={<PartnerPrivilegesPage />} />
           <Route path="/shopify-package-profiles" element={<ShopifyPackageProfilesPage />} />
           <Route path="/shopify-readiness-audit" element={<ShopifyReadinessAuditPage />} />
           <Route path="/shopify-stores" element={<ShopifyStoresPage />} />

@@ -1203,6 +1203,29 @@ export type MerchantPartnerAccessDecisionSummary = {
   decidedAt: string
 }
 
+export type PlatformPartnerMemberSummary = {
+  id: string
+  partnerAccountId: string
+  partnerAccountName: string
+  email: string
+  emailVerified: boolean
+  displayName: string | null
+  avatarUrl: string | null
+  role: string
+  status: string
+  privileges: string[]
+  effectivePermissions: string[]
+  lastLoginAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdatePartnerMemberPrivilegesRequest = {
+  role?: string | null
+  status?: string | null
+  privileges?: string[] | null
+}
+
 export type ShopifyStoreGovernedActionAuditSummary = {
   id: string
   actionType: string
@@ -3914,6 +3937,17 @@ export function revokeMerchantPartnerAccessRequest(
       body: JSON.stringify(payload),
     },
   )
+}
+
+export function fetchPlatformPartnerMembers() {
+  return request<PlatformPartnerMemberSummary[]>('/api/platform/partners/members')
+}
+
+export function updatePlatformPartnerMember(memberId: string, payload: UpdatePartnerMemberPrivilegesRequest) {
+  return request<PlatformPartnerMemberSummary>(`/api/platform/partners/members/${encodeURIComponent(memberId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function fetchShopifyStoreBinding(shopDomain: string) {

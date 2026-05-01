@@ -44,6 +44,9 @@ public class PartnerMemberEntity {
     @Column(nullable = false)
     private String status;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String privilegesJson = "[]";
+
     @Column
     private Instant lastLoginAt;
 
@@ -142,6 +145,14 @@ public class PartnerMemberEntity {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getPrivilegesJson() {
+        return privilegesJson;
+    }
+
+    public void setPrivilegesJson(String privilegesJson) {
+        this.privilegesJson = privilegesJson;
     }
 
     public Instant getLastLoginAt() {

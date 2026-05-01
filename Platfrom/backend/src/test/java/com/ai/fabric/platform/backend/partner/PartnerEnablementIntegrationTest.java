@@ -2,8 +2,10 @@ package com.ai.fabric.platform.backend.partner;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.partner.entity.PartnerPackageTrialActivationEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerSupportReplyEntity;
 import com.ai.fabric.platform.backend.partner.repository.PartnerActionAuditRepository;
+import com.ai.fabric.platform.backend.partner.repository.PartnerPackageTrialActivationRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerSupportReplyRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
@@ -110,6 +112,9 @@ class PartnerEnablementIntegrationTest {
 
     @Autowired
     private PartnerActionAuditRepository auditRepository;
+
+    @Autowired
+    private PartnerPackageTrialActivationRepository packageTrialActivationRepository;
 
     @DynamicPropertySource
     static void partnerAuthProperties(DynamicPropertyRegistry registry) {
@@ -726,6 +731,147 @@ class PartnerEnablementIntegrationTest {
     }
 
     @Test
+    void packageTrialActivationRequiresPlatformGrantedPrivilegeAndManualPastDueDeactivation() throws Exception {
+        String token = partnerJwt("trial-user", "trial-user@example.com");
+        String sessionPayload = completeSignup(token, "Trial Partner Workspace");
+        String partnerMemberId = JsonPath.read(sessionPayload, "$.member.id");
+        HttpServer bridgeServer = startBridgeAdminServer();
+        try {
+            createShopifyStore("shopify-store-trial", "trial-client.myshopify.com", "Trial Client");
+            bindShopifyBridgeBaseUrl("http://localhost:" + bridgeServer.getAddress().getPort());
+
+            var implementationResult = mockMvc.perform(post("/api/partners/client-implementations")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "clientName": "Trial Client",
+                          "storeConnectionId": "shopify-store-trial"
+                        }
+                        """))
+                .andExpect(status().isCreated())
+                .andReturn();
+            String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
+
+            var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
+                    .header("X-PLATFORM-API-KEY", "operator-test-key")
+                    .param("shopDomain", "trial-client.myshopify.com"))
+                .andExpect(status().isOk())
+                .andReturn();
+            String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
+            var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
+                    .header("X-PLATFORM-API-KEY", "operator-test-key")
+                    .param("shopDomain", "trial-client.myshopify.com")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "approverName": "Merchant Owner",
+                          "approverEmail": "owner@example.com",
+                          "approvedScope": "FULL_STORE_ACCESS"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andReturn();
+            String assignmentId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.assignmentId");
+
+            mockMvc.perform(post("/api/partners/stores/{storeId}/package-trials", assignmentId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "tierKey": "STARTER",
+                          "trialDays": 7,
+                          "reason": "Design partner launch trial"
+                        }
+                        """))
+                .andExpect(status().isForbidden());
+
+            mockMvc.perform(patch("/api/platform/partners/members/{memberId}", partnerMemberId)
+                    .header("X-PLATFORM-API-KEY", "admin-test-key")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "privileges": ["PACKAGE_TRIAL_ACTIVATE"]
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.privileges", hasItem("PACKAGE_TRIAL_ACTIVATE")))
+                .andExpect(jsonPath("$.effectivePermissions", hasItem("PACKAGE_TRIAL_ACTIVATE")));
+
+            mockMvc.perform(get("/api/partners/session")
+                    .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.permissions", hasItem("PACKAGE_TRIAL_ACTIVATE")));
+
+            var activationResult = mockMvc.perform(post("/api/partners/stores/{storeId}/package-trials", assignmentId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "tierKey": "STARTER",
+                          "trialDays": 7,
+                          "reason": "Design partner launch trial"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.capabilities", hasItem("PACKAGE_TRIAL_ACTIVATE")))
+                .andExpect(jsonPath("$.activePackageTrial.tierKey", is("STARTER")))
+                .andExpect(jsonPath("$.activePackageTrial.status", is("ACTIVE")))
+                .andExpect(jsonPath("$.activePackageTrial.activationProvisioningJobId", notNullValue()))
+                .andReturn();
+            String trialId = JsonPath.read(activationResult.getResponse().getContentAsString(), "$.activePackageTrial.id");
+
+            mockMvc.perform(get("/api/shopify/stores/{shopDomain}/billing-state", "trial-client.myshopify.com")
+                    .header("X-PLATFORM-API-KEY", "operator-test-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tierKey", is("STARTER")))
+                .andExpect(jsonPath("$.status", is("ACTIVE")))
+                .andExpect(jsonPath("$.subscriptionId", is("partner-trial-" + trialId)));
+
+            mockMvc.perform(post("/api/partners/stores/{storeId}/package-trials/{trialId}/deactivate", assignmentId, trialId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "reason": "Past due cleanup"
+                        }
+                        """))
+                .andExpect(status().isConflict());
+
+            PartnerPackageTrialActivationEntity trial = packageTrialActivationRepository.findById(trialId).orElseThrow();
+            trial.setTrialEndsAt(Instant.now().minusSeconds(60));
+            packageTrialActivationRepository.save(trial);
+
+            mockMvc.perform(get("/api/partners/stores/{storeId}/product-controls", assignmentId)
+                    .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activePackageTrial.status", is("PAST_DUE")))
+                .andExpect(jsonPath("$.activePackageTrial.deactivationEligible", is(true)));
+
+            mockMvc.perform(post("/api/partners/stores/{storeId}/package-trials/{trialId}/deactivate", assignmentId, trialId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "reason": "Past due cleanup"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activePackageTrial").doesNotExist())
+                .andExpect(jsonPath("$.packageTrialHistory[0].status", is("DEACTIVATED")))
+                .andExpect(jsonPath("$.packageTrialHistory[0].deactivationProvisioningJobId", notNullValue()));
+
+            mockMvc.perform(get("/api/shopify/stores/{shopDomain}/billing-state", "trial-client.myshopify.com")
+                    .header("X-PLATFORM-API-KEY", "operator-test-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tierKey", is("FREE")))
+                .andExpect(jsonPath("$.reason", is("Past due cleanup")));
+        } finally {
+            bridgeServer.stop(0);
+        }
+    }
+
+    @Test
     void merchantCanDenyInstalledStorePartnerAccessFromAdminFlow() throws Exception {
         String token = partnerJwt("denied-user", "denied-user@example.com");
         completeSignup(token, "Denied Partner Workspace");
@@ -859,8 +1005,8 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$[0].revokedAt", notNullValue()));
     }
 
-    private void completeSignup(String token, String workspaceName) throws Exception {
-        mockMvc.perform(post("/api/partners/signup/complete")
+    private String completeSignup(String token, String workspaceName) throws Exception {
+        return mockMvc.perform(post("/api/partners/signup/complete")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -869,7 +1015,10 @@ class PartnerEnablementIntegrationTest {
                     }
                     """.formatted(workspaceName)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.signupRequired", is(false)));
+            .andExpect(jsonPath("$.signupRequired", is(false)))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
     }
 
     private void createRuntimeDeployment(String deploymentId, String runtimeBaseUrl) {
@@ -1006,6 +1155,28 @@ class PartnerEnablementIntegrationTest {
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         storeConnectionRepository.save(entity);
+    }
+
+    private void bindShopifyBridgeBaseUrl(String baseUrl) {
+        PlatformManagedProductServiceEntity service = productServiceRepository.findById("shopify-companion").orElseThrow();
+        service.setBaseUrl(baseUrl);
+        service.setUpdatedAt(Instant.now());
+        productServiceRepository.save(service);
+    }
+
+    private HttpServer startBridgeAdminServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/admin/stores", exchange -> {
+            if (!"POST".equals(exchange.getRequestMethod())
+                || !PRODUCT_SERVICE_TEST_KEY.equals(exchange.getRequestHeaders().getFirst("X-BRIDGE-API-KEY"))
+                || !exchange.getRequestURI().getPath().endsWith("/billing-state")) {
+                writeJson(exchange, 401, "{\"success\":false,\"message\":\"Unauthorized\"}");
+                return;
+            }
+            writeJson(exchange, 200, "{\"success\":true}");
+        });
+        server.start();
+        return server;
     }
 
     private HttpServer startPartnerWidgetRuntime() throws IOException {

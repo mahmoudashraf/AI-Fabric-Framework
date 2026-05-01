@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.partner.entity.PartnerActionAuditEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerClientImplementationRequestEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerEvidenceBundleEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerMemberEntity;
+import com.ai.fabric.platform.backend.partner.entity.PartnerPackageTrialActivationEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerStoreNoteEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerStoreAccessApprovalEntity;
 import com.ai.fabric.platform.backend.partner.entity.PartnerStoreAccessRequestEntity;
@@ -37,6 +38,9 @@ import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary
 import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialDeactivationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductSourceSettingsSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
@@ -58,10 +62,12 @@ import com.ai.fabric.platform.backend.partner.model.PartnerVerificationPackSumma
 import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerVerificationStepSummary;
+import com.ai.fabric.platform.backend.partner.model.PlatformPartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.repository.PartnerAccountRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerActionAuditRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerClientImplementationRequestRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerEvidenceBundleRepository;
+import com.ai.fabric.platform.backend.partner.repository.PartnerPackageTrialActivationRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerStoreAccessApprovalRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerStoreAccessRequestRepository;
 import com.ai.fabric.platform.backend.partner.repository.PartnerStoreAssignmentRepository;
@@ -79,12 +85,18 @@ import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreBillingStateRequest;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBillingStateSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreProvisioningJobSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSupportProfileSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreWidgetSettingsSummary;
+import com.ai.fabric.platform.backend.shopify.model.CreateShopifyStoreProvisioningJobRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyBridgeAdminClient;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreProvisioningService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourceSettingsService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSupportProfileService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetSettingsService;
@@ -118,6 +130,13 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 @Service
 public class PartnerEnablementService {
 
+    private static final String PACKAGE_TRIAL_ACTIVATE = "PACKAGE_TRIAL_ACTIVATE";
+    private static final List<String> PLATFORM_CONFIGURABLE_PARTNER_PRIVILEGES = List.of(
+        PACKAGE_TRIAL_ACTIVATE
+    );
+    private static final List<String> TRIAL_ACTIVATION_TIERS = List.of("STARTER", "ELITE");
+    private static final int DEFAULT_TRIAL_DAYS = 7;
+    private static final int MAX_TRIAL_DAYS = 30;
     private static final List<String> DEFAULT_ASSIGNMENT_PERMISSIONS = List.of(
         "STORE_READ",
         "CATALOG_READ",
@@ -136,7 +155,8 @@ public class PartnerEnablementService {
         "ESCALATION_REPLY",
         "SUPPORT_MANAGE",
         "AGGREGATE_ANALYTICS_READ",
-        "PRODUCT_PAUSE_RESUME"
+        "PRODUCT_PAUSE_RESUME",
+        PACKAGE_TRIAL_ACTIVATE
     );
     private static final List<String> PARTNER_PRODUCT_CONTROL_CAPABILITIES = List.of(
         "PRODUCT_CONFIG_READ",
@@ -147,7 +167,8 @@ public class PartnerEnablementService {
         "KNOWLEDGE_SYNC_TRIGGER",
         "APP_OWNED_CONTENT_WRITE",
         "SUPPORT_MANAGE",
-        "PRODUCT_PAUSE_RESUME"
+        "PRODUCT_PAUSE_RESUME",
+        PACKAGE_TRIAL_ACTIVATE
     );
     private static final ShopifyStoreWidgetSettingsSummary DEFAULT_WIDGET_SETTINGS = new ShopifyStoreWidgetSettingsSummary(
         "Ask the store assistant",
@@ -180,6 +201,7 @@ public class PartnerEnablementService {
     private final PartnerSupportEscalationRepository escalationRepository;
     private final PartnerSupportReplyRepository replyRepository;
     private final PartnerEvidenceBundleRepository evidenceBundleRepository;
+    private final PartnerPackageTrialActivationRepository packageTrialActivationRepository;
     private final PartnerVerificationRunRepository verificationRunRepository;
     private final PartnerVerificationRunStepRepository verificationRunStepRepository;
     private final PartnerTemplateApplicationRepository templateApplicationRepository;
@@ -192,6 +214,8 @@ public class PartnerEnablementService {
     private final ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService;
     private final ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService;
     private final ShopifyStoreSupportProfileService shopifyStoreSupportProfileService;
+    private final ShopifyStoreProvisioningService shopifyStoreProvisioningService;
+    private final ShopifyBridgeAdminClient shopifyBridgeAdminClient;
     private final DeploymentPocChatService deploymentPocChatService;
     private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -206,6 +230,7 @@ public class PartnerEnablementService {
                                     PartnerSupportEscalationRepository escalationRepository,
                                     PartnerSupportReplyRepository replyRepository,
                                     PartnerEvidenceBundleRepository evidenceBundleRepository,
+                                    PartnerPackageTrialActivationRepository packageTrialActivationRepository,
                                     PartnerVerificationRunRepository verificationRunRepository,
                                     PartnerVerificationRunStepRepository verificationRunStepRepository,
                                     PartnerTemplateApplicationRepository templateApplicationRepository,
@@ -218,6 +243,8 @@ public class PartnerEnablementService {
                                     ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService,
                                     ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService,
                                     ShopifyStoreSupportProfileService shopifyStoreSupportProfileService,
+                                    ShopifyStoreProvisioningService shopifyStoreProvisioningService,
+                                    ShopifyBridgeAdminClient shopifyBridgeAdminClient,
                                     DeploymentPocChatService deploymentPocChatService,
                                     ObjectMapper objectMapper) {
         this.authProperties = authProperties;
@@ -230,6 +257,7 @@ public class PartnerEnablementService {
         this.escalationRepository = escalationRepository;
         this.replyRepository = replyRepository;
         this.evidenceBundleRepository = evidenceBundleRepository;
+        this.packageTrialActivationRepository = packageTrialActivationRepository;
         this.verificationRunRepository = verificationRunRepository;
         this.verificationRunStepRepository = verificationRunStepRepository;
         this.templateApplicationRepository = templateApplicationRepository;
@@ -242,6 +270,8 @@ public class PartnerEnablementService {
         this.shopifyStoreWidgetSettingsService = shopifyStoreWidgetSettingsService;
         this.shopifyStoreSourceSettingsService = shopifyStoreSourceSettingsService;
         this.shopifyStoreSupportProfileService = shopifyStoreSupportProfileService;
+        this.shopifyStoreProvisioningService = shopifyStoreProvisioningService;
+        this.shopifyBridgeAdminClient = shopifyBridgeAdminClient;
         this.deploymentPocChatService = deploymentPocChatService;
         this.objectMapper = objectMapper;
     }
@@ -270,7 +300,7 @@ public class PartnerEnablementService {
             toMemberSummary(entity),
             stores,
             openEscalations,
-            permissionsFor(entity.getRole())
+            permissionsFor(entity)
         );
     }
 
@@ -305,6 +335,7 @@ public class PartnerEnablementService {
         member.setAvatarUrl(principal.avatarUrl());
         member.setRole(PlatformRole.PARTNER_ADMIN.name());
         member.setStatus("ACTIVE");
+        member.setPrivilegesJson("[]");
         member.setLastLoginAt(now);
         member.setLastAuthProviderSeenAt(now);
         member.setCreatedAt(now);
@@ -318,7 +349,7 @@ public class PartnerEnablementService {
             toMemberSummary(member),
             0,
             0,
-            permissionsFor(member.getRole())
+            permissionsFor(member)
         );
     }
 
@@ -402,6 +433,160 @@ public class PartnerEnablementService {
             "helpCenterUrlConfigured", supportProfile.helpCenterUrl() != null && !supportProfile.helpCenterUrl().isBlank()
         )));
         return toProductControlSummary(assignment, summary, supportProfile);
+    }
+
+    @Transactional
+    public PartnerProductControlSummary activatePackageTrial(String storeId,
+                                                             PartnerPackageTrialActivationRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        requirePartnerPrivilege(context, PACKAGE_TRIAL_ACTIVATE);
+        requireAssignmentCapability(assignment, PACKAGE_TRIAL_ACTIVATE);
+        requireInstalledStoreForProductControl(assignment);
+        String tierKey = normalizeTrialTier(request == null ? null : request.tierKey());
+        int trialDays = normalizeTrialDays(request == null ? null : request.trialDays());
+        Instant now = Instant.now();
+        packageTrialActivationRepository.findFirstByStoreAssignmentIdAndStatusOrderByCreatedAtDesc(assignment.getId(), "ACTIVE")
+            .ifPresent(existing -> {
+                String message = existing.getTrialEndsAt() != null && !existing.getTrialEndsAt().isAfter(now)
+                    ? "A past-due package trial must be manually deactivated before a new trial can be activated."
+                    : "An active package trial already exists for this store.";
+                throw new ResponseStatusException(CONFLICT, message);
+            });
+
+        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        ShopifyStoreBillingStateSummary previousBilling = shopifyStoreConnectionService.getBillingState(assignment.getShopDomain());
+        PartnerPackageTrialActivationEntity trial = new PartnerPackageTrialActivationEntity();
+        trial.setId(id("ppt"));
+        trial.setPartnerAccountId(context.account().getId());
+        trial.setPartnerMemberId(context.member().getId());
+        trial.setStoreAssignmentId(assignment.getId());
+        trial.setStoreConnectionId(store.id());
+        trial.setShopDomain(store.shopDomain());
+        trial.setPackageKey(tierKey);
+        trial.setTierKey(tierKey);
+        trial.setStatus("ACTIVE");
+        trial.setTrialDays(trialDays);
+        trial.setTrialStartsAt(now);
+        trial.setTrialEndsAt(now.plusSeconds(trialDays * 86_400L));
+        trial.setActivatedAt(now);
+        trial.setActivationReason(firstNonBlank(trimToNull(request == null ? null : request.reason()), "Partner package trial activation"));
+        trial.setPreviousTierKey(previousBilling == null ? null : previousBilling.tierKey());
+        trial.setPreviousBillingStatus(previousBilling == null ? null : previousBilling.status());
+        trial.setPreviousSubscriptionId(previousBilling == null ? null : previousBilling.subscriptionId());
+        trial.setPreviousSubscriptionName(previousBilling == null ? null : previousBilling.subscriptionName());
+        trial.setDetailsJson(writeJson(Map.of(
+            "trigger", "PARTNER_PRIVILEGE",
+            "manualDeactivationRequired", true,
+            "deactivateWhenPastDue", trial.getTrialEndsAt().toString()
+        )));
+        trial.setCreatedAt(now);
+        trial.setUpdatedAt(now);
+        packageTrialActivationRepository.save(trial);
+
+        RecordShopifyStoreBillingStateRequest billingRequest = new RecordShopifyStoreBillingStateRequest(
+            tierKey,
+            "ACTIVE",
+            "partner-trial-" + trial.getId(),
+            "Loom Companion " + titleCaseToken(tierKey) + " Partner Trial",
+            trial.getActivationReason()
+        );
+        shopifyStoreConnectionService.recordBillingState(store.shopDomain(), billingRequest);
+        ShopifyStoreProvisioningJobSummary job = shopifyStoreProvisioningService.enqueue(
+            store.shopDomain(),
+            new CreateShopifyStoreProvisioningJobRequest(
+                "PACKAGE_CHANGE",
+                tierKey,
+                tierKey,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Partner package trial activation " + trial.getId(),
+                false
+            )
+        );
+        shopifyBridgeAdminClient.recordBillingState(store, billingRequest);
+        trial.setActivationProvisioningJobId(job.id());
+        trial.setUpdatedAt(Instant.now());
+        packageTrialActivationRepository.save(trial);
+        audit(context, "PACKAGE_TRIAL_ACTIVATED", "PACKAGE_TRIAL", trial.getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", store.shopDomain(),
+            "tierKey", tierKey,
+            "trialDays", trialDays,
+            "trialEndsAt", trial.getTrialEndsAt().toString(),
+            "provisioningJobId", job.id()
+        )));
+        return toProductControlSummary(assignment, shopifyStoreConnectionService.getConnection(assignment.getShopDomain()));
+    }
+
+    @Transactional
+    public PartnerProductControlSummary deactivatePackageTrial(String storeId,
+                                                               String trialId,
+                                                               PartnerPackageTrialDeactivationRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        requirePartnerPrivilege(context, PACKAGE_TRIAL_ACTIVATE);
+        requireAssignmentCapability(assignment, PACKAGE_TRIAL_ACTIVATE);
+        PartnerPackageTrialActivationEntity trial = packageTrialActivationRepository
+            .findByIdAndPartnerAccountId(clean(trialId, "trialId"), context.account().getId())
+            .orElseThrow(() -> new PartnerForbiddenException("Package trial is not available to this partner."));
+        if (!assignment.getId().equals(trial.getStoreAssignmentId())) {
+            throw new PartnerForbiddenException("Package trial is not attached to this store assignment.");
+        }
+        if (!"ACTIVE".equals(trial.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Package trial is not active.");
+        }
+        Instant now = Instant.now();
+        if (trial.getTrialEndsAt() != null && trial.getTrialEndsAt().isAfter(now)) {
+            throw new ResponseStatusException(CONFLICT, "Package trial is not past due yet.");
+        }
+
+        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        String restoredTier = normalizeRestoreTier(trial.getPreviousTierKey());
+        String restoredStatus = firstNonBlank(trial.getPreviousBillingStatus(), "ACTIVE").toUpperCase(Locale.ROOT);
+        String reason = firstNonBlank(trimToNull(request == null ? null : request.reason()), "Manual partner package trial deactivation");
+        RecordShopifyStoreBillingStateRequest billingRequest = new RecordShopifyStoreBillingStateRequest(
+            restoredTier,
+            restoredStatus,
+            trial.getPreviousSubscriptionId(),
+            trial.getPreviousSubscriptionName(),
+            reason
+        );
+        shopifyStoreConnectionService.recordBillingState(store.shopDomain(), billingRequest);
+        ShopifyStoreProvisioningJobSummary job = shopifyStoreProvisioningService.enqueue(
+            store.shopDomain(),
+            new CreateShopifyStoreProvisioningJobRequest(
+                "PACKAGE_CHANGE",
+                restoredTier,
+                restoredTier,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Partner package trial deactivation " + trial.getId(),
+                false
+            )
+        );
+        shopifyBridgeAdminClient.recordBillingState(store, billingRequest);
+        trial.setStatus("DEACTIVATED");
+        trial.setDeactivatedAt(now);
+        trial.setDeactivatedByMemberId(context.member().getId());
+        trial.setDeactivationReason(reason);
+        trial.setDeactivationProvisioningJobId(job.id());
+        trial.setUpdatedAt(Instant.now());
+        packageTrialActivationRepository.save(trial);
+        audit(context, "PACKAGE_TRIAL_DEACTIVATED", "PACKAGE_TRIAL", trial.getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", store.shopDomain(),
+            "restoredTier", restoredTier,
+            "pastDue", trial.getTrialEndsAt() == null || !trial.getTrialEndsAt().isAfter(now),
+            "provisioningJobId", job.id()
+        )));
+        return toProductControlSummary(assignment, shopifyStoreConnectionService.getConnection(assignment.getShopDomain()));
     }
 
     @Transactional(readOnly = true)
@@ -1024,6 +1209,42 @@ public class PartnerEnablementService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<PlatformPartnerMemberSummary> listPlatformPartnerMembers() {
+        Map<String, PartnerAccountEntity> accountsById = accountRepository.findAll().stream()
+            .collect(java.util.stream.Collectors.toMap(PartnerAccountEntity::getId, account -> account));
+        return memberRepository.findAll().stream()
+            .sorted(Comparator.comparing(PartnerMemberEntity::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+            .map(member -> toPlatformMemberSummary(member, accountsById.get(member.getPartnerAccountId())))
+            .toList();
+    }
+
+    @Transactional
+    public PlatformPartnerMemberSummary updatePlatformPartnerMember(String memberId, PartnerMemberUpdateRequest request) {
+        PartnerMemberEntity target = memberRepository.findById(clean(memberId, "memberId"))
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Partner member was not found."));
+        if (request != null && StringUtils.hasText(request.role())) {
+            target.setRole(normalizePartnerRole(request.role()));
+        }
+        if (request != null && StringUtils.hasText(request.status())) {
+            target.setStatus(normalizeMemberStatus(request.status()));
+        }
+        if (request != null && request.privileges() != null) {
+            target.setPrivilegesJson(writeJson(normalizePartnerPrivileges(request.privileges())));
+        }
+        target.setUpdatedAt(Instant.now());
+        memberRepository.save(target);
+        PartnerAccountEntity account = accountRepository.findById(target.getPartnerAccountId()).orElse(null);
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        audit(target.getPartnerAccountId(), null, "PARTNER_MEMBER_PRIVILEGES_CONFIGURED", "PARTNER_MEMBER", target.getId(), "SUCCESS", writeJson(Map.of(
+            "platformActor", principal == null ? "unknown" : principal.actorId(),
+            "role", target.getRole(),
+            "status", target.getStatus(),
+            "privileges", memberPrivileges(target)
+        )));
+        return toPlatformMemberSummary(target, account);
+    }
+
     @Transactional
     public PartnerMemberSummary updateProfile(PartnerProfileUpdateRequest request) {
         PartnerContext context = requireProvisionedContext();
@@ -1042,6 +1263,12 @@ public class PartnerEnablementService {
         requireWorkspaceAdmin(context);
         PartnerMemberEntity target = memberRepository.findByIdAndPartnerAccountId(memberId, context.account().getId())
             .orElseThrow(() -> new PartnerForbiddenException("Partner member is not available to this workspace."));
+        if (request != null && request.privileges() != null) {
+            throw new PartnerForbiddenException("Partner privileges are configured from the Platform control plane.");
+        }
+        if (request == null) {
+            return toMemberSummary(target);
+        }
         if (target.getId().equals(context.member().getId()) && StringUtils.hasText(request.status()) && !"ACTIVE".equalsIgnoreCase(request.status())) {
             throw new IllegalArgumentException("Partner admins cannot suspend or revoke their own member record.");
         }
@@ -1698,6 +1925,33 @@ public class PartnerEnablementService {
         return normalized;
     }
 
+    private String normalizeTrialTier(String tierKey) {
+        String normalized = clean(tierKey, "tierKey").toUpperCase(Locale.ROOT);
+        if (!TRIAL_ACTIVATION_TIERS.contains(normalized)) {
+            throw new IllegalArgumentException("Partner trials can only activate STARTER or ELITE.");
+        }
+        return normalized;
+    }
+
+    private int normalizeTrialDays(Integer trialDays) {
+        int normalized = trialDays == null ? DEFAULT_TRIAL_DAYS : trialDays;
+        if (normalized < 1 || normalized > MAX_TRIAL_DAYS) {
+            throw new IllegalArgumentException("Trial days must be between 1 and " + MAX_TRIAL_DAYS + ".");
+        }
+        return normalized;
+    }
+
+    private String normalizeRestoreTier(String tierKey) {
+        if (!StringUtils.hasText(tierKey)) {
+            return "FREE";
+        }
+        String normalized = tierKey.trim().toUpperCase(Locale.ROOT);
+        if (!List.of("FREE", "STARTER", "ELITE").contains(normalized)) {
+            return "FREE";
+        }
+        return normalized;
+    }
+
     private String normalizePartnerRole(String role) {
         String normalized = clean(role, "role").toUpperCase(Locale.ROOT);
         if (!List.of("PARTNER_ADMIN", "PARTNER_IMPLEMENTER", "PARTNER_DEVELOPER", "PARTNER_SUPPORT").contains(normalized)) {
@@ -1714,9 +1968,35 @@ public class PartnerEnablementService {
         return normalized;
     }
 
+    private List<String> normalizePartnerPrivileges(List<String> privileges) {
+        if (privileges == null) {
+            return List.of();
+        }
+        List<String> normalized = new ArrayList<>();
+        for (String privilege : privileges) {
+            if (!StringUtils.hasText(privilege)) {
+                continue;
+            }
+            String value = privilege.trim().toUpperCase(Locale.ROOT);
+            if (!PLATFORM_CONFIGURABLE_PARTNER_PRIVILEGES.contains(value)) {
+                throw new IllegalArgumentException("Partner privilege is not supported: " + value);
+            }
+            if (!normalized.contains(value)) {
+                normalized.add(value);
+            }
+        }
+        return List.copyOf(normalized);
+    }
+
     private void requireWorkspaceAdmin(PartnerContext context) {
         if (!PlatformRole.PARTNER_ADMIN.name().equals(context.member().getRole())) {
             throw new PartnerForbiddenException("Partner admin permission is required.");
+        }
+    }
+
+    private void requirePartnerPrivilege(PartnerContext context, String privilege) {
+        if (!permissionsFor(context.member()).contains(privilege)) {
+            throw new PartnerForbiddenException("Partner member does not include " + privilege + ".");
         }
     }
 
@@ -1955,6 +2235,10 @@ public class PartnerEnablementService {
             widgetSettings,
             supportProfile,
             productControlCapabilities(assignment),
+            activePackageTrial(assignment),
+            packageTrialHistory(assignment),
+            TRIAL_ACTIVATION_TIERS,
+            MAX_TRIAL_DAYS,
             store.updatedAt()
         );
     }
@@ -1999,9 +2283,65 @@ public class PartnerEnablementService {
     }
 
     private List<String> productControlCapabilities(PartnerStoreAssignmentEntity assignment) {
+        boolean packageTrialAllowedForMember = currentMemberHasPrivilege(PACKAGE_TRIAL_ACTIVATE);
         return readList(assignment.getPermissionsJson()).stream()
             .filter(PARTNER_PRODUCT_CONTROL_CAPABILITIES::contains)
+            .filter(permission -> !PACKAGE_TRIAL_ACTIVATE.equals(permission) || packageTrialAllowedForMember)
             .toList();
+    }
+
+    private boolean currentMemberHasPrivilege(String privilege) {
+        PartnerPrincipal principal = PartnerSecurityContext.currentPrincipal();
+        if (principal == null || !principal.provisioned()) {
+            return false;
+        }
+        return memberRepository.findById(principal.partnerMemberId())
+            .map(this::permissionsFor)
+            .orElse(List.of())
+            .contains(privilege);
+    }
+
+    private PartnerPackageTrialActivationSummary activePackageTrial(PartnerStoreAssignmentEntity assignment) {
+        return packageTrialActivationRepository.findFirstByStoreAssignmentIdAndStatusOrderByCreatedAtDesc(assignment.getId(), "ACTIVE")
+            .map(this::toTrialSummary)
+            .orElse(null);
+    }
+
+    private List<PartnerPackageTrialActivationSummary> packageTrialHistory(PartnerStoreAssignmentEntity assignment) {
+        return packageTrialActivationRepository.findTop10ByStoreAssignmentIdOrderByCreatedAtDesc(assignment.getId()).stream()
+            .map(this::toTrialSummary)
+            .toList();
+    }
+
+    private PartnerPackageTrialActivationSummary toTrialSummary(PartnerPackageTrialActivationEntity trial) {
+        Instant now = Instant.now();
+        boolean pastDue = "ACTIVE".equals(trial.getStatus())
+            && trial.getTrialEndsAt() != null
+            && !trial.getTrialEndsAt().isAfter(now);
+        String effectiveStatus = pastDue ? "PAST_DUE" : trial.getStatus();
+        return new PartnerPackageTrialActivationSummary(
+            trial.getId(),
+            trial.getShopDomain(),
+            trial.getPackageKey(),
+            trial.getTierKey(),
+            effectiveStatus,
+            trial.getTrialDays(),
+            trial.getTrialStartsAt(),
+            trial.getTrialEndsAt(),
+            trial.getActivatedAt(),
+            trial.getDeactivatedAt(),
+            trial.getPartnerMemberId(),
+            trial.getDeactivatedByMemberId(),
+            trial.getActivationReason(),
+            trial.getDeactivationReason(),
+            trial.getPreviousTierKey(),
+            trial.getPreviousBillingStatus(),
+            trial.getActivationProvisioningJobId(),
+            trial.getDeactivationProvisioningJobId(),
+            pastDue,
+            pastDue && trial.getDeactivatedAt() == null,
+            trial.getUpdatedAt()
+        );
     }
 
     private boolean partnerVisibleActivity(PartnerActionAuditEntity entity) {
@@ -2221,11 +2561,42 @@ public class PartnerEnablementService {
             member.getDisplayName(),
             member.getAvatarUrl(),
             member.getRole(),
-            member.getStatus()
+            member.getStatus(),
+            memberPrivileges(member),
+            permissionsFor(member)
         );
     }
 
-    private List<String> permissionsFor(String role) {
+    private PlatformPartnerMemberSummary toPlatformMemberSummary(PartnerMemberEntity member, PartnerAccountEntity account) {
+        return new PlatformPartnerMemberSummary(
+            member.getId(),
+            member.getPartnerAccountId(),
+            account == null ? member.getPartnerAccountId() : account.getName(),
+            member.getEmail(),
+            member.isEmailVerified(),
+            member.getDisplayName(),
+            member.getAvatarUrl(),
+            member.getRole(),
+            member.getStatus(),
+            memberPrivileges(member),
+            permissionsFor(member),
+            member.getLastLoginAt(),
+            member.getCreatedAt(),
+            member.getUpdatedAt()
+        );
+    }
+
+    private List<String> permissionsFor(PartnerMemberEntity member) {
+        List<String> permissions = new ArrayList<>(permissionsForRole(member.getRole()));
+        for (String privilege : memberPrivileges(member)) {
+            if (!permissions.contains(privilege)) {
+                permissions.add(privilege);
+            }
+        }
+        return List.copyOf(permissions);
+    }
+
+    private List<String> permissionsForRole(String role) {
         if (PlatformRole.PARTNER_ADMIN.name().equals(role)) {
             List<String> permissions = new ArrayList<>(List.of(
                 "WORKSPACE_ADMIN",
@@ -2235,7 +2606,7 @@ public class PartnerEnablementService {
                 "ESCALATION_REPLY",
                 "CATALOG_READ"
             ));
-            permissions.addAll(PARTNER_PRODUCT_CONTROL_CAPABILITIES);
+            permissions.addAll(roleGrantedProductControlPermissions());
             permissions.addAll(List.of("VERIFICATION_READ", "VERIFICATION_RUN", "EVIDENCE_READ", "EVIDENCE_EXPORT"));
             return List.copyOf(permissions);
         }
@@ -2249,7 +2620,7 @@ public class PartnerEnablementService {
         ));
         permissions.addAll(List.of("VERIFICATION_READ", "VERIFICATION_RUN", "EVIDENCE_READ", "EVIDENCE_EXPORT"));
         if (PlatformRole.PARTNER_IMPLEMENTER.name().equals(role) || PlatformRole.PARTNER_DEVELOPER.name().equals(role)) {
-            permissions.addAll(PARTNER_PRODUCT_CONTROL_CAPABILITIES.stream()
+            permissions.addAll(roleGrantedProductControlPermissions().stream()
                 .filter(permission -> !"PRODUCT_CONFIG_READ".equals(permission))
                 .toList());
         }
@@ -2257,6 +2628,19 @@ public class PartnerEnablementService {
             permissions.add("SUPPORT_MANAGE");
         }
         return List.copyOf(permissions);
+    }
+
+    private List<String> roleGrantedProductControlPermissions() {
+        return PARTNER_PRODUCT_CONTROL_CAPABILITIES.stream()
+            .filter(permission -> !PACKAGE_TRIAL_ACTIVATE.equals(permission))
+            .toList();
+    }
+
+    private List<String> memberPrivileges(PartnerMemberEntity member) {
+        if (member == null) {
+            return List.of();
+        }
+        return normalizePartnerPrivileges(readList(member.getPrivilegesJson()));
     }
 
     private List<String> storeConfiguredSurfaces(PartnerShopifyStoreReadModel store) {
@@ -2339,6 +2723,14 @@ public class PartnerEnablementService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String titleCaseToken(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT).replace('_', ' ');
+        return normalized.substring(0, 1).toUpperCase(Locale.ROOT) + normalized.substring(1);
     }
 
     private String firstNonBlank(String... values) {

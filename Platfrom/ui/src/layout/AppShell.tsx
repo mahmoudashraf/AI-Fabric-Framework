@@ -57,6 +57,7 @@ const navItems = [
   { label: 'Marketplace', path: '/marketplace', icon: <StorefrontRoundedIcon /> },
   { label: 'Inference Services', path: '/inference-services', icon: <MemoryRoundedIcon />, platformAdminOnly: true },
   { label: 'Product Services', path: '/product-services', icon: <PrecisionManufacturingRoundedIcon />, platformAdminOnly: true },
+  { label: 'Partner Privileges', path: '/partner-privileges', icon: <ManageAccountsRoundedIcon />, platformAdminOnly: true },
   { label: 'Shopify Profiles', path: '/shopify-package-profiles', icon: <TuneRoundedIcon />, platformAdminOnly: true },
   { label: 'Shopify Readiness', path: '/shopify-readiness-audit', icon: <FactCheckOutlinedIcon />, platformAdminOnly: true },
   { label: 'Shopify Stores', path: '/shopify-stores', icon: <StoreRoundedIcon />, platformAdminOnly: true },

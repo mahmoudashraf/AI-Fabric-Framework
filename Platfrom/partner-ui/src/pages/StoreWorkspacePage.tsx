@@ -32,6 +32,7 @@ import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined'
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined'
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined'
 import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined'
+import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
@@ -43,7 +44,7 @@ import { createStoreEvidenceBundle, listStoreEvidenceBundles } from '../api/evid
 import { createEscalation, listEscalations } from '../api/escalations'
 import { listClientImplementations } from '../api/implementations'
 import { createStoreNote, listStoreNotes } from '../api/notes'
-import { getProductControls, updateProductSourceSettings, updateProductSupportProfile, updateProductWidgetSettings } from '../api/productControls'
+import { activatePackageTrial, deactivatePackageTrial, getProductControls, updateProductSourceSettings, updateProductSupportProfile, updateProductWidgetSettings } from '../api/productControls'
 import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerProductControl, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
 import { getPartnerStore } from '../api/stores'
 import { listTemplateApplications } from '../api/templates'
@@ -458,6 +459,10 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
   const [helpCenterUrl, setHelpCenterUrl] = useState('')
   const [orderLookupPageUrl, setOrderLookupPageUrl] = useState('')
   const [supportPolicyNote, setSupportPolicyNote] = useState('')
+  const [trialTier, setTrialTier] = useState('STARTER')
+  const [trialDays, setTrialDays] = useState(7)
+  const [trialReason, setTrialReason] = useState('')
+  const [deactivationReason, setDeactivationReason] = useState('')
 
   useEffect(() => {
     if (!controlsQuery.data) {
@@ -485,6 +490,8 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
     setHelpCenterUrl(controls.supportProfile.helpCenterUrl ?? '')
     setOrderLookupPageUrl(controls.supportProfile.orderLookupPageUrl ?? '')
     setSupportPolicyNote(controls.supportProfile.supportPolicyNote ?? '')
+    setTrialTier(controls.trialActivationTiers[0] ?? 'STARTER')
+    setTrialDays(Math.min(7, controls.maxTrialDays ?? 30))
   }, [controlsQuery.data])
 
   const applyProductControlUpdate = async (updated: PartnerProductControl) => {
@@ -520,6 +527,26 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
     }),
     onSuccess: applyProductControlUpdate,
   })
+  const activateTrialMutation = useMutation({
+    mutationFn: () => activatePackageTrial(api, storeId, {
+      tierKey: trialTier,
+      trialDays,
+      reason: trimNullable(trialReason),
+    }),
+    onSuccess: async (updated) => {
+      setTrialReason('')
+      await applyProductControlUpdate(updated)
+    },
+  })
+  const deactivateTrialMutation = useMutation({
+    mutationFn: () => deactivatePackageTrial(api, storeId, controlsQuery.data?.activePackageTrial?.id ?? '', {
+      reason: trimNullable(deactivationReason),
+    }),
+    onSuccess: async (updated) => {
+      setDeactivationReason('')
+      await applyProductControlUpdate(updated)
+    },
+  })
 
   if (controlsQuery.isLoading) {
     return <LinearProgress />
@@ -532,6 +559,9 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
   const canChangeWidget = controls.capabilities.includes('STOREFRONT_SURFACE_CONTROL')
   const canChangeSources = controls.capabilities.includes('KNOWLEDGE_SOURCE_CONTROL')
   const canChangeSupport = controls.capabilities.includes('SUPPORT_MANAGE')
+  const canActivatePackageTrial = controls.capabilities.includes('PACKAGE_TRIAL_ACTIVATE')
+  const activeTrial = controls.activePackageTrial
+  const trialBlocked = Boolean(activeTrial && activeTrial.status !== 'DEACTIVATED')
   const anySourceEnabled = Object.values(sourceSettings).some(Boolean)
   const pageKeys = ['landing', 'product', 'collection', 'search', 'cart', 'account', 'content']
 
@@ -622,6 +652,90 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
         </Paper>
 
         <Stack spacing={2}>
+          <Paper sx={{ p: 2 }}>
+            <SectionHeading icon={<WorkspacePremiumOutlinedIcon />} title="Package trial" />
+            {activateTrialMutation.isError ? <Alert sx={{ mt: 2 }} severity="error">{activateTrialMutation.error instanceof Error ? activateTrialMutation.error.message : 'Package trial activation failed.'}</Alert> : null}
+            {deactivateTrialMutation.isError ? <Alert sx={{ mt: 2 }} severity="error">{deactivateTrialMutation.error instanceof Error ? deactivateTrialMutation.error.message : 'Package trial deactivation failed.'}</Alert> : null}
+            <Stack spacing={1.5} sx={{ mt: 2 }}>
+              {activeTrial ? (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
+                  <InfoTile label="Trial" value={titleize(activeTrial.tierKey)} />
+                  <InfoTile label="Status" value={titleize(activeTrial.status)} />
+                  <InfoTile label="Ends" value={formatDateTime(activeTrial.trialEndsAt)} />
+                  <InfoTile label="Job" value={activeTrial.activationProvisioningJobId ?? 'Queued'} />
+                </Box>
+              ) : (
+                <Alert severity={canActivatePackageTrial ? 'info' : 'warning'}>
+                  {canActivatePackageTrial ? 'No active package trial for this store.' : 'Platform has not granted package trial activation to your member.'}
+                </Alert>
+              )}
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+                <TextField select label="Trial package" value={trialTier} onChange={(event) => setTrialTier(event.target.value)} disabled={!canActivatePackageTrial || trialBlocked || activateTrialMutation.isPending}>
+                  {controls.trialActivationTiers.map((tier) => <MenuItem key={tier} value={tier}>{titleize(tier)}</MenuItem>)}
+                </TextField>
+                <TextField select label="Trial period" value={String(trialDays)} onChange={(event) => setTrialDays(Number(event.target.value))} disabled={!canActivatePackageTrial || trialBlocked || activateTrialMutation.isPending}>
+                  {[1, 7, 14, 30].filter((value) => value <= (controls.maxTrialDays ?? 30)).map((value) => <MenuItem key={value} value={String(value)}>{value} days</MenuItem>)}
+                </TextField>
+              </Box>
+              <TextField label="Activation reason" value={trialReason} onChange={(event) => setTrialReason(event.target.value)} disabled={!canActivatePackageTrial || trialBlocked || activateTrialMutation.isPending} />
+              <Button
+                variant="contained"
+                onClick={() => activateTrialMutation.mutate()}
+                disabled={!canActivatePackageTrial || trialBlocked || activateTrialMutation.isPending}
+              >
+                Activate trial
+              </Button>
+              {activeTrial ? (
+                <>
+                  <Divider />
+                  <TextField label="Deactivation reason" value={deactivationReason} onChange={(event) => setDeactivationReason(event.target.value)} disabled={!activeTrial.deactivationEligible || deactivateTrialMutation.isPending} />
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    onClick={() => deactivateTrialMutation.mutate()}
+                    disabled={!activeTrial.deactivationEligible || deactivateTrialMutation.isPending || deactivationReason.trim().length === 0}
+                  >
+                    Deactivate past-due trial
+                  </Button>
+                </>
+              ) : null}
+              {controls.packageTrialHistory.length > 0 ? (
+                <>
+                  <Divider />
+                  <Typography variant="caption" color="text.secondary">Recent trial activity</Typography>
+                  <Stack spacing={1}>
+                    {controls.packageTrialHistory.map((trial) => (
+                      <Box
+                        key={trial.id}
+                        sx={{
+                          display: 'grid',
+                          gridTemplateColumns: { xs: '1fr', sm: '1fr auto' },
+                          gap: 1,
+                          alignItems: 'center',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                          p: 1,
+                        }}
+                      >
+                        <Box>
+                          <Typography sx={{ fontWeight: 700 }}>{titleize(trial.tierKey)} trial</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatDateTime(trial.trialStartsAt)} to {formatDateTime(trial.trialEndsAt)}
+                          </Typography>
+                        </Box>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
+                          <StatusChip status={trial.status} />
+                          <Chip size="small" variant="outlined" label={trial.deactivationProvisioningJobId ? 'Deactivation queued' : trial.activationProvisioningJobId ? 'Activation queued' : 'Pending job'} />
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Stack>
+                </>
+              ) : null}
+            </Stack>
+          </Paper>
+
           <Paper sx={{ p: 2 }}>
             <SectionHeading icon={<SyncOutlinedIcon />} title="Knowledge sources" />
             {sourceMutation.isError ? <Alert sx={{ mt: 2 }} severity="error">{sourceMutation.error instanceof Error ? sourceMutation.error.message : 'Source settings update failed.'}</Alert> : null}

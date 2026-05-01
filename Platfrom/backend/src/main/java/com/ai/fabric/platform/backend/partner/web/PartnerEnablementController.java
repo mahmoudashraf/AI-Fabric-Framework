@@ -11,6 +11,8 @@ import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary
 import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialDeactivationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
@@ -113,6 +115,21 @@ public class PartnerEnablementController {
     public PartnerProductControlSummary updateProductSupportProfile(@PathVariable String storeId,
                                                                     @RequestBody UpdateShopifyStoreSupportProfileRequest request) {
         return service.updateProductSupportProfile(storeId, request);
+    }
+
+    @PostMapping("/stores/{storeId}/package-trials")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerProductControlSummary activatePackageTrial(@PathVariable String storeId,
+                                                             @Valid @RequestBody PartnerPackageTrialActivationRequest request) {
+        return service.activatePackageTrial(storeId, request);
+    }
+
+    @PostMapping("/stores/{storeId}/package-trials/{trialId}/deactivate")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerProductControlSummary deactivatePackageTrial(@PathVariable String storeId,
+                                                               @PathVariable String trialId,
+                                                               @Valid @RequestBody(required = false) PartnerPackageTrialDeactivationRequest request) {
+        return service.deactivatePackageTrial(storeId, trialId, request);
     }
 
     @PostMapping("/stores/{storeId}/max-widget/chat/me/query")

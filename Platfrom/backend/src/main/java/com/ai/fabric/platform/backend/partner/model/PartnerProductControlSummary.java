@@ -21,6 +21,10 @@ public record PartnerProductControlSummary(
     ShopifyStoreWidgetSettingsSummary widgetSettings,
     ShopifyStoreSupportProfileSummary supportProfile,
     List<String> capabilities,
+    PartnerPackageTrialActivationSummary activePackageTrial,
+    List<PartnerPackageTrialActivationSummary> packageTrialHistory,
+    List<String> trialActivationTiers,
+    Integer maxTrialDays,
     Instant updatedAt
 ) {
 }

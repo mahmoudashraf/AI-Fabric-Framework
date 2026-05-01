@@ -17,6 +17,8 @@ export const partnerMemberSchema = z.object({
   avatarUrl: nullableString,
   role: z.string(),
   status: z.string(),
+  privileges: z.array(z.string()),
+  effectivePermissions: z.array(z.string()),
 })
 
 export const partnerSessionSchema = z.object({
@@ -99,6 +101,30 @@ export const partnerProductSourceSettingsSchema = z.object({
   lastSyncAt: nullableDateString,
 })
 
+export const partnerPackageTrialActivationSchema = z.object({
+  id: z.string(),
+  shopDomain: z.string(),
+  packageKey: z.string(),
+  tierKey: z.string(),
+  status: z.string(),
+  trialDays: z.number(),
+  trialStartsAt: nullableDateString,
+  trialEndsAt: nullableDateString,
+  activatedAt: nullableDateString,
+  deactivatedAt: nullableDateString,
+  activatedByMemberId: nullableString,
+  deactivatedByMemberId: nullableString,
+  activationReason: nullableString,
+  deactivationReason: nullableString,
+  previousTierKey: nullableString,
+  previousBillingStatus: nullableString,
+  activationProvisioningJobId: nullableString,
+  deactivationProvisioningJobId: nullableString,
+  pastDue: z.boolean(),
+  deactivationEligible: z.boolean(),
+  updatedAt: nullableDateString,
+})
+
 export const partnerProductControlSchema = z.object({
   storeId: z.string(),
   storeConnectionId: z.string(),
@@ -114,6 +140,10 @@ export const partnerProductControlSchema = z.object({
   widgetSettings: partnerProductWidgetSettingsSchema,
   supportProfile: partnerProductSupportProfileSchema,
   capabilities: z.array(z.string()),
+  activePackageTrial: partnerPackageTrialActivationSchema.nullable().optional(),
+  packageTrialHistory: z.array(partnerPackageTrialActivationSchema),
+  trialActivationTiers: z.array(z.string()),
+  maxTrialDays: z.number(),
   updatedAt: z.string(),
 })
 

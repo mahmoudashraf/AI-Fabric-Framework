@@ -3,6 +3,8 @@ package com.ai.fabric.platform.backend.shopify.service;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreBillingStateRequest;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreGovernedActionAuditSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -101,6 +103,23 @@ public class ShopifyBridgeAdminClient {
         restClient.post()
             .uri(syncUri(service, store.getShopDomain()))
             .headers(headers -> headers.set(BRIDGE_ADMIN_API_KEY_HEADER, requireAdminKey(service)))
+            .retrieve()
+            .toBodilessEntity();
+    }
+
+    public void recordBillingState(ShopifyStoreConnectionSummary store,
+                                   RecordShopifyStoreBillingStateRequest request) {
+        PlatformManagedProductServiceEntity service = requireService(store);
+        restClient.post()
+            .uri(billingStateUri(service, store.shopDomain()))
+            .headers(headers -> headers.set(BRIDGE_ADMIN_API_KEY_HEADER, requireAdminKey(service)))
+            .body(Map.of(
+                "tierKey", request == null || request.tierKey() == null ? "" : request.tierKey(),
+                "status", request == null || request.status() == null ? "" : request.status(),
+                "subscriptionId", request == null || request.subscriptionId() == null ? "" : request.subscriptionId(),
+                "subscriptionName", request == null || request.subscriptionName() == null ? "" : request.subscriptionName(),
+                "reason", request == null || request.reason() == null ? "" : request.reason()
+            ))
             .retrieve()
             .toBodilessEntity();
     }
@@ -216,8 +235,21 @@ public class ShopifyBridgeAdminClient {
         ));
     }
 
+    private URI billingStateUri(PlatformManagedProductServiceEntity service, String shopDomain) {
+        return URI.create(joinUrl(service.getBaseUrl(), "/api/admin/stores/" + encodePath(shopDomain) + "/billing-state"));
+    }
+
     private PlatformManagedProductServiceEntity requireService(ShopifyStoreConnectionEntity store) {
         String productServiceId = store == null ? null : store.getProductServiceId();
+        if (!StringUtils.hasText(productServiceId)) {
+            throw new ResponseStatusException(CONFLICT, "Shopify Bridge service binding is not configured.");
+        }
+        return productServiceRepository.findById(productServiceId)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Shopify Bridge service binding could not be resolved."));
+    }
+
+    private PlatformManagedProductServiceEntity requireService(ShopifyStoreConnectionSummary store) {
+        String productServiceId = store == null ? null : store.productServiceId();
         if (!StringUtils.hasText(productServiceId)) {
             throw new ResponseStatusException(CONFLICT, "Shopify Bridge service binding is not configured.");
         }
