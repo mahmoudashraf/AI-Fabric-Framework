@@ -95,7 +95,7 @@ class DeploymentProvisioningServiceTargetProfileTest {
         profile.setDefaultForRuntime(true);
         profile.setDefaultForRestartableServices(true);
         profile.setPlatformServicesAllowed(providerType != DeploymentProviderType.COOLIFY);
-        profile.setSourceStrategy(providerType == DeploymentProviderType.COOLIFY ? "IMAGE_SOURCE" : "GIT_SOURCE");
+        profile.setSourceStrategy("GIT_SOURCE");
         profile.setProviderConfigJson("{}");
         profile.setNetworkPolicyJson("{}");
         profile.setResourceDefaultsJson("{}");

@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented and strict staging Coolify smoke passed 2026-05-01)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, and public Git-source parity path added 2026-05-01)
 
 Owner mode: technical LLM implementation session
 
@@ -129,13 +129,19 @@ Then implement:
 - `RAILWAY_STUB`
 - `COOLIFY`
 
-### 4. Image Deployment Is The Shared Path
+### 4. Source Strategy: Git First For Public Repo, Image For Hardened Release
 
-For Coolify:
+For the current public-repository phase:
+
+- Coolify should provision tenant runtimes from the same Git source metadata used by Railway.
+- Use the public Coolify application API with `build_pack=dockerfile`, repo-root build context, and the runtime Dockerfile path.
+- Disable Coolify auto-deploy by default so Platform remains the deployment initiator.
+
+For the hardened production release path:
 
 - deploy prebuilt OCI images from GHCR
 - use immutable release tags and store image digests
-- do not build from repository inside Coolify for production deployments
+- avoid building from repository inside Coolify once private registry and image provenance are ready
 
 For Railway:
 
@@ -1924,7 +1930,37 @@ Live validation:
 Remaining blockers:
 
 - Custom DNS was intentionally skipped; without runtime DNS/FQDN, tenant runtime post-apply verification cannot be considered production-ready.
-- GHCR read credential and host registry auth are not configured in Coolify yet.
+- GHCR read credential and host registry auth are not configured in Coolify yet; this is no longer a blocker for the public Git-source path, but remains required for the hardened image-source path.
 - Coolify target profiles remain inactive in seed data until GHCR auth, DNS replacement for temporary `sslip.io`, backup/restore, and dashboard/API hardening gates are complete.
 - Backup/restore rehearsal for Coolify state, APP_KEY, SSH keys, and app volumes is still pending.
 - Operator UI integration is API-ready but not implemented in the frontend.
+
+---
+
+## 2026-05-01 Public Git-Source Railway Parity
+
+Status: implemented locally. This changes the near-term Coolify path to match Railway while the repository is public.
+
+Implemented:
+
+- Coolify provider now supports `GIT_SOURCE` target profiles using the same `RailwayProvisioningPlanService` source repo, branch, runtime Dockerfile path, and runtime environment variables.
+- Added Coolify public application create/update support through `/applications/public`.
+- Existing Docker-image app support remains available behind `IMAGE_SOURCE`.
+- Seeded Coolify staging/production target profiles are updated by `V78__coolify_public_git_source_profiles.sql` to `GIT_SOURCE` with `buildPack=dockerfile`, repo-root base directory, and the runtime Railway Dockerfile.
+- Public Git source normalizes GitHub slugs such as `owner/repo` to `https://github.com/owner/repo.git` for Coolify.
+- Coolify auto-deploy is disabled for provider-created public Git apps; Platform still triggers deployment explicitly.
+- `scripts/verify-coolify-provider.sh` has optional `COOLIFY_PUBLIC_GIT_SMOKE=true` coverage that creates and deletes a disposable staging public Git application without triggering a deployment.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest test`
+- `bash -n scripts/verify-coolify-provider.sh`
+- `COOLIFY_PUBLIC_GIT_SMOKE=true scripts/verify-coolify-provider.sh` against staging/prod Coolify `4.0.0`; it created a disposable public Git app, confirmed the Git repository readback, and cleanup returned staging to zero apps.
+
+Remaining gates:
+
+- Push/merge the deployment source branch before live Coolify Git app deployment if Coolify must build code that only exists locally.
+- Run a full public Git app build/start/health smoke through the Platform apply path after target-profile activation policy is set.
+- Replace temporary `sslip.io` runtime domains with real DNS before production tenant acceptance.
+- Keep GHCR/private registry auth as the hardened image-source follow-up, not as a blocker for public-repo Git-source testing.

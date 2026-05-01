@@ -41,18 +41,22 @@ class DeploymentTargetProfileMigrationTest {
                 assertThat(profile.getProviderType()).isEqualTo(DeploymentProviderType.COOLIFY);
                 assertThat(profile.isActive()).isFalse();
                 assertThat(profile.isPlatformServicesAllowed()).isFalse();
-                assertThat(profile.getSourceStrategy()).isEqualTo("IMAGE_SOURCE");
+                assertThat(profile.getSourceStrategy()).isEqualTo("GIT_SOURCE");
                 assertThat(profile.getProviderConfigJson()).contains("id069t43frp519u5i3dg2jpr");
                 assertThat(profile.getProviderConfigJson()).contains("46.224.145.148.sslip.io");
+                assertThat(profile.getResourceDefaultsJson()).contains("GIT_SOURCE");
+                assertThat(profile.getResourceDefaultsJson()).contains("ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
             });
         assertThat(targetProfileRepository.findById("dtp-coolify-production"))
             .hasValueSatisfying(profile -> {
                 assertThat(profile.getProviderType()).isEqualTo(DeploymentProviderType.COOLIFY);
                 assertThat(profile.isActive()).isFalse();
                 assertThat(profile.isPlatformServicesAllowed()).isFalse();
-                assertThat(profile.getSourceStrategy()).isEqualTo("IMAGE_SOURCE");
+                assertThat(profile.getSourceStrategy()).isEqualTo("GIT_SOURCE");
                 assertThat(profile.getProviderConfigJson()).contains("t1400k32bg9yd764chyt1slm");
                 assertThat(profile.getProviderConfigJson()).contains("46.225.162.106.sslip.io");
+                assertThat(profile.getResourceDefaultsJson()).contains("GIT_SOURCE");
+                assertThat(profile.getResourceDefaultsJson()).contains("ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
             });
         assertThat(providerCredentialRepository.findById("dpc-coolify-staging"))
             .hasValueSatisfying(credential -> {
