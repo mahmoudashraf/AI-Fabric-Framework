@@ -25,6 +25,7 @@ Rules:
 - Thinker/Resolver is the next product line after the first-product readiness gate: governed issue resolution with evidence, policy, confirmation, audited read/write actions, and escalation. It now follows the `006.x` sequence after `005` reached `DESIGN_PARTNER_READY`.
 - Platform already supports the Thinker-side primitive: bounded LLM read-action resolution with eligible read actions, iterative `thinker` mode, evidence collection, optional RAG cooperation, and final generation. 006 should build on this instead of re-planning it from scratch.
 - Coolify is a first-class deployment provider track beside Railway for tenant runtimes and restartable services. Platform/control-plane services stay on Railway.
+- Hetzner Cloud is the selected first host provider for Coolify; use API/Terraform/`hcloud` automation for host, firewall, network, DNS, volume, and cloud-init setup. Dedicated Hetzner servers are deferred until runtime density justifies them.
 - Partner support is an early platform capability for developers, integrators, and agencies using LoomAI as an AI enablement layer.
 - Partner enablement means self-service signup, empty partner workspace by default, sandbox/demo access, intelligence-piece catalog, deployment templates, verification packs, merchant-approved scoped store access, support escalation, and implementation playbooks.
 - Partners are implementation partners, not passive acquisition partners.
@@ -86,6 +87,8 @@ Current P0 cleanup items:
 - For 006, the new product risk is governed write-capable Resolver behavior; multi-read-action Thinker planning is an existing platform capability.
 - Treat `007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md` as the Coolify implementation source of truth. Coolify must be implemented as `ProviderType.COOLIFY` behind deployment target profiles, not as another global provisioning mode or one-off flag.
 - Railway remains mandatory for Platform UI/backend/Postgres/partner UI/Shopify bridge, billing, webhooks, readiness audit, and provider administration.
+- Start `007` with the Hetzner host automation baseline if reproducible Coolify infrastructure is missing; host provisioning is Hetzner API/Terraform/`hcloud`, while application lifecycle is Coolify API.
+- The Hetzner Cloud token is in a private local document. Implementation sessions may load it into a local secret file/env var only; never print, commit, paste, or copy it into docs.
 
 ## Strategic Decision Log
 
@@ -110,6 +113,8 @@ Current P0 cleanup items:
 - 2026-04-25: Corrected 006 foundation: read-action resolution is already implemented through `ReadActionResolutionService` with single-pass `resolver_assistant`, iterative `thinker`, eligible read-action allowlists, bounded action counts, RAG cooperation, diagnostics, and final generation from action evidence. Do not treat multi-read-action Thinker planning as missing.
 - 2026-04-29: Promoted Thinker/Resolver into one `006.x` product line after `005` reached `DESIGN_PARTNER_READY`: `006` remains the parent blueprint; former `007` is now `006.1` Thinker read-only issue diagnosis; `006.2` is Resolver dry-run, `006.3` is governed low-risk writes, and `006.4` is productized readiness/rollout. Shopify Companion Elite is the first reference vertical, not a separate product.
 - 2026-04-29: Created `007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md`; Coolify is a mature infrastructure provider track for tenant runtimes and restartable services, while Platform/control-plane surfaces remain on Railway. Implementation must start with target profiles/provider registry and keep Railway compatibility before adding Coolify API lifecycle calls.
+- 2026-05-01: Updated `007` to select Hetzner Cloud as the first Coolify host provider. Hetzner automates host/network/DNS/firewall/volume/cloud-init setup; Coolify automates application lifecycle; Platform remains deployment source of truth. Do not start with dedicated Hetzner servers unless density economics justify the extra replacement complexity.
+- 2026-05-01: Updated `007` with concrete Hetzner execution setup: staging `CPX32`, initial production `CCX23`, token loaded only from private/local secret handling, and Slice 0 execution checklist before Platform target profile/provider registry work.
 - 2026-05-01: Thinker/RAG/action architecture tightened: Runtime/Thinker must generate final answers from read-action evidence and RAG; Bridge must not replace action evidence with canned semantic fallback answers; LLM action parameter extraction should drive read-action inputs, not text-matching workarounds in core/framework modules.
 - 2026-05-01: Disabled Shopify Companion `relationship_query` from the shopper action path because it bypassed RAG/attachment quality and produced poor comparison behavior. Re-enable only after it is a proper RAG-cooperating read action with no domain coupling in generic framework modules.
 - 2026-05-01: Max widget action results should render Shopify product/search action payloads as cards inside chat; default shopper chat should not expose raw `Data: { ... }` envelopes when structured product results are available.

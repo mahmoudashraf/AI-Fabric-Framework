@@ -28,9 +28,14 @@ External docs checked while drafting:
 
 - Coolify API reference: `https://coolify.io/docs/api-reference/api/`
 - Coolify Docker image application API: `https://coolify.io/docs/api-reference/api/operations/create-dockerimage-application`
+- Coolify self-hosted installation: `https://coolify.io/docs/get-started/installation`
 - Coolify GitHub Actions image deployment guide: `https://coolify.io/docs/applications/ci-cd/github/actions`
 - Coolify environment variables: `https://coolify.io/docs/knowledge-base/environment-variables`
 - Coolify backup and restore: `https://coolify.io/docs/knowledge-base/how-to/backup-restore-coolify`
+- Hetzner API overview: `https://docs.hetzner.cloud/`
+- Hetzner Cloud features, regions, firewalls, networks, and DNS: `https://www.hetzner.com/cloud/`
+- Hetzner Cloud volumes: `https://docs.hetzner.com/cloud/volumes/overview/`
+- Hetzner Cloud Terraform provider: `https://registry.terraform.io/providers/hetznercloud/hcloud/latest`
 - Railway private registry support: `https://docs.railway.com/builds/private-registries`
 - Railway services and Docker image sources: `https://docs.railway.com/services`
 - Tailscale subnet routers: `https://tailscale.com/kb/1019/subnets`
@@ -58,6 +63,7 @@ Why this matters:
 
 - Railway is still the right place for customer-facing reliability and control-plane trust.
 - Coolify improves runtime economics for repeatable per-tenant deployments and restartable workloads.
+- Hetzner Cloud is the selected first host provider for Coolify because it gives the right cost/performance, regions, API surface, firewalls, networks, volumes, DNS, and Terraform/hcloud automation.
 - The current code still selects provisioning by global `platform.provisioning.mode`; that blocks a clean hybrid future.
 - The mature fix is target profiles plus provider adapters, not another global mode.
 
@@ -166,6 +172,190 @@ Deployment progression still happens through controlled gates:
 - explicit migration of existing runtimes only
 
 Those gates are production-hardening gates, not POC stages.
+
+---
+
+## Host Provider Decision: Hetzner Cloud First
+
+Use Hetzner Cloud as the first Coolify host provider for `007`.
+
+Rationale:
+
+- strong cost/performance for container runtimes
+- regions in Europe, USA, and Singapore
+- generous traffic economics compared with hyperscalers
+- API coverage for servers, firewalls, private networks, volumes, primary/floating IPs, load balancers, placement groups, DNS, and storage boxes
+- official `hcloud` CLI and Terraform provider
+- `user_data`/cloud-init support for bootstrapping servers
+- simple path from one host to multiple hosts without Kubernetes
+- Coolify documentation itself recommends Hetzner as a self-hosted server option
+
+Default choice:
+
+- `HETZNER_CLOUD` for staging and first production Coolify hosts.
+
+Recommended server profiles:
+
+| Environment | Hetzner type | Role | Notes |
+|---|---|---|---|
+| Dev/staging | `CPX32` | `coolify-staging-01` | 4 shared vCPU, 8 GB RAM, 160 GB SSD; enough for provider contract tests and disposable apps |
+| Production initial | `CCX23` | `coolify-prod-01` | 4 dedicated vCPU, 16 GB RAM, 160 GB SSD; first real production host |
+| Production growth | `CCX33` or second `CCX23` | `coolify-prod-02` or resized host | prefer a second host for isolation when operationally ready |
+| Production heavy | `CCX43` or multiple `CCX33` hosts | larger runtime pool | only after metrics prove saturation |
+
+Initial recommendation:
+
+- create staging on `CPX32`
+- create production on `CCX23`
+- scale by adding another `CCX23` or moving to `CCX33`
+- avoid `CX`/`CAX` for production tenant runtimes unless the workload is proven low-CPU and non-critical
+
+Deferred choices:
+
+- Hetzner dedicated server or Server Auction only after runtime density justifies less elastic but cheaper raw capacity.
+- AWS/Azure/GCP only when enterprise/BYOC, regional compliance, procurement, or customer-owned cloud requirements exist.
+- Kubernetes/k3s only when Coolify single-host or small multi-host operation stops being enough.
+
+Do not start with Hetzner dedicated servers for `007` unless the operator explicitly accepts the extra automation and replacement complexity. Cloud instances are easier to create, destroy, rebuild, tag, and verify through API-first workflows.
+
+### Automation Boundary
+
+Hetzner automates the host and network layer.
+
+Coolify automates the application layer.
+
+Platform remains the source of truth for deployments, target profiles, provider handles, and audit.
+
+```text
+Platform / IaC
+  -> Hetzner API or Terraform
+     -> server, firewall, network, volume, DNS, IPs
+     -> cloud-init/bootstrap
+     -> Coolify install
+  -> Coolify API
+     -> projects/environments/applications/envs/deployments/logs/restarts
+  -> Platform DB
+     -> target profile, provider handle, artifact, audit, verification
+```
+
+The Platform backend does not need to provision Hetzner hosts in the first implementation slice. Host provisioning can be Terraform or `hcloud` automation first. Later, if useful, add a `HostProvider` abstraction for Hetzner host lifecycle.
+
+### Hetzner Resources To Manage
+
+Required for staging and production:
+
+- project-scoped Hetzner Cloud API token
+- SSH key resource
+- firewall resource
+- private network resource
+- server resource
+- optional volume resource for Coolify data and persistent app volumes
+- primary IP or floating IP strategy
+- DNS records for Coolify and runtime wildcard domains
+- labels on all resources
+
+Credential source:
+
+- The Hetzner Cloud token exists in a private local document supplied by the operator.
+- Implementation sessions may read that private document only to load the token into a local environment variable or secret file.
+- Never print, paste, commit, log, or summarize the token value.
+- Prefer `HCLOUD_TOKEN_FILE=/tmp/hetzner_cloud_token.secret` or equivalent local secret-file handling.
+- Do not copy the token into Terraform files, docs, shell history, or committed `.env` files.
+- If a token is missing, stop with a clear blocker instead of creating partial manual infrastructure.
+
+Recommended labels:
+
+```text
+loom.component=coolify
+loom.environment=staging|production
+loom.hostRole=coolify-controller
+loom.owner=platform
+loom.managedBy=terraform|hcloud
+```
+
+### Hetzner API/IaC Setup Steps
+
+Automate with Terraform or `hcloud`; Terraform is preferred for day-one repeatability.
+
+1. Create project-scoped API token.
+2. Register SSH key.
+3. Create firewall:
+   - allow `22/tcp` only from admin IPs, Tailscale, or controlled VPN
+   - allow `80/tcp` and `443/tcp` publicly
+   - restrict Coolify dashboard/API port access behind Cloudflare Access, Tailscale, or IP allowlist
+4. Create private network for future multi-host expansion.
+5. Create staging server.
+6. Create production server.
+7. Attach volume if `/data/coolify` or app volumes need separate storage.
+8. Create or assign primary/floating IP strategy.
+9. Create DNS records:
+   - `coolify.ops.loomai.pro`
+   - `*.runtime.loomai.pro`
+   - `*.runtime-staging.loomai.pro`
+10. Pass cloud-init `user_data` to:
+    - harden SSH
+    - install base packages
+    - configure firewall agent rules where needed
+    - install monitoring/log shipping bootstrap
+    - run Coolify install with controlled environment variables
+    - disable Coolify auto-update in production
+    - write bootstrap status to a known file
+11. Verify Coolify health and first admin/API setup.
+12. Store resulting Coolify base URL, version, API token, project UUID, environment UUID, server UUID, destination UUID, and APP_KEY escrow location in Platform/operator secrets and docs.
+
+### Execution Checklist
+
+Run this sequence for the first implementation session:
+
+1. Load Hetzner token from the private document into a local secret file or environment variable without printing it.
+2. Verify `hcloud` or Terraform can authenticate against the Hetzner Cloud project.
+3. Choose primary region:
+   - Europe/UK default: `nbg1` or `fsn1`
+   - US East default: `ash`
+   - US West default: `hil`
+   - APAC default: `sin`
+4. Create Terraform module or `hcloud` scripts for:
+   - SSH key
+   - firewall
+   - private network
+   - staging `CPX32`
+   - production `CCX23`
+   - optional volume
+   - DNS records
+5. Add cloud-init template for:
+   - SSH hardening
+   - package update
+   - base tools
+   - Tailscale or Cloudflare Access bootstrap if selected
+   - Coolify install
+   - `AUTOUPDATE=false` for production
+   - bootstrap status log
+6. Apply staging first.
+7. Verify SSH, firewall, DNS, HTTP/HTTPS, and Coolify install.
+8. Apply production only after staging bootstrap is repeatable.
+9. Protect Coolify dashboard/API before real workloads.
+10. Create Coolify project/environment records:
+    - `loom-staging` / `staging`
+    - `loom-production` / `production`
+11. Generate Coolify API token and store it in Platform/operator secret storage, not in docs.
+12. Configure GHCR read access on Coolify host.
+13. Configure backups for Coolify state, `/data/coolify`, APP_KEY, SSH keys, and any app volumes.
+14. Rehearse staging restore before production default switch.
+15. Only then proceed to Platform target profiles and provider registry work.
+
+### What Hetzner Does Not Replace
+
+Hetzner does not replace:
+
+- Platform deployment records
+- Platform release verification
+- Coolify application lifecycle
+- runtime auth
+- Railway Postgres backups
+- Coolify app-volume backup policy
+- operator audit
+
+Hetzner snapshots and server backups are useful, but they are not enough. Hetzner volume docs explicitly treat volumes as separate resources; volumes and app data need their own backup plan.
 
 ---
 
@@ -571,7 +761,7 @@ Railway:
 
 Production host:
 
-- Hetzner dedicated or cloud server sized for real runtime density
+- Hetzner Cloud dedicated-vCPU server sized for real runtime density
 - Ubuntu LTS
 - SSH key only
 - password login disabled
@@ -588,13 +778,28 @@ Production host:
 
 Staging host:
 
-- separate smaller host
+- separate smaller Hetzner Cloud host
 - same Coolify version track or one controlled upgrade ahead
 - used for provider contract tests and upgrade rehearsal
+
+Dedicated-server track:
+
+- defer Hetzner dedicated servers or Server Auction until production runtime density proves that fixed larger hosts beat Cloud elasticity
+- if introduced later, model them as a distinct host profile, not as a silent replacement for Cloud
+- dedicated hosts must still expose the same Coolify provider contract and Platform target profile behavior
 
 ### Install Coolify
 
 Follow the official Coolify installation flow and pin the version used for production.
+
+For automated Hetzner bootstrap:
+
+- pass cloud-init through Hetzner server `user_data`
+- run the Coolify install script on a fresh Ubuntu LTS host
+- set production `AUTOUPDATE=false`
+- use install environment variables for initial root user only if the value source is secret-managed and not committed
+- configure Docker address pool deliberately if Tailscale/private networks may overlap
+- immediately protect the dashboard/API before real workloads are deployed
 
 Required records after install:
 
@@ -1296,6 +1501,34 @@ Rollback steps:
 
 These are production implementation slices, not POC phases.
 
+### Slice 0 - Hetzner Host Automation Baseline
+
+Goal:
+
+- make the Coolify host layer reproducible before production workloads depend on it
+
+Work:
+
+- load the Hetzner Cloud token from the private local document into a local secret file or environment variable without exposing it
+- create Terraform or `hcloud` automation for Hetzner Cloud staging and production hosts
+- create staging as `CPX32` and initial production as `CCX23`
+- create SSH key, firewall, private network, server, optional volume, and DNS records
+- pass cloud-init user data for SSH hardening, package bootstrap, monitoring/log shipping bootstrap, and Coolify install
+- disable production Coolify auto-update
+- protect Coolify dashboard/API with Tailscale, Cloudflare Access, or explicit IP allowlist
+- record Coolify host outputs for Platform target profile seeding
+- document host rebuild procedure
+
+Done when:
+
+- Hetzner token handling is secret-file/env based and never committed
+- staging Coolify host can be destroyed and recreated from automation
+- production Coolify host can be created from the same module with production variables
+- firewall and DNS are managed by automation
+- Coolify install completes on a fresh host
+- host outputs include Coolify base URL, version, server IP, and DNS names
+- no app lifecycle work is done manually except first controlled Coolify API token/bootstrap where unavoidable
+
 ### Slice 1 - Target Profiles And Provider Registry
 
 Goal:
@@ -1459,6 +1692,11 @@ Done when:
 
 `007` is complete only when:
 
+- Hetzner Cloud is documented as the first Coolify host provider.
+- Hetzner token is consumed only from private/local secret handling and is never committed, printed, or copied into docs.
+- staging uses `CPX32` or a documented equivalent and initial production uses `CCX23` or a documented equivalent.
+- Hetzner host creation is reproducible through Terraform or `hcloud` automation.
+- Hetzner firewall, network, server, DNS, and optional volume setup are automated for staging and production.
 - Railway remains the target for Platform UI/backend/Postgres/partner UI/Shopify bridge.
 - Coolify exists as `ProviderType.COOLIFY`.
 - target profiles replace global mode as the release dispatch source.
@@ -1483,6 +1721,7 @@ Done when:
 
 Stop implementation if:
 
+- Hetzner host setup is manual-only with no reproducible Terraform or `hcloud` path
 - target profile dispatch is skipped in favor of another global mode
 - Coolify credentials would be exposed to tenant runtime env
 - Platform services become selectable for Coolify
@@ -1497,20 +1736,24 @@ Stop implementation if:
 
 ## First Technical Session Prompt
 
-Start with Slice 1.
+Start with Slice 0 if Hetzner/Coolify infrastructure does not already exist in a reproducible form. Then move to Slice 1.
 
 Read:
 
 1. this file
-2. `DeploymentProvisioningProvider.java`
-3. `DeploymentProvisioningService.java`
-4. `PlatformProvisioningProperties.java`
-5. `RailwayApiProvisioningProvider.java`
-6. `DeploymentReleaseEntity.java`
-7. Railway provisioning tests
+2. Hetzner Cloud API and Terraform provider docs
+3. Coolify self-hosted installation docs
+4. `DeploymentProvisioningProvider.java`
+5. `DeploymentProvisioningService.java`
+6. `PlatformProvisioningProperties.java`
+7. `RailwayApiProvisioningProvider.java`
+8. `DeploymentReleaseEntity.java`
+9. Railway provisioning tests
 
 Implement:
 
+- secret-safe loading of the Hetzner Cloud token from the private local document
+- Hetzner host automation baseline if missing
 - target profile schema
 - provider type enum
 - provider registry
@@ -1519,6 +1762,8 @@ Implement:
 - tests proving current Railway behavior still works
 
 Do not implement Coolify API calls before target profile dispatch exists.
+
+Do not print, commit, or paste the Hetzner token. If the token cannot be loaded safely, stop and report the blocker.
 
 Handoff template:
 

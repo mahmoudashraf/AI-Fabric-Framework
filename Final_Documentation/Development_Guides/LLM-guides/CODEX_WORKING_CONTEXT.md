@@ -154,6 +154,8 @@ Rules:
 - Decision: Coolify is a first-class deployment provider beside Railway for tenant runtimes and restartable services; Platform UI/backend/Postgres/partner UI/Shopify bridge, billing, webhooks, readiness audit, and provider administration stay on Railway.
 - Decision: implement Coolify through deployment target profiles, provider registry, immutable GHCR image artifacts, provider resource handles, operator UI, audit, backup/restore, and release verification. Do not add another global `platform.provisioning.mode` path or a one-off `railway|coolify` flag.
 - First implementation slice should be target profiles/provider registry/Railway compatibility before any Coolify API calls.
+- 2026-05-01 update: Hetzner Cloud is selected as the first Coolify host provider; automate host/firewall/network/DNS/volume/cloud-init setup through Terraform or `hcloud`, then use Coolify API for app lifecycle. Dedicated Hetzner servers are deferred until runtime density justifies them. `007` now starts with Slice 0 host automation when reproducible infrastructure is missing.
+- 2026-05-01 update: `007` now records staging `CPX32`, initial production `CCX23`, secret-safe Hetzner token loading from the private local document, and an execution checklist for Terraform/`hcloud` host automation before Platform target-profile/provider work.
 
 ## 2026-04-25 Partner Enablement Supabase And Deployment Unblock
 
