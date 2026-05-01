@@ -435,3 +435,7 @@ Rules:
 - Provider fix in progress: `CoolifyDeploymentProvider.provision(...)` now adds a bounded `wait_for_coolify_runtime` step after `trigger_coolify_deploy`, polling Coolify until status is running and not unhealthy before returning to Platform release verification; resource handles become `ACTIVE` when the observed app is ready.
 - Verification passed for the provider-settle patch: focused Coolify/profile/recovery Maven suite.
 - Security note: do not print raw Coolify application JSON during future live checks; use only safe Platform status summaries or filtered fields.
+- Commit `c0c353d52` pushed the provider runtime-settle patch.
+- A second smoke (`dep-92d0143b` / `rel-64e33107`) ran before live Platform had picked up `c0c353d52`; it again skipped `wait_for_coolify_runtime`, then hit a transient `502` while polling releases and left the Platform record in `VERIFYING/sync_marketplace_datasets`. Direct Coolify cleanup removed the app and staging app count returned to `0`.
+- New recovery fix in progress: `DeploymentReleaseRecoveryService` now treats Coolify `VERIFYING` releases at `sync_marketplace_datasets` or `run_verification` as recovery candidates, reusing the provider-neutral dataset-sync/verification recovery path so stuck Coolify records can become terminal and deletable.
+- Verification passed for the Coolify stale-recovery patch: focused Coolify/profile/recovery Maven suite.

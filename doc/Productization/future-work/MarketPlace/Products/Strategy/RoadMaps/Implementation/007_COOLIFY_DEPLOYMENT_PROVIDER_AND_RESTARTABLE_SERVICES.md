@@ -2109,3 +2109,31 @@ Next live proof:
 - Deploy this provider-settle patch to live Platform.
 - Rerun one disposable `dtp-coolify-staging` Platform apply.
 - Confirm the release reaches `APPLIED_VERIFIED` without racing runtime startup, then clean up the Platform deployment and Coolify app.
+
+---
+
+## 2026-05-01 Coolify Stale Verification Recovery
+
+Status: implemented locally after the second live smoke exposed a Coolify-specific recovery gap.
+
+Live finding:
+
+- Disposable deployment `dep-92d0143b` and release `rel-64e33107` were started before live Platform had picked up the provider-settle commit.
+- The release skipped `wait_for_coolify_runtime`, then a transient Platform `502` while polling left the release in `VERIFYING` at `sync_marketplace_datasets`.
+- The Coolify app was cleaned up directly and staging app count returned to `0`, but the Platform deployment record stayed undeletable because stale release recovery only considered `RAILWAY_API`.
+
+Implemented:
+
+- `DeploymentReleaseRecoveryService` now treats Coolify `VERIFYING` releases at `sync_marketplace_datasets` or `run_verification` as recovery candidates.
+- Coolify uses the same provider-neutral dataset-sync and verification retry path as Railway for those steps.
+- Regression coverage verifies a stale Coolify `sync_marketplace_datasets` release retries dataset sync and then runs release verification without Railway API calls.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentReleaseRecoveryServiceTest,CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest test`
+
+Next live proof:
+
+- Deploy this recovery patch.
+- Reconcile and delete leftover disposable Platform record `dep-92d0143b`.
+- Rerun one clean disposable `dtp-coolify-staging` smoke after live Platform serves both the provider-settle and Coolify stale-recovery fixes.

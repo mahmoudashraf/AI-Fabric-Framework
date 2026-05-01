@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
@@ -279,10 +280,19 @@ public class DeploymentReleaseRecoveryService {
     }
 
     private boolean isRecoveryCandidate(DeploymentReleaseEntity release) {
-        if (!"RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget())) {
+        boolean railway = "RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget());
+        boolean coolify = "COOLIFY".equalsIgnoreCase(release.getProvisioningTarget())
+            || release.getProviderType() == DeploymentProviderType.COOLIFY;
+        if (!railway && !coolify) {
             return false;
         }
         String stepKey = release.getCurrentStepKey();
+        if (coolify) {
+            return switch (release.getStatus()) {
+                case "VERIFYING" -> "run_verification".equals(stepKey) || "sync_marketplace_datasets".equals(stepKey);
+                default -> false;
+            };
+        }
         return switch (release.getStatus()) {
             case "APPLY_REQUESTED" -> "queue_release".equals(stepKey);
             case "PRE_APPLY_VERIFYING" -> "preflight_verification".equals(stepKey) || isPreActivationRailwayProvisioningStep(stepKey);
