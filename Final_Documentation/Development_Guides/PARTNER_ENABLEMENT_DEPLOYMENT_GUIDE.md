@@ -148,6 +148,7 @@ Expected strict result:
 - Platform admin member privilege API can remove and grant `PACKAGE_TRIAL_ACTIVATE`
 - partner cannot activate package trials without the Platform-granted privilege
 - partner session and product controls expose `PACKAGE_TRIAL_ACTIVATE`, trial tiers, max trial days, active trial, and trial history after the privilege is granted
+- package-aware verification chooses the store profile pack, including `shopify-companion-elite-readiness` for Elite stores, instead of forcing Starter boundaries
 - original partner privileges are restored before the verifier exits
 
 The primary release gate intentionally does not activate a live paid/trial package. It proves the privilege gate and response contract without leaving commercial state behind. Full activation/deactivation lifecycle is covered by backend integration tests and should only be live-smoked against a disposable store with a cleanup plan.

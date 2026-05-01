@@ -1082,42 +1082,74 @@ import sys
 
 packs = json.loads(pathlib.Path(sys.argv[1]).read_text())
 starter = [pack for pack in packs if pack.get("id") == "starter-launch-readiness"]
+elite = [pack for pack in packs if pack.get("id") == "shopify-companion-elite-readiness"]
 assert starter, packs
 assert len(starter[0].get("steps") or []) >= 7, starter[0]
-print("PASS: starter launch readiness verification pack is available")
+assert elite, packs
+assert len(elite[0].get("steps") or []) >= 8, elite[0]
+print("PASS: Starter and Elite verification packs are available")
 PY
+
+  verification_pack_id="$(python3 - <<'PY' "${store_detail_body}" "${packs_body}"
+import json
+import pathlib
+import sys
+
+store = json.loads(pathlib.Path(sys.argv[1]).read_text())
+packs = {pack.get("id") for pack in json.loads(pathlib.Path(sys.argv[2]).read_text())}
+profile = store.get("packageProfile") or {}
+configured = (profile.get("verificationPackId") or "").strip()
+surfaces = set(store.get("enabledSurfaces") or [])
+elite_surfaces = {
+    "order-lookup",
+    "governed-add-to-cart",
+    "cart-update",
+    "checkout-completion",
+    "refund-initiation",
+}
+if configured and configured in packs:
+    print(configured)
+elif surfaces.intersection(elite_surfaces) and "shopify-companion-elite-readiness" in packs:
+    print("shopify-companion-elite-readiness")
+else:
+    print("starter-launch-readiness")
+PY
+)"
+  echo "PASS: selected package-aware verification pack (${verification_pack_id})"
 
   store_pack_body="${TMP_DIR}/store-verification-pack.json"
   store_pack_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/verification-pack" "${store_pack_body}")"
   cp "${store_pack_body}" "${TMP_DIR}/last-body"
   assert_status "${store_pack_status}" "200" "store verification pack reachable"
-  python3 - <<'PY' "${store_pack_body}"
+  python3 - <<'PY' "${store_pack_body}" "${verification_pack_id}"
 import json
 import pathlib
 import sys
 
 pack = json.loads(pathlib.Path(sys.argv[1]).read_text())
-assert pack["id"] == "starter-launch-readiness", pack
+assert pack["id"] == sys.argv[2], pack
 statuses = {step.get("status") for step in pack.get("steps") or []}
 assert "PASSED" in statuses, statuses
 assert "FAILED" not in statuses, pack
-print("PASS: store verification pack evaluates live store state")
+print("PASS: store verification pack evaluates live package state")
 PY
 
   verification_run_body="${TMP_DIR}/verification-run-create.json"
   verification_run_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/verification-runs" "${verification_run_body}" \
     -H "Content-Type: application/json" \
-    -d '{"packId":"starter-launch-readiness"}')"
+    -d "{\"packId\":\"${verification_pack_id}\"}")"
   cp "${verification_run_body}" "${TMP_DIR}/last-body"
   assert_status "${verification_run_status}" "201" "store verification run created"
-  run_ref="$(python3 - <<'PY' "${verification_run_body}"
+  run_ref="$(python3 - <<'PY' "${verification_run_body}" "${verification_pack_id}"
 import json
 import pathlib
 import sys
 
 run = json.loads(pathlib.Path(sys.argv[1]).read_text())
+pack_id = sys.argv[2]
+assert run["packId"] == pack_id, run
 if run["status"] != "PASSED":
-    print(f"FAIL: expected starter launch readiness to pass, got {run['status']}: {run}", file=sys.stderr)
+    print(f"FAIL: expected {pack_id} to pass, got {run['status']}: {run}", file=sys.stderr)
     raise SystemExit(1)
 assert run.get("evidenceBundleId"), run
 assert run["totalSteps"] >= 7, run
@@ -1130,7 +1162,7 @@ print(run["id"] + "|" + run["evidenceBundleId"])
 PY
 )"
   IFS='|' read -r verification_run_id evidence_bundle_id <<< "${run_ref}"
-  echo "PASS: verification run persisted and passed (${verification_run_id})"
+  echo "PASS: package-aware verification run persisted and passed (${verification_run_id})"
 
   verification_detail_body="${TMP_DIR}/verification-run-detail.json"
   verification_detail_status="$(partner_request GET "${BASE_URL}/api/partners/verification-runs/${verification_run_id}" "${verification_detail_body}")"

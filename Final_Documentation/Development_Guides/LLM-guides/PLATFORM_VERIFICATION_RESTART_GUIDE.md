@@ -851,6 +851,7 @@ Strict Partner Enablement now also proves the package-trial privilege gate:
 - Platform admin member API can remove and grant `PACKAGE_TRIAL_ACTIVATE`.
 - Partner package-trial activation returns `403` when the privilege is absent.
 - Partner session and product controls expose the privilege, allowed trial tiers, max trial days, active trial, and trial history after the privilege is granted.
+- Store verification uses the store package profile's verification pack. Elite stores must pass `shopify-companion-elite-readiness`; Starter-only boundaries are not forced onto Elite stores.
 - The verifier restores the partner member's original privileges before exit.
 
 The primary release gate does not activate a live package trial, because that changes commercial store state and cannot be automatically deactivated until the trial is past due. Use a disposable store and an explicit cleanup plan for lifecycle smoke tests.

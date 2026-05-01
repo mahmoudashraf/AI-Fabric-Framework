@@ -161,6 +161,7 @@ Partner Enablement verification includes package-trial privilege gating:
 - Platform admin member privilege API proof for `PACKAGE_TRIAL_ACTIVATE`
 - negative partner activation proof without the privilege
 - positive session/product-control capability proof after Platform grant
+- package-aware verification pack proof, including Elite readiness when the store profile is Elite
 - privilege restoration before exit
 
 Current release-gate statuses:

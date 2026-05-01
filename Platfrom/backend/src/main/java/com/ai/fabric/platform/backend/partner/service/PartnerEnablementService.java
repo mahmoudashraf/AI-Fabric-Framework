@@ -42,6 +42,7 @@ import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivatio
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialDeactivationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerProductPackageSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductSourceSettingsSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
@@ -183,6 +184,13 @@ public class PartnerEnablementService {
     private static final String MERCHANT_CONFIGURED_TIER = "MERCHANT_CONFIGURED";
     private static final String FULL_STORE_ACCESS_SCOPE = "FULL_STORE_ACCESS";
     private static final List<String> FORBIDDEN_PARTNER_SURFACES = List.of(
+        "order-lookup",
+        "governed-add-to-cart",
+        "cart-update",
+        "checkout-completion",
+        "refund-initiation"
+    );
+    private static final List<String> ELITE_PARTNER_SURFACES = List.of(
         "order-lookup",
         "governed-add-to-cart",
         "cart-update",
@@ -920,7 +928,7 @@ public class PartnerEnablementService {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
         PartnerShopifyStoreReadModel store = storeForAssignment(assignment);
-        VerificationPack pack = defaultVerificationPack();
+        VerificationPack pack = defaultVerificationPack(store);
         return toPackSummary(pack, evaluatePack(pack, assignment, store, Instant.now()));
     }
 
@@ -929,7 +937,7 @@ public class PartnerEnablementService {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
         PartnerShopifyStoreReadModel store = storeForAssignment(assignment);
-        VerificationPack pack = verificationPack(firstNonBlank(request.packId(), defaultVerificationPack().id()));
+        VerificationPack pack = verificationPack(firstNonBlank(request.packId(), defaultVerificationPack(store).id()));
         Instant now = Instant.now();
         List<PartnerVerificationStepSummary> evaluatedSteps = evaluatePack(pack, assignment, store, now);
         String status = aggregateVerificationStatus(evaluatedSteps);
@@ -1398,12 +1406,43 @@ public class PartnerEnablementService {
                     new VerificationStepDefinition("starter-read-only-boundary", "Starter read-only boundary", "Confirm Starter surfaces remain read-only and exclude order lookup.", "Keep governed actions gated outside Starter."),
                     new VerificationStepDefinition("evidence-contract-safe", "Evidence contract safe", "Confirm generated evidence is merchant-safe.", "Regenerate evidence through the partner bundle exporter.")
                 )
+            ),
+            new VerificationPack(
+                "shopify-companion-elite-readiness",
+                "Shopify Companion Elite readiness",
+                "Checks install, source readiness, storefront activation, Elite package profile, partner product-control assignment, governed surface posture, and merchant-safe evidence readiness.",
+                List.of(
+                    new VerificationStepDefinition("companion-installed", "Companion installed", "Confirm the Shopify Companion install is active.", "Install or reconnect the Shopify Companion app."),
+                    new VerificationStepDefinition("knowledge-sync-ready", "Knowledge Sync ready", "Confirm store content has completed Knowledge Sync.", "Run Knowledge Sync from merchant admin or ask an operator to investigate stale sources."),
+                    new VerificationStepDefinition("source-readiness-ready", "Source readiness ready", "Confirm enabled store content is ready for grounded answers.", "Resolve missing source categories or incomplete content before launch."),
+                    new VerificationStepDefinition("storefront-widget-enabled", "Storefront surfaces enabled", "Confirm storefront widget or app embed is enabled.", "Enable the Shopify app embed and place the configured app blocks."),
+                    new VerificationStepDefinition("elite-package-profile", "Elite package profile", "Confirm the store is configured with the Elite package profile and Elite verification pack.", "Apply the Elite package profile from Platform before launch."),
+                    new VerificationStepDefinition("partner-product-control-assignment", "Partner product-control assignment", "Confirm partner assignment includes product-control and support capabilities.", "Regrant product-control assignment permissions from Platform."),
+                    new VerificationStepDefinition("elite-surface-posture", "Elite surface posture", "Confirm Elite configured surfaces are known product surfaces or governed Elite surfaces.", "Remove unknown storefront surfaces or remap the store to the correct package profile."),
+                    new VerificationStepDefinition("evidence-contract-safe", "Evidence contract safe", "Confirm generated evidence is merchant-safe.", "Regenerate evidence through the partner bundle exporter.")
+                )
             )
         );
     }
 
     private VerificationPack defaultVerificationPack() {
         return verificationPacks().get(0);
+    }
+
+    private VerificationPack defaultVerificationPack(PartnerShopifyStoreReadModel store) {
+        String configuredPackId = store == null || store.packageProfile() == null
+            ? null
+            : trimToNull(store.packageProfile().verificationPackId());
+        if (configuredPackId != null) {
+            return verificationPacks().stream()
+                .filter(pack -> pack.id().equals(configuredPackId))
+                .findFirst()
+                .orElseGet(this::defaultVerificationPack);
+        }
+        if (store != null && containsForbiddenSurface(storeConfiguredSurfaces(store))) {
+            return verificationPack("shopify-companion-elite-readiness");
+        }
+        return defaultVerificationPack();
     }
 
     private VerificationPack verificationPack(String packId) {
@@ -1498,6 +1537,55 @@ public class PartnerEnablementService {
                 status = "PASSED";
                 message = "Evidence bundle output is generated from partner-safe store, run, and support summary fields.";
                 evidence = List.of("redaction=merchant-safe", "shop=" + assignment.getShopDomain());
+            }
+            case "elite-package-profile" -> {
+                PartnerProductPackageSummary profile = store.packageProfile();
+                boolean elite = profile != null
+                    && ("ELITE".equalsIgnoreCase(profile.packageKey()) || "ELITE".equalsIgnoreCase(profile.tierKey()));
+                boolean packMatches = profile != null
+                    && "shopify-companion-elite-readiness".equals(profile.verificationPackId());
+                status = elite && packMatches ? "PASSED" : "FAILED";
+                message = status.equals("PASSED")
+                    ? "Elite package profile and verification pack are configured."
+                    : "Elite readiness requires the store package profile to resolve to the Elite verification pack.";
+                evidence = List.of(
+                    "packageKey=" + safeEvidenceValue(profile == null ? null : profile.packageKey()),
+                    "tierKey=" + safeEvidenceValue(profile == null ? null : profile.tierKey()),
+                    "verificationPackId=" + safeEvidenceValue(profile == null ? null : profile.verificationPackId())
+                );
+            }
+            case "partner-product-control-assignment" -> {
+                List<String> capabilities = productControlCapabilities(assignment);
+                List<String> required = List.of(
+                    "PRODUCT_CONFIG_READ",
+                    "STOREFRONT_SURFACE_CONTROL",
+                    "KNOWLEDGE_SOURCE_CONTROL",
+                    "SUPPORT_MANAGE"
+                );
+                boolean complete = capabilities.containsAll(required);
+                status = complete ? "PASSED" : "FAILED";
+                message = status.equals("PASSED")
+                    ? "Partner assignment includes product-control and support capabilities."
+                    : "Partner assignment is missing required product-control or support capabilities.";
+                evidence = List.of("capabilities=" + String.join(",", capabilities));
+            }
+            case "elite-surface-posture" -> {
+                List<String> configuredSurfaces = storeConfiguredSurfaces(store);
+                List<String> catalogSurfaces = catalogSource.listCatalog().stream()
+                    .map(PartnerCatalogEntrySummary::surfaceId)
+                    .toList();
+                boolean hasSearch = configuredSurfaces.contains("ai-search");
+                List<String> unknown = configuredSurfaces.stream()
+                    .filter(surface -> !catalogSurfaces.contains(surface) && !ELITE_PARTNER_SURFACES.contains(surface))
+                    .toList();
+                status = hasSearch && unknown.isEmpty() ? "PASSED" : "FAILED";
+                message = status.equals("PASSED")
+                    ? "Elite surfaces are configured from known product and governed Elite surfaces."
+                    : "Elite surfaces include unknown entries or are missing AI search.";
+                evidence = List.of(
+                    "enabledSurfaces=" + String.join(",", configuredSurfaces),
+                    "unknownSurfaces=" + String.join(",", unknown)
+                );
             }
             default -> {
                 status = "BLOCKED";

@@ -477,26 +477,28 @@ class PartnerEnablementIntegrationTest {
         mockMvc.perform(get("/api/partners/verification-packs")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].id", is("starter-launch-readiness")));
+            .andExpect(jsonPath("$[0].id", is("starter-launch-readiness")))
+            .andExpect(jsonPath("$[*].id", hasItem("shopify-companion-elite-readiness")));
 
         mockMvc.perform(get("/api/partners/stores/{storeId}/verification-pack", assignmentId)
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id", is("starter-launch-readiness")))
-            .andExpect(jsonPath("$.steps[?(@.stepId == 'starter-read-only-boundary')].status", hasItem("PASSED")));
+            .andExpect(jsonPath("$.id", is("shopify-companion-elite-readiness")))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'elite-package-profile')].status", hasItem("PASSED")))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'partner-product-control-assignment')].status", hasItem("PASSED")));
 
         var verificationResult = mockMvc.perform(post("/api/partners/stores/{storeId}/verification-runs", assignmentId)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "packId": "starter-launch-readiness"
+                      "packId": "shopify-companion-elite-readiness"
                     }
                     """))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.status", is("PASSED")))
             .andExpect(jsonPath("$.evidenceBundleId", notNullValue()))
-            .andExpect(jsonPath("$.steps[?(@.stepId == 'free-ai-search-boundary')].status", hasItem("PASSED")))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'elite-surface-posture')].status", hasItem("PASSED")))
             .andReturn();
         String verificationRunId = JsonPath.read(verificationResult.getResponse().getContentAsString(), "$.id");
         String evidenceBundleId = JsonPath.read(verificationResult.getResponse().getContentAsString(), "$.evidenceBundleId");
