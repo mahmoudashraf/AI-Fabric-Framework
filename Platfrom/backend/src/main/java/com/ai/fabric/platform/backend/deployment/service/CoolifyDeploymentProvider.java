@@ -373,13 +373,25 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         String configured = text(resourceDefaults, "domain", null);
         if (StringUtils.hasText(configured)) {
-            return configured;
+            return normalizeCoolifyDomain(configured, config.forceHttps());
         }
         String suffix = config.defaultPublicDomainSuffix();
         if (!StringUtils.hasText(suffix)) {
             return null;
         }
-        return normalizeName(deployment.getId()) + "." + suffix;
+        return normalizeCoolifyDomain(normalizeName(deployment.getId()) + "." + suffix, config.forceHttps());
+    }
+
+    private String normalizeCoolifyDomain(String domain, boolean forceHttps) {
+        if (!StringUtils.hasText(domain)) {
+            return null;
+        }
+        String trimmed = domain.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
+        }
+        String scheme = forceHttps ? "https://" : "http://";
+        return scheme + trimmed;
     }
 
     private CoolifyConnection connectionForHandle(DeploymentProviderResourceHandleEntity handle) {

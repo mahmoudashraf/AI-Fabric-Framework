@@ -369,3 +369,16 @@ Rules:
 - Verification passed: focused Maven suite for target profiles, migration seeds, verification-suite property behavior, and rebase-conflicted verification-suite tests; Terraform `init -backend=false`, `fmt -check -recursive`, and `validate`; shell syntax checks for Hetzner helper scripts and Coolify bootstrap template.
 - Blockers: DNS is still skipped; Coolify app lifecycle, GHCR credentials, provider API calls, backups/restore rehearsal, and stronger dashboard/API protection are future slices.
 - Next handoff: Slice 2 can add a Coolify provider adapter skeleton behind the registry, but should still avoid creating application resources until source artifact and credential contracts are finalized.
+
+## 2026-05-01 Coolify 007 Strict Smoke Unblock
+
+- Continued from the strict staging app smoke failure on `Platform-V8`; no secrets were intentionally printed or committed. Local secret files remain `/tmp/hetzner_cloud_token.secret`, `/tmp/coolify_api_tokens.env`, and `/tmp/coolify_admin_credentials.env`.
+- Root cause of the failed strict smoke: `coolify-proxy` was not running, and the hardened Coolify SSH user `loomops` could not traverse `/data/coolify` parent directories, so deployment jobs failed writing generated app compose files with `Permission denied`.
+- Live host fix applied to staging and production: started `coolify-proxy` from `/data/coolify/proxy`, added ACLs granting `loomops` access to `/data/coolify` resource directories, and confirmed both proxies are healthy.
+- Reproducibility changes: cloud-init and API fallback bootstrap now install `acl`, configure Coolify deployment-user ACLs for applications/databases/services directories, and start the bundled proxy during bootstrap.
+- Provider/script changes: Coolify provider now normalizes generated or configured domains to URL form (`http://`/`https://`) before API create/update; strict smoke uses temporary `sslip.io` domains and waits for delete cleanup confirmation.
+- Added migration `V77__coolify_temporary_sslip_runtime_domains.sql` to replace inactive Coolify profile default domain suffixes with temporary `sslip.io` suffixes until `loomai.pro` DNS automation is available.
+- Changed files: Coolify provider/test, target-profile migration/test, Hetzner bootstrap/API fallback/README, Coolify verifier script, `007` roadmap, and this working context.
+- Verification passed: shell syntax checks for Coolify/Hetzner scripts/templates; Terraform `fmt -check` and `validate`; focused Maven `CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest`; `git diff --check`; changed/untracked mixed long-token scan; staging/prod proxy health check; strict live Coolify smoke; post-smoke staging app count `0`.
+- Live verification passed: `COOLIFY_STRICT_APPLICATION_SMOKE=true scripts/verify-coolify-provider.sh` created, started, observed `running:unknown`, and deleted a disposable staging `nginx` app; staging returned to zero apps afterward.
+- Remaining blockers: custom DNS is still skipped, GHCR read credentials/host registry auth are not configured, Coolify backup/restore rehearsal is pending, Coolify target profiles remain inactive, and frontend operator UI integration is not implemented.

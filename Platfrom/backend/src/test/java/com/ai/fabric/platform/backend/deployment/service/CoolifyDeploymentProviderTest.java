@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderRe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CoolifyDeploymentProviderTest {
@@ -60,7 +62,7 @@ class CoolifyDeploymentProviderTest {
         CoolifyApplicationSummary application = new CoolifyApplicationSummary(
             "app-uuid",
             "ai-fabric-runtime-dep-123",
-            "dep-123.runtime.example.test",
+            "http://dep-123.runtime.example.test",
             "running",
             "ghcr.io/example/runtime",
             "sha",
@@ -98,8 +100,12 @@ class CoolifyDeploymentProviderTest {
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
 
         assertThat(result.target()).isEqualTo("COOLIFY");
-        assertThat(result.runtimeBaseUrl()).isEqualTo("https://dep-123.runtime.example.test");
+        assertThat(result.runtimeBaseUrl()).isEqualTo("http://dep-123.runtime.example.test");
         assertThat(result.detailsJson()).contains("providerResourceHandleId", "app-uuid", "dsa-123");
+        ArgumentCaptor<CoolifyCreateDockerImageApplicationRequest> request =
+            ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
+        verify(coolifyApiClient).createDockerImageApplication(eq(connection), request.capture());
+        assertThat(request.getValue().domains()).isEqualTo("http://dep-123.runtime.example.test");
     }
 
     private DeploymentEntity deployment() {

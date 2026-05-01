@@ -11,7 +11,7 @@ Managed resources:
 - production server: `coolify-prod-01`, `ccx23`, Ubuntu 24.04
 - optional attached data volumes
 - DNS `A`/`AAAA` record plan outputs for `coolify.ops.loomai.pro`, `*.runtime.loomai.pro`, and `*.runtime-staging.loomai.pro`
-- cloud-init bootstrap for SSH hardening, updates, base tools, UFW, Coolify install, production `AUTOUPDATE=false`, and status logging
+- cloud-init bootstrap for SSH hardening, updates, base tools, UFW, Coolify install, production `AUTOUPDATE=false`, local deployment-user ACLs, proxy start, and status logging
 
 DNS is intentionally output-only in this slice because no DNS-provider credential was available in local context. Add a provider-specific DNS module only after credentials are available through secret-safe handling.
 
@@ -162,6 +162,10 @@ Coolify API/control-plane bootstrap values:
 
 The built-in Coolify server records were switched from root SSH to the hardened `loomops` user. Server validation currently reports `is_reachable=true` and `is_usable=true` for both hosts. The host firewall/fail2ban configuration allows the local Coolify Docker address pool for self-validation while keeping external SSH and dashboard access restricted to the setup allowlist.
 
+The bootstrap now grants the Coolify SSH deployment user ACL access to the local `/data/coolify` resource directories and starts the bundled proxy from `/data/coolify/proxy`. The same ACL/proxy fix was applied live on staging and production on 2026-05-01; both `coolify-proxy` containers are healthy.
+
+Until DNS credentials or delegation are available, disposable staging app smoke tests use temporary `sslip.io` domains under `*.46.224.145.148.sslip.io`. Replace the seeded temporary suffixes with `*.runtime-staging.loomai.pro` and `*.runtime.loomai.pro` after DNS automation is active.
+
 Terraform adoption status:
 
 - Terraform `1.6.6` was installed into `/tmp/codex-tools/bin` after local caches were cleaned for disk space.
@@ -172,6 +176,11 @@ Terraform adoption status:
 - The server resource ignores imported create-time fields (`network`, `public_net`, `ssh_keys`, `user_data`) so adopted hosts are not replaced by later plans.
 
 Planned DNS records still need the active DNS provider credential for `loomai.pro`, whose current nameservers are `dns1.registrar-servers.com` and `dns2.registrar-servers.com`.
+
+Strict live provider smoke status:
+
+- staging disposable app create/start/status/delete now passes through `scripts/verify-coolify-provider.sh` with `COOLIFY_STRICT_APPLICATION_SMOKE=true`.
+- cleanup confirms staging returns to zero applications after the smoke app is deleted.
 
 ## Slice 1 Plan
 

@@ -92,6 +92,26 @@ systemctl enable --now unattended-upgrades || true
 mkdir -p /data/coolify /var/lib/loom-coolify
 chmod 0755 /data/coolify /var/lib/loom-coolify
 
+configure_coolify_deployment_user() {
+  mkdir -p /data/coolify/applications /data/coolify/databases /data/coolify/services /data/coolify/proxy
+  if command -v setfacl >/dev/null 2>&1; then
+    setfacl -m "u:$${ADMIN_USER}:rx" /data/coolify
+    setfacl -m "u:$${ADMIN_USER}:rwx" /data/coolify/applications /data/coolify/databases /data/coolify/services
+    setfacl -d -m "u:$${ADMIN_USER}:rwx" /data/coolify/applications /data/coolify/databases /data/coolify/services
+  else
+    chgrp "$ADMIN_USER" /data/coolify /data/coolify/applications /data/coolify/databases /data/coolify/services
+    chmod 0750 /data/coolify
+    chmod 0770 /data/coolify/applications /data/coolify/databases /data/coolify/services
+  fi
+}
+
+start_coolify_proxy() {
+  if [[ -d /data/coolify/proxy ]] \
+    && { compgen -G "/data/coolify/proxy/*compose*.yml" >/dev/null || compgen -G "/data/coolify/proxy/*compose*.yaml" >/dev/null; }; then
+    (cd /data/coolify/proxy && docker compose up -d)
+  fi
+}
+
 if [[ "$INSTALL_COOLIFY" == "true" ]]; then
   write_status "coolify" "running" "installing Coolify"
   curl -fsSL "$COOLIFY_INSTALL_URL" -o /tmp/coolify-install.sh
@@ -105,6 +125,10 @@ if [[ "$INSTALL_COOLIFY" == "true" ]]; then
   if getent group docker >/dev/null; then
     usermod -aG docker "$ADMIN_USER"
   fi
+  write_status "coolify_permissions" "running" "configuring Coolify deployment user access"
+  configure_coolify_deployment_user
+  write_status "coolify_proxy" "running" "starting Coolify HTTP proxy"
+  start_coolify_proxy
 else
   write_status "coolify" "skipped" "install_coolify=false"
 fi

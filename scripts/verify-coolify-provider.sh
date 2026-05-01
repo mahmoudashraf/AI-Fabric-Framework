@@ -15,6 +15,7 @@ STAGING_DESTINATION_UUID="${COOLIFY_STAGING_DESTINATION_UUID:-xjhfu65nacrr30xax5
 SMOKE_IMAGE="${COOLIFY_SMOKE_IMAGE:-nginx}"
 SMOKE_IMAGE_TAG="${COOLIFY_SMOKE_IMAGE_TAG:-latest}"
 SMOKE_PORT="${COOLIFY_SMOKE_PORT:-80}"
+SMOKE_DOMAIN_SUFFIX="${COOLIFY_SMOKE_DOMAIN_SUFFIX:-46.224.145.148.sslip.io}"
 
 if [[ -f "${TOKEN_FILE}" ]]; then
   set -a
@@ -140,7 +141,7 @@ PY
 run_staging_smoke() {
   local token="$1"
   local name="codex-coolify-smoke-$(date +%s)"
-  local domain="${name}.46.224.145.148.sslip.io"
+  local domain="http://${name}.${SMOKE_DOMAIN_SUFFIX}"
   local body
   local uuid
   body="$(create_smoke_body "${name}" "${domain}")"
@@ -150,9 +151,21 @@ run_staging_smoke() {
     exit 1
   fi
 
+  wait_for_smoke_delete() {
+    for _ in $(seq 1 24); do
+      if ! curl_json GET "${STAGING_BASE_URL}" "${token}" "/applications/${uuid}" >/dev/null 2>&1; then
+        echo "[coolify] staging smoke cleanup confirmed."
+        return
+      fi
+      sleep 2
+    done
+    echo "WARN: Coolify staging smoke cleanup did not confirm deletion before timeout. uuid=${uuid}" >&2
+  }
+
   cleanup_smoke() {
     if [[ "${KEEP_SMOKE_APP}" != "true" ]]; then
       curl_json DELETE "${STAGING_BASE_URL}" "${token}" "/applications/${uuid}?delete_configurations=true&delete_volumes=true&docker_cleanup=true&delete_connected_networks=true" >/dev/null 2>&1 || true
+      wait_for_smoke_delete
     fi
   }
   trap cleanup_smoke EXIT

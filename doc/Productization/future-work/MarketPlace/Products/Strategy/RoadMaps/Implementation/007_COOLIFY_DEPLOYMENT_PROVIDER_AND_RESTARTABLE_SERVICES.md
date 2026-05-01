@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core partially implemented 2026-05-01)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented and strict staging Coolify smoke passed 2026-05-01)
 
 Owner mode: technical LLM implementation session
 
@@ -1814,6 +1814,8 @@ Live resources created:
 - SSH root login and password login disabled; UFW active on both hosts
 - current firewall allows SSH and Coolify port `8000` only from the operator public IP used during setup, and allows public HTTP/HTTPS
 - host UFW/fail2ban allow the local Coolify Docker address pool for self-validation after root SSH was disabled
+- Coolify proxy is running and healthy on both hosts
+- Coolify SSH deployment user ACL access is configured for local `/data/coolify` resource directories so Docker-image app deployments can write generated compose files
 - local ignored Terraform state now contains the live SSH key, firewall, network, subnet, staging server, and production server
 - Terraform server resources ignore imported create-time fields (`network`, `public_net`, `ssh_keys`, `user_data`) to avoid replacing adopted hosts
 
@@ -1836,6 +1838,7 @@ Verification completed:
 - root-user registration forms are gone; login forms are present after generated root-user creation
 - Coolify API `/api/v1/version` returned `4.0.0` on both hosts
 - Coolify API server readback confirmed `user=loomops`, `is_reachable=true`, and `is_usable=true` on both hosts
+- strict staging disposable Docker-image smoke passed after the proxy/ACL fix: app creation, deployment, `running:unknown` status, HTTP routing through `sslip.io`, and cleanup confirmation
 
 Verification blocked:
 
@@ -1892,7 +1895,7 @@ Next handoff:
 
 ## 2026-05-01 Slice 2/3 Backend Provider Core
 
-Status: backend provider core implemented and locally testable; full production tenant runtime rollout remains blocked by DNS/GHCR/runtime-health gates.
+Status: backend provider core implemented and locally/live testable; full production tenant runtime rollout remains blocked by DNS/GHCR/backup-hardening gates.
 
 Implemented:
 
@@ -1914,12 +1917,14 @@ Live validation:
 - Non-strict verifier passed against staging and production Coolify hosts:
   - staging `version=4.0.0`, `health=OK`, `applications=0`
   - production `version=4.0.0`, `health=OK`, `applications=0`
-- Strict disposable staging smoke creates, starts, and deletes an app, but the app did not report `running`/healthy before timeout. Cleanup left staging with zero applications. Treat this as a remaining runtime smoke blocker before accepting Slice 3 as fully live.
+- Strict disposable staging smoke now creates, starts, observes `running:unknown`, and deletes an app. Cleanup confirms staging returns to zero applications.
+- The smoke unblock required starting `coolify-proxy` and granting the hardened Coolify SSH user ACL access to `/data/coolify` resource directories; both are now encoded in host bootstrap.
+- Temporary app routing uses `sslip.io` until the planned `loomai.pro` runtime wildcard DNS records are automated.
 
 Remaining blockers:
 
 - Custom DNS was intentionally skipped; without runtime DNS/FQDN, tenant runtime post-apply verification cannot be considered production-ready.
 - GHCR read credential and host registry auth are not configured in Coolify yet.
-- Coolify target profiles remain inactive in seed data until staging runtime smoke, GHCR auth, DNS, backup/restore, and dashboard/API hardening gates are complete.
+- Coolify target profiles remain inactive in seed data until GHCR auth, DNS replacement for temporary `sslip.io`, backup/restore, and dashboard/API hardening gates are complete.
 - Backup/restore rehearsal for Coolify state, APP_KEY, SSH keys, and app volumes is still pending.
 - Operator UI integration is API-ready but not implemented in the frontend.
