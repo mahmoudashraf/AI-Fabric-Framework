@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, and late verification reconciliation added 2026-05-01)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification reconciliation added, and Coolify runtime-settle wait added 2026-05-01)
 
 Owner mode: technical LLM implementation session
 
@@ -2079,3 +2079,33 @@ Updated remaining gates before production tenant acceptance:
 - Complete backup/restore rehearsal for Coolify state, `APP_KEY`, SSH keys, and app data.
 - Harden production dashboard/API exposure before activating `dtp-coolify-production`.
 - Add operator UI wiring for target-profile activation, preflight, provider resource status/logs/actions, and cleanup.
+
+---
+
+## 2026-05-01 Coolify Runtime Settle Before Verification
+
+Status: implemented locally after a live disposable Platform smoke reproduced the Coolify start/health timing issue.
+
+Live finding:
+
+- Disposable deployment `dep-dee1b7a8`, version `ver-1d0e1831`, and release `rel-199dae14` created a real Coolify app and route.
+- Initial Platform verification failed while Coolify still reported the app unhealthy.
+- The public runtime health endpoint later returned HTTP `200`, but an immediate deep verification recheck still failed because the app had not fully settled for all runtime/admin checks.
+- Cleanup was completed: the Coolify app was deleted, staging app count returned to `0`, Platform deployment hard-delete queued as `del-fb48bb46`, and provider resources for `dep-dee1b7a8` returned `0`.
+
+Implemented:
+
+- `CoolifyDeploymentProvider.provision(...)` now adds a `wait_for_coolify_runtime` progress step after `trigger_coolify_deploy`.
+- The provider polls the Coolify application until the status is running and not unhealthy before handing off to Platform release verification.
+- The wait is bounded by `deploySettleTimeoutSeconds` and `deploySettlePollSeconds` resource defaults, with conservative built-in defaults when the target profile does not specify them.
+- Provider resource handles now record `ACTIVE` when the observed Coolify application is already running at handoff.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest,DeploymentReleaseRecoveryServiceTest test`
+
+Next live proof:
+
+- Deploy this provider-settle patch to live Platform.
+- Rerun one disposable `dtp-coolify-staging` Platform apply.
+- Confirm the release reaches `APPLIED_VERIFIED` without racing runtime startup, then clean up the Platform deployment and Coolify app.

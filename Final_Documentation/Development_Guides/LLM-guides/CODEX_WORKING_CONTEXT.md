@@ -426,3 +426,12 @@ Rules:
 - Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentReleaseRecoveryServiceTest test`; focused Coolify/profile/recovery Maven suite; backend compile; `git diff --check`.
 - Changed files: `DeploymentVerificationRunRepository.java`, `DeploymentReleaseRecoveryService.java`, `DeploymentReleaseRecoveryServiceTest.java`, `007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md`, and this context file.
 - Next handoff: push/deploy this reconciliation patch, rerun a disposable staging Platform apply if needed, trigger verification recheck plus release reconcile, then confirm the release reaches `APPLIED_VERIFIED` before cleanup. Production remains gated by real DNS, backup/restore rehearsal, production API/dashboard hardening, and operator UI wiring.
+
+## 2026-05-01 Coolify 007 Provider Readiness Settle
+
+- Commit `747dcec7c` pushed the late-verification reconciliation patch to `Platform-V8`.
+- Live disposable Platform smoke `dep-dee1b7a8` / release `rel-199dae14` reproduced a deeper provider timing issue: Coolify `start` returned before the app was settled, Platform verification ran while Coolify still reported the app as unhealthy, and a later runtime health HTTP 200 was not enough for immediate deep verification to pass.
+- Cleanup completed for that smoke: direct Coolify app cleanup returned staging app count to `0`; Platform deployment hard-delete queued as `del-fb48bb46`; follow-up resource list for `dep-dee1b7a8` returned `0`.
+- Provider fix in progress: `CoolifyDeploymentProvider.provision(...)` now adds a bounded `wait_for_coolify_runtime` step after `trigger_coolify_deploy`, polling Coolify until status is running and not unhealthy before returning to Platform release verification; resource handles become `ACTIVE` when the observed app is ready.
+- Verification passed for the provider-settle patch: focused Coolify/profile/recovery Maven suite.
+- Security note: do not print raw Coolify application JSON during future live checks; use only safe Platform status summaries or filtered fields.

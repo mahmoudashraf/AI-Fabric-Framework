@@ -152,10 +152,10 @@ class CoolifyDeploymentProviderTest {
             "app-uuid",
             "runtime-dep-123",
             "http://dep-123.runtime.example.test",
-            "created",
+            "running:healthy",
             null,
             null,
-            objectMapper.readTree("{\"uuid\":\"app-uuid\",\"status\":\"created\"}")
+            objectMapper.readTree("{\"uuid\":\"app-uuid\",\"status\":\"running:healthy\"}")
         );
 
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));

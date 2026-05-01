@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -40,6 +41,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private static final String RESOURCE_KIND_APPLICATION = "APPLICATION";
     private static final String DEFAULT_SERVICE_NAME = "ai-fabric-runtime";
     private static final String DEFAULT_PROMOTION_CHANNEL = "staging";
+    private static final Duration DEFAULT_DEPLOY_SETTLE_TIMEOUT = Duration.ofMinutes(6);
+    private static final Duration DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL = Duration.ofSeconds(10);
 
     private final DeploymentTargetProfileRepository targetProfileRepository;
     private final DeploymentProviderResourceHandleRepository resourceHandleRepository;
@@ -146,7 +149,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             () -> coolifyApiClient.start(connection, application.uuid(), true, true)
         );
 
-        CoolifyApplicationSummary observed = coolifyApiClient.getApplication(connection, application.uuid()).orElse(application);
+        CoolifyApplicationSummary observed = tracked(
+            progressTracker,
+            "wait_for_coolify_runtime",
+            "Wait for Coolify to report the application running before Platform verification.",
+            () -> waitForApplicationReady(connection, application.uuid(), resourceDefaults, application)
+        );
         DeploymentProviderResourceHandleEntity handle = tracked(
             progressTracker,
             "record_coolify_handle",
@@ -157,7 +165,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
         String runtimeBaseUrl = normalizeRuntimeBaseUrl(observed.fqdn());
         return new ProvisioningResult(
-            "DEPLOY_REQUESTED",
+            applicationReady(observed) ? "ACTIVE" : "DEPLOY_REQUESTED",
             DeploymentProviderType.COOLIFY.legacyTarget(),
             runtimeBaseUrl,
             runtimeBaseUrl,
@@ -448,7 +456,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         handle.setProviderEnvironmentUuid(config.environmentUuid());
         handle.setProviderServerUuid(config.serverUuid());
         handle.setFqdn(application.fqdn());
-        handle.setStatus("DEPLOY_REQUESTED");
+        handle.setStatus(applicationReady(application) ? "ACTIVE" : "DEPLOY_REQUESTED");
         handle.setLastObservedStatus(application.status());
         handle.setLastObservedAt(now);
         handle.setMetadataJson(handleMetadata(application, source, envCount, deployResponse));
@@ -591,6 +599,45 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             return normalizeName(source.runtimePlan().serviceName());
         }
         return normalizeName("ai-fabric-runtime-" + deployment.getId());
+    }
+
+    private CoolifyApplicationSummary waitForApplicationReady(CoolifyConnection connection,
+                                                              String applicationUuid,
+                                                              JsonNode resourceDefaults,
+                                                              CoolifyApplicationSummary fallback) {
+        Duration timeout = durationSeconds(resourceDefaults, "deploySettleTimeoutSeconds", DEFAULT_DEPLOY_SETTLE_TIMEOUT);
+        Duration pollInterval = durationSeconds(resourceDefaults, "deploySettlePollSeconds", DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL);
+        Instant deadline = Instant.now().plus(timeout);
+        CoolifyApplicationSummary latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(fallback);
+        while (!applicationReady(latest) && Instant.now().isBefore(deadline)) {
+            try {
+                Thread.sleep(pollInterval.toMillis());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return latest;
+            }
+            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
+        }
+        return latest;
+    }
+
+    private Duration durationSeconds(JsonNode root, String field, Duration fallback) {
+        if (root == null || !root.has(field)) {
+            return fallback;
+        }
+        long seconds = root.path(field).asLong(fallback.toSeconds());
+        if (seconds <= 0) {
+            return Duration.ZERO;
+        }
+        return Duration.ofSeconds(seconds);
+    }
+
+    private boolean applicationReady(CoolifyApplicationSummary application) {
+        if (application == null || !StringUtils.hasText(application.status())) {
+            return false;
+        }
+        String normalized = normalizeStatus(application.status(), "");
+        return normalized.startsWith("RUNNING") && !normalized.contains("UNHEALTHY");
     }
 
     private String normalizeName(String value) {
