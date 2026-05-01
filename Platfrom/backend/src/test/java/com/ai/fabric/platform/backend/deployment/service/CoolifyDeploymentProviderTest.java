@@ -209,6 +209,98 @@ class CoolifyDeploymentProviderTest {
         verifyNoInteractions(sourceArtifactService);
     }
 
+    @Test
+    void statusRedactsRawCoolifySecrets() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "project",
+                "staging",
+                "env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        CoolifyApplicationSummary application = new CoolifyApplicationSummary(
+            "app-uuid",
+            "runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running:healthy",
+            null,
+            null,
+            objectMapper.readTree("""
+                {
+                  "uuid": "app-uuid",
+                  "name": "runtime-dep-123",
+                  "status": "running:healthy",
+                  "fqdn": "http://dep-123.runtime.example.test",
+                  "git_branch": "Platform-V8",
+                  "manual_webhook_secret_github": "should-not-leak",
+                  "destination": {
+                    "uuid": "destination-uuid",
+                    "network": "coolify",
+                    "server": {
+                      "uuid": "server-uuid",
+                      "name": "localhost",
+                      "settings": {
+                        "sentinel_token": "should-not-leak-either"
+                      }
+                    }
+                  }
+                }
+                """)
+        );
+        DeploymentProviderResourceHandleEntity handle = new DeploymentProviderResourceHandleEntity();
+        handle.setId("dprh-123");
+        handle.setProviderType(DeploymentProviderType.COOLIFY);
+        handle.setProviderResourceUuid("app-uuid");
+        handle.setTargetProfileId("dtp-coolify-staging");
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.getApplication(connection, "app-uuid")).thenReturn(Optional.of(application));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            objectMapper
+        );
+
+        var summary = provider.status(handle);
+
+        assertThat(summary.status()).isEqualTo("RUNNING_HEALTHY");
+        assertThat(summary.details().path("git_branch").asText()).isEqualTo("Platform-V8");
+        assertThat(summary.details().path("destinationUuid").asText()).isEqualTo("destination-uuid");
+        assertThat(summary.details().path("serverUuid").asText()).isEqualTo("server-uuid");
+        assertThat(summary.details().toString())
+            .doesNotContain("should-not-leak")
+            .doesNotContain("manual_webhook_secret")
+            .doesNotContain("sentinel_token");
+    }
+
     private DeploymentEntity deployment() {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-123");

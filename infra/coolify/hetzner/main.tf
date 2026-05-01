@@ -74,6 +74,30 @@ resource "hcloud_firewall" "coolify" {
   }
 }
 
+resource "hcloud_firewall" "coolify_staging_platform_api" {
+  count = length(var.staging_platform_api_allowed_cidrs) > 0 ? 1 : 0
+
+  name = "loom-coolify-staging-platform-api-firewall"
+  labels = merge(
+    local.common_labels,
+    {
+      "loom.environment" = "staging"
+      "loom.purpose"     = "platform-api-access"
+    }
+  )
+
+  dynamic "rule" {
+    for_each = toset(var.coolify_dashboard_ports)
+
+    content {
+      direction  = "in"
+      protocol   = "tcp"
+      port       = rule.value
+      source_ips = var.staging_platform_api_allowed_cidrs
+    }
+  }
+}
+
 resource "hcloud_server" "coolify" {
   for_each = local.hosts
 
@@ -83,9 +107,12 @@ resource "hcloud_server" "coolify" {
   location    = var.location
   backups     = var.enable_server_backups
   ssh_keys    = [hcloud_ssh_key.operator.id]
-  firewall_ids = [
-    hcloud_firewall.coolify.id
-  ]
+  firewall_ids = concat(
+    [hcloud_firewall.coolify.id],
+    each.key == "staging" && length(var.staging_platform_api_allowed_cidrs) > 0
+    ? [hcloud_firewall.coolify_staging_platform_api[0].id]
+    : []
+  )
 
   public_net {
     ipv4_enabled = true
@@ -100,12 +127,16 @@ resource "hcloud_server" "coolify" {
   user_data = templatefile("${path.module}/cloud-init/coolify-host.yaml.tftpl", {
     admin_user = var.admin_user
     bootstrap_script = indent(6, templatefile("${path.module}/cloud-init/coolify-bootstrap.sh.tftpl", {
-      bootstrap_log_path       = "/var/log/loom-coolify-bootstrap.log"
-      bootstrap_status_path    = "/var/lib/loom-coolify/bootstrap-status.json"
-      admin_user               = var.admin_user
-      coolify_autoupdate       = tostring(each.value.autoupdate)
-      coolify_install_url      = var.coolify_install_url
-      dashboard_allowed_cidrs  = jsonencode(var.dashboard_allowed_cidrs)
+      bootstrap_log_path    = "/var/log/loom-coolify-bootstrap.log"
+      bootstrap_status_path = "/var/lib/loom-coolify/bootstrap-status.json"
+      admin_user            = var.admin_user
+      coolify_autoupdate    = tostring(each.value.autoupdate)
+      coolify_install_url   = var.coolify_install_url
+      dashboard_allowed_cidrs = jsonencode(
+        each.key == "staging"
+        ? distinct(concat(var.dashboard_allowed_cidrs, var.staging_platform_api_allowed_cidrs))
+        : var.dashboard_allowed_cidrs
+      )
       dashboard_ports          = jsonencode(var.coolify_dashboard_ports)
       docker_address_pool_base = var.docker_address_pool_base
       docker_address_pool_size = tostring(var.docker_address_pool_size)

@@ -48,6 +48,7 @@ Edit `terraform.tfvars`:
 - set `ssh_public_key` to the operator public key
 - set `ssh_allowed_cidrs` to operator, VPN, or Tailscale egress CIDRs
 - set `dashboard_allowed_cidrs` only when the dashboard/API allowlist is ready
+- set `staging_platform_api_allowed_cidrs` only when the Railway/Platform control plane must reach the staging Coolify API directly; prefer a narrow egress CIDR, and use `0.0.0.0/0` only as a temporary staging unblock when there is no stable egress IP
 - enable `enable_data_volumes` only when the mount and backup policy is ready
 
 The default location is `nbg1`. Use `fsn1` instead if project capacity or latency makes it preferable.
@@ -174,6 +175,7 @@ Terraform adoption status:
 - `terraform apply` was run only for the saved in-place firewall convergence plan: `0 added, 1 changed, 0 destroyed`.
 - Post-apply `terraform plan -detailed-exitcode` returned `0`.
 - The server resource ignores imported create-time fields (`network`, `public_net`, `ssh_keys`, `user_data`) so adopted hosts are not replaced by later plans.
+- A staging-only Platform API firewall was added live on 2026-05-01 as `loom-coolify-staging-platform-api-firewall` (`10916648`) and attached only to `coolify-staging-01`; staging host UFW allows port `8000/tcp` from anywhere for Railway-originated Platform preflight/provisioning until a stable control-plane egress CIDR or stronger access layer is available. Production remains behind the original shared dashboard allowlist.
 
 Planned DNS records still need the active DNS provider credential for `loomai.pro`, whose current nameservers are `dns1.registrar-servers.com` and `dns2.registrar-servers.com`.
 

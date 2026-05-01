@@ -208,7 +208,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             normalizeStatus(application.status(), "OBSERVED"),
             application.status(),
             application.fqdn(),
-            application.raw(),
+            safeApplicationDetails(application),
             Instant.now()
         );
     }
@@ -664,9 +664,49 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             status,
             message,
             providerOperationId,
-            details == null ? objectMapper.createObjectNode() : details,
+            safeActionDetails(details),
             Instant.now()
         );
+    }
+
+    private JsonNode safeApplicationDetails(CoolifyApplicationSummary application) {
+        ObjectNode details = objectMapper.createObjectNode();
+        putIfText(details, "uuid", application.uuid());
+        putIfText(details, "name", application.name());
+        putIfText(details, "status", application.status());
+        putIfText(details, "fqdn", application.fqdn());
+        putIfText(details, "imageRepository", application.imageRepository());
+        putIfText(details, "imageTag", application.imageTag());
+
+        JsonNode raw = application.raw();
+        copyText(raw, details, "git_repository");
+        copyText(raw, details, "git_branch");
+        copyText(raw, details, "build_pack");
+        copyText(raw, details, "base_directory");
+        copyText(raw, details, "dockerfile_location");
+        copyText(raw, details, "ports_exposes");
+        copyText(raw, details, "health_check_enabled");
+        copyText(raw, details, "health_check_path");
+        copyText(raw, details, "health_check_port");
+        copyText(raw, details, "created_at");
+        copyText(raw, details, "updated_at");
+        putIfText(details, "destinationUuid", raw.path("destination").path("uuid").asText(null));
+        putIfText(details, "destinationNetwork", raw.path("destination").path("network").asText(null));
+        putIfText(details, "serverUuid", raw.path("destination").path("server").path("uuid").asText(null));
+        putIfText(details, "serverName", raw.path("destination").path("server").path("name").asText(null));
+        return details;
+    }
+
+    private JsonNode safeActionDetails(JsonNode raw) {
+        ObjectNode details = objectMapper.createObjectNode();
+        if (raw == null || raw.isMissingNode() || raw.isNull()) {
+            return details;
+        }
+        copyText(raw, details, "message");
+        copyText(raw, details, "deployment_uuid");
+        copyText(raw, details, "uuid");
+        copyText(raw, details, "status");
+        return details;
     }
 
     private String buildProvisioningDetails(DeploymentTargetProfileEntity profile,
@@ -793,6 +833,28 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             return fallback;
         }
         return providerStatus.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
+    }
+
+    private void copyText(JsonNode source, ObjectNode target, String field) {
+        if (source == null || source.isMissingNode() || source.isNull() || !source.has(field)) {
+            return;
+        }
+        JsonNode value = source.path(field);
+        if (value.isBoolean()) {
+            target.put(field, value.asBoolean());
+            return;
+        }
+        if (value.isNumber()) {
+            target.put(field, value.asText());
+            return;
+        }
+        putIfText(target, field, value.asText(null));
+    }
+
+    private void putIfText(ObjectNode target, String field, String value) {
+        if (StringUtils.hasText(value)) {
+            target.put(field, value.trim());
+        }
     }
 
     private record CoolifyProvisioningSource(

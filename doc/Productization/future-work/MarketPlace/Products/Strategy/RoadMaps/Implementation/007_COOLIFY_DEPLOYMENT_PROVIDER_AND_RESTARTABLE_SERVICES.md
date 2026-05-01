@@ -2001,3 +2001,53 @@ Next live acceptance steps:
 - Run a disposable Platform apply with `targetProfileId=dtp-coolify-staging`.
 - Verify Coolify resource status/log retrieval and delete cleanup through Platform provider resource APIs.
 - Keep production target profile non-default until DNS, backup/restore, dashboard/API hardening, and operator UI gates are complete.
+
+---
+
+## 2026-05-01 Platform Staging Smoke
+
+Status: staging provisioning path is testable through Platform and Coolify. Production remains gated.
+
+Completed:
+
+- Pushed and deployed `625032e71` with the target-profile activation API.
+- Activated `dtp-coolify-staging` through Platform.
+- Stored Coolify API tokens in Platform secrets; token values were not written to docs or committed.
+- Added a staging-only Hetzner firewall for Railway/Platform API access to staging Coolify port `8000`:
+  - live firewall name: `loom-coolify-staging-platform-api-firewall`
+  - live firewall ID: `10916648`
+  - attached only to `coolify-staging-01`
+  - production remains on the shared restricted dashboard/API allowlist
+- Encoded that staging Platform API access path in Terraform through `staging_platform_api_allowed_cidrs`.
+- Platform preflight for `dtp-coolify-staging` passed after the staging API access unblock.
+- Created a disposable Platform deployment and applied it to Coolify staging.
+- Coolify created the public Git application, built from branch `Platform-V8`, triggered deployment, exposed the temporary `sslip.io` runtime URL, and returned runtime logs through Platform.
+- Runtime health eventually passed at `/actuator/health` with HTTP `200`.
+- Cleanup deleted the disposable Coolify app and queued hard deletion for the disposable Platform deployment.
+
+Important smoke result:
+
+- The first release verification finished too early and left the release as `APPLIED_VERIFICATION_FAILED` even though the runtime became `running:healthy` shortly afterward and a later verification run passed. The provider provisioning path works, but release reconciliation needs a follow-up so late-success verification can update the release status.
+
+Security fixes from smoke:
+
+- `CoolifyDeploymentProvider.status(...)` now returns an allowlisted safe detail object instead of raw Coolify application JSON.
+- Provider action summaries now return allowlisted Coolify action fields only.
+- Tests cover redaction of generated Coolify webhook/sentinel-style fields.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner fmt -check -recursive`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner validate`
+- `git diff --check`
+- changed-file long-token scan
+
+Remaining before production tenant acceptance:
+
+- Release reconciliation after a late successful verification run.
+- Real DNS replacing temporary `sslip.io`.
+- Backup/restore rehearsal for Coolify state and app data.
+- Production API/dashboard hardening before activating production.
+- Operator UI wiring for profile activation, preflight, resources, logs, and cleanup.

@@ -71,6 +71,12 @@ variable "coolify_dashboard_ports" {
   default     = ["8000"]
 }
 
+variable "staging_platform_api_allowed_cidrs" {
+  description = "Optional staging-only CIDR allowlist for Platform control-plane access to the Coolify API port. Use a narrow egress CIDR when available; 0.0.0.0/0 is acceptable only as a temporary staging unblock when the provider has no stable egress IP."
+  type        = list(string)
+  default     = []
+}
+
 variable "staging_server_type" {
   description = "Hetzner server type for staging."
   type        = string
