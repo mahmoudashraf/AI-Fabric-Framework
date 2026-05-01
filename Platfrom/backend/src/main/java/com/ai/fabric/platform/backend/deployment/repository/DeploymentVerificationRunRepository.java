@@ -9,5 +9,7 @@ public interface DeploymentVerificationRunRepository extends JpaRepository<Deplo
 
     List<DeploymentVerificationRunEntity> findByDeploymentIdOrderByCreatedAtDesc(String deploymentId);
 
+    List<DeploymentVerificationRunEntity> findByReleaseIdOrderByCreatedAtDesc(String releaseId);
+
     long deleteByDeploymentId(String deploymentId);
 }

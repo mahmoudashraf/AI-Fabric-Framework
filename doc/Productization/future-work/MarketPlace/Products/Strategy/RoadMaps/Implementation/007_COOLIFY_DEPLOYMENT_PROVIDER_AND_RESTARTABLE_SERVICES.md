@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, and public Git-source parity path added 2026-05-01)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, and late verification reconciliation added 2026-05-01)
 
 Owner mode: technical LLM implementation session
 
@@ -2046,8 +2046,36 @@ Verification completed:
 
 Remaining before production tenant acceptance:
 
-- Release reconciliation after a late successful verification run.
+- Deploy and live-prove release reconciliation after a late successful verification run.
 - Real DNS replacing temporary `sslip.io`.
 - Backup/restore rehearsal for Coolify state and app data.
 - Production API/dashboard hardening before activating production.
 - Operator UI wiring for profile activation, preflight, resources, logs, and cleanup.
+
+---
+
+## 2026-05-01 Late Verification Reconciliation
+
+Status: implemented locally after the first Platform staging smoke exposed an early verification timeout followed by later runtime health.
+
+Implemented:
+
+- `DeploymentReleaseRecoveryService` can now reconcile a release in `APPLIED_VERIFICATION_FAILED` when a later verification run for the same release/version has status `PASSED`.
+- Reconciliation updates the release to `APPLIED_VERIFIED`, records the passing verification run, clears the release error, sets the current step to verification complete, and marks the deployment `ACTIVE` with the verified version.
+- `DeploymentVerificationRunRepository` now supports release-scoped newest-first lookup for reconciliation.
+- Regression coverage verifies the late-success path does not dispatch a new provider apply/verification or touch Railway.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentReleaseRecoveryServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest,DeploymentReleaseRecoveryServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `git diff --check`
+
+Updated remaining gates before production tenant acceptance:
+
+- Deploy this reconciliation patch to live Platform and rerun one disposable staging Platform apply/recheck/reconcile smoke.
+- Replace temporary `sslip.io` runtime domains with real DNS before production tenant acceptance.
+- Complete backup/restore rehearsal for Coolify state, `APP_KEY`, SSH keys, and app data.
+- Harden production dashboard/API exposure before activating `dtp-coolify-production`.
+- Add operator UI wiring for target-profile activation, preflight, provider resource status/logs/actions, and cleanup.

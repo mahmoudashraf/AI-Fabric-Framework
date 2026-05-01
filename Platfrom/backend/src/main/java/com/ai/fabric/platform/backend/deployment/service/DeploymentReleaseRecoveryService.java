@@ -3,8 +3,10 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ public class DeploymentReleaseRecoveryService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
+    private final DeploymentVerificationRunRepository verificationRunRepository;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformProvisioningProperties provisioningProperties;
     private final ObjectMapper objectMapper;
@@ -32,12 +35,14 @@ public class DeploymentReleaseRecoveryService {
     public DeploymentReleaseRecoveryService(DeploymentRepository deploymentRepository,
                                             DeploymentReleaseRepository releaseRepository,
                                             DeploymentReleaseExecutionService deploymentReleaseExecutionService,
+                                            DeploymentVerificationRunRepository verificationRunRepository,
                                             RailwayGraphqlClient railwayGraphqlClient,
                                             PlatformProvisioningProperties provisioningProperties,
                                             ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
+        this.verificationRunRepository = verificationRunRepository;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.provisioningProperties = provisioningProperties;
         this.objectMapper = objectMapper;
@@ -67,6 +72,9 @@ public class DeploymentReleaseRecoveryService {
         DeploymentReleaseEntity latestRelease = releaseRepository
             .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
             .orElse(null);
+        if (latestRelease != null && reconcilePassedVerificationForFailedRelease(deployment, latestRelease)) {
+            return true;
+        }
         if (latestRelease == null || !isRecoveryCandidate(latestRelease) || (!force && !isStale(latestRelease))) {
             return false;
         }
@@ -88,6 +96,39 @@ public class DeploymentReleaseRecoveryService {
             return reconcileStalePreActivationProvisioning(deployment, latestRelease);
         }
         return false;
+    }
+
+    private boolean reconcilePassedVerificationForFailedRelease(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        if (!"APPLIED_VERIFICATION_FAILED".equals(release.getStatus())
+            || !StringUtils.hasText(release.getDeploymentVersionId())) {
+            return false;
+        }
+        DeploymentVerificationRunEntity latestPassedRun = verificationRunRepository
+            .findByReleaseIdOrderByCreatedAtDesc(release.getId())
+            .stream()
+            .filter(run -> release.getDeploymentVersionId().equals(run.getDeploymentVersionId()))
+            .filter(run -> "PASSED".equalsIgnoreCase(run.getStatus()))
+            .findFirst()
+            .orElse(null);
+        if (latestPassedRun == null) {
+            return false;
+        }
+
+        Instant now = Instant.now();
+        release.setVerificationRunId(latestPassedRun.getId());
+        release.setVerificationStatus(latestPassedRun.getStatus());
+        release.setStatus("APPLIED_VERIFIED");
+        release.setCurrentStepKey("verification_complete");
+        release.setCurrentStepDescription("Verification completed after late-success reconciliation.");
+        release.setErrorMessage(null);
+        release.setUpdatedAt(now);
+        releaseRepository.save(release);
+
+        deployment.setActiveVersionId(release.getDeploymentVersionId());
+        deployment.setStatus("ACTIVE");
+        deployment.setUpdatedAt(now);
+        deploymentRepository.save(deployment);
+        return true;
     }
 
     @Transactional

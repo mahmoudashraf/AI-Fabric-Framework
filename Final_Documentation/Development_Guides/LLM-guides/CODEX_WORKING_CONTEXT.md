@@ -416,3 +416,13 @@ Rules:
 - Security follow-up from smoke: a live session cookie was accidentally printed and immediately invalidated through logout. Platform provider status also returned raw Coolify details that may contain generated app/server tokens; patched `CoolifyDeploymentProvider.status(...)` and action summaries to return an allowlisted redacted detail object only.
 - Additional changed files: `CoolifyDeploymentProvider.java`, `CoolifyDeploymentProviderTest.java`, `infra/coolify/hetzner/main.tf`, `variables.tf`, `README.md`, `007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md`, and this context file.
 - Verification passed after redaction/firewall patch: focused Coolify/profile Maven tests, backend compile, Terraform `fmt -check -recursive`, Terraform `validate`, `git diff --check`, and changed-file long-token scan.
+
+## 2026-05-01 Coolify 007 Late Verification Reconciliation
+
+- Follow-up from the staging Platform smoke: late successful verification runs can now reconcile a release left in `APPLIED_VERIFICATION_FAILED`.
+- Backend changes: `DeploymentReleaseRecoveryService` looks for the newest `PASSED` verification run for the same release/version, promotes the release to `APPLIED_VERIFIED`, clears the release error, and marks the deployment `ACTIVE` with the verified version.
+- Repository change: `DeploymentVerificationRunRepository` now supports `findByReleaseIdOrderByCreatedAtDesc(...)`.
+- Regression test added in `DeploymentReleaseRecoveryServiceTest` for the Coolify late-success path; it verifies no extra provider dispatch/Railway call occurs during reconciliation.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentReleaseRecoveryServiceTest test`; focused Coolify/profile/recovery Maven suite; backend compile; `git diff --check`.
+- Changed files: `DeploymentVerificationRunRepository.java`, `DeploymentReleaseRecoveryService.java`, `DeploymentReleaseRecoveryServiceTest.java`, `007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md`, and this context file.
+- Next handoff: push/deploy this reconciliation patch, rerun a disposable staging Platform apply if needed, trigger verification recheck plus release reconcile, then confirm the release reaches `APPLIED_VERIFIED` before cleanup. Production remains gated by real DNS, backup/restore rehearsal, production API/dashboard hardening, and operator UI wiring.
