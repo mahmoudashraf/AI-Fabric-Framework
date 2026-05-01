@@ -69,7 +69,7 @@ public @interface AISearchable {
      * Relative weight of this field in search relevance calculations.
      *
      * <p>Higher weights increase the importance of this field in search results.
-     * For example, product titles might have weight 2.0 while descriptions have 1.0.</p>
+     * For example, record titles might have weight 2.0 while descriptions have 1.0.</p>
      *
      * <p><strong>Typical Values:</strong></p>
      * <ul>

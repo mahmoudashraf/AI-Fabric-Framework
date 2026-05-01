@@ -87,4 +87,18 @@ class PlatformSecretServiceTest {
             .extracting(PlatformSecretSummary::name)
             .contains("SHOPIFY_APP_API_KEY", "SHOPIFY_APP_API_SECRET", "SHOPIFY_WEBHOOK_SHARED_SECRET");
     }
+
+    @Test
+    void listSecretsIncludesPartnerVerificationJwt() {
+        PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
+        when(repository.findAll()).thenReturn(List.of());
+        when(repository.findById("PARTNER_SUPABASE_JWT")).thenReturn(Optional.empty());
+        MockEnvironment environment = new MockEnvironment().withProperty("PARTNER_SUPABASE_JWT", "partner-jwt");
+        PlatformSecretService service = new PlatformSecretService(repository, mock(PlatformAuditService.class), environment);
+
+        assertThat(service.resolveSecret("PARTNER_SUPABASE_JWT")).isEqualTo("partner-jwt");
+        assertThat(service.listSecrets())
+            .extracting(PlatformSecretSummary::name)
+            .contains("PARTNER_SUPABASE_JWT");
+    }
 }

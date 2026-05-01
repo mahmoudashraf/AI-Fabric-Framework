@@ -10,9 +10,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -43,6 +45,9 @@ public class ResponseSanitizationStep implements PipelineStep {
     // Sanitization keys
     private static final String SANITIZATION_KEY = "sanitization";
     private static final String DETECTED_TYPES_KEY = "detectedTypes";
+    private static final String MESSAGE_KEY = "message";
+    private static final String DATA_KEY = "data";
+    private static final String ANSWER_KEY = "answer";
     
     // =========================================================================
     // Dependencies
@@ -100,6 +105,8 @@ public class ResponseSanitizationStep implements PipelineStep {
         }
         
         String identifier = context.getIdentifier();
+
+        applySanitizationToChildren(result, identifier, Collections.newSetFromMap(new IdentityHashMap<>()));
         
         // ResponseSanitizer guarantees a non-empty payload
         Map<String, Object> sanitizedPayload = responseSanitizer.sanitize(result, identifier);
@@ -111,12 +118,30 @@ public class ResponseSanitizationStep implements PipelineStep {
         }
         
         result.setSanitizedPayload(sanitizedPayload);
+        applySanitizedTextMirrors(result, sanitizedPayload);
         
         log.debug("Response sanitization complete for request {}", context.getRequestId());
         
         return context.toBuilder()
             .sanitizedPayload(sanitizedPayload)
             .build();
+    }
+
+    private void applySanitizationToChildren(OrchestrationResult result,
+                                             String identifier,
+                                             Set<OrchestrationResult> visited) {
+        if (result == null || !visited.add(result) || result.getChildren() == null || result.getChildren().isEmpty()) {
+            return;
+        }
+        for (OrchestrationResult child : result.getChildren()) {
+            if (child == null) {
+                continue;
+            }
+            applySanitizationToChildren(child, identifier, visited);
+            Map<String, Object> childPayload = responseSanitizer.sanitize(child, identifier);
+            child.setSanitizedPayload(childPayload);
+            applySanitizedTextMirrors(child, childPayload);
+        }
     }
     
     // =========================================================================
@@ -161,5 +186,31 @@ public class ResponseSanitizationStep implements PipelineStep {
         }
         
         return sanitizedPayload;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applySanitizedTextMirrors(OrchestrationResult result, Map<String, Object> sanitizedPayload) {
+        Object sanitizedMessage = sanitizedPayload.get(MESSAGE_KEY);
+        if (sanitizedMessage instanceof String message) {
+            result.setMessage(message);
+        }
+
+        Object sanitizedData = sanitizedPayload.get(DATA_KEY);
+        if (!(sanitizedData instanceof Map<?, ?> sanitizedDataMap)) {
+            return;
+        }
+        Object sanitizedAnswer = sanitizedDataMap.get(ANSWER_KEY);
+        if (!(sanitizedAnswer instanceof String answer)) {
+            return;
+        }
+        Map<String, Object> originalData = result.getData() != null
+            ? result.getData()
+            : Collections.emptyMap();
+        if (answer.equals(originalData.get(ANSWER_KEY))) {
+            return;
+        }
+        Map<String, Object> updatedData = new LinkedHashMap<>(originalData);
+        updatedData.put(ANSWER_KEY, answer);
+        result.setData(Collections.unmodifiableMap(updatedData));
     }
 }

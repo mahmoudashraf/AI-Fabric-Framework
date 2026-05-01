@@ -639,7 +639,7 @@ public final class ManagedDeploymentProfileCatalog {
     }
 
     public static boolean providerEnableFallback(JsonNode providerConfig) {
-        return readBoolean(providerConfig, "enableFallback", true);
+        return readBoolean(providerConfig, "enableFallback", false);
     }
 
     public static String orchestrationLlmProvider(JsonNode providerConfig) {

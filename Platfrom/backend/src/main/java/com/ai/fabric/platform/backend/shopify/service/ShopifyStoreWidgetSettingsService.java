@@ -5,14 +5,19 @@ import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntit
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -25,6 +30,46 @@ public class ShopifyStoreWidgetSettingsService {
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Store assistant is ready. Ask about products, policies, or collections.";
+    private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
+    private static final boolean DEFAULT_DEBUG_ENABLED = false;
+    private static final String DEFAULT_CONVERSATION_MODE = "navigator";
+    private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison"
+    );
+    private static final Set<String> ALLOWED_SHELL_MODE_PROFILES = Set.of(
+        "SHOPIFY_COMPANION",
+        "GUIDED_COMMERCE",
+        "GUIDED_SUPPORT"
+    );
+    private static final Set<String> ALLOWED_SURFACES = Set.of(
+        "ai-search",
+        "contextual-pill",
+        "product-insight",
+        "policy-strip",
+        "product-faq",
+        "comparison",
+        "order-lookup"
+    );
+    private static final Set<String> ALLOWED_CONVERSATION_MODES = Set.of(
+        "navigator",
+        "navigator_deep",
+        "cart_assistant",
+        "executor"
+    );
+    private static final Set<String> ALLOWED_PAGE_MODE_KEYS = Set.of(
+        "landing",
+        "product",
+        "collection",
+        "search",
+        "cart",
+        "account",
+        "content"
+    );
 
     private final ShopifyStoreConnectionRepository repository;
     private final ShopifyStoreConnectionService connectionService;
@@ -51,6 +96,18 @@ public class ShopifyStoreWidgetSettingsService {
 
         String launcherLabel = normalizeLauncherLabel(request.launcherLabel());
         String welcomeMessage = normalizeWelcomeMessage(request.welcomeMessage());
+        String shellModeProfile = normalizeShellModeProfile(request.shellModeProfile());
+        boolean debugEnabled = request.debugEnabled() != null ? request.debugEnabled() : DEFAULT_DEBUG_ENABLED;
+        List<String> enabledSurfaces = normalizeEnabledSurfaces(request.enabledSurfaces());
+        String defaultConversationMode = normalizeDefaultConversationMode(request.defaultConversationMode(), shellModeProfile);
+        List<String> allowedConversationModes = normalizeAllowedConversationModes(
+            request.allowedConversationModes(),
+            defaultConversationMode
+        );
+        Map<String, String> pageModeMappings = normalizePageModeMappings(
+            request.pageModeMappings(),
+            allowedConversationModes
+        );
         Instant now = Instant.now();
 
         ObjectNode details = support.mutableDetails(store.getDetailsJson());
@@ -58,6 +115,15 @@ public class ShopifyStoreWidgetSettingsService {
         ObjectNode settings = widget.putObject("settings");
         settings.put("launcherLabel", launcherLabel);
         settings.put("welcomeMessage", welcomeMessage);
+        settings.put("shellModeProfile", shellModeProfile);
+        settings.put("debugEnabled", debugEnabled);
+        ArrayNode enabledSurfacesNode = settings.putArray("enabledSurfaces");
+        enabledSurfaces.forEach(enabledSurfacesNode::add);
+        settings.put("defaultConversationMode", defaultConversationMode);
+        ArrayNode allowedModesNode = settings.putArray("allowedConversationModes");
+        allowedConversationModes.forEach(allowedModesNode::add);
+        ObjectNode pageModeMappingsNode = settings.putObject("pageModeMappings");
+        pageModeMappings.forEach(pageModeMappingsNode::put);
         settings.put("updatedAt", now.toString());
         store.setDetailsJson(support.writeJson(details));
         store.setUpdatedAt(now);
@@ -70,7 +136,13 @@ public class ShopifyStoreWidgetSettingsService {
             Map.of(
                 "shopDomain", store.getShopDomain(),
                 "launcherLabel", launcherLabel,
-                "welcomeMessageLength", Integer.toString(welcomeMessage.length())
+                "welcomeMessageLength", Integer.toString(welcomeMessage.length()),
+                "shellModeProfile", shellModeProfile,
+                "debugEnabled", Boolean.toString(debugEnabled),
+                "enabledSurfaces", String.join(",", enabledSurfaces),
+                "defaultConversationMode", defaultConversationMode,
+                "allowedConversationModes", String.join(",", allowedConversationModes),
+                "pageModeMappings", pageModeMappings.toString()
             )
         );
 
@@ -98,6 +170,110 @@ public class ShopifyStoreWidgetSettingsService {
             throw new ResponseStatusException(CONFLICT, "welcomeMessage exceeds " + MAX_WELCOME_MESSAGE_LENGTH + " characters.");
         }
         return normalized;
+    }
+
+    private String normalizeShellModeProfile(String value) {
+        String normalized = hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : DEFAULT_SHELL_MODE_PROFILE;
+        if (!ALLOWED_SHELL_MODE_PROFILES.contains(normalized)) {
+            throw new ResponseStatusException(CONFLICT, "shellModeProfile must be one of " + ALLOWED_SHELL_MODE_PROFILES + ".");
+        }
+        return normalized;
+    }
+
+    private List<String> normalizeEnabledSurfaces(List<String> values) {
+        if (values == null) {
+            return DEFAULT_ENABLED_SURFACES;
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String value : values) {
+            if (!hasText(value)) {
+                continue;
+            }
+            String candidate = value.trim().toLowerCase(Locale.ROOT);
+            if (!ALLOWED_SURFACES.contains(candidate)) {
+                throw new ResponseStatusException(CONFLICT, "enabledSurfaces contains unsupported value: " + value);
+            }
+            normalized.add(candidate);
+        }
+        return List.copyOf(normalized);
+    }
+
+    private String normalizeDefaultConversationMode(String value, String shellModeProfile) {
+        String fallback = defaultConversationModeForShellProfile(shellModeProfile);
+        String normalized = hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : fallback;
+        if (!ALLOWED_CONVERSATION_MODES.contains(normalized)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "defaultConversationMode must be one of " + ALLOWED_CONVERSATION_MODES + "."
+            );
+        }
+        return normalized;
+    }
+
+    private List<String> normalizeAllowedConversationModes(List<String> values, String defaultConversationMode) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        if (values != null) {
+            for (String value : values) {
+                if (!hasText(value)) {
+                    continue;
+                }
+                String candidate = value.trim().toLowerCase(Locale.ROOT);
+                if (!ALLOWED_CONVERSATION_MODES.contains(candidate)) {
+                    throw new ResponseStatusException(
+                        CONFLICT,
+                        "allowedConversationModes contains unsupported value: " + value
+                    );
+                }
+                normalized.add(candidate);
+            }
+        }
+        if (normalized.isEmpty()) {
+            normalized.add(defaultConversationMode);
+        } else {
+            normalized.add(defaultConversationMode);
+        }
+        return List.copyOf(normalized);
+    }
+
+    private Map<String, String> normalizePageModeMappings(Map<String, String> values, List<String> allowedConversationModes) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            if (!hasText(entry.getKey()) || !hasText(entry.getValue())) {
+                continue;
+            }
+            String key = entry.getKey().trim().toLowerCase(Locale.ROOT);
+            String mode = entry.getValue().trim().toLowerCase(Locale.ROOT);
+            if (!ALLOWED_PAGE_MODE_KEYS.contains(key)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "pageModeMappings contains unsupported page key: " + entry.getKey()
+                );
+            }
+            if (!ALLOWED_CONVERSATION_MODES.contains(mode)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "pageModeMappings contains unsupported mode: " + entry.getValue()
+                );
+            }
+            if (!allowedConversationModes.contains(mode)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "pageModeMappings must only target modes from allowedConversationModes."
+                );
+            }
+            normalized.put(key, mode);
+        }
+        return Map.copyOf(normalized);
+    }
+
+    private String defaultConversationModeForShellProfile(String shellModeProfile) {
+        if ("GUIDED_SUPPORT".equalsIgnoreCase(shellModeProfile)) {
+            return "navigator_deep";
+        }
+        return DEFAULT_CONVERSATION_MODE;
     }
 
     private boolean hasText(String value) {

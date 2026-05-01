@@ -15,6 +15,7 @@ import { InferenceServicesPage } from './pages/InferenceServicesPage'
 import { ProductServicesPage } from './pages/ProductServicesPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { OverviewPage } from './pages/OverviewPage'
+import { PartnerPrivilegesPage } from './pages/PartnerPrivilegesPage'
 import { PocPage } from './pages/PocPage'
 import { ProvidersPage } from './pages/ProvidersPage'
 import { PromptsPage } from './pages/PromptsPage'
@@ -22,7 +23,10 @@ import { RevisionsPage } from './pages/RevisionsPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
+import { ShopifyPackageProfilesPage } from './pages/ShopifyPackageProfilesPage'
+import { ShopifyReadinessAuditPage } from './pages/ShopifyReadinessAuditPage'
 import { ShopifyStoresPage } from './pages/ShopifyStoresPage'
+import { ThinkerResolverPage } from './pages/ThinkerResolverPage'
 import { UsersPage } from './pages/UsersPage'
 import { VectorizationPage } from './pages/VectorizationPage'
 import { VerificationPage } from './pages/VerificationPage'
@@ -82,7 +86,11 @@ export default function App() {
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/inference-services" element={<InferenceServicesPage />} />
           <Route path="/product-services" element={<ProductServicesPage />} />
+          <Route path="/partner-privileges" element={<PartnerPrivilegesPage />} />
+          <Route path="/shopify-package-profiles" element={<ShopifyPackageProfilesPage />} />
+          <Route path="/shopify-readiness-audit" element={<ShopifyReadinessAuditPage />} />
           <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
+          <Route path="/thinker-resolver" element={<ThinkerResolverPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />
           <Route path="/prompts" element={<PromptsPage />} />

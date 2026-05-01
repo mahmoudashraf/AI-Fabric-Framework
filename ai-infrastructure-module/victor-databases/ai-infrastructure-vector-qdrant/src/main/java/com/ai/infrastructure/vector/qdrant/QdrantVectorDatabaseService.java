@@ -44,7 +44,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 /**
- * Vector database service backed by the official Qdrant Java client (gRPC).
+ * Vector database service backed by Qdrant. The official Java client is used for
+ * explicit gRPC deployments; REST is used when preferGrpc=false.
  */
 @Slf4j
 public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoCloseable {
@@ -58,6 +59,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     private final VectorDatabaseConfig vectorDatabaseConfig;
     private final String collectionPrefix;
     private final QdrantClient qdrantClient;
+    private final QdrantRestVectorDatabaseService restDelegate;
     private final ConcurrentMap<String, Boolean> collectionCache = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Boolean> payloadIndexCache = new ConcurrentHashMap<>();
 
@@ -66,7 +68,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     }
 
     public QdrantVectorDatabaseService(AIProviderConfig providerConfig, VectorDatabaseConfig vectorDatabaseConfig) {
-        this(providerConfig, vectorDatabaseConfig, createClient(providerConfig));
+        this(providerConfig, vectorDatabaseConfig, createClientIfGrpcPreferred(providerConfig));
     }
 
     QdrantVectorDatabaseService(AIProviderConfig providerConfig,
@@ -75,7 +77,10 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         this.config = Objects.requireNonNull(providerConfig.getQdrant(), "Qdrant configuration must be present");
         this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
         this.collectionPrefix = normalizeCollectionPrefix(this.config.getCollectionPrefix());
-        this.qdrantClient = Objects.requireNonNull(qdrantClient, "Qdrant client must be present");
+        this.qdrantClient = qdrantClient;
+        this.restDelegate = qdrantClient == null
+            ? new QdrantRestVectorDatabaseService(providerConfig, this.vectorDatabaseConfig)
+            : null;
     }
 
     @Override
@@ -90,6 +95,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public Map<String, Object> adminDiagnostics() {
+        if (restDelegate != null) {
+            return restDelegate.adminDiagnostics();
+        }
         Map<String, Object> diagnostics = new LinkedHashMap<>();
         diagnostics.put("sharedStorage", !collectionPrefix.isBlank());
         diagnostics.put("scopeType", collectionPrefix.isBlank() ? "COLLECTION" : "COLLECTION_PREFIX");
@@ -100,11 +108,15 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
             diagnostics.put("scopePattern", collectionPrefix + "<entity_type>");
         }
         diagnostics.put("preferGrpc", Boolean.TRUE.equals(config.getPreferGrpc()));
+        diagnostics.put("transport", "grpc");
         return diagnostics;
     }
 
     @Override
     public String storeVector(String entityType, String entityId, String content, List<Double> embedding, Map<String, Object> metadata) {
+        if (restDelegate != null) {
+            return restDelegate.storeVector(entityType, entityId, content, embedding, metadata);
+        }
         ensureEnabled();
         if (embedding == null || embedding.isEmpty()) {
             throw new AIServiceException("Qdrant storeVector requires a non-empty embedding vector");
@@ -147,6 +159,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public boolean updateVector(String vectorId, String entityType, String entityId, String content, List<Double> embedding, Map<String, Object> metadata) {
+        if (restDelegate != null) {
+            return restDelegate.updateVector(vectorId, entityType, entityId, content, embedding, metadata);
+        }
         ensureEnabled();
         if (vectorId == null || vectorId.isBlank()) {
             return false;
@@ -190,6 +205,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public Optional<VectorRecord> getVector(String vectorId) {
+        if (restDelegate != null) {
+            return restDelegate.getVector(vectorId);
+        }
         ensureEnabled();
         if (vectorId == null || vectorId.isBlank()) {
             return Optional.empty();
@@ -220,6 +238,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public Optional<VectorRecord> getVectorByEntity(String entityType, String entityId) {
+        if (restDelegate != null) {
+            return restDelegate.getVectorByEntity(entityType, entityId);
+        }
         String vectorId = buildVectorId(entityType, entityId);
         ensureEnabled();
         String collection = collectionName(entityType);
@@ -243,6 +264,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public AISearchResponse search(List<Double> queryVector, AISearchRequest request) {
+        if (restDelegate != null) {
+            return restDelegate.search(queryVector, request);
+        }
         ensureEnabled();
         if (request == null) {
             throw new AIServiceException("Qdrant search requires a request");
@@ -358,6 +382,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public boolean removeVector(String entityType, String entityId) {
+        if (restDelegate != null) {
+            return restDelegate.removeVector(entityType, entityId);
+        }
         ensureEnabled();
         String collection = collectionName(entityType);
         if (!collectionExists(collection)) {
@@ -375,6 +402,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public boolean removeVectorById(String vectorId) {
+        if (restDelegate != null) {
+            return restDelegate.removeVectorById(vectorId);
+        }
         ensureEnabled();
         if (vectorId == null || vectorId.isBlank()) {
             return false;
@@ -441,6 +471,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public VectorScanPage scan(VectorScanRequest request) {
+        if (restDelegate != null) {
+            return restDelegate.scan(request);
+        }
         ensureEnabled();
         if (request == null || request.getEntityType() == null || request.getEntityType().isBlank()) {
             return VectorScanPage.builder()
@@ -531,6 +564,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public List<VectorRecord> getVectorsByEntityType(String entityType) {
+        if (restDelegate != null) {
+            return restDelegate.getVectorsByEntityType(entityType);
+        }
         ensureEnabled();
         String collection = collectionName(entityType);
         if (!collectionExists(collection)) {
@@ -569,6 +605,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public long getVectorCountByEntityType(String entityType) {
+        if (restDelegate != null) {
+            return restDelegate.getVectorCountByEntityType(entityType);
+        }
         ensureEnabled();
         String collection = collectionName(entityType);
         try {
@@ -590,6 +629,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public Map<String, Object> getStatistics() {
+        if (restDelegate != null) {
+            return restDelegate.getStatistics();
+        }
         ensureEnabled();
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("type", "qdrant");
@@ -602,6 +644,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public long clearVectors() {
+        if (restDelegate != null) {
+            return restDelegate.clearVectors();
+        }
         ensureEnabled();
         long removed = 0;
         for (String collection : listCandidateCollections()) {
@@ -612,6 +657,9 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     @Override
     public long clearVectorsByEntityType(String entityType) {
+        if (restDelegate != null) {
+            return restDelegate.clearVectorsByEntityType(entityType);
+        }
         ensureEnabled();
         String collection = collectionName(entityType);
         if (!collectionExists(collection)) {
@@ -705,7 +753,13 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     @PreDestroy
     @Override
     public void close() {
-        qdrantClient.close();
+        if (restDelegate != null) {
+            restDelegate.close();
+            return;
+        }
+        if (qdrantClient != null) {
+            qdrantClient.close();
+        }
     }
 
     private void ensureCollection(String collection, Integer vectorSize) {
@@ -800,9 +854,12 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
-    private static QdrantClient createClient(AIProviderConfig providerConfig) {
+    private static QdrantClient createClientIfGrpcPreferred(AIProviderConfig providerConfig) {
         AIProviderConfig.QdrantConfig qdrantConfig =
             Objects.requireNonNull(providerConfig.getQdrant(), "Qdrant configuration must be present");
+        if (!Boolean.TRUE.equals(qdrantConfig.getPreferGrpc())) {
+            return null;
+        }
         return new QdrantClient(buildGrpcClient(qdrantConfig));
     }
 

@@ -8,6 +8,7 @@ import org.springframework.validation.annotation.Validated;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -71,7 +72,7 @@ public class OrchestrationProperties {
     /**
      * Server-side routing from a UI position signal to an orchestration mode.
      *
-     * <p>Used to allow the client to send a low-spoof-risk position (e.g. "cart") while the server selects the mode.</p>
+     * <p>Used to allow the client to send a low-spoof-risk position signal while the server selects the mode.</p>
      *
      * <p><strong>Note:</strong> this is intended for app/web-layer routing only. Core orchestration policy resolution
      * should not depend on UI positions.</p>
@@ -232,6 +233,11 @@ public class OrchestrationProperties {
          * Optional mode override for RAG budgeting and scoping.
          */
         private RagModeOverrides rag;
+
+        /**
+         * Optional mode override for planner-driven read-action resolution.
+         */
+        private ReadActionResolutionModeOverrides readActionResolution;
     }
 
     @Data
@@ -277,6 +283,38 @@ public class OrchestrationProperties {
          * <p>When non-empty, retrieval may only use spaces from this list.</p>
          */
         private List<String> retrievalVectorSpacesAllowlist = new ArrayList<>();
+    }
+
+    @Data
+    public static class ReadActionResolutionModeOverrides {
+        private Boolean enabled;
+        private ReadActionResolutionPlanningMode planningMode;
+        private List<String> allowedReadActions = new ArrayList<>();
+        private Boolean requireAllowlist;
+        private Integer maxIterations;
+        private Integer maxActionsPerIteration;
+        private Integer maxTotalActions;
+        private Integer maxParallelActions;
+        private Integer maxPlannerContextChars;
+        private Integer maxActionEvidenceCharsPerAction;
+        private ReadActionResolutionRagCooperationMode ragCooperationMode;
+        private Boolean requireGroundingEligible;
+
+        public void setAllowedReadActions(List<String> allowedReadActions) {
+            this.allowedReadActions = normalizeActionNames(allowedReadActions);
+        }
+    }
+
+    public enum ReadActionResolutionPlanningMode {
+        OFF,
+        SINGLE_PASS,
+        ITERATIVE
+    }
+
+    public enum ReadActionResolutionRagCooperationMode {
+        NONE,
+        RAG_IF_ACTIONS_INSUFFICIENT,
+        PARALLEL_ACTIONS_AND_RAG
     }
 
     @Data
@@ -330,5 +368,23 @@ public class OrchestrationProperties {
          * <p>When empty, arbitrary metadata keys are not appended (safe-by-default).</p>
          */
         private List<String> metadataKeysAllowlist = new ArrayList<>();
+    }
+
+    private static List<String> normalizeActionNames(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        List<String> normalized = new ArrayList<>();
+        for (String value : values) {
+            if (value == null) {
+                continue;
+            }
+            String trimmed = value.trim().toLowerCase(Locale.ROOT);
+            if (trimmed.isEmpty() || normalized.contains(trimmed)) {
+                continue;
+            }
+            normalized.add(trimmed);
+        }
+        return normalized.isEmpty() ? List.of() : List.copyOf(normalized);
     }
 }

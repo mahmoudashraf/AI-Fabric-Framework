@@ -859,6 +859,10 @@ public class DeploymentService {
         return getActiveDraftForDeploymentInternal(deploymentId, false);
     }
 
+    public DeploymentDraftResponse getActiveDraftForDeploymentForTrustedCaller(String deploymentId) {
+        return getActiveDraftForDeploymentInternal(deploymentId, true);
+    }
+
     DeploymentDraftResponse getActiveDraftForDeploymentInternal(String deploymentId) {
         return getActiveDraftForDeploymentInternal(deploymentId, true);
     }
@@ -978,6 +982,10 @@ public class DeploymentService {
     @Transactional
     public DeploymentDraftResponse updateDraft(String draftId, UpdateDeploymentDraftRequest request) {
         return updateDraftInternal(draftId, request, false);
+    }
+
+    public DeploymentDraftResponse updateDraftForTrustedCaller(String draftId, UpdateDeploymentDraftRequest request) {
+        return updateDraftInternal(draftId, request, true);
     }
 
     @Transactional
@@ -1315,6 +1323,11 @@ public class DeploymentService {
     @Transactional
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId, String approvalId) {
         return applyVersionInternal(deploymentId, versionId, approvalId, false);
+    }
+
+    @Transactional
+    public DeploymentReleaseSummary applyVersionForTrustedCaller(String deploymentId, String versionId) {
+        return applyVersionInternal(deploymentId, versionId, null, true);
     }
 
     @Transactional

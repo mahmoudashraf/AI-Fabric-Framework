@@ -53,6 +53,20 @@ platform:
     bootstrap-admin-email: ${PLATFORM_BOOTSTRAP_ADMIN_EMAIL:}
     bootstrap-admin-password: ${PLATFORM_BOOTSTRAP_ADMIN_PASSWORD:}
     bootstrap-admin-display-name: ${PLATFORM_BOOTSTRAP_ADMIN_DISPLAY_NAME:Platform Admin}
+    supabase:
+      enabled: ${PLATFORM_SUPABASE_AUTH_ENABLED:true}
+      issuer: ${PLATFORM_SUPABASE_ISSUER:https://xazkenhomhtpejjjqtsy.supabase.co/auth/v1}
+      jwks-uri: ${PLATFORM_SUPABASE_JWKS_URI:https://xazkenhomhtpejjjqtsy.supabase.co/auth/v1/.well-known/jwks.json}
+      audience: ${PLATFORM_SUPABASE_AUDIENCE:authenticated}
+      project-ref: ${PLATFORM_SUPABASE_PROJECT_REF:xazkenhomhtpejjjqtsy}
+      require-email-verified: ${PLATFORM_SUPABASE_REQUIRE_EMAIL_VERIFIED:false}
+      allowed-provider-ids:
+        - google
+        - apple
+        - linkedin_oidc
+        - email
+      merchant-approval-ttl: ${PLATFORM_PARTNER_MERCHANT_APPROVAL_TTL:7d}
+      partner-app-url: ${PLATFORM_PARTNER_APP_URL:https://ai-fabric-framework-production-158d.up.railway.app}
   public-api:
     enabled: ${PLATFORM_PUBLIC_API_ENABLED:false}
     client-id-header-name: ${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:X-PLATFORM-CLIENT-ID}
@@ -85,7 +99,7 @@ platform:
     deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
     deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
   cors:
-    allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,https://ai-fabric-framework-production-158d.up.railway.app}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
   poc:
     runtime-timeout: ${PLATFORM_POC_RUNTIME_TIMEOUT:60s}
@@ -155,10 +169,14 @@ shopify:
     bootstrap:
       default-environment: ${SHOPIFY_COMPANION_DEFAULT_ENVIRONMENT:dev}
       default-template-id: ${SHOPIFY_COMPANION_DEFAULT_TEMPLATE_ID:dev-openai-qdrant}
-      default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:}
-      default-qdrant-host: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_HOST:}
+      default-vector-provisioning-mode: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_PROVISIONING_MODE:EXTERNAL_EXISTING}
+      default-vector-storage-posture: ${SHOPIFY_COMPANION_DEFAULT_VECTOR_STORAGE_POSTURE:SHARED}
+      default-qdrant-host: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_HOST:https://8ad5ab4f-a514-49ec-b599-742922b34a3a.eu-west-1-0.aws.cloud.qdrant.io}
       default-qdrant-source-deployment-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_SOURCE_DEPLOYMENT_ID:}
-      default-qdrant-runtime-api-key-secret-name: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_RUNTIME_API_KEY_SECRET_NAME:}
+      default-qdrant-runtime-api-key-secret-name: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_RUNTIME_API_KEY_SECRET_NAME:QDRANT_API_KEY}
+      default-qdrant-cloud-provider-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_CLOUD_PROVIDER_ID:aws}
+      default-qdrant-cloud-region-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_CLOUD_REGION_ID:eu-west-1}
+      default-qdrant-managed-collections-enabled: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_MANAGED_COLLECTIONS_ENABLED:false}
       template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
       template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
       default-plugin-ids:

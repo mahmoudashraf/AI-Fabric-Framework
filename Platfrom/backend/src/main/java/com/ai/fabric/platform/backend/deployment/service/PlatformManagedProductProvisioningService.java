@@ -5,8 +5,10 @@ import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceShopifyBillingConfigSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceShopifyBillingConfigSupport;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
@@ -614,6 +616,14 @@ public class PlatformManagedProductProvisioningService {
                     "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET",
                     hasText(webhookSharedSecret) ? webhookSharedSecret : shopifyApiSecret
                 );
+                PlatformManagedProductServiceShopifyBillingConfigSummary billingConfig =
+                    PlatformManagedProductServiceShopifyBillingConfigSupport.summaryFromDetails(
+                        objectMapper,
+                        service.getDetailsJson(),
+                        service.getServiceKind()
+                    );
+                PlatformManagedProductServiceShopifyBillingConfigSupport.railwayEnv(billingConfig)
+                    .forEach((name, value) -> env.add(new RailwayGraphqlClient.RailwayEnvVarInput(name, value)));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "health,info"));
             }
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());

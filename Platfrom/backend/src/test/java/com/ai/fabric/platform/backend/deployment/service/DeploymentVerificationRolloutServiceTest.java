@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -56,6 +57,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -64,6 +66,175 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doNothing;
 
 class DeploymentVerificationRolloutServiceTest {
+
+    @Test
+    void listRolloutsRecoversStaleInProgressReleasesBeforeSummarizing() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity existing = new DeploymentEntity();
+        existing.setId("dep-813fa5c9");
+        existing.setName("OpenAI Weaviate Verification");
+        existing.setEnvironmentName("dev");
+        existing.setStatus("VERSION_PUBLISHED");
+        existing.setActiveVersionId("ver-1");
+        existing.setRuntimeBaseUrl("https://runtime.example.test");
+        existing.setConnectorBaseUrl("https://connector.example.test");
+        existing.setCreatedAt(Instant.now());
+        existing.setUpdatedAt(Instant.now());
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-stale");
+        release.setDeploymentId(existing.getId());
+        release.setStatus("PRE_APPLY_VERIFYING");
+        release.setVerificationStatus("RUNNING");
+        release.setProvisioningTarget("RAILWAY_API");
+        release.setCurrentStepKey("preflight_verification");
+        release.setCreatedAt(Instant.now());
+        release.setUpdatedAt(Instant.now());
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(existing), List.of(existing));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(existing.getId())).thenReturn(Optional.of(release));
+        when(deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(anyString())).thenReturn(List.of());
+        when(platformUserRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(platformUser("usr-admin", "admin@example.com", "PLATFORM_ADMIN")));
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
+        when(deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId())).thenReturn(true);
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentReleaseRecoveryService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.listRollouts();
+
+        assertThat(summary.items()).isNotEmpty();
+        verify(deploymentReleaseRecoveryService).reconcileLatestInProgressRelease(existing.getId());
+        verify(deploymentRepository, times(2)).findAllByOrderByCreatedAtDesc();
+    }
+
+    @Test
+    void recreateRolloutsRecoversExistingDeploymentBeforeApply() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity existing = new DeploymentEntity();
+        existing.setId("dep-813fa5c9");
+        existing.setName("OpenAI Weaviate Verification");
+        existing.setEnvironmentName("dev");
+        existing.setStatus("VERSION_PUBLISHED");
+        existing.setActiveVersionId("ver-old");
+        existing.setRuntimeBaseUrl("https://runtime.example.test");
+        existing.setConnectorBaseUrl("https://connector.example.test");
+        existing.setCreatedAt(Instant.now());
+        existing.setUpdatedAt(Instant.now());
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(existing), List.of(existing));
+        when(deploymentRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(existing.getId())).thenReturn(Optional.empty());
+        when(deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(existing.getId())).thenReturn(List.of());
+        when(platformUserRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(platformUser("usr-admin", "admin@example.com", "PLATFORM_ADMIN")));
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
+        when(sourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(planRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId(), true)).thenReturn(true);
+        ObjectMapper objectMapper = new ObjectMapper();
+        when(deploymentService.getActiveDraftForDeploymentInternal(existing.getId())).thenReturn(new DeploymentDraftResponse(
+            "drf-weaviate",
+            existing.getId(),
+            1,
+            "DRAFT",
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            Instant.now(),
+            Instant.now()
+        ));
+        when(deploymentService.validateDraftInternal("drf-weaviate")).thenReturn(new DraftValidationResponse(
+            "drf-weaviate",
+            existing.getId(),
+            true,
+            0,
+            0,
+            Instant.now(),
+            List.of()
+        ));
+        when(deploymentService.publishDraftInternal("drf-weaviate", true)).thenReturn(new DeploymentVersionSummary(
+            "ver-new",
+            existing.getId(),
+            "drf-weaviate",
+            "v1",
+            "PUBLISHED",
+            "hash",
+            false,
+            Instant.now()
+        ));
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentReleaseRecoveryService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        service.recreateRollouts(List.of("weaviate"));
+
+        InOrder order = inOrder(deploymentReleaseRecoveryService, deploymentService);
+        order.verify(deploymentReleaseRecoveryService).reconcileLatestInProgressRelease(existing.getId(), true);
+        order.verify(deploymentService).getActiveDraftForDeploymentInternal(existing.getId());
+        order.verify(deploymentService).applyVersionInternal(existing.getId(), "ver-new", null, true);
+    }
 
     @Test
     void recreateRolloutsCreatesCanonicalDeploymentsAndSeedsProviderDefaults() {
@@ -667,7 +838,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(summary.summaryMessage()).contains("2 canonical verification rollout deployment(s)");
         verify(deploymentService, times(2)).createDeployment(any(CreateDeploymentRequest.class));
         verify(deploymentService, times(2)).applyVersionInternal(anyString(), anyString(), eq(null), eq(true));
-        verify(deploymentReleaseRecoveryService, times(2)).reconcileLatestInProgressRelease(anyString(), eq(true));
+        verify(deploymentReleaseRecoveryService, times(4)).reconcileLatestInProgressRelease(anyString(), eq(true));
     }
 
     @Test

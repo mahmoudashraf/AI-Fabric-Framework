@@ -2,6 +2,9 @@ package com.ai.fabric.platform.backend.security;
 
 import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
 import com.ai.fabric.platform.backend.config.PlatformPublicApiProperties;
+import com.ai.fabric.platform.backend.partner.config.PartnerSupabaseAuthProperties;
+import com.ai.fabric.platform.backend.partner.repository.PartnerMemberRepository;
+import com.ai.fabric.platform.backend.partner.security.PartnerSupabaseAuthenticationFilter;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.service.PlatformIdentityService;
@@ -10,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -17,6 +21,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
@@ -34,19 +39,28 @@ public class PlatformSecurityConfiguration {
     private final PlatformIdentityService platformIdentityService;
     private final PlatformSecretService platformSecretService;
     private final PlatformManagedProductServiceRepository productServiceRepository;
+    private final PartnerSupabaseAuthProperties partnerSupabaseAuthProperties;
+    private final ObjectProvider<JwtDecoder> partnerJwtDecoder;
+    private final PartnerMemberRepository partnerMemberRepository;
 
     public PlatformSecurityConfiguration(PlatformAuthProperties properties,
                                          PlatformPublicApiProperties publicApiProperties,
                                          ObjectMapper objectMapper,
                                          PlatformIdentityService platformIdentityService,
                                          PlatformSecretService platformSecretService,
-                                         PlatformManagedProductServiceRepository productServiceRepository) {
+                                         PlatformManagedProductServiceRepository productServiceRepository,
+                                         PartnerSupabaseAuthProperties partnerSupabaseAuthProperties,
+                                         ObjectProvider<JwtDecoder> partnerJwtDecoder,
+                                         PartnerMemberRepository partnerMemberRepository) {
         this.properties = properties;
         this.publicApiProperties = publicApiProperties;
         this.objectMapper = objectMapper;
         this.platformIdentityService = platformIdentityService;
         this.platformSecretService = platformSecretService;
         this.productServiceRepository = productServiceRepository;
+        this.partnerSupabaseAuthProperties = partnerSupabaseAuthProperties;
+        this.partnerJwtDecoder = partnerJwtDecoder;
+        this.partnerMemberRepository = partnerMemberRepository;
     }
 
     @PostConstruct
@@ -80,13 +94,24 @@ public class PlatformSecurityConfiguration {
             new PlatformApiKeyAuthenticationFilter(properties, platformSecretService, productServiceRepository),
             AnonymousAuthenticationFilter.class
         );
+        JwtDecoder jwtDecoder = partnerJwtDecoder.getIfAvailable();
+        if (partnerSupabaseAuthProperties.enabled()) {
+            if (jwtDecoder == null) {
+                throw new IllegalStateException("Partner Supabase auth is enabled but no JwtDecoder is available.");
+            }
+            http.addFilterBefore(
+                new PartnerSupabaseAuthenticationFilter(partnerSupabaseAuthProperties, jwtDecoder, partnerMemberRepository),
+                AnonymousAuthenticationFilter.class
+            );
+        }
         http.authorizeHttpRequests(authorize -> {
             authorize.requestMatchers(
                 "/actuator/health",
                 "/api/platform/auth/session",
                 "/api/platform/auth/login",
                 "/api/platform/auth/logout",
-                "/api/vectorization/runner/**"
+                "/api/vectorization/runner/**",
+                "/api/merchant/partner-access/*/approve"
             ).permitAll();
             authorize.requestMatchers(
                 "/api/deployments/*/versions/*/artifacts/ai-actions.yml",

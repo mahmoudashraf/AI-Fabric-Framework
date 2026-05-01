@@ -3,8 +3,9 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import { emitEvent } from "@/config";
+import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
-import { normalizeMessageContent } from "@/utils";
+import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 
 export function useChatFlow({
   chatQuery,
@@ -37,16 +38,21 @@ export function useChatFlow({
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   setSuggestions: Dispatch<SetStateAction<string[]>>;
   setCurrentPosition: Dispatch<SetStateAction<"landing" | "catalog" | "search" | "cart">>;
-  setCurrentMode: Dispatch<SetStateAction<"navigator" | "navigator_deep" | "cart_assistant" | "executor">>;
+  setCurrentMode: Dispatch<SetStateAction<MaxModeMode>>;
   setLastRequestData: Dispatch<SetStateAction<any>>;
   setLastResponseData: Dispatch<SetStateAction<any>>;
   setSelectedDebugMessage: Dispatch<SetStateAction<ChatMessage | null>>;
   currentPosition: "landing" | "catalog" | "search" | "cart";
-  currentMode: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
+  currentMode: MaxModeMode;
   requestContext?: Record<string, any>;
 }) {
   const handleChatQuery = useCallback(
-    async (presetQuery?: string, actionPosition?: "landing" | "catalog" | "search" | "cart", actionMode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => {
+    async (
+      presetQuery?: string,
+      actionPosition?: "landing" | "catalog" | "search" | "cart",
+      actionMode?: MaxModeMode,
+      extraRequestContext?: Record<string, any>,
+    ) => {
       const query = presetQuery ?? chatQuery;
       if (!query.trim()) return;
 
@@ -80,7 +86,7 @@ export function useChatFlow({
       const isFirstQuery = chatMessagesLength === 0;
 
       let position: "landing" | "catalog" | "search" | "cart";
-      let mode: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
+      let mode: MaxModeMode;
 
       if (actionPosition && actionMode) {
         position = actionPosition;
@@ -100,9 +106,9 @@ export function useChatFlow({
         mode = "navigator";
       }
 
-      // Deep mode is highest priority — overrides everything
-      if (currentMode === "navigator_deep") {
-        mode = "navigator_deep";
+      // Deep/Thinker mode is highest priority — overrides generic search routing.
+      if (currentMode === "navigator_deep" || currentMode === "thinker_deep") {
+        mode = currentMode;
       }
 
       emitEvent("message:sent", {
@@ -181,17 +187,20 @@ export function useChatFlow({
           };
         });
 
-        // Only send mode explicitly for navigator_deep and cart_assistant
-        const explicitMode = (mode === "navigator_deep" || mode === "cart_assistant") ? mode : undefined;
-
-        const requestPayload = {
+        const mergedRequestContext = {
+          ...(requestContext || {}),
+          ...(extraRequestContext || {}),
+        };
+        if (hasShopifyRequestContext(mergedRequestContext)) {
+          mergedRequestContext.shopifyEffectiveConversationMode = mode;
+        }
+        const requestPayload = withRequestContext({
           query: apiQuery,
           conversationId: currentConversationId || undefined,
           position,
-          mode: explicitMode,
+          mode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
-          ...(requestContext || {}),
-        };
+        }, mergedRequestContext);
 
         setLastRequestData({
           endpoint: resolvedChatQueryUrl(),
@@ -358,6 +367,7 @@ export function useChatFlow({
       currentConversationId,
       currentMode,
       currentPosition,
+      requestContext,
       searchCategory,
       setChatMessages,
       setChatQuery,

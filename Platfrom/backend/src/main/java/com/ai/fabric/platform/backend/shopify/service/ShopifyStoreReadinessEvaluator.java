@@ -22,7 +22,8 @@ public class ShopifyStoreReadinessEvaluator {
                                                  ShopifyStoreSourcePreflightSummary sourcePreflight,
                                                  ShopifyStoreSyncSummary syncDetail,
                                                  ShopifyStoreWidgetSummary widgetDetail,
-                                                 DeploymentReleaseSummary latestRelease) {
+                                                 DeploymentReleaseSummary latestRelease,
+                                                 boolean deploymentArchived) {
         List<String> goLiveBlockers = new ArrayList<>();
         List<String> storefrontBlockers = new ArrayList<>();
         Set<String> nextActions = new LinkedHashSet<>();
@@ -48,6 +49,12 @@ public class ShopifyStoreReadinessEvaluator {
             goLiveBlockers.add("Platform bootstrap is incomplete. Customer, deployment, or consumer binding is missing.");
             storefrontBlockers.add("Platform bootstrap is incomplete. Customer, deployment, or consumer binding is missing.");
             nextActions.add("Run platform bootstrap to create and bind the customer, deployment, and consumer.");
+        }
+
+        if (deploymentArchived) {
+            goLiveBlockers.add("The bound deployment is archived and cannot be reused for Shopify Companion go-live.");
+            storefrontBlockers.add("The bound deployment is archived and cannot serve the Shopify storefront safely.");
+            nextActions.add("Run platform bootstrap again to create a fresh deployment and rebind the storefront consumer.");
         }
 
         boolean sourceReady = equalsIgnoreCase(store.getSourceReadinessStatus(), "READY");
@@ -111,6 +118,7 @@ public class ShopifyStoreReadinessEvaluator {
         boolean storefrontReady = installed
             && credentialsReady
             && mappingReady
+            && !deploymentArchived
             && sourceReady
             && latestReleaseVerified
             && syncReady

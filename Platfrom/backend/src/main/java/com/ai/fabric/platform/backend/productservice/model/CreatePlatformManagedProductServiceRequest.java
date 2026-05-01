@@ -21,7 +21,7 @@ public record CreatePlatformManagedProductServiceRequest(
     @Size(max = 255) String healthPath,
     @Size(max = 2000) String serviceRoot,
     @Size(max = 2000) String dockerfilePath,
-    @Size(max = 255) String secretName
+    @Size(max = 255) String secretName,
+    UpdatePlatformManagedProductServiceShopifyBillingConfigRequest shopifyBillingConfig
 ) {
 }
-

@@ -6,6 +6,19 @@
   font-family: "Helvetica Neue", Arial, sans-serif;
 }
 
+.loom-companion-embed-root[data-surface-mount="inline"] {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  width: 100%;
+  max-width: 100%;
+}
+
+.loom-companion-embed-root[data-surface-mount="inline"][data-status="ready"] {
+  min-height: 0;
+}
+
 .loom-companion-embed-root[data-status="configuration-required"]::before {
   content: "Companion embed requires a bridge_base_url setting.";
   display: block;

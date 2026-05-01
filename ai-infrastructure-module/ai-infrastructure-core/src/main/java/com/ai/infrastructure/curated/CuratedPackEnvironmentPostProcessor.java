@@ -86,11 +86,10 @@ public class CuratedPackEnvironmentPostProcessor implements EnvironmentPostProce
         if (trimmed.isEmpty()) {
             return null;
         }
-        // Allow safe file-name-ish pack keys (catalog, commerce, support).
+        // Allow safe file-name-ish pack keys.
         trimmed = trimmed.replaceAll("[^a-z0-9_-]+", "-");
         trimmed = trimmed.replaceAll("-+", "-");
         trimmed = trimmed.replaceAll("^-+|-+$", "");
         return trimmed.isEmpty() ? null : trimmed;
     }
 }
-

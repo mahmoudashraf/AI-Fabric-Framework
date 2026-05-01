@@ -1,0 +1,35 @@
+{% liquid
+  assign bridge_base_url = settings.bridge_base_url | strip
+  if bridge_base_url == blank
+    assign bridge_base_url = 'https://shopify-bridge-shopify-bridge-pr-production.up.railway.app'
+  endif
+%}
+
+{% render 'companion-widget-bootstrap',
+  bridge_base_url: bridge_base_url,
+  mount_role: 'app-block',
+  surface_mount: 'inline',
+  surface_scope: 'product-faq',
+  shell_enabled: 'false'
+%}
+
+{% schema %}
+{
+  "name": "Product FAQ",
+  "target": "section",
+  "stylesheet": "companion-app-embed.css",
+  "javascript": "companion-app-embed.js",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": [
+    {
+      "type": "text",
+      "id": "bridge_base_url",
+      "label": "Bridge base URL",
+      "info": "Public base URL for the Shopify Bridge Service.",
+      "default": "https://shopify-bridge-shopify-bridge-pr-production.up.railway.app"
+    }
+  ]
+}
+{% endschema %}

@@ -4,17 +4,25 @@ import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.install.entity.ShopifyInstallRecordEntity;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.repository.ShopifyInstallRecordRepository;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class ShopifyInstallRecordService {
 
+    private static final TypeReference<List<ShopifyBridgeSupportSubscriptionSummary>> SUPPORT_SUBSCRIPTIONS_TYPE =
+        new TypeReference<>() { };
+
     private final ShopifyInstallRecordRepository repository;
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     public ShopifyInstallRecordService(ShopifyInstallRecordRepository repository) {
         this.repository = repository;
@@ -76,6 +84,12 @@ public class ShopifyInstallRecordService {
         entity.setRefreshTokenSecretRef(blankToNull(refreshTokenSecretRef));
         entity.setAccessTokenExpiresAt(accessTokenExpiresAt);
         entity.setRefreshTokenExpiresAt(refreshTokenExpiresAt);
+        entity.setAppScopesUpdateWebhookReady(false);
+        entity.setAppScopesUpdateWebhookCheckedAt(null);
+        entity.setBillingTierKey(null);
+        entity.setBillingStatus(null);
+        entity.setActiveSubscriptionsJson(null);
+        entity.setBillingCheckedAt(null);
         entity.setLastUninstalledAt(null);
         entity.setUpdatedAt(now);
         return toSummary(repository.save(entity));
@@ -88,18 +102,57 @@ public class ShopifyInstallRecordService {
                                                                    Instant accessTokenExpiresAt,
                                                                    Instant refreshTokenExpiresAt,
                                                                    String scopesText) {
-        return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
-            .map(entity -> {
-                entity.setStatus("INSTALLED");
-                entity.setAccessTokenSecretRef(blankToNull(accessTokenSecretRef));
-                entity.setRefreshTokenSecretRef(blankToNull(refreshTokenSecretRef));
-                entity.setAccessTokenExpiresAt(accessTokenExpiresAt);
-                entity.setRefreshTokenExpiresAt(refreshTokenExpiresAt);
-                entity.setScopesText(blankToNull(scopesText));
-                entity.setLastUninstalledAt(null);
-                entity.setUpdatedAt(Instant.now());
-                return toSummary(repository.save(entity));
-            });
+        Instant now = Instant.now();
+        ShopifyInstallRecordEntity entity = getOrCreateInstallRecord(shopDomain, now);
+        entity.setStatus("INSTALLED");
+        entity.setAccessTokenSecretRef(blankToNull(accessTokenSecretRef));
+        entity.setRefreshTokenSecretRef(blankToNull(refreshTokenSecretRef));
+        entity.setAccessTokenExpiresAt(accessTokenExpiresAt);
+        entity.setRefreshTokenExpiresAt(refreshTokenExpiresAt);
+        entity.setScopesText(blankToNull(scopesText));
+        entity.setLastUninstalledAt(null);
+        entity.setUpdatedAt(now);
+        return Optional.of(toSummary(repository.save(entity)));
+    }
+
+    @Transactional
+    public Optional<ShopifyInstallRecordSummary> recordScopesUpdate(String shopDomain,
+                                                                    String scopesText) {
+        Instant now = Instant.now();
+        ShopifyInstallRecordEntity entity = getOrCreateInstallRecord(shopDomain, now);
+        entity.setStatus("INSTALLED");
+        entity.setScopesText(blankToNull(scopesText));
+        entity.setAppScopesUpdateWebhookReady(true);
+        entity.setAppScopesUpdateWebhookCheckedAt(now);
+        entity.setLastUninstalledAt(null);
+        entity.setUpdatedAt(now);
+        return Optional.of(toSummary(repository.save(entity)));
+    }
+
+    @Transactional
+    public Optional<ShopifyInstallRecordSummary> recordAppScopesUpdateWebhookReady(String shopDomain,
+                                                                                   boolean ready) {
+        Instant now = Instant.now();
+        ShopifyInstallRecordEntity entity = getOrCreateInstallRecord(shopDomain, now);
+        entity.setAppScopesUpdateWebhookReady(ready);
+        entity.setAppScopesUpdateWebhookCheckedAt(now);
+        entity.setUpdatedAt(now);
+        return Optional.of(toSummary(repository.save(entity)));
+    }
+
+    @Transactional
+    public Optional<ShopifyInstallRecordSummary> recordBillingState(String shopDomain,
+                                                                    String billingTierKey,
+                                                                    String billingStatus,
+                                                                    List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions) {
+        Instant now = Instant.now();
+        ShopifyInstallRecordEntity entity = getOrCreateInstallRecord(shopDomain, now);
+        entity.setBillingTierKey(blankToNull(billingTierKey));
+        entity.setBillingStatus(blankToNull(billingStatus));
+        entity.setActiveSubscriptionsJson(writeSupportSubscriptions(activeSubscriptions));
+        entity.setBillingCheckedAt(now);
+        entity.setUpdatedAt(now);
+        return Optional.of(toSummary(repository.save(entity)));
     }
 
     @Transactional
@@ -111,6 +164,12 @@ public class ShopifyInstallRecordService {
                 entity.setAccessTokenExpiresAt(null);
                 entity.setRefreshTokenExpiresAt(null);
                 entity.setScopesText(null);
+                entity.setAppScopesUpdateWebhookReady(false);
+                entity.setAppScopesUpdateWebhookCheckedAt(null);
+                entity.setBillingTierKey(null);
+                entity.setBillingStatus(null);
+                entity.setActiveSubscriptionsJson(null);
+                entity.setBillingCheckedAt(null);
                 entity.setUpdatedAt(Instant.now());
                 return toSummary(repository.save(entity));
             });
@@ -127,6 +186,12 @@ public class ShopifyInstallRecordService {
                 entity.setAccessTokenExpiresAt(null);
                 entity.setRefreshTokenExpiresAt(null);
                 entity.setScopesText(null);
+                entity.setAppScopesUpdateWebhookReady(false);
+                entity.setAppScopesUpdateWebhookCheckedAt(null);
+                entity.setBillingTierKey(null);
+                entity.setBillingStatus(null);
+                entity.setActiveSubscriptionsJson(null);
+                entity.setBillingCheckedAt(null);
                 entity.setLastUninstalledAt(now);
                 entity.setUpdatedAt(now);
                 return toSummary(repository.save(entity));
@@ -155,10 +220,34 @@ public class ShopifyInstallRecordService {
             entity.getScopesText(),
             entity.getAccessTokenExpiresAt(),
             entity.getRefreshTokenExpiresAt(),
+            entity.isAppScopesUpdateWebhookReady(),
+            entity.getAppScopesUpdateWebhookCheckedAt(),
+            entity.getBillingTierKey(),
+            entity.getBillingStatus(),
+            readSupportSubscriptions(entity.getActiveSubscriptionsJson()),
+            entity.getBillingCheckedAt(),
             entity.getInstalledAt(),
             entity.getLastAuthenticatedAt(),
             entity.getLastUninstalledAt()
         );
+    }
+
+    private ShopifyInstallRecordEntity getOrCreateInstallRecord(String shopDomain, Instant now) {
+        ShopifyInstallRecordEntity entity = repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
+            .orElseGet(ShopifyInstallRecordEntity::new);
+        if (entity.getId() == null) {
+            entity.setId("sir-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16));
+            entity.setCreatedAt(now);
+            entity.setInstalledAt(now);
+            entity.setShopUrl("https://" + normalizeShopDomain(shopDomain));
+        } else if (entity.getInstalledAt() == null) {
+            entity.setInstalledAt(now);
+        }
+        entity.setShopDomain(normalizeShopDomain(shopDomain));
+        if (entity.getStatus() == null || entity.getStatus().isBlank()) {
+            entity.setStatus("INSTALLED");
+        }
+        return entity;
     }
 
     private String normalizeShopDomain(String shopDomain) {
@@ -170,5 +259,28 @@ public class ShopifyInstallRecordService {
             return null;
         }
         return value.trim();
+    }
+
+    private List<ShopifyBridgeSupportSubscriptionSummary> readSupportSubscriptions(String rawJson) {
+        String normalized = blankToNull(rawJson);
+        if (normalized == null) {
+            return List.of();
+        }
+        try {
+            return List.copyOf(objectMapper.readValue(normalized, SUPPORT_SUBSCRIPTIONS_TYPE));
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private String writeSupportSubscriptions(List<ShopifyBridgeSupportSubscriptionSummary> activeSubscriptions) {
+        if (activeSubscriptions == null || activeSubscriptions.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(activeSubscriptions);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to serialize Shopify support subscriptions.", ex);
+        }
     }
 }

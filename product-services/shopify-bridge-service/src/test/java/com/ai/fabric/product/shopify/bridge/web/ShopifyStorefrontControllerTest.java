@@ -1,6 +1,12 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCapability;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionCompletionRequest;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantRequest;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
+import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontEngagementEventRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.storefront.service.ShopifyStorefrontBootstrapService;
@@ -13,6 +19,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -48,32 +57,70 @@ class ShopifyStorefrontControllerTest {
     private ShopifyStorefrontEngagementService storefrontEngagementService;
 
     @MockBean
+    private ShopifyStorefrontGovernedActionService governedActionService;
+
+    @MockBean
     private ShopifyBridgeUsageService usageService;
 
     @Test
     void bootstrapIsPublicAndReturnsStorefrontMetadata() throws Exception {
-        when(storefrontBootstrapService.bootstrap("alpha.myshopify.com")).thenReturn(new ShopifyStorefrontBootstrapResponse(
+        when(storefrontBootstrapService.bootstrap("alpha.myshopify.com", "product")).thenReturn(new ShopifyStorefrontBootstrapResponse(
             true,
             "alpha.myshopify.com",
             "consumer-alpha",
             "dep-1",
             "ENABLED",
             "READY",
+            "FREE",
+            "ACTIVE",
+            50,
+            true,
+            false,
             "Need help?",
             "Ask me about products and policies.",
+            "SHOPIFY_COMPANION",
+            true,
+            "navigator",
+            "navigator",
+            List.of("navigator"),
+            java.util.Map.of(),
+            List.of("ai-search"),
+            List.of("Catalog product grounding", "Policy grounding"),
+            List.of("Judge.me", "Okendo"),
             "PRIVATE_RUNTIME_BACKEND_MEDIATED",
             "SIGNED_PRIVATE_RUNTIME",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/suggestions",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/support/order-lookup",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events",
+            false,
+            false,
+            "Order lookup is available only on Elite stores with verified support access.",
+            new ShopifyStorefrontGovernedActionCapability(
+                false,
+                false,
+                false,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                "Activate Elite to unlock governed shopper actions with explicit confirmation and audit trail."
+            ),
             "Route storefront traffic through the Shopify Bridge backend.",
             "Storefront bootstrap resolved."
         ));
 
-        mockMvc.perform(get("/api/storefront/shops/alpha.myshopify.com/bootstrap"))
+        mockMvc.perform(get("/api/storefront/shops/alpha.myshopify.com/bootstrap?pageType=product"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.available").value(true))
             .andExpect(jsonPath("$.consumerId").value("consumer-alpha"))
+            .andExpect(jsonPath("$.billingTier").value("FREE"))
+            .andExpect(jsonPath("$.chatFallbackEnabled").value(false))
+            .andExpect(jsonPath("$.shellModeProfile").value("SHOPIFY_COMPANION"))
+            .andExpect(jsonPath("$.defaultConversationMode").value("navigator"))
+            .andExpect(jsonPath("$.effectiveConversationMode").value("navigator"))
+            .andExpect(jsonPath("$.allowedConversationModes[0]").value("navigator"))
+            .andExpect(jsonPath("$.enabledSurfaces[0]").value("ai-search"))
             .andExpect(jsonPath("$.bridgeQueryUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query"))
             .andExpect(jsonPath("$.bridgeEventUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events"));
 
@@ -119,7 +166,20 @@ class ShopifyStorefrontControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.conversationId").value("conv-1"));
 
-        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_QUERY");
+        verify(usageService).recordQueryInsight(
+            eq("alpha.myshopify.com"),
+            eq("STOREFRONT_QUERY"),
+            eq(objectMapper.readTree("""
+                {
+                  "query":"Show me backpacks",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """)),
+            eq("launcher")
+        );
     }
 
     @Test
@@ -148,5 +208,106 @@ class ShopifyStorefrontControllerTest {
             )),
             eq("shopper-session-1")
         );
+    }
+
+    @Test
+    void grantActionForwardsGovernedCommerceRequest() throws Exception {
+        when(governedActionService.grant(eq("alpha.myshopify.com"), eq(new ShopifyStorefrontGovernedActionGrantRequest(
+            "ADD_TO_CART",
+            "product-insight",
+            "product",
+            "101",
+            "travel-pack",
+            "Travel Pack",
+            "202",
+            2,
+            null,
+            null,
+            true
+        )), eq("shopper-session-1")))
+            .thenReturn(new ShopifyStorefrontGovernedActionGrantResponse(
+                "sga-1",
+                "signed-token",
+                "ADD_TO_CART",
+                "guided-commerce",
+                "CART_ADD",
+                "202",
+                2,
+                null,
+                null,
+                true,
+                Instant.parse("2026-04-23T12:05:00Z"),
+                "Guided add-to-cart approval granted."
+            ));
+
+        mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/actions/grant")
+                .header("X-AI-FABRIC-SHOPPER-SESSION-ID", "shopper-session-1")
+                .contentType("application/json")
+                .content("""
+                    {
+                      "actionType":"ADD_TO_CART",
+                      "surfaceId":"product-insight",
+                      "pageType":"product",
+                      "productId":"101",
+                      "productHandle":"travel-pack",
+                      "productTitle":"Travel Pack",
+                      "variantId":"202",
+                      "requestedQuantity":2,
+                      "confirmationAccepted":true
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.auditId").value("sga-1"))
+            .andExpect(jsonPath("$.operationKind").value("CART_ADD"));
+    }
+
+    @Test
+    void completeActionForwardsGovernedCommerceCompletion() throws Exception {
+        when(governedActionService.complete(eq("alpha.myshopify.com"), eq(new ShopifyStorefrontGovernedActionCompletionRequest(
+            "sga-1",
+            "signed-token",
+            "COMPLETED",
+            "Guided add-to-cart completed.",
+            "line-1",
+            2
+        )), eq("shopper-session-1")))
+            .thenReturn(new ShopifyBridgeGovernedActionAuditSummary(
+                "sga-1",
+                "ADD_TO_CART",
+                "guided-commerce",
+                "product-insight",
+                "PRODUCT",
+                "travel-pack",
+                "Travel Pack",
+                "202",
+                2,
+                null,
+                2,
+                true,
+                true,
+                "shop…0001",
+                "COMPLETED",
+                "Guided add-to-cart completed.",
+                Instant.parse("2026-04-23T12:00:00Z"),
+                Instant.parse("2026-04-23T12:05:00Z"),
+                Instant.parse("2026-04-23T12:00:04Z")
+            ));
+
+        mockMvc.perform(post("/api/storefront/shops/alpha.myshopify.com/actions/complete")
+                .header("X-AI-FABRIC-SHOPPER-SESSION-ID", "shopper-session-1")
+                .contentType("application/json")
+                .content("""
+                    {
+                      "auditId":"sga-1",
+                      "token":"signed-token",
+                      "status":"COMPLETED",
+                      "message":"Guided add-to-cart completed.",
+                      "cartLineKey":"line-1",
+                      "resultingQuantity":2
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("COMPLETED"))
+            .andExpect(jsonPath("$.resultingQuantity").value(2));
     }
 }

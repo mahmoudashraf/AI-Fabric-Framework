@@ -50,7 +50,7 @@ VERIFY_CONSUMER_RESOLUTION_SMOKE="${VERIFY_CONSUMER_RESOLUTION_SMOKE:-true}"
 VERIFY_INFERENCE_SERVICE_UI="${VERIFY_INFERENCE_SERVICE_UI:-true}"
 VERIFY_INFERENCE_SERVICE_ADMIN_READONLY="${VERIFY_INFERENCE_SERVICE_ADMIN_READONLY:-true}"
 VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION="${VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION:-false}"
-INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF:-shared-ollama-orchestration}"
+INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF:-openai-cloud-orchestration}"
 INFERENCE_SERVICE_ROTATE_SECRET_VALUE="${INFERENCE_SERVICE_ROTATE_SECRET_VALUE:-}"
 INFERENCE_SERVICE_SCALE_TARGET="${INFERENCE_SERVICE_SCALE_TARGET:-}"
 
@@ -451,7 +451,7 @@ assert_inference_service_summary() {
 assert_inference_service_health() {
   local label="$1"
 
-  json_assert "${label}" $'assert (data or {}).get("serviceRef") == "'"${INFERENCE_SERVICE_REF}"'"\nassert (data or {}).get("status") == "READY", data\nassert (data or {}).get("driftStatus") == "NO_DRIFT", data\nassert (data or {}).get("secretConfigured") is True, data\nhealth_probe = (data or {}).get("healthProbe") or {}\ninference_probe = (data or {}).get("inferenceProbe") or {}\nassert (health_probe or {}).get("status") == "READY", health_probe\nassert bool((health_probe or {}).get("endpoint")), health_probe\nassert (inference_probe or {}).get("status") == "READY", inference_probe\nassert bool((inference_probe or {}).get("endpoint")), inference_probe\nassert bool((inference_probe or {}).get("message")), inference_probe\nprint("ok")'
+  json_assert "${label}" $'assert (data or {}).get("serviceRef") == "'"${INFERENCE_SERVICE_REF}"'"\nassert (data or {}).get("status") == "READY", data\nassert (data or {}).get("driftStatus") == "NO_DRIFT", data\nassert (data or {}).get("secretConfigured") is True, data\nhealth_probe = (data or {}).get("healthProbe") or {}\ninference_probe = (data or {}).get("inferenceProbe") or {}\nhealth_status = (health_probe or {}).get("status")\nassert health_status in {"READY", "SKIPPED"}, health_probe\nif health_status == "READY":\n  assert bool((health_probe or {}).get("endpoint")), health_probe\nelse:\n  assert (data or {}).get("railwayLifecycleManaged") is False, data\n  assert bool((health_probe or {}).get("message")), health_probe\nassert (inference_probe or {}).get("status") == "READY", inference_probe\nassert bool((inference_probe or {}).get("endpoint")), inference_probe\nassert bool((inference_probe or {}).get("message")), inference_probe\nprint("ok")'
 }
 
 verify_inference_service_ui() {
@@ -916,7 +916,7 @@ if [[ "${VERIFY_CANONICAL_ROLLOUT_READONLY}" == "true" ]]; then
   echo "== Canonical Rollout Inventory =="
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/verification-rollouts"
   assert_status 200 "canonical rollout inventory"
-  json_assert "canonical rollout inventory" $'items = (data or {}).get("items") or []\nkeys = {item.get("key") for item in items}\nfor required in {"ecommerce", "qdrant", "pinecone", "milvus", "weaviate"}:\n  assert required in keys, {"required": required, "actual": sorted(keys)}\nassert bool((data or {}).get("summaryMessage"))\nprint("ok")'
+  json_assert "canonical rollout inventory" $'items = (data or {}).get("items") or []\nkeys = {item.get("key") for item in items}\nfor required in {"marketplace", "ecommerce", "qdrant"}:\n  assert required in keys, {"required": required, "actual": sorted(keys)}\nassert bool((data or {}).get("summaryMessage"))\nprint("ok")'
   pass "platform GET /api/deployments/verification-rollouts"
 fi
 

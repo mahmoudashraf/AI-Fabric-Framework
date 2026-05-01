@@ -2,249 +2,258 @@ package com.ai.fabric.product.shopify.bridge.webhook.service;
 
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.assertj.core.api.Assertions.assertThat;
 
 class ShopifyWebhookSubscriptionServiceTest {
 
     @Test
-    void reconcileCreatesMissingSubscriptions() {
+    void inspectTopicStatusReturnsReadyForSingleTopicProbe() {
         ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        when(client.execute(anyString(), anyString(), anyString(), anyMap()))
+            .thenReturn(listResponse(
+                "APP_SCOPES_UPDATE",
+                "https://bridge.example.com/api/webhooks/shopify",
+                "loom-app-scopes-update"
+            ));
+
         ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
 
-        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap()))
-            .thenReturn(emptyListResponse());
-        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap()))
-            .thenReturn(createResponse());
+        ShopifyWebhookSubscriptionTopicStatusSummary topic = service.inspectTopicStatus(
+            "demo.myshopify.com",
+            "token",
+            "APP_SCOPES_UPDATE"
+        );
 
-        service.reconcileContentSubscriptions("alpha.myshopify.com", "token");
-
-        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
-        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
+        assertThat(topic.topic()).isEqualTo("APP_SCOPES_UPDATE");
+        assertThat(topic.status()).isEqualTo("READY");
     }
 
     @Test
-    void reconcileReusesMatchingSubscriptionsWithoutCreatingDuplicates() {
+    void inspectContentSubscriptionsSkipsMetaobjectWebhookDefinitionsWhenDefinitionsAreInaccessible() {
         ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
-
-        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap()))
-            .thenReturn(matchingListResponse());
-
-        service.reconcileContentSubscriptions("alpha.myshopify.com", "token");
-
-        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
-        verify(client, never()).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
-        verify(client, never()).execute(eq("alpha.myshopify.com"), eq("token"), eq(deleteMutation()), anyMap());
-    }
-
-    @Test
-    void reconcileDeletesSameNamedSubscriptionWhenUriDrifts() {
-        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
-
-        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap()))
-            .thenReturn(driftedListResponse());
-        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(deleteMutation()), anyMap()))
-            .thenReturn(deleteResponse());
-        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap()))
-            .thenReturn(createResponse());
-
-        service.reconcileContentSubscriptions("alpha.myshopify.com", "token");
-
-        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap());
-        verify(client, times(1)).execute(eq("alpha.myshopify.com"), eq("token"), eq(deleteMutation()), anyMap());
-        verify(client, times(9)).execute(eq("alpha.myshopify.com"), eq("token"), eq(createMutation()), anyMap());
-    }
-
-    @Test
-    void inspectMarksMissingAndDriftedTopics() {
-        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
-        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
-
-        when(client.execute(eq("alpha.myshopify.com"), eq("token"), eq(listQuery()), anyMap()))
+        when(client.execute(anyString(), anyString(), anyString(), anyMap()))
             .thenAnswer(invocation -> {
-                Map<String, Object> variables = invocation.getArgument(3);
-                @SuppressWarnings("unchecked")
-                List<String> topics = (List<String>) variables.get("topics");
-                String topic = topics == null || topics.isEmpty() ? null : topics.get(0);
-                if ("APP_UNINSTALLED".equals(topic)) {
-                    return driftedListResponse();
+                String query = invocation.getArgument(2);
+                if (query.contains("metaobjectDefinitions")) {
+                    return Map.of(
+                        "errors",
+                        List.of(Map.of("message", "Access denied for metaobjectDefinitions."))
+                    );
                 }
-                if ("PRODUCTS_CREATE".equals(topic)) {
-                    return matchingListResponse("PRODUCTS_CREATE", "loom-products-create");
+                @SuppressWarnings("unchecked")
+                List<String> topics = (List<String>) ((Map<String, Object>) invocation.getArgument(3)).get("topics");
+                String topic = topics.getFirst();
+                if ("APP_SCOPES_UPDATE".equals(topic)) {
+                    return listResponse(topic, "https://bridge.example.com/api/webhooks/shopify", "loom-app-scopes-update");
                 }
                 return emptyListResponse();
             });
 
-        var summary = service.inspectContentSubscriptions("alpha.myshopify.com", "token");
+        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
+
+        ShopifyWebhookSubscriptionStatusSummary summary = service.inspectContentSubscriptions("demo.myshopify.com", "token");
 
         assertThat(summary.status()).isEqualTo("DEGRADED");
-        assertThat(summary.expectedCount()).isEqualTo(9);
-        assertThat(summary.readyCount()).isEqualTo(1);
-        assertThat(summary.missingCount()).isEqualTo(7);
-        assertThat(summary.driftedCount()).isEqualTo(1);
-        assertThat(summary.topics()).anyMatch(topic -> "APP_UNINSTALLED".equals(topic.topic()) && "DRIFTED".equals(topic.status()));
-        assertThat(summary.topics()).anyMatch(topic -> "PRODUCTS_CREATE".equals(topic.topic()) && "READY".equals(topic.status()));
+        assertThat(summary.topics())
+            .extracting(ShopifyWebhookSubscriptionTopicStatusSummary::topic, ShopifyWebhookSubscriptionTopicStatusSummary::status)
+            .contains(org.assertj.core.groups.Tuple.tuple("APP_SCOPES_UPDATE", "READY"));
+        assertThat(summary.topics())
+            .extracting(ShopifyWebhookSubscriptionTopicStatusSummary::topic)
+            .doesNotContain("METAOBJECTS_CREATE", "METAOBJECTS_UPDATE", "METAOBJECTS_DELETE");
     }
 
-    private ShopifyBridgeProperties properties() {
+    @Test
+    void reconcileContentSubscriptionsCreatesMetaobjectSubscriptionsWithDefinitionTypeFilters() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        when(client.execute(anyString(), anyString(), anyString(), anyMap()))
+            .thenAnswer(invocation -> {
+                String query = invocation.getArgument(2);
+                if (query.contains("metaobjectDefinitions")) {
+                    return definitionResponse("lookbook", 2);
+                }
+                if (query.contains("webhookSubscriptionCreate")) {
+                    return createResponse();
+                }
+                return emptyListResponse();
+            });
+
+        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
+
+        assertThatCode(() -> service.reconcileContentSubscriptions("demo.myshopify.com", "token"))
+            .doesNotThrowAnyException();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(client, atLeastOnce()).execute(anyString(), anyString(), anyString(), variablesCaptor.capture());
+
+        assertThat(variablesCaptor.getAllValues())
+            .filteredOn(variables -> "METAOBJECTS_CREATE".equals(variables.get("topic")))
+            .anySatisfy(variables -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> webhookSubscription = (Map<String, Object>) variables.get("webhookSubscription");
+                assertThat(webhookSubscription)
+                    .containsEntry("filter", "type:lookbook")
+                    .containsEntry("name", "loom-metaobjects-create-lookbook");
+            });
+    }
+
+    @Test
+    void reconcileContentSubscriptionsDoesNotBlockUpgradeWhenShopifyRejectsMetaobjectFilter() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        when(client.execute(anyString(), anyString(), anyString(), anyMap()))
+            .thenAnswer(invocation -> {
+                String query = invocation.getArgument(2);
+                if (query.contains("metaobjectDefinitions")) {
+                    return definitionResponse("$app:entry", 1);
+                }
+                if (query.contains("webhookSubscriptionCreate")) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> variables = invocation.getArgument(3);
+                    if (String.valueOf(variables.get("topic")).startsWith("METAOBJECTS_")) {
+                        return userErrorCreateResponse("The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.");
+                    }
+                    return createResponse();
+                }
+                return emptyListResponse();
+            });
+
+        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
+
+        assertThatCode(() -> service.reconcileContentSubscriptions("demo.myshopify.com", "token"))
+            .doesNotThrowAnyException();
+    }
+
+    private static ShopifyBridgeProperties properties() {
         return new ShopifyBridgeProperties(
-            "Loom Companion",
-            "shopify-bridge-prod",
+            "Shopify Bridge Service",
+            "shopify-bridge-test",
             "SHOPIFY",
             "SHOPIFY_BRIDGE_SERVICE",
-            "prod",
+            "test",
             "https://bridge.example.com",
             "2026-04",
-            "shopify-api-key",
-            "shopify-api-secret",
-            "https://platform.example.com",
-            "platform-key",
-            "X-PLATFORM-API-KEY",
-            "webhook-secret",
-            "bridge-admin-key",
-            "X-BRIDGE-API-KEY"
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
         );
     }
 
-    private Map<String, Object> emptyListResponse() {
+    private static Map<String, Object> emptyListResponse() {
         return Map.of(
-            "data", Map.of(
-                "webhookSubscriptions", Map.of(
-                    "edges", List.of()
-                )
+            "data",
+            Map.of(
+                "webhookSubscriptions",
+                Map.of("edges", List.of())
             )
         );
     }
 
-    private Map<String, Object> matchingListResponse() {
-        return matchingListResponse("APP_UNINSTALLED", "loom-app-uninstalled");
-    }
-
-    private Map<String, Object> matchingListResponse(String topic, String name) {
+    private static Map<String, Object> createResponse() {
         return Map.of(
-            "data", Map.of(
-                "webhookSubscriptions", Map.of(
-                    "edges", List.of(
-                        Map.of(
-                            "node", Map.of(
-                                "id", "gid://shopify/WebhookSubscription/1",
-                                "topic", topic,
-                                "uri", "https://bridge.example.com/api/webhooks/shopify",
-                                "name", name
-                            )
-                        )
-                    )
-                )
-            )
-        );
-    }
-
-    private Map<String, Object> driftedListResponse() {
-        return Map.of(
-            "data", Map.of(
-                "webhookSubscriptions", Map.of(
-                    "edges", List.of(
-                        Map.of(
-                            "node", Map.of(
-                                "id", "gid://shopify/WebhookSubscription/2",
-                                "topic", "APP_UNINSTALLED",
-                                "uri", "https://old.example.com/api/webhooks/shopify",
-                                "name", "loom-app-uninstalled"
-                            )
-                        )
-                    )
-                )
-            )
-        );
-    }
-
-    private Map<String, Object> createResponse() {
-        return Map.of(
-            "data", Map.of(
-                "webhookSubscriptionCreate", Map.of(
-                    "webhookSubscription", Map.of(
-                        "id", "gid://shopify/WebhookSubscription/99",
-                        "topic", "APP_UNINSTALLED",
+            "data",
+            Map.of(
+                "webhookSubscriptionCreate",
+                Map.of(
+                    "webhookSubscription",
+                    Map.of(
+                        "id", "gid://shopify/WebhookSubscription/created",
+                        "topic", "PRODUCTS_UPDATE",
                         "uri", "https://bridge.example.com/api/webhooks/shopify",
-                        "name", "loom-app-uninstalled"
+                        "name", "created"
                     ),
-                    "userErrors", List.of()
+                    "userErrors",
+                    List.of()
                 )
             )
         );
     }
 
-    private Map<String, Object> deleteResponse() {
+    private static Map<String, Object> userErrorCreateResponse(String message) {
         return Map.of(
-            "data", Map.of(
-                "webhookSubscriptionDelete", Map.of(
-                    "deletedWebhookSubscriptionId", "gid://shopify/WebhookSubscription/2",
-                    "userErrors", List.of()
+            "data",
+            Map.of(
+                "webhookSubscriptionCreate",
+                Map.of(
+                    "webhookSubscription",
+                    Map.of(),
+                    "userErrors",
+                    List.of(Map.of("message", message))
                 )
             )
         );
     }
 
-    private String listQuery() {
-        return """
-        query ShopifyBridgeWebhookSubscriptions($topics: [WebhookSubscriptionTopic!]) {
-          webhookSubscriptions(first: 50, topics: $topics) {
-            edges {
-              node {
-                id
-                topic
-                uri
-                name
-              }
-            }
-          }
-        }
-        """;
+    private static Map<String, Object> definitionResponse(String type, int metaobjectsCount) {
+        return Map.of(
+            "data",
+            Map.of(
+                "metaobjectDefinitions",
+                Map.of(
+                    "pageInfo",
+                    Map.of("hasNextPage", false, "endCursor", ""),
+                    "edges",
+                    List.of(
+                        Map.of(
+                            "node",
+                            Map.of(
+                                "id", "gid://shopify/MetaobjectDefinition/" + type,
+                                "type", type,
+                                "name", type,
+                                "description", "",
+                                "displayNameKey", "",
+                                "metaobjectsCount", metaobjectsCount,
+                                "access", Map.of("admin", "MERCHANT_READ_WRITE", "storefront", "PUBLIC_READ"),
+                                "fieldDefinitions", List.of()
+                            )
+                        )
+                    )
+                )
+            )
+        );
     }
 
-    private String createMutation() {
-        return """
-        mutation ShopifyBridgeCreateWebhookSubscription($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
-          webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
-            webhookSubscription {
-              id
-              topic
-              uri
-              name
-            }
-            userErrors {
-              field
-              message
-            }
-          }
-        }
-        """;
+    private static Map<String, Object> listResponse(String topic, String uri, String name) {
+        return Map.of(
+            "data",
+            Map.of(
+                "webhookSubscriptions",
+                Map.of(
+                    "edges",
+                    List.of(
+                        Map.of(
+                            "node",
+                            Map.of(
+                                "id", "gid://shopify/WebhookSubscription/" + topic,
+                                "topic", topic,
+                                "uri", uri,
+                                "name", name,
+                                "filter", ""
+                            )
+                        )
+                    )
+                )
+            )
+        );
     }
 
-    private String deleteMutation() {
-        return """
-        mutation ShopifyBridgeDeleteWebhookSubscription($id: ID!) {
-          webhookSubscriptionDelete(id: $id) {
-            deletedWebhookSubscriptionId
-            userErrors {
-              field
-              message
-            }
-          }
-        }
-        """;
-    }
 }

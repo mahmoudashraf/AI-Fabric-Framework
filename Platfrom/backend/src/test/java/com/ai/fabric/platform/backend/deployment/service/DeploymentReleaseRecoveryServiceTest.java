@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -18,6 +19,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -125,6 +127,79 @@ class DeploymentReleaseRecoveryServiceTest {
             any(IllegalStateException.class)
         );
         verify(deploymentReleaseExecutionService, never()).runVerification(any(), any(), any());
+    }
+
+    @Test
+    void reconcileLatestInProgressReleaseRunsVerificationAfterCompletedMarketplaceDatasetSync() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = staleMarketplaceDatasetSyncRelease(true);
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        verify(deploymentReleaseExecutionService, never()).syncMarketplaceDatasets(any(), any(), any());
+        verify(deploymentReleaseExecutionService).runVerification(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
+    void reconcileLatestInProgressReleaseRetriesMarketplaceDatasetSyncBeforeVerificationWhenSummaryIsMissing() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = staleMarketplaceDatasetSyncRelease(false);
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        InOrder inOrder = inOrder(deploymentReleaseExecutionService);
+        inOrder.verify(deploymentReleaseExecutionService).syncMarketplaceDatasets(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        inOrder.verify(deploymentReleaseExecutionService).runVerification(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
     }
 
     @Test
@@ -257,6 +332,49 @@ class DeploymentReleaseRecoveryServiceTest {
     }
 
     @Test
+    void reconcileLatestInProgressReleaseFailsStalePreApplyVerificationStep() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-preapply");
+        release.setDeploymentId(deployment.getId());
+        release.setDeploymentVersionId("ver-preapply");
+        release.setStatus("PRE_APPLY_VERIFYING");
+        release.setProvisioningTarget("RAILWAY_API");
+        release.setCurrentStepKey("preflight_verification");
+        release.setCurrentStepDescription("Running pre-apply verification gate.");
+        release.setUpdatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        verify(deploymentReleaseExecutionService).markFailed(
+            eq(release.getId()),
+            eq(deployment.getId()),
+            argThat(ex -> ex instanceof IllegalStateException
+                && ex.getMessage() != null
+                && ex.getMessage().contains("preflight_verification"))
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
     void reconcileLatestInProgressReleaseFailsStalePreActivationProvisioningStep() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
@@ -370,6 +488,33 @@ class DeploymentReleaseRecoveryServiceTest {
               }
             }
             """);
+        return release;
+    }
+
+    private DeploymentReleaseEntity staleMarketplaceDatasetSyncRelease(boolean withSummary) {
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-marketplace-sync");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-123");
+        release.setStatus("VERIFYING");
+        release.setProvisioningTarget("RAILWAY_API");
+        release.setProvisioningStatus("ACTIVE");
+        release.setVerificationStatus("RUNNING");
+        release.setCurrentStepKey("sync_marketplace_datasets");
+        release.setCurrentStepDescription("Sync marketplace DATA plugin datasets.");
+        release.setUpdatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+        release.setProvisioningDetailsJson(withSummary
+            ? """
+                {
+                  "marketplaceDatasets": {
+                    "datasetsCount": 2,
+                    "syncedDatasets": 2,
+                    "skippedDatasets": 0,
+                    "handleRefs": ["starter", "elite"]
+                  }
+                }
+                """
+            : "{}");
         return release;
     }
 

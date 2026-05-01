@@ -1,108 +1,126 @@
 # Shopify Companion Customer Capabilities Guide
 
-Status: customer-facing capability guide for the current live Shopify Companion build (2026-04-19)
+Status: customer-facing capability guide for the current live Shopify Companion build (2026-04-23)
 
-This document describes what Shopify Companion can do now in the current live product shape.
+This guide describes what Shopify Companion can do now in the current live product shape.
 
-It is intentionally narrower than the roadmap and implementation plans. Use it when explaining the product to:
+Use it when explaining the product to:
 
+- merchants
 - design partners
 - internal sales or solution teams
-- merchants evaluating the current build
+- launch and review stakeholders
 
-Do not use it to describe future or planned capabilities that are not live yet.
+Do not use it to describe roadmap items that are not live yet.
 
-Related internal documents:
+Related guides:
 
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_PRODUCTS_SHIPPING_ROADMAP.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_IMPLEMENTATION_PLAN.md`
-- `doc/Productization/future-work/MarketPlace/Products/SHOPIFY_COMPANION_SUBSCRIPTION_AND_GO_LIVE_FLOW.md`
+- [Shopify Companion Merchant Launch And Support Guide](./SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md)
+- [Thinker Resolver User Guide](./THINKER_RESOLVER_USER_GUIDE.md)
+- [Shopify Companion Developer And Store Admin Guide](../Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md)
+- [Shopify Internal Development And Full Deployment Guide](../Development_Guides/SHOPIFY_INTERNAL_DEVELOPMENT_AND_FULL_DEPLOYMENT_GUIDE.md)
 
 ---
 
 ## 1) Product Summary
 
-Shopify Companion is a read-first shopping assistant for Shopify stores.
+Shopify Companion is an embedded, read-first storefront intelligence product for Shopify stores.
 
-It currently provides:
+The current live product shape is:
 
-- a shopper-facing assistant on the storefront
-- a merchant-facing embedded Shopify admin app
-- a merchant playground for testing live assistant behavior
-- a platform-backed deployment and verification path behind the scenes
+- embedded intelligence first
+- chat as fallback and depth
+- platform-backed merchant onboarding and verification
+- bounded merchant controls inside Shopify admin
 
-The current product posture is:
+The current product is best described as:
 
-- product discovery
-- product information
-- policy explanation
-- bounded availability checks
+- AI search for store discovery
+- grounded product and policy guidance
+- embedded product-page intelligence
+- merchant-visible readiness, launch, and support tooling
 
-It is not a transaction bot.
+It is not a checkout bot, support desk replacement, or autonomous commerce agent.
 
 ---
 
 ## 2) Shopper-Facing Capabilities Available Now
 
-### 2.1 Product discovery
+### 2.1 Embedded storefront surfaces
 
-Shoppers can use the assistant to:
+The current live storefront surface inventory includes:
 
-- list products
-- find products by name or general shopping intent
-- browse available catalog items through natural-language prompts
-- inspect basic product details returned from the live store catalog
+- AI search
+- contextual pill
+- product insight
+- policy strip
+- product FAQ
+- comparison
+- launcher/chat shell for deeper follow-up
 
-Examples:
+These surfaces are delivered through the Shopify theme app extension and merchant-placeable app blocks.
 
-- `List available products`
-- `Show me snowboard products`
-- `Help me find the right product for travel`
+### 2.2 Product discovery and product guidance
 
-### 2.2 Product detail lookup
+Shoppers can use Companion to:
 
-The assistant can return product information pulled from the connected Shopify store, including:
+- discover products from natural-language requests
+- inspect product details and availability signals
+- compare products with grounded evidence
+- find similar products
+- get policy-aware product guidance before opening a full chat flow
 
-- product title
-- handle
-- storefront URL
-- vendor
-- product type
-- variant titles
-- basic availability signals
-- inventory quantity when available from the store data
+### 2.3 Grounded source coverage
 
-### 2.3 Availability checks
+The current live grounding posture can draw on:
 
-The assistant supports bounded availability lookups.
+- products
+- collections
+- pages
+- policies
+- published articles
+- enabled metaobject content
+- compatible Shopify review and rating metafields when present
+
+Compatible review-aware metadata currently includes supported provider patterns such as:
+
+- Judge.me
+- Stamped
+- Okendo
+- Loox
+- Yotpo
+- Shopify Product Reviews
+
+Important boundary:
+
+- review-aware grounding depends on compatible metadata being present in the merchant store
+- Companion should not be described as supporting every review provider universally
+
+### 2.4 Policy and return guidance
+
+Companion can explain published store policies and use them for general return or refund guidance.
 
 Current rule:
 
-- if the shopper asks for availability without a clear SKU or specific item identifier, the assistant asks for clarification
-- if a SKU is provided and the product exists, the assistant can return the live availability result
+- Companion can explain policy-grounded return posture
+- Companion cannot inspect or change a specific order
+- order-specific return, refund, cancellation, or tracking issues must be handed off to the merchant support channel
 
-This is intentional. The current build does not guess which item the shopper means.
+### 2.5 Optional governed commerce posture
 
-### 2.4 Policy answers
+The platform now supports an optional Elite governed-commerce posture for bounded action families such as:
 
-The assistant can answer store policy questions from synced Shopify policy content.
+- add to cart
+- cart update
+- variant guidance
 
-Examples:
+This is not the default product story for every store.
 
-- `What is the store refund policy?`
-- `Explain the privacy policy`
-- `What store policies are available?`
+It should only be described when:
 
-Current policy support is read-only and explanation-oriented.
-
-### 2.5 Theme-app-embed storefront delivery
-
-The shopper assistant is delivered through the Shopify theme app embed.
-
-That means:
-
-- the assistant can appear on the storefront after the merchant enables the embed
-- the storefront uses the same platform-backed deployment that the merchant validates during onboarding
+- the store is on an entitled plan
+- the merchant-facing billing posture shows the capability
+- the flow uses explicit confirmation and audit history
 
 ---
 
@@ -110,16 +128,20 @@ That means:
 
 ### 3.1 Embedded Shopify admin app
 
-Merchants currently get:
+The merchant-facing embedded app currently exposes:
 
-- an embedded app inside Shopify admin
-- install and auth flow
-- source-category settings
-- source preflight visibility
-- sync and readiness visibility
-- webhook status visibility
-- billing posture visibility
-- merchant playground for live testing
+- merchant session and install state
+- source-category controls
+- source preflight and readiness
+- bootstrap and go-live path
+- storefront preview and placement guidance
+- widget settings and shell profile
+- webhook visibility
+- billing posture and tier ladder
+- merchant playground
+- store intelligence health
+- launch and App Review readiness
+- bounded diagnostics and export tooling
 
 ### 3.2 Source-category controls
 
@@ -129,162 +151,126 @@ Merchants can currently enable or disable bounded source categories:
 - collections
 - pages
 - policies
+- articles
+- metaobjects
 
-These are product-level controls, not raw data-engineering controls.
+These are business-scope controls, not raw data-engineering controls.
 
-Merchants do not configure:
+Merchants do not manage:
 
-- chunking strategy
-- embedding settings
-- vectorization schema
-- low-level plugin wiring
+- plugin wiring
+- vector schema design
+- secret refs
+- runner infrastructure
 
-### 3.3 Source readiness and sync visibility
+### 3.3 Merchant launch and support exports
 
-The merchant/admin experience currently includes:
+The merchant app now exports live-generated packages based on the current store posture:
 
-- source preflight checks
-- sync-state visibility
-- readiness visibility
-- storefront enablement status
+- support bundle
+- launch dossier
+- App Store listing package
+- design-partner rollout packet
+- App Review guide
+- review screencast script
+- support runbook
+- lifecycle and subscription packet
 
-This helps the merchant confirm whether the store is actually ready for live use.
+These exports are meant to keep launch, review, and support language aligned with the actual live store configuration.
 
-### 3.4 Merchant playground
+### 3.4 Shopper analytics and ROI evidence
 
-The merchant app includes a playground that uses the same bridge-backed runtime contract as the storefront widget.
+The merchant app now surfaces bounded intelligence signals such as:
 
-This lets the merchant test:
+- top shopper questions
+- per-surface usage
+- shopper journey summaries
+- ROI posture
+- strongest surfaces
+- recommendation prompts for launch and rollout
 
-- product listing
-- policy questions
-- bounded availability checks
-- general shopper-facing prompt behavior
+This is meant to show merchant value evidence without pretending to be a full commerce BI suite.
 
-before relying on the live storefront surface.
+### 3.5 Billing and plan posture
 
-### 3.5 Billing posture
+The current live product models a plan ladder of:
 
-The current live build runs in:
+- Free
+- Starter
+- Elite
 
-- `FREE / ACTIVE`
+The active plan depends on the store.
 
-That means:
+The merchant app now shows:
 
-- no merchant billing approval is currently required for the active companion flow
-
-### 3.6 Webhook health visibility
-
-The merchant and operator surfaces currently expose webhook-subscription diagnostics.
-
-Current expected live status is:
-
-- `READY`
-- `9/9` required topics present
-
-This is important because product sync and store lifecycle behavior depend on healthy webhook subscriptions.
+- allowed surfaces
+- chat fallback posture
+- product cap
+- sync cadence
+- powered-by posture
+- action packages
+- confirmation and audit expectations
 
 ---
 
-## 4) Capabilities That Are Explicitly Not Included Yet
+## 4) What Is Explicitly Not Included Yet
 
 The current live product does not support:
 
-- checkout execution
-- cart mutation
-- order placement
+- customer-safe order lookup
+- order-status inspection
 - refund execution
-- return execution
-- customer account support workflows
+- cancellation execution
+- returns execution against a real order
 - broad support-ticket automation
-- review-provider integration
-- AI-initiated store writes
-- autonomous multistep agent behavior
+- arbitrary merchant scripting
+- autonomous checkout behavior
+- arbitrary AI-initiated store writes
 
-It also does not expose arbitrary merchant configuration of:
+Important support boundary:
 
-- raw plugin internals
-- runtime secrets
-- low-level routing
-- vector database settings
-
-Those are intentionally outside the customer-facing scope.
+- do not describe Companion as if it can read or modify a shopper’s specific order
+- do not describe it as a full support desk replacement
 
 ---
 
-## 5) Current Product Boundaries
+## 5) Correct Positioning
 
-The best way to describe the current product is:
+The best short description is:
 
-- a shopping assistant
-- a product discovery and policy assistant
-- a bounded, safer read-first AI layer for Shopify stores
+`Shopify Companion adds embedded AI search, product guidance, policy answers, and grounded storefront intelligence to Shopify, with bounded merchant launch and support tooling inside Shopify admin.`
 
-The wrong way to describe it is:
+The wrong description is:
 
-- a full ecommerce operations agent
-- a customer-support automation replacement
-- a checkout bot
-- a store-management agent
+- full ecommerce operations agent
+- autonomous purchase assistant
+- refund and support automation platform
+- order-management copilot
 
 ---
 
-## 6) Suggested Customer-Facing Positioning
+## 6) Good Example Prompts
 
-Recommended short description:
+Good shopper-facing examples:
 
-`Shopify Companion helps shoppers discover products, understand policies, and check product information through a storefront assistant backed by live Shopify store data.`
+- `Show me travel backpacks`
+- `Compare these two products`
+- `What is the return policy?`
+- `What are the main differences between these options?`
+- `Do you have something similar but lighter?`
 
-Recommended merchant-facing description:
+Good merchant-facing examples:
 
-`The current build gives merchants a safer read-first AI assistant they can install, validate, test in Shopify admin, and expose on the storefront through a theme app embed.`
+- `Run source preflight`
+- `Open storefront preview`
+- `Review launch readiness`
+- `Copy the support bundle`
+- `Download the App Review guide`
 
----
+Examples that should not be used as live product promises:
 
-## 7) Example Prompts That Match the Current Build
-
-Good examples:
-
-- `List available products`
-- `Show me snowboard options`
-- `What is the refund policy?`
-- `Explain the privacy policy`
-- `Check availability for SKU sku-managed-1`
-
-Examples that should not be used as product promises:
-
-- `Add this item to my cart`
-- `Place the order for me`
+- `Where is my order right now?`
 - `Refund this purchase`
-- `Cancel the customer order`
-- `Answer all support cases automatically`
-
----
-
-## 8) Operational Prerequisites For A Successful Merchant Demo
-
-For the current live product to work correctly in a merchant demo, all of the following should be true:
-
-- the Shopify app is installed
-- required Shopify scopes are approved
-- source preflight is ready
-- the deployment release is applied and verified
-- the storefront app embed is enabled
-- webhook diagnostics are healthy
-
-If those conditions are not met, the customer experience will look incomplete even if the product code is correct.
-
----
-
-## 9) Current Truth Statement
-
-As of the current live build, Shopify Companion is ready to demonstrate:
-
-- product listing
-- product discovery
-- basic product detail retrieval
-- bounded SKU-based availability checks
-- policy explanation
-- merchant-side readiness, sync, and webhook visibility
-
-It is not yet positioned as a full-service commerce agent.
+- `Cancel my order`
+- `Handle all support tickets automatically`
+- `Complete checkout for me`

@@ -40,7 +40,9 @@ public class PlatformVerificationScriptRunnerService {
         "SHOPIFY_ADMIN_ACCESS_TOKEN",
         "SHOPIFY_ADMIN_ACCESS_TOKEN_FILE",
         "SHOPIFY_MERCHANT_AUTHORIZATION",
-        "SHOPIFY_MERCHANT_AUTHORIZATION_FILE"
+        "SHOPIFY_MERCHANT_AUTHORIZATION_FILE",
+        "PARTNER_SUPABASE_JWT",
+        "PARTNER_SUPABASE_JWT_FILE"
     );
 
     private final PlatformHostedVerificationProperties hostedVerificationProperties;

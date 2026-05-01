@@ -28,11 +28,13 @@ class ConnectorActionDefinitionValidatorTest {
             List.of(),
             false,
             true,
+            false,
             ActionResultPresentationHint.DEFAULT,
             null,
             null,
             null,
-            List.of()
+            List.of(),
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -55,11 +57,13 @@ class ConnectorActionDefinitionValidatorTest {
             ),
             false,
             true,
+            false,
             ActionResultPresentationHint.DEFAULT,
             null,
             null,
             null,
-            List.of()
+            List.of(),
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -80,11 +84,13 @@ class ConnectorActionDefinitionValidatorTest {
             List.of(param("sku")),
             false,
             false,
+            false,
             ActionResultPresentationHint.STATUS,
             null,
             null,
             null,
-            List.of()
+            List.of(),
+            null
         );
 
         assertThatThrownBy(() -> validator.validate(def))

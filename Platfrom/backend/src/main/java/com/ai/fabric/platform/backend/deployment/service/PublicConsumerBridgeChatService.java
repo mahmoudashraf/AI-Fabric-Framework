@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.security.RuntimePublicTokenSigningService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
+import com.ai.fabric.platform.backend.thinker.service.ThinkerResolverService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -42,6 +43,7 @@ public class PublicConsumerBridgeChatService {
     private static final String RUNTIME_PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
     private static final String SCOPE_CHAT_QUERY = "chat:query";
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
+    private static final String THINKER_RUNTIME_MODE = "thinker";
     private static final Duration RUNTIME_TIMEOUT = Duration.ofSeconds(30);
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
@@ -52,6 +54,7 @@ public class PublicConsumerBridgeChatService {
     private final PlatformSecretService platformSecretService;
     private final RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService;
     private final RuntimePublicTokenSigningService runtimePublicTokenSigningService;
+    private final ThinkerResolverService thinkerResolverService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -60,12 +63,14 @@ public class PublicConsumerBridgeChatService {
                                            PlatformSecretService platformSecretService,
                                            RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService,
                                            RuntimePublicTokenSigningService runtimePublicTokenSigningService,
+                                           ThinkerResolverService thinkerResolverService,
                                            ObjectMapper objectMapper) {
         this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.publicProvisioningApiService = publicProvisioningApiService;
         this.platformSecretService = platformSecretService;
         this.runtimePrivateAssertionSigningService = runtimePrivateAssertionSigningService;
         this.runtimePublicTokenSigningService = runtimePublicTokenSigningService;
+        this.thinkerResolverService = thinkerResolverService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
@@ -80,7 +85,15 @@ public class PublicConsumerBridgeChatService {
             throw new ResponseStatusException(BAD_REQUEST, "query is required.");
         }
         body.put("query", query);
-        return sendJson(
+        boolean thinkerModeRequest = thinkerResolverService != null && thinkerResolverService.isThinkerModeRequest(body);
+        ObjectNode thinkerCaptureRequest = thinkerModeRequest ? body.deepCopy() : null;
+        if (thinkerModeRequest) {
+            if (!thinkerResolverService.isThinkerEnabledForDeployment(resolved.deployment().getId())) {
+                throw new ResponseStatusException(BAD_REQUEST, "Thinker is disabled for this deployment.");
+            }
+            body.put("mode", THINKER_RUNTIME_MODE);
+        }
+        JsonNode response = sendJson(
             resolved,
             "POST",
             "/api/chat/me/query",
@@ -88,6 +101,11 @@ public class PublicConsumerBridgeChatService {
             shopperSessionId,
             List.of(SCOPE_CHAT_QUERY)
         );
+        if (thinkerModeRequest) {
+            thinkerResolverService.captureRuntimeResponse(resolved.deployment(), resolved.consumerId(), thinkerCaptureRequest, response, shopperSessionId)
+                .ifPresent(summary -> attachThinkerSession(response, summary.id(), summary.status(), summary.recommendation()));
+        }
+        return response;
     }
 
     public JsonNode suggestions(String consumerId, JsonNode request, String shopperSessionId) {
@@ -183,6 +201,19 @@ public class PublicConsumerBridgeChatService {
                 ));
         }
         return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private void attachThinkerSession(JsonNode response, String sessionId, String status, String recommendation) {
+        if (!(response instanceof ObjectNode objectNode)) {
+            return;
+        }
+        ObjectNode thinker = objectMapper.createObjectNode();
+        thinker.put("sessionId", sessionId);
+        thinker.put("status", status);
+        if (StringUtils.hasText(recommendation)) {
+            thinker.put("recommendation", recommendation);
+        }
+        objectNode.set("thinkerSession", thinker);
     }
 
     private Map<String, String> runtimeAuthHeaders(ResolvedConsumerRuntime resolved,

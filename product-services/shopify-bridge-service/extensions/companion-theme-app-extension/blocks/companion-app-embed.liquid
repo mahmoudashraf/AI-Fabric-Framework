@@ -1,7 +1,6 @@
 {% liquid
   assign bridge_base_url = settings.bridge_base_url | strip
   assign launcher_label = settings.launcher_label | strip
-  assign widget_shell = settings.widget_shell | default: 'legacy' | strip
   if bridge_base_url == blank
     assign bridge_base_url = 'https://shopify-bridge-shopify-bridge-pr-production.up.railway.app'
   endif
@@ -9,8 +8,7 @@
 
 {% render 'companion-widget-bootstrap',
   bridge_base_url: bridge_base_url,
-  launcher_label: launcher_label,
-  widget_shell: widget_shell
+  launcher_label: launcher_label
 %}
 
 {% schema %}
@@ -32,23 +30,6 @@
       "id": "launcher_label",
       "label": "Launcher label",
       "default": "Ask the store assistant"
-    },
-    {
-      "type": "select",
-      "id": "widget_shell",
-      "label": "Widget shell",
-      "info": "Legacy uses the current Shopify-specific launcher. Max Mode uses the shared Max Mode widget shell with the same bridge storefront routes.",
-      "default": "legacy",
-      "options": [
-        {
-          "value": "legacy",
-          "label": "Legacy"
-        },
-        {
-          "value": "max-mode",
-          "label": "Max Mode"
-        }
-      ]
     }
   ]
 }

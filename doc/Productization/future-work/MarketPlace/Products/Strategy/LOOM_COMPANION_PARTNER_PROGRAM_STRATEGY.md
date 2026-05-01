@@ -1,6 +1,13 @@
 # Loom Companion Partner Program Strategy
 
-Status: planning document (2026-04-20)
+Status: historical acquisition-channel plan (2026-04-20; superseded for launch tier and partner positioning on 2026-04-25)
+
+Historical note:
+
+- This document keeps the older acquisition-channel model for reference.
+- Current partner direction is implementation-partner enablement, not passive acquisition.
+- Current Shopify Companion tiers are `Free / Starter / Elite`; older `Growth / Pro` plan references below are historical unless updated in place.
+- Free is AI search only. Order lookup is not Free or Starter.
 
 This document defines the partner and affiliate program for Loom Companion. The goal is to build a distribution channel through integrators and agencies so the builder can stay in build mode while partners handle merchant deployment and support.
 
@@ -33,7 +40,7 @@ Why they matter:
 
 - they have existing merchant relationships
 - they can deploy Loom Companion as part of their service offering
-- they can upsell from Free to Growth/Pro tiers as part of store optimization
+- they can help merchants move from Free to Starter or Elite when the implementation need is real
 
 ### 2.2 E-Commerce Consultants
 
@@ -75,17 +82,17 @@ Why they matter:
 
 ### 3.2 Revenue Per Partner
 
-Based on Growth plan ($29/month):
+Based on Starter plan ($29/month):
 
 - 10 merchants = $58/month passive income per partner
 - 25 merchants = $145/month passive income per partner
 - 50 merchants = $290/month passive income per partner
 
-Based on Pro plan ($79/month):
+Based on Elite plan ($179/month):
 
-- 10 merchants = $158/month passive income per partner
-- 25 merchants = $395/month passive income per partner
-- 50 merchants = $790/month passive income per partner
+- 10 merchants = $358/month partner commission at 20%
+- 25 merchants = $895/month partner commission at 20%
+- 50 merchants = $1,790/month partner commission at 20%
 
 ### 3.3 Incentive Tiers
 
@@ -94,7 +101,7 @@ Starter Partner (0-9 active merchants):
 - 20% recurring commission
 - standard partner support
 
-Growth Partner (10-24 active merchants):
+Scaling Partner (10-24 active merchants):
 
 - 20% recurring commission
 - priority support channel
@@ -119,7 +126,7 @@ Before recruiting partners, the following must be in place.
 
 1. **Working demo store**
    - a live Shopify store with Loom Companion installed and configured
-   - demonstrates all tier capabilities (Free, Growth, Pro)
+   - demonstrates current tier capabilities (Free, Starter, Elite) without implying unverified actions
    - partners can show this to prospects
 
 2. **Deployment time under 45 minutes**
@@ -316,7 +323,7 @@ Best,
 ### 6.5 Ongoing Relationship
 
 - weekly updates in partner Slack channel
-- monthly check-in for Growth and Premium partners
+- monthly check-in for trained implementation partners
 - feedback loop: partner surfaces merchant needs, builder prioritizes
 
 ---
@@ -359,7 +366,7 @@ Partner identifies issue -> posts in Slack channel -> builder triages -> fix or 
 - 15 active partners
 - average 5 merchants per partner
 - 75 total merchants
-- 50% on Growth ($29), 20% on Pro ($79), 30% on Free
+- 50% on Starter ($29), 20% on Elite ($179), 30% on Free
 - monthly revenue: ~$1,870
 - partner commission: ~$374/month
 
@@ -368,7 +375,7 @@ Partner identifies issue -> posts in Slack channel -> builder triages -> fix or 
 - 30 active partners
 - average 8 merchants per partner
 - 240 total merchants
-- 50% on Growth, 25% on Pro, 25% on Free
+- 50% on Starter, 25% on Elite, 25% on Free
 - monthly revenue: ~$7,380
 - partner commission: ~$1,476/month
 
@@ -377,7 +384,7 @@ Partner identifies issue -> posts in Slack channel -> builder triages -> fix or 
 - 50 active partners
 - average 12 merchants per partner
 - 600 total merchants
-- 45% on Growth, 30% on Pro, 25% on Free
+- 45% on Starter, 30% on Elite, 25% on Free
 - monthly revenue: ~$21,870
 - partner commission: ~$4,374/month
 

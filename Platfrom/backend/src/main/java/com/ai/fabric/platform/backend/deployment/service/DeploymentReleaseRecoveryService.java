@@ -78,6 +78,9 @@ public class DeploymentReleaseRecoveryService {
         if ("run_verification".equals(stepKey)) {
             return reconcileRailwayVerification(deployment, latestRelease);
         }
+        if ("sync_marketplace_datasets".equals(stepKey)) {
+            return reconcileMarketplaceDatasetSync(deployment, latestRelease);
+        }
         if ("queue_release".equals(stepKey)) {
             return reconcileQueuedApply(deployment, latestRelease);
         }
@@ -214,6 +217,26 @@ public class DeploymentReleaseRecoveryService {
         return true;
     }
 
+    private boolean reconcileMarketplaceDatasetSync(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        if (!StringUtils.hasText(release.getDeploymentVersionId())) {
+            return false;
+        }
+        JsonNode details = readJson(release.getProvisioningDetailsJson());
+        if (!hasMarketplaceDatasetSyncSummary(details)) {
+            deploymentReleaseExecutionService.syncMarketplaceDatasets(
+                deployment.getId(),
+                release.getDeploymentVersionId(),
+                release.getId()
+            );
+        }
+        deploymentReleaseExecutionService.runVerification(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        return true;
+    }
+
     private boolean isRecoveryCandidate(DeploymentReleaseEntity release) {
         if (!"RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget())) {
             return false;
@@ -221,10 +244,18 @@ public class DeploymentReleaseRecoveryService {
         String stepKey = release.getCurrentStepKey();
         return switch (release.getStatus()) {
             case "APPLY_REQUESTED" -> "queue_release".equals(stepKey);
+            case "PRE_APPLY_VERIFYING" -> "preflight_verification".equals(stepKey) || isPreActivationRailwayProvisioningStep(stepKey);
             case "PROVISIONING" -> "wait_for_active".equals(stepKey) || isPreActivationRailwayProvisioningStep(stepKey);
-            case "VERIFYING" -> "run_verification".equals(stepKey);
+            case "VERIFYING" -> "run_verification".equals(stepKey) || "sync_marketplace_datasets".equals(stepKey);
             default -> false;
         };
+    }
+
+    private boolean hasMarketplaceDatasetSyncSummary(JsonNode details) {
+        JsonNode summary = details == null ? null : details.path("marketplaceDatasets");
+        return summary != null
+            && summary.isObject()
+            && (summary.has("datasetsCount") || summary.has("syncedDatasets") || summary.has("handleRefs"));
     }
 
     private boolean isPreActivationRailwayProvisioningStep(String stepKey) {
@@ -232,7 +263,8 @@ public class DeploymentReleaseRecoveryService {
             return false;
         }
         return switch (stepKey.trim()) {
-            case "prepare_apply",
+            case "preflight_verification",
+                 "prepare_apply",
                  "ensure_vector_backend",
                  "prepare_project",
                  "configure_runtime",

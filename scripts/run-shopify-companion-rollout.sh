@@ -166,6 +166,16 @@ print_store_summary() {
   echo "storefrontReady: $(json_get "${store_json}" "readiness.storefrontReady")"
 }
 
+print_support_readiness() {
+  local support_json="$1"
+  echo "supportStatus: $(json_get "${support_json}" "status")"
+  echo "supportLifecycleStage: $(json_get "${support_json}" "lifecycleStage")"
+  echo "orderLookupSupported: $(json_get "${support_json}" "orderLookupSupported")"
+  echo "orderLookupScopeGranted: $(json_get "${support_json}" "orderLookupScopeGranted")"
+  echo "appScopesUpdateWebhookReady: $(json_get "${support_json}" "appScopesUpdateWebhookReady")"
+  echo "merchantHandoffConfigured: $(json_get "${support_json}" "merchantHandoffConfigured")"
+}
+
 print_blockers() {
   local store_json="$1"
   local blockers
@@ -184,6 +194,19 @@ print_blockers() {
       [[ -n "${line}" ]] && echo "  - ${line}"
     done <<< "${actions}"
   fi
+}
+
+readiness_mentions_archived_binding() {
+  local store_json="$1"
+  local blockers
+  blockers="$(
+    {
+      json_lines "${store_json}" "readiness.goLiveBlockingReasons"
+      json_lines "${store_json}" "readiness.storefrontBlockingReasons"
+      json_lines "${store_json}" "readiness.nextActions"
+    } | tr '[:upper:]' '[:lower:]'
+  )"
+  [[ "${blockers}" == *"archived"* && "${blockers}" == *"bootstrap"* ]]
 }
 
 require_cmd curl
@@ -226,6 +249,7 @@ print(json.dumps({
     "collectionsEnabled": True,
     "pagesEnabled": True,
     "policiesEnabled": True,
+    "articlesEnabled": True,
 }))
 PY
 )"
@@ -258,6 +282,17 @@ store_json="${HTTP_BODY}"
 print_store_summary "${store_json}"
 echo "install URL: ${install_url}"
 
+if readiness_mentions_archived_binding "${store_json}"; then
+  echo
+  echo "== Re-bootstrap archived deployment binding =="
+  platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/bootstrap" "{}" "${platform_headers[@]-}"
+  [[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to re-bootstrap archived store binding: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
+  platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]-}"
+  [[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to reload store summary after re-bootstrap: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
+  store_json="${HTTP_BODY}"
+  print_store_summary "${store_json}"
+fi
+
 install_status="$(json_get "${store_json}" "installStatus")"
 credential_status="$(json_get "${store_json}" "credentials.status")"
 if [[ "${install_status}" != "INSTALLED" || "${credential_status}" != "READY" ]]; then
@@ -265,6 +300,36 @@ if [[ "${install_status}" != "INSTALLED" || "${credential_status}" != "READY" ]]
   echo "Manual Shopify step still required before rollout can continue."
   echo "Open and approve: ${install_url}"
   print_blockers "${store_json}"
+  exit 0
+fi
+
+echo
+echo "== Support readiness =="
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/support-readiness" "" "${platform_headers[@]-}"
+[[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to load support readiness: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
+support_json="${HTTP_BODY}"
+print_support_readiness "${support_json}"
+
+support_status="$(json_get "${support_json}" "status")"
+scope_grant_url="$(json_get "${support_json}" "scopeGrantUrl")"
+install_recovery_url="$(json_get "${support_json}" "installRecoveryUrl")"
+if [[ "${support_status}" != "READY" ]]; then
+  echo
+  echo "Manual Shopify support step still required before governed support and launch can continue."
+  echo "support message: $(json_get "${support_json}" "message")"
+  if [[ -n "${scope_grant_url}" ]]; then
+    echo "Open and approve order-read scope: ${scope_grant_url}"
+  fi
+  if [[ -n "${install_recovery_url}" ]]; then
+    echo "Install recovery URL: ${install_recovery_url}"
+  fi
+  actions="$(json_lines "${support_json}" "nextActions")"
+  if [[ -n "${actions}" ]]; then
+    echo "support next actions:"
+    while IFS= read -r line; do
+      [[ -n "${line}" ]] && echo "  - ${line}"
+    done <<< "${actions}"
+  fi
   exit 0
 fi
 
@@ -287,6 +352,12 @@ if [[ "${AUTO_REQUEST_GO_LIVE}" == "true" && "${go_live_eligible}" == "true" ]];
   echo
   echo "== Request go-live =="
   platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/go-live" "" "${platform_headers[@]-}"
+  if [[ "${HTTP_STATUS}" == "400" && "${HTTP_BODY}" == *"Deployment is archived and cannot"* ]]; then
+    echo "Archived deployment binding detected during go-live. Re-running bootstrap once."
+    platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/bootstrap" "{}" "${platform_headers[@]-}"
+    [[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to bootstrap archived store binding after go-live rejection: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
+    platform_request POST "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}/go-live" "" "${platform_headers[@]-}"
+  fi
   [[ "${HTTP_STATUS}" == "200" ]] || { echo "Failed to request go-live: HTTP ${HTTP_STATUS}" >&2; echo "${HTTP_BODY}" >&2; exit 1; }
   store_json="${HTTP_BODY}"
   print_store_summary "${store_json}"

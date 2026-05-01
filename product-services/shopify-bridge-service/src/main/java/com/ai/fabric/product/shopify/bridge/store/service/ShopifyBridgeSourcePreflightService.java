@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
@@ -25,6 +26,23 @@ public class ShopifyBridgeSourcePreflightService {
         query ShopifyCompanionProductsPreflight {
           productsCount(limit: null) {
             count
+          }
+          products(first: 12, sortKey: UPDATED_AT, reverse: true) {
+            edges {
+              node {
+                id
+                metafields(first: 12) {
+                  edges {
+                    node {
+                      namespace
+                      key
+                      type
+                      value
+                    }
+                  }
+                }
+              }
+            }
           }
         }
         """;
@@ -55,27 +73,44 @@ public class ShopifyBridgeSourcePreflightService {
         }
         """;
 
+    private static final String ARTICLES_QUERY = """
+        query ShopifyCompanionArticlesPreflight($cursor: String) {
+          articles(first: 50, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                publishedAt
+              }
+            }
+          }
+        }
+        """;
+
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
+    private final ShopifyBridgeBillingService billingService;
 
     public ShopifyBridgeSourcePreflightService(ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
-                                               PlatformShopifyStoreClient platformShopifyStoreClient) {
+                                               PlatformShopifyStoreClient platformShopifyStoreClient,
+                                               ShopifyBridgeBillingService billingService) {
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
+        this.billingService = billingService;
     }
 
     public ShopifyBridgeStoreSummary run(ShopifyBridgeCredentialAcquisition acquisition) {
         ShopifyBridgeStoreSummary store = acquisition.store();
         String accessToken = acquisition.tokenExchangeMaterial().accessToken();
+        Integer catalogProductCap = billingService.catalogProductCap(store.shopDomain(), accessToken);
         List<ShopifyBridgeStoreSourcePreflightCategorySummary> categories = new ArrayList<>();
-        categories.add(evaluateCountCategory(
-            store.shopDomain(),
-            accessToken,
+        categories.add(evaluateCategory(
             "products",
             store.productsEnabled(),
-            PRODUCTS_QUERY,
-            "productsCount",
-            "Products"
+            () -> fetchProducts(store.shopDomain(), accessToken, catalogProductCap)
         ));
         categories.add(evaluateCountCategory(
             store.shopDomain(),
@@ -84,7 +119,8 @@ public class ShopifyBridgeSourcePreflightService {
             store.collectionsEnabled(),
             COLLECTIONS_QUERY,
             "collectionsCount",
-            "Collections"
+            "Collections",
+            null
         ));
         categories.add(evaluateCountCategory(
             store.shopDomain(),
@@ -93,12 +129,23 @@ public class ShopifyBridgeSourcePreflightService {
             store.pagesEnabled(),
             PAGES_QUERY,
             "pagesCount",
-            "Pages"
+            "Pages",
+            null
         ));
         categories.add(evaluateCategory(
             "policies",
             store.policiesEnabled(),
             () -> fetchPolicies(store.shopDomain(), accessToken)
+        ));
+        categories.add(evaluateCategory(
+            "articles",
+            store.articlesEnabled(),
+            () -> fetchArticles(store.shopDomain(), accessToken)
+        ));
+        categories.add(evaluateCategory(
+            "metaobjects",
+            store.metaobjectsEnabled(),
+            () -> fetchMetaobjects(store.shopDomain(), accessToken)
         ));
         return platformShopifyStoreClient.recordSourcePreflight(
             store.shopDomain(),
@@ -112,15 +159,48 @@ public class ShopifyBridgeSourcePreflightService {
                                                                                    boolean enabled,
                                                                                    String query,
                                                                                    String rootField,
-                                                                                   String label) {
+                                                                                   String label,
+                                                                                   Integer cap) {
         return evaluateCategory(category, enabled, () -> {
             int count = extractCount(shopifyAdminGraphqlClient.execute(shopDomain, accessToken, query), rootField);
+            int effectiveCount = applyProductCap(category, count, cap);
             return new CategoryResult(
                 "READY",
-                count,
-                count > 0 ? label + " reachable (" + count + " items)." : "No " + category + " found in the store."
+                effectiveCount,
+                count > 0
+                    ? describeCountMessage(label, count, effectiveCount, cap)
+                    : "No " + category + " found in the store.",
+                List.of()
             );
         });
+    }
+
+    private int applyProductCap(String category, int count, Integer cap) {
+        if (!"products".equalsIgnoreCase(category) || cap == null || cap <= 0) {
+            return count;
+        }
+        return Math.min(count, cap);
+    }
+
+    private String describeCountMessage(String label, int actualCount, int effectiveCount, Integer cap) {
+        if (cap != null && cap > 0 && effectiveCount < actualCount) {
+            return label + " reachable (" + actualCount + " total, " + effectiveCount + " accessible at the current tier cap).";
+        }
+        return label + " reachable (" + actualCount + " items).";
+    }
+
+    private CategoryResult fetchProducts(String shopDomain, String accessToken, Integer cap) {
+        Map<String, Object> response = shopifyAdminGraphqlClient.execute(shopDomain, accessToken, PRODUCTS_QUERY);
+        int count = extractCount(response, "productsCount");
+        int effectiveCount = applyProductCap("products", count, cap);
+        return new CategoryResult(
+            "READY",
+            effectiveCount,
+            count > 0
+                ? describeCountMessage("Products", count, effectiveCount, cap)
+                : "No products found in the store.",
+            ShopifyProductReviewSignals.detectedProviderLabels(extractConnectionNodes(response, "products"))
+        );
     }
 
     private CategoryResult fetchPolicies(String shopDomain, String accessToken) {
@@ -136,7 +216,36 @@ public class ShopifyBridgeSourcePreflightService {
         return new CategoryResult(
             "READY",
             count,
-            count > 0 ? "Policies reachable (" + count + " documents)." : "No shop policies configured."
+            count > 0 ? "Policies reachable (" + count + " documents)." : "No shop policies configured.",
+            List.of()
+        );
+    }
+
+    private CategoryResult fetchArticles(String shopDomain, String accessToken) {
+        int count = paginate(shopDomain, accessToken, ARTICLES_QUERY, "articles").stream()
+            .map(node -> text(node, "publishedAt"))
+            .filter(value -> value != null && !value.isBlank())
+            .toList()
+            .size();
+        return new CategoryResult(
+            "READY",
+            count,
+            count > 0 ? "Articles reachable (" + count + " published posts)." : "No published articles found in the store.",
+            List.of()
+        );
+    }
+
+    private CategoryResult fetchMetaobjects(String shopDomain, String accessToken) {
+        List<ShopifyMetaobjectSupport.MetaobjectDefinitionSummary> definitions =
+            ShopifyMetaobjectSupport.loadDefinitions(shopDomain, accessToken, shopifyAdminGraphqlClient);
+        int count = definitions.stream()
+            .mapToInt(ShopifyMetaobjectSupport.MetaobjectDefinitionSummary::metaobjectsCount)
+            .sum();
+        return new CategoryResult(
+            "READY",
+            count,
+            count > 0 ? "Metaobjects reachable (" + count + " records)." : "No eligible metaobjects found in the store.",
+            summarizeMetaobjectSignals(definitions)
         );
     }
 
@@ -149,7 +258,8 @@ public class ShopifyBridgeSourcePreflightService {
                 false,
                 "PENDING",
                 0,
-                "Disabled for this store."
+                "Disabled for this store.",
+                List.of()
             );
         }
         try {
@@ -159,21 +269,22 @@ public class ShopifyBridgeSourcePreflightService {
                 true,
                 result.status(),
                 Math.max(result.itemCount(), 0),
-                result.message()
+                result.message(),
+                normalizeSignals(result.signals())
             );
         } catch (RestClientResponseException ex) {
             String status = ex.getStatusCode().is4xxClientError() ? "BLOCKED" : "FAILED";
             String message = ex.getStatusCode().is4xxClientError()
                 ? "Shopify denied access to " + category + ". Verify app scopes and store install."
                 : "Shopify Admin API failed while checking " + category + ".";
-            return new ShopifyBridgeStoreSourcePreflightCategorySummary(category, true, status, 0, message);
+            return new ShopifyBridgeStoreSourcePreflightCategorySummary(category, true, status, 0, message, List.of());
         } catch (ResponseStatusException ex) {
             String message = ex.getReason() == null ? "Shopify preflight failed for " + category + "." : ex.getReason();
             String normalized = message.toLowerCase(Locale.ROOT);
             String status = normalized.contains("access") || normalized.contains("scope") || normalized.contains("denied")
                 ? "BLOCKED"
                 : "FAILED";
-            return new ShopifyBridgeStoreSourcePreflightCategorySummary(category, true, status, 0, message);
+            return new ShopifyBridgeStoreSourcePreflightCategorySummary(category, true, status, 0, message, List.of());
         }
     }
 
@@ -206,6 +317,65 @@ public class ShopifyBridgeSourcePreflightService {
         throw new ResponseStatusException(BAD_GATEWAY, message);
     }
 
+    private List<Map<String, Object>> extractConnectionNodes(Map<String, Object> response, String connectionField) {
+        List<String> errors = errorMessages(response);
+        if (!errors.isEmpty()) {
+            throw new ResponseStatusException(BAD_GATEWAY, String.join(" ", errors));
+        }
+        Map<String, Object> data = requireMap(response.get("data"), "Shopify Admin API response is missing data.");
+        Map<String, Object> connection = requireMap(data.get(connectionField), "Shopify Admin API response is missing " + connectionField + ".");
+        List<?> edges = requireList(connection.get("edges"), "Shopify Admin API response is missing edges for " + connectionField + ".");
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        for (Object edge : edges) {
+            Map<String, Object> edgeMap = requireMapFromListItem(edge);
+            nodes.add(requireMap(edgeMap.get("node"), "Shopify Admin API response is missing node for " + connectionField + "."));
+        }
+        return List.copyOf(nodes);
+    }
+
+    private List<Map<String, Object>> paginate(String shopDomain,
+                                               String accessToken,
+                                               String query,
+                                               String connectionField) {
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        String cursor = null;
+        while (true) {
+            Map<String, Object> response = shopifyAdminGraphqlClient.execute(
+                shopDomain,
+                accessToken,
+                query,
+                cursorVariables(cursor)
+            );
+            List<String> errors = errorMessages(response);
+            if (!errors.isEmpty()) {
+                throw new ResponseStatusException(BAD_GATEWAY, String.join(" ", errors));
+            }
+            Map<String, Object> data = requireMap(response.get("data"), "Shopify Admin API response is missing data.");
+            Map<String, Object> connection = requireMap(data.get(connectionField), "Shopify Admin API response is missing " + connectionField + ".");
+            List<?> edges = requireList(connection.get("edges"), "Shopify Admin API response is missing edges for " + connectionField + ".");
+            for (Object edge : edges) {
+                Map<String, Object> edgeMap = requireMapFromListItem(edge);
+                nodes.add(requireMap(edgeMap.get("node"), "Shopify Admin API response is missing node for " + connectionField + "."));
+            }
+            Map<String, Object> pageInfo = requireMap(connection.get("pageInfo"), "Shopify Admin API response is missing pageInfo for " + connectionField + ".");
+            boolean hasNextPage = Boolean.TRUE.equals(pageInfo.get("hasNextPage"));
+            String endCursor = text(pageInfo, "endCursor");
+            if (!hasNextPage || endCursor == null) {
+                break;
+            }
+            cursor = endCursor;
+        }
+        return nodes;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> requireMapFromListItem(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        throw new ResponseStatusException(BAD_GATEWAY, "Shopify Admin API returned an invalid object payload.");
+    }
+
     @SuppressWarnings("unchecked")
     private List<String> errorMessages(Map<String, Object> response) {
         Object value = response.get("errors");
@@ -224,10 +394,55 @@ public class ShopifyBridgeSourcePreflightService {
             .toList();
     }
 
+    private String text(Map<String, Object> source, String field) {
+        Object value = source.get(field);
+        return value == null ? null : value.toString().trim();
+    }
+
+    private Map<String, Object> cursorVariables(String cursor) {
+        Map<String, Object> variables = new java.util.LinkedHashMap<>();
+        variables.put("cursor", cursor);
+        return variables;
+    }
+
+    private List<String> summarizeMetaobjectSignals(List<ShopifyMetaobjectSupport.MetaobjectDefinitionSummary> definitions) {
+        if (definitions == null || definitions.isEmpty()) {
+            return List.of();
+        }
+        List<String> signals = definitions.stream()
+            .sorted(java.util.Comparator.comparingInt(ShopifyMetaobjectSupport.MetaobjectDefinitionSummary::metaobjectsCount).reversed())
+            .limit(3)
+            .map(definition -> {
+                String label = hasText(definition.name()) ? definition.name().trim() : definition.type();
+                return label + " (" + definition.metaobjectsCount() + ")";
+            })
+            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        if (definitions.size() > 3) {
+            signals.add("+" + (definitions.size() - 3) + " more types");
+        }
+        return List.copyOf(signals);
+    }
+
+    private List<String> normalizeSignals(List<String> signals) {
+        if (signals == null || signals.isEmpty()) {
+            return List.of();
+        }
+        return signals.stream()
+            .filter(this::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private record CategoryResult(
         String status,
         int itemCount,
-        String message
+        String message,
+        List<String> signals
     ) {
     }
 }

@@ -32,7 +32,7 @@ public class ShopifyStorefrontEngagementService {
 
     private ShopifyBridgeStoreSummary requireReadyStore(String shopDomain) {
         ShopifyBridgeStoreSummary store = platformShopifyStoreClient.getStore(shopDomain);
-        if (store.readiness() == null || !store.readiness().storefrontReady()) {
+        if (!ShopifyStorefrontInteractionReadinessSupport.isReady(store)) {
             throw unavailable(firstStorefrontBlockingReason(store));
         }
         return store;
@@ -46,6 +46,10 @@ public class ShopifyStorefrontEngagementService {
         return switch (normalized) {
             case "WIDGET_OPENED" -> "STOREFRONT_WIDGET_OPENED_" + pageBucket(request.pageType());
             case "SUGGESTION_CLICKED" -> "STOREFRONT_SUGGESTION_CLICKED";
+            case "SEARCH_SUBMITTED" -> "STOREFRONT_SEARCH_SUBMITTED_" + pageBucket(request.pageType());
+            case "CONTEXTUAL_PROMPT_CLICKED" -> "STOREFRONT_CONTEXTUAL_PROMPT_CLICKED_" + pageBucket(request.pageType());
+            case "PRODUCT_FAQ_CLICKED" -> "STOREFRONT_PRODUCT_FAQ_CLICKED_" + pageBucket(request.pageType());
+            case "COMPARISON_CLICKED" -> "STOREFRONT_COMPARISON_CLICKED_" + pageBucket(request.pageType());
             case "CHAT_RESET" -> "STOREFRONT_CHAT_RESET";
             default -> throw badRequest("Unsupported storefront event type: " + request.eventType());
         };
@@ -65,10 +69,10 @@ public class ShopifyStorefrontEngagementService {
     }
 
     private String firstStorefrontBlockingReason(ShopifyBridgeStoreSummary store) {
-        if (store.readiness() != null && !store.readiness().storefrontBlockingReasons().isEmpty()) {
-            return store.readiness().storefrontBlockingReasons().get(0);
-        }
-        return "Store assistant is not live yet for " + store.shopDomain() + ".";
+        return ShopifyStorefrontInteractionReadinessSupport.firstBlockingReason(
+            store,
+            "Store assistant is not live yet for " + store.shopDomain() + "."
+        );
     }
 
     private ResponseStatusException badRequest(String message) {

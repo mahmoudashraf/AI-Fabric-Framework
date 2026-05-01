@@ -54,6 +54,24 @@ public class ShopifyInstallRecordEntity {
     @Column(name = "last_uninstalled_at")
     private Instant lastUninstalledAt;
 
+    @Column(name = "app_scopes_update_webhook_ready", nullable = false)
+    private boolean appScopesUpdateWebhookReady;
+
+    @Column(name = "app_scopes_update_webhook_checked_at")
+    private Instant appScopesUpdateWebhookCheckedAt;
+
+    @Column(name = "billing_tier_key", length = 64)
+    private String billingTierKey;
+
+    @Column(name = "billing_status", length = 64)
+    private String billingStatus;
+
+    @Column(name = "active_subscriptions_json", columnDefinition = "text")
+    private String activeSubscriptionsJson;
+
+    @Column(name = "billing_checked_at")
+    private Instant billingCheckedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -170,6 +188,54 @@ public class ShopifyInstallRecordEntity {
 
     public void setLastUninstalledAt(Instant lastUninstalledAt) {
         this.lastUninstalledAt = lastUninstalledAt;
+    }
+
+    public boolean isAppScopesUpdateWebhookReady() {
+        return appScopesUpdateWebhookReady;
+    }
+
+    public void setAppScopesUpdateWebhookReady(boolean appScopesUpdateWebhookReady) {
+        this.appScopesUpdateWebhookReady = appScopesUpdateWebhookReady;
+    }
+
+    public Instant getAppScopesUpdateWebhookCheckedAt() {
+        return appScopesUpdateWebhookCheckedAt;
+    }
+
+    public void setAppScopesUpdateWebhookCheckedAt(Instant appScopesUpdateWebhookCheckedAt) {
+        this.appScopesUpdateWebhookCheckedAt = appScopesUpdateWebhookCheckedAt;
+    }
+
+    public String getBillingTierKey() {
+        return billingTierKey;
+    }
+
+    public void setBillingTierKey(String billingTierKey) {
+        this.billingTierKey = billingTierKey;
+    }
+
+    public String getBillingStatus() {
+        return billingStatus;
+    }
+
+    public void setBillingStatus(String billingStatus) {
+        this.billingStatus = billingStatus;
+    }
+
+    public String getActiveSubscriptionsJson() {
+        return activeSubscriptionsJson;
+    }
+
+    public void setActiveSubscriptionsJson(String activeSubscriptionsJson) {
+        this.activeSubscriptionsJson = activeSubscriptionsJson;
+    }
+
+    public Instant getBillingCheckedAt() {
+        return billingCheckedAt;
+    }
+
+    public void setBillingCheckedAt(Instant billingCheckedAt) {
+        this.billingCheckedAt = billingCheckedAt;
     }
 
     public Instant getCreatedAt() {

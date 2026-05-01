@@ -1,6 +1,15 @@
 # Loom Companion for Shopify — Launch Plan
 
-Status: launch plan (2026-04-19)
+Status: historical launch plan (2026-04-19; superseded for launch tier truth on 2026-04-25)
+
+Note:
+
+- one-app packaging and launch sequencing in this document are still useful
+- pricing, plan naming, and order-lookup placement here are historical in places
+- current launch tiers are `Free / Starter / Elite`
+- current Free scope is AI search only; order lookup is not Free or Starter
+- use [LOOM_COMPANION_PRICING_AND_TIER_STRATEGY.md](LOOM_COMPANION_PRICING_AND_TIER_STRATEGY.md) for current tiering
+- use [SHOPIFY_COMPANION_BUILDER_MODE_SHIPPING_ROADMAP.md](SHOPIFY_COMPANION_BUILDER_MODE_SHIPPING_ROADMAP.md) for the current builder-mode roadmap
 
 ---
 
@@ -90,7 +99,7 @@ The core product. Read-only assistance for shoppers.
 
 **What the merchant gets:** Smarter shoppers who find what they need, fewer repetitive support questions, better informed purchase decisions.
 
-### Layer 2: Support Agent (Growth upgrade)
+### Layer 2: Support Agent (historical Growth upgrade)
 
 Everything in Layer 1, plus write-enabled customer support.
 
@@ -113,7 +122,7 @@ Everything in Layer 1, plus write-enabled customer support.
 
 **What the merchant gets:** Fewer support tickets, faster WISMO (where is my order) resolution, 24/7 basic support coverage.
 
-### Layer 3: Sales Assistant (Pro upgrade)
+### Layer 3: Sales Assistant (historical Pro upgrade)
 
 Everything in Layer 2, plus conversion and retention tools.
 
@@ -139,7 +148,7 @@ Everything in Layer 2, plus conversion and retention tools.
 
 ## 5) Pricing Structure
 
-| | Free | Growth ($29/mo) | Pro ($79/mo) |
+| | Free | Historical Growth ($29/mo) | Historical Pro ($79/mo) |
 |---|---|---|---|
 | Layer 1 — Companion | 50 conversations/mo | Unlimited | Unlimited |
 | Layer 2 — Support | — | Included | Included |
@@ -153,8 +162,8 @@ Everything in Layer 2, plus conversion and retention tools.
 ### Pricing rationale
 
 - **Free tier** exists to drive installs and reviews. 50 conversations is enough for small stores to experience value and leave a review.
-- **Growth at $29** undercuts Rep AI ($29-$599) and Manifest AI ($99-$799) at entry. Low enough for impulse install, high enough to signal value.
-- **Pro at $79** competes at the low end of conversion-focused tools. Merchants evaluating Pro are already measuring ROI — the retention and upsell features justify the price.
+- **Historical Growth at $29** was the older paid-tier placeholder; current launch truth uses Starter at $29 for full read-only embedded intelligence.
+- **Historical Pro at $79** was the older action-tier placeholder; current launch truth uses Elite at $179 and only for verified governed actions.
 
 ---
 
@@ -162,14 +171,14 @@ Everything in Layer 2, plus conversion and retention tools.
 
 ### Phase 1: Companion (Month 1-2)
 
-Ship Layer 1 only. Free and Growth plans.
+Ship Layer 1 only. Free and Starter plans.
 
 **What ships:**
 - Shopping companion with read-only actions
 - Product search, comparison, reviews, policy Q&A
 - Merchant admin dashboard (sync status, playground, analytics)
 - Theme app extension (storefront widget)
-- Shopify billing integration (free + Growth tiers)
+- Shopify billing integration (Free + Starter tiers)
 
 **Why Layer 1 only:**
 - Read-only OAuth scopes = fastest App Store approval path
@@ -185,7 +194,7 @@ Ship Layer 1 only. Free and Growth plans.
 
 ### Phase 2: Support Agent (Month 3-4)
 
-Add Layer 2 to Growth plan.
+Historically, this added Layer 2 to Growth. Current launch truth keeps order lookup and support actions out of Starter; move only verified governed support/action surfaces into Elite when ready.
 
 **What ships:**
 - Write actions with confirmation governance
@@ -196,24 +205,24 @@ Add Layer 2 to Growth plan.
 
 **Success criteria:**
 - Scope review approved without issues
-- Growth plan conversion rate increases (merchants upgrade for support features)
+- Starter conversion rate increases because merchants want the full read-only embedded intelligence package
 - Measurable reduction in merchant support ticket volume
 
 ### Phase 3: Sales Assistant (Month 5-6)
 
-Add Layer 3 as Pro plan.
+Historically, this added Layer 3 as Pro. Current launch truth uses Elite for verified governed actions only.
 
 **What ships:**
 - Deep Resolver pattern for multi-step resolution
 - Abandoned cart recovery, discount application, retention offers
 - Counter-offer governance flows
-- Pro billing tier
+- Elite billing tier
 
 **Gate:** Only ship Phase 3 if Phase 2 shows merchants actively using write actions and asking for conversion features. Do not build sales tools on assumption.
 
 **Success criteria:**
-- Pro plan adoption from Growth subscribers
-- Measurable AOV or retention improvement for Pro merchants
+- Elite adoption from Starter subscribers
+- Measurable AOV or retention improvement for Elite merchants
 - Deep Resolver pattern stable in production
 
 ### Phase 4: Loom Insights — separate app (Month 8+)
@@ -305,7 +314,7 @@ The platform already supports capability gating per deployment. No new runtime c
 - Reviews + ranking + category presence compound
 - Content SEO drives blog traffic to App Store listing
 - Merchant referrals begin (if product delivers)
-- Goal: 100+ installs, Growth plan conversion rate stable
+- Goal: 100+ installs, Starter plan conversion rate stable
 
 ---
 
@@ -322,9 +331,9 @@ The platform already supports capability gating per deployment. No new runtime c
 
 - **Installs:** 50 in 3 months, 100 in 6 months
 - **Review rating:** 4.5+ average
-- **Growth plan conversion:** 20% of free installs upgrade within 30 days
-- **Monthly recurring revenue:** $1,000 MRR by month 6 (35 Growth subscribers)
-- **Churn:** under 5% monthly for Growth plan
+- **Starter plan conversion:** 20% of free installs upgrade within 30 days
+- **Monthly recurring revenue:** $1,000 MRR by month 6 from Starter subscribers
+- **Churn:** under 5% monthly for Starter plan
 
 ### Visa-relevant metrics
 

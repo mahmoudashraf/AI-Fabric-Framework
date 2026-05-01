@@ -1,6 +1,12 @@
 # Loom Companion Outreach and Content Strategy
 
-Status: planning document (2026-04-20)
+Status: planning document (2026-04-20; launch tier copy updated 2026-04-25)
+
+Launch tier rule:
+
+- Current Shopify Companion tiers are `Free / Starter / Elite`.
+- Free is AI search only.
+- Older `Growth / Pro` outreach snippets are historical and must not be used for launch copy.
 
 This document defines the outreach strategy for two audiences: merchants (direct) and partners (channel). It includes messaging frameworks, content templates, and a content calendar for building awareness and driving installs.
 
@@ -65,7 +71,7 @@ Message: "70% of pre-sale support questions are about information already on you
 
 **Pain: No budget for AI tools**
 
-Message: "Start free. Loom Companion's free tier gives your store AI-powered product insights and basic search with no monthly cost. Upgrade when you see results."
+Message: "Start free. Loom Companion's free tier gives your store AI search with no monthly cost. Upgrade to Starter when you want the full read-only embedded intelligence surface set."
 
 ### 2.3 Differentiation Messages
 
@@ -246,11 +252,11 @@ Hi [Name],
 
 Your store had [X] AI-powered interactions this month on the free tier. Nice.
 
-Growth plan ($29/month) unlocks:
+Starter plan ($29/month) unlocks:
 
-- Full embedded intelligence surfaces (all 6 block types)
-- Write actions (cart assist, order lookup)
-- Priority sync (faster catalog updates)
+- Full read-only embedded intelligence surfaces
+- Product insight, FAQ, comparison, policy strip, contextual pill, and read-only depth
+- Faster knowledge sync
 - Remove "Powered by" badge
 
 Based on your traffic, that is about [Y] more shoppers getting AI-assisted product discovery each month.
@@ -472,9 +478,9 @@ Your entire catalog, policies, and content are indexed into a real knowledge bas
 
 **Pricing:**
 
-- Free: Product insights and basic AI search
-- Growth ($29/month): All intelligence surfaces, write actions, priority sync
-- Pro ($79/month): Advanced AI capabilities, custom configuration, dedicated support
+- Free: AI search only
+- Starter ($29/month): Full read-only embedded intelligence surfaces
+- Elite ($179/month): Starter plus verified governed actions only
 
 Setup takes under 30 minutes. No code required.
 

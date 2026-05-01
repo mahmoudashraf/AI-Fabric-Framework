@@ -40,11 +40,29 @@ public class ShopifyBridgeStoreLifecycleService {
                                                         String topic,
                                                         String eventType,
                                                         String sourceCategory,
+                                                        String operation,
+                                                        String sourceObjectId,
+                                                        String sourceRecordVersion,
+                                                        String shopifyWebhookId,
+                                                        String payloadChecksum,
+                                                        Integer deliveryAttempt,
                                                         String message,
                                                         boolean invalidateSync) {
         return platformShopifyStoreClient.recordWebhookEvent(
             shopDomain,
-            new ShopifyBridgeRecordWebhookEventRequest(topic, eventType, sourceCategory, message, invalidateSync)
+            new ShopifyBridgeRecordWebhookEventRequest(
+                topic,
+                eventType,
+                sourceCategory,
+                operation,
+                sourceObjectId,
+                sourceRecordVersion,
+                shopifyWebhookId,
+                payloadChecksum,
+                deliveryAttempt,
+                message,
+                invalidateSync
+            )
         );
     }
 }

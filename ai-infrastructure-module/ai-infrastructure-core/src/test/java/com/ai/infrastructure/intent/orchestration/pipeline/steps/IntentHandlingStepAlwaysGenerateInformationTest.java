@@ -19,6 +19,8 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
+import com.ai.infrastructure.intent.orchestration.targets.ResolvedTargetSource;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
 import com.ai.infrastructure.prompt.PromptRenderer;
@@ -28,7 +30,9 @@ import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.DefaultResourceLoader;
 
@@ -174,6 +178,81 @@ class IntentHandlingStepAlwaysGenerateInformationTest {
         verify(ragProvider, never()).performRag(any());
         verify(ragProvider).performRAGQuery(any());
         verify(aiCoreService).generateTextResponse(anyString(), any());
+    }
+
+    @Test
+    void shouldMarkRequestAttachmentsAsVisibleEvidenceInRagGenerationPrompt() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        AICoreService aiCoreService = mock(AICoreService.class);
+
+        OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+        orchestrationProperties.setAlwaysGenerateInformation(true);
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            mock(AIActionRegistry.class),
+            providerOf(ragProvider),
+            aiCoreService,
+            new AIServiceConfig(),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            orchestrationProperties,
+            providerOf((KnowledgeBaseOverviewService) null),
+            null,
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("compare")
+            .requiresRetrieval(true)
+            .requiresGeneration(true)
+            .vectorSpace("product")
+            .optimizedQuery("compare laptops")
+            .build();
+
+        when(ragProvider.performRAGQuery(any())).thenReturn(
+            RAGResponse.builder()
+                .documents(List.of(RAGResponse.RAGDocument.builder().id("1").content("related laptop").build()))
+                .context("related laptop")
+                .success(true)
+                .build()
+        );
+        when(aiCoreService.generateTextResponse(anyString(), any())).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Generated answer")
+                .model("gpt-5.4-mini")
+                .build()
+        );
+
+        ResolvedTarget target = ResolvedTarget.builder()
+            .id("gid://shopify/Product/1")
+            .vectorSpace("product")
+            .contentText("AtlasBook 14 Laptop product evidence")
+            .metadata(Map.of("title", "AtlasBook 14 Laptop"))
+            .source(ResolvedTargetSource.REQUEST_ATTACHMENTS)
+            .build();
+
+        PipelineContext context = PipelineContext.from("Compare the attached laptop", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .resolvedTargets(List.of(target))
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated.getIntentResult().getMessage()).isEqualTo("Generated answer");
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiCoreService).generateTextResponse(promptCaptor.capture(), any());
+        assertThat(promptCaptor.getValue())
+            .contains("ATTACHMENTS (user-provided text evidence visible to the assistant; authoritative for this turn)")
+            .contains("AtlasBook 14 Laptop product evidence");
     }
 
     private <T> ObjectProvider<T> providerOf(T value) {

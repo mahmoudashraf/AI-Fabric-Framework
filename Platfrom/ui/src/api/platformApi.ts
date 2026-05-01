@@ -68,6 +68,172 @@ export type DeleteDeploymentRequest = {
   reason?: string
 }
 
+export type ThinkerDeploymentControlSummary = {
+  deploymentId: string
+  thinkerEnabled: boolean
+  resolverPreviewEnabled: boolean
+  governedExecutionEnabled: boolean
+  disabledActionFamilies: string[]
+  updatedAt: string | null
+  updatedBy: string | null
+}
+
+export type ThinkerIssueSessionSummary = {
+  id: string
+  deploymentId: string | null
+  tenantId: string | null
+  customerId: string | null
+  storeId: string | null
+  shopDomain: string | null
+  consumerId: string | null
+  userSubject: string | null
+  channel: string
+  mode: string
+  status: string
+  issueCategory: string
+  riskClass: string
+  userQuestion: string
+  userSafeAnswer: string | null
+  sourceCitations: string[]
+  terminalReason: string | null
+  startedAt: string
+  completedAt: string | null
+  updatedAt: string
+  evidenceCount: number
+  recommendation: string | null
+}
+
+export type ThinkerEvidenceItemSummary = {
+  id: string
+  sessionId: string
+  kind: string
+  sourceKind: string
+  sourceIdentifier: string
+  freshness: string
+  confidence: number
+  redactionState: string
+  summary: string
+  safeSummary: string
+  operatorRawReference: string | null
+  capturedAt: string
+}
+
+export type ThinkerResolutionPlanSummary = {
+  id: string
+  sessionId: string
+  issueSummary: string
+  diagnosis: string
+  optionsConsidered: string[]
+  recommendedNextStep: string
+  recommendation: string
+  userExplanation: string
+  escalationTarget: string | null
+  evidenceItemIds: string[]
+  createdAt: string
+}
+
+export type ThinkerSessionAuditSummary = {
+  id: string
+  sessionId: string
+  eventType: string
+  actorId: string
+  actorRole: string
+  details: unknown
+  createdAt: string
+}
+
+export type ResolverPolicyDecisionSummary = {
+  id: string
+  proposalId: string
+  outcome: string
+  riskLevel: string
+  requiredScopes: string[]
+  missingScopes: string[]
+  tierRequirement: string
+  actorRequirement: string
+  dryRunRequired: boolean
+  confirmationRequired: boolean
+  approvalRequired: boolean
+  confirmationPreview: string | null
+  operatorReason: string
+  userReason: string
+  decidedAt: string
+}
+
+export type ResolverDryRunSummary = {
+  id: string
+  proposalId: string
+  targetAction: string
+  validatedParameters: unknown
+  expectedStateTransition: string
+  expectedSideEffects: string[]
+  warnings: string[]
+  unsupportedFields: string[]
+  idempotencyPosture: string
+  rollbackPosture: string
+  evidenceFreshness: string
+  productBoundary: string
+  status: string
+  createdAt: string
+}
+
+export type ResolverExecutionSummary = {
+  id: string
+  proposalId: string
+  dryRunId: string | null
+  idempotencyKey: string
+  actionFamily: string
+  status: string
+  productBoundary: string
+  executionResult: unknown
+  verificationStatus: string
+  recoveryGuidance: string | null
+  createdAt: string
+  completedAt: string | null
+}
+
+export type ResolverIntentProposalSummary = {
+  id: string
+  sessionId: string
+  actionId: string
+  actionFamily: string
+  targetDomain: string
+  productBoundary: string
+  actorContext: string
+  tenantId: string | null
+  storeId: string | null
+  deploymentId: string | null
+  redactedParameters: unknown
+  operatorParameters: unknown
+  sourceEvidenceItemIds: string[]
+  proposalText: string
+  normalizedIntent: unknown
+  status: string
+  createdAt: string
+  updatedAt: string
+  latestPolicyDecision: ResolverPolicyDecisionSummary | null
+  latestDryRun: ResolverDryRunSummary | null
+  executions: ResolverExecutionSummary[]
+}
+
+export type ThinkerIssueSessionDetail = {
+  session: ThinkerIssueSessionSummary
+  evidence: ThinkerEvidenceItemSummary[]
+  plan: ThinkerResolutionPlanSummary | null
+  auditEvents: ThinkerSessionAuditSummary[]
+  resolverProposals: ResolverIntentProposalSummary[]
+}
+
+export type ThinkerReadinessSummary = {
+  status: string
+  decision: string
+  generatedAt: string
+  passed: number
+  failed: number
+  scenarios: Array<{ key: string; label: string; status: string; evidence: string }>
+  blockers: string[]
+}
+
 export type DeploymentDeletionStatusSummary = {
   operationId: string
   status: string
@@ -402,6 +568,27 @@ export type PlatformManagedProductServiceSummary = {
   driftMessage: string | null
   dependentStoresCount: number
   activeDependentStoresCount: number
+  shopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig | null
+}
+
+export type PlatformManagedProductServiceShopifyBillingConfig = {
+  mode: string
+  starterEnabled: boolean
+  starterPlanName: string
+  starterPlanHandle: string
+  starterAmount: string
+  starterCurrencyCode: string
+  starterInterval: string
+  starterTrialDays: number
+  starterTest: boolean
+  eliteEnabled: boolean
+  elitePlanName: string
+  elitePlanHandle: string
+  eliteAmount: string
+  eliteCurrencyCode: string
+  eliteInterval: string
+  eliteTrialDays: number
+  eliteTest: boolean
 }
 
 export type PlatformManagedProductServiceProbeSummary = {
@@ -466,14 +653,7 @@ export type PlatformManagedProductServiceOverviewSummary = {
     expectedCount: number
     expectedTopics: string[]
   }
-  billing: {
-    mode: string | null
-    planName: string | null
-    status: string | null
-    merchantApprovalRequired: boolean
-    launchBlocked: boolean
-    message: string | null
-  } | null
+  billing: PlatformManagedProductServiceBillingSummary | null
   usage: {
     generatedAt: string | null
     lastActivityAt: string | null
@@ -496,10 +676,41 @@ export type PlatformManagedProductServiceOverviewSummary = {
 
 export type PlatformManagedProductServiceBillingSummary = {
   mode: string | null
+  tierKey: string | null
   planName: string | null
   status: string | null
   merchantApprovalRequired: boolean
   launchBlocked: boolean
+  paidTier: boolean
+  actionCapable: boolean
+  catalogProductCap: number | null
+  syncCadence: string | null
+  poweredByBadgeRequired: boolean
+  chatFallbackEnabled: boolean
+  requiresExplicitConfirmation: boolean
+  auditTrailAvailable: boolean
+  actionPackages: string[]
+  allowedSurfaces: string[]
+  availablePlans: Array<{
+    tierKey: string | null
+    planName: string | null
+    amount: string | null
+    currencyCode: string | null
+    interval: string | null
+    active: boolean
+    commerciallyAvailable: boolean
+    merchantApprovalSupported: boolean
+    actionCapable: boolean
+    catalogProductCap: number | null
+    syncCadence: string | null
+    poweredByBadgeRequired: boolean
+    chatFallbackEnabled: boolean
+    requiresExplicitConfirmation: boolean
+    auditTrailAvailable: boolean
+    actionPackages: string[]
+    allowedSurfaces: string[]
+    message: string | null
+  }>
   message: string | null
 }
 
@@ -581,6 +792,7 @@ export type CreatePlatformManagedProductServiceRequest = {
   serviceRoot: string | null
   dockerfilePath: string | null
   secretName: string | null
+  shopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig | null
 }
 
 export type UpdatePlatformManagedProductServiceScaleRequest = {
@@ -621,6 +833,12 @@ export type ShopifyStoreWidgetSummary = {
   settings: {
     launcherLabel: string | null
     welcomeMessage: string | null
+    shellModeProfile: string | null
+    debugEnabled: boolean
+    defaultConversationMode: string | null
+    allowedConversationModes: string[]
+    pageModeMappings: Record<string, string>
+    enabledSurfaces: string[]
   } | null
 }
 
@@ -732,6 +950,8 @@ export type ShopifyStoreConnectionSummary = {
   collectionsEnabled: boolean
   pagesEnabled: boolean
   policiesEnabled: boolean
+  articlesEnabled: boolean
+  metaobjectsEnabled: boolean
   credentials: ShopifyStoreCredentialSummary | null
   sourcePreflight: ShopifyStoreSourcePreflightSummary | null
   syncDetail: ShopifyStoreSyncSummary | null
@@ -755,6 +975,279 @@ export type ShopifyStoreConnectionSummary = {
   updatedAt: string
 }
 
+export type ShopifyCompanionPackageProfileSummary = {
+  profileKey: string
+  packageKey: string
+  tierKey: string
+  runtimeProfileKey: string
+  vectorProfileKey: string
+  displayName: string
+  description: string | null
+  costPosture: string | null
+  templatePluginId: string | null
+  templatePluginVersion: string | null
+  deploymentTemplateId: string | null
+  inferencePluginId: string | null
+  vectorStrategy: string | null
+  vectorProvisioningMode: string | null
+  vectorStoragePosture: string | null
+  verificationPackId: string | null
+  status: string
+  detailsJson: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyCompanionPackageProfileChoiceSummary = {
+  value: string
+  label: string
+  description: string | null
+  source: string
+  status: string | null
+  recommended: boolean
+  packageKeys: string[]
+  tierKeys: string[]
+  runtimeProfileKeys: string[]
+  vectorProfileKeys: string[]
+  vectorStrategies: string[]
+  vectorProvisioningModes: string[]
+  vectorStoragePostures: string[]
+}
+
+export type ShopifyCompanionPackageProfileBlueprintSummary = {
+  key: string
+  label: string
+  description: string
+  profileKey: string
+  packageKey: string
+  tierKey: string
+  runtimeProfileKey: string
+  vectorProfileKey: string
+  displayName: string
+  costPosture: string
+  templatePluginId: string
+  templatePluginVersion: string | null
+  deploymentTemplateId: string
+  inferencePluginId: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  vectorStoragePosture: string
+  verificationPackId: string
+}
+
+export type ShopifyCompanionPackageProfileCompatibilityRuleSummary = {
+  packageKey: string
+  tierKey: string
+  costPosture: string
+  defaultProfileKey: string
+  defaultRuntimeProfileKey: string
+  defaultVectorProfileKey: string
+  defaultInferencePluginId: string
+  defaultVectorStrategy: string
+  defaultVectorProvisioningMode: string
+  defaultVectorStoragePosture: string
+  defaultDeploymentTemplateId: string
+  defaultVerificationPackId: string
+  allowedRuntimeProfileKeys: string[]
+  allowedVectorProfileKeys: string[]
+  allowedInferencePluginIds: string[]
+  allowedVectorStrategies: string[]
+  allowedVectorProvisioningModes: string[]
+  allowedVectorStoragePostures: string[]
+  allowedDeploymentTemplateIds: string[]
+  allowedVerificationPackIds: string[]
+}
+
+export type ShopifyCompanionPackageProfileOptionsSummary = {
+  profileKeys: ShopifyCompanionPackageProfileChoiceSummary[]
+  packages: ShopifyCompanionPackageProfileChoiceSummary[]
+  tiers: ShopifyCompanionPackageProfileChoiceSummary[]
+  statuses: ShopifyCompanionPackageProfileChoiceSummary[]
+  costPostures: ShopifyCompanionPackageProfileChoiceSummary[]
+  runtimeProfiles: ShopifyCompanionPackageProfileChoiceSummary[]
+  vectorProfiles: ShopifyCompanionPackageProfileChoiceSummary[]
+  templatePlugins: ShopifyCompanionPackageProfileChoiceSummary[]
+  templateVersions: ShopifyCompanionPackageProfileChoiceSummary[]
+  deploymentTemplates: ShopifyCompanionPackageProfileChoiceSummary[]
+  inferencePlugins: ShopifyCompanionPackageProfileChoiceSummary[]
+  vectorStrategies: ShopifyCompanionPackageProfileChoiceSummary[]
+  vectorProvisioningModes: ShopifyCompanionPackageProfileChoiceSummary[]
+  vectorStoragePostures: ShopifyCompanionPackageProfileChoiceSummary[]
+  verificationPacks: ShopifyCompanionPackageProfileChoiceSummary[]
+  profileBlueprints: ShopifyCompanionPackageProfileBlueprintSummary[]
+  compatibilityRules: ShopifyCompanionPackageProfileCompatibilityRuleSummary[]
+  generatedAt: string
+}
+
+export type UpsertShopifyCompanionPackageProfileRequest = {
+  packageKey: string
+  tierKey: string
+  runtimeProfileKey: string
+  vectorProfileKey: string
+  displayName: string
+  description?: string | null
+  costPosture: string
+  templatePluginId: string
+  templatePluginVersion?: string | null
+  deploymentTemplateId: string
+  inferencePluginId: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  vectorStoragePosture: string
+  verificationPackId: string
+  status: string
+  detailsJson?: string | null
+  reason?: string | null
+}
+
+export type UpdateShopifyCompanionPackageProfileStatusRequest = {
+  status: string
+  reason?: string | null
+}
+
+export type ShopifyStoreProvisioningJobSummary = {
+  id: string
+  shopDomain: string
+  storeConnectionId: string | null
+  jobType: string
+  status: string
+  phase: string
+  requestedPackageKey: string | null
+  requestedTierKey: string | null
+  requestedRuntimeProfileKey: string | null
+  requestedVectorProfileKey: string | null
+  previousPackageKey: string | null
+  previousRuntimeProfileKey: string | null
+  previousVectorProfileKey: string | null
+  requestedTemplatePluginId: string | null
+  requestedTemplatePluginVersion: string | null
+  requestedPluginIds: string[]
+  profileChangeStrategy: string | null
+  vectorReindexRequired: boolean
+  installIntentId: string | null
+  attemptCount: number
+  maxAttempts: number
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  bootstrapDeploymentId: string | null
+  verificationRunId: string | null
+  nextAction: string | null
+  summaryMessage: string | null
+  readyAt: string | null
+  failedAt: string | null
+  cancelledAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ShopifyStoreProvisioningStatusSummary = {
+  shopDomain: string
+  status: string
+  phase: string
+  nextAction: string | null
+  summaryMessage: string | null
+  effectiveProfile: ShopifyCompanionPackageProfileSummary | null
+  latestJob: ShopifyStoreProvisioningJobSummary | null
+  recentJobs: ShopifyStoreProvisioningJobSummary[]
+}
+
+export type CreateShopifyStoreProvisioningJobRequest = {
+  jobType?: string | null
+  requestedPackageKey?: string | null
+  requestedTierKey?: string | null
+  requestedRuntimeProfileKey?: string | null
+  requestedVectorProfileKey?: string | null
+  requestedTemplatePluginId?: string | null
+  requestedTemplatePluginVersion?: string | null
+  requestedPluginIds?: string[] | null
+  installIntentId?: string | null
+  reason?: string | null
+  processImmediately?: boolean | null
+}
+
+export type MerchantPartnerAccessRequestSummary = {
+  requestId: string
+  implementationRequestId: string
+  partnerAccountId: string
+  partnerAccountName: string
+  clientName: string
+  contactEmail: string | null
+  storeConnectionId: string | null
+  assignmentId: string | null
+  shopDomain: string
+  requestedTier: string | null
+  requestedSurfaces: string[]
+  notes: string | null
+  approvalCode: string
+  approvalUrl: string
+  status: string
+  createdAt: string
+  expiresAt: string
+  approvedAt: string | null
+  revokedAt: string | null
+  updatedAt: string
+}
+
+export type MerchantPartnerAccessDecisionRequest = {
+  approverName: string
+  approverEmail?: string | null
+  approvedScope?: string | null
+  decisionReason?: string | null
+}
+
+export type MerchantPartnerAccessDecisionSummary = {
+  requestId: string
+  assignmentId: string | null
+  shopDomain: string
+  status: string
+  decidedAt: string
+}
+
+export type PlatformPartnerMemberSummary = {
+  id: string
+  partnerAccountId: string
+  partnerAccountName: string
+  email: string
+  emailVerified: boolean
+  displayName: string | null
+  avatarUrl: string | null
+  role: string
+  status: string
+  privileges: string[]
+  effectivePermissions: string[]
+  lastLoginAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdatePartnerMemberPrivilegesRequest = {
+  role?: string | null
+  status?: string | null
+  privileges?: string[] | null
+}
+
+export type ShopifyStoreGovernedActionAuditSummary = {
+  id: string
+  actionType: string
+  actionPackage: string
+  surfaceId: string
+  pageType: string
+  productHandle: string | null
+  productTitle: string | null
+  variantId: string | null
+  requestedQuantity: number | null
+  targetQuantity: number | null
+  resultingQuantity: number | null
+  confirmationRequired: boolean
+  confirmationAccepted: boolean
+  shopperSessionRef: string | null
+  status: string
+  message: string | null
+  createdAt: string
+  expiresAt: string | null
+  completedAt: string | null
+}
+
 export type UpsertShopifyStoreConnectionRequest = {
   shopDomain: string
   displayName: string | null
@@ -771,6 +1264,8 @@ export type UpsertShopifyStoreConnectionRequest = {
   collectionsEnabled: boolean | null
   pagesEnabled: boolean | null
   policiesEnabled: boolean | null
+  articlesEnabled: boolean | null
+  metaobjectsEnabled: boolean | null
 }
 
 export type BootstrapShopifyStoreRequest = {
@@ -797,6 +1292,137 @@ export type ShopifyStoreBootstrapSummary = {
 
 export type RecordShopifyStoreSourcePreflightRequest = {
   categories: ShopifyStoreSourcePreflightCategorySummary[]
+}
+
+export type ShopifyStoreVectorizationRunSummary = {
+  id: string
+  reason: string
+  status: string
+  requestedStatus: string
+  entityScope: string[]
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type ShopifyStoreVectorizationSourcePolicySummary = {
+  sourceCategory: string
+  enabled: boolean
+  manualIndexAllowed: boolean
+  manualReindexAllowed: boolean
+  autoIndexingEnabled: boolean
+  createTriggerEnabled: boolean
+  deleteTriggerEnabled: boolean
+  updateTriggerMode: string
+  selectedIndexedFields: string[]
+  debounceWindowSeconds: number
+  minimumRunIntervalSeconds: number
+}
+
+export type ShopifyStoreVectorizationPolicySummary = {
+  policyVersion: number
+  autoIndexingDefault: boolean
+  sourcePolicies: ShopifyStoreVectorizationSourcePolicySummary[]
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+export type ShopifyStoreVectorizationIndexedFieldSummary = {
+  fieldKey: string
+  sourceCategory: string
+  entityType: string
+  sourceField: string
+  label: string
+  selectableForTriggerPolicy: boolean
+}
+
+export type ShopifyStoreVectorizationAutomationSummary = {
+  autoIndexingHealthy: boolean
+  queuedEvents: number
+  leasedEvents: number
+  dispatchedEvents: number
+  skippedEvents: number
+  failedEvents: number
+  deadLetteredEvents: number
+  lastAutoEventAt: string | null
+  lastSuccessfulAutoIndexAt: string | null
+  lastFailedAutoIndexAt: string | null
+  lastAutoRunId: string | null
+  degradedReasons: string[]
+}
+
+export type ShopifyStoreVectorizationEventSummary = {
+  id: string
+  sourceCategory: string
+  entityType: string
+  sourceObjectId: string | null
+  shopifyTopic: string | null
+  operation: string
+  status: string
+  triggerReason: string | null
+  failureCode: string | null
+  coalescedRunId: string | null
+  shopifyWebhookId: string | null
+  occurredAt: string
+  queuedAt: string
+  lastAttemptAt: string | null
+  completedAt: string | null
+  notes: string | null
+}
+
+export type ShopifyStoreVectorizationSummary = {
+  shopDomain: string
+  deploymentId: string | null
+  bootstrapped: boolean
+  selectedCategories: string[]
+  selectedEntityTypes: string[]
+  requiredPluginIds: string[]
+  installedPluginIds: string[]
+  missingPluginIds: string[]
+  disabledPluginIds: string[]
+  reconciliationRequired: boolean
+  connectionConfigured: boolean
+  sourceConnectionId: string | null
+  sourceConnectionStatus: string | null
+  sourceAdapterType: string | null
+  planConfigured: boolean
+  planId: string | null
+  planStatus: string | null
+  runnerConfigured: boolean
+  runnerRegistrationId: string | null
+  runnerRegistrationStatus: string | null
+  deploymentApplyInProgress: boolean
+  deploymentApplyStatus: string | null
+  runnerMode: string | null
+  syncState: string | null
+  readyToRun: boolean
+  blockingReasons: string[]
+  lastRun: ShopifyStoreVectorizationRunSummary | null
+  policy: ShopifyStoreVectorizationPolicySummary
+  effectiveIndexedFields: ShopifyStoreVectorizationIndexedFieldSummary[]
+  automation: ShopifyStoreVectorizationAutomationSummary
+  recentEvents: ShopifyStoreVectorizationEventSummary[]
+}
+
+export type ShopifyStoreVectorizationSourcePolicyInput = {
+  sourceCategory: string
+  autoIndexingEnabled?: boolean
+  createTriggerEnabled?: boolean
+  deleteTriggerEnabled?: boolean
+  updateTriggerMode?: string
+  selectedIndexedFields?: string[]
+  debounceWindowSeconds?: number
+  minimumRunIntervalSeconds?: number
+}
+
+export type UpdateShopifyStoreVectorizationPolicyRequest = {
+  policyVersion: number
+  sourcePolicies: ShopifyStoreVectorizationSourcePolicyInput[]
+}
+
+export type ShopifyStoreVectorizationSelectedEntitiesRequest = {
+  entityTypes: string[]
 }
 
 export type MarketplacePluginPricingSummary = {
@@ -2185,6 +2811,85 @@ export type PlatformVerificationReleaseGateSummary = {
   latestRun: PlatformVerificationSuiteRunSummary | null
 }
 
+export type ShopifyReadinessAuditChecklistItemSummary = {
+  key: string
+  label: string
+  category: string
+  blocking: boolean
+  passCriteria: string
+}
+
+export type ShopifyReadinessAuditChecklistResultSummary = ShopifyReadinessAuditChecklistItemSummary & {
+  status: string
+  evidence: string
+  notes: string
+}
+
+export type ShopifyReadinessAuditAnswerResultSummary = {
+  queryId: string
+  surface: string | null
+  tierProfile: string | null
+  expectedBehavior: string | null
+  passed: boolean
+  httpStatus: number
+  failureCategory: string | null
+  answerLength: number
+  answerPreview: string | null
+  checks: Record<string, boolean>
+  forbiddenHits: string[]
+  missingRequiredConcepts: string[]
+  unsafeActionExecutionHits: string[]
+}
+
+export type ShopifyReadinessAuditEvidenceArtifactSummary = {
+  name: string
+  category: string
+  path: string
+  description: string
+  status: string
+}
+
+export type ShopifyReadinessAuditQuerySummary = {
+  queryId: string
+  tierProfile: string
+  surface: string
+  query: string
+  storefrontContext: Record<string, unknown>
+  expectedBehavior: string
+  requiredConcepts: string[]
+  forbiddenClaims: string[]
+  expectedDenial: boolean
+  groundingRequired: boolean
+}
+
+export type ShopifyReadinessAuditDefinitionSummary = {
+  suiteKey: string
+  productRef: string
+  displayName: string
+  targetStore: string
+  tierProfile: string
+  artifactRoot: string
+  decisionOptions: string[]
+  rubric: string[]
+  forbiddenInternalTerms: string[]
+  checklist: ShopifyReadinessAuditChecklistItemSummary[]
+  queryPack: ShopifyReadinessAuditQuerySummary[]
+}
+
+export type ShopifyReadinessAuditStateSummary = {
+  definition: ShopifyReadinessAuditDefinitionSummary
+  latestRun: PlatformVerificationSuiteRunSummary | null
+  latestStage: PlatformVerificationSuiteStageRunSummary | null
+  decision: string
+  freshnessStatus: string
+  evidenceCompletedAt: string | null
+  blockers: string[]
+  nextHandoff: string
+  checklistResults: ShopifyReadinessAuditChecklistResultSummary[]
+  answerResults: ShopifyReadinessAuditAnswerResultSummary[]
+  evidenceArtifacts: ShopifyReadinessAuditEvidenceArtifactSummary[]
+}
+
 export type PlatformRailwayServiceDiscoverySummary = {
   available: boolean
   summaryMessage: string
@@ -3165,6 +3870,19 @@ export function scaleProductService(serviceRef: string, payload: UpdatePlatformM
   })
 }
 
+export function updateProductServiceShopifyBillingConfig(
+  serviceRef: string,
+  payload: PlatformManagedProductServiceShopifyBillingConfig,
+) {
+  return request<PlatformManagedProductServiceSummary>(
+    `/api/product-services/${encodeURIComponent(serviceRef)}/shopify-billing-config`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
 export function restartProductService(serviceRef: string) {
   return request<PlatformManagedProductServiceSummary>(`/api/product-services/${encodeURIComponent(serviceRef)}/restart`, {
     method: 'POST',
@@ -3201,6 +3919,37 @@ export function fetchShopifyStore(shopDomain: string) {
   return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}`)
 }
 
+export function fetchMerchantPartnerAccessRequests(shopDomain: string) {
+  return request<MerchantPartnerAccessRequestSummary[]>(
+    `/api/merchant/partner-access/requests?shopDomain=${encodeURIComponent(shopDomain)}`,
+  )
+}
+
+export function revokeMerchantPartnerAccessRequest(
+  shopDomain: string,
+  requestId: string,
+  payload: MerchantPartnerAccessDecisionRequest,
+) {
+  return request<MerchantPartnerAccessDecisionSummary>(
+    `/api/merchant/partner-access/requests/${encodeURIComponent(requestId)}/revoke?shopDomain=${encodeURIComponent(shopDomain)}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function fetchPlatformPartnerMembers() {
+  return request<PlatformPartnerMemberSummary[]>('/api/platform/partners/members')
+}
+
+export function updatePlatformPartnerMember(memberId: string, payload: UpdatePartnerMemberPrivilegesRequest) {
+  return request<PlatformPartnerMemberSummary>(`/api/platform/partners/members/${encodeURIComponent(memberId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function fetchShopifyStoreBinding(shopDomain: string) {
   return request<ShopifyStoreBindingInspectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/binding`)
 }
@@ -3225,6 +3974,46 @@ export function bootstrapShopifyStore(shopDomain: string, payload: BootstrapShop
   })
 }
 
+export function fetchShopifyStoreProvisioning(shopDomain: string) {
+  return request<ShopifyStoreProvisioningStatusSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/provisioning`)
+}
+
+export function fetchShopifyPackageProfiles(activeOnly = false) {
+  return request<ShopifyCompanionPackageProfileSummary[]>(`/api/shopify/package-profiles?activeOnly=${activeOnly}`)
+}
+
+export function fetchShopifyPackageProfileOptions() {
+  return request<ShopifyCompanionPackageProfileOptionsSummary>('/api/shopify/package-profiles/options')
+}
+
+export function fetchShopifyPackageProfile(profileKey: string) {
+  return request<ShopifyCompanionPackageProfileSummary>(`/api/shopify/package-profiles/${encodeURIComponent(profileKey)}`)
+}
+
+export function upsertShopifyPackageProfile(profileKey: string, payload: UpsertShopifyCompanionPackageProfileRequest) {
+  return request<ShopifyCompanionPackageProfileSummary>(`/api/shopify/package-profiles/${encodeURIComponent(profileKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateShopifyPackageProfileStatus(
+  profileKey: string,
+  payload: UpdateShopifyCompanionPackageProfileStatusRequest,
+) {
+  return request<ShopifyCompanionPackageProfileSummary>(`/api/shopify/package-profiles/${encodeURIComponent(profileKey)}/status`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function enqueueShopifyStoreProvisioning(shopDomain: string, payload: CreateShopifyStoreProvisioningJobRequest = {}) {
+  return request<ShopifyStoreProvisioningJobSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/provisioning-jobs`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function goLiveShopifyStore(shopDomain: string) {
   return request<ShopifyStoreConnectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/go-live`, {
     method: 'POST',
@@ -3236,6 +4025,81 @@ export function recordShopifyStoreSourcePreflight(shopDomain: string, payload: R
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchShopifyStoreVectorization(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization`)
+}
+
+export function fetchShopifyStoreGovernedActions(shopDomain: string, limit = 10) {
+  return request<ShopifyStoreGovernedActionAuditSummary[]>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/actions/recent?limit=${limit}`,
+  )
+}
+
+export function reconcileShopifyStoreVectorization(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/reconcile`, {
+    method: 'POST',
+  })
+}
+
+export function indexAllShopifyStoreVectorization(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/index-all`, {
+    method: 'POST',
+  })
+}
+
+export function reindexAllShopifyStoreVectorization(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/reindex-all`, {
+    method: 'POST',
+  })
+}
+
+export function reindexSelectedShopifyStoreVectorization(
+  shopDomain: string,
+  payload: ShopifyStoreVectorizationSelectedEntitiesRequest,
+) {
+  return request<ShopifyStoreVectorizationSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/reindex-selected`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function updateShopifyStoreVectorizationPolicy(
+  shopDomain: string,
+  payload: UpdateShopifyStoreVectorizationPolicyRequest,
+) {
+  return request<ShopifyStoreVectorizationSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/policy`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchShopifyStoreVectorizationEvents(shopDomain: string, limit = 20) {
+  return request<ShopifyStoreVectorizationEventSummary[]>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/events?limit=${limit}`,
+  )
+}
+
+export function replayShopifyStoreVectorizationEvent(shopDomain: string, eventId: string) {
+  return request<ShopifyStoreVectorizationSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/events/${encodeURIComponent(eventId)}/replay`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function retryLastFailedShopifyStoreVectorizationAutoRun(shopDomain: string) {
+  return request<ShopifyStoreVectorizationSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/vectorization/retry-last-failed-auto-run`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function createMarketplacePublisher(payload: CreateMarketplacePublisherRequest) {
@@ -3598,6 +4462,120 @@ export function fetchPlatformCustomers() {
   return request<PlatformCustomerSummary[]>('/api/platform/customers')
 }
 
+export function fetchThinkerSessions(params?: { shopDomain?: string; deploymentId?: string; status?: string }) {
+  const search = new URLSearchParams()
+  if (params?.shopDomain) search.set('shopDomain', params.shopDomain)
+  if (params?.deploymentId) search.set('deploymentId', params.deploymentId)
+  if (params?.status) search.set('status', params.status)
+  const suffix = search.size > 0 ? `?${search.toString()}` : ''
+  return request<ThinkerIssueSessionSummary[]>(`/api/operator/thinker/sessions${suffix}`)
+}
+
+export function fetchThinkerSession(sessionId: string) {
+  return request<ThinkerIssueSessionDetail>(`/api/operator/thinker/sessions/${encodeURIComponent(sessionId)}`)
+}
+
+export function fetchThinkerEvidence(sessionId: string) {
+  return request<ThinkerEvidenceItemSummary[]>(`/api/operator/thinker/sessions/${encodeURIComponent(sessionId)}/evidence`)
+}
+
+export async function downloadThinkerSessionExport(sessionId: string) {
+  const apiKey = getStoredPlatformApiKey()
+  const response = await fetch(`${apiBaseUrl}/api/operator/thinker/sessions/${encodeURIComponent(sessionId)}/export`, {
+    credentials: 'include',
+    headers: {
+      ...(apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {}),
+    },
+  })
+  if (!response.ok) {
+    const message = await response.text()
+    throw new PlatformApiError(response.status, message || `Request failed with status ${response.status}`)
+  }
+  return response.blob()
+}
+
+export function createThinkerSession(payload: {
+  deploymentId: string
+  shopDomain?: string
+  userQuestion: string
+  userSafeAnswer?: string
+  evidence?: Array<{
+    kind?: string
+    sourceKind?: string
+    sourceIdentifier?: string
+    freshness?: string
+    confidence?: number
+    summary: string
+    safeSummary?: string
+  }>
+}) {
+  return request<ThinkerIssueSessionSummary>('/api/operator/thinker/sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchThinkerDeploymentControl(deploymentId: string) {
+  return request<ThinkerDeploymentControlSummary>(`/api/operator/thinker/deployments/${encodeURIComponent(deploymentId)}/control`)
+}
+
+export function updateThinkerDeploymentControl(deploymentId: string, payload: {
+  thinkerEnabled?: boolean
+  resolverPreviewEnabled?: boolean
+  governedExecutionEnabled?: boolean
+  disabledActionFamilies?: string[]
+}) {
+  return request<ThinkerDeploymentControlSummary>(`/api/operator/thinker/deployments/${encodeURIComponent(deploymentId)}/control`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchThinkerReadiness() {
+  return request<ThinkerReadinessSummary>('/api/operator/thinker/readiness')
+}
+
+export function createResolverProposal(payload: {
+  sessionId: string
+  actionId?: string
+  actionFamily?: string
+  targetDomain?: string
+  productBoundary?: string
+  parameters?: Record<string, unknown>
+  sourceEvidenceItemIds?: string[]
+  proposalText: string
+}) {
+  return request<ResolverIntentProposalSummary>('/api/operator/resolver/proposals', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchResolverProposals() {
+  return request<ResolverIntentProposalSummary[]>('/api/operator/resolver/proposals')
+}
+
+export function fetchResolverPolicyDecisions() {
+  return request<ResolverPolicyDecisionSummary[]>('/api/operator/resolver/policy-decisions')
+}
+
+export function runResolverDryRun(proposalId: string) {
+  return request<ResolverDryRunSummary>(`/api/operator/resolver/proposals/${encodeURIComponent(proposalId)}/dry-run`, {
+    method: 'POST',
+  })
+}
+
+export function executeResolverProposal(proposalId: string, payload: { idempotencyKey: string; confirmationText: string; dryRunId?: string }) {
+  return request<ResolverExecutionSummary>(`/api/operator/resolver/proposals/${encodeURIComponent(proposalId)}/execute`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchResolverExecutions() {
+  return request<ResolverExecutionSummary[]>('/api/operator/resolver/executions')
+}
+
 export function createPlatformCustomer(payload: {
   name: string
   description?: string
@@ -3861,6 +4839,10 @@ export function fetchPlatformVerificationSuiteRun(runId: string) {
 
 export function fetchPlatformVerificationReleaseGate() {
   return request<PlatformVerificationReleaseGateSummary>('/api/verification-suites/release-gate')
+}
+
+export function fetchShopifyReadinessAuditState() {
+  return request<ShopifyReadinessAuditStateSummary>('/api/shopify/readiness-audit/latest')
 }
 
 export function dispatchPlatformVerificationSuiteRun(

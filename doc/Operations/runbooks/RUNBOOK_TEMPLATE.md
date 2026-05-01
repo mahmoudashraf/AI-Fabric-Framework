@@ -17,7 +17,7 @@ Usage:
 
 Related:
 
-- [OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md](../../Productization/future-work/MarketPlace/Products/Strategy/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md)
+- [OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md](../observability/OBSERVABILITY_AND_RELIABILITY_FOUNDATION_PLAN.md)
 - [CARDINALITY_GOVERNANCE_POLICY.md](../observability/CARDINALITY_GOVERNANCE_POLICY.md)
 
 ---
@@ -91,7 +91,7 @@ At minimum five, ranked by frequency. Each follows the **Signal → Diagnosis �
 |---|---|
 | 0–15 min | Primary on-call investigates. Acknowledge page. Post in `#incidents-{product}` with status and dashboard link. |
 | 15 min | If root cause unclear, page secondary on-call. Update status-page if merchant-facing. |
-| 60 min | Escalate to product owner. Start an incident doc from [template](INCIDENT_DOC_TEMPLATE.md) if not already. Assign an incident commander if more than one responder. |
+| 60 min | Escalate to product owner. Start an incident document if not already open. Assign an incident commander if more than one responder. |
 | 240 min | Executive notification. External comms review. |
 
 On-call contacts live in PagerDuty — do not duplicate here.

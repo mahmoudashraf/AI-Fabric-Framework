@@ -324,7 +324,7 @@ public class DeploymentVerificationRolloutService {
                 if (existing == null) {
                     continue;
                 }
-                recovered = deploymentReleaseRecoveryService.redispatchLatestQueuedApplyRequest(existing.getId()) || recovered;
+                recovered = deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId()) || recovered;
             }
             if (recovered) {
                 deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
@@ -393,6 +393,7 @@ public class DeploymentVerificationRolloutService {
             }
         }
 
+        forceRedispatchLatestQueuedApply(deploymentId);
         ensureCanonicalOwnershipAssignments(deploymentId);
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentInternal(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);

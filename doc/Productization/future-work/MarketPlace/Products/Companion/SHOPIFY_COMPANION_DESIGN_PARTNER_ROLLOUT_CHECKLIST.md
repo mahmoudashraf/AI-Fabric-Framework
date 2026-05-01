@@ -56,6 +56,7 @@ Do not use a production storefront theme first if a safer preview theme is avail
 ### Phase E: Storefront enablement
 
 - enable the theme app extension
+- place the intended embedded surfaces for the partner tier
 - load the storefront
 - confirm storefront bootstrap is available
 
@@ -66,6 +67,11 @@ Run at least:
 - one product discovery question
 - one comparison question
 - one policy question
+
+If the partner is explicitly piloting Elite guided commerce, also run:
+
+- one governed add-to-cart flow with explicit confirmation
+- one governed cart update flow
 
 Confirm:
 
@@ -79,9 +85,15 @@ Capture and store:
 
 - store summary screenshot or export
 - storefront preview screenshot
+- tier ladder and launch readiness screenshot
 - shopper widget screenshot
 - support bundle text
 - verification script outputs
+
+If Elite is active, also capture:
+
+- recent governed action history from merchant or platform admin
+- explicit confirmation UI state
 
 If any of these are missing, the rollout is incomplete.
 
@@ -109,6 +121,7 @@ A design-partner rollout counts as complete only when:
 
 - merchant onboarding reaches live state
 - storefront widget is enabled
+- the intended embedded surfaces are placed and visible for the partner tier
 - the merchant can demonstrate value from the embedded app and storefront
 - no unresolved launch blocker remains in support notes
 

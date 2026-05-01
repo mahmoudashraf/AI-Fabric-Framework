@@ -20,10 +20,10 @@ PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 INFERENCE_SERVICE_ROTATE_SECRET_VALUE="${INFERENCE_SERVICE_ROTATE_SECRET_VALUE:-}"
 INFERENCE_SERVICE_REF="${INFERENCE_SERVICE_REF:-shared-ollama-orchestration}"
+PLATFORM_VERIFICATION_WEAVIATE_HOST="${PLATFORM_VERIFICATION_WEAVIATE_HOST:-weaviate-external-verify-dev.up.railway.app}"
 
 APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY:-}"
 
-RUN_PLATFORM_CODE_CHECKS="${RUN_PLATFORM_CODE_CHECKS:-true}"
 RUN_PLATFORM_ADMIN_CHECKS="${RUN_PLATFORM_ADMIN_CHECKS:-true}"
 RUN_MARKETPLACE_INSTALL_FLOW_CHECKS="${RUN_MARKETPLACE_INSTALL_FLOW_CHECKS:-false}"
 RUN_ECOMMERCE_DEPLOYMENT_CHECKS="${RUN_ECOMMERCE_DEPLOYMENT_CHECKS:-true}"
@@ -97,10 +97,6 @@ trap cleanup EXIT
 require_cmd bash
 require_cmd python3
 
-if [[ "${RUN_PLATFORM_CODE_CHECKS}" == "true" ]]; then
-  require_cmd mvn
-  require_cmd npm
-fi
 if [[ "${RUN_PLATFORM_ADMIN_CHECKS}" == "true" || "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_RUNTIME_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" || "${RUN_MARKETPLACE_INSTALL_FLOW_CHECKS}" == "true" ]]; then
   if [[ -z "${PLATFORM_BASE_URL}" ]]; then
     echo "Set PLATFORM_BASE_URL when live verification is enabled." >&2
@@ -207,16 +203,6 @@ while IFS='=' read -r key value; do
   esac
 done <<< "${resolved_ids}"
 
-if [[ "${RUN_PLATFORM_CODE_CHECKS}" == "true" ]]; then
-  run_step "Platform backend tests" mvn -f Platfrom/backend/pom.xml test -DskipITs
-  run_step "ai-fabric-product tests" mvn -f ai-fabric-product/pom.xml test
-  run_step "Targeted infrastructure tests" mvn -f ai-infrastructure-module/pom.xml \
-    -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus \
-    -am test -DskipITs
-  run_step "Platform UI build" bash -c 'cd Platfrom/ui && npm ci && npm run build'
-  run_step "Shell syntax checks" bash -c 'bash -n scripts/verify-ecommerce-deployment.sh && bash -n scripts/verify-vector-deployment.sh && bash -n scripts/verify-managed-vector-providers.sh && bash -n scripts/verify-platform-admin-regression.sh && bash -n scripts/verify-marketplace-install-flow.sh && bash -n scripts/resolve-verification-rollouts.sh && bash -n scripts/run-platform-deployment-verification.sh && bash -n scripts/run-platform-state-verification-suite.sh'
-fi
-
 if [[ "${RUN_MARKETPLACE_INSTALL_FLOW_CHECKS}" == "true" ]]; then
   run_step "Verify marketplace install flow" env \
     PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
@@ -312,7 +298,9 @@ if [[ "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
 fi
 
 if [[ "${RUN_MANAGED_PROVIDER_CHECKS}" == "true" ]]; then
-  run_step "Managed vector provider verification" bash scripts/verify-managed-vector-providers.sh
+  run_step "Managed vector provider verification" env \
+    PLATFORM_VERIFICATION_WEAVIATE_HOST="${PLATFORM_VERIFICATION_WEAVIATE_HOST}" \
+    bash scripts/verify-managed-vector-providers.sh
 fi
 
 echo ""

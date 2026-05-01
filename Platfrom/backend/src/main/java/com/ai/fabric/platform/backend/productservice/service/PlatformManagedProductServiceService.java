@@ -3,11 +3,13 @@ package com.ai.fabric.platform.backend.productservice.service;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.CreatePlatformManagedProductServiceRequest;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
+import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceShopifyBillingConfigRequest;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -91,7 +93,7 @@ public class PlatformManagedProductServiceService {
         entity.setDockerfilePath(defaultDockerfilePath(entity.getServiceKind(), request.dockerfilePath()));
         entity.setSecretName(trimToNull(request.secretName()));
         entity.setStatus(StringUtils.hasText(entity.getBaseUrl()) ? "ACTIVE" : "CREATED");
-        entity.setDetailsJson("{}");
+        entity.setDetailsJson(initialDetailsJson(entity.getServiceKind(), request.shopifyBillingConfig()));
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         repository.save(entity);
@@ -106,6 +108,23 @@ public class PlatformManagedProductServiceService {
             throw new ResponseStatusException(CONFLICT, "desiredReplicas must be between " + min + " and " + max + " for service " + serviceRef + ".");
         }
         service.setDesiredReplicas(desiredReplicas);
+        service.setUpdatedAt(Instant.now());
+        repository.save(service);
+        return toSummary(service);
+    }
+
+    public PlatformManagedProductServiceSummary updateShopifyBillingConfig(String serviceRef,
+                                                                           UpdatePlatformManagedProductServiceShopifyBillingConfigRequest request) {
+        PlatformManagedProductServiceEntity service = requireService(serviceRef);
+        if (!PlatformManagedProductServiceShopifyBillingConfigSupport.supports(service.getServiceKind())) {
+            throw new ResponseStatusException(CONFLICT, "Shopify billing configuration is only supported for Shopify Bridge services.");
+        }
+        ObjectNode details = PlatformManagedProductServiceShopifyBillingConfigSupport.detailsWithConfig(
+            objectMapper,
+            service.getDetailsJson(),
+            request
+        );
+        service.setDetailsJson(details.toPrettyString());
         service.setUpdatedAt(Instant.now());
         repository.save(service);
         return toSummary(service);
@@ -157,8 +176,25 @@ public class PlatformManagedProductServiceService {
             text(details, "driftStatus"),
             text(details, "driftMessage"),
             dependentStores,
-            activeDependentStores
+            activeDependentStores,
+            PlatformManagedProductServiceShopifyBillingConfigSupport.summaryFromDetails(
+                objectMapper,
+                entity.getDetailsJson(),
+                entity.getServiceKind()
+            )
         );
+    }
+
+    private String initialDetailsJson(String serviceKind,
+                                      UpdatePlatformManagedProductServiceShopifyBillingConfigRequest shopifyBillingConfig) {
+        if (!PlatformManagedProductServiceShopifyBillingConfigSupport.supports(serviceKind)) {
+            return "{}";
+        }
+        return PlatformManagedProductServiceShopifyBillingConfigSupport.detailsWithConfig(
+            objectMapper,
+            "{}",
+            shopifyBillingConfig
+        ).toPrettyString();
     }
 
     private JsonNode readDetails(String detailsJson) {

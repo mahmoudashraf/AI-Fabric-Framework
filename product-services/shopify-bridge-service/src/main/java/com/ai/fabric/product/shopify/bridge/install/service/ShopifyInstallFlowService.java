@@ -1,7 +1,11 @@
 package com.ai.fabric.product.shopify.bridge.install.service;
 
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
+import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreRequest;
@@ -35,7 +39,9 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 @Service
 public class ShopifyInstallFlowService {
 
-    private static final String DEFAULT_APP_SCOPES = "read_products,read_content,read_legal_policies";
+    private static final String DEFAULT_APP_SCOPES =
+        "read_products,read_content,read_legal_policies,read_metaobjects,read_metaobject_definitions,read_orders";
+    private static final String APP_SCOPES_UPDATE_TOPIC = "APP_SCOPES_UPDATE";
     private static final Logger log = LoggerFactory.getLogger(ShopifyInstallFlowService.class);
 
     private final ShopifyBridgeProperties properties;
@@ -43,6 +49,7 @@ public class ShopifyInstallFlowService {
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyInstallRecordService installRecordService;
     private final ShopifyWebhookSubscriptionService webhookSubscriptionService;
+    private final ShopifyBridgeBillingService billingService;
     private final RestClient restClient;
 
     public ShopifyInstallFlowService(ShopifyBridgeProperties properties,
@@ -50,12 +57,14 @@ public class ShopifyInstallFlowService {
                                      PlatformShopifyStoreClient platformShopifyStoreClient,
                                      ShopifyInstallRecordService installRecordService,
                                      ShopifyWebhookSubscriptionService webhookSubscriptionService,
+                                     ShopifyBridgeBillingService billingService,
                                      RestClient.Builder restClientBuilder) {
         this.properties = properties;
         this.installStateService = installStateService;
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installRecordService = installRecordService;
         this.webhookSubscriptionService = webhookSubscriptionService;
+        this.billingService = billingService;
         this.restClient = restClientBuilder.build();
     }
 
@@ -110,6 +119,13 @@ public class ShopifyInstallFlowService {
             store.credentials() == null ? null : store.credentials().refreshTokenExpiresAt()
         );
         reconcileSubscriptionsSafely(normalizedShop, accessToken);
+        enqueueProvisioningSafely(
+            normalizedShop,
+            "INSTALL",
+            null,
+            null,
+            "Shopify OAuth install completed and credentials were persisted."
+        );
 
         return embeddedAppUrl(normalizedShop, host);
     }
@@ -117,8 +133,56 @@ public class ShopifyInstallFlowService {
     private void reconcileSubscriptionsSafely(String shopDomain, String accessToken) {
         try {
             webhookSubscriptionService.reconcileContentSubscriptions(shopDomain, accessToken);
+            boolean appScopesWebhookReady = "READY".equalsIgnoreCase(
+                webhookSubscriptionService.inspectTopicStatus(shopDomain, accessToken, APP_SCOPES_UPDATE_TOPIC).status()
+            );
+            installRecordService.recordAppScopesUpdateWebhookReady(shopDomain, appScopesWebhookReady);
+            ShopifyBridgeStoreBillingState billingState = billingService.inspectStoreBillingState(shopDomain, accessToken);
+            platformShopifyStoreClient.recordBillingState(
+                shopDomain,
+                new ShopifyBridgeRecordBillingStateRequest(
+                    billingState.tierKey(),
+                    billingState.status(),
+                    null,
+                    null,
+                    "Shopify install reconciliation refreshed billing state."
+                )
+            );
+            installRecordService.recordBillingState(
+                shopDomain,
+                billingState.tierKey(),
+                billingState.status(),
+                billingState.activeSubscriptions()
+            );
         } catch (RuntimeException ex) {
             log.warn("Shopify webhook subscription reconciliation failed for shop={}", shopDomain, ex);
+        }
+    }
+
+    private void enqueueProvisioningSafely(String shopDomain,
+                                           String jobType,
+                                           String requestedTierKey,
+                                           String installIntentId,
+                                           String reason) {
+        try {
+            platformShopifyStoreClient.enqueueProvisioning(
+                shopDomain,
+                new ShopifyBridgeCreateProvisioningJobRequest(
+                    jobType,
+                    null,
+                    requestedTierKey,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    installIntentId,
+                    reason,
+                    false
+                )
+            );
+        } catch (RuntimeException ex) {
+            log.warn("Shopify zero-touch provisioning enqueue failed for shop={} jobType={}", shopDomain, jobType, ex);
         }
     }
 
@@ -140,7 +204,9 @@ public class ShopifyInstallFlowService {
                 existing.productsEnabled(),
                 existing.collectionsEnabled(),
                 existing.pagesEnabled(),
-                existing.policiesEnabled()
+                existing.policiesEnabled(),
+                existing.articlesEnabled(),
+                existing.metaobjectsEnabled()
             ));
         } catch (HttpClientErrorException.NotFound ex) {
             platformShopifyStoreClient.upsertStore(new ShopifyBridgeUpsertStoreRequest(
@@ -155,6 +221,8 @@ public class ShopifyInstallFlowService {
                 "NOT_RUN",
                 "NOT_ENABLED",
                 "CONNECTED",
+                true,
+                true,
                 true,
                 true,
                 true,

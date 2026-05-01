@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { useMaxModeContextOptional } from "@/context";
 
+import type { MaxModeMode, MaxModePosition } from "@/constants";
 import type { ChatMessage, Document } from "@/types";
 
 export function useMaxModePersistence({
@@ -24,10 +25,10 @@ export function useMaxModePersistence({
   setChatMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   attachedItems: Array<{ type: string; data: any }>;
   setAttachedItems: Dispatch<SetStateAction<Array<{ type: string; data: any }>>>;
-  currentPosition: "landing" | "catalog" | "search" | "cart";
-  setCurrentPosition: Dispatch<SetStateAction<"landing" | "catalog" | "search" | "cart">>;
-  currentMode: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
-  setCurrentMode: Dispatch<SetStateAction<"navigator" | "navigator_deep" | "cart_assistant" | "executor">>;
+  currentPosition: MaxModePosition;
+  setCurrentPosition: Dispatch<SetStateAction<MaxModePosition>>;
+  currentMode: MaxModeMode;
+  setCurrentMode: Dispatch<SetStateAction<MaxModeMode>>;
   currentConversationId: string | null;
   setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
   contextDocuments: Document[];
@@ -45,8 +46,8 @@ export function useMaxModePersistence({
     if (persistedState) {
       if (persistedState.chatMessages.length > 0) setChatMessages(persistedState.chatMessages);
       if (persistedState.attachedItems.length > 0) setAttachedItems(persistedState.attachedItems);
-      if (persistedState.currentPosition) setCurrentPosition(persistedState.currentPosition as "landing" | "catalog" | "search" | "cart");
-      if (persistedState.currentMode) setCurrentMode(persistedState.currentMode as "navigator" | "navigator_deep" | "cart_assistant" | "executor");
+      if (persistedState.currentPosition) setCurrentPosition(persistedState.currentPosition as MaxModePosition);
+      if (persistedState.currentMode) setCurrentMode(persistedState.currentMode as MaxModeMode);
       if (persistedState.conversationId) setCurrentConversationId(persistedState.conversationId);
       if (persistedState.contextDocuments && persistedState.contextDocuments.length > 0) setContextDocuments(persistedState.contextDocuments);
     }

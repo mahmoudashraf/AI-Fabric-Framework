@@ -42,7 +42,7 @@ public record PlatformManagedProductServiceSummary(
     String driftStatus,
     String driftMessage,
     int dependentStoresCount,
-    int activeDependentStoresCount
+    int activeDependentStoresCount,
+    PlatformManagedProductServiceShopifyBillingConfigSummary shopifyBillingConfig
 ) {
 }
-

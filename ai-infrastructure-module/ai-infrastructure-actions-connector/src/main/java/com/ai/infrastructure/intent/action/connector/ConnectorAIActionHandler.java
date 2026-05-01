@@ -7,9 +7,14 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,23 +27,37 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private static final String REDACTED = "[REDACTED]";
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
+    private static final int FALLBACK_MAX_RECORDS = 5;
+    private static final int FALLBACK_MAX_SCALAR_FIELDS = 16;
+    private static final int FALLBACK_MAX_CONTENT_CHARS = 300;
 
     private final AIActionMetaData metadata;
     private final boolean requiresConfirmation;
     private final String confirmationTemplate;
     private final Set<String> sensitiveParams;
     private final ActionConnectorExecutor executor;
+    private final ConnectorActionLlmFactsDefinition llmFacts;
 
     public ConnectorAIActionHandler(AIActionMetaData metadata,
                                     boolean requiresConfirmation,
                                     String confirmationTemplate,
                                     Set<String> sensitiveParams,
                                     ActionConnectorExecutor executor) {
+        this(metadata, requiresConfirmation, confirmationTemplate, sensitiveParams, executor, null);
+    }
+
+    public ConnectorAIActionHandler(AIActionMetaData metadata,
+                                    boolean requiresConfirmation,
+                                    String confirmationTemplate,
+                                    Set<String> sensitiveParams,
+                                    ActionConnectorExecutor executor,
+                                    ConnectorActionLlmFactsDefinition llmFacts) {
         this.metadata = metadata;
         this.requiresConfirmation = requiresConfirmation;
         this.confirmationTemplate = StringUtils.hasText(confirmationTemplate) ? confirmationTemplate.trim() : null;
         this.sensitiveParams = sensitiveParams != null ? Set.copyOf(sensitiveParams) : Set.of();
         this.executor = executor;
+        this.llmFacts = llmFacts;
     }
 
     @Override
@@ -82,6 +101,594 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                 .build();
         }
         return executor.execute(actionId, metadata.getAccessMode(), params != null ? params : Map.of(), context);
+    }
+
+    @Override
+    public Optional<Map<String, Object>> buildPostActionLlmFacts(ActionResult actionResult, ActionContext context) {
+        if (actionResult == null) {
+            return Optional.empty();
+        }
+
+        Map<String, Object> facts = new LinkedHashMap<>();
+        if (metadata != null && StringUtils.hasText(metadata.getName())) {
+            facts.put("action", metadata.getName());
+        }
+        if (metadata != null && StringUtils.hasText(metadata.getCategory())) {
+            facts.put("category", metadata.getCategory());
+        }
+        facts.put("success", actionResult.isSuccess());
+        if (StringUtils.hasText(actionResult.getMessage())) {
+            facts.put("message", actionResult.getMessage());
+        }
+        if (StringUtils.hasText(actionResult.getErrorCode())) {
+            facts.put("errorCode", actionResult.getErrorCode());
+        }
+
+        Map<String, Object> payload = actionResult.getData() != null
+            ? actionResult.getData().toMap()
+            : Map.of();
+        Map<String, Object> rootPayload = selectFactsRoot(payload);
+        if (llmFacts != null && llmFacts.configured()) {
+            applyConfiguredFacts(facts, rootPayload, context);
+        } else {
+            applyFallbackFacts(facts, payload, rootPayload);
+        }
+        return Optional.of(Collections.unmodifiableMap(facts));
+    }
+
+    private void applyConfiguredFacts(Map<String, Object> facts, Map<String, Object> rootPayload, ActionContext context) {
+        if (rootPayload == null || rootPayload.isEmpty()) {
+            return;
+        }
+        for (String field : llmFacts.copyFields()) {
+            copyPath(rootPayload, facts, field);
+        }
+        Map<String, Object> actionParams = context != null ? context.actionParams() : Map.of();
+        for (ConnectorActionLlmFactsListDefinition listDefinition : llmFacts.lists()) {
+            putConfiguredList(facts, rootPayload, listDefinition, actionParams);
+        }
+        for (ConnectorActionLlmFactsObjectDefinition objectDefinition : llmFacts.objects()) {
+            putConfiguredObject(facts, rootPayload, objectDefinition);
+        }
+    }
+
+    private void applyFallbackFacts(Map<String, Object> facts,
+                                    Map<String, Object> payload,
+                                    Map<String, Object> rootPayload) {
+        copyCommonTopLevelFields(rootPayload, facts);
+        if (rootPayload != payload) {
+            copyCommonTopLevelFields(payload, facts);
+        }
+        boolean hasPrimaryList = putFallbackList(facts, "documents", rootPayload.get("documents"));
+        if (!hasPrimaryList) {
+            hasPrimaryList = putFallbackList(facts, "results", rootPayload.get("results"));
+        }
+        if (!hasPrimaryList) {
+            putFallbackList(facts, "items", rootPayload.get("items"));
+        }
+    }
+
+    private void putConfiguredList(Map<String, Object> facts,
+                                   Map<String, Object> rootPayload,
+                                   ConnectorActionLlmFactsListDefinition listDefinition,
+                                   Map<String, Object> actionParams) {
+        if (listDefinition == null || !StringUtils.hasText(listDefinition.sourcePath())
+            || !StringUtils.hasText(listDefinition.target())) {
+            return;
+        }
+        Object rawValue = resolvePath(rootPayload, listDefinition.sourcePath());
+        List<Map<String, Object>> records = compactRecords(rawValue, listDefinition, actionParams);
+        if (records.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> constraintMatches = filterConstraintMatches(records, listDefinition.constraints(), actionParams);
+        if (!constraintMatches.isEmpty() && listDefinition.constraints() != null) {
+            facts.put(listDefinition.constraints().target(), compactConstraintMatches(constraintMatches, listDefinition.constraints()));
+            String countTarget = firstNonBlank(
+                listDefinition.constraints().countTarget(),
+                listDefinition.constraints().target() + "Count"
+            );
+            facts.put(countTarget, constraintMatches.size());
+        }
+        for (ConnectorActionLlmFactsSummaryDefinition summaryDefinition : listDefinition.summaries()) {
+            List<Map<String, Object>> source = "CONSTRAINT_MATCHES".equalsIgnoreCase(firstNonBlank(summaryDefinition.source(), "ALL"))
+                ? constraintMatches
+                : records;
+            Map<String, Object> summary = buildNumericRangeSummary(source, summaryDefinition);
+            if (!summary.isEmpty()) {
+                facts.put(summaryDefinition.target(), summary);
+            }
+        }
+        facts.put(listDefinition.target(), records);
+        facts.put(listDefinition.target() + "Count", records.size());
+    }
+
+    private void putConfiguredObject(Map<String, Object> facts,
+                                     Map<String, Object> rootPayload,
+                                     ConnectorActionLlmFactsObjectDefinition objectDefinition) {
+        if (objectDefinition == null || !StringUtils.hasText(objectDefinition.sourcePath())
+            || !StringUtils.hasText(objectDefinition.target())) {
+            return;
+        }
+        Object rawValue = resolvePath(rootPayload, objectDefinition.sourcePath());
+        if (!(rawValue instanceof Map<?, ?> rawMap)) {
+            return;
+        }
+        Map<String, Object> compact = compactConfiguredObject(
+            rawMap,
+            objectDefinition.includeFields(),
+            objectDefinition.fallbackContentField(),
+            objectDefinition.fallbackContentMaxChars()
+        );
+        if (!compact.isEmpty()) {
+            facts.put(objectDefinition.target(), Collections.unmodifiableMap(compact));
+        }
+    }
+
+    private boolean putFallbackList(Map<String, Object> facts,
+                                    String target,
+                                    Object value) {
+        List<Map<String, Object>> records = compactFallbackRecords(value);
+        if (records.isEmpty()) {
+            return false;
+        }
+        facts.put(target, records);
+        facts.put(target + "Count", records.size());
+        return true;
+    }
+
+    private Map<String, Object> selectFactsRoot(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return Map.of();
+        }
+        if (llmFacts != null && StringUtils.hasText(llmFacts.rootPath())) {
+            Object configuredRoot = resolvePath(payload, llmFacts.rootPath());
+            return configuredRoot instanceof Map<?, ?> map ? toStringObjectMap(map) : Map.of();
+        }
+        Object nested = mapObject(payload, "data");
+        return nested instanceof Map<?, ?> nestedMap ? toStringObjectMap(nestedMap) : payload;
+    }
+
+    private List<Map<String, Object>> compactRecords(Object value,
+                                                     ConnectorActionLlmFactsListDefinition listDefinition,
+                                                     Map<String, Object> actionParams) {
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                Map<String, Object> compact = compactConfiguredObject(
+                    map,
+                    listDefinition.includeFields(),
+                    listDefinition.fallbackContentField(),
+                    listDefinition.fallbackContentMaxChars()
+                );
+                if (!compact.isEmpty()) {
+                    out.add(Collections.unmodifiableMap(compact));
+                }
+            }
+        }
+        sortConfiguredRecords(out, listDefinition.rankRules(), actionParams);
+        return limit(out, listDefinition.maxItems());
+    }
+
+    private List<Map<String, Object>> compactFallbackRecords(Object value) {
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                Map<String, Object> compact = compactFallbackRecord(map);
+                if (!compact.isEmpty()) {
+                    out.add(Collections.unmodifiableMap(compact));
+                }
+            }
+        }
+        return limit(out, FALLBACK_MAX_RECORDS);
+    }
+
+    private Map<String, Object> compactConfiguredObject(Map<?, ?> record,
+                                                        List<String> includeFields,
+                                                        String fallbackContentField,
+                                                        int fallbackContentMaxChars) {
+        Map<String, Object> compact = new LinkedHashMap<>();
+        if (includeFields != null) {
+            for (String field : includeFields) {
+                copyPath(record, compact, field);
+            }
+        }
+        if (compact.isEmpty() && StringUtils.hasText(fallbackContentField)) {
+            putIfPresent(compact, leafKey(fallbackContentField), truncate(asString(resolvePath(record, fallbackContentField)), fallbackContentMaxChars));
+        }
+        return compact;
+    }
+
+    private Map<String, Object> compactFallbackRecord(Map<?, ?> record) {
+        Map<String, Object> compact = new LinkedHashMap<>();
+        copyFallbackScalars(record, compact);
+        if (!compact.containsKey("content")) {
+            Object content = mapObject(record, "content");
+            putIfPresent(compact, "content", truncate(asString(content), FALLBACK_MAX_CONTENT_CHARS));
+        }
+        return compact;
+    }
+
+    private void copyFallbackScalars(Map<?, ?> source, Map<String, Object> target) {
+        if (source == null || source.isEmpty() || target.size() >= FALLBACK_MAX_SCALAR_FIELDS) {
+            return;
+        }
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry == null || entry.getKey() == null || target.size() >= FALLBACK_MAX_SCALAR_FIELDS) {
+                continue;
+            }
+            String key = String.valueOf(entry.getKey());
+            Object value = entry.getValue();
+            if (isSafeScalar(value)) {
+                putIfPresent(target, key, truncateScalar(value));
+            } else if (value instanceof Map<?, ?> nested) {
+                copyNestedFallbackScalars(nested, target);
+            }
+        }
+    }
+
+    private void copyNestedFallbackScalars(Map<?, ?> source, Map<String, Object> target) {
+        if (source == null || source.isEmpty() || target.size() >= FALLBACK_MAX_SCALAR_FIELDS) {
+            return;
+        }
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry == null || entry.getKey() == null || target.size() >= FALLBACK_MAX_SCALAR_FIELDS) {
+                continue;
+            }
+            String key = String.valueOf(entry.getKey());
+            Object value = entry.getValue();
+            if (isSafeScalar(value) && !target.containsKey(key)) {
+                putIfPresent(target, key, truncateScalar(value));
+            }
+        }
+    }
+
+    private List<Map<String, Object>> filterConstraintMatches(List<Map<String, Object>> records,
+                                                              ConnectorActionLlmFactsConstraintDefinition constraints,
+                                                              Map<String, Object> actionParams) {
+        if (records == null || records.isEmpty() || constraints == null || constraints.rules().isEmpty()) {
+            return List.of();
+        }
+        List<ConnectorActionLlmFactsRuleDefinition> activeRules = constraints.rules().stream()
+            .filter(rule -> ruleActive(rule, actionParams))
+            .toList();
+        if (activeRules.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> matches = new ArrayList<>();
+        for (Map<String, Object> record : records) {
+            boolean matched = true;
+            for (ConnectorActionLlmFactsRuleDefinition rule : activeRules) {
+                if (!ruleMatches(rule, record, actionParams)) {
+                    matched = false;
+                    break;
+                }
+            }
+            if (matched) {
+                matches.add(record);
+            }
+        }
+        return matches.isEmpty() ? List.of() : List.copyOf(matches);
+    }
+
+    private List<Map<String, Object>> compactConstraintMatches(List<Map<String, Object>> records,
+                                                               ConnectorActionLlmFactsConstraintDefinition constraints) {
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> record : records) {
+            Map<String, Object> compact = constraints.includeFields().isEmpty()
+                ? new LinkedHashMap<>(record)
+                : compactConfiguredObject(record, constraints.includeFields(), null, FALLBACK_MAX_CONTENT_CHARS);
+            if (!compact.isEmpty()) {
+                out.add(Collections.unmodifiableMap(compact));
+            }
+        }
+        return out.isEmpty() ? List.of() : List.copyOf(out);
+    }
+
+    private Map<String, Object> buildNumericRangeSummary(List<Map<String, Object>> records,
+                                                         ConnectorActionLlmFactsSummaryDefinition definition) {
+        if (records == null || records.isEmpty() || definition == null || !StringUtils.hasText(definition.field())
+            || !StringUtils.hasText(definition.target())) {
+            return Map.of();
+        }
+        Map<String, Object> lowest = null;
+        Map<String, Object> highest = null;
+        Double lowestValue = null;
+        Double highestValue = null;
+        int valueRecords = 0;
+
+        for (Map<String, Object> record : records) {
+            Double value = numericValue(resolvePath(record, definition.field()));
+            if (value == null) {
+                continue;
+            }
+            valueRecords++;
+            if (lowestValue == null || value < lowestValue) {
+                lowestValue = value;
+                lowest = record;
+            }
+            if (highestValue == null || value > highestValue) {
+                highestValue = value;
+                highest = record;
+            }
+        }
+        if (valueRecords == 0) {
+            return Map.of();
+        }
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put(firstNonBlank(definition.recordCountKey(), "valueRecords"), valueRecords);
+        putSummaryEndpoint(summary, "lowest", lowest, lowestValue, definition);
+        putSummaryEndpoint(summary, "highest", highest, highestValue, definition);
+        return Collections.unmodifiableMap(summary);
+    }
+
+    private void putSummaryEndpoint(Map<String, Object> summary,
+                                    String prefix,
+                                    Map<String, Object> record,
+                                    Double value,
+                                    ConnectorActionLlmFactsSummaryDefinition definition) {
+        if (summary == null || record == null || value == null || definition == null) {
+            return;
+        }
+        boolean lowest = "lowest".equals(prefix);
+        String valueKey = lowest
+            ? firstNonBlank(definition.lowestValueKey(), "lowestValue")
+            : firstNonBlank(definition.highestValueKey(), "highestValue");
+        summary.put(valueKey, value);
+        if (StringUtils.hasText(definition.labelField())) {
+            Object label = resolvePath(record, definition.labelField());
+            String labelKey = lowest
+                ? firstNonBlank(definition.lowestLabelKey(), "lowestLabel")
+                : firstNonBlank(definition.highestLabelKey(), "highestLabel");
+            putIfPresent(summary, labelKey, label);
+        }
+        for (ConnectorActionLlmFactsSummaryExtraFieldDefinition extraField : definition.extraFields()) {
+            if (extraField == null || !StringUtils.hasText(extraField.field())) {
+                continue;
+            }
+            String targetKey = lowest ? extraField.lowestKey() : extraField.highestKey();
+            if (StringUtils.hasText(targetKey)) {
+                putIfPresent(summary, targetKey, resolvePath(record, extraField.field()));
+            }
+        }
+    }
+
+    private void sortConfiguredRecords(List<Map<String, Object>> records,
+                                       List<ConnectorActionLlmFactsRuleDefinition> rules,
+                                       Map<String, Object> actionParams) {
+        if (records == null || records.size() < 2) {
+            return;
+        }
+        records.sort((left, right) -> {
+            int scoreCompare = Integer.compare(
+                configuredRelevanceScore(right, rules, actionParams),
+                configuredRelevanceScore(left, rules, actionParams)
+            );
+            if (scoreCompare != 0) {
+                return scoreCompare;
+            }
+            ConnectorActionLlmFactsRuleDefinition ascendingRule = firstAscendingNumericRule(rules, actionParams);
+            if (ascendingRule != null) {
+                return Double.compare(
+                    numericOrMax(resolvePath(left, ascendingRule.field())),
+                    numericOrMax(resolvePath(right, ascendingRule.field()))
+                );
+            }
+            return 0;
+        });
+    }
+
+    private int configuredRelevanceScore(Map<String, Object> record,
+                                         List<ConnectorActionLlmFactsRuleDefinition> rules,
+                                         Map<String, Object> actionParams) {
+        int score = 0;
+        if (rules == null || rules.isEmpty()) {
+            return score;
+        }
+        for (ConnectorActionLlmFactsRuleDefinition rule : rules) {
+            score += ruleScore(rule, record, actionParams);
+        }
+        return score;
+    }
+
+    private int ruleScore(ConnectorActionLlmFactsRuleDefinition rule,
+                          Map<String, Object> record,
+                          Map<String, Object> actionParams) {
+        if (rule == null || !StringUtils.hasText(rule.type())) {
+            return 0;
+        }
+        if (!ruleActive(rule, actionParams)) {
+            return 0;
+        }
+        if (ruleMatches(rule, record, actionParams)) {
+            return rule.scoreMatch();
+        }
+        return resolvePath(record, rule.field()) == null ? rule.scoreMissing() : rule.scoreMismatch();
+    }
+
+    private boolean ruleActive(ConnectorActionLlmFactsRuleDefinition rule, Map<String, Object> actionParams) {
+        if (rule == null || !StringUtils.hasText(rule.type())) {
+            return false;
+        }
+        String type = normalizeRuleType(rule.type());
+        Object paramValue = resolvePath(actionParams, rule.paramPath());
+        return switch (type) {
+            case "PARAM_NUMERIC_UPPER_BOUND", "PARAM_NUMERIC_LOWER_BOUND" -> numericValue(paramValue) != null;
+            case "PARAM_BOOLEAN_TRUE" -> Boolean.TRUE.equals(booleanValue(paramValue));
+            case "PARAM_BOOLEAN_FALSE" -> Boolean.FALSE.equals(booleanValue(paramValue));
+            case "PARAM_EQUALS" -> paramValue != null || rule.value() != null;
+            default -> false;
+        };
+    }
+
+    private boolean ruleMatches(ConnectorActionLlmFactsRuleDefinition rule,
+                                Map<String, Object> record,
+                                Map<String, Object> actionParams) {
+        if (rule == null || !StringUtils.hasText(rule.type())) {
+            return false;
+        }
+        String type = normalizeRuleType(rule.type());
+        Object recordValue = resolvePath(record, rule.field());
+        Object paramValue = resolvePath(actionParams, rule.paramPath());
+        if ("PARAM_NUMERIC_UPPER_BOUND".equals(type)) {
+            Double upperBound = numericValue(paramValue);
+            Double numeric = numericValue(recordValue);
+            return upperBound != null && numeric != null && compareNumeric(numeric, upperBound, firstNonBlank(rule.operator(), "<="));
+        }
+        if ("PARAM_NUMERIC_LOWER_BOUND".equals(type)) {
+            Double lowerBound = numericValue(paramValue);
+            Double numeric = numericValue(recordValue);
+            return lowerBound != null && numeric != null && compareNumeric(numeric, lowerBound, firstNonBlank(rule.operator(), ">="));
+        }
+        if ("PARAM_BOOLEAN_TRUE".equals(type)) {
+            return Boolean.TRUE.equals(booleanValue(recordValue));
+        }
+        if ("PARAM_BOOLEAN_FALSE".equals(type)) {
+            return Boolean.FALSE.equals(booleanValue(recordValue));
+        }
+        if ("PARAM_EQUALS".equals(type)) {
+            Object expected = rule.value() != null ? rule.value() : paramValue;
+            return valuesEqual(recordValue, expected);
+        }
+        return false;
+    }
+
+    private ConnectorActionLlmFactsRuleDefinition firstAscendingNumericRule(List<ConnectorActionLlmFactsRuleDefinition> rules,
+                                                                            Map<String, Object> actionParams) {
+        if (rules == null || rules.isEmpty()) {
+            return null;
+        }
+        for (ConnectorActionLlmFactsRuleDefinition rule : rules) {
+            if (rule != null
+                && rule.sortAscendingOnMatch()
+                && "PARAM_NUMERIC_UPPER_BOUND".equals(normalizeRuleType(rule.type()))
+                && ruleActive(rule, actionParams)) {
+                return rule;
+            }
+        }
+        return null;
+    }
+
+    private boolean compareNumeric(double recordValue, double bound, String operator) {
+        return switch (firstNonBlank(operator, "<=")) {
+            case "<" -> recordValue < bound;
+            case ">" -> recordValue > bound;
+            case ">=" -> recordValue >= bound;
+            default -> recordValue <= bound;
+        };
+    }
+
+    private boolean valuesEqual(Object recordValue, Object expected) {
+        if (recordValue == null || expected == null) {
+            return recordValue == expected;
+        }
+        if (recordValue instanceof Number || expected instanceof Number) {
+            Double left = numericValue(recordValue);
+            Double right = numericValue(expected);
+            return left != null && right != null && Double.compare(left, right) == 0;
+        }
+        Boolean leftBoolean = booleanValue(recordValue);
+        Boolean rightBoolean = booleanValue(expected);
+        if (leftBoolean != null || rightBoolean != null) {
+            return Objects.equals(leftBoolean, rightBoolean);
+        }
+        return recordValue.toString().trim().equalsIgnoreCase(expected.toString().trim());
+    }
+
+    private void copyCommonTopLevelFields(Map<String, Object> source, Map<String, Object> target) {
+        if (source == null || source.isEmpty()) {
+            return;
+        }
+        copyPath(source, target, "query");
+        copyPath(source, target, "count");
+        copyPath(source, target, "totalResults");
+        copyPath(source, target, "returnedResults");
+        copyPath(source, target, "lookup");
+        copyPath(source, target, "lookupMethod");
+    }
+
+    private void copyPath(Map<?, ?> source, Map<String, Object> target, String path) {
+        if (source == null || target == null || !StringUtils.hasText(path)) {
+            return;
+        }
+        Object value = resolvePath(source, path);
+        putIfPresent(target, leafKey(path), value);
+    }
+
+    private Object resolvePath(Map<?, ?> source, String path) {
+        if (source == null || !StringUtils.hasText(path)) {
+            return null;
+        }
+        Object current = source;
+        String[] parts = path.trim().split("\\.");
+        for (String part : parts) {
+            if (!StringUtils.hasText(part)) {
+                return null;
+            }
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = mapObject(map, part.trim());
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> toStringObjectMap(Map<?, ?> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry != null && entry.getKey() != null) {
+                out.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return out;
+    }
+
+    private Object mapObject(Map<?, ?> source, String key) {
+        if (source == null || key == null) {
+            return null;
+        }
+        Object direct = source.get(key);
+        if (direct != null) {
+            return direct;
+        }
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry != null && entry.getKey() != null && key.equalsIgnoreCase(entry.getKey().toString())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private void putIfPresent(Map<String, Object> target, String key, Object value) {
+        if (target == null || !StringUtils.hasText(key) || value == null) {
+            return;
+        }
+        if (value instanceof String text) {
+            String trimmed = text.trim();
+            if (!trimmed.isEmpty()) {
+                target.put(key, trimmed);
+            }
+            return;
+        }
+        target.put(key, value);
     }
 
     private String renderTemplate(String template, Map<String, Object> params) {
@@ -135,6 +742,116 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         return "Confirm " + actionName + " (" + joined + ")?";
     }
 
+    private List<Map<String, Object>> limit(List<Map<String, Object>> records, int maxItems) {
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+        int limit = Math.max(0, maxItems);
+        if (records.size() > limit) {
+            return List.copyOf(records.subList(0, limit));
+        }
+        return List.copyOf(records);
+    }
+
+    private String leafKey(String path) {
+        if (!StringUtils.hasText(path)) {
+            return path;
+        }
+        String normalized = path.trim();
+        int dot = normalized.lastIndexOf('.');
+        return dot >= 0 ? normalized.substring(dot + 1) : normalized;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String asString(Object value) {
+        return value == null ? null : Objects.toString(value, null);
+    }
+
+    private Object truncateScalar(Object value) {
+        if (value instanceof String text) {
+            return truncate(text, FALLBACK_MAX_CONTENT_CHARS);
+        }
+        return value;
+    }
+
+    private String truncate(String value, int maxChars) {
+        if (value == null || maxChars <= 0 || value.length() <= maxChars) {
+            return value;
+        }
+        return value.substring(0, Math.max(0, maxChars - 3)) + "...";
+    }
+
+    private boolean isSafeScalar(Object value) {
+        return value == null
+            || value instanceof String
+            || value instanceof Number
+            || value instanceof Boolean
+            || value instanceof Character
+            || value instanceof Enum<?>;
+    }
+
+    private Double numericValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value == null) {
+            return null;
+        }
+        String raw = value.toString().trim();
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String normalized = raw.replaceAll("[^0-9.\\-]", "");
+        if (!StringUtils.hasText(normalized) || ".".equals(normalized) || "-".equals(normalized)) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private double numericOrMax(Object value) {
+        Double numeric = numericValue(value);
+        return numeric != null ? numeric : Double.MAX_VALUE;
+    }
+
+    private Boolean booleanValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value == null) {
+            return null;
+        }
+        String raw = value.toString().trim();
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        if ("true".equalsIgnoreCase(raw) || "yes".equalsIgnoreCase(raw)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(raw) || "no".equalsIgnoreCase(raw)) {
+            return false;
+        }
+        return null;
+    }
+
+    private String normalizeRuleType(String type) {
+        return type == null ? "" : type.trim().toUpperCase(Locale.ROOT);
+    }
+
     private String escapeHtml(String input) {
         if (!StringUtils.hasText(input)) {
             return "";
@@ -154,5 +871,5 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         }
         return s;
     }
-}
 
+}

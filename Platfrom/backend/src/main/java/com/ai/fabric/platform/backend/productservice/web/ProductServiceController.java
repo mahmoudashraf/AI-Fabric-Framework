@@ -7,14 +7,18 @@ import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProduc
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceOverviewSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceRailwayLogsSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreBillingSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreUsageSummary;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceWebhookSubscriptionSummary;
 import com.ai.fabric.platform.backend.productservice.model.RotatePlatformManagedProductServiceSecretRequest;
 import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceScaleRequest;
+import com.ai.fabric.platform.backend.productservice.model.UpdatePlatformManagedProductServiceShopifyBillingConfigRequest;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -115,6 +119,24 @@ public class ProductServiceController {
         return adminService.getStoreBillingSummary(serviceRef, shopDomain);
     }
 
+    @GetMapping("/{serviceRef}/stores/{shopDomain}/usage-summary")
+    public PlatformManagedProductServiceStoreUsageSummary getStoreUsageSummary(@PathVariable String serviceRef,
+                                                                               @PathVariable String shopDomain) {
+        return adminService.getStoreUsageSummary(serviceRef, shopDomain);
+    }
+
+    @GetMapping("/{serviceRef}/stores/{shopDomain}/support-readiness")
+    public PlatformManagedProductServiceStoreSupportReadinessSummary getStoreSupportReadiness(@PathVariable String serviceRef,
+                                                                                              @PathVariable String shopDomain) {
+        return adminService.getStoreSupportReadiness(serviceRef, shopDomain);
+    }
+
+    @GetMapping("/{serviceRef}/stores/{shopDomain}/vectorization")
+    public ShopifyStoreVectorizationSummary getStoreVectorizationSummary(@PathVariable String serviceRef,
+                                                                         @PathVariable String shopDomain) {
+        return adminService.getStoreVectorizationSummary(serviceRef, shopDomain);
+    }
+
     @PostMapping("/{serviceRef}/stores/{shopDomain}/run-source-preflight")
     public ShopifyStoreConnectionSummary runStoreSourcePreflight(@PathVariable String serviceRef,
                                                                  @PathVariable String shopDomain) {
@@ -146,6 +168,15 @@ public class ProductServiceController {
     public PlatformManagedProductServiceSummary scale(@PathVariable String serviceRef,
                                                       @Valid @RequestBody UpdatePlatformManagedProductServiceScaleRequest request) {
         return adminService.scale(serviceRef, request.desiredReplicas());
+    }
+
+    @PutMapping("/{serviceRef}/shopify-billing-config")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformManagedProductServiceSummary updateShopifyBillingConfig(
+        @PathVariable String serviceRef,
+        @Valid @RequestBody UpdatePlatformManagedProductServiceShopifyBillingConfigRequest request
+    ) {
+        return adminService.updateShopifyBillingConfig(serviceRef, request);
     }
 
     @PutMapping("/{serviceRef}/rotate-secret")

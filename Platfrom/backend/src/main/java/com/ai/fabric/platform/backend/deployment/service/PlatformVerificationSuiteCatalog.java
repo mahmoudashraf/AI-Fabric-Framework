@@ -14,30 +14,32 @@ public class PlatformVerificationSuiteCatalog {
 
     public static final String FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY = "full-platform-release-readiness";
     public static final String CANONICAL_RELEASE_READINESS_SUITE_KEY = "canonical-release-readiness";
-    public static final String PLATFORM_CODE_REGRESSION_SUITE_KEY = "platform-code-regression";
     public static final String PLATFORM_ADMIN_LIVE_REGRESSION_SUITE_KEY = "platform-admin-live-regression";
     public static final String MANAGED_VECTOR_PROVIDER_VERIFICATION_SUITE_KEY = "managed-vector-provider-verification";
     public static final String MARKETPLACE_INSTALL_FLOW_SUITE_KEY = "marketplace-install-flow";
     public static final String SHOPIFY_COMPANION_VERIFICATION_SUITE_KEY = "shopify-companion-verification";
-    public static final String SHARED_INFERENCE_SERVICE_REF = "shared-ollama-orchestration";
+    public static final String SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY = "shopify-first-product-readiness-audit";
+    public static final String PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY = "partner-enablement-verification";
+    public static final String THINKER_RESOLVER_READINESS_SUITE_KEY = "thinker-resolver-readiness";
+    public static final String SHARED_INFERENCE_SERVICE_REF = "openai-cloud-orchestration";
+    public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
         "marketplace",
         "ecommerce",
-        "qdrant",
-        "pinecone",
-        "milvus",
-        "weaviate"
+        "qdrant"
     );
 
     public List<PlatformVerificationSuiteDefinitionSummary> listDefinitions() {
         return List.of(
             fullPlatformReleaseReadiness(),
             canonicalReleaseReadiness(),
-            platformCodeRegression(),
             platformAdminLiveRegression(),
             managedVectorProviderVerification(),
             marketplaceInstallFlowVerification(),
-            shopifyCompanionVerification()
+            shopifyCompanionVerification(),
+            shopifyFirstProductReadinessAudit(),
+            partnerEnablementVerification(),
+            thinkerResolverReadiness()
         );
     }
 
@@ -67,7 +69,7 @@ public class PlatformVerificationSuiteCatalog {
                     "canonical-rollout-inventory",
                     "Canonical rollout inventory",
                     "CANONICAL_ROLLOUTS",
-                    "canonical-verification-fleet",
+                    CANONICAL_FLEET_TARGET_REF,
                     true,
                     "Resolve canonical verification deployments, confirm they are present, and validate platform-visible secret readiness."
                 ),
@@ -94,30 +96,6 @@ public class PlatformVerificationSuiteCatalog {
                     "qdrant",
                     true,
                     "Run the vector hosted verification against the canonical qdrant deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "pinecone-hosted-verification",
-                    "Pinecone hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "pinecone",
-                    true,
-                    "Run the vector hosted verification against the canonical pinecone deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "milvus-hosted-verification",
-                    "Milvus hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "milvus",
-                    true,
-                    "Run the vector hosted verification against the canonical milvus deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "weaviate-hosted-verification",
-                    "Weaviate hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "weaviate",
-                    true,
-                    "Run the vector hosted verification against the canonical weaviate deployment."
                 )
             )
         );
@@ -127,17 +105,9 @@ public class PlatformVerificationSuiteCatalog {
         return new PlatformVerificationSuiteDefinitionSummary(
             FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
             "Full platform release readiness",
-            "Primary release-blocking suite that replaces the current live GitHub verification estate with one ordered control-plane run.",
+            "Primary release-blocking suite that replaces the current live verification estate with one ordered control-plane run.",
             true,
             List.of(
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "platform-code-regression",
-                    "Platform code regression",
-                    "SCRIPT_VERIFICATION",
-                    PlatformVerificationSuiteScriptContextService.SCRIPT_PLATFORM_CODE_REGRESSION,
-                    true,
-                    "Run the platform code regression gate on the control plane before live environment verification begins."
-                ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "shared-inference-health",
                     "Shared inference service health",
@@ -158,7 +128,7 @@ public class PlatformVerificationSuiteCatalog {
                     "canonical-rollout-inventory",
                     "Canonical rollout inventory",
                     "CANONICAL_ROLLOUTS",
-                    "canonical-verification-fleet",
+                    CANONICAL_FLEET_TARGET_REF,
                     true,
                     "Resolve canonical verification deployments, confirm they are present, and validate platform-visible secret readiness."
                 ),
@@ -168,7 +138,7 @@ public class PlatformVerificationSuiteCatalog {
                     "SCRIPT_VERIFICATION",
                     PlatformVerificationSuiteScriptContextService.SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION,
                     true,
-                    "Run direct provider verification for Pinecone, Qdrant Cloud, Zilliz Cloud, and Weaviate."
+                    "Run direct provider verification for the release-blocking Qdrant Cloud provider."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "marketplace-install-flow",
@@ -185,6 +155,30 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION,
                     true,
                     "Verify the shared Shopify Bridge service, store binding, storefront bootstrap, and shopper query path."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "shopify-first-product-readiness-audit",
+                    "Shopify first-product readiness audit",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT,
+                    true,
+                    "Run the Shopify Companion first-product readiness audit, including product truth, live verification, and query-to-answer quality."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "partner-enablement-verification",
+                    "Partner Enablement verification",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
+                    true,
+                    "Verify Partner Enablement backend auth, deployed Partner UI routing, merchant approval/revoke flow, and persisted partner workflow evidence."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "thinker-resolver-readiness",
+                    "Thinker Resolver readiness",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_THINKER_RESOLVER_READINESS,
+                    true,
+                    "Verify Thinker session persistence, evidence export, Resolver policy, dry-run, optional low-risk execution, partner redaction, and Shopify Thinker health."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "marketplace-hosted-verification",
@@ -209,49 +203,6 @@ public class PlatformVerificationSuiteCatalog {
                     "qdrant",
                     true,
                     "Run the vector hosted verification against the canonical qdrant deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "pinecone-hosted-verification",
-                    "Pinecone hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "pinecone",
-                    true,
-                    "Run the vector hosted verification against the canonical pinecone deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "milvus-hosted-verification",
-                    "Milvus hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "milvus",
-                    true,
-                    "Run the vector hosted verification against the canonical milvus deployment."
-                ),
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "weaviate-hosted-verification",
-                    "Weaviate hosted verification",
-                    "HOSTED_DEPLOYMENT_VERIFICATION",
-                    "weaviate",
-                    true,
-                    "Run the vector hosted verification against the canonical weaviate deployment."
-                )
-            )
-        );
-    }
-
-    private PlatformVerificationSuiteDefinitionSummary platformCodeRegression() {
-        return new PlatformVerificationSuiteDefinitionSummary(
-            PLATFORM_CODE_REGRESSION_SUITE_KEY,
-            "Platform code regression",
-            "Standalone control-plane execution of the former GitHub platform code regression gate.",
-            false,
-            List.of(
-                new PlatformVerificationSuiteStageDefinitionSummary(
-                    "platform-code-regression",
-                    "Platform code regression",
-                    "SCRIPT_VERIFICATION",
-                    PlatformVerificationSuiteScriptContextService.SCRIPT_PLATFORM_CODE_REGRESSION,
-                    true,
-                    "Run backend tests, product tests, targeted infrastructure tests, the platform UI build, and verification shell syntax checks."
                 )
             )
         );
@@ -328,6 +279,63 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION,
                     true,
                     "Verify the shared Shopify Bridge service, store binding, storefront bootstrap, and shopper query path."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary shopifyFirstProductReadinessAudit() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY,
+            "Shopify first-product readiness audit",
+            "Standalone Shopify Companion first-product readiness gate for product truth, entitlement posture, live verifier proof, answer quality, support collateral, and reviewable operator evidence.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "shopify-first-product-readiness-audit",
+                    "Shopify first-product readiness audit",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT,
+                    true,
+                    "Run the Shopify Companion first-product readiness audit and write the compact evidence packet."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary partnerEnablementVerification() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY,
+            "Partner Enablement verification",
+            "Standalone Partner Enablement verification for backend auth, deployed Partner UI routing, merchant approval/revoke flow, persisted verification runs, evidence bundles, templates, notes, members, profile, and support workflows.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "partner-enablement-verification",
+                    "Partner Enablement verification",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
+                    true,
+                    "Verify Partner Enablement backend auth, deployed Partner UI routing, merchant approval/revoke flow, and persisted partner workflow evidence."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary thinkerResolverReadiness() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            THINKER_RESOLVER_READINESS_SUITE_KEY,
+            "Thinker Resolver readiness",
+            "Standalone governed issue-resolution verification for Thinker evidence capture, policy simulation, partner redaction, and Shopify merchant health.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "thinker-resolver-readiness",
+                    "Thinker Resolver readiness",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_THINKER_RESOLVER_READINESS,
+                    true,
+                    "Verify Thinker session persistence, evidence export, Resolver policy, dry-run, optional low-risk execution, partner redaction, and Shopify Thinker health."
                 )
             )
         );

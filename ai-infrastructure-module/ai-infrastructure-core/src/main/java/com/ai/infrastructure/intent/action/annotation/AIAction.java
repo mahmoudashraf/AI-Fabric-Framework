@@ -21,7 +21,7 @@ import java.lang.annotation.Target;
 public @interface AIAction {
 
     /**
-     * Stable action identifier (e.g. {@code add_to_cart}).
+     * Stable action identifier (e.g. {@code create_ticket}).
      */
     String name();
 
@@ -31,7 +31,7 @@ public @interface AIAction {
     String description();
 
     /**
-     * Logical grouping (e.g. {@code commerce}, {@code support}).
+     * Logical grouping (e.g. {@code support}, {@code operations}).
      */
     String category() default "general";
 
@@ -53,4 +53,12 @@ public @interface AIAction {
      * <p>Defaults to {@code false}. Public/guest execution must be an explicit action-level opt-in.</p>
      */
     boolean anonymousAllowed() default false;
+
+    /**
+     * Whether this READ action is eligible for planner-driven read-action resolution.
+     *
+     * <p>Defaults to {@code false} so autonomous read planning stays fail-closed until
+     * the action is explicitly reviewed and approved.</p>
+     */
+    boolean readActionResolutionEligible() default false;
 }

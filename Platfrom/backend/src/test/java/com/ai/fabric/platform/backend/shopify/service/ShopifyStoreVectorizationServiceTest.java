@@ -14,6 +14,11 @@ import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogServ
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
+import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreVectorizationPolicyRepository;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationAutomationSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationIndexedFieldSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationPolicySummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSourcePolicySummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.vectorization.model.CreateVectorizationRunRequest;
@@ -25,8 +30,10 @@ import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummar
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationSourceConnectionSummary;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationService;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +41,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -45,6 +53,83 @@ class ShopifyStoreVectorizationServiceTest {
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     @Test
+    void getSummaryUsesRealPolicyDefaultsWithoutFailingOnMetaobjects() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        VectorizationService vectorizationService = mock(VectorizationService.class);
+        ShopifyStoreVectorizationPolicyRepository policyRepository = mock(ShopifyStoreVectorizationPolicyRepository.class);
+        ShopifyStoreVectorizationFieldCatalogService fieldCatalogService = new ShopifyStoreVectorizationFieldCatalogService();
+        ShopifyStoreVectorizationEventService eventService = mock(ShopifyStoreVectorizationEventService.class);
+        ShopifyBridgeAdminClient bridgeAdminClient = mock(ShopifyBridgeAdminClient.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        ShopifyStoreConnectionEntity store = store("alpha.myshopify.com");
+        store.setDeploymentId("dep-123");
+        store.setMetaobjectsEnabled(true);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setCustomerId("cus-123");
+        deployment.setTenantId("ten-123");
+
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
+        when(installService.listInstallsForTrustedCaller(deployment)).thenReturn(List.of());
+        when(vectorizationService.getOverviewForTrustedCaller(deployment)).thenReturn(null);
+        when(policyRepository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(eventService.summarizeAutomation("alpha.myshopify.com")).thenReturn(automationSummary());
+        when(eventService.listRecent("alpha.myshopify.com", 20)).thenReturn(List.of());
+
+        ShopifyStoreVectorizationPolicyService policyService = new ShopifyStoreVectorizationPolicyService(
+            policyRepository,
+            fieldCatalogService,
+            new com.ai.fabric.platform.backend.config.ShopifyStoreVectorizationTriggerProperties(
+                false,
+                Duration.ofSeconds(20),
+                Duration.ofSeconds(10),
+                Duration.ofSeconds(45),
+                Duration.ofSeconds(30),
+                Duration.ofDays(7),
+                Duration.ofDays(30),
+                5,
+                25,
+                20
+            ),
+            auditService,
+            new ObjectMapper().findAndRegisterModules()
+        );
+
+        ShopifyStoreVectorizationService service = service(
+            repository,
+            deploymentRepository,
+            deploymentReleaseRepository,
+            deploymentService,
+            installService,
+            marketplaceCatalogService,
+            productServiceRepository,
+            vectorizationService,
+            policyService,
+            fieldCatalogService,
+            eventService,
+            bridgeAdminClient,
+            auditService
+        );
+
+        ShopifyStoreVectorizationSummary summary = service.getSummary("alpha.myshopify.com");
+
+        assertThat(summary.policy()).isNotNull();
+        assertThat(summary.policy().sourcePolicies())
+            .extracting(com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSourcePolicySummary::sourceCategory)
+            .contains("metaobjects");
+    }
+
+    @Test
     void reconcileInstallsRequiredShopifyDataPluginsAndConfiguresPlan() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
@@ -54,6 +139,10 @@ class ShopifyStoreVectorizationServiceTest {
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         VectorizationService vectorizationService = mock(VectorizationService.class);
+        ShopifyStoreVectorizationPolicyService policyService = mock(ShopifyStoreVectorizationPolicyService.class);
+        ShopifyStoreVectorizationFieldCatalogService fieldCatalogService = mock(ShopifyStoreVectorizationFieldCatalogService.class);
+        ShopifyStoreVectorizationEventService eventService = mock(ShopifyStoreVectorizationEventService.class);
+        ShopifyBridgeAdminClient bridgeAdminClient = mock(ShopifyBridgeAdminClient.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         ShopifyStoreConnectionEntity store = store("alpha.myshopify.com");
@@ -139,7 +228,7 @@ class ShopifyStoreVectorizationServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
         when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService()));
-        when(installService.listInstalls("dep-123"))
+        when(installService.listInstallsForTrustedCaller(deployment))
             .thenReturn(List.of(
                 install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
                 install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED")
@@ -154,6 +243,7 @@ class ShopifyStoreVectorizationServiceTest {
         when(vectorizationService.upsertSourceConnection(eq("dep-123"), any())).thenReturn(connection);
         when(vectorizationService.upsertPlan(eq("dep-123"), any())).thenReturn(plan);
         when(vectorizationService.getOverviewForTrustedCaller(deployment)).thenReturn(overview);
+        stubSummaryCollaborators(policyService, fieldCatalogService, eventService, overview);
 
         ShopifyStoreVectorizationService service = service(
             repository,
@@ -164,6 +254,10 @@ class ShopifyStoreVectorizationServiceTest {
             marketplaceCatalogService,
             productServiceRepository,
             vectorizationService,
+            policyService,
+            fieldCatalogService,
+            eventService,
+            bridgeAdminClient,
             auditService
         );
 
@@ -174,6 +268,9 @@ class ShopifyStoreVectorizationServiceTest {
         assertThat(summary.sourceAdapterType()).isEqualTo("REST_API");
         assertThat(summary.selectedCategories()).containsExactly("products", "collections", "pages", "policies");
         assertThat(summary.selectedEntityTypes()).containsExactly("product", "support-policy");
+        assertThat(summary.policy()).isNotNull();
+        assertThat(summary.effectiveIndexedFields()).isNotEmpty();
+        assertThat(summary.automation()).isNotNull();
         assertThat(summary.requiredPluginIds()).contains(
             ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID,
             ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID
@@ -206,6 +303,151 @@ class ShopifyStoreVectorizationServiceTest {
     }
 
     @Test
+    void trustedReconcileUsesTrustedMarketplaceInstallPaths() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        VectorizationService vectorizationService = mock(VectorizationService.class);
+        ShopifyStoreVectorizationPolicyService policyService = mock(ShopifyStoreVectorizationPolicyService.class);
+        ShopifyStoreVectorizationFieldCatalogService fieldCatalogService = mock(ShopifyStoreVectorizationFieldCatalogService.class);
+        ShopifyStoreVectorizationEventService eventService = mock(ShopifyStoreVectorizationEventService.class);
+        ShopifyBridgeAdminClient bridgeAdminClient = mock(ShopifyBridgeAdminClient.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        ShopifyStoreConnectionEntity store = store("alpha.myshopify.com");
+        store.setDeploymentId("dep-123");
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setCustomerId("cus-123");
+        deployment.setTenantId("ten-123");
+
+        VectorizationSourceConnectionSummary connection = new VectorizationSourceConnectionSummary(
+            "vcn-123",
+            "dep-123",
+            "Shopify store alpha.myshopify.com",
+            "REST_API",
+            "API_KEY",
+            "READY",
+            JSON.objectNode(),
+            JSON.objectNode(),
+            JSON.objectNode(),
+            Instant.now(),
+            Instant.now()
+        );
+        VectorizationPlanRevisionSummary revision = new VectorizationPlanRevisionSummary(
+            "vpr-123",
+            1,
+            "ACTIVE",
+            "vcn-123",
+            JSON.arrayNode().add("product").add("support-policy"),
+            JSON.objectNode(),
+            JSON.objectNode(),
+            "hash-123",
+            Instant.now(),
+            Instant.now()
+        );
+        VectorizationPlanSummary plan = new VectorizationPlanSummary(
+            "vpl-123",
+            "dep-123",
+            "Shopify store vectorization",
+            "ACTIVE",
+            "PLATFORM_MANAGED_AUTO",
+            "IN_SYNC",
+            List.of(),
+            JSON.objectNode(),
+            "hash-123",
+            "hash-123",
+            "vpr-123",
+            "vcn-123",
+            null,
+            null,
+            null,
+            null,
+            revision,
+            Instant.now(),
+            Instant.now()
+        );
+        VectorizationOverviewSummary overview = new VectorizationOverviewSummary(
+            "dep-123",
+            "cus-123",
+            "ten-123",
+            "ver-123",
+            "v1",
+            "cfg-123",
+            connection,
+            plan,
+            new VectorizationRunnerSummary(
+                "vrr-123",
+                "PLATFORM_MANAGED_AUTO",
+                "ACTIVE",
+                "COMPATIBLE",
+                "hint",
+                Instant.now().plusSeconds(3600),
+                "vectorization-runner-dep-123",
+                "2026.04.track-b",
+                "1",
+                Instant.now(),
+                Instant.now(),
+                Instant.now().plusSeconds(300)
+            ),
+            List.of()
+        );
+
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
+        when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService()));
+        when(installService.listInstallsForTrustedCaller(deployment))
+            .thenReturn(List.of(
+                install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
+                install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED")
+            ))
+            .thenReturn(List.of(
+                install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
+                install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED"),
+                install("mpi-catalog", ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID, "ENABLED"),
+                install("mpi-policies", ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID, "ENABLED")
+            ));
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel(any())).thenReturn("1.0.0");
+        when(vectorizationService.upsertSourceConnection(eq("dep-123"), any())).thenReturn(connection);
+        when(vectorizationService.upsertPlan(eq("dep-123"), any())).thenReturn(plan);
+        when(vectorizationService.getOverviewForTrustedCaller(deployment)).thenReturn(overview);
+        stubSummaryCollaborators(policyService, fieldCatalogService, eventService, overview);
+
+        ShopifyStoreVectorizationService service = service(
+            repository,
+            deploymentRepository,
+            deploymentReleaseRepository,
+            deploymentService,
+            installService,
+            marketplaceCatalogService,
+            productServiceRepository,
+            vectorizationService,
+            policyService,
+            fieldCatalogService,
+            eventService,
+            bridgeAdminClient,
+            auditService
+        );
+
+        ShopifyStoreVectorizationSummary summary = service.reconcileForTrustedCaller("alpha.myshopify.com");
+
+        assertThat(summary.readyToRun()).isTrue();
+        verify(installService).createInstallForTrustedCaller(eq(deployment), argThat((CreateDeploymentMarketplaceInstallRequest request) ->
+            ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID.equals(request.pluginId())
+        ));
+        verify(installService).createInstallForTrustedCaller(eq(deployment), argThat((CreateDeploymentMarketplaceInstallRequest request) ->
+            ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID.equals(request.pluginId())
+        ));
+        verify(installService, never()).createInstall(eq("dep-123"), any());
+        verify(deploymentService, never()).applyVersion(any(), any());
+    }
+
+    @Test
     void vectorizeNowQueuesRunForCurrentEnabledEntityScope() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
@@ -215,6 +457,10 @@ class ShopifyStoreVectorizationServiceTest {
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         VectorizationService vectorizationService = mock(VectorizationService.class);
+        ShopifyStoreVectorizationPolicyService policyService = mock(ShopifyStoreVectorizationPolicyService.class);
+        ShopifyStoreVectorizationFieldCatalogService fieldCatalogService = mock(ShopifyStoreVectorizationFieldCatalogService.class);
+        ShopifyStoreVectorizationEventService eventService = mock(ShopifyStoreVectorizationEventService.class);
+        ShopifyBridgeAdminClient bridgeAdminClient = mock(ShopifyBridgeAdminClient.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         ShopifyStoreConnectionEntity store = store("alpha.myshopify.com");
@@ -306,7 +552,7 @@ class ShopifyStoreVectorizationServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
         when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService()));
-        when(installService.listInstalls("dep-123"))
+        when(installService.listInstallsForTrustedCaller(deployment))
             .thenReturn(List.of(
                 install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
                 install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED"),
@@ -328,6 +574,9 @@ class ShopifyStoreVectorizationServiceTest {
         when(vectorizationService.getOverviewForTrustedCaller(deployment))
             .thenReturn(overview)
             .thenReturn(overviewWithRun);
+        when(vectorizationService.createRunForTrustedCaller(eq("dep-123"), any(), any()))
+            .thenReturn(overviewWithRun.recentRuns().get(0));
+        stubSummaryCollaborators(policyService, fieldCatalogService, eventService, overviewWithRun);
 
         ShopifyStoreVectorizationService service = service(
             repository,
@@ -338,6 +587,10 @@ class ShopifyStoreVectorizationServiceTest {
             marketplaceCatalogService,
             productServiceRepository,
             vectorizationService,
+            policyService,
+            fieldCatalogService,
+            eventService,
+            bridgeAdminClient,
             auditService
         );
 
@@ -345,9 +598,16 @@ class ShopifyStoreVectorizationServiceTest {
 
         assertThat(summary.lastRun()).isNotNull();
         assertThat(summary.lastRun().entityScope()).containsExactly("product");
-        verify(vectorizationService).createRun(eq("dep-123"), argThat((CreateVectorizationRunRequest request) ->
-            "REFRESH".equals(request.reason()) && request.entityTypes().equals(List.of("product"))
-        ));
+        verify(bridgeAdminClient).runSync(argThat(saved -> "alpha.myshopify.com".equals(saved.getShopDomain())));
+        verify(vectorizationService).createRunForTrustedCaller(
+            eq("dep-123"),
+            argThat((CreateVectorizationRunRequest request) ->
+                "REFRESH".equals(request.reason())
+                    && request.entityTypes().equals(List.of("product"))
+                    && "SHOPIFY_ADMIN_INDEX_ALL".equals(request.executionOverrides().path("triggerMode").asText())
+            ),
+            any()
+        );
         verify(deploymentService, never()).applyVersion(any(), any());
     }
 
@@ -361,6 +621,10 @@ class ShopifyStoreVectorizationServiceTest {
         MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
         PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         VectorizationService vectorizationService = mock(VectorizationService.class);
+        ShopifyStoreVectorizationPolicyService policyService = mock(ShopifyStoreVectorizationPolicyService.class);
+        ShopifyStoreVectorizationFieldCatalogService fieldCatalogService = mock(ShopifyStoreVectorizationFieldCatalogService.class);
+        ShopifyStoreVectorizationEventService eventService = mock(ShopifyStoreVectorizationEventService.class);
+        ShopifyBridgeAdminClient bridgeAdminClient = mock(ShopifyBridgeAdminClient.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         ShopifyStoreConnectionEntity store = store("alpha.myshopify.com");
@@ -441,7 +705,7 @@ class ShopifyStoreVectorizationServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(latestRelease));
         when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService()));
-        when(installService.listInstalls("dep-123"))
+        when(installService.listInstallsForTrustedCaller(deployment))
             .thenReturn(List.of(
                 install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
                 install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED"),
@@ -458,6 +722,7 @@ class ShopifyStoreVectorizationServiceTest {
         when(vectorizationService.upsertSourceConnection(eq("dep-123"), any())).thenReturn(connection);
         when(vectorizationService.upsertPlan(eq("dep-123"), any())).thenReturn(plan);
         when(vectorizationService.getOverviewForTrustedCaller(deployment)).thenReturn(overviewWithoutRunner);
+        stubSummaryCollaborators(policyService, fieldCatalogService, eventService, overviewWithoutRunner);
 
         ShopifyStoreVectorizationService service = service(
             repository,
@@ -468,6 +733,10 @@ class ShopifyStoreVectorizationServiceTest {
             marketplaceCatalogService,
             productServiceRepository,
             vectorizationService,
+            policyService,
+            fieldCatalogService,
+            eventService,
+            bridgeAdminClient,
             auditService
         );
 
@@ -487,6 +756,10 @@ class ShopifyStoreVectorizationServiceTest {
                                                      MarketplaceCatalogService marketplaceCatalogService,
                                                      PlatformManagedProductServiceRepository productServiceRepository,
                                                      VectorizationService vectorizationService,
+                                                     ShopifyStoreVectorizationPolicyService policyService,
+                                                     ShopifyStoreVectorizationFieldCatalogService fieldCatalogService,
+                                                     ShopifyStoreVectorizationEventService eventService,
+                                                     ShopifyBridgeAdminClient bridgeAdminClient,
                                                      PlatformAuditService auditService) {
         return new ShopifyStoreVectorizationService(
             repository,
@@ -517,7 +790,83 @@ class ShopifyStoreVectorizationServiceTest {
                     ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID
                 )
             ),
+            policyService,
+            fieldCatalogService,
+            eventService,
+            bridgeAdminClient,
             auditService
+        );
+    }
+
+    private void stubSummaryCollaborators(ShopifyStoreVectorizationPolicyService policyService,
+                                          ShopifyStoreVectorizationFieldCatalogService fieldCatalogService,
+                                          ShopifyStoreVectorizationEventService eventService,
+                                          VectorizationOverviewSummary overview) {
+        when(policyService.getSummary(any(), eq(overview))).thenReturn(policySummary());
+        when(fieldCatalogService.effectiveFields(eq(overview))).thenReturn(indexedFields());
+        when(eventService.summarizeAutomation(any())).thenReturn(automationSummary());
+        when(eventService.listRecent(any(), anyInt())).thenReturn(List.of());
+    }
+
+    private ShopifyStoreVectorizationPolicySummary policySummary() {
+        return new ShopifyStoreVectorizationPolicySummary(
+            1,
+            false,
+            List.of(
+                new ShopifyStoreVectorizationSourcePolicySummary(
+                    "products",
+                    true,
+                    true,
+                    true,
+                    false,
+                    true,
+                    true,
+                    "INDEXED_FIELDS_ONLY",
+                    List.of(),
+                    30,
+                    60
+                )
+            ),
+            "system",
+            Instant.now()
+        );
+    }
+
+    private List<ShopifyStoreVectorizationIndexedFieldSummary> indexedFields() {
+        return List.of(
+            new ShopifyStoreVectorizationIndexedFieldSummary(
+                "products.title",
+                "products",
+                "product",
+                "title",
+                "Product title",
+                true
+            ),
+            new ShopifyStoreVectorizationIndexedFieldSummary(
+                "policies.title",
+                "policies",
+                "support-policy",
+                "title",
+                "Policy title",
+                true
+            )
+        );
+    }
+
+    private ShopifyStoreVectorizationAutomationSummary automationSummary() {
+        return new ShopifyStoreVectorizationAutomationSummary(
+            true,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Instant.now(),
+            Instant.now(),
+            null,
+            "vrn-123",
+            List.of()
         );
     }
 

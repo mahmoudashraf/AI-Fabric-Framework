@@ -6,13 +6,29 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKe
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import org.springframework.util.StringUtils;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Execution context passed to action methods.
  */
-public record ActionContext(OrchestrationContext orchestrationContext, PipelineContext pipelineContext) {
+public record ActionContext(OrchestrationContext orchestrationContext,
+                            PipelineContext pipelineContext,
+                            Map<String, Object> actionParams) {
+
+    public ActionContext(OrchestrationContext orchestrationContext, PipelineContext pipelineContext) {
+        this(orchestrationContext, pipelineContext, Map.of());
+    }
+
+    public ActionContext {
+        actionParams = immutableActionParams(actionParams);
+    }
+
+    public ActionContext withActionParams(Map<String, Object> params) {
+        return new ActionContext(orchestrationContext, pipelineContext, params);
+    }
 
     public String userId() {
         return authContext().getSubjectId();
@@ -106,5 +122,19 @@ public record ActionContext(OrchestrationContext orchestrationContext, PipelineC
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private static Map<String, Object> immutableActionParams(Map<String, Object> params) {
+        if (params == null || params.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                continue;
+            }
+            copy.put(entry.getKey().trim(), entry.getValue());
+        }
+        return copy.isEmpty() ? Map.of() : Collections.unmodifiableMap(copy);
     }
 }

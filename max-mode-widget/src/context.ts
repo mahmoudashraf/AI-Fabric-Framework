@@ -21,7 +21,7 @@ export interface MaxModeState {
   chatMessages: any[];
   attachedItems: SharedAttachment[];
   currentPosition: "landing" | "catalog" | "search" | "cart";
-  currentMode: "navigator" | "copilot";
+  currentMode: "navigator" | "navigator_deep" | "thinker_deep" | "cart_assistant" | "executor";
   conversationId: string | null;
   contextDocuments: any[];
 }

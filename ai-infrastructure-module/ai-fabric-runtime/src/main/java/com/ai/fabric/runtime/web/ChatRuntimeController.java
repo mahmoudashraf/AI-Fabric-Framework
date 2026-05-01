@@ -597,6 +597,7 @@ public class ChatRuntimeController {
                 out.put("accessMode", a.getAccessMode() != null ? a.getAccessMode().name() : null);
                 out.put("confirmationRequired", a.isConfirmationRequired());
                 out.put("groundingEligible", a.isGroundingEligible());
+                out.put("readActionResolutionEligible", a.isReadActionResolutionEligible());
                 out.put("sideEffectLevel", a.getSideEffectLevel() != null ? a.getSideEffectLevel().name() : null);
                 out.put("resultPresentationHint", a.getResultPresentationHint() != null ? a.getResultPresentationHint().name() : null);
                 out.put("builtInModuleId", a.getBuiltInModuleId());

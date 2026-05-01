@@ -153,4 +153,35 @@ class ConnectorActionCatalogLoaderTest {
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("unknown webhook target");
     }
+
+    @Test
+    void loadActions_shouldReadReadActionResolutionEligibility() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/valid-read-actions.yml");
+
+        List<ConnectorActionDefinition> actions = loader.loadActions(List.of(source));
+        assertThat(actions).hasSize(1);
+
+        ConnectorActionDefinition action = actions.getFirst();
+        assertThat(action.name()).isEqualTo("get_policy");
+        assertThat(action.accessMode()).isEqualTo(ActionAccessMode.READ);
+        assertThat(action.groundingEligible()).isTrue();
+        assertThat(action.readActionResolutionEligible()).isTrue();
+        assertThat(action.llmFacts()).isNotNull();
+        assertThat(action.llmFacts().rootPath()).isEqualTo("data");
+        assertThat(action.llmFacts().copyFields()).containsExactly("query", "totalResults");
+        assertThat(action.llmFacts().lists()).hasSize(1);
+        ConnectorActionLlmFactsListDefinition list = action.llmFacts().lists().getFirst();
+        assertThat(list.sourcePath()).isEqualTo("records");
+        assertThat(list.target()).isEqualTo("records");
+        assertThat(list.rankRules()).hasSize(1);
+        assertThat(list.constraints()).isNotNull();
+        assertThat(list.constraints().rules()).hasSize(1);
+        assertThat(list.constraints().rules().getFirst().type()).isEqualTo("PARAM_NUMERIC_UPPER_BOUND");
+        assertThat(list.constraints().rules().getFirst().paramPath()).isEqualTo("maxScore");
+        assertThat(list.summaries()).hasSize(1);
+    }
 }

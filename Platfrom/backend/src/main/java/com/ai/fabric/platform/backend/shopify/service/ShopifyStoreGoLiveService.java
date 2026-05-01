@@ -6,9 +6,11 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
-import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
+import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceStoreSupportReadinessSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductAdminService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
@@ -20,8 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -31,29 +35,28 @@ public class ShopifyStoreGoLiveService {
 
     private static final String SHOPIFY_BRIDGE_SHARED_SECRET_ENV = "SHOPIFY_BRIDGE_SHARED_SECRET";
     private static final String SHOPIFY_BRIDGE_API_KEY_HEADER = "X-BRIDGE-API-KEY";
-    private static final List<String> SHOPIFY_COMPANION_ACTION_IDS = List.of(
-        "list_products",
-        "search_products",
-        "get_product_details",
-        "check_availability",
-        "get_policy"
-    );
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     private final ShopifyStoreConnectionRepository repository;
     private final DeploymentService deploymentService;
+    private final DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService;
     private final PlatformManagedProductServiceRepository productServiceRepository;
+    private final PlatformManagedProductAdminService productAdminService;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final PlatformAuditService platformAuditService;
 
     public ShopifyStoreGoLiveService(ShopifyStoreConnectionRepository repository,
                                      DeploymentService deploymentService,
+                                     DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService,
                                      PlatformManagedProductServiceRepository productServiceRepository,
+                                     PlatformManagedProductAdminService productAdminService,
                                      ShopifyStoreConnectionService shopifyStoreConnectionService,
                                      PlatformAuditService platformAuditService) {
         this.repository = repository;
         this.deploymentService = deploymentService;
+        this.deploymentMarketplaceDraftCompilerService = deploymentMarketplaceDraftCompilerService;
         this.productServiceRepository = productServiceRepository;
+        this.productAdminService = productAdminService;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.platformAuditService = platformAuditService;
     }
@@ -64,7 +67,9 @@ public class ShopifyStoreGoLiveService {
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Shopify store connection not found: " + shopDomain));
         ShopifyStoreConnectionSummary summary = shopifyStoreConnectionService.getConnection(store.getShopDomain());
         validateReadyForGoLive(summary);
+        validateSupportReadyForGoLive(store);
 
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(store.getDeploymentId());
         DeploymentDraftResponse draft = ensureShopifyCompanionSecurityDefaults(store.getDeploymentId());
         draft = ensureShopifyCompanionConnectorDefaults(store, draft);
         DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
@@ -99,14 +104,44 @@ public class ShopifyStoreGoLiveService {
         }
     }
 
+    private void validateSupportReadyForGoLive(ShopifyStoreConnectionEntity store) {
+        PlatformManagedProductServiceEntity productService = resolveProductService(store.getProductServiceId());
+        if (productService == null || !hasText(productService.getServiceRef())) {
+            throw new ResponseStatusException(CONFLICT, "Shopify support readiness cannot be verified because the managed bridge service mapping is missing.");
+        }
+        PlatformManagedProductServiceStoreSupportReadinessSummary supportReadiness =
+            productAdminService.getStoreSupportReadiness(productService.getServiceRef(), store.getShopDomain());
+        if (!"READY".equalsIgnoreCase(supportReadiness.status())) {
+            String message = supportReadiness.message() == null || supportReadiness.message().isBlank()
+                ? "Customer-safe order lookup and governed support posture are not ready for go-live yet."
+                : supportReadiness.message();
+            throw new ResponseStatusException(CONFLICT, message);
+        }
+        boolean orderLookupTierAllowed = "ELITE".equalsIgnoreCase(supportReadiness.billingTier());
+        if (!orderLookupTierAllowed) {
+            return;
+        }
+        if (!supportReadiness.orderLookupSupported()) {
+            throw new ResponseStatusException(CONFLICT,
+                "Customer-safe order lookup must be enabled before go-live.");
+        }
+        if (!supportReadiness.appScopesUpdateWebhookReady()) {
+            throw new ResponseStatusException(CONFLICT,
+                "Shopify APP_SCOPES_UPDATE webhook must be ready before go-live.");
+        }
+        if (!supportReadiness.merchantHandoffConfigured()) {
+            throw new ResponseStatusException(CONFLICT,
+                "Merchant support handoff must be configured before go-live.");
+        }
+    }
+
     private DeploymentDraftResponse ensureShopifyCompanionSecurityDefaults(String deploymentId) {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode securityConfig = ensureObject(draft.securityConfig());
-        String authzMode = securityConfig.path("authzMode").asText(null);
-        if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED.equalsIgnoreCase(authzMode)) {
+        boolean changed = ShopifyCompanionRuntimeSecurityDefaults.apply(securityConfig, deploymentId);
+        if (!changed) {
             return draft;
         }
-        securityConfig.put("authzMode", ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED);
         return deploymentService.updateDraft(
             draft.id(),
             new UpdateDeploymentDraftRequest(
@@ -125,39 +160,60 @@ public class ShopifyStoreGoLiveService {
 
     private DeploymentDraftResponse ensureShopifyCompanionConnectorDefaults(ShopifyStoreConnectionEntity store,
                                                                             DeploymentDraftResponse draft) {
+        ObjectNode actionsConfig = ensureObject(draft.actionsConfig());
+        boolean actionsConfigChanged = ShopifyCompanionActionCatalog.ensureLlmFactsDefaults(actionsConfig);
+
         PlatformManagedProductServiceEntity productService = resolveProductService(store.getProductServiceId());
         String productServiceBaseUrl = productService == null ? null : blankToNull(productService.getBaseUrl());
         if (!hasText(productServiceBaseUrl)) {
+            if (actionsConfigChanged) {
+                return deploymentService.updateDraft(
+                    draft.id(),
+                    new UpdateDeploymentDraftRequest(
+                        actionsConfig,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                );
+            }
             return draft;
         }
 
         ObjectNode routingConfig = ensureObject(draft.routingConfig());
-        boolean changed = false;
+        boolean routingChanged = false;
 
         ObjectNode connector = ensureNestedObject(routingConfig, "connector");
         ObjectNode upstream = ensureNestedObject(connector, "upstream");
-        changed |= putText(upstream, "base-url", trimTrailingSlash(productServiceBaseUrl));
+        routingChanged |= putText(upstream, "base-url", trimTrailingSlash(productServiceBaseUrl));
 
         ObjectNode upstreamAuth = ensureNestedObject(upstream, "auth");
-        changed |= putText(upstreamAuth, "type", "API_KEY");
-        changed |= putText(upstreamAuth, "header", SHOPIFY_BRIDGE_API_KEY_HEADER);
-        changed |= putText(upstreamAuth, "value", "${" + SHOPIFY_BRIDGE_SHARED_SECRET_ENV + "}");
+        routingChanged |= putText(upstreamAuth, "type", "API_KEY");
+        routingChanged |= putText(upstreamAuth, "header", SHOPIFY_BRIDGE_API_KEY_HEADER);
+        routingChanged |= putText(upstreamAuth, "value", "${" + SHOPIFY_BRIDGE_SHARED_SECRET_ENV + "}");
 
         ObjectNode actions = ensureNestedObject(routingConfig, "actions");
-        for (String actionId : SHOPIFY_COMPANION_ACTION_IDS) {
-            changed |= ensureShopifyCompanionActionRoute(actions, actionId, store.getShopDomain());
+        Set<String> allowedActionIds = ShopifyCompanionActionCatalog.routeActionIds(actionsConfig);
+        routingChanged |= pruneStaleShopifyCompanionActionRoutes(actions, allowedActionIds, store.getShopDomain());
+        for (String actionId : allowedActionIds) {
+            routingChanged |= ensureShopifyCompanionActionRoute(actions, actionId, store.getShopDomain());
         }
 
-        if (!changed) {
+        if (!actionsConfigChanged && !routingChanged) {
             return draft;
         }
 
         return deploymentService.updateDraft(
             draft.id(),
             new UpdateDeploymentDraftRequest(
+                actionsConfigChanged ? actionsConfig : null,
                 null,
-                null,
-                routingConfig,
+                routingChanged ? routingConfig : null,
                 null,
                 null,
                 null,
@@ -182,6 +238,36 @@ public class ShopifyStoreGoLiveService {
         changed |= putText(body, "idempotencyKey", "{{idempotencyKey}}");
         changed |= putText(body, "trace", "{{trace}}");
         return changed;
+    }
+
+    private boolean pruneStaleShopifyCompanionActionRoutes(ObjectNode actions,
+                                                           Set<String> allowedActionIds,
+                                                           String shopDomain) {
+        String expectedPath = "/api/admin/stores/" + shopDomain + "/actions/execute";
+        List<String> staleActionIds = new ArrayList<>();
+        actions.fields().forEachRemaining(entry -> {
+            String actionId = entry.getKey();
+            JsonNode action = entry.getValue();
+            if (allowedActionIds.contains(actionId) || !isManagedShopifyCompanionActionRoute(action, expectedPath)) {
+                return;
+            }
+            staleActionIds.add(actionId);
+        });
+        staleActionIds.forEach(actions::remove);
+        return !staleActionIds.isEmpty();
+    }
+
+    private boolean isManagedShopifyCompanionActionRoute(JsonNode action, String expectedPath) {
+        if (action == null || !action.isObject()) {
+            return false;
+        }
+        String method = blankToNull(action.path("method").asText(null));
+        String path = blankToNull(action.path("path").asText(null));
+        JsonNode body = action.path("request").path("body");
+        return "POST".equalsIgnoreCase(method)
+            && expectedPath.equals(path)
+            && "{{actionId}}".equals(body.path("actionId").asText(null))
+            && "{{params}}".equals(body.path("params").asText(null));
     }
 
     private ObjectNode ensureObject(JsonNode node) {
@@ -219,12 +305,12 @@ public class ShopifyStoreGoLiveService {
         return true;
     }
 
-    private String blankToNull(String value) {
-        return hasText(value) ? value.trim() : null;
-    }
-
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String blankToNull(String value) {
+        return hasText(value) ? value.trim() : null;
     }
 
     private String trimTrailingSlash(String value) {

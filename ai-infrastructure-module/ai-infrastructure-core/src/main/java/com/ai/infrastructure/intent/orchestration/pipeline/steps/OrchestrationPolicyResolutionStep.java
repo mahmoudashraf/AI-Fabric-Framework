@@ -185,6 +185,25 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             );
         }
 
+        OrchestrationPolicy.ReadActionResolutionPolicy readActionResolutionPolicy = null;
+        if (effectiveModeOverrides != null && effectiveModeOverrides.getReadActionResolution() != null) {
+            OrchestrationProperties.ReadActionResolutionModeOverrides read = effectiveModeOverrides.getReadActionResolution();
+            readActionResolutionPolicy = new OrchestrationPolicy.ReadActionResolutionPolicy(
+                Boolean.TRUE.equals(read.getEnabled()),
+                read.getPlanningMode(),
+                read.getAllowedReadActions(),
+                Boolean.TRUE.equals(read.getRequireAllowlist()),
+                read.getMaxIterations() != null ? read.getMaxIterations() : 1,
+                read.getMaxActionsPerIteration() != null ? read.getMaxActionsPerIteration() : 2,
+                read.getMaxTotalActions() != null ? read.getMaxTotalActions() : 2,
+                read.getMaxParallelActions() != null ? read.getMaxParallelActions() : 1,
+                read.getMaxPlannerContextChars() != null ? read.getMaxPlannerContextChars() : 4_000,
+                read.getMaxActionEvidenceCharsPerAction() != null ? read.getMaxActionEvidenceCharsPerAction() : 2_400,
+                read.getRagCooperationMode(),
+                read.getRequireGroundingEligible() == null || read.getRequireGroundingEligible()
+            );
+        }
+
         Double deploymentRagSimilarityThreshold = readSimilarityThresholdOverride(orchestrationContext);
         if (deploymentRagSimilarityThreshold != null) {
             ragBudgets = mergeSimilarityThreshold(ragBudgets, deploymentRagSimilarityThreshold);
@@ -243,6 +262,7 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 forceRetrievalWhenTargetsPresent,
                 forceRetrievalConsiderStoredTargets
             ),
+            readActionResolutionPolicy,
             ragBudgets,
             responseGenerationBudgets
         );
@@ -284,6 +304,23 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("knowledgeBaseOverviewEnabled", policy.capabilities().knowledgeBaseOverviewEnabled());
         debug.put("retrievalAllowlistRequired", policy.capabilities().retrievalAllowlistRequired());
         debug.put("vectorSpaceSelectionRequired", policy.capabilities().vectorSpaceSelectionRequired());
+        if (policy.readActionResolutionPolicy() != null) {
+            OrchestrationPolicy.ReadActionResolutionPolicy readPolicy = policy.readActionResolutionPolicy();
+            debug.put("readActionResolutionEnabled", readPolicy.enabled());
+            debug.put("readActionResolutionPlanningMode", readPolicy.planningMode().name());
+            debug.put("readActionResolutionRequireAllowlist", readPolicy.requireAllowlist());
+            debug.put("readActionResolutionMaxIterations", readPolicy.maxIterations());
+            debug.put("readActionResolutionMaxActionsPerIteration", readPolicy.maxActionsPerIteration());
+            debug.put("readActionResolutionMaxTotalActions", readPolicy.maxTotalActions());
+            debug.put("readActionResolutionMaxParallelActions", readPolicy.maxParallelActions());
+            debug.put("readActionResolutionMaxPlannerContextChars", readPolicy.maxPlannerContextChars());
+            debug.put("readActionResolutionMaxActionEvidenceCharsPerAction", readPolicy.maxActionEvidenceCharsPerAction());
+            debug.put("readActionResolutionRagCooperationMode", readPolicy.ragCooperationMode().name());
+            debug.put("readActionResolutionRequireGroundingEligible", readPolicy.requireGroundingEligible());
+            if (readPolicy.hasAllowedReadActions()) {
+                debug.put("readActionResolutionAllowedReadActions", readPolicy.allowedReadActions());
+            }
+        }
         if (advancedRagOverride != null) {
             debug.put("advancedRagOverride", advancedRagOverride);
             debug.put("advancedRagOverrideSource", "MODE");

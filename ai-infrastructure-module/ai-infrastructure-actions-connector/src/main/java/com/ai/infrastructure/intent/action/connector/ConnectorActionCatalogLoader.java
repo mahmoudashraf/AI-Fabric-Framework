@@ -54,11 +54,47 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_PARAMS = "params";
     private static final String KEY_ANONYMOUS_ALLOWED = "anonymousAllowed";
     private static final String KEY_GROUNDING_ELIGIBLE = "groundingEligible";
+    private static final String KEY_READ_ACTION_RESOLUTION_ELIGIBLE = "readActionResolutionEligible";
     private static final String KEY_RESULT_PRESENTATION_HINT = "resultPresentationHint";
     private static final String KEY_BUILT_IN_MODULE_ID = "builtInModuleId";
     private static final String KEY_BUILT_IN_CARD_ID = "builtInCardId";
     private static final String KEY_PROVENANCE = "provenance";
     private static final String KEY_POST_POLICIES = "postPolicies";
+    private static final String KEY_LLM_FACTS = "llmFacts";
+    private static final String KEY_ROOT_PATH = "rootPath";
+    private static final String KEY_COPY_FIELDS = "copyFields";
+    private static final String KEY_LISTS = "lists";
+    private static final String KEY_OBJECTS = "objects";
+    private static final String KEY_SOURCE_PATH = "sourcePath";
+    private static final String KEY_TARGET = "target";
+    private static final String KEY_MAX_ITEMS = "maxItems";
+    private static final String KEY_INCLUDE_FIELDS = "includeFields";
+    private static final String KEY_FALLBACK_CONTENT_FIELD = "fallbackContentField";
+    private static final String KEY_FALLBACK_CONTENT_MAX_CHARS = "fallbackContentMaxChars";
+    private static final String KEY_RANK_RULES = "rankRules";
+    private static final String KEY_CONSTRAINTS = "constraints";
+    private static final String KEY_RULES = "rules";
+    private static final String KEY_COUNT_TARGET = "countTarget";
+    private static final String KEY_FIELD = "field";
+    private static final String KEY_PARAM_PATH = "paramPath";
+    private static final String KEY_OPERATOR = "operator";
+    private static final String KEY_VALUE = "value";
+    private static final String KEY_SCORE = "score";
+    private static final String KEY_SCORE_MATCH = "scoreMatch";
+    private static final String KEY_SCORE_MISSING = "scoreMissing";
+    private static final String KEY_SCORE_MISMATCH = "scoreMismatch";
+    private static final String KEY_SORT_ASCENDING_ON_MATCH = "sortAscendingOnMatch";
+    private static final String KEY_SUMMARIES = "summaries";
+    private static final String KEY_SOURCE = "source";
+    private static final String KEY_RECORD_COUNT_KEY = "recordCountKey";
+    private static final String KEY_LOWEST_VALUE_KEY = "lowestValueKey";
+    private static final String KEY_HIGHEST_VALUE_KEY = "highestValueKey";
+    private static final String KEY_LABEL_FIELD = "labelField";
+    private static final String KEY_LOWEST_LABEL_KEY = "lowestLabelKey";
+    private static final String KEY_HIGHEST_LABEL_KEY = "highestLabelKey";
+    private static final String KEY_EXTRA_FIELDS = "extraFields";
+    private static final String KEY_LOWEST_KEY = "lowestKey";
+    private static final String KEY_HIGHEST_KEY = "highestKey";
     private static final String KEY_TARGET_REF = "targetRef";
     private static final String KEY_EVENT_TYPE = "eventType";
     private static final String KEY_ID = "id";
@@ -255,6 +291,7 @@ public class ConnectorActionCatalogLoader {
         boolean groundingEligible = raw.containsKey(KEY_GROUNDING_ELIGIBLE)
             ? readBoolean(raw, KEY_GROUNDING_ELIGIBLE, false)
             : defaultGroundingEligible(accessMode);
+        boolean readActionResolutionEligible = readBoolean(raw, KEY_READ_ACTION_RESOLUTION_ELIGIBLE, false);
         ActionResultPresentationHint resultPresentationHint = parseResultPresentationHint(
             readString(raw, KEY_RESULT_PRESENTATION_HINT),
             accessMode,
@@ -267,6 +304,7 @@ public class ConnectorActionCatalogLoader {
 
         List<ConnectorActionParamDefinition> params = parseParams(raw.get(KEY_PARAMS), label, name);
         List<ConnectorActionPostPolicyDefinition> postPolicies = parsePostPolicies(raw.get(KEY_POST_POLICIES), label, name);
+        ConnectorActionLlmFactsDefinition llmFacts = parseLlmFacts(raw.get(KEY_LLM_FACTS), label, name);
 
         validateConfirmationTemplate(name, confirmationMessage, params, label);
 
@@ -281,12 +319,242 @@ public class ConnectorActionCatalogLoader {
             params,
             anonymousAllowed,
             groundingEligible,
+            readActionResolutionEligible,
             resultPresentationHint,
             StringUtils.hasText(builtInModuleId) ? builtInModuleId.trim() : null,
             StringUtils.hasText(builtInCardId) ? builtInCardId.trim() : null,
             provenance,
-            postPolicies
+            postPolicies,
+            llmFacts
         );
+    }
+
+    private ConnectorActionLlmFactsDefinition parseLlmFacts(Object rawLlmFacts,
+                                                            String label,
+                                                            String actionName) {
+        if (rawLlmFacts == null) {
+            return null;
+        }
+        Map<String, Object> raw = readOptionalObjectMap(rawLlmFacts, label, "actions[" + actionName + "].llmFacts");
+        if (raw.isEmpty()) {
+            return null;
+        }
+        String rootPath = readString(raw, KEY_ROOT_PATH);
+        List<String> copyFields = readStringList(raw.get(KEY_COPY_FIELDS));
+        List<ConnectorActionLlmFactsListDefinition> lists = parseLlmFactLists(raw.get(KEY_LISTS), label, actionName);
+        List<ConnectorActionLlmFactsObjectDefinition> objects = parseLlmFactObjects(raw.get(KEY_OBJECTS), label, actionName);
+        return new ConnectorActionLlmFactsDefinition(rootPath, copyFields, lists, objects);
+    }
+
+    private List<ConnectorActionLlmFactsListDefinition> parseLlmFactLists(Object rawLists,
+                                                                          String label,
+                                                                          String actionName) {
+        if (rawLists == null) {
+            return List.of();
+        }
+        if (!(rawLists instanceof List<?> list)) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for action '" + actionName + "': llmFacts.lists must be a list.");
+        }
+        List<ConnectorActionLlmFactsListDefinition> out = new ArrayList<>();
+        for (Object item : list) {
+            Map<String, Object> raw = readObjectMap(item, label, "actions[" + actionName + "].llmFacts.lists[]");
+            String sourcePath = readString(raw, KEY_SOURCE_PATH);
+            String target = readString(raw, KEY_TARGET);
+            if (!StringUtils.hasText(sourcePath) || !StringUtils.hasText(target)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': each llmFacts list requires sourcePath and target.");
+            }
+            int maxItems = readPositiveInt(raw.get(KEY_MAX_ITEMS), label, actionName, "llmFacts.lists.maxItems", 5);
+            int fallbackContentMaxChars = readPositiveInt(
+                raw.get(KEY_FALLBACK_CONTENT_MAX_CHARS),
+                label,
+                actionName,
+                "llmFacts.lists.fallbackContentMaxChars",
+                300
+            );
+            out.add(new ConnectorActionLlmFactsListDefinition(
+                sourcePath.trim(),
+                target.trim(),
+                maxItems,
+                readStringList(raw.get(KEY_INCLUDE_FIELDS)),
+                readString(raw, KEY_FALLBACK_CONTENT_FIELD),
+                fallbackContentMaxChars,
+                parseLlmFactRules(raw.get(KEY_RANK_RULES), label, actionName, "llmFacts.lists.rankRules"),
+                parseLlmFactConstraints(raw.get(KEY_CONSTRAINTS), label, actionName),
+                parseLlmFactSummaries(raw.get(KEY_SUMMARIES), label, actionName)
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private List<ConnectorActionLlmFactsObjectDefinition> parseLlmFactObjects(Object rawObjects,
+                                                                              String label,
+                                                                              String actionName) {
+        if (rawObjects == null) {
+            return List.of();
+        }
+        if (!(rawObjects instanceof List<?> list)) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for action '" + actionName + "': llmFacts.objects must be a list.");
+        }
+        List<ConnectorActionLlmFactsObjectDefinition> out = new ArrayList<>();
+        for (Object item : list) {
+            Map<String, Object> raw = readObjectMap(item, label, "actions[" + actionName + "].llmFacts.objects[]");
+            String sourcePath = readString(raw, KEY_SOURCE_PATH);
+            String target = readString(raw, KEY_TARGET);
+            if (!StringUtils.hasText(sourcePath) || !StringUtils.hasText(target)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': each llmFacts object requires sourcePath and target.");
+            }
+            out.add(new ConnectorActionLlmFactsObjectDefinition(
+                sourcePath.trim(),
+                target.trim(),
+                readStringList(raw.get(KEY_INCLUDE_FIELDS)),
+                readString(raw, KEY_FALLBACK_CONTENT_FIELD),
+                readPositiveInt(raw.get(KEY_FALLBACK_CONTENT_MAX_CHARS), label, actionName, "llmFacts.objects.fallbackContentMaxChars", 300)
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private ConnectorActionLlmFactsConstraintDefinition parseLlmFactConstraints(Object rawConstraints,
+                                                                               String label,
+                                                                               String actionName) {
+        if (rawConstraints == null) {
+            return null;
+        }
+        Map<String, Object> raw = readOptionalObjectMap(rawConstraints, label, "actions[" + actionName + "].llmFacts.lists.constraints");
+        if (raw.isEmpty()) {
+            return null;
+        }
+        String target = readString(raw, KEY_TARGET);
+        if (!StringUtils.hasText(target)) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for action '" + actionName + "': llmFacts.lists.constraints.target is required.");
+        }
+        return new ConnectorActionLlmFactsConstraintDefinition(
+            target.trim(),
+            readString(raw, KEY_COUNT_TARGET),
+            readStringList(raw.get(KEY_INCLUDE_FIELDS)),
+            parseLlmFactRules(raw.get(KEY_RULES), label, actionName, "llmFacts.lists.constraints.rules")
+        );
+    }
+
+    private List<ConnectorActionLlmFactsSummaryDefinition> parseLlmFactSummaries(Object rawSummaries,
+                                                                                 String label,
+                                                                                 String actionName) {
+        if (rawSummaries == null) {
+            return List.of();
+        }
+        if (!(rawSummaries instanceof List<?> list)) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for action '" + actionName + "': llmFacts.lists.summaries must be a list.");
+        }
+        List<ConnectorActionLlmFactsSummaryDefinition> out = new ArrayList<>();
+        for (Object item : list) {
+            Map<String, Object> raw = readObjectMap(item, label, "actions[" + actionName + "].llmFacts.lists.summaries[]");
+            String target = readString(raw, KEY_TARGET);
+            String field = readString(raw, KEY_FIELD);
+            if (!StringUtils.hasText(target) || !StringUtils.hasText(field)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': each llmFacts summary requires target and field.");
+            }
+            out.add(new ConnectorActionLlmFactsSummaryDefinition(
+                target.trim(),
+                readString(raw, KEY_SOURCE),
+                field.trim(),
+                readString(raw, KEY_RECORD_COUNT_KEY),
+                readString(raw, KEY_LOWEST_VALUE_KEY),
+                readString(raw, KEY_HIGHEST_VALUE_KEY),
+                readString(raw, KEY_LABEL_FIELD),
+                readString(raw, KEY_LOWEST_LABEL_KEY),
+                readString(raw, KEY_HIGHEST_LABEL_KEY),
+                parseLlmFactSummaryExtraFields(raw.get(KEY_EXTRA_FIELDS), label, actionName)
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private List<ConnectorActionLlmFactsSummaryExtraFieldDefinition> parseLlmFactSummaryExtraFields(Object rawExtraFields,
+                                                                                                    String label,
+                                                                                                    String actionName) {
+        if (rawExtraFields == null) {
+            return List.of();
+        }
+        if (!(rawExtraFields instanceof List<?> list)) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for action '" + actionName + "': llmFacts.lists.summaries.extraFields must be a list.");
+        }
+        List<ConnectorActionLlmFactsSummaryExtraFieldDefinition> out = new ArrayList<>();
+        for (Object item : list) {
+            Map<String, Object> raw = readObjectMap(item, label, "actions[" + actionName + "].llmFacts.lists.summaries.extraFields[]");
+            String field = readString(raw, KEY_FIELD);
+            if (!StringUtils.hasText(field)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': each llmFacts summary extraField requires field.");
+            }
+            out.add(new ConnectorActionLlmFactsSummaryExtraFieldDefinition(
+                field.trim(),
+                readString(raw, KEY_LOWEST_KEY),
+                readString(raw, KEY_HIGHEST_KEY)
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private List<ConnectorActionLlmFactsRuleDefinition> parseLlmFactRules(Object rawRules,
+                                                                          String label,
+                                                                          String actionName,
+                                                                          String fieldName) {
+        if (rawRules == null) {
+            return List.of();
+        }
+        if (!(rawRules instanceof List<?> list)) {
+            throw new IllegalStateException("Invalid action contract in " + label
+                + " for action '" + actionName + "': " + fieldName + " must be a list.");
+        }
+        List<ConnectorActionLlmFactsRuleDefinition> out = new ArrayList<>();
+        for (Object item : list) {
+            Map<String, Object> raw = readObjectMap(item, label, "actions[" + actionName + "]." + fieldName + "[]");
+            String type = readString(raw, KEY_TYPE);
+            String field = readString(raw, KEY_FIELD);
+            if (!StringUtils.hasText(type) || !StringUtils.hasText(field)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': each " + fieldName + " entry requires type and field.");
+            }
+            String normalizedType = type.trim().toUpperCase(Locale.ROOT);
+            if (!isSupportedLlmFactRuleType(normalizedType)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': unsupported " + fieldName + " type '" + type + "'.");
+            }
+            String paramPath = readString(raw, KEY_PARAM_PATH);
+            if (!StringUtils.hasText(paramPath)) {
+                throw new IllegalStateException("Invalid action contract in " + label
+                    + " for action '" + actionName + "': each " + fieldName + " entry requires paramPath.");
+            }
+            out.add(new ConnectorActionLlmFactsRuleDefinition(
+                type.trim(),
+                field.trim(),
+                paramPath.trim(),
+                readString(raw, KEY_OPERATOR),
+                raw.get(KEY_VALUE),
+                readPositiveInt(raw.get(KEY_SCORE), label, actionName, fieldName + ".score", 0),
+                readInt(raw.get(KEY_SCORE_MATCH), label, actionName, fieldName + ".scoreMatch", 0),
+                readInt(raw.get(KEY_SCORE_MISSING), label, actionName, fieldName + ".scoreMissing", 0),
+                readInt(raw.get(KEY_SCORE_MISMATCH), label, actionName, fieldName + ".scoreMismatch", 0),
+                readBoolean(raw, KEY_SORT_ASCENDING_ON_MATCH, false)
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private boolean isSupportedLlmFactRuleType(String type) {
+        return "PARAM_NUMERIC_UPPER_BOUND".equals(type)
+            || "PARAM_NUMERIC_LOWER_BOUND".equals(type)
+            || "PARAM_BOOLEAN_TRUE".equals(type)
+            || "PARAM_BOOLEAN_FALSE".equals(type)
+            || "PARAM_EQUALS".equals(type);
     }
 
     private List<ConnectorActionPostPolicyDefinition> parsePostPolicies(Object rawPostPolicies,
@@ -876,6 +1144,47 @@ public class ConnectorActionCatalogLoader {
             return List.of();
         }
         return List.of(s.trim());
+    }
+
+    private int readPositiveInt(Object raw,
+                                String label,
+                                String actionName,
+                                String field,
+                                int defaultValue) {
+        int value = readInt(raw, label, actionName, field, defaultValue);
+        if (value < 0) {
+            throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName
+                + "': " + field + " must be zero or positive.");
+        }
+        return value;
+    }
+
+    private int readInt(Object raw,
+                        String label,
+                        String actionName,
+                        String field,
+                        int defaultValue) {
+        if (raw == null) {
+            return defaultValue;
+        }
+        if (raw instanceof Number number) {
+            double d = number.doubleValue();
+            if (!Double.isFinite(d) || d != Math.rint(d)) {
+                throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName
+                    + "': " + field + " must be an integer.");
+            }
+            return number.intValue();
+        }
+        String s = raw.toString();
+        if (!StringUtils.hasText(s)) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException ex) {
+            throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName
+                + "': " + field + " must be an integer.");
+        }
     }
 
     private Long readLong(Object raw,

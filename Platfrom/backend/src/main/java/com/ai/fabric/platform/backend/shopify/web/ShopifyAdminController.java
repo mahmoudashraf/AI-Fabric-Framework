@@ -1,16 +1,28 @@
 package com.ai.fabric.platform.backend.shopify.web;
 
 import com.ai.fabric.platform.backend.shopify.model.BootstrapShopifyStoreRequest;
+import com.ai.fabric.platform.backend.shopify.model.CreateShopifyStoreProvisioningJobRequest;
+import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreBillingStateRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSourcePreflightRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreSyncStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWebhookEventRequest;
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreWidgetStatusRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBillingStateSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreGovernedActionAuditSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreProvisioningJobSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreProvisioningStatusSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreResolvedCredentialsSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreSupportProfileSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationEventSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreVectorizationPolicyRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreCredentialsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
@@ -18,10 +30,14 @@ import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreBootstrapServi
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreCredentialService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreDocumentSyncService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGovernedActionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGoLiveService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreProvisioningService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourcePreflightService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourceSettingsService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSyncService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreUninstallService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSupportProfileService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWebhookService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreWidgetService;
@@ -31,12 +47,13 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,38 +69,50 @@ public class ShopifyAdminController {
     private final ShopifyStoreCredentialService shopifyStoreCredentialService;
     private final ShopifyStoreGoLiveService shopifyStoreGoLiveService;
     private final ShopifyStoreUninstallService shopifyStoreUninstallService;
+    private final ShopifyStoreGovernedActionService shopifyStoreGovernedActionService;
     private final ShopifyStoreVectorizationService shopifyStoreVectorizationService;
     private final ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService;
+    private final ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService;
     private final ShopifyStoreSyncService shopifyStoreSyncService;
     private final ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService;
     private final ShopifyStoreWebhookService shopifyStoreWebhookService;
     private final ShopifyStoreWidgetService shopifyStoreWidgetService;
     private final ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService;
+    private final ShopifyStoreSupportProfileService shopifyStoreSupportProfileService;
+    private final ShopifyStoreProvisioningService shopifyStoreProvisioningService;
 
     public ShopifyAdminController(ShopifyStoreConnectionService shopifyStoreConnectionService,
                                   ShopifyStoreBootstrapService shopifyStoreBootstrapService,
                                   ShopifyStoreCredentialService shopifyStoreCredentialService,
                                   ShopifyStoreGoLiveService shopifyStoreGoLiveService,
                                   ShopifyStoreUninstallService shopifyStoreUninstallService,
+                                  ShopifyStoreGovernedActionService shopifyStoreGovernedActionService,
                                   ShopifyStoreVectorizationService shopifyStoreVectorizationService,
                                   ShopifyStoreSourcePreflightService shopifyStoreSourcePreflightService,
+                                  ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService,
                                   ShopifyStoreSyncService shopifyStoreSyncService,
                                   ShopifyStoreDocumentSyncService shopifyStoreDocumentSyncService,
                                   ShopifyStoreWebhookService shopifyStoreWebhookService,
                                   ShopifyStoreWidgetService shopifyStoreWidgetService,
-                                  ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService) {
+                                  ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService,
+                                  ShopifyStoreSupportProfileService shopifyStoreSupportProfileService,
+                                  ShopifyStoreProvisioningService shopifyStoreProvisioningService) {
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.shopifyStoreBootstrapService = shopifyStoreBootstrapService;
         this.shopifyStoreCredentialService = shopifyStoreCredentialService;
         this.shopifyStoreGoLiveService = shopifyStoreGoLiveService;
         this.shopifyStoreUninstallService = shopifyStoreUninstallService;
+        this.shopifyStoreGovernedActionService = shopifyStoreGovernedActionService;
         this.shopifyStoreVectorizationService = shopifyStoreVectorizationService;
         this.shopifyStoreSourcePreflightService = shopifyStoreSourcePreflightService;
+        this.shopifyStoreSourceSettingsService = shopifyStoreSourceSettingsService;
         this.shopifyStoreSyncService = shopifyStoreSyncService;
         this.shopifyStoreDocumentSyncService = shopifyStoreDocumentSyncService;
         this.shopifyStoreWebhookService = shopifyStoreWebhookService;
         this.shopifyStoreWidgetService = shopifyStoreWidgetService;
         this.shopifyStoreWidgetSettingsService = shopifyStoreWidgetSettingsService;
+        this.shopifyStoreSupportProfileService = shopifyStoreSupportProfileService;
+        this.shopifyStoreProvisioningService = shopifyStoreProvisioningService;
     }
 
     @GetMapping
@@ -102,6 +131,19 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreBindingInspectionSummary inspectBinding(@PathVariable String shopDomain) {
         return shopifyStoreConnectionService.inspectBinding(shopDomain);
+    }
+
+    @GetMapping("/{shopDomain}/billing-state")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreBillingStateSummary getBillingState(@PathVariable String shopDomain) {
+        return shopifyStoreConnectionService.getBillingState(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/billing-state")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreBillingStateSummary recordBillingState(@PathVariable String shopDomain,
+                                                              @Valid @RequestBody RecordShopifyStoreBillingStateRequest request) {
+        return shopifyStoreConnectionService.recordBillingState(shopDomain, request);
     }
 
     @DeleteMapping("/{shopDomain}")
@@ -148,6 +190,60 @@ public class ShopifyAdminController {
         return shopifyStoreBootstrapService.bootstrap(shopDomain, request);
     }
 
+    @GetMapping("/{shopDomain}/provisioning")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreProvisioningStatusSummary provisioningStatus(@PathVariable String shopDomain) {
+        return shopifyStoreProvisioningService.getStatus(shopDomain);
+    }
+
+    @GetMapping("/{shopDomain}/provisioning-jobs")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public List<ShopifyStoreProvisioningJobSummary> provisioningJobs(@PathVariable String shopDomain) {
+        return shopifyStoreProvisioningService.getStatus(shopDomain).recentJobs();
+    }
+
+    @PostMapping("/{shopDomain}/provisioning-jobs")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreProvisioningJobSummary enqueueProvisioningJob(@PathVariable String shopDomain,
+                                                                     @RequestBody(required = false) CreateShopifyStoreProvisioningJobRequest request) {
+        return shopifyStoreProvisioningService.enqueue(shopDomain, request);
+    }
+
+    @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/process")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    public ShopifyStoreProvisioningJobSummary processProvisioningJob(@PathVariable String shopDomain,
+                                                                     @PathVariable String jobId) {
+        return processProvisioningJobSafely(shopDomain, jobId);
+    }
+
+    @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/run")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    public ShopifyStoreProvisioningJobSummary runProvisioningJob(@PathVariable String shopDomain,
+                                                                 @PathVariable String jobId) {
+        return processProvisioningJobSafely(shopDomain, jobId);
+    }
+
+    @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/retry")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    public ShopifyStoreProvisioningJobSummary retryProvisioningJob(@PathVariable String shopDomain,
+                                                                   @PathVariable String jobId,
+                                                                   @RequestBody(required = false) java.util.Map<String, Object> request) {
+        ShopifyStoreProvisioningJobSummary retried =
+            shopifyStoreProvisioningService.retry(shopDomain, jobId, text(request, "reason"));
+        if (flag(request, "processImmediately") || flag(request, "processNow")) {
+            return processProvisioningJobSafely(shopDomain, jobId);
+        }
+        return retried;
+    }
+
+    @PostMapping("/{shopDomain}/provisioning-jobs/{jobId}/cancel")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    public ShopifyStoreProvisioningJobSummary cancelProvisioningJob(@PathVariable String shopDomain,
+                                                                    @PathVariable String jobId,
+                                                                    @RequestBody(required = false) java.util.Map<String, String> request) {
+        return shopifyStoreProvisioningService.cancel(shopDomain, jobId, request == null ? null : request.get("reason"));
+    }
+
     @PostMapping("/{shopDomain}/go-live")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary goLive(@PathVariable String shopDomain) {
@@ -158,6 +254,13 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary uninstall(@PathVariable String shopDomain) {
         return shopifyStoreUninstallService.markUninstalled(shopDomain, "Shopify app uninstall cleanup.");
+    }
+
+    @GetMapping("/{shopDomain}/actions/recent")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public List<ShopifyStoreGovernedActionAuditSummary> recentGovernedActions(@PathVariable String shopDomain,
+                                                                              @RequestParam(defaultValue = "10") int limit) {
+        return shopifyStoreGovernedActionService.recentActions(shopDomain, limit);
     }
 
     @GetMapping("/{shopDomain}/vectorization")
@@ -178,11 +281,64 @@ public class ShopifyAdminController {
         return shopifyStoreVectorizationService.vectorizeNow(shopDomain);
     }
 
+    @PostMapping("/{shopDomain}/vectorization/index-all")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary indexAllEnabledData(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.indexAllEnabledData(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/reindex-all")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary reindexAllEnabledData(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.reindexAllEnabledData(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/reindex-selected")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary reindexSelectedEntityTypes(@PathVariable String shopDomain,
+                                                                       @RequestBody ShopifyStoreVectorizationSelectedEntitiesRequest request) {
+        return shopifyStoreVectorizationService.reindexSelectedEntityTypes(shopDomain, request);
+    }
+
+    @PutMapping("/{shopDomain}/vectorization/policy")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary updateVectorizationPolicy(@PathVariable String shopDomain,
+                                                                      @RequestBody UpdateShopifyStoreVectorizationPolicyRequest request) {
+        return shopifyStoreVectorizationService.updatePolicy(shopDomain, request);
+    }
+
+    @GetMapping("/{shopDomain}/vectorization/events")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public List<ShopifyStoreVectorizationEventSummary> recentVectorizationEvents(@PathVariable String shopDomain,
+                                                                                 @RequestParam(defaultValue = "20") int limit) {
+        return shopifyStoreVectorizationService.recentEvents(shopDomain, limit);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/events/{eventId}/replay")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary replayVectorizationEvent(@PathVariable String shopDomain,
+                                                                     @PathVariable String eventId) {
+        return shopifyStoreVectorizationService.replayEvent(shopDomain, eventId);
+    }
+
+    @PostMapping("/{shopDomain}/vectorization/retry-last-failed-auto-run")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreVectorizationSummary retryLastFailedAutoRun(@PathVariable String shopDomain) {
+        return shopifyStoreVectorizationService.retryLastFailedAutoRun(shopDomain);
+    }
+
     @PostMapping("/{shopDomain}/source-preflight")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreConnectionSummary recordSourcePreflight(@PathVariable String shopDomain,
                                                                @RequestBody RecordShopifyStoreSourcePreflightRequest request) {
         return shopifyStoreSourcePreflightService.record(shopDomain, request);
+    }
+
+    @PostMapping("/{shopDomain}/source-settings")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreConnectionSummary updateSourceSettings(@PathVariable String shopDomain,
+                                                              @RequestBody UpdateShopifyStoreSourceSettingsRequest request) {
+        return shopifyStoreSourceSettingsService.update(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/sync-status")
@@ -218,5 +374,51 @@ public class ShopifyAdminController {
     public ShopifyStoreConnectionSummary updateWidgetSettings(@PathVariable String shopDomain,
                                                               @RequestBody UpdateShopifyStoreWidgetSettingsRequest request) {
         return shopifyStoreWidgetSettingsService.update(shopDomain, request);
+    }
+
+    @GetMapping("/{shopDomain}/support-profile")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreSupportProfileSummary getSupportProfile(@PathVariable String shopDomain) {
+        return shopifyStoreSupportProfileService.get(shopDomain);
+    }
+
+    @PostMapping("/{shopDomain}/support-profile")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreSupportProfileSummary updateSupportProfile(@PathVariable String shopDomain,
+                                                                  @RequestBody UpdateShopifyStoreSupportProfileRequest request) {
+        return shopifyStoreSupportProfileService.update(shopDomain, request);
+    }
+
+    private String text(java.util.Map<String, Object> request, String key) {
+        if (request == null || request.get(key) == null) {
+            return null;
+        }
+        String value = String.valueOf(request.get(key)).trim();
+        return value.isBlank() ? null : value;
+    }
+
+    private boolean flag(java.util.Map<String, Object> request, String key) {
+        if (request == null || request.get(key) == null) {
+            return false;
+        }
+        Object value = request.get(key);
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        return Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    private ShopifyStoreProvisioningJobSummary processProvisioningJobSafely(String shopDomain, String jobId) {
+        try {
+            return shopifyStoreProvisioningService.processJobNow(shopDomain, jobId);
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+            int statusCode = ex.getStatusCode().value();
+            if (statusCode == 404 || statusCode == 409) {
+                throw ex;
+            }
+            return shopifyStoreProvisioningService.recordProcessingFailure(shopDomain, jobId, ex);
+        } catch (RuntimeException ex) {
+            return shopifyStoreProvisioningService.recordProcessingFailure(shopDomain, jobId, ex);
+        }
     }
 }

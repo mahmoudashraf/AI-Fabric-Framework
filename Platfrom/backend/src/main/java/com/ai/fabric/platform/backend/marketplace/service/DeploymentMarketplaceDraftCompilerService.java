@@ -88,9 +88,21 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     @Transactional
     public DeploymentDraftResponse syncDeploymentDraft(String deploymentId) {
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        return syncDeploymentDraft(deploymentId, false);
+    }
+
+    @Transactional
+    public DeploymentDraftResponse syncDeploymentDraftForTrustedCaller(String deploymentId) {
+        return syncDeploymentDraft(deploymentId, true);
+    }
+
+    private DeploymentDraftResponse syncDeploymentDraft(String deploymentId, boolean trustedCaller) {
+        DeploymentDraftResponse draft = trustedCaller
+            ? deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId)
+            : deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode actionsRoot = ensureObject(draft.actionsConfig());
         ObjectNode entityRoot = normalizeEntityRoot(draft.entityConfig());
+        ObjectNode routingRoot = ensureObject(draft.routingConfig());
         ObjectNode knowledgeSourceRoot = normalizeKnowledgeSourceRoot(draft.knowledgeSourceConfig());
         ObjectNode shellRoot = normalizeShellRoot(draft.shellConfig());
         ObjectNode marketplaceDatasetRoot = normalizeMarketplaceDatasetRoot(draft.marketplaceDatasetConfig());
@@ -167,20 +179,21 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
 
-        DeploymentDraftResponse updated = deploymentService.updateDraft(
-            draft.id(),
-            new UpdateDeploymentDraftRequest(
-                actionsRoot,
-                entityRoot,
-                null,
-                providerRoot,
-                null,
-                null,
-                knowledgeSourceRoot,
-                shellRoot,
-                marketplaceDatasetRoot
-            )
+        boolean routingChanged = pruneRoutesWithoutActions(routingRoot, actionNames(actionsRoot.path("actions")));
+        UpdateDeploymentDraftRequest updateRequest = new UpdateDeploymentDraftRequest(
+            actionsRoot,
+            entityRoot,
+            routingChanged ? routingRoot : null,
+            providerRoot,
+            null,
+            null,
+            knowledgeSourceRoot,
+            shellRoot,
+            marketplaceDatasetRoot
         );
+        DeploymentDraftResponse updated = trustedCaller
+            ? deploymentService.updateDraftForTrustedCaller(draft.id(), updateRequest)
+            : deploymentService.updateDraft(draft.id(), updateRequest);
         DraftValidationResponse validation = deploymentDraftValidationService.validate(asDraftEntity(updated));
         if (!validation.publishReady()) {
             throw new ResponseStatusException(
@@ -561,6 +574,15 @@ public class DeploymentMarketplaceDraftCompilerService {
             if (actionEntry.path("anonymousAllowed").isBoolean()) {
                 compiled.put("anonymousAllowed", actionEntry.path("anonymousAllowed").asBoolean());
             }
+            if (actionEntry.path("groundingEligible").isBoolean()) {
+                compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
+            }
+            if (actionEntry.path("readActionResolutionEligible").isBoolean()) {
+                compiled.put(
+                    "readActionResolutionEligible",
+                    actionEntry.path("readActionResolutionEligible").asBoolean()
+                );
+            }
             if (actionEntry.path("confirmationMessage").isTextual()) {
                 compiled.put("confirmationMessage", actionEntry.path("confirmationMessage").asText("").trim());
             }
@@ -575,6 +597,9 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
             if (actionEntry.path("postPolicies").isArray()) {
                 compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
+            }
+            if (actionEntry.path("llmFacts").isObject()) {
+                compiled.set("llmFacts", actionEntry.path("llmFacts").deepCopy());
             }
             applyMarketplaceProvenance(compiled, install, plugin, version);
             actions.add(compiled);
@@ -863,6 +888,21 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     private void stripMarketplaceManagedDatasets(ObjectNode marketplaceDatasetRoot) {
         removeMarketplaceManagedEntries(ensureArray(marketplaceDatasetRoot, "datasets"));
+    }
+
+    static boolean pruneRoutesWithoutActions(ObjectNode routingRoot, Set<String> actionNames) {
+        if (routingRoot == null || !(routingRoot.path("actions") instanceof ObjectNode routes)) {
+            return false;
+        }
+        Set<String> validActionNames = actionNames == null ? Set.of() : actionNames;
+        List<String> staleRoutes = new ArrayList<>();
+        routes.fieldNames().forEachRemaining(routeName -> {
+            if (!validActionNames.contains(routeName)) {
+                staleRoutes.add(routeName);
+            }
+        });
+        staleRoutes.forEach(routes::remove);
+        return !staleRoutes.isEmpty();
     }
 
     private void stripMarketplaceManagedInference(ObjectNode providerRoot) {

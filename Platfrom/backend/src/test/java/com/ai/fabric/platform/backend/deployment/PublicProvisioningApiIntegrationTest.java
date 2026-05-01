@@ -3,8 +3,10 @@ package com.ai.fabric.platform.backend.deployment;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformConsumerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerBindingRequest;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -52,6 +54,16 @@ class PublicProvisioningApiIntegrationTest {
 
     @Autowired
     private PlatformCustomerConsumerService platformCustomerConsumerService;
+
+    @Autowired
+    private PlatformSecretService platformSecretService;
+
+    @BeforeEach
+    void clearRuntimeAuthSecrets() {
+        platformSecretService.clearSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+        platformSecretService.clearSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY");
+        platformSecretService.clearSecret("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY");
+    }
 
     @Test
     void publicClientCanCreateInspectAndIdempotentlyApplyDeployment() throws Exception {

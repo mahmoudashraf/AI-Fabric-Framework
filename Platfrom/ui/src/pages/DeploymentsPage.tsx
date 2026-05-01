@@ -1071,6 +1071,15 @@ export function DeploymentsPage() {
     () => orphanProjects.flatMap((project) => project.orphanServices.filter((service) => service.deletable).map((service) => service.serviceId)),
     [orphanProjects],
   )
+  const safeCleanupServiceIds = useMemo(
+    () => orphanProjects.flatMap((project) => (
+      project.deletable
+        ? []
+        : project.orphanServices.filter((service) => service.deletable).map((service) => service.serviceId)
+    )),
+    [orphanProjects],
+  )
+  const safeCleanupCandidateCount = availableOrphanProjectIds.length + safeCleanupServiceIds.length
   const selectedOrphanProjectSet = useMemo(() => new Set(selectedOrphanProjectIds), [selectedOrphanProjectIds])
   const selectedOrphanServiceSet = useMemo(() => new Set(selectedOrphanServiceIds), [selectedOrphanServiceIds])
   const selectedOrphanCount = selectedOrphanProjectIds.length + selectedOrphanServiceIds.length
@@ -1133,6 +1142,11 @@ export function DeploymentsPage() {
 
   const selectVisibleDeployments = () => {
     setSelectedDeploymentIds(visibleDeploymentIds)
+  }
+
+  const selectSafeCleanupCandidates = () => {
+    setSelectedOrphanProjectIds(availableOrphanProjectIds)
+    setSelectedOrphanServiceIds(safeCleanupServiceIds)
   }
 
   const toggleOrphanProjectSelection = (projectId: string) => {
@@ -2220,11 +2234,12 @@ export function DeploymentsPage() {
                           Railway workspace cleanup
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Review orphan Railway projects and services that are no longer referenced by current platform deployments. Only resources that still match the platform-managed profile are deletable here.
+                          Clean Railway resources that are not owned by current deployments, vector runner registrations, or managed product-service bindings. The backend keeps mandatory resources out of the cleanup target set.
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         <Chip label={`Selected cleanup items: ${selectedOrphanCount}`} variant="outlined" />
+                        <Chip label={`Safe cleanup candidates: ${safeCleanupCandidateCount}`} variant="outlined" />
                         {railwayWorkspaceCleanupQuery.data ? (
                           <>
                             <Chip label={`Orphan projects: ${railwayWorkspaceCleanupQuery.data.orphanProjectCount}`} variant="outlined" />
@@ -2334,6 +2349,13 @@ export function DeploymentsPage() {
                         })}
 
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Button
+                            variant="outlined"
+                            onClick={selectSafeCleanupCandidates}
+                            disabled={safeCleanupCandidateCount === 0 || orphanCleanupMutation.isPending}
+                          >
+                            Select all safe cleanup candidates
+                          </Button>
                           <Button
                             variant="outlined"
                             onClick={() => {
@@ -3180,10 +3202,10 @@ export function DeploymentsPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              This only deletes selected orphan Railway projects and services that are no longer referenced by current platform deployments and still match the platform-managed profile. Type <strong>DELETE ORPHANS</strong> and provide a reason to continue.
+              This deletes only selected Railway projects and services that are not owned by deployments, vector runner registrations, or managed product-service bindings and still match the platform-managed profile. Type <strong>DELETE ORPHANS</strong> and provide a reason to continue.
             </DialogContentText>
             <Alert severity="warning">
-              Selected items: <strong>{selectedOrphanCount}</strong>. Live deployments are never targeted here.
+              Selected items: <strong>{selectedOrphanCount}</strong>. Mandatory Railway resources are excluded by backend policy before deletion runs.
             </Alert>
             <TextField
               autoFocus

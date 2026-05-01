@@ -6,6 +6,7 @@ This guide is implementation-oriented. It is not a design plan.
 
 Related references:
 
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESOURCES_MAP.md`
 - `doc/Productization/future-work/Auth/AUTH_IMPLEMENTED_FLOW_GUIDE.md`
 - `doc/Productization/future-work/Auth/AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md`
@@ -155,6 +156,39 @@ Where to look in code:
 - `scripts/verify-ecommerce-deployment.sh`
 - `scripts/verify-vector-deployment.sh`
 
+### 4.1.1 Canonical rollout is still serving artifact URLs from an older version
+
+Meaning:
+
+- latest release is newer than the runtime artifact URLs surfaced by admin overview
+- the failing deployment is often one member of the canonical verification fleet
+- direct provider access may still be healthy, so this is easy to misread as a script or provider problem
+
+Strong signal:
+
+- these checks fail together:
+  - `runtime_config_matches_expected`
+  - `runtime_prompt_config_matches_expected`
+  - `runtime_knowledge_sources_match_expected`
+  - `runtime_shell_config_matches_expected`
+  - `runtime_actions_match_expected`
+- the details show expected artifact URLs from deployment version `A`, but runtime is still serving artifact URLs from version `B`
+
+What to do:
+
+1. confirm the canonical rollout inventory entry for that key is not truly ready
+2. recreate only that rollout key instead of resetting the whole fleet
+3. rerun hosted verification for that deployment
+4. rerun the full suite after the single deployment is clean again
+
+Useful APIs and scripts:
+
+- `GET /api/deployments/verification-rollouts`
+- `POST /api/deployments/verification-rollouts/recreate`
+- `GET /api/deployments/{deploymentId}/hosted-verifications`
+- `bash scripts/resolve-verification-rollouts.sh`
+- `bash scripts/run-platform-deployment-verification.sh`
+
 ### 4.2 Hosted verification failed, but direct repo verification passed
 
 Meaning:
@@ -298,11 +332,60 @@ Likely causes:
 
 - connector templates depend on `trace.authContext.subjectId`
 - action executor only forwarded older trace fields
+- published action metadata dropped required parameter definitions, so runtime executed the action with empty `params`
 
 Where to look in code:
 
 - `ai-infrastructure-module/ai-infrastructure-actions-connector/src/main/java/com/ai/infrastructure/intent/action/connector/ActionConnectorExecutor.java`
 - `ai-infrastructure-module/ai-infrastructure-actions-connector/src/main/java/com/ai/infrastructure/intent/action/connector/ActionConnectorProtocol.java`
+
+### 4.5.1 Shopify browser verification stopped at a password or login page
+
+Meaning:
+
+- the browser session hit an auth boundary before the real UI loaded
+- this is not, by itself, proof of a storefront or app regression
+
+Common shapes:
+
+- shopper storefront opens to the shop password page
+- Shopify Admin / Theme Editor path opens to the Shopify login page
+- embedded merchant flow needs merchant session material before the app shell loads
+
+Do not misdiagnose this as:
+
+- missing Max launcher
+- missing app blocks
+- broken storefront activation
+
+What to check:
+
+1. shopper storefront:
+   - if the store is password protected, unlock it with the current storefront password from the private handoff or the human operator before judging the UI
+2. merchant bridge app:
+   - use the merchant bridge app and storefront activation preview to verify install state, widget state, and current block placements even when Theme Editor is not yet reachable
+3. Shopify Admin / Theme Editor:
+   - reaching the real Shopify login page proves route reachability only
+   - a real merchant session is required to visually confirm Theme Editor block inventory
+
+Useful evidence:
+
+- local screenshots under `/tmp/shopify-verify/`
+- storefront screenshot proving Max launcher visibility
+- merchant bridge preview screenshot proving `Theme embed ready`, `ENABLED`, block count, and placement rows
+
+Operational rule:
+
+- record exactly which surface was verified:
+  - storefront
+  - merchant bridge preview
+  - Theme Editor
+- do not collapse those into one generic “Shopify UI verified” statement
+
+Where to look next:
+
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESTART_GUIDE.md`
+- `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESOURCES_MAP.md`
 
 ### 4.6 POC conversation lookup returns `404 Conversation not found`
 
@@ -518,6 +601,22 @@ curl -sS -b /tmp/platform.cookies \
   'https://ai-fabric-framework-production-324f.up.railway.app/api/deployments/dep-xxxxxxxx/hosted-verifications' | jq .
 ```
 
+Dispatch a deployment-scoped hosted verification:
+
+```bash
+curl -sS -b /tmp/platform.cookies \
+  -H 'Content-Type: application/json' \
+  --data '{"profile":"ecommerce","verifyWrite":false}' \
+  'https://ai-fabric-framework-production-324f.up.railway.app/api/deployments/dep-xxxxxxxx/hosted-verifications' | jq .
+```
+
+Release gate summary:
+
+```bash
+curl -sS -b /tmp/platform.cookies \
+  'https://ai-fabric-framework-production-324f.up.railway.app/api/verification-suites/release-gate' | jq .
+```
+
 Rerun release verification:
 
 ```bash
@@ -621,6 +720,8 @@ Use destructive rollout reset only after proving the issue is not:
 - if runtime admin routes fail with `401`, auth new model misalignment is a top suspect.
 - if runtime chat says authenticated but policy denies, check orchestration identity mapping and remote authz compatibility.
 - if runtime action succeeds but connector returns `400`, inspect auth-context forwarding into connector routing/templates.
+- if suite dispatch returns `CONFLICT`, a run is already active; poll that run instead of redispatching.
+- if the full suite is green except one canonical provider deployment and that deployment shows stale artifact URLs from an older version, refresh that rollout key before assuming the script is wrong.
 
 ---
 

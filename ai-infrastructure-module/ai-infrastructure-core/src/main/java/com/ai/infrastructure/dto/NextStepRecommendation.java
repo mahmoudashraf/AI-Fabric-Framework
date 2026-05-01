@@ -41,7 +41,7 @@ public class NextStepRecommendation {
 
     /**
      * Knowledge base vector space or entity type to search for this recommendation
-     * (e.g. 'faq', 'policies', 'test-product'). Specifies where the follow-up query should retrieve documents from.
+     * (e.g. 'faq', 'policies', 'reference'). Specifies where the follow-up query should retrieve documents from.
      */
     private String vectorSpace;
 }

@@ -36,16 +36,44 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes()).containsKey("navigator");
         assertThat(props.getModes()).containsKey("navigator_deep");
         assertThat(props.getModes().get("navigator_deep").getUseAdvancedRag()).isEqualTo(true);
+        assertThat(props.getModes().get("navigator_deep").getReadActionResolution()).isNotNull();
+        assertThat(props.getModes().get("navigator_deep").getReadActionResolution().getEnabled()).isTrue();
+        assertThat(props.getModes().get("navigator_deep").getReadActionResolution().getAllowedReadActions())
+            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
         assertThat(props.getModes()).containsKey("cart_assistant");
+        assertThat(props.getModes()).containsKey("resolver_assistant");
+        assertThat(props.getModes()).containsKey("thinker");
+        assertThat(props.getModes().get("resolver_assistant").getReadActionResolution()).isNotNull();
+        assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getEnabled()).isTrue();
+        assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getAllowedReadActions())
+            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
+        assertThat(props.getModes().get("thinker").getReadActionResolution()).isNotNull();
+        assertThat(props.getModes().get("thinker").getReadActionResolution().getPlanningMode())
+            .isEqualTo(OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE);
+        assertThat(props.getModes().get("thinker").getReadActionResolution().getAllowedReadActions())
+            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
+            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
 
-        // Commerce pack intentionally uses the default prompt bundle (no overlays) to avoid duplication.
-        assertThat(environment.getProperty("ai.prompts.bundle.overlays[0]")).isNull();
-        PromptBundleProperties promptBundle = new PromptBundleProperties();
+        assertThat(environment.getProperty("ai.prompts.bundle.overlays[0]")).isEqualTo("v1-commerce");
+        PromptBundleProperties promptBundle = Binder.get(environment)
+            .bind("ai.prompts.bundle", PromptBundleProperties.class)
+            .orElseGet(PromptBundleProperties::new);
 
         PromptTemplateResolver resolver = new PromptTemplateResolver(
             new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
             promptBundle
         );
-        assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1");
+        assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1-commerce");
+        assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
+            .contains("Use only the relevant commerce context above")
+            .contains("no safest option can be identified from the available live store data")
+            .contains("state that it is not available in the live store data")
+            .contains("treat the explicit availability fact as the stock-status source of truth")
+            .contains("Do not recommend checking another website, contacting support, contacting a vendor/manufacturer")
+            .contains("Do not add next-step or handoff sentences for missing live data")
+            .contains("Do not substitute price, availability, vendor, or product title as safety evidence")
+            .contains("Do not append generic closers");
     }
 }

@@ -32,7 +32,7 @@ public class PromptBundleProperties {
     /**
      * Overlay versions to try before {@link #baseVersion}.
      *
-     * <p>Example: ["v1-commerce", "v1-openai"]</p>
+     * <p>Example: ["v1-domain", "v1-provider"]</p>
      */
     private List<String> overlays = new ArrayList<>();
 
@@ -58,4 +58,3 @@ public class PromptBundleProperties {
         return List.copyOf(unique);
     }
 }
-

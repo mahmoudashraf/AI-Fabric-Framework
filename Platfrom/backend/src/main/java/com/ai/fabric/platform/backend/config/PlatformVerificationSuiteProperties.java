@@ -20,7 +20,8 @@ public record PlatformVerificationSuiteProperties(
     String shopifyBridgeBaseUrl,
     String shopifyShopDomain,
     String shopifyProductServiceRef,
-    String shopifyEmbeddedHost
+    String shopifyEmbeddedHost,
+    String partnerUiBaseUrl
 ) {
 
     private static final String DEFAULT_PLATFORM_UI_BASE_URL = "https://platform-ui-production-00e3.up.railway.app";
@@ -28,6 +29,7 @@ public record PlatformVerificationSuiteProperties(
     private static final String DEFAULT_SHOPIFY_BRIDGE_BASE_URL = "https://shopify-bridge-shopify-bridge-pr-production.up.railway.app";
     private static final String DEFAULT_SHOPIFY_SHOP_DOMAIN = "shopping-companion-test.myshopify.com";
     private static final String DEFAULT_SHOPIFY_PRODUCT_SERVICE_REF = "shopify-bridge-prod";
+    private static final String DEFAULT_PARTNER_UI_BASE_URL = "https://ai-fabric-framework-production-158d.up.railway.app";
 
     public PlatformVerificationSuiteProperties {
         timeout = timeout == null || timeout.isZero() || timeout.isNegative()
@@ -57,6 +59,7 @@ public record PlatformVerificationSuiteProperties(
         shopifyShopDomain = defaultValue(shopifyShopDomain, DEFAULT_SHOPIFY_SHOP_DOMAIN);
         shopifyProductServiceRef = defaultValue(shopifyProductServiceRef, DEFAULT_SHOPIFY_PRODUCT_SERVICE_REF);
         shopifyEmbeddedHost = normalize(shopifyEmbeddedHost);
+        partnerUiBaseUrl = defaultValue(partnerUiBaseUrl, DEFAULT_PARTNER_UI_BASE_URL);
     }
 
     private static String defaultValue(String value, String defaultValue) {

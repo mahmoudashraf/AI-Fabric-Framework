@@ -33,6 +33,29 @@ class PlatformManagedProductProvisioningServiceTest {
     @Test
     void reconcileShopifyBridgeCreatesRailwayResourcesAndStoresResolvedUrls() {
         PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setDetailsJson("""
+            {
+              "shopifyBridgeBilling": {
+                "mode": "SHOPIFY_APP_SUBSCRIPTION",
+                "starterEnabled": true,
+                "starterPlanName": "Loom Companion Starter",
+                "starterPlanHandle": "loom-companion-starter",
+                "starterAmount": "29.00",
+                "starterCurrencyCode": "USD",
+                "starterInterval": "EVERY_30_DAYS",
+                "starterTrialDays": 7,
+                "starterTest": true,
+                "eliteEnabled": true,
+                "elitePlanName": "Loom Companion Elite",
+                "elitePlanHandle": "loom-companion-elite",
+                "eliteAmount": "179.00",
+                "eliteCurrencyCode": "USD",
+                "eliteInterval": "EVERY_30_DAYS",
+                "eliteTrialDays": 0,
+                "eliteTest": true
+              }
+            }
+            """);
 
         PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
         PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
@@ -158,12 +181,29 @@ class PlatformManagedProductProvisioningServiceTest {
                 "SHOPIFY_BRIDGE_ADMIN_API_VERSION",
                 "SHOPIFY_BRIDGE_SHOPIFY_API_KEY",
                 "SHOPIFY_BRIDGE_SHOPIFY_API_SECRET",
-                "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET"
+                "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET",
+                "SHOPIFY_BRIDGE_BILLING_MODE",
+                "SHOPIFY_BRIDGE_BILLING_STARTER_ENABLED",
+                "SHOPIFY_BRIDGE_BILLING_ELITE_ENABLED",
+                "SHOPIFY_BRIDGE_BILLING_ELITE_AMOUNT",
+                "SHOPIFY_BRIDGE_BILLING_TEST"
             );
         assertThat(envCaptor.getValue())
             .filteredOn(input -> "SHOPIFY_BRIDGE_PUBLIC_BASE_URL".equals(input.name()))
             .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
             .containsExactly("https://shopify-bridge-prod.up.railway.app");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_BILLING_MODE".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("SHOPIFY_APP_SUBSCRIPTION");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_BILLING_ELITE_ENABLED".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("true");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_BILLING_ELITE_AMOUNT".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("179.00");
     }
 
     @Test
@@ -482,7 +522,8 @@ class PlatformManagedProductProvisioningServiceTest {
             null,
             null,
             0,
-            0
+            0,
+            null
         );
     }
 }

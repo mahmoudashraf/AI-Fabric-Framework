@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { RefObject } from "react";
+import type { MaxModeMode } from "@/constants";
 
 type ToastFn = (opts: any) => void;
 
@@ -18,7 +19,7 @@ export function useSearchControls({
   setIsAISearchOpen: (open: boolean) => void;
   setSearchCategory: (category: string | null) => void;
   setCurrentPosition: (pos: "landing" | "catalog" | "search" | "cart") => void;
-  setCurrentMode: (mode: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => void;
+  setCurrentMode: (mode: MaxModeMode) => void;
   chatInputRef: RefObject<HTMLTextAreaElement>;
   toast: ToastFn;
 }) {

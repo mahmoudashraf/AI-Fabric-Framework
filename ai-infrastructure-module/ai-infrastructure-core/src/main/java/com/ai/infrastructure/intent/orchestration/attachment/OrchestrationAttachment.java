@@ -22,7 +22,7 @@ public class OrchestrationAttachment {
     /**
      * Optional client-provided attachment identifier.
      *
-     * <p>When present, this should be a stable identifier for an entity (e.g., product id) that can drive actions.
+     * <p>When present, this should be a stable identifier for an entity that can drive actions.
      * When absent, the attachment can still provide grounding via {@link #contentText} and/or {@link #metadata}.</p>
      */
     private String id;

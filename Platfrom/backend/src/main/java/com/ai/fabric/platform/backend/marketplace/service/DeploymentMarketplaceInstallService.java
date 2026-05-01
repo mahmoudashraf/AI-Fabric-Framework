@@ -92,6 +92,14 @@ public class DeploymentMarketplaceInstallService {
 
     public List<DeploymentMarketplaceInstallSummary> listInstalls(String deploymentId) {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
+        return summarizeInstalls(deployment);
+    }
+
+    public List<DeploymentMarketplaceInstallSummary> listInstallsForTrustedCaller(DeploymentEntity deployment) {
+        return summarizeInstalls(deployment);
+    }
+
+    private List<DeploymentMarketplaceInstallSummary> summarizeInstalls(DeploymentEntity deployment) {
         DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
         DeploymentVersionEntity activeVersion = resolveActiveVersion(deployment);
         return installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()).stream()
@@ -113,6 +121,18 @@ public class DeploymentMarketplaceInstallService {
     public DeploymentMarketplaceInstallSummary createInstall(String deploymentId,
                                                              CreateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return createInstallForDeployment(deployment, request, false);
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary createInstallForTrustedCaller(DeploymentEntity deployment,
+                                                                            CreateDeploymentMarketplaceInstallRequest request) {
+        return createInstallForDeployment(deployment, request, true);
+    }
+
+    private DeploymentMarketplaceInstallSummary createInstallForDeployment(DeploymentEntity deployment,
+                                                                          CreateDeploymentMarketplaceInstallRequest request,
+                                                                          boolean trustedCaller) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(request.pluginId());
         MarketplacePluginVersionEntity version = marketplaceCatalogService.requirePluginVersionEntity(
             plugin.getId(),
@@ -167,7 +187,7 @@ public class DeploymentMarketplaceInstallService {
                 "status", install.getStatus()
             )
         );
-        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
+        syncDeploymentDraft(deployment.getId(), trustedCaller);
 
         return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
     }
@@ -177,6 +197,20 @@ public class DeploymentMarketplaceInstallService {
                                                              String installId,
                                                              UpdateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return updateInstallForDeployment(deployment, installId, request, false);
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary updateInstallForTrustedCaller(DeploymentEntity deployment,
+                                                                            String installId,
+                                                                            UpdateDeploymentMarketplaceInstallRequest request) {
+        return updateInstallForDeployment(deployment, installId, request, true);
+    }
+
+    private DeploymentMarketplaceInstallSummary updateInstallForDeployment(DeploymentEntity deployment,
+                                                                          String installId,
+                                                                          UpdateDeploymentMarketplaceInstallRequest request,
+                                                                          boolean trustedCaller) {
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = resolveUpdatedVersion(plugin, install, request.pluginVersion());
@@ -221,7 +255,7 @@ public class DeploymentMarketplaceInstallService {
                 "status", install.getStatus()
             )
         );
-        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
+        syncDeploymentDraft(deployment.getId(), trustedCaller);
 
         return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
     }
@@ -229,6 +263,15 @@ public class DeploymentMarketplaceInstallService {
     @Transactional
     public void deleteInstall(String deploymentId, String installId) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        deleteInstallForDeployment(deployment, installId, false);
+    }
+
+    @Transactional
+    public void deleteInstallForTrustedCaller(DeploymentEntity deployment, String installId) {
+        deleteInstallForDeployment(deployment, installId, true);
+    }
+
+    private void deleteInstallForDeployment(DeploymentEntity deployment, String installId, boolean trustedCaller) {
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         DeploymentVersionEntity activeVersion = resolveActiveVersion(deployment);
         if (installPresentInVersion(activeVersion, install.getId())) {
@@ -259,7 +302,15 @@ public class DeploymentMarketplaceInstallService {
                 )
             );
         }
-        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
+        syncDeploymentDraft(deployment.getId(), trustedCaller);
+    }
+
+    private void syncDeploymentDraft(String deploymentId, boolean trustedCaller) {
+        if (trustedCaller) {
+            deploymentMarketplaceDraftCompilerService.syncDeploymentDraftForTrustedCaller(deploymentId);
+        } else {
+            deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deploymentId);
+        }
     }
 
     @Transactional

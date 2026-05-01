@@ -175,7 +175,7 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   vectorStoragePosture: 'EMBEDDED',
   runtimeProfile: 'runtime-managed',
   connectorProfile: 'connector-hosted',
-  enableFallback: true,
+  enableFallback: false,
   orchestrationLlmProvider: '',
   orchestrationModel: '',
   orchestrationTemperature: '',

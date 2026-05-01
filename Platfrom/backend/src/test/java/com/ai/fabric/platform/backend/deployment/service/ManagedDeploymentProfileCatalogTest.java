@@ -40,4 +40,12 @@ class ManagedDeploymentProfileCatalogTest {
         assertThat(ManagedDeploymentProfileCatalog.recommendedOrchestrationModel("anthropic"))
             .isEqualTo("claude-3-haiku-20240307");
     }
+
+    @Test
+    void providerFallbackIsDisabledByDefaultForManagedRuntimeMemoryLimits() throws Exception {
+        assertThat(ManagedDeploymentProfileCatalog.providerEnableFallback(objectMapper.readTree("{}"))).isFalse();
+        assertThat(ManagedDeploymentProfileCatalog.providerEnableFallback(objectMapper.readTree("""
+            {"enableFallback":true}
+            """))).isTrue();
+    }
 }

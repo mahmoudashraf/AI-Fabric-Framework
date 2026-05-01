@@ -4,12 +4,23 @@ import com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageSummary;
 import com.ai.fabric.product.shopify.bridge.analytics.service.ShopifyBridgeUsageService;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalResponse;
+import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingApprovalRequest;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationEventSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSelectedEntitiesRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreVectorizationSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateStoreVectorizationPolicyRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSourceSettingsRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateSupportProfileRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpdateWidgetSettingsRequest;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontPreviewResponse;
 import com.ai.fabric.product.shopify.bridge.playground.service.ShopifyMerchantPlaygroundService;
@@ -18,8 +29,11 @@ import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscrip
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
@@ -81,6 +95,11 @@ public class ShopifyMerchantController {
         return merchantStoreService.vectorization(requireMerchant(authentication));
     }
 
+    @GetMapping("/store/provisioning")
+    public ShopifyBridgeProvisioningStatusSummary provisioning(Authentication authentication) {
+        return merchantStoreService.provisioningStatus(requireMerchant(authentication));
+    }
+
     @PostMapping("/store/vectorization/reconcile")
     public ShopifyBridgeStoreVectorizationSummary reconcileVectorization(Authentication authentication) {
         return merchantStoreService.reconcileVectorization(requireMerchant(authentication));
@@ -89,6 +108,53 @@ public class ShopifyMerchantController {
     @PostMapping("/store/vectorization/vectorize-now")
     public ShopifyBridgeStoreVectorizationSummary vectorizeNow(Authentication authentication) {
         return merchantStoreService.vectorizeNow(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/vectorization/index-all")
+    public ShopifyBridgeStoreVectorizationSummary indexAllEnabledData(Authentication authentication) {
+        return merchantStoreService.indexAllEnabledData(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/vectorization/reindex-all")
+    public ShopifyBridgeStoreVectorizationSummary reindexAllEnabledData(Authentication authentication) {
+        return merchantStoreService.reindexAllEnabledData(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/vectorization/reindex-selected")
+    public ShopifyBridgeStoreVectorizationSummary reindexSelected(Authentication authentication,
+                                                                  @RequestBody(required = false) ShopifyBridgeStoreVectorizationSelectedEntitiesRequest request) {
+        return merchantStoreService.reindexSelectedEntityTypes(
+            requireMerchant(authentication),
+            request == null ? new ShopifyBridgeStoreVectorizationSelectedEntitiesRequest(null) : request
+        );
+    }
+
+    @PutMapping("/store/vectorization/policy")
+    public ShopifyBridgeStoreVectorizationSummary updateVectorizationPolicy(Authentication authentication,
+                                                                            @RequestBody(required = false) ShopifyBridgeUpdateStoreVectorizationPolicyRequest request) {
+        return merchantStoreService.updateVectorizationPolicy(
+            requireMerchant(authentication),
+            request == null ? new ShopifyBridgeUpdateStoreVectorizationPolicyRequest(null, null) : request
+        );
+    }
+
+    @GetMapping("/store/vectorization/events")
+    public java.util.List<ShopifyBridgeStoreVectorizationEventSummary> vectorizationEvents(
+        Authentication authentication,
+        @RequestParam(name = "limit", defaultValue = "10") int limit
+    ) {
+        return merchantStoreService.vectorizationEvents(requireMerchant(authentication), limit);
+    }
+
+    @PostMapping("/store/vectorization/events/{eventId}/replay")
+    public ShopifyBridgeStoreVectorizationSummary replayVectorizationEvent(Authentication authentication,
+                                                                           @PathVariable String eventId) {
+        return merchantStoreService.replayVectorizationEvent(requireMerchant(authentication), eventId);
+    }
+
+    @PostMapping("/store/vectorization/retry-last-failed-auto-run")
+    public ShopifyBridgeStoreVectorizationSummary retryLastFailedAutoRun(Authentication authentication) {
+        return merchantStoreService.retryLastFailedAutoRun(requireMerchant(authentication));
     }
 
     @GetMapping("/store/storefront-preview")
@@ -106,10 +172,65 @@ public class ShopifyMerchantController {
         return merchantStoreService.billingSummary(requireMerchant(authentication));
     }
 
+    @GetMapping("/store/partner-access/requests")
+    public java.util.List<ShopifyBridgePartnerAccessRequestSummary> partnerAccessRequests(Authentication authentication) {
+        return merchantStoreService.listPartnerAccessRequests(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/partner-access/requests/{requestId}/approve")
+    public ShopifyBridgePartnerAccessDecisionSummary approvePartnerAccessRequest(
+        Authentication authentication,
+        @PathVariable String requestId,
+        @RequestBody(required = false) ShopifyBridgePartnerAccessDecisionRequest request
+    ) {
+        return merchantStoreService.approvePartnerAccessRequest(requireMerchant(authentication), requestId, request);
+    }
+
+    @PostMapping("/store/partner-access/requests/{requestId}/deny")
+    public ShopifyBridgePartnerAccessDecisionSummary denyPartnerAccessRequest(
+        Authentication authentication,
+        @PathVariable String requestId,
+        @RequestBody(required = false) ShopifyBridgePartnerAccessDecisionRequest request
+    ) {
+        return merchantStoreService.denyPartnerAccessRequest(requireMerchant(authentication), requestId, request);
+    }
+
+    @PostMapping("/store/partner-access/requests/{requestId}/revoke")
+    public ShopifyBridgePartnerAccessDecisionSummary revokePartnerAccessRequest(
+        Authentication authentication,
+        @PathVariable String requestId,
+        @RequestBody(required = false) ShopifyBridgePartnerAccessDecisionRequest request
+    ) {
+        return merchantStoreService.revokePartnerAccessRequest(requireMerchant(authentication), requestId, request);
+    }
+
+    @GetMapping("/store/support-readiness")
+    public ShopifyBridgeSupportReadinessSummary supportReadiness(Authentication authentication) {
+        return merchantStoreService.supportReadiness(requireMerchant(authentication));
+    }
+
+    @PostMapping("/store/support-profile")
+    public ShopifyBridgeSupportReadinessSummary updateSupportProfile(Authentication authentication,
+                                                                    @RequestBody(required = false) ShopifyBridgeUpdateSupportProfileRequest request) {
+        return merchantStoreService.updateSupportProfile(
+            requireMerchant(authentication),
+            request == null ? new ShopifyBridgeUpdateSupportProfileRequest(null, null, null, null, null) : request
+        );
+    }
+
+    @GetMapping("/store/actions/recent")
+    public java.util.List<ShopifyBridgeGovernedActionAuditSummary> recentGovernedActions(
+        Authentication authentication,
+        @RequestParam(name = "limit", defaultValue = "10") int limit
+    ) {
+        return merchantStoreService.recentGovernedActions(requireMerchant(authentication), limit);
+    }
+
     @PostMapping("/store/billing/approval")
     public ShopifyBridgeBillingApprovalResponse billingApproval(Authentication authentication,
-                                                                @RequestHeader("Authorization") String authorizationHeader) {
-        return merchantStoreService.requestBillingApproval(requireMerchant(authentication), authorizationHeader);
+                                                                @RequestHeader("Authorization") String authorizationHeader,
+                                                                @RequestBody(required = false) ShopifyBridgeBillingApprovalRequest request) {
+        return merchantStoreService.requestBillingApproval(requireMerchant(authentication), authorizationHeader, request);
     }
 
     @GetMapping("/store/webhook-subscriptions")
@@ -122,7 +243,7 @@ public class ShopifyMerchantController {
                                                           @RequestBody(required = false) ShopifyBridgeUpdateSourceSettingsRequest request) {
         return merchantStoreService.updateSourceSettings(
             requireMerchant(authentication),
-            request == null ? new ShopifyBridgeUpdateSourceSettingsRequest(null, null, null, null) : request
+            request == null ? new ShopifyBridgeUpdateSourceSettingsRequest(null, null, null, null, null, null) : request
         );
     }
 
@@ -131,7 +252,7 @@ public class ShopifyMerchantController {
                                                           @RequestBody(required = false) ShopifyBridgeUpdateWidgetSettingsRequest request) {
         return merchantStoreService.updateWidgetSettings(
             requireMerchant(authentication),
-            request == null ? new ShopifyBridgeUpdateWidgetSettingsRequest(null, null) : request
+            request == null ? new ShopifyBridgeUpdateWidgetSettingsRequest(null, null, null, null, null, null, null, null) : request
         );
     }
 

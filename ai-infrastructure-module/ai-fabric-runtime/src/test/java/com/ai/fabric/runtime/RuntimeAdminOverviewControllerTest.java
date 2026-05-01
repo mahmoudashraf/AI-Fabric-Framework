@@ -138,6 +138,7 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("supportsVectorScan", true);
         assertThat(body).containsEntry("actionsCount", 1L);
         assertThat(body).containsEntry("groundingEligibleActionsCount", 0L);
+        assertThat(body).containsEntry("readActionResolutionEligibleActionsCount", 0L);
         assertThat(body).containsEntry("actionsWithPresentationHintsCount", 1L);
         assertThat(body).containsEntry("actionsWithBuiltInModuleMappingsCount", 1L);
         assertThat(body).containsEntry("actionsWithBuiltInCardMappingsCount", 1L);

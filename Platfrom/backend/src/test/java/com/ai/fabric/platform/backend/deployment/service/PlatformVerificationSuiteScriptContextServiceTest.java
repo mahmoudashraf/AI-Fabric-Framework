@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,7 +70,8 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                 "https://bridge.example.test",
                 "shop.example.test",
                 "shopify-bridge-prod",
-                null
+                null,
+                "https://partner-ui.example.test"
             ),
             new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
             new PlatformAuthProperties(
@@ -98,18 +100,16 @@ class PlatformVerificationSuiteScriptContextServiceTest {
         assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
         assertThat(context.environment()).containsEntry("PLATFORM_UI_BASE_URL", "https://platform-ui.example.test");
         assertThat(context.environment()).containsEntry("ADMIN_TARGET_DEPLOYMENT_ID", "dep-ecommerce");
+        assertThat(context.environment()).containsEntry("INFERENCE_SERVICE_REF", "openai-cloud-orchestration");
         assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
     }
 
     @Test
-    void providerVerificationRequiresWeaviateHostAndSecrets() {
+    void buildsReleaseBlockingQdrantProviderVerificationContext() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
-        when(secretService.resolveSecret("PINECONE_API_KEY")).thenReturn("pinecone");
         when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-mgmt");
         when(secretService.resolveSecret("QDRANT_API_KEY")).thenReturn("qdrant");
-        when(secretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zilliz");
-        when(secretService.resolveSecret("WEAVIATE_API_KEY")).thenReturn(null);
 
         PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
             new PlatformVerificationSuiteProperties(
@@ -127,7 +127,8 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                 "https://bridge.example.test",
                 "shop.example.test",
                 "shopify-bridge-prod",
-                null
+                null,
+                "https://partner-ui.example.test"
             ),
             new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
             new PlatformAuthProperties(
@@ -150,19 +151,37 @@ class PlatformVerificationSuiteScriptContextServiceTest {
             rolloutService
         );
 
-        assertThatThrownBy(() -> service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION))
-            .isInstanceOf(ResponseStatusException.class)
-            .hasMessageContaining("WEAVIATE_API_KEY");
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-managed-vector-providers.sh");
+        assertThat(context.environment())
+            .containsEntry("RUN_PINECONE", "false")
+            .containsEntry("RUN_QDRANT", "true")
+            .containsEntry("RUN_ZILLIZ", "false")
+            .containsEntry("RUN_WEAVIATE", "false")
+            .containsEntry("QDRANT_EXISTING_CLUSTER_NAME", "cluster")
+            .containsEntry("QDRANT_CREATE_EPHEMERAL_DB_KEY", "false")
+            .containsEntry("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false");
+        assertThat(context.environment()).doesNotContainKey("WEAVIATE_HOST");
+        assertThat(context.secretEnvironment())
+            .containsEntry("QDRANT_CLOUD_MANAGEMENT_API_KEY", "qdrant-mgmt")
+            .containsEntry("QDRANT_API_KEY", "qdrant");
+        assertThat(context.secretEnvironment())
+            .doesNotContainKeys("PINECONE_API_KEY", "ZILLIZ_CLOUD_API_KEY", "WEAVIATE_API_KEY");
     }
 
     @Test
-    void buildsPlatformCodeRegressionContextWithExtendedTimeout() {
+    void buildMergesShopifyEnvironmentOverrides() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
 
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+
         PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
             new PlatformVerificationSuiteProperties(
-                Duration.ofMinutes(180),
+                Duration.ofMinutes(60),
                 Duration.ofMinutes(12),
                 Duration.ofMinutes(20),
                 Duration.ofMinutes(75),
@@ -176,7 +195,8 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                 "https://bridge.example.test",
                 "shop.example.test",
                 "shopify-bridge-prod",
-                null
+                null,
+                "https://partner-ui.example.test"
             ),
             new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
             new PlatformAuthProperties(
@@ -199,12 +219,301 @@ class PlatformVerificationSuiteScriptContextServiceTest {
             rolloutService
         );
 
-        PlatformVerificationScriptContextSummary context = service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_PLATFORM_CODE_REGRESSION);
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION,
+            Map.of(
+                "EXPECT_STOREFRONT_READY", "false",
+                "EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT"
+            )
+        );
 
-        assertThat(context.scriptPath()).isEqualTo("scripts/verify-platform-code-regression.sh");
-        assertThat(context.secretEnvironment()).isEmpty();
-        assertThat(context.environment()).containsEntry("BACKEND_TESTS", "true");
-        assertThat(context.timeoutOverride()).isEqualTo(Duration.ofMinutes(75));
-        assertThat(context.maxOutputCharactersOverride()).isEqualTo(80_000);
+        assertThat(context.environment()).containsEntry("SHOPIFY_BRIDGE_BASE_URL", "https://bridge.example.test");
+        assertThat(context.environment()).containsEntry("SHOP_DOMAIN", "shop.example.test");
+        assertThat(context.environment()).containsEntry("EXPECT_STOREFRONT_READY", "false");
+        assertThat(context.environment()).containsEntry("EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT");
     }
+
+    @Test
+    void buildsShopifyFirstProductReadinessAuditContext() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+        when(secretService.resolveSecret("SHOPIFY_BRIDGE_ADMIN_API_KEY")).thenReturn("bridge-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-shopify-first-product-readiness-audit.sh");
+        assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
+        assertThat(context.environment()).containsEntry("SHOPIFY_BRIDGE_BASE_URL", "https://bridge.example.test");
+        assertThat(context.environment()).containsEntry("SHOP_DOMAIN", "shop.example.test");
+        assertThat(context.environment()).containsEntry("PRODUCT_SERVICE_REF", "shopify-bridge-prod");
+        assertThat(context.environment()).containsEntry("READINESS_AUDIT_LOCAL_GATES", "false");
+        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
+        assertThat(context.secretEnvironment()).containsEntry("SHOPIFY_BRIDGE_ADMIN_API_KEY", "bridge-key");
+    }
+
+    @Test
+    void buildsPartnerEnablementStrictLiveContext() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PARTNER_SUPABASE_JWT")).thenReturn("partner-jwt");
+        when(secretService.resolveSecret("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn("product-service-key");
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-partner-enablement-live.sh");
+        assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
+        assertThat(context.environment()).containsEntry("PLATFORM_UI_BASE_URL", "https://platform-ui.example.test");
+        assertThat(context.environment()).containsEntry("PARTNER_UI_BASE_URL", "https://partner-ui.example.test");
+        assertThat(context.environment()).containsEntry("PARTNER_LIVE_STRICT", "true");
+        assertThat(context.environment()).containsEntry("PARTNER_LIVE_SHOP_DOMAIN", "shop.example.test");
+        assertThat(context.secretEnvironment()).containsEntry("PARTNER_SUPABASE_JWT", "partner-jwt");
+        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
+    }
+
+    @Test
+    void partnerEnablementContextCannotDisableStrictModeWithOverrides() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PARTNER_SUPABASE_JWT")).thenReturn("partner-jwt");
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION,
+            Map.of("PARTNER_LIVE_STRICT", "false")
+        );
+
+        assertThat(context.environment()).containsEntry("PARTNER_LIVE_STRICT", "true");
+    }
+
+    @Test
+    void partnerEnablementContextRequiresPartnerJwtSecret() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        assertThatThrownBy(() -> service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("PARTNER_SUPABASE_JWT");
+    }
+
+    @Test
+    void partnerEnablementContextRequiresPlatformApiKeyForApprovalProof() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PARTNER_SUPABASE_JWT")).thenReturn("partner-jwt");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        assertThatThrownBy(() -> service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_PARTNER_ENABLEMENT_VERIFICATION))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("PLATFORM_ADMIN_API_KEY");
+    }
+
 }

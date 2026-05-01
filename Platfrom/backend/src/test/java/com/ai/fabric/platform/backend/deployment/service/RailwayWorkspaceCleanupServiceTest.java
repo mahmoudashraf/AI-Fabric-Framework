@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.deployment.model.ExecuteRailwayWorkspaceCl
 import com.ai.fabric.platform.backend.deployment.model.RailwayWorkspaceCleanupSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRegistrationEntity;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerRegistrationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +33,7 @@ class RailwayWorkspaceCleanupServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository = mock(VectorizationRunnerRegistrationRepository.class);
+        PlatformManagedProductServiceRepository platformManagedProductServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         RailwayWorkspaceCleanupService service = new RailwayWorkspaceCleanupService(
@@ -39,6 +42,7 @@ class RailwayWorkspaceCleanupServiceTest {
             deploymentRepository,
             deploymentReleaseRepository,
             vectorizationRunnerRegistrationRepository,
+            platformManagedProductServiceRepository,
             platformAuditService,
             new ObjectMapper()
         );
@@ -111,6 +115,7 @@ class RailwayWorkspaceCleanupServiceTest {
         activeRunnerRegistration.setRunnerInstanceId("vectorization-runner-dep-owned");
         activeRunnerRegistration.setTokenExpiresAt(Instant.now().plus(Duration.ofDays(1)));
         when(vectorizationRunnerRegistrationRepository.findAll()).thenReturn(List.of(activeRunnerRegistration));
+        when(platformManagedProductServiceRepository.findAll()).thenReturn(List.of());
 
         RailwayWorkspaceCleanupSummary summary = service.getSummary();
 
@@ -140,6 +145,7 @@ class RailwayWorkspaceCleanupServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository = mock(VectorizationRunnerRegistrationRepository.class);
+        PlatformManagedProductServiceRepository platformManagedProductServiceRepository = mock(PlatformManagedProductServiceRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         RailwayWorkspaceCleanupService service = new RailwayWorkspaceCleanupService(
@@ -148,6 +154,7 @@ class RailwayWorkspaceCleanupServiceTest {
             deploymentRepository,
             deploymentReleaseRepository,
             vectorizationRunnerRegistrationRepository,
+            platformManagedProductServiceRepository,
             platformAuditService,
             new ObjectMapper()
         );
@@ -203,6 +210,7 @@ class RailwayWorkspaceCleanupServiceTest {
         expiredRunnerRegistration.setRunnerInstanceId("vectorization-runner-dep-owned");
         expiredRunnerRegistration.setTokenExpiresAt(Instant.now().minus(Duration.ofHours(1)));
         when(vectorizationRunnerRegistrationRepository.findAll()).thenReturn(List.of(expiredRunnerRegistration));
+        when(platformManagedProductServiceRepository.findAll()).thenReturn(List.of());
 
         RailwayWorkspaceCleanupSummary summary = service.getSummary();
 
@@ -212,6 +220,61 @@ class RailwayWorkspaceCleanupServiceTest {
         assertThat(summary.projects()).singleElement()
             .satisfies(project -> assertThat(project.orphanServices()).extracting("serviceName")
                 .containsExactly("vectorization-runner-dep-owned"));
+    }
+
+    @Test
+    void summaryProtectsManagedProductServiceRailwayBindings() {
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository = mock(VectorizationRunnerRegistrationRepository.class);
+        PlatformManagedProductServiceRepository platformManagedProductServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        RailwayWorkspaceCleanupService service = new RailwayWorkspaceCleanupService(
+            provisioningProperties(),
+            railwayGraphqlClient,
+            deploymentRepository,
+            deploymentReleaseRepository,
+            vectorizationRunnerRegistrationRepository,
+            platformManagedProductServiceRepository,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        PlatformManagedProductServiceEntity managedProductService = new PlatformManagedProductServiceEntity();
+        managedProductService.setServiceRef("shopify-bridge-prod");
+        managedProductService.setDisplayName("Shopify Bridge Production");
+        managedProductService.setEnvironmentScope("production");
+        managedProductService.setRailwayProjectId("proj-product-service");
+        managedProductService.setRailwayServiceId("svc-product-service");
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+        when(vectorizationRunnerRegistrationRepository.findAll()).thenReturn(List.of());
+        when(platformManagedProductServiceRepository.findAll()).thenReturn(List.of(managedProductService));
+        when(railwayGraphqlClient.listAccessibleWorkspaces()).thenReturn(List.of(
+            new RailwayGraphqlClient.RailwayWorkspaceSummary("workspace-1", "AI Fabric")
+        ));
+        when(railwayGraphqlClient.listProjectsInWorkspace("workspace-1")).thenReturn(List.of(
+            new RailwayGraphqlClient.RailwayProjectSnapshot(
+                "proj-product-service",
+                "loom-product-production-shopify-",
+                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-prod", "production")),
+                List.of(new RailwayGraphqlClient.RailwayServiceSummary("svc-product-service", "shopify-bridge"))
+            )
+        ));
+        when(railwayGraphqlClient.getServiceSource("svc-product-service")).thenReturn(new RailwayGraphqlClient.RailwayServiceSourceSummary(
+            "svc-product-service",
+            "shopify-bridge",
+            List.of(new RailwayGraphqlClient.RailwayDeploymentTriggerSummary("tr-prod", "svc-product-service", "mahmoudashraf/AI-Fabric-Framework", "main", "github"))
+        ));
+
+        RailwayWorkspaceCleanupSummary summary = service.getSummary();
+
+        assertThat(summary.available()).isTrue();
+        assertThat(summary.orphanProjectCount()).isZero();
+        assertThat(summary.orphanServiceCount()).isZero();
+        assertThat(summary.projects()).isEmpty();
     }
 
     private PlatformProvisioningProperties provisioningProperties() {
