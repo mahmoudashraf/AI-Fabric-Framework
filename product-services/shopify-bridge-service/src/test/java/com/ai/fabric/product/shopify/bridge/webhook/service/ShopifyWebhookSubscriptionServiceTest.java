@@ -5,6 +5,7 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
@@ -13,7 +14,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ShopifyWebhookSubscriptionServiceTest {
@@ -41,19 +44,20 @@ class ShopifyWebhookSubscriptionServiceTest {
     }
 
     @Test
-    void inspectContentSubscriptionsMarksInaccessibleTopicsAsBlocked() {
+    void inspectContentSubscriptionsSkipsMetaobjectWebhookDefinitionsWhenDefinitionsAreInaccessible() {
         ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
         when(client.execute(anyString(), anyString(), anyString(), anyMap()))
             .thenAnswer(invocation -> {
+                String query = invocation.getArgument(2);
+                if (query.contains("metaobjectDefinitions")) {
+                    return Map.of(
+                        "errors",
+                        List.of(Map.of("message", "Access denied for metaobjectDefinitions."))
+                    );
+                }
                 @SuppressWarnings("unchecked")
                 List<String> topics = (List<String>) ((Map<String, Object>) invocation.getArgument(3)).get("topics");
                 String topic = topics.getFirst();
-                if (topic.startsWith("METAOBJECTS_")) {
-                    return Map.of(
-                        "errors",
-                        List.of(Map.of("message", "topics argument cannot contain any topics to which you do not have access."))
-                    );
-                }
                 if ("APP_SCOPES_UPDATE".equals(topic)) {
                     return listResponse(topic, "https://bridge.example.com/api/webhooks/shopify", "loom-app-scopes-update");
                 }
@@ -67,33 +71,65 @@ class ShopifyWebhookSubscriptionServiceTest {
         assertThat(summary.status()).isEqualTo("DEGRADED");
         assertThat(summary.topics())
             .extracting(ShopifyWebhookSubscriptionTopicStatusSummary::topic, ShopifyWebhookSubscriptionTopicStatusSummary::status)
-            .contains(
-                org.assertj.core.groups.Tuple.tuple("APP_SCOPES_UPDATE", "READY"),
-                org.assertj.core.groups.Tuple.tuple("METAOBJECTS_CREATE", "BLOCKED"),
-                org.assertj.core.groups.Tuple.tuple("METAOBJECTS_UPDATE", "BLOCKED"),
-                org.assertj.core.groups.Tuple.tuple("METAOBJECTS_DELETE", "BLOCKED")
-            );
+            .contains(org.assertj.core.groups.Tuple.tuple("APP_SCOPES_UPDATE", "READY"));
+        assertThat(summary.topics())
+            .extracting(ShopifyWebhookSubscriptionTopicStatusSummary::topic)
+            .doesNotContain("METAOBJECTS_CREATE", "METAOBJECTS_UPDATE", "METAOBJECTS_DELETE");
     }
 
     @Test
-    void reconcileContentSubscriptionsSkipsInaccessibleTopics() {
+    void reconcileContentSubscriptionsCreatesMetaobjectSubscriptionsWithDefinitionTypeFilters() {
         ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
         when(client.execute(anyString(), anyString(), anyString(), anyMap()))
             .thenAnswer(invocation -> {
-                @SuppressWarnings("unchecked")
-                List<String> topics = (List<String>) ((Map<String, Object>) invocation.getArgument(3)).get("topics");
-                String topic = topics.getFirst();
-                if (topic.startsWith("METAOBJECTS_")) {
-                    return Map.of(
-                        "errors",
-                        List.of(Map.of("message", "topics argument cannot contain any topics to which you do not have access."))
-                    );
+                String query = invocation.getArgument(2);
+                if (query.contains("metaobjectDefinitions")) {
+                    return definitionResponse("lookbook", 2);
                 }
-                return listResponse(
-                    topic,
-                    "https://bridge.example.com/api/webhooks/shopify",
-                    expectedName(topic)
-                );
+                if (query.contains("webhookSubscriptionCreate")) {
+                    return createResponse();
+                }
+                return emptyListResponse();
+            });
+
+        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
+
+        assertThatCode(() -> service.reconcileContentSubscriptions("demo.myshopify.com", "token"))
+            .doesNotThrowAnyException();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(client, atLeastOnce()).execute(anyString(), anyString(), anyString(), variablesCaptor.capture());
+
+        assertThat(variablesCaptor.getAllValues())
+            .filteredOn(variables -> "METAOBJECTS_CREATE".equals(variables.get("topic")))
+            .anySatisfy(variables -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> webhookSubscription = (Map<String, Object>) variables.get("webhookSubscription");
+                assertThat(webhookSubscription)
+                    .containsEntry("filter", "type:lookbook")
+                    .containsEntry("name", "loom-metaobjects-create-lookbook");
+            });
+    }
+
+    @Test
+    void reconcileContentSubscriptionsDoesNotBlockUpgradeWhenShopifyRejectsMetaobjectFilter() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        when(client.execute(anyString(), anyString(), anyString(), anyMap()))
+            .thenAnswer(invocation -> {
+                String query = invocation.getArgument(2);
+                if (query.contains("metaobjectDefinitions")) {
+                    return definitionResponse("$app:entry", 1);
+                }
+                if (query.contains("webhookSubscriptionCreate")) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> variables = invocation.getArgument(3);
+                    if (String.valueOf(variables.get("topic")).startsWith("METAOBJECTS_")) {
+                        return userErrorCreateResponse("The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.");
+                    }
+                    return createResponse();
+                }
+                return emptyListResponse();
             });
 
         ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
@@ -132,6 +168,70 @@ class ShopifyWebhookSubscriptionServiceTest {
         );
     }
 
+    private static Map<String, Object> createResponse() {
+        return Map.of(
+            "data",
+            Map.of(
+                "webhookSubscriptionCreate",
+                Map.of(
+                    "webhookSubscription",
+                    Map.of(
+                        "id", "gid://shopify/WebhookSubscription/created",
+                        "topic", "PRODUCTS_UPDATE",
+                        "uri", "https://bridge.example.com/api/webhooks/shopify",
+                        "name", "created"
+                    ),
+                    "userErrors",
+                    List.of()
+                )
+            )
+        );
+    }
+
+    private static Map<String, Object> userErrorCreateResponse(String message) {
+        return Map.of(
+            "data",
+            Map.of(
+                "webhookSubscriptionCreate",
+                Map.of(
+                    "webhookSubscription",
+                    Map.of(),
+                    "userErrors",
+                    List.of(Map.of("message", message))
+                )
+            )
+        );
+    }
+
+    private static Map<String, Object> definitionResponse(String type, int metaobjectsCount) {
+        return Map.of(
+            "data",
+            Map.of(
+                "metaobjectDefinitions",
+                Map.of(
+                    "pageInfo",
+                    Map.of("hasNextPage", false, "endCursor", ""),
+                    "edges",
+                    List.of(
+                        Map.of(
+                            "node",
+                            Map.of(
+                                "id", "gid://shopify/MetaobjectDefinition/" + type,
+                                "type", type,
+                                "name", type,
+                                "description", "",
+                                "displayNameKey", "",
+                                "metaobjectsCount", metaobjectsCount,
+                                "access", Map.of("admin", "MERCHANT_READ_WRITE", "storefront", "PUBLIC_READ"),
+                                "fieldDefinitions", List.of()
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     private static Map<String, Object> listResponse(String topic, String uri, String name) {
         return Map.of(
             "data",
@@ -146,7 +246,8 @@ class ShopifyWebhookSubscriptionServiceTest {
                                 "id", "gid://shopify/WebhookSubscription/" + topic,
                                 "topic", topic,
                                 "uri", uri,
-                                "name", name
+                                "name", name,
+                                "filter", ""
                             )
                         )
                     )
@@ -155,22 +256,4 @@ class ShopifyWebhookSubscriptionServiceTest {
         );
     }
 
-    private static String expectedName(String topic) {
-        return switch (topic) {
-            case "APP_UNINSTALLED" -> "loom-app-uninstalled";
-            case "APP_SCOPES_UPDATE" -> "loom-app-scopes-update";
-            case "APP_SUBSCRIPTIONS_UPDATE" -> "loom-app-subscriptions-update";
-            case "PRODUCTS_CREATE" -> "loom-products-create";
-            case "PRODUCTS_UPDATE" -> "loom-products-update";
-            case "PRODUCTS_DELETE" -> "loom-products-delete";
-            case "COLLECTIONS_CREATE" -> "loom-collections-create";
-            case "COLLECTIONS_UPDATE" -> "loom-collections-update";
-            case "COLLECTIONS_DELETE" -> "loom-collections-delete";
-            case "METAOBJECTS_CREATE" -> "loom-metaobjects-create";
-            case "METAOBJECTS_UPDATE" -> "loom-metaobjects-update";
-            case "METAOBJECTS_DELETE" -> "loom-metaobjects-delete";
-            case "SHOP_UPDATE" -> "loom-shop-update";
-            default -> topic == null ? null : topic.toLowerCase();
-        };
-    }
 }

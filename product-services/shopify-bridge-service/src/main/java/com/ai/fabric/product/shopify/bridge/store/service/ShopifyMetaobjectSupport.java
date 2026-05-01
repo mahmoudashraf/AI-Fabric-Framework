@@ -12,7 +12,7 @@ import java.util.Map;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
-final class ShopifyMetaobjectSupport {
+public final class ShopifyMetaobjectSupport {
 
     private static final int DEFINITIONS_PAGE_SIZE = 50;
 
@@ -106,9 +106,9 @@ final class ShopifyMetaobjectSupport {
     private ShopifyMetaobjectSupport() {
     }
 
-    static List<MetaobjectDefinitionSummary> loadDefinitions(String shopDomain,
-                                                             String accessToken,
-                                                             ShopifyAdminGraphqlClient shopifyAdminGraphqlClient) {
+    public static List<MetaobjectDefinitionSummary> loadDefinitions(String shopDomain,
+                                                                    String accessToken,
+                                                                    ShopifyAdminGraphqlClient shopifyAdminGraphqlClient) {
         List<MetaobjectDefinitionSummary> definitions = new ArrayList<>();
         String cursor = null;
         while (true) {
@@ -489,7 +489,7 @@ final class ShopifyMetaobjectSupport {
         return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
     }
 
-    record MetaobjectDefinitionSummary(
+    public record MetaobjectDefinitionSummary(
         String id,
         String type,
         String name,
