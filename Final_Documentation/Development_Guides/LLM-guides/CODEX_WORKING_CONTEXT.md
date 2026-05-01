@@ -285,3 +285,11 @@ Rules:
 - Support readiness returned `READY`, `billingTier=ELITE`, `billingStatus=ACTIVE`, granted scopes include `read_orders`, missing scopes `[]`, order lookup supported for recent orders, and historical-order support still notes `read_all_orders` as the only broader-scope consideration.
 - Storefront bootstrap verified `billingTier=ELITE`, `billingStatus=ACTIVE`, `orderLookupEnabled=true`, `chatFallbackEnabled=true`, enabled surfaces include `order-lookup`, and action capability is available with `guided-commerce`, `ADD_TO_CART`, and `UPDATE_CART_QUANTITY`.
 - Evidence files are under `/tmp/shopify-elite-reactivation-20260501-021531` and `/tmp/shopify-elite-reactivation-poll-20260501-021552`.
+
+## 2026-05-01 Full Release Gate Re-Run
+
+- Full live release gate passed: `full-platform-release-readiness` run `vsr-e2ece3d5`, status `PASSED`, completed `2026-05-01T10:28:21Z`; `/api/verification-suites/release-gate` returned `READY`.
+- All 12 stages passed, including Shopify Companion, first-product readiness, Partner Enablement, Thinker Resolver, Marketplace hosted, Ecommerce hosted, and Qdrant hosted verification.
+- Commit `a95535ddd` pushed before the run: `scripts/verify-thinker-resolver-readiness.sh` now sets/restores temporary Elite billing for Thinker proof, creates/revokes temporary partner access when the Partner gate has cleaned up its assignment, and selects only active partner assignments.
+- Deployed-script proof: standalone Platform suite `thinker-resolver-readiness` run `vsr-38a309e4` passed before dispatching the full gate.
+- Local proof before release gate: patched `scripts/verify-thinker-resolver-readiness.sh` passed live against Platform backend, Partner UI, and `shopping-companion-test.myshopify.com`; cleanup restored billing to `STARTER/ACTIVE` and revoked temporary partner access.
