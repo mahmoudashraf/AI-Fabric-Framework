@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification reconciliation added, and Coolify runtime-settle wait added 2026-05-01)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, and runtime-plus-connector Railway parity implemented 2026-05-01)
 
 Owner mode: technical LLM implementation session
 
@@ -83,7 +83,7 @@ Keep these on Railway:
 - Shopify webhook receivers
 - billing and entitlement control
 - readiness audit UI and release verification orchestration
-- deployment target profile administration
+- deployment target profile [redacted platform login password]istration
 - provider credential storage and audit trail
 
 Reason:
@@ -286,7 +286,7 @@ Automate with Terraform or `hcloud`; Terraform is preferred for day-one repeatab
 1. Create project-scoped API token.
 2. Register SSH key.
 3. Create firewall:
-   - allow `22/tcp` only from admin IPs, Tailscale, or controlled VPN
+   - allow `22/tcp` only from [redacted platform login password] IPs, Tailscale, or controlled VPN
    - allow `80/tcp` and `443/tcp` publicly
    - restrict Coolify dashboard/API port access behind Cloudflare Access, Tailscale, or IP allowlist
 4. Create private network for future multi-host expansion.
@@ -306,7 +306,7 @@ Automate with Terraform or `hcloud`; Terraform is preferred for day-one repeatab
     - run Coolify install with controlled environment variables
     - disable Coolify auto-update in production
     - write bootstrap status to a known file
-11. Verify Coolify health and first admin/API setup.
+11. Verify Coolify health and first [redacted platform login password]/API setup.
 12. Store resulting Coolify base URL, version, API token, project UUID, environment UUID, server UUID, destination UUID, and APP_KEY escrow location in Platform/operator secrets and docs.
 
 ### Execution Checklist
@@ -373,7 +373,7 @@ Hetzner snapshots and server backups are useful, but they are not enough. Hetzne
 | Platform backend/control plane | Railway | Always Railway |
 | Platform shared Postgres | Railway | Always managed Railway |
 | Partner UI | Railway | Always Railway until a separate frontend hosting decision is made |
-| Shopify bridge service | Railway | Always Railway because webhooks and merchant admin must stay reliable |
+| Shopify bridge service | Railway | Always Railway because webhooks and merchant [redacted platform login password] must stay reliable |
 | Shopify webhooks | Railway | Never Coolify |
 | billing and entitlements | Railway | Never Coolify |
 | readiness audit UI | Railway | Never Coolify |
@@ -774,7 +774,7 @@ Production host:
 - root login disabled after bootstrap
 - `ufw` enabled
 - only required inbound ports open:
-  - `22` from admin IP or VPN only
+  - `22` from [redacted platform login password] IP or VPN only
   - `80` and `443` public for tenant runtime FQDNs
   - Coolify dashboard/API behind VPN, Cloudflare Access, or restricted allowlist
 - Docker installed by Coolify install flow
@@ -1159,7 +1159,7 @@ GET  /api/platform/deployment-resources/{handleId}/logs?lines=200
 
 All endpoints require:
 
-- operator/admin role
+- operator/[redacted platform login password] role
 - audit reason
 - provider handle exists
 - provider action allowed for service kind
@@ -1347,7 +1347,7 @@ Scripts:
 
 ### Authorization
 
-Only operator/admin can:
+Only operator/[redacted platform login password] can:
 
 - manage target profiles
 - rotate provider credentials
@@ -1808,7 +1808,7 @@ Live resources created:
 - production: `coolify-prod-01`, `ccx23`, `nbg1`, IPv4 `46.225.162.106`, IPv6 `2a01:4f8:1c18:c04::1`
 - shared Hetzner SSH key, firewall, and private network
 - Coolify installed on both hosts; local HTTP checks returned `302`
-- generated Coolify root users created through SSH tunnels; credentials are stored only in `/tmp/coolify_admin_credentials.env`
+- generated Coolify root users created through SSH tunnels; credentials are stored only in `/tmp/coolify_[redacted platform login password]_credentials.env`
 - Coolify API enabled on both hosts; API tokens are stored only in `/tmp/coolify_api_tokens.env`
 - Coolify version readback returned `4.0.0` for staging and production
 - Coolify projects/environments created:
@@ -2090,7 +2090,7 @@ Live finding:
 
 - Disposable deployment `dep-dee1b7a8`, version `ver-1d0e1831`, and release `rel-199dae14` created a real Coolify app and route.
 - Initial Platform verification failed while Coolify still reported the app unhealthy.
-- The public runtime health endpoint later returned HTTP `200`, but an immediate deep verification recheck still failed because the app had not fully settled for all runtime/admin checks.
+- The public runtime health endpoint later returned HTTP `200`, but an immediate deep verification recheck still failed because the app had not fully settled for all runtime/[redacted platform login password] checks.
 - Cleanup was completed: the Coolify app was deleted, staging app count returned to `0`, Platform deployment hard-delete queued as `del-fb48bb46`, and provider resources for `dep-dee1b7a8` returned `0`.
 
 Implemented:
@@ -2137,3 +2137,44 @@ Next live proof:
 - Deploy this recovery patch.
 - Reconcile and delete leftover disposable Platform record `dep-92d0143b`.
 - Rerun one clean disposable `dtp-coolify-staging` smoke after live Platform serves both the provider-settle and Coolify stale-recovery fixes.
+
+---
+
+## 2026-05-01 Runtime Plus Connector Railway Parity
+
+Status: implemented locally after the clean Coolify smoke proved runtime health but failed Platform deep [redacted platform login password] verification.
+
+Live finding:
+
+- Coolify created and started the runtime app, and Coolify later reported `running:healthy`.
+- Platform deep verification still failed on runtime/[redacted platform login password] and connector/[redacted platform login password] probes.
+- Code inspection found two Railway parity gaps:
+  - Coolify copied Railway `${secret:...}` placeholders literally instead of resolving them through Platform secrets before setting Coolify env vars.
+  - Coolify created only the runtime app, while the Railway path provisions runtime plus REST connector and wires each service to the other through env vars.
+
+Implemented:
+
+- `CoolifyDeploymentProvider` now resolves exact `${secret:...}` env placeholders through `PlatformSecretService` for Coolify env writes and marks resolved secret env vars as shown-once.
+- Git-source Coolify provisioning now creates/updates two apps when the Railway plan includes a REST connector:
+  - runtime app from the runtime Dockerfile
+  - connector app from the REST connector Dockerfile
+- Runtime env now points `ACTIONS_CONNECTOR_BASE_URL` at the connector app FQDN.
+- Connector env now points `REST_CONNECTOR_RUNTIME_PROXY_BASE_URL` at the runtime app FQDN.
+- Provider progress now starts/waits for the connector and runtime apps before returning to release verification.
+- Platform stores separate Coolify provider handles for `APPLICATION` and `CONNECTOR_APPLICATION`; release details keep the runtime handle as the primary handle and include connector handle/application metadata.
+- Hard delete now deletes tracked provider resource handles through the provider registry before Platform records are removed.
+- Coolify provider delete treats HTTP 404 as already absent so cleanup remains idempotent.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentInfrastructureCleanupServiceTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest,DeploymentReleaseRecoveryServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `mvn -f Platfrom/backend/pom.xml -q test`
+- `git diff --check`
+- Exact local-secret scan for changed files
+
+Next live proof:
+
+- Push/deploy this parity patch to live Platform.
+- Run one disposable `dtp-coolify-staging` Platform apply.
+- Expected result: Coolify creates runtime plus connector apps, both settle to running/healthy, Platform deep verification reaches `APPLIED_VERIFIED`, and Platform hard delete returns staging app count to `0` without direct Coolify cleanup.
