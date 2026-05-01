@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class ShopifyStorefrontChatService {
@@ -69,8 +70,13 @@ public class ShopifyStorefrontChatService {
     public JsonNode query(String shopDomain, JsonNode request, String shopperSessionId) {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
         ObjectNode normalizedRequest = normalizeRequest(request);
-        enforceSurfaceEntitlement(store, normalizedRequest);
-        applyStorefrontDepthChatMode(normalizedRequest);
+        ShopifyBridgeBillingSummary billingSummary = storefrontBillingSummary(store, normalizedRequest);
+        enforceSurfaceEntitlement(store, normalizedRequest, billingSummary);
+        JsonNode guardResponse = storefrontGuardResponse(store, normalizedRequest, billingSummary);
+        if (guardResponse != null) {
+            return guardResponse;
+        }
+        applyStorefrontDepthChatMode(normalizedRequest, billingSummary);
         JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
         return shapeStorefrontResponse(response);
     }
@@ -78,7 +84,7 @@ public class ShopifyStorefrontChatService {
     public JsonNode suggestions(String shopDomain, JsonNode request, String shopperSessionId) {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
         ObjectNode normalizedRequest = normalizeRequest(request);
-        enforceSurfaceEntitlement(store, normalizedRequest);
+        enforceSurfaceEntitlement(store, normalizedRequest, storefrontBillingSummary(store, normalizedRequest));
         return platformShopifyStoreClient.suggestConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
     }
 
@@ -237,17 +243,37 @@ public class ShopifyStorefrontChatService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private void enforceSurfaceEntitlement(ShopifyBridgeStoreSummary store, ObjectNode request) {
+    private ShopifyBridgeBillingSummary storefrontBillingSummary(ShopifyBridgeStoreSummary store, ObjectNode request) {
         ObjectNode context = storefrontContextFromAttachments(request);
         String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
         if (surfaceEntry == null) {
+            return null;
+        }
+
+        String storefrontAccessToken = storefrontAccessToken(store.shopDomain());
+        return billingService.summarizeForShop(store.shopDomain(), storefrontAccessToken);
+    }
+
+    private void enforceSurfaceEntitlement(ShopifyBridgeStoreSummary store,
+                                           ObjectNode request,
+                                           ShopifyBridgeBillingSummary billingSummary) {
+        ObjectNode context = storefrontContextFromAttachments(request);
+        String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
+        if (surfaceEntry == null || billingSummary == null) {
             return;
         }
 
         String requestedMode = requestedConversationMode(request, context);
-        String storefrontAccessToken = storefrontAccessToken(store.shopDomain());
-        ShopifyBridgeBillingSummary billingSummary = billingService.summarizeForShop(store.shopDomain(), storefrontAccessToken);
         if (DEPTH_SURFACE_ENTRIES.contains(surfaceEntry)) {
+            if (requiresThinkerConversationEntitlement(requestedMode)) {
+                if (billingSummary.actionCapable()) {
+                    return;
+                }
+                if (billingSummary.chatFallbackEnabled()) {
+                    return;
+                }
+                throw forbidden("Companion chat depth is not available for this store's current plan.");
+            }
             if (requiresDepthConversationEntitlement(requestedMode)) {
                 if (billingSummary.chatFallbackEnabled()) {
                     return;
@@ -284,7 +310,11 @@ public class ShopifyStorefrontChatService {
     }
 
     private boolean requiresDepthConversationEntitlement(String mode) {
-        return mode == null || "navigator_deep".equals(mode) || "thinker_deep".equals(mode);
+        return mode == null || "navigator_deep".equals(mode);
+    }
+
+    private boolean requiresThinkerConversationEntitlement(String mode) {
+        return "thinker_deep".equals(mode);
     }
 
     private boolean baseNavigatorSurfaceAllowed(ShopifyBridgeBillingSummary billingSummary, ShopifyBridgeStoreSummary store) {
@@ -295,7 +325,7 @@ public class ShopifyStorefrontChatService {
         return allowedSurfaces.contains("ai-search");
     }
 
-    private void applyStorefrontDepthChatMode(ObjectNode request) {
+    private void applyStorefrontDepthChatMode(ObjectNode request, ShopifyBridgeBillingSummary billingSummary) {
         ObjectNode context = storefrontContextFromAttachments(request);
         String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
         if (surfaceEntry == null || !DEPTH_SURFACE_ENTRIES.contains(surfaceEntry)) {
@@ -303,15 +333,22 @@ public class ShopifyStorefrontChatService {
         }
         String requestedMode = normalizeConversationMode(textOrNull(request, "mode"));
         if (requestedMode != null) {
-            request.put("mode", platformConversationMode(requestedMode));
+            request.put("mode", platformConversationMode(effectiveDepthConversationMode(requestedMode, billingSummary)));
             return;
         }
         String contextMode = normalizeConversationMode(textOrNull(context, "shopifyEffectiveConversationMode"));
         if (contextMode != null) {
-            request.put("mode", platformConversationMode(contextMode));
+            request.put("mode", platformConversationMode(effectiveDepthConversationMode(contextMode, billingSummary)));
             return;
         }
-        request.put("mode", THINKER_MODE);
+        request.put("mode", platformConversationMode(effectiveDepthConversationMode("navigator_deep", billingSummary)));
+    }
+
+    private String effectiveDepthConversationMode(String normalizedMode, ShopifyBridgeBillingSummary billingSummary) {
+        if ("thinker_deep".equals(normalizedMode) && (billingSummary == null || !billingSummary.actionCapable())) {
+            return "navigator_deep";
+        }
+        return normalizedMode;
     }
 
     private String normalizeConversationMode(String value) {
@@ -328,6 +365,89 @@ public class ShopifyStorefrontChatService {
 
     private String platformConversationMode(String normalizedMode) {
         return "thinker_deep".equals(normalizedMode) ? THINKER_MODE : normalizedMode;
+    }
+
+    private JsonNode storefrontGuardResponse(ShopifyBridgeStoreSummary store,
+                                             ObjectNode request,
+                                             ShopifyBridgeBillingSummary billingSummary) {
+        ObjectNode context = storefrontContextFromAttachments(request);
+        String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
+        if (surfaceEntry == null || !DEPTH_SURFACE_ENTRIES.contains(surfaceEntry)) {
+            return null;
+        }
+
+        String query = normalize(textOrNull(request, "query"));
+        if (query == null) {
+            return null;
+        }
+        if (containsAny(query, "vectorization", "runtime", "provider", "railway", "replay queue",
+            "admin secret", "platform secret", "qdrant", "pinecone", "weaviate", "milvus")) {
+            return guardedStorefrontAnswer(
+                "I can answer store-facing product, policy, and shopping questions, but I do not expose internal implementation details. Ask a store question and I will keep it grounded in merchant-approved information."
+            );
+        }
+        if (containsAny(query, "legal advice", "legal guidance", "importing products", "lawyer", "lawsuit")) {
+            return guardedStorefrontAnswer(
+                "I cannot provide legal guidance. I can help with this store's products, policies, shipping, returns, and shopping questions using available store information."
+            );
+        }
+        boolean orderMutationIntent = containsAny(query,
+            "cancel my order", "cancel order", "refund my order", "refund it", "change my order",
+            "update my order", "change address", "edit my order"
+        ) || (containsAny(query, "cancel", "refund") && containsAny(query, "order", "purchase"));
+        if (orderMutationIntent) {
+            if (billingSummary == null || !billingSummary.actionCapable()) {
+                return guardedStorefrontAnswer(
+                    "I cannot cancel, refund, or change orders from this store chat. For order changes, contact the store support team so they can review the request safely."
+                );
+            }
+            return null;
+        }
+        if (containsAny(query, "order", "tracking", "delivery")
+            && containsAny(query, "where", "lookup", "look up", "status", "track", "tracking")) {
+            if (billingSummary == null || !surfaceAllowed(billingSummary, store, "order-lookup")) {
+                return guardedStorefrontAnswer(
+                    "Order lookup is not enabled for this store's current plan. For order-specific help, contact the store support team with your order number and email."
+                );
+            }
+        }
+        return null;
+    }
+
+    private JsonNode guardedStorefrontAnswer(String message) {
+        ObjectNode response = objectMapper.createObjectNode();
+        response.put("success", true);
+        response.put("conversationId", "chat-" + UUID.randomUUID());
+        ObjectNode result = response.putObject("result");
+        result.put("type", "INFORMATION_PROVIDED");
+        result.put("success", true);
+        result.put("message", message);
+        ObjectNode sanitizedPayload = result.putObject("sanitizedPayload");
+        sanitizedPayload.put("type", "INFORMATION_PROVIDED");
+        sanitizedPayload.put("success", true);
+        sanitizedPayload.put("safeSummary", message);
+        sanitizedPayload.put("answer", message);
+        return response;
+    }
+
+    private boolean surfaceAllowed(ShopifyBridgeBillingSummary billingSummary,
+                                   ShopifyBridgeStoreSummary store,
+                                   String surfaceId) {
+        return effectiveAllowedSurfaces(billingSummary.allowedSurfaces(), configuredEnabledSurfaces(store)).contains(surfaceId);
+    }
+
+    private boolean containsAny(String value, String... needles) {
+        for (String needle : needles) {
+            if (needle != null && value.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalize(String value) {
+        String normalized = trimToNull(value);
+        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
     private ObjectNode storefrontContextFromAttachments(ObjectNode request) {

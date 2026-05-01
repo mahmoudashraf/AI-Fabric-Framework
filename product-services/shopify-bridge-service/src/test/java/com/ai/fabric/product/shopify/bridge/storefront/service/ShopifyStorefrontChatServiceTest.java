@@ -463,7 +463,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryDefaultsStorefrontLauncherChatToThinkerWhenNoModeWasSelected() throws Exception {
+    void queryDefaultsStorefrontLauncherChatToNavigatorDeepWhenNoModeWasSelected() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -474,7 +474,7 @@ class ShopifyStorefrontChatServiceTest {
         when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
               "query":"Compare this product with similar items",
-              "mode":"THINKER_DEEP",
+              "mode":"navigator_deep",
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -490,7 +490,7 @@ class ShopifyStorefrontChatServiceTest {
               ]
             }
             """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
-            {"success":true,"conversationId":"conv-1","thinkerSession":{"sessionId":"tis-1","status":"RESOLVED"},"result":{"message":"Evidence-based comparison."}}
+            {"success":true,"conversationId":"conv-1","result":{"message":"Evidence-based comparison."}}
             """));
 
         JsonNode response = service.query(
@@ -509,7 +509,8 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        assertThat(response.path("thinkerSession").path("sessionId").asText()).isEqualTo("tis-1");
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        assertThat(response.path("thinkerSession").isMissingNode()).isTrue();
     }
 
     @Test
@@ -680,6 +681,99 @@ class ShopifyStorefrontChatServiceTest {
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
         assertThat(answer).contains("indexed knowledge base", "available action", "rephrase");
+    }
+
+    @Test
+    void queryReturnsStoreSafeGuardForOutOfScopeLegalQuestion() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Can you give me legal advice about importing products?",
+                  "storefrontContext":{
+                    "pageType":"storefront",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(response.path("conversationId").asText()).isNotBlank();
+        assertThat(answer).contains("store", "products", "policies");
+        assertThat(answer).doesNotContain("legal advice");
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
+    @Test
+    void queryReturnsOrderLookupHandoffForStarterMaxMode() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Where is my order and can you look it up?",
+                  "storefrontContext":{
+                    "pageType":"account",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(response.path("conversationId").asText()).isNotBlank();
+        assertThat(answer).contains("Order lookup", "store", "order");
+        assertThat(answer).doesNotContain("order lookup is available", "I found your order");
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
+    @Test
+    void queryReturnsStoreSafeGuardForInternalImplementationQuestion() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Explain how your vectorization runtime provider works.",
+                  "storefrontContext":{
+                    "pageType":"storefront",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(response.path("conversationId").asText()).isNotBlank();
+        assertThat(answer).contains("store-facing", "store question");
+        assertThat(answer).doesNotContain("vectorization", "runtime", "provider", "Railway");
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
     @Test

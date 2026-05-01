@@ -316,9 +316,9 @@
 
   function defaultLauncherMode(shellModeProfile) {
     if (shellModeProfile === 'GUIDED_SUPPORT') {
-      return 'thinker_deep'
+      return 'navigator_deep'
     }
-    return 'thinker_deep'
+    return 'navigator'
   }
 
   function normalizeConversationMode(value) {
